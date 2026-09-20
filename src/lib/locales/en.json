@@ -4,6 +4,7 @@
   },
   "nav": {
     "dashboard": "Dashboard",
+    "deliberation": "Deliberation & HLD",
     "users": "Users (Example)",
     "settings": "Settings (Example)",
     "language": "Language",

@@ -11,6 +11,7 @@
   import PanelLeftClose from 'lucide-svelte/icons/panel-left-close';
   import PanelLeftOpen from 'lucide-svelte/icons/panel-left-open';
   import Shield from 'lucide-svelte/icons/shield';
+  import GitBranch from 'lucide-svelte/icons/git-branch';
   import LogIn from 'lucide-svelte/icons/log-in';
   import LogOut from 'lucide-svelte/icons/log-out';
 
@@ -49,9 +50,10 @@
    * Navigation items.
    */
   const menuItems = [
-    { href: '/',         labelKey: 'nav.dashboard', icon: LayoutDashboard, adminOnly: false },
-    { href: '/users',    labelKey: 'nav.users',     icon: Users,           adminOnly: false },
-    { href: '/settings', labelKey: 'nav.settings',  icon: Settings,        adminOnly: false },
+    { href: '/',             labelKey: 'nav.dashboard',    icon: LayoutDashboard, adminOnly: false },
+    { href: '/deliberation', labelKey: 'nav.deliberation', icon: GitBranch,       adminOnly: false },
+    { href: '/users',        labelKey: 'nav.users',        icon: Users,           adminOnly: false },
+    { href: '/settings',     labelKey: 'nav.settings',     icon: Settings,        adminOnly: false },
   ];
 
   const adminMenuItems = [

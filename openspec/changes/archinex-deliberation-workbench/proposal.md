@@ -50,29 +50,38 @@ Pour garantir l'indépendance de l'organisation et la pérennité des audits, Ar
 
 ---
 
-## La Séquence Temporelle en 3 Phases
+## Les Trois Postures de Travail Contextuelles & Asynchrones
 
-Archinex structure le cycle de vie d'un projet d'architecture selon une progression temporelle explicite :
+La progression d'un projet d'architecture dans Archinex n'est **jamais une séquence temporelle globale rigide**. Elle s'articule autour de **trois postures de travail fluides**, activables à la demande par chaque architecte et sur chaque sujet :
 
 ```mermaid
-flowchart LR
-    P1["Phase 1 : Appropriation & Cadrage Pédagogique<br/>(RFP / HLD V0 · Rappel des principes · Vulgarisation standards)"] --> P2["Phase 2 : Délibération & Cristallisation<br/>(Confrontation constructive · Brainstorming · Franchissement des gaps)"]
-    P2 --> P3["Phase 3 : Rendu & Homologation<br/>(Schémas C4/Mermaid · Contenus finaux · Export scellé)"]
+stateDiagram-v2
+    direction LR
+    [*] --> Posture1: Onboarding / Nouveau sujet
+    Posture1: 1. Appropriation & Pédagogie
+    Posture2: 2. Délibération & Cristallisation
+    Posture3: 3. Rendu & Homologation
+
+    Posture1 --> Posture2: Sujet cadré & compris
+    Posture2 --> Posture3: Consensus & maturité L3
+    Posture3 --> Posture1: Doute, ré-interrogation d'exigence ou de standard
+    Posture2 --> Posture1: Besoin de clarification d'une doctrine
 ```
 
-1. **Phase 1 : Appropriation & Cadrage Pédagogique** :
+1. **Posture 1 : Appropriation & Cadrage Pédagogique** :
    - Ingestion des éléments entrants (RFP, CCTP, HLD V0 préexistant).
-   - Rôle pédagogique actif : vulgarisation des standards applicables (ex: profils 3GPP MCX, exigences de résilience NIS2).
-   - Rappel des principes d'architecture fondamentaux de l'organisation pour aligner le niveau de compréhension de tous les intervenants avant de délibérer.
-2. **Phase 2 : Création, Délibération & Cristallisation des Idées** :
+   - Rôle pédagogique permanent : vulgarisation à la demande des standards applicables (ex: profils 3GPP MCX, directive NIS2).
+   - Acculturation personnalisée : un nouvel expert rejoignant le projet (ex: à la semaine 3) active cette posture pour s'approprier le contexte de ses sujets spécifiques sans ralentir les autres.
+   - **Retour permanent** : Un architecte en phase de rédaction peut à tout moment réactiver cette posture pour se faire réexpliquer une exigence ou vérifier la conformité à un standard.
+2. **Posture 2 : Délibération & Cristallisation des Idées** :
    - Le cœur de l'élicitation : confrontation constructive des idées et exploration des compromis.
-   - Capture en continu des échanges entre architectes (via l'interface ou le salon Discord du projet) et avec les agents.
-   - Rappel en situation des décisions antérieures (ADRs) pour accélérer le consensus.
-   - Visualisation immédiate sur le Dashboard de la résorption des manques et du franchissement des paliers de maturité.
-3. **Phase 3 : Rendu, Schématisation & Homologation** :
+   - Capture continue des échanges entre architectes (via l'interface ou le salon Discord du projet) et avec les agents.
+   - Rappel proactif des décisions antérieures (ADRs) et des principes d'architecture pour accélérer le consensus.
+   - Suivi sur le Dashboard de la résorption des manques et du franchissement des paliers de maturité.
+3. **Posture 3 : Rendu, Schématisation & Homologation** :
    - Synthèse et mise en forme des contenus finaux validés.
    - Génération automatique des schémas d'architecture (C4, Mermaid, Draw.io) projetés fidèlement depuis les énoncés prouvés.
-   - Gel granulaire par section et génération du livrable opposable scellé (SHA-256).
+   - Gel granulaire par section et génération du livrable opposable scellé (SHA-256). Deux sections d'un même projet progressent indépendamment vers cette posture.
 
 ---
 

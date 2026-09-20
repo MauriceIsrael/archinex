@@ -71,12 +71,17 @@ Pour préserver la rigueur et l'auditabilité :
 
 ---
 
-## Invariant VIII : La Séquence Temporelle en 3 Temps (Appropriation $\rightarrow$ Cristallisation $\rightarrow$ Rendu)
+## Invariant VIII : Les Trois Postures Contextuelles & Asynchrones (Non-Linéarité & Trajectoires Individuelles)
 
-Archinex ne traite pas la conception comme un bloc monolithique mais cadence l'effort selon une séquence temporelle stricte en 3 phases :
-1. **Temps 1 : Cadrage Pédagogique & Appropriation** : Ingestion d'un RFP/CCTP ou d'une V0 du HLD, mise à disposition pédagogique des doctrines, vulgarisation des standards (3GPP, NIS2) et rappel des principes pour aligner les parties prenantes.
-2. **Temps 2 : Création, Délibération & Cristallisation** : Animation active de la discussion, confrontation constructive des points de vue, émergence d'idées neuves, résolution des blocages et montée mesurée des jalons de maturité.
-3. **Temps 3 : Rendu, Schématisation & Homologation** : Production des livrables finaux, génération des diagrammes d'architecture (C4, Mermaid, SysML v2), mise en forme et scellement opposable.
+La temporalité dans Archinex n'est **ni absolue ni globale** au projet. Elle se décline en **postures de travail contextuelles**, fluides et asynchrones :
+1. **Posture 1 : Appropriation & Cadrage Pédagogique** : Interrogation des exigences du RFP/CCTP, rappel et vulgarisation des standards (3GPP, NIS2), pédagogie active sur les principes d'entreprise et acculturation d'un nouvel intervenant.
+2. **Posture 2 : Délibération & Cristallisation des Idées** : Émulation, confrontation constructive d'hypothèses, formalisation d'énoncés et résolution de conflits.
+3. **Posture 3 : Rendu & Homologation** : Mise en forme finale, schématisation (C4/Mermaid) et scellement d'homologation.
+
+**Règles de flexibilité temporelle :**
+- **Non-linéarité permanente** : Tout architecte peut **à tout instant** réactiver la posture « Appropriation » sur un sujet ou une section pour réinterroger un standard, se faire confirmer une exigence ou lever une incompréhension, sans bloquer le reste du projet.
+- **Asynchronisme individuel** : La progression est propre à chaque contributeur en fonction de la date de son arrivée sur le projet et de son rôle (un expert sécurité intégrant le projet à la semaine 3 démarre son appropriation pédagogique sur ses sujets assignés alors que l'infrastructure réseau est déjà en délibération ou en rendu).
+- **Granularité par sujet** : Deux sujets d'un même projet coexistent naturellement dans des postures différentes.
 
 ---
 

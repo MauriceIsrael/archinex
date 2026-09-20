@@ -78,8 +78,8 @@ flowchart LR
   - Synchroniser l'affichage du panneau brouillon sur sélection d'une ligne du Board.
 - [ ] **3.5 Alimentation bi-mode (SSE FastMCP / Snapshot local)**
   - Connecter le store à l'API LLMOps avec bascule transparente sur `fixtures/sealed_snapshot.json`.
-- [ ] **3.6 Stepper de navigation des 3 phases du projet**
-  - Implémenter `PhaseStepper.svelte` orchestrant le passage d'Appropriation à Délibération puis à Rendu.
+- [ ] **3.6 Sélecteur de posture contextuelle (Non-bloquant)**
+  - Implémenter `ContextualPostureSelector.svelte` permettant à l'architecte de basculer à tout moment entre Appropriation/Pédagogie, Délibération et Rendu sur le sujet actif.
 - [ ] **3.7 Matérialisation visuelle du franchissement des gaps de maturité**
   - Développer `GapProgressionWidget.svelte` pour afficher en direct le comblement des gaps (G1 à G5) et l'effet domino de déblocage.
 

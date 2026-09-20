@@ -9,24 +9,26 @@ Ce document détaille l'architecture technique, les choix d'implémentation UI s
 ```
 ┌─────────────────────────────────────────────────────────────────────────────┐
 │                            Archinex UI (SvelteKit / Svelte 5)               │
+├─────────────────────────────────────────────────────────────────────────────┤
+│ 1. Header & Stepper des 3 Phases :                                          │
+│    [1. Appropriation & Pédagogie] ──► [2. Délibération] ──► [3. Rendu/Gel]   │
 ├──────────────────────────────────────┬──────────────────────────────────────┤
-│ 1. Header & Navigation               │ Statut Global du HLD, Mode Bi-Plane, │
-│                                      │ Bannière Provisoire SHA-256          │
-├──────────────────────────────────────┼──────────────────────────────────────┤
-│ 2. Board de Maturité (Gauche/Haut)   │ 3. Éditeur de Brouillon-Appât        │
-│    Table 6 colonnes                  │    - Rendu télégraphique             │
-│    - Tri par Débloque (unlocks)      │    - Conséquences & Coûts (€)        │
-│    - Pastilles Stagnation            │    - Variantes A / B                 │
-│    - Sélection de section            │    - Capteur inline de diff          │
+│ 2. Board de Maturité & Gaps          │ 3. Éditeur de Brouillon-Appât        │
+│    - Table 6 colonnes (unlocks)      │    - Rendu télégraphique             │
+│    - Widget Progression des Gaps     │    - Conséquences & Coûts (€)        │
+│    - Effet d'entraînement animé      │    - Variantes A / B divergentes     │
+│    - Pastilles Stagnation            │    - Capteur inline de diff          │
 ├──────────────────────────────────────┴──────────────────────────────────────┤
-│ 4. Tiroir de Délibération (Droite / Collapsible)                            │
+│ 4. Tiroir de Délibération & Maïeutique (Droite / Collapsible)                │
+│    - Fil de discussion multi-acteurs (Interface + Salon Discord de projet)  │
+│    - Cartes de Rappel Proactif de Doctrine (ADR-xxxx, Principes P-xxxx)     │
 │    - Tour 8 : Approbation de règles candidates (SPARQL)                     │
 │    - Tour 11 : Centre d'arbitrage de contradictions (Conflits ouverts)      │
 │    - File des questions & Relance en 1 clic                                 │
 └─────────────────────────────────────────────────────────────────────────────┘
                                ▲                        ▲
                                │                        │
-               [Client SSE FastMCP / JSON Snapshot]  [SmartMemory Lib Cliente]
+               [Client SSE FastMCP / JSON Snapshot]  [SmartMemory & Discord Webhook]
                                │                        │
                                ▼                        ▼
                         LLMOps Server             Inférence & NLP
@@ -40,10 +42,15 @@ L'état de l'application repose exclusivement sur les **Runes Svelte 5** (`$stat
 
 ### 2.1 Modules d'État (`src/lib/stores/`)
 - `deliberationStore.svelte.ts` :
+  - `activePhase`: Phase active parmi les 3 temps (`appropriation`, `deliberation`, `render`).
   - `boardItems`: Tableau des sujets du Board avec tri réactif calculé (`$derived`) sur `unlocks_count`.
+  - `gapsStatus`: État des gaps d'architecture résolus/ouverts (G1 à G5).
   - `activeSubjectId`: Sujet actuellement sélectionné.
   - `activeDraft`: Structure télégraphique du brouillon pour le sujet actif.
   - `isProvisional`: Booléen global indiquant si des conflits ouverts ou des sujets non mûrs subsistent.
+- `dialecticChatStore.svelte.ts` :
+  - `messages`: Flux de discussion unifié (messages des architectes, interventions des agents, imports de salon Discord).
+  - `recalledAssets`: Liste des ADRs et principes suggérés proactivement selon le contexte du débat en cours.
 - `diffWatcher.svelte.ts` :
   - Détecte les modifications textuelles en temps réel dans l'éditeur télégraphique.
   - Calcule le diff sémantique et prépare l'objet `Statement` attribué (`production_mode: human-authored`).
@@ -53,11 +60,20 @@ L'état de l'application repose exclusivement sur les **Runes Svelte 5** (`$stat
   - Liste les règles d'inférence candidates proposées par SmartMemory (Tour 8).
 
 ### 2.2 Composants UI Clés (`src/lib/components/workbench/`)
+- `PhaseStepper.svelte` : Indicateur visuel guidant le passage de l'Appropriation à la Délibération puis au Rendu.
 - `MaturityBoardTable.svelte` : Tableau 6 colonnes avec filtres rapides (« Tous », « Bloqués », « Mes sujets », « Stagnants »).
+- `GapProgressionWidget.svelte` : Jauge interactive affichant le franchissement des paliers de maturité et la fermeture des gaps.
 - `TelegraphicDraftEditor.svelte` : Rendu télégraphique avec coloration syntaxique :
   - `retenu` en Cyan / Bleu
   - `supposé` en Rose / Rouge avec mise en valeur des conséquences chiffrées (`+180 k€`)
   - `conflit` en Orange vif
+  - `manque` avec puce d'assignation
+  - `variante B` encadrée en pointillé
+- `DialecticChatPanel.svelte` : Panneau d'échanges multi-acteurs connecté au webhook Discord, avec intégration des cartes de rappel.
+- `DoctrineRecallCard.svelte` : Carte contextuelle apparaissant dans le fil suggérant un ADR ou un principe de doctrine applicable.
+- `ArbitrationModal.svelte` : Fenêtre modale guidant le Lead Architect pour trancher un conflit (choix du gagnant, motif consigné, passage en `superseded`).
+- `RuleApprovalBanner.svelte` : Bandeau de validation d'une règle candidate SPARQL avant inscription dans le graphe.
+- `FreezeSectionDialog.svelte` : Dialogue de scellement formel avec calcul du SHA-256 et fixation des `ExternalRef`.
   - `manque` avec puce d'assignation
   - `variante B` encadrée en pointillé
 - `ArbitrationModal.svelte` : Fenêtre modale guidant le Lead Architect pour trancher un conflit (choix du gagnant, motif consigné, passage en `superseded`).

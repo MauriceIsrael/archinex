@@ -78,10 +78,14 @@ flowchart LR
   - Synchroniser l'affichage du panneau brouillon sur sélection d'une ligne du Board.
 - [ ] **3.5 Alimentation bi-mode (SSE FastMCP / Snapshot local)**
   - Connecter le store à l'API LLMOps avec bascule transparente sur `fixtures/sealed_snapshot.json`.
+- [ ] **3.6 Stepper de navigation des 3 phases du projet**
+  - Implémenter `PhaseStepper.svelte` orchestrant le passage d'Appropriation à Délibération puis à Rendu.
+- [ ] **3.7 Matérialisation visuelle du franchissement des gaps de maturité**
+  - Développer `GapProgressionWidget.svelte` pour afficher en direct le comblement des gaps (G1 à G5) et l'effet domino de déblocage.
 
 ---
 
-## Lot 4 — Le Capteur par le Diff & SmartMemory
+## Lot 4 — Le Capteur par le Diff, Écoute Multi-Canale & SmartMemory
 *Durée estimée : 2 à 3 semaines*
 
 - [ ] **4.1 Édition en place du brouillon télégraphique**
@@ -94,6 +98,12 @@ flowchart LR
   - Brancher l'extracteur NLP et le générateur de règles SPARQL candidates (Tour 8).
 - [ ] **4.5 Interface d'approbation de règles candidates (Tour 8)**
   - Créer `RuleApprovalBanner.svelte` réservé à la validation par le Lead Architect.
+- [ ] **4.6 Panneau de délibération multi-acteurs & connecteur Discord**
+  - Développer `DialecticChatPanel.svelte` avec capture des échanges de salon de projet Discord et du chat intégré.
+- [ ] **4.7 Moteur de rappel proactif de doctrine (ADRs & Principes)**
+  - Intégrer les cartes `DoctrineRecallCard.svelte` surgissant en séance lors de l'évocation d'un sujet déjà tranché.
+- [ ] **4.8 Cadrage pédagogique lors de l'ingestion initiale d'un RFP (Phase 1)**
+  - Générer les synthèses explicatives des standards (3GPP, NIS2) pour aligner l'équipe avant délibération.
 
 ---
 

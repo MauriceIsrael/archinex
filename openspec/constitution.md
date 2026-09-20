@@ -68,3 +68,32 @@ Pour préserver la rigueur et l'auditabilité :
 - Aucun nom de personne physique n'est codé en dur : le système manipule des **Rôles**.
 - Le **Lead Architect** est le modérateur final : il détient seul l'autorité d'arbitrage final sur les conflits structurants, valide le passage des jalons de maturité majeurs et signe le gel d'homologation des sections.
 - Les **Domain Expert Architects** (Réseau, Sécu NIS2, Cloud, etc.) instruisent les questions spécialisées et contestent les appâts sur leur périmètre.
+
+---
+
+## Invariant VIII : La Séquence Temporelle en 3 Temps (Appropriation $\rightarrow$ Cristallisation $\rightarrow$ Rendu)
+
+Archinex ne traite pas la conception comme un bloc monolithique mais cadence l'effort selon une séquence temporelle stricte en 3 phases :
+1. **Temps 1 : Cadrage Pédagogique & Appropriation** : Ingestion d'un RFP/CCTP ou d'une V0 du HLD, mise à disposition pédagogique des doctrines, vulgarisation des standards (3GPP, NIS2) et rappel des principes pour aligner les parties prenantes.
+2. **Temps 2 : Création, Délibération & Cristallisation** : Animation active de la discussion, confrontation constructive des points de vue, émergence d'idées neuves, résolution des blocages et montée mesurée des jalons de maturité.
+3. **Temps 3 : Rendu, Schématisation & Homologation** : Production des livrables finaux, génération des diagrammes d'architecture (C4, Mermaid, SysML v2), mise en forme et scellement opposable.
+
+---
+
+## Invariant IX : Écoute Multi-Canale & Rappel Proactif de Doctrine (Maïeutique)
+
+Le système ne se limite pas à un éditeur passif :
+- Il capture les **dialogues réels entre architectes** (ex: salon Discord ou chat du projet) ainsi que les échanges directs avec les agents.
+- Il joue un rôle de **catalyseur de convergence** : dès qu'un sujet connexe est abordé en discussion, il rappelle proactivement les décisions antérieures (`ADR-xxxx`) et les principes de doctrine (`P-xxxx`) pertinents pour éclairer le débat et éviter de réinventer la roue.
+- Il anime la confrontation constructive en suggérant des alternatives orthogonales pour faire jaillir les compromis réels.
+
+---
+
+## Invariant X : Matérialisation Visuelle du Franchissement des Gaps de Maturité
+
+L'effort des architectes doit être immédiatement gratifié et mesurable :
+- Le Dashboard doit matérialiser en temps réel l'impact de chaque décision prise ou conflit arbitré :
+  1. Résorption des gaps d'architecture (G1 à G5).
+  2. Bascule visuelle de niveau de maturité (`L0_named` $\rightarrow$ `L4_specified`).
+  3. Extinction des bloquants et déblocage en cascade des sujets dépendants.
+

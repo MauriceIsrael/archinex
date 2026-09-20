@@ -23,6 +23,12 @@ Le système SHALL regrouper l'ensemble des questions ouvertes (`open_questions`)
 ### Requirement: Couplage Dynamique Board $\leftrightarrow$ Panneau Brouillon
 Le système SHALL actualiser instantanément le panneau latéral de prévisualisation dès qu'une ligne du Board est sélectionnée, afin d'afficher le brouillon-appât télégraphique correspondant à cette section.
 
+### Requirement: Matérialisation Visuelle du Franchissement des Gaps & Effet d'Entraînement
+Le système SHALL fournir un retour visuel direct et dynamique lors de chaque avancée décisionnelle :
+1. **Franchissement des Paliers** : Dès qu'une décision ou une preuve est enregistrée, la bascule de palier (`L0_named` $\rightarrow$ `L1` $\rightarrow$ `L2` $\rightarrow$ `L3_decided`) est visuellement animée et mise en valeur par un changement d'état d'avancement.
+2. **Résorption des Gaps d'Architecture** : Visualisation de l'extinction des gaps formels (lacunes de conformité G4, compétences non pourvues G5, contradictions non arbitrées G3).
+3. **Effet d'Entraînement (Unlocks en chaîne)** : Lorsqu'un sujet clé est débloqué, les sujets dépendants dont le compteur de bloquants chute sont temporairement surlignés, rendant immédiatement palpable le bénéfice systémique de l'arbitrage pour toute l'équipe.
+
 ---
 
 ## Scenarios
@@ -33,6 +39,13 @@ Le système SHALL actualiser instantanément le panneau latéral de prévisualis
 - **WHEN** l'architecte ouvre le Board de maturité
 - **THEN** `Résilience datacenter` apparaît en tête de liste avant `Terminaux PPDR`
 - **AND** l'interface guide l'effort d'élicitation là où il a le plus grand effet multiplicateur.
+
+#### Scenario: Matérialisation du franchissement d'un gap et déblocage en cascade
+- **GIVEN** le sujet `Synchronisation` bloquant 3 autres sujets
+- **WHEN** le Lead Architect arbitre le conflit avec `ADR-0012` et valide l'énoncé de holdover
+- **THEN** le sujet `Synchronisation` franchit le palier `L3_decided`
+- **AND** le Dashboard affiche l'extinction du conflit
+- **AND** les 3 sujets dépendants voient leur compteur de bloquants diminuer immédiatement avec une mise en évidence visuelle de déblocage.
 
 #### Scenario: Alerte sur sujet stagnant
 - **GIVEN** le sujet `Architecture de service` resté à `L0_named` depuis 21 jours

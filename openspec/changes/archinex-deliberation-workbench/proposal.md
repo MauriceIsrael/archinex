@@ -42,25 +42,53 @@ Pour garantir l'indépendance de l'organisation et la pérennité des audits, Ar
 3. **Client / Sponsor Métier** :
    - Émetteur des contraintes brutes et besoins exprimés (`stated-by-client`), sollicité sur les arbitrages d'exigences opérationnelles.
 4. **Agents IA Spécialisés (Copilotes de délibération)** :
-   - *Agent Élicitation* : Extrait les triplets du fil de discussion, identifie les manques et les impacts.
+   - *Agent Facilitateur & Pédagogue* : Anime la discussion constructive, vulgarise les contraintes de standards, rappelle proactivement les doctrines et fait émerger de nouvelles idées par confrontation maïeutique.
+   - *Agent Élicitation* : Extrait les triplets du fil de discussion multi-acteurs (y compris salon Discord), identifie les manques et les impacts.
    - *Agent Appât & Scénarisation* : Génère le brouillon télégraphique provocateur, chiffre les conséquences (`cost_hint`), formule la variante B divergente.
    - *Agent SmartMemory* : Formalise les règles candidates (SPARQL) et vérifie la cohérence neuro-symbolique.
    - *Agent Portier (LLMOps)* : Gardien symbolique déterministe — refuse toute affirmation non étayée.
 
 ---
 
+## La Séquence Temporelle en 3 Phases
+
+Archinex structure le cycle de vie d'un projet d'architecture selon une progression temporelle explicite :
+
+```mermaid
+flowchart LR
+    P1["Phase 1 : Appropriation & Cadrage Pédagogique<br/>(RFP / HLD V0 · Rappel des principes · Vulgarisation standards)"] --> P2["Phase 2 : Délibération & Cristallisation<br/>(Confrontation constructive · Brainstorming · Franchissement des gaps)"]
+    P2 --> P3["Phase 3 : Rendu & Homologation<br/>(Schémas C4/Mermaid · Contenus finaux · Export scellé)"]
+```
+
+1. **Phase 1 : Appropriation & Cadrage Pédagogique** :
+   - Ingestion des éléments entrants (RFP, CCTP, HLD V0 préexistant).
+   - Rôle pédagogique actif : vulgarisation des standards applicables (ex: profils 3GPP MCX, exigences de résilience NIS2).
+   - Rappel des principes d'architecture fondamentaux de l'organisation pour aligner le niveau de compréhension de tous les intervenants avant de délibérer.
+2. **Phase 2 : Création, Délibération & Cristallisation des Idées** :
+   - Le cœur de l'élicitation : confrontation constructive des idées et exploration des compromis.
+   - Capture en continu des échanges entre architectes (via l'interface ou le salon Discord du projet) et avec les agents.
+   - Rappel en situation des décisions antérieures (ADRs) pour accélérer le consensus.
+   - Visualisation immédiate sur le Dashboard de la résorption des manques et du franchissement des paliers de maturité.
+3. **Phase 3 : Rendu, Schématisation & Homologation** :
+   - Synthèse et mise en forme des contenus finaux validés.
+   - Génération automatique des schémas d'architecture (C4, Mermaid, Draw.io) projetés fidèlement depuis les énoncés prouvés.
+   - Gel granulaire par section et génération du livrable opposable scellé (SHA-256).
+
+---
+
 ## Capabilities
 
-Le Workbench Archinex se décompose en **6 capacités fonctionnelles fondamentales** :
+Le Workbench Archinex se décompose en **7 capacités fonctionnelles fondamentales** :
 
 | ID | Capacité | Description & Valeur Métier | Use Cases Clés |
 |---|---|---|---|
 | `epistemic-statement` | L'Énoncé à 5 Facettes | Modélise la particule élémentaire de l'architecture : Contenu, Justification, Autorité, Maturité, Révisabilité. Rejette formellement `verified × llm-derived`. | Typage strict d'un fait projet ; vérification de l'enveloppe signée ; traçabilité d'origine. |
 | `telegraphic-draft` | Le Brouillon-Appât | Génère en continu un brouillon rugueux, télégraphique, sans phrases complètes. Pose des questions, propose des variantes divergentes et chiffre les coûts. | Provocation de la contestation d'un expert en 10 secondes ; affichage du coût d'une hypothèse (+180 k€). |
-| `maturity-board` | Le Board de Maturité | Écran d'allocation d'effort classé par la colonne **« Débloque » (`unlocks`)**. Affiche qui bloque quoi et détecte la stagnation (`stall_days`). | Savoir en 5 secondes quel sujet traiter et qui relancer ; vue immédiate sur un sujet L0 bloqué depuis 3 semaines. |
+| `maturity-board` | Le Board de Maturité & Gaps | Écran d'allocation d'effort classé par **« Débloque » (`unlocks`)**. Visualise en direct le **franchissement des gaps de maturité** et détecte la stagnation (`stall_days`). | Savoir en 5 secondes quel sujet traiter ; observer l'effet d'entraînement d'un arbitrage sur le déblocage du graphe. |
 | `diff-sensor` | Le Capteur par le Diff | Édition en place du brouillon. Tout diff engendre un énoncé attribué. **Règle absolue : Le silence n'est pas une approbation.** | Une modification textuelle devient un `Statement` auditable ; une absence de réponse laisse le manque ouvert. |
+| `dialectic-dialogue-recall` | Écoute & Maïeutique Constructive | Capture les dialogues entre architectes (y compris salon Discord) et rappelle proactivement les ADRs et principes pour catalyser le consensus. | Débat sur un salon de projet Discord $\rightarrow$ rappel immédiat d'un ADR pertinent $\rightarrow$ émergence et convergence rapide. |
 | `retractation-engine` | Rétractation & Vérité | Maintenance de vérité : la chute d'un antécédent ($S_1 \bot$) déclenche la rétrogradation en cascade de ses dérivés vers `assumed`. | Retrait d'une hypothèse de source d'alimentation $\rightarrow$ déclassement instantané de la tenue en holdover. |
-| `freeze-export` | Gel de Section & Scellement | Gèle une section dont le sujet est mûr ($\ge L3$). Fixe les `ExternalRef` immuables et produit un snapshot opposable scellé en SHA-256. | Constitution du dossier d'homologation officiel ; citation pérenne d'une décision dans un livrable client. |
+| `freeze-export` | Gel de Section & Scellement | Gèle une section dont le sujet est mûr ($\ge L3$). Fixe les `ExternalRef` immuables et produit un snapshot opposable scellé en SHA-256. | Constitution du dossier d'homologation officiel ; projection automatique en schémas et livrables finaux. |
 
 ---
 
@@ -68,9 +96,11 @@ Le Workbench Archinex se décompose en **6 capacités fonctionnelles fondamental
 
 ### In-Scope (V1)
 - Interface SvelteKit / Svelte 5 réactive, local-first avec chargement instantané de snapshots scellés (`sealed_snapshot.json`).
+- Pilotage de la progression selon la séquence en 3 phases (Appropriation $\rightarrow$ Délibération $\rightarrow$ Rendu).
 - Connexion FastMCP (SSE) au serveur de connaissances et d'engagement LLMOps.
-- Intégration de la bibliothèque cliente SmartMemory pour l'extraction de triplets et la proposition de règles candidates.
-- Affichage du Board de maturité 6 colonnes avec tri par `unlocks` décroissant.
+- Passerelle d'écoute et de capture des dialogues (Webhooks Discord / Chat contextuel de séance).
+- Moteur de rappel proactif de doctrine (recherche sémantique/Cypher en cours de dialogue).
+- Affichage du Board de maturité 6 colonnes avec tri par `unlocks` décroissant et matérialisation du franchissement des gaps.
 - Rendu télégraphique du brouillon-appât avec détection et blocage des tournures de complaisance (test de non-régression du ton).
 - Panneau d'arbitrage de conflits obligatoire (Tour 11) et d'approbation de règles candidates (Tour 8).
 
@@ -78,3 +108,4 @@ Le Workbench Archinex se décompose en **6 capacités fonctionnelles fondamental
 - Édition collaborative temps réel concurrente type Google Docs / CRDT multi-curseurs (remplacée en V1 par un verrouillage au niveau section / sujet).
 - Moteurs graphiques ou outils de dessin intégrés (Archinex génère la syntaxe Mermaid et les liens d'export vers Structurizr / Draw.io, sans réinventer de canvas propriétaire).
 - Ingestion massive automatique de documents bureautiques non structurés dans le navigateur (gérée par le pipeline CLI `ingest_solution_doc.py` côté backend).
+

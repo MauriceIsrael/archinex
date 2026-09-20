@@ -104,6 +104,8 @@ flowchart LR
   - Intégrer les cartes `DoctrineRecallCard.svelte` surgissant en séance lors de l'évocation d'un sujet déjà tranché.
 - [ ] **4.8 Cadrage pédagogique lors de l'ingestion initiale d'un RFP (Phase 1)**
   - Générer les synthèses explicatives des standards (3GPP, NIS2) pour aligner l'équipe avant délibération.
+- [ ] **4.9 Inspecteur de justification (« Pourquoi ? ») et simulateur d'impact**
+  - Développer `WhyInspector.svelte` et `ImpactSimulationModal.svelte` connectés au graphe d'énoncés et à SmartMemory pour évaluer les dépendances en 1 clic.
 
 ---
 
@@ -132,3 +134,5 @@ flowchart LR
   - Générer le paquet de livraison officiel opposable pour l'homologation.
 - [ ] **6.4 Export vers formats de rendu système (Mermaid, Structurizr, DOCX)**
   - Valider la projection sans perte vers les outils de modélisation système du marché.
+- [ ] **6.5 Hub de régénération d'artefacts déterministe (No Doc Drift)**
+  - Développer `ArtifactRegenerationHub.svelte` projetant les énoncés prouvés en Structurizr DSL, SysML v2 et profils de configuration (PTP JSON / Terraform).

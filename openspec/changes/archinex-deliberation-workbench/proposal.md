@@ -87,7 +87,7 @@ stateDiagram-v2
 
 ## Capabilities
 
-Le Workbench Archinex se décompose en **7 capacités fonctionnelles fondamentales** :
+Le Workbench Archinex se décompose en **8 capacités fonctionnelles fondamentales** :
 
 | ID | Capacité | Description & Valeur Métier | Use Cases Clés |
 |---|---|---|---|
@@ -96,6 +96,7 @@ Le Workbench Archinex se décompose en **7 capacités fonctionnelles fondamental
 | `maturity-board` | Le Board de Maturité & Gaps | Écran d'allocation d'effort classé par **« Débloque » (`unlocks`)**. Visualise en direct le **franchissement des gaps de maturité** et détecte la stagnation (`stall_days`). | Savoir en 5 secondes quel sujet traiter ; observer l'effet d'entraînement d'un arbitrage sur le déblocage du graphe. |
 | `diff-sensor` | Le Capteur par le Diff | Édition en place du brouillon. Tout diff engendre un énoncé attribué. **Règle absolue : Le silence n'est pas une approbation.** | Une modification textuelle devient un `Statement` auditable ; une absence de réponse laisse le manque ouvert. |
 | `dialectic-dialogue-recall` | Écoute & Maïeutique Constructive | Capture les dialogues entre architectes (y compris salon Discord) et rappelle proactivement les ADRs et principes pour catalyser le consensus. | Débat sur un salon de projet Discord $\rightarrow$ rappel immédiat d'un ADR pertinent $\rightarrow$ émergence et convergence rapide. |
+| `architect-workspace` | Le Poste de Travail & Régénération | Ergonomie unifiée en 3 zones (Discord, HLD vivant, Board), SmartMemory exocortex (Why, simulation d'impact) et **régénération synchronisée d'artefacts sans dérive** (C4, SysML v2, configs). | Clic sur « Pourquoi ? », simulation de chute d'un lien, régénération en 1 clic du modèle Structurizr et des configs réseau. |
 | `retractation-engine` | Rétractation & Vérité | Maintenance de vérité : la chute d'un antécédent ($S_1 \bot$) déclenche la rétrogradation en cascade de ses dérivés vers `assumed`. | Retrait d'une hypothèse de source d'alimentation $\rightarrow$ déclassement instantané de la tenue en holdover. |
 | `freeze-export` | Gel de Section & Scellement | Gèle une section dont le sujet est mûr ($\ge L3$). Fixe les `ExternalRef` immuables et produit un snapshot opposable scellé en SHA-256. | Constitution du dossier d'homologation officiel ; projection automatique en schémas et livrables finaux. |
 
@@ -105,10 +106,11 @@ Le Workbench Archinex se décompose en **7 capacités fonctionnelles fondamental
 
 ### In-Scope (V1)
 - Interface SvelteKit / Svelte 5 réactive, local-first avec chargement instantané de snapshots scellés (`sealed_snapshot.json`).
-- Pilotage de la progression selon la séquence en 3 phases (Appropriation $\rightarrow$ Délibération $\rightarrow$ Rendu).
+- Organisation ergonomique en 3 zones : Délibération Discord, Document vivant, Tour de contrôle.
 - Connexion FastMCP (SSE) au serveur de connaissances et d'engagement LLMOps.
-- Passerelle d'écoute et de capture des dialogues (Webhooks Discord / Chat contextuel de séance).
-- Moteur de rappel proactif de doctrine (recherche sémantique/Cypher en cours de dialogue).
+- Passerelle d'écoute et de capture des dialogues (Webhooks Discord / Chat contextuel de séance avec cartes d'action).
+- SmartMemory comme exocortex : bouton « Pourquoi ? », simulateur d'impact et induction de règles (Tour 8).
+- Hub de régénération d'artefacts déterministe (Mermaid inline, Structurizr DSL / LikeC4, SysML v2, fichiers de conf réseau/infra).
 - Affichage du Board de maturité 6 colonnes avec tri par `unlocks` décroissant et matérialisation du franchissement des gaps.
 - Rendu télégraphique du brouillon-appât avec détection et blocage des tournures de complaisance (test de non-régression du ton).
 - Panneau d'arbitrage de conflits obligatoire (Tour 11) et d'approbation de règles candidates (Tour 8).

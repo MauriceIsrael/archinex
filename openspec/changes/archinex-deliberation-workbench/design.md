@@ -70,10 +70,13 @@ L'état de l'application repose exclusivement sur les **Runes Svelte 5** (`$stat
   - `manque` avec puce d'assignation
   - `variante B` encadrée en pointillé
 - `DialecticChatPanel.svelte` : Panneau d'échanges multi-acteurs connecté au webhook Discord, avec intégration des cartes de rappel.
-- `DoctrineRecallCard.svelte` : Carte contextuelle apparaissant dans le fil suggérant un ADR ou un principe de doctrine applicable.
 - `ArbitrationModal.svelte` : Fenêtre modale guidant le Lead Architect pour trancher un conflit (choix du gagnant, motif consigné, passage en `superseded`).
 - `RuleApprovalBanner.svelte` : Bandeau de validation d'une règle candidate SPARQL avant inscription dans le graphe.
 - `FreezeSectionDialog.svelte` : Dialogue de scellement formel avec calcul du SHA-256 et fixation des `ExternalRef`.
+- `WhyInspector.svelte` : Popover / tiroir d'inspection de justification (« Pourquoi ? ») affichant la généalogie complète d'un fait.
+- `ImpactSimulationModal.svelte` : Simulateur d'impact prédictif évaluant les ruptures logiques avant modification d'un énoncé.
+- `ArtifactRegenerationHub.svelte` : Hub de synchronisation et de régénération déterministe des schémas (C4 Structurizr, Mermaid, SysML v2) et fichiers de conf.
+- `DiscordCardBridge.svelte` : Passerelle de génération des cartes d'action interactives envoyées au salon Discord de projet.
 
 ---
 

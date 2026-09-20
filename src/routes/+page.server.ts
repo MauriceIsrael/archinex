@@ -17,9 +17,15 @@ export const load: PageServerLoad = async ({ locals }) => {
       ...session.user.attributes
     };
 
-    abacStatus.canManageUsers = await checkPermission(sub, { type: 'ui:users' }, 'read');
-    abacStatus.canEditSettings = await checkPermission(sub, { type: 'ui:settings' }, 'read');
-    abacStatus.canAccessSecretAPI = await checkPermission(sub, { type: 'api:secret' }, 'access');
+    const [canUsers, canSettings, canSecret] = await Promise.all([
+      checkPermission(sub, { type: 'ui:users' }, 'read'),
+      checkPermission(sub, { type: 'ui:settings' }, 'read'),
+      checkPermission(sub, { type: 'api:secret' }, 'access'),
+    ]);
+
+    abacStatus.canManageUsers = canUsers;
+    abacStatus.canEditSettings = canSettings;
+    abacStatus.canAccessSecretAPI = canSecret;
   }
 
   return {

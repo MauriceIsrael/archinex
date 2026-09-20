@@ -15,7 +15,7 @@
 
   import { dashboardStore } from '$lib/dashboard/widgetStore.svelte';
   import StatWidget from '$lib/dashboard/widgets/StatWidget.svelte';
-  import { Users } from 'lucide-svelte';
+  import Users from 'lucide-svelte/icons/users';
 
   function addDashboardWidget() {
     dashboardStore.addWidget({

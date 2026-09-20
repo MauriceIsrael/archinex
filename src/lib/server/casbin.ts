@@ -3,24 +3,23 @@ import { PrismaAdapter } from 'casbin-prisma-adapter';
 import { prisma } from './prisma';
 import path from 'path';
 
-let enforcer: Enforcer;
+let enforcerPromise: Promise<Enforcer> | null = null;
 
 /**
  * Initialize or get the Casbin Enforcer singleton.
  * Uses the Prisma adapter for persistent policy storage.
  */
-export async function getEnforcer() {
-  if (enforcer) return enforcer;
-
-  const modelPath = path.resolve('prisma/model.conf');
-  const adapter = await PrismaAdapter.newAdapter(prisma);
-  
-  enforcer = await newEnforcer(modelPath, adapter);
-  
-  // Load policies from DB
-  await enforcer.loadPolicy();
-  
-  return enforcer;
+export async function getEnforcer(): Promise<Enforcer> {
+  if (!enforcerPromise) {
+    enforcerPromise = (async () => {
+      const modelPath = path.resolve('prisma/model.conf');
+      const adapter = await PrismaAdapter.newAdapter(prisma);
+      const enf = await newEnforcer(modelPath, adapter);
+      await enf.loadPolicy();
+      return enf;
+    })();
+  }
+  return enforcerPromise;
 }
 
 /**

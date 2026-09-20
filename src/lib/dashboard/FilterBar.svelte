@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { Filter } from 'lucide-svelte';
+  import Filter from 'lucide-svelte/icons/filter';
 
   let { 
     children 

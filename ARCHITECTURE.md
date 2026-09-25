@@ -1,175 +1,179 @@
-# Software Architecture Documentation
+# Archinex · Software Architecture Documentation
 
-This document describes the high-level architecture, data flow, and design patterns used in the SvelteKit Admin Boilerplate.
+> **Document d'Architecture Système du Workbench de Délibération Archinex.**
+> Conforme aux standards de modélisation système et aux spécifications *SmartMemory × LLMOps*.
 
-## 1. High-Level Overview
+---
 
-The application follows a modern full-stack architecture using SvelteKit, where the frontend and backend are tightly integrated but maintain clear boundaries for security-critical logic.
+## 1. Vue Globale du Système
+
+Archinex repose sur une architecture bicéphale intégrée sous **SvelteKit 2** :
+1. **Socle d'Administration & Sécurité** : Authentification JWT, contrôle d'accès basé sur les attributs (Casbin ABAC/RBAC) et persistance Prisma ORM sur SQLite (`better-sqlite3`).
+2. **Workbench de Délibération Architecturale** : Moteur de vérité logique, gestion des controverses épistémiques, brouillons-appâts télégraphiques, rappels de doctrine proactifs et projections déterministes vers les outils système tiers.
 
 ```mermaid
 graph TD
-    User((User / Browser))
+    User((Architecte / Expert)) <--> UI[Interface Svelte 5 / Runes]
     
-    subgraph "Frontend (Svelte 5)"
-        UI[UI Components]
-        Runes[Svelte Runes State]
-        I18n[svelte-i18n]
+    subgraph "Couche Client & Postures Contextuelles"
+        UI --> PostureSelector[ContextualPostureSelector]
+        UI --> Board[MaturityBoardTable]
+        UI --> Draft[TelegraphicDraftView / Diff Sensor]
+        UI --> Chat[DialecticChatPanel]
+        UI --> RuleBanner[RuleApprovalBanner Tour 8]
+        UI --> Inspector[WhyInspector & Blast Radius]
+        UI --> Hub[ArtifactRegenerationHub]
+        UI --> FreezeModal[FreezeSectionDialog]
     end
     
-    subgraph "SvelteKit Layer"
+    subgraph "Couche Domaine Métier (Logique Pure TypeScript)"
+        Store[deliberationStore.svelte.ts]
+        Store --> Epistemic[epistemicEnvelope.ts / universalSha256]
+        Store --> Tone[telegraphic.ts / Anti-Blabla Filter]
+        Store --> DAG[retractation.ts / Causal DAG & Truth Maintenance]
+        Store --> Diff[diffSensor.ts / Rule of Silence]
+        Store --> Dialectic[dialectic.ts / ADR Proactive Recall]
+        Store --> Freeze[freezeExport.ts / Certification Gating]
+        Store --> Projections[artifactProjections.ts / Mermaid, DSL, SysML, JSON]
+    end
+    
+    subgraph "Couche Persistance & Sécurité Serveur"
         Hooks[hooks.server.ts]
-        Routes[Page & API Routes]
-        Guards[Auth Guards]
-    end
-    
-    subgraph "Backend Services"
-        Casbin[Casbin ABAC Engine]
-        JWT[JWT Service]
+        JWT[Service JWT / Cookies Sécurisés]
+        Casbin[Moteur Casbin ABAC/RBAC]
         Prisma[Prisma ORM]
+        DB[(Base dev.db - SQLite)]
     end
     
-    DB[(SQLite Database)]
-
-    User <--> UI
-    UI <--> Routes
-    Routes --> Guards
+    PostureSelector & Board & Draft & Chat & Hub <--> Store
     Hooks --> JWT
-    Guards --> Casbin
+    Hooks --> Casbin
     Casbin --> Prisma
     Prisma <--> DB
-    JWT --> Prisma
 ```
 
 ---
 
-## 2. Authentication & Session Management
+## 2. Le Modèle Épistémique à 5 Facettes
 
-We use a stateless JWT-based authentication system with secure HTTP-only cookies.
+Pour éviter l'illusion de consensus et l'hallucination d'accords par l'IA, tout énoncé d'architecture manipulé par Archinex est encapsulé dans un contrat strict à 5 facettes :
+
+```mermaid
+classDiagram
+    class Statement {
+        +String id
+        +String section
+        +Triplet triplet
+        +Justification justification
+        +Authority authority
+        +Maturity maturity
+        +Revisability revisability
+        +String status
+    }
+    class Triplet {
+        +String subject
+        +String predicate
+        +Any value
+    }
+    class Justification {
+        +String[] basedOn
+        +String rule
+        +String validationDate
+    }
+    class Authority {
+        +String author
+        +ArchitectRole role
+        +ProductionMode productionMode
+    }
+    class Maturity {
+        +MaturityLevel subjectLevel
+        +ConfidenceLevel confidence
+    }
+    class Revisability {
+        +String[] antecedents
+        +String lastReviewDate
+    }
+    Statement *-- Triplet
+    Statement *-- Justification
+    Statement *-- Authority
+    Statement *-- Maturity
+    Statement *-- Revisability
+```
+
+### Invariant Inviolable : Règle Bloquante `verified × llm-derived`
+Aucun énoncé ne peut être promu au statut de confiance `verified` s'il est produit en mode `llm-derived`. La vérification requiert formellement l'intervention humaine d'un architecte qualifié (`human-authored` ou `llm-proposed-human-approved`). Tout manquement est rejeté dès la couche de validation du schéma (`epistemicEnvelope.ts`).
+
+### Hachage FIPS 180-2 Client / Serveur Isomorphe
+Afin d'éviter tout écueil d'incompatibilité entre l'environnement Node.js (`crypto.createHash`) et le bundle navigateur Vite, le calcul des empreintes d'intégrité repose sur une implémentation pure TypeScript de **SHA-256** (`universalSha256`), garantissant une stricte parité d'empreinte sur l'ensemble des couches.
+
+---
+
+## 3. Le Moteur de Rétractation Causale (Truth Maintenance System)
+
+Lorsqu'une hypothèse est contestée ou invalidée par un architecte (par exemple lors de la remise en cause d'un oscillateur Rubidium sur `S-0031`), le système ne supprime pas l'historique : il propage l'invalidation le long du graphe acyclique direct (DAG) des dépendances.
 
 ```mermaid
 sequenceDiagram
-    participant U as User
-    participant A as API (/login)
-    participant J as JWT Service
-    participant H as Server Hook
-    participant P as Prisma / DB
+    autonumber
+    actor Arch as Lead Architect
+    participant UI as DialecticChatPanel / WhyInspector
+    participant Store as deliberationStore
+    participant Retract as retractation.ts (Moteur DAG)
+    participant Board as MaturityBoardTable
 
-    U->>A: POST credentials
-    A->>P: Find user & verify password
-    P-->>A: User object (Attributes)
-    A->>J: signAccessToken(user)
-    J-->>A: JWT string
-    A->>U: Set HTTP-only Cookie (accessToken)
-    
-    Note over U,H: Subsequent Requests
-    U->>H: GET /dashboard (with Cookie)
-    H->>J: verifyAccessToken(token)
-    J-->>H: Payload (userId)
-    H->>P: Fetch fresh User + Attributes
-    P-->>H: User data
-    H->>H: Populate event.locals.session
+    Arch->>UI: Clic "Contester / Rétracter" sur S-0031
+    UI->>Store: retractStatement('S-0031', 'Perte certif Tier IV')
+    Store->>Retract: executeRetractionCascade(S-0031)
+    Retract->>Retract: buildCausalDAG(statements)
+    Retract->>Retract: findTransitiveDependents('S-0031') -> ['S-0042']
+    Retract-->>Store: Énoncés descendants rétrogradés à 'assumed'
+    Store->>Board: Rétrogradation des sujets liés en 'is_provisional: true'
+    Store-->>UI: Notification visuelle & Journalisation d'invalidation
+    Note over Board: sub_sync retombe sous L3 et déverrouille les alertes
 ```
 
 ---
 
-## 3. Authorization (ABAC) Flow
+## 4. Capteur par le Diff & Règle Stricte du Silence
 
-Authorization is enforced using **Casbin**, allowing for both Role-Based (RBAC) and Attribute-Based (ABAC) Access Control.
+- **Édition textuelle en place** : L'architecte modifie directement les brouillons télégraphiques. Le composant `diffSensor.ts` calcule la différence (`oldValue` vs `newValue`) et génère immédiatement un énoncé auditable sans exiger de formulaire verbeux.
+- **Règle du Silence** : Une hypothèse non contestée n'est **jamais** considérée comme acceptée. L'approbation doit résulter d'un acte formel d'arbitrage.
+
+---
+
+## 5. Gel de Section & Projections Déterministes Sans Dérive (No Doc Drift)
+
+Archinex ne stocke pas de représentations graphiques statiques. Tout artefact système est une **projection déterministe** générée à la volée à partir des énoncés scellés :
 
 ```mermaid
-sequenceDiagram
-    participant L as Page / API Load
-    participant G as Guard (requirePermission)
-    participant C as Casbin Enforcer
-    participant P as PrismaAdapter
-    participant DB as SQLite
-
-    L->>G: requirePermission(obj, act)
-    G->>G: Get User Attributes from session
-    G->>C: enforce(sub, obj, act)
-    C->>P: Load Policy
-    P->>DB: SELECT from CasbinRule
-    DB-->>P: Policy Rules
-    P-->>C: Policies
-    C->>C: Evaluate Matcher (ABAC logic)
-    C-->>G: allow / deny
-    G-->>L: Proceed / throw error(403)
-```
-
----
-
-## 4. Database Schema (ERD)
-
-Managed via Prisma, the schema supports users, their dynamic attributes, and persistent authorization policies.
-
-```mermaid
-erDiagram
-    User {
-        string id PK
-        string email
-        string passwordHash
-        string name
-        string role
-        string attributes "JSON"
-        datetime createdAt
-    }
+graph LR
+    Statements[(Énoncés Scellés L3+)] --> Engine[Générateur Déterministe]
+    Engine --> Mermaid["Mermaid C4 (Visuel & Flux)"]
+    Engine --> DSL["Structurizr DSL (.dsl)"]
+    Engine --> SysML["SysML v2 (Ingénierie Système)"]
+    Engine --> PTP["Profil PTP ITU-T G.8275.1 (JSON)"]
     
-    CasbinRule {
-        int id PK
-        string ptype
-        string v0
-        string v1
-        string v2
-        string v3
-        string v4
-        string v5
-    }
-
-    Resource {
-        string id PK
-        string name
-        string type
-        string ownerId FK
-        string tags "JSON"
-    }
-
-    User ||--o{ Resource : owns
+    subgraph "Garantie No Doc Drift"
+        Statements -.-> Snapshot["Snapshot Scellé SHA-256 (Livrable d'Homologation)"]
+    end
 ```
 
----
-
-## 5. Technical Stack
-
-| Layer | Component | Description |
-|---|---|---|
-| **Framework** | SvelteKit / Svelte 5 | Reactive UI with Runes and SSR capabilities. |
-| **Persistence** | Prisma / SQLite | Type-safe database access with easy migrations. |
-| **Auth Engine** | Casbin | Policy-based authorization (ABAC/RBAC). |
-| **Security** | jose (JWT) | Secure token signing and verification. |
-| **I18n** | svelte-i18n | Multi-language support with SSR hydration. |
-| **Styling** | Tailwind CSS v4 | Utility-first styling with modern CSS variables. |
+### Critères de la Barrière de Certification (Gating)
+1. **Maturité** : Section $\ge$ `L3_decided`.
+2. **Conflits** : 0 conflit d'architecture ouvert.
+3. **Hypothèses** : 0 énoncé `assumed` actif.
+4. **Habilitation** : Rôle `Lead Architect` requis.
 
 ---
 
-## 6. Key Design Patterns
+## 6. Pipeline de Validation et d'Assurance Qualité
 
-### 6.1 Server-Side Guards
-To prevent sensitive logic from leaking to the client, we use `.server.ts` files for guards. `requirePermission` and `requireRole` are exclusively server-side.
-
-### 6.2 Global Hooks
-`hooks.server.ts` acts as a centralized middleware that validates the session on every request and populates `locals`, ensuring security context is available to all routes.
-
-### 6.3 Example Routes
-The `/users` and `/settings` routes are provided as architectural examples of CRUD and profile management. They demonstrate how to use Casbin guards and Prisma together. They can be safely removed or adapted for specific business needs.
-
-### 6.4 ABAC Matchers
-Casbin is configured with a custom matcher that evaluates user attributes (e.g., `clearance`) against resource requirements, enabling dynamic access control without hardcoding roles.
-
-> [!IMPORTANT]
-> **Initial Access**: After pushing the Prisma schema, you **MUST** run `npx prisma db seed` to create the initial admin user and Casbin policies. Without this step, you will not be able to log in to the administrative dashboard.
-
-### 6.4 Admin Management Suite
-The template includes a pre-built Admin Management Suite that abstracts raw Casbin rules (`p` and `g`) into a classical **Groups & Roles** UI. 
-- **Groups**: Casbin roles are dynamically inferred. Users can be assigned to groups.
-- **Permissions**: Casbin policies are assigned to groups, linking Resources and Actions.
-- **Validation**: All API endpoints (`/api/admin/*`) strictly validate relational integrity (e.g., verifying user existence in Prisma before adding grouping policies).
+Le système est validé par une pyramide de tests contractuels et d'intégration :
+- `epistemic-statement.test.ts` : Rejet des énoncés invalides et interdiction `verified × llm-derived`.
+- `telegraphic-draft.test.ts` : Rendu strict et filtre anti-blabla.
+- `maturity-board.test.ts` : Ordonnancement par déblocages et détection de stagnation.
+- `diff-sensor.test.ts` : Capture de rectifications et règle du silence.
+- `dialectic-recall.test.ts` : Moteur de rappel proactif d'ADRs.
+- `retractation-engine.test.ts` : Propagation de clôture logique sur DAG causal.
+- `freeze-export.test.ts` : Scellement cryptographique et projections sans dérive.
+- `deliberation-workflow.test.ts` : Scénario d'intégration bout-en-bout.

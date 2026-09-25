@@ -20,7 +20,10 @@ export type SubjectMaturity =
 	| 'L1_framed'       // Cadré, questions clés identifiées
 	| 'L2_decomposed'   // Décomposé en sous-systèmes / options
 	| 'L3_decided'      // Décision arrêtée, prêt pour HLD opposable
-	| 'L4_specified';   // Spécifié dans le détail d'implémentation
+	| 'L4_specified'    // Spécifié dans le détail d'implémentation
+	| 'L5_archived';    // Archivé / Scellé dans le snapshot opposable
+
+export type MaturityLevel = SubjectMaturity;
 
 export type ArchitectRole =
 	| 'Lead Architect'
@@ -30,7 +33,11 @@ export type ArchitectRole =
 	| 'Data Architect'
 	| 'Procurement Specialist'
 	| 'Client / Sponsor'
-	| 'AI Assistant';
+	| 'AI Assistant'
+	| 'lead_architect'
+	| 'infra_expert_architect'
+	| 'domain_architect'
+	| 'security_architect';
 
 export interface StatementTriplet {
 	subject: string;

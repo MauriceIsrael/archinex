@@ -35,11 +35,11 @@
   }
 
   /* Style pour les paragraphes générés */
-  .lorem-ipsum-container p {
+  .lorem-ipsum-container :global(p) {
     margin-bottom: 1em; /* Espace entre les paragraphes */
   }
 
-  .lorem-ipsum-container p:last-child {
+  .lorem-ipsum-container :global(p:last-child) {
     margin-bottom: 0; /* Pas de marge sous le dernier paragraphe */
   }
 </style>

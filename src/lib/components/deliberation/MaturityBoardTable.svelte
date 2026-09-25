@@ -154,13 +154,16 @@
 
 						<!-- Actions -->
 						<td class="py-3 px-3 text-right">
-							<div class="inline-flex items-center gap-1.5" onclick={(e) => e.stopPropagation()}>
+							<div class="inline-flex items-center gap-1.5">
 								{#if sub.level !== 'L3_decided' && sub.level !== 'L4_specified'}
 									<button
 										type="button"
 										class="inline-flex items-center gap-1 rounded bg-primary px-2 py-1 text-[11px] font-semibold text-primary-foreground hover:bg-primary/90 transition-colors shadow-xs"
 										title="Trancher et acter à L3 (débloque les sujets dépendants)"
-										onclick={() => deliberationStore.arbitrateSubject(sub.id)}
+										onclick={(e) => {
+											e.stopPropagation();
+											deliberationStore.arbitrateSubject(sub.id);
+										}}
 									>
 										<CheckCircle2 class="h-3 w-3" />
 										Trancher
@@ -171,7 +174,10 @@
 										type="button"
 										class="inline-flex items-center gap-1 rounded border border-border bg-background px-2 py-1 text-[11px] font-medium text-foreground hover:bg-muted transition-colors"
 										title="Relancer le rôle responsable en 1 clic"
-										onclick={() => deliberationStore.sendRelance(sub.id, 'Q-BLOCK')}
+										onclick={(e) => {
+											e.stopPropagation();
+											deliberationStore.sendRelance(sub.id, 'Q-BLOCK');
+										}}
 									>
 										<Send class="h-3 w-3" />
 										Relancer

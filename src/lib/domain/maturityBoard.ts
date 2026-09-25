@@ -124,7 +124,7 @@ export function canTransitionMaturity(
 				reason: 'Gate Tour 11 violé : Une promotion à L4/L5 exige formellement la signature d\'un architecte humain.'
 			};
 		}
-		if (actor.role !== 'lead_architect') {
+		if (actor.role !== 'lead_architect' && actor.role !== 'Lead Architect') {
 			return {
 				allowed: false,
 				code: 'LEAD_ARCHITECT_ROLE_REQUIRED',

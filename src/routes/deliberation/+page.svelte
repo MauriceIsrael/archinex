@@ -2,6 +2,7 @@
 	import ContextualPostureSelector from '$lib/components/deliberation/ContextualPostureSelector.svelte';
 	import MaturityBoardTable from '$lib/components/deliberation/MaturityBoardTable.svelte';
 	import TelegraphicDraftView from '$lib/components/deliberation/TelegraphicDraftView.svelte';
+	import DialecticChatPanel from '$lib/components/deliberation/DialecticChatPanel.svelte';
 	import { deliberationStore } from '$lib/stores/deliberationStore.svelte';
 	import { GitBranch, Shield, Sparkles, BookOpen, Layers, Terminal } from 'lucide-svelte';
 </script>
@@ -54,16 +55,21 @@
 	<!-- 1. Sélecteur de Posture Contextuelle (Non-Linéaire) -->
 	<ContextualPostureSelector />
 
-	<!-- 2. Les Deux Panneaux Synchronisés : Board d'Effort (Gauche) & Brouillon Télégraphique (Droite) -->
+	<!-- 2. Zone Supérieure : Board d'Effort (Gauche) & Brouillon Télégraphique (Droite) -->
 	<div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
 		<!-- Panneau Gauche : Board de Maturité (6 colonnes triées par déblocages) -->
 		<div class="lg:col-span-7 h-full">
 			<MaturityBoardTable />
 		</div>
 
-		<!-- Panneau Droit : Brouillon-Appât Télégraphique (Retenu, Supposé, Chiffrage, Conflits, Variantes) -->
+		<!-- Panneau Droit : Brouillon-Appât Télégraphique (Retenu, Supposé, Chiffrage, Conflits, Variantes, Diff Sensor) -->
 		<div class="lg:col-span-5 h-full">
 			<TelegraphicDraftView />
 		</div>
+	</div>
+
+	<!-- 3. Zone Inférieure : Délibération Multi-Canaux & Rappel Proactif de Doctrine (Lot 4) -->
+	<div class="grid grid-cols-1 gap-6">
+		<DialecticChatPanel />
 	</div>
 </div>

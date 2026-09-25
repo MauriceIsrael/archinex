@@ -10,12 +10,20 @@
 		Split,
 		Send,
 		FileText,
-		ShieldAlert
+		ShieldAlert,
+		Edit2,
+		XCircle,
+		ShieldCheck
 	} from 'lucide-svelte';
 
 	const draft = $derived(deliberationStore.activeDraft);
 	const renderedText = $derived(draft ? renderTelegraphicDraft(draft) : '');
 	const toneCheck = $derived(renderedText ? validateTelegraphicTone(renderedText) : { valid: true, errors: [] });
+
+	let editingHypothesisIndex = $state<number | null>(null);
+	let editText = $state<string>('');
+	let rejectingVariant = $state<boolean>(false);
+	let variantRejectReason = $state<string>('');
 </script>
 
 <div class="rounded-xl border bg-card p-5 shadow-sm h-full flex flex-col">
@@ -98,14 +106,64 @@
 					<span class="text-[11px] text-muted-foreground italic">Impact matériel projeté</span>
 				</div>
 				<div class="space-y-2">
-					{#each draft.suppose as hyp}
-						<div class="bg-background/80 rounded p-2.5 border border-amber-500/20 text-xs">
-							<div class="font-medium text-foreground">
-								<span class="font-mono text-amber-700 dark:text-amber-400">supposé :</span> {hyp.text}
-								<span class="text-muted-foreground font-mono">⇒</span> {hyp.consequence}
+					{#each draft.suppose as hyp, idx}
+						<div class="bg-background/80 rounded p-2.5 border border-amber-500/20 text-xs space-y-2">
+							<div class="flex items-start justify-between gap-2">
+								<div class="font-medium text-foreground flex-1">
+									<span class="font-mono text-amber-700 dark:text-amber-400">supposé :</span> {hyp.text}
+									<span class="text-muted-foreground font-mono">⇒</span> {hyp.consequence}
+								</div>
+								<button
+									type="button"
+									class="shrink-0 inline-flex items-center gap-1 rounded border border-amber-500/30 bg-amber-500/10 px-2 py-0.5 text-[11px] font-semibold text-amber-800 dark:text-amber-300 hover:bg-amber-500/20 transition-colors"
+									title="Rectifier l'hypothèse (Capteur par le Diff)"
+									onclick={() => {
+										editingHypothesisIndex = editingHypothesisIndex === idx ? null : idx;
+										editText = hyp.text;
+									}}
+								>
+									<Edit2 class="h-3 w-3" />
+									Rectifier
+								</button>
 							</div>
+
+							{#if editingHypothesisIndex === idx}
+								<div class="p-2.5 rounded bg-muted/60 border border-primary/30 space-y-2">
+									<label for={`hyp-edit-${idx}`} class="text-[11px] font-bold text-foreground flex items-center justify-between">
+										<span>Correction en place (Diff Sensor & Énoncé human-authored) :</span>
+										<span class="text-[10px] text-muted-foreground font-normal">Silence = Pas d'approbation</span>
+									</label>
+									<input
+										id={`hyp-edit-${idx}`}
+										type="text"
+										bind:value={editText}
+										class="w-full text-xs font-mono px-2 py-1.5 rounded border border-border bg-background text-foreground"
+										placeholder="ex: holdover ≥ 15 j"
+									/>
+									<div class="flex items-center justify-end gap-2">
+										<button
+											type="button"
+											class="text-[11px] px-2 py-1 rounded border border-border hover:bg-muted"
+											onclick={() => { editingHypothesisIndex = null; }}
+										>
+											Annuler
+										</button>
+										<button
+											type="button"
+											class="text-[11px] px-2.5 py-1 rounded bg-primary text-primary-foreground font-semibold hover:bg-primary/90"
+											onclick={() => {
+												deliberationStore.amendHypothesis(deliberationStore.activeSubjectId, idx, editText);
+												editingHypothesisIndex = null;
+											}}
+										>
+											Valider la rectification
+										</button>
+									</div>
+								</div>
+							{/if}
+
 							{#if hyp.cost_hint}
-								<div class="mt-2 inline-flex items-center gap-1 font-bold text-destructive bg-destructive/10 px-2 py-0.5 rounded border border-destructive/20 font-mono">
+								<div class="inline-flex items-center gap-1 font-bold text-destructive bg-destructive/10 px-2 py-0.5 rounded border border-destructive/20 font-mono">
 									<span>Chiffrage :</span> {hyp.cost_hint}
 								</div>
 							{/if}
@@ -179,19 +237,65 @@
 			<!-- 5. VARIANTE B (DIVERGENCE) -->
 			{#if draft.variante_b}
 				<div class="rounded-lg bg-purple-500/5 p-3.5 border border-purple-500/20">
-					<div class="flex items-center gap-1.5 mb-2">
-						<Split class="h-3.5 w-3.5 text-purple-600 dark:text-purple-400" />
-						<span class="text-xs font-bold uppercase tracking-wider text-purple-700 dark:text-purple-400">
-							Variante Divergente Proposée
-						</span>
+					<div class="flex items-center justify-between gap-1.5 mb-2">
+						<div class="flex items-center gap-1.5">
+							<Split class="h-3.5 w-3.5 text-purple-600 dark:text-purple-400" />
+							<span class="text-xs font-bold uppercase tracking-wider text-purple-700 dark:text-purple-400">
+								Variante Divergente Proposée
+							</span>
+						</div>
+						<button
+							type="button"
+							class="text-[11px] font-semibold text-destructive hover:underline"
+							onclick={() => { rejectingVariant = !rejectingVariant; }}
+						>
+							{rejectingVariant ? 'Fermer' : 'Rejeter cette variante'}
+						</button>
 					</div>
-					<div class="bg-background/80 rounded p-2.5 border border-purple-500/20 text-xs">
+					<div class="bg-background/80 rounded p-2.5 border border-purple-500/20 text-xs space-y-2">
 						<div class="font-bold text-foreground mb-1">{draft.variante_b.title}</div>
 						<div class="flex items-center gap-3 text-muted-foreground">
 							<span class="font-mono text-emerald-600 font-semibold">{draft.variante_b.cost_delta}</span>
 							<span>·</span>
 							<span class="text-amber-700 dark:text-amber-400">{draft.variante_b.trade_off}</span>
 						</div>
+
+						{#if rejectingVariant}
+							<div class="mt-2 pt-2 border-t border-purple-500/20 space-y-2">
+								<label for="variant-reject-input" class="text-[11px] font-semibold text-destructive block">
+									Motif d'arbitrage de rejet (conséquence opposable) :
+								</label>
+								<input
+									id="variant-reject-input"
+									type="text"
+									bind:value={variantRejectReason}
+									class="w-full text-xs px-2 py-1.5 rounded border border-border bg-background text-foreground"
+									placeholder="ex: Perte de l'éligibilité MCX Priorité 1 en cas de brouillage"
+								/>
+								<div class="flex justify-end gap-2">
+									<button
+										type="button"
+										class="text-[11px] px-2 py-1 rounded border hover:bg-muted"
+										onclick={() => { rejectingVariant = false; }}
+									>
+										Annuler
+									</button>
+									<button
+										type="button"
+										class="text-[11px] px-2.5 py-1 rounded bg-destructive text-destructive-foreground font-bold hover:bg-destructive/90"
+										onclick={() => {
+											deliberationStore.rejectVariant(
+												deliberationStore.activeSubjectId,
+												variantRejectReason || 'Variante incompatible avec les exigences de criticité'
+											);
+											rejectingVariant = false;
+										}}
+									>
+										Consigner l'exclusion (Statement)
+									</button>
+								</div>
+							</div>
+						{/if}
 					</div>
 				</div>
 			{/if}

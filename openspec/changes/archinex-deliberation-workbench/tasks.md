@@ -38,13 +38,13 @@ flowchart LR
 ## Lot 1 — Socle Épistémique & Enveloppe Scellée (UI & Contrats)
 *Durée estimée : 1 à 2 semaines*
 
-- [ ] **1.1 Modélisation TypeScript de l'énoncé à 5 facettes**
+- [x] **1.1 Modélisation TypeScript de l'énoncé à 5 facettes**
   - Définir `Statement`, `ProductionMode` (`human-authored`, `llm-proposed-human-approved`, `llm-derived`) et `ConfidenceLevel` dans `src/lib/types/epistemic.ts`.
-- [ ] **1.2 Implémentation du contrat d'enveloppe entrante (`ContributionEnvelope`)**
+- [x] **1.2 Implémentation du contrat d'enveloppe entrante (`ContributionEnvelope`)**
   - Valider `producer`, `validator`, `production_mode` et `payload_sha256`.
-- [ ] **1.3 Règle bloquante : Interdiction de `verified × llm-derived`**
+- [x] **1.3 Règle bloquante : Interdiction de `verified × llm-derived`**
   - Ajouter la validation de garde-fou côté client et serveur rejetant formellement cette combinaison.
-- [ ] **1.4 Tests de contrat unitaires**
+- [x] **1.4 Tests de contrat unitaires**
   - Écrire les tests Vitest vérifiant le rejet des enveloppes incomplètes ou interdites.
 
 ---
@@ -52,15 +52,15 @@ flowchart LR
 ## Lot 2 — Le Brouillon-Appât Télégraphique
 *Durée estimée : 2 à 3 semaines*
 
-- [ ] **2.1 Rendu visuel télégraphique des sections HLD**
+- [x] **2.1 Rendu visuel télégraphique des sections HLD**
   - Créer le composant `TelegraphicDraftView.svelte` affichant les lignes `retenu`, `supposé`, `conflit`, `manque`, `variante B`.
-- [ ] **2.2 Visualisation du chaînage des conséquences et chiffrage des coûts (`cost_hint`)**
+- [x] **2.2 Visualisation du chaînage des conséquences et chiffrage des coûts (`cost_hint`)**
   - Mettre en évidence les surcoûts en k€ (`+180 k€`) et impacts de dimensionnement en rouge/ambre.
-- [ ] **2.3 Affichage des variantes divergentes (Variante A vs Variante B)**
+- [x] **2.3 Affichage des variantes divergentes (Variante A vs Variante B)**
   - Encadrer les alternatives pour tout sujet en conflit ou sous L3.
-- [ ] **2.4 Test de non-régression du ton (Anti-Blabla)**
+- [x] **2.4 Test de non-régression du ton (Anti-Blabla)**
   - Écrire un test de validation rejetant les phrases complètes de plus de 15 mots ou les tournures policées (« il est recommandé »).
-- [ ] **2.5 Suppression des coches de complaisance**
+- [x] **2.5 Suppression des coches de complaisance**
   - Remplacer les badges « Conforme » par des mentions de couverture vérifiable (« couvert par X », « sous hypothèse Y »).
 
 ---
@@ -68,19 +68,19 @@ flowchart LR
 ## Lot 3 — Board de Maturité & Allocation d'Effort
 *Durée estimée : 2 semaines*
 
-- [ ] **3.1 Table de maturité 6 colonnes avec tri par Déblocages (`unlocks_count`)**
+- [x] **3.1 Table de maturité 6 colonnes avec tri par Déblocages (`unlocks_count`)**
   - Implémenter `MaturityBoardTable.svelte` avec tri prioritaire sur la colonne `Débloque`.
-- [ ] **3.2 Pastille et indicateur visuel de stagnation (`stall_days`)**
+- [x] **3.2 Pastille et indicateur visuel de stagnation (`stall_days`)**
   - Afficher l'alerte de stagnation pour tout sujet non promu depuis plus de 14 jours.
-- [ ] **3.3 File des questions sortantes et relance en 1 clic**
+- [x] **3.3 File des questions sortantes et relance en 1 clic**
   - Regrouper les questions ouvertes par rôle destinataire avec bouton de notification directe.
-- [ ] **3.4 Couplage dynamique Board $\leftrightarrow$ Brouillon**
+- [x] **3.4 Couplage dynamique Board $\leftrightarrow$ Brouillon**
   - Synchroniser l'affichage du panneau brouillon sur sélection d'une ligne du Board.
-- [ ] **3.5 Alimentation bi-mode (SSE FastMCP / Snapshot local)**
+- [x] **3.5 Alimentation bi-mode (SSE FastMCP / Snapshot local)**
   - Connecter le store à l'API LLMOps avec bascule transparente sur `fixtures/sealed_snapshot.json`.
-- [ ] **3.6 Sélecteur de posture contextuelle (Non-bloquant)**
+- [x] **3.6 Sélecteur de posture contextuelle (Non-bloquant)**
   - Implémenter `ContextualPostureSelector.svelte` permettant à l'architecte de basculer à tout moment entre Appropriation/Pédagogie, Délibération et Rendu sur le sujet actif.
-- [ ] **3.7 Matérialisation visuelle du franchissement des gaps de maturité**
+- [x] **3.7 Matérialisation visuelle du franchissement des gaps de maturité**
   - Développer `GapProgressionWidget.svelte` pour afficher en direct le comblement des gaps (G1 à G5) et l'effet domino de déblocage.
 
 ---
@@ -88,19 +88,19 @@ flowchart LR
 ## Lot 4 — Le Capteur par le Diff, Écoute Multi-Canale & SmartMemory
 *Durée estimée : 2 à 3 semaines*
 
-- [ ] **4.1 Édition en place du brouillon télégraphique**
+- [x] **4.1 Édition en place du brouillon télégraphique**
   - Créer l'éditeur inline réactif `TelegraphicDraftEditor.svelte`.
-- [ ] **4.2 Moteur de détection de diff et création d'énoncé attribué**
+- [x] **4.2 Moteur de détection de diff et création d'énoncé attribué**
   - Analyser les modifications textuelles et générer un `Statement` `human-authored` avec ses antécédents.
-- [ ] **4.3 Implémentation stricte de la règle du silence**
+- [x] **4.3 Implémentation stricte de la règle du silence**
   - Garantir qu'aucune modification ni promotion de maturité n'intervient en l'absence de saisie active.
 - [ ] **4.4 Intégration de SmartMemory (lib cliente)**
   - Brancher l'extracteur NLP et le générateur de règles SPARQL candidates (Tour 8).
 - [ ] **4.5 Interface d'approbation de règles candidates (Tour 8)**
   - Créer `RuleApprovalBanner.svelte` réservé à la validation par le Lead Architect.
-- [ ] **4.6 Panneau de délibération multi-acteurs & connecteur Discord**
+- [x] **4.6 Panneau de délibération multi-acteurs & connecteur Discord**
   - Développer `DialecticChatPanel.svelte` avec capture des échanges de salon de projet Discord et du chat intégré.
-- [ ] **4.7 Moteur de rappel proactif de doctrine (ADRs & Principes)**
+- [x] **4.7 Moteur de rappel proactif de doctrine (ADRs & Principes)**
   - Intégrer les cartes `DoctrineRecallCard.svelte` surgissant en séance lors de l'évocation d'un sujet déjà tranché.
 - [ ] **4.8 Cadrage pédagogique lors de l'ingestion initiale d'un RFP (Phase 1)**
   - Générer les synthèses explicatives des standards (3GPP, NIS2) pour aligner l'équipe avant délibération.

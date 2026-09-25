@@ -1,4 +1,4 @@
-import type { MaturityLevel, ArchitectRole } from '$lib/types/epistemic';
+import type { MaturityLevel, ArchitectRole, Statement } from '$lib/types/epistemic';
 import type { TelegraphicDraft } from '$lib/domain/telegraphic';
 import {
 	sortMaturityBoard,
@@ -6,6 +6,15 @@ import {
 	canTransitionMaturity,
 	type MaturitySubject
 } from '$lib/domain/maturityBoard';
+import {
+	captureTextDiffAsStatement,
+	createVariantExclusionStatement
+} from '$lib/domain/diffSensor';
+import {
+	detectProactiveDoctrineRecalls,
+	type DialogueMessage,
+	type DoctrineRecallRule
+} from '$lib/domain/dialectic';
 
 export type DeliberationPosture = 'appropriation' | 'deliberation' | 'rendu';
 
@@ -172,6 +181,28 @@ class DeliberationStore {
 	subjects = $state<MaturitySubject[]>(INITIAL_SUBJECTS);
 	drafts = $state<Record<string, TelegraphicDraft>>(INITIAL_DRAFTS);
 	notifications = $state<Array<{ id: string; timestamp: string; message: string; type: 'info' | 'success' | 'warning' }>>([]);
+	statements = $state<Statement[]>([]);
+	dialogueMessages = $state<DialogueMessage[]>([
+		{
+			id: 'msg-01',
+			channel: 'discord',
+			author: 'P. Durand',
+			role: 'infra_expert_architect',
+			content: 'Sur le site MCX Nord, on a prévu un oscillateur rubidium pour tenir 30 jours de holdover.',
+			timestamp: '10:14',
+			isAi: false
+		},
+		{
+			id: 'msg-02',
+			channel: 'internal',
+			author: 'Agent Élicitation',
+			role: 'AI Assistant',
+			content: 'Rappel : cela implique un dimensionnement Tier IV (+180 k€ CAPEX). Confirmez-vous le maintien de cette exigence ?',
+			timestamp: '10:15',
+			isAi: true
+		}
+	]);
+	activeRecalls = $state<DoctrineRecallRule[]>([]);
 
 	// Tri réactif automatique par déblocages (effet multiplicateur)
 	sortedSubjects = $derived(sortMaturityBoard(this.subjects));
@@ -253,6 +284,143 @@ class DeliberationStore {
 
 		const msg = `🔔 Relance envoyée à [${subject.waiting_for_role}] pour ${questionId} sur ${subject.section_ref} ${subject.name}.`;
 		this.logNotification(msg, 'info');
+	}
+
+	/**
+	 * Rectification manuelle d'une hypothèse du brouillon télégraphique (Capteur par le Diff - Lot 4).
+	 * RÈGLE DU SILENCE : Si aucun changement n'est opéré, rien n'est créé.
+	 */
+	amendHypothesis(
+		subjectId: string,
+		hypothesisIndex: number,
+		newText: string,
+		authorName: string = 'Architecte'
+	): { success: boolean; message: string; statement?: Statement } {
+		const draft = this.drafts[subjectId];
+		if (!draft || !draft.suppose[hypothesisIndex]) {
+			return { success: false, message: 'Hypothèse introuvable' };
+		}
+
+		const originalHyp = draft.suppose[hypothesisIndex];
+		const diffResult = captureTextDiffAsStatement({
+			subjectId,
+			sectionRef: draft.section_id,
+			originalText: originalHyp.text,
+			editedText: newText,
+			authorName,
+			role: this.currentRole,
+			antecedentId: `HYP-${subjectId}-${hypothesisIndex}`,
+			propertyPredicate: 'amended_hypothesis'
+		});
+
+		if (!diffResult.hasDiff || !diffResult.statement) {
+			const info = 'Règle du silence : aucune modification textuelle, aucun énoncé généré.';
+			this.logNotification(info, 'info');
+			return { success: false, message: info };
+		}
+
+		// Mise à jour de l'hypothèse dans le brouillon
+		draft.suppose[hypothesisIndex] = {
+			...originalHyp,
+			text: diffResult.newValue!
+		};
+
+		// Enregistrement de l'énoncé auditable
+		this.statements = [diffResult.statement, ...this.statements];
+
+		const msg = `✍️ Rectification capturée en énoncé auditable [${diffResult.statement.id}] par ${this.currentRole} (${diffResult.statement.triplet.value})`;
+		this.logNotification(msg, 'success');
+		return { success: true, message: msg, statement: diffResult.statement };
+	}
+
+	/**
+	 * Contestation et rejet d'une variante divergente (Lot 4).
+	 */
+	rejectVariant(
+		subjectId: string,
+		rejectionReason: string,
+		authorName: string = 'Architecte'
+	): { success: boolean; message: string; statement?: Statement } {
+		const draft = this.drafts[subjectId];
+		if (!draft || !draft.variante_b) {
+			return { success: false, message: 'Aucune variante B à contester' };
+		}
+
+		const variantTitle = draft.variante_b.title;
+		const statement = createVariantExclusionStatement({
+			subjectId,
+			sectionRef: draft.section_id,
+			variantTitle,
+			rejectionReason,
+			authorName,
+			role: this.currentRole
+		});
+
+		// Retrait de la variante B du brouillon
+		delete draft.variante_b;
+
+		// Enregistrement de l'énoncé de rejet
+		this.statements = [statement, ...this.statements];
+
+		const msg = `⛔ ${variantTitle} rejetée. Énoncé d'exclusion consigné [${statement.id}].`;
+		this.logNotification(msg, 'success');
+		return { success: true, message: msg, statement };
+	}
+
+	/**
+	 * Envoi d'un message dans le fil de délibération multi-acteurs / Discord.
+	 * Analyse proactive des doctrines et ADRs.
+	 */
+	postDialogueMessage(
+		content: string,
+		channel: 'internal' | 'discord' = 'internal',
+		author: string = 'Architecte'
+	) {
+		const trimmed = content.trim();
+		if (!trimmed) return;
+
+		const msg: DialogueMessage = {
+			id: `msg-${Date.now().toString(36)}`,
+			channel,
+			author,
+			role: this.currentRole,
+			content: trimmed,
+			timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+			isAi: false
+		};
+
+		this.dialogueMessages = [...this.dialogueMessages, msg];
+
+		// Détection de rappel proactif de doctrine
+		const recalls = detectProactiveDoctrineRecalls(trimmed);
+		if (recalls.length > 0) {
+			for (const recall of recalls) {
+				if (!this.activeRecalls.some((r) => r.id === recall.id)) {
+					this.activeRecalls = [...this.activeRecalls, recall];
+					this.logNotification(`💡 Rappel de doctrine activé : ${recall.id} - ${recall.title}`, 'info');
+				}
+			}
+		}
+	}
+
+	dismissRecall(ruleId: string) {
+		this.activeRecalls = this.activeRecalls.filter((r) => r.id !== ruleId);
+	}
+
+	alignWithDoctrine(ruleId: string) {
+		const rule = this.activeRecalls.find((r) => r.id === ruleId);
+		if (!rule) return;
+
+		const activeDraft = this.drafts[this.activeSubjectId];
+		if (activeDraft) {
+			if (!activeDraft.retenu.includes(rule.id)) {
+				activeDraft.retenu = [...activeDraft.retenu, `${rule.id} (${rule.title})`];
+			}
+		}
+
+		this.dismissRecall(ruleId);
+		const msg = `🎯 Alignement validé avec la doctrine ${rule.id} sur la section active.`;
+		this.logNotification(msg, 'success');
 	}
 
 	private logNotification(message: string, type: 'info' | 'success' | 'warning' = 'info') {

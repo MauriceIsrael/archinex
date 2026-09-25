@@ -112,13 +112,13 @@ flowchart LR
 ## Lot 5 — Moteur de Rétractation (En Parallèle)
 *Durée estimée : 4 à 6 semaines*
 
-- [ ] **5.1 Graphe des antécédents et dépendances transitives**
+- [x] **5.1 Graphe des antécédents et dépendances transitives**
   - Modéliser la relation `based_on` et le graphe acyclique direct (DAG) des dérivations.
-- [ ] **5.2 Algorithme d'invalidation de clôture logique**
+- [x] **5.2 Algorithme d'invalidation de clôture logique**
   - Déclencher la rétrogradation en cascade vers `assumed` lors de la suppression ou contestation d'un antécédent.
-- [ ] **5.3 Rétrogradation automatique de maturité du sujet**
+- [x] **5.3 Rétrogradation automatique de maturité du sujet**
   - Rétrograder le sujet associé et réactiver le statut `provisoire` (`is_provisional: true`).
-- [ ] **5.4 Tests unitaires de rétractation**
+- [x] **5.4 Tests unitaires de rétractation**
   - Vérifier que la contestation de `S-0031` fait retomber `S-0042` à `assumed` et met à jour le Board.
 
 ---

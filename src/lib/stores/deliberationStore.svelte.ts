@@ -15,6 +15,7 @@ import {
 	type DialogueMessage,
 	type DoctrineRecallRule
 } from '$lib/domain/dialectic';
+import { executeRetractionCascade } from '$lib/domain/retractation';
 
 export type DeliberationPosture = 'appropriation' | 'deliberation' | 'rendu';
 
@@ -173,6 +174,33 @@ const INITIAL_DRAFTS: Record<string, TelegraphicDraft> = {
 	}
 };
 
+const INITIAL_STATEMENTS: Statement[] = [
+	{
+		id: 'S-0031',
+		section: '§3.1',
+		triplet: { subject: 'sub_dc_resilience', predicate: 'power_redundancy', value: 'Double adduction secourue 72h' },
+		justification: { basedOn: ['KH:ADR-0008'] },
+		authority: { author: 'M. Israel', role: 'infra_expert_architect', productionMode: 'human-authored' },
+		maturity: { subjectLevel: 'L0_named', confidence: 'designed' },
+		revisability: { antecedents: ['KH:ADR-0008'] },
+		status: 'active',
+		createdAt: '2026-09-01T10:00:00Z',
+		updatedAt: '2026-09-01T10:00:00Z'
+	},
+	{
+		id: 'S-0042',
+		section: '§4.2',
+		triplet: { subject: 'sub_sync', predicate: 'holdover', value: 'Holdover ≥ 30 j sans GNSS' },
+		justification: { basedOn: ['S-0031', 'KH:ADR-0014'] },
+		authority: { author: 'P. Durand', role: 'infra_expert_architect', productionMode: 'human-authored' },
+		maturity: { subjectLevel: 'L2_decomposed', confidence: 'designed' },
+		revisability: { antecedents: ['S-0031'] },
+		status: 'active',
+		createdAt: '2026-09-02T14:30:00Z',
+		updatedAt: '2026-09-02T14:30:00Z'
+	}
+];
+
 class DeliberationStore {
 	activeSubjectId = $state<string>('sub_sync');
 	activePosture = $state<DeliberationPosture>('deliberation');
@@ -181,7 +209,7 @@ class DeliberationStore {
 	subjects = $state<MaturitySubject[]>(INITIAL_SUBJECTS);
 	drafts = $state<Record<string, TelegraphicDraft>>(INITIAL_DRAFTS);
 	notifications = $state<Array<{ id: string; timestamp: string; message: string; type: 'info' | 'success' | 'warning' }>>([]);
-	statements = $state<Statement[]>([]);
+	statements = $state<Statement[]>(INITIAL_STATEMENTS);
 	dialogueMessages = $state<DialogueMessage[]>([
 		{
 			id: 'msg-01',
@@ -421,6 +449,40 @@ class DeliberationStore {
 		this.dismissRecall(ruleId);
 		const msg = `🎯 Alignement validé avec la doctrine ${rule.id} sur la section active.`;
 		this.logNotification(msg, 'success');
+	}
+
+	/**
+	 * Conteste et rétracte un énoncé (Moteur de Rétractation - Lot 5).
+	 * Déclenche l'invalidation de clôture logique en cascade (Truth Maintenance).
+	 */
+	retractStatement(
+		statementId: string,
+		reason: string = 'Contestation de conformité ou remise en cause d\'hypothèse'
+	) {
+		const result = executeRetractionCascade({
+			targetStatementId: statementId,
+			reason,
+			statements: this.statements,
+			subjects: this.subjects,
+			drafts: this.drafts
+		});
+
+		// Mise à jour des énoncés (statut + déclassement)
+		this.statements = this.statements.map((s) => {
+			if (s.id === result.retractedId && result.retractedStatement) {
+				return result.retractedStatement;
+			}
+			const demoted = result.demotedStatements.find((d) => d.id === s.id);
+			if (demoted) return demoted;
+			return s;
+		});
+
+		// Mise à jour réactive des sujets sur le Board et des brouillons
+		this.subjects = result.updatedSubjects;
+		this.drafts = result.updatedDrafts;
+
+		this.logNotification(result.summaryMessage, 'warning');
+		return result;
 	}
 
 	private logNotification(message: string, type: 'info' | 'success' | 'warning' = 'info') {

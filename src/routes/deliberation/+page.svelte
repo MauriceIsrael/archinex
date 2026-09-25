@@ -4,6 +4,7 @@
 	import TelegraphicDraftView from '$lib/components/deliberation/TelegraphicDraftView.svelte';
 	import DialecticChatPanel from '$lib/components/deliberation/DialecticChatPanel.svelte';
 	import RuleApprovalBanner from '$lib/components/deliberation/RuleApprovalBanner.svelte';
+	import PedagogicalFramingPanel from '$lib/components/deliberation/PedagogicalFramingPanel.svelte';
 	import ArtifactRegenerationHub from '$lib/components/deliberation/ArtifactRegenerationHub.svelte';
 	import WhyInspector from '$lib/components/deliberation/WhyInspector.svelte';
 	import FreezeSectionDialog from '$lib/components/deliberation/FreezeSectionDialog.svelte';
@@ -61,6 +62,13 @@
 
 	<!-- Tour 8 : Approbation de règles candidates induites (SmartMemory) -->
 	<RuleApprovalBanner />
+
+	<!-- Posture 1 dédiée : Cadrage Pédagogique & Acculturation Standards (3GPP, NIS2) -->
+	{#if deliberationStore.activePosture === 'appropriation'}
+		<div class="space-y-6">
+			<PedagogicalFramingPanel />
+		</div>
+	{/if}
 
 	<!-- Posture 3 dédiée : Hub d'Artefacts Système & Projections Sans Dérive -->
 	{#if deliberationStore.activePosture === 'rendu'}

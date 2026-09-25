@@ -102,7 +102,7 @@ flowchart LR
   - Développer `DialecticChatPanel.svelte` avec capture des échanges de salon de projet Discord et du chat intégré.
 - [x] **4.7 Moteur de rappel proactif de doctrine (ADRs & Principes)**
   - Intégrer les cartes `DoctrineRecallCard.svelte` surgissant en séance lors de l'évocation d'un sujet déjà tranché.
-- [ ] **4.8 Cadrage pédagogique lors de l'ingestion initiale d'un RFP (Phase 1)**
+- [x] **4.8 Cadrage pédagogique lors de l'ingestion initiale d'un RFP (Phase 1)**
   - Générer les synthèses explicatives des standards (3GPP, NIS2) pour aligner l'équipe avant délibération.
 - [x] **4.9 Inspecteur de justification (« Pourquoi ? ») et simulateur d'impact**
   - Développer `WhyInspector.svelte` et simulateur connectés au graphe d'énoncés pour évaluer les dépendances en 1 clic.

@@ -3,6 +3,10 @@
 	import MaturityBoardTable from '$lib/components/deliberation/MaturityBoardTable.svelte';
 	import TelegraphicDraftView from '$lib/components/deliberation/TelegraphicDraftView.svelte';
 	import DialecticChatPanel from '$lib/components/deliberation/DialecticChatPanel.svelte';
+	import RuleApprovalBanner from '$lib/components/deliberation/RuleApprovalBanner.svelte';
+	import ArtifactRegenerationHub from '$lib/components/deliberation/ArtifactRegenerationHub.svelte';
+	import WhyInspector from '$lib/components/deliberation/WhyInspector.svelte';
+	import FreezeSectionDialog from '$lib/components/deliberation/FreezeSectionDialog.svelte';
 	import { deliberationStore } from '$lib/stores/deliberationStore.svelte';
 	import { GitBranch, Shield, Sparkles, BookOpen, Layers, Terminal } from 'lucide-svelte';
 </script>
@@ -55,7 +59,17 @@
 	<!-- 1. Sélecteur de Posture Contextuelle (Non-Linéaire) -->
 	<ContextualPostureSelector />
 
-	<!-- 2. Zone Supérieure : Board d'Effort (Gauche) & Brouillon Télégraphique (Droite) -->
+	<!-- Tour 8 : Approbation de règles candidates induites (SmartMemory) -->
+	<RuleApprovalBanner />
+
+	<!-- Posture 3 dédiée : Hub d'Artefacts Système & Projections Sans Dérive -->
+	{#if deliberationStore.activePosture === 'rendu'}
+		<div class="space-y-6">
+			<ArtifactRegenerationHub />
+		</div>
+	{/if}
+
+	<!-- 2. Zone Principale : Board d'Effort (Gauche) & Brouillon Télégraphique (Droite) -->
 	<div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
 		<!-- Panneau Gauche : Board de Maturité (6 colonnes triées par déblocages) -->
 		<div class="lg:col-span-7 h-full">
@@ -68,8 +82,19 @@
 		</div>
 	</div>
 
+	<!-- Posture Délibération / Appropriation : Affichage Projections en bas si non en posture rendu -->
+	{#if deliberationStore.activePosture !== 'rendu'}
+		<div class="grid grid-cols-1 gap-6">
+			<ArtifactRegenerationHub />
+		</div>
+	{/if}
+
 	<!-- 3. Zone Inférieure : Délibération Multi-Canaux & Rappel Proactif de Doctrine (Lot 4) -->
 	<div class="grid grid-cols-1 gap-6">
 		<DialecticChatPanel />
 	</div>
+
+	<!-- Modales & Tiroirs d'Inspection -->
+	<WhyInspector />
+	<FreezeSectionDialog />
 </div>

@@ -13,7 +13,8 @@
 		User,
 		FileCode,
 		AlertTriangle,
-		RotateCcw
+		RotateCcw,
+		HelpCircle
 	} from 'lucide-svelte';
 
 	let inputMessage = $state<string>('');
@@ -221,20 +222,32 @@
 								{/if}
 							</div>
 
-							{#if stmt.status === 'active'}
+							<div class="flex items-center gap-2">
 								<button
 									type="button"
-									class="inline-flex items-center gap-1 text-[10px] font-bold text-destructive hover:underline"
-									title="Invalider cet énoncé et déclencher la rétraction en cascade"
-									onclick={() => {
-										retractingStatementId = retractingStatementId === stmt.id ? null : stmt.id;
-										retractionReason = '';
-									}}
+									class="inline-flex items-center gap-1 text-[10px] font-semibold text-indigo-600 dark:text-indigo-400 hover:underline"
+									title="Inspecter la justification et le graphe causal"
+									onclick={() => deliberationStore.openWhyInspector(stmt)}
 								>
-									<AlertTriangle class="h-3 w-3" />
-									Contester / Rétracter
+									<HelpCircle class="h-3 w-3" />
+									Pourquoi ?
 								</button>
-							{/if}
+
+								{#if stmt.status === 'active'}
+									<button
+										type="button"
+										class="inline-flex items-center gap-1 text-[10px] font-bold text-destructive hover:underline"
+										title="Invalider cet énoncé et déclencher la rétraction en cascade"
+										onclick={() => {
+											retractingStatementId = retractingStatementId === stmt.id ? null : stmt.id;
+											retractionReason = '';
+										}}
+									>
+										<AlertTriangle class="h-3 w-3" />
+										Contester / Rétracter
+									</button>
+								{/if}
+							</div>
 						</div>
 
 						{#if retractingStatementId === stmt.id}

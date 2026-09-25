@@ -72,5 +72,42 @@ describe('Integration Scenario - End-to-End Deliberation & Epistemic Governance'
 		// 10. Relance en 1 clic d'un expert pour une question résiduelle
 		deliberationStore.sendRelance('sub_dc_resilience', 'Q-0003');
 		expect(deliberationStore.notifications[0].message).toContain('Relance envoyée à [infra_expert_architect]');
+
+		// 11. Tour 8 : Approbation de la règle doctrinale candidate induite par SmartMemory
+		const pendingRule = deliberationStore.candidateRules[0];
+		expect(pendingRule.status).toBe('pending');
+		const approvalResult = deliberationStore.approveCandidateRule(pendingRule.id);
+		expect(approvalResult.success).toBe(true);
+		expect(pendingRule.status).toBe('approved');
+		expect(deliberationStore.drafts['sub_sync'].retenu.some((r) => r.includes(pendingRule.id))).toBe(true);
+
+		// 12. Inspecteur Why : Calcul du blast radius causal (S-0031 -> S-0042)
+		const dependentsOf31 = deliberationStore.getTransitiveDependents('S-0031');
+		expect(dependentsOf31).toContain('S-0042');
+		expect(deliberationStore.getDependentsCount('S-0031')).toBeGreaterThanOrEqual(1);
+
+		// 13. Barrière d'homologation et gel officiel de section (Lot 6)
+		const gating = deliberationStore.getGatingCheck('sub_sync');
+		expect(gating.allowed).toBe(true);
+
+		const freezeResult = deliberationStore.freezeSection('sub_sync', 'M. Israel (Lead Architect)');
+		expect(freezeResult.success).toBe(true);
+		expect(freezeResult.snapshot).toBeDefined();
+		expect(freezeResult.snapshot?.sealSha256).toMatch(/^[a-f0-9]{64}$/);
+		expect(freezeResult.snapshot?.externalRefs.length).toBeGreaterThan(0);
+
+		// Le sujet sub_sync est désormais scellé (L5_archived / draft.is_provisional = false)
+		const frozenSync = deliberationStore.subjects.find((s) => s.id === 'sub_sync');
+		expect(frozenSync?.level).toBe('L5_archived');
+		expect(deliberationStore.drafts['sub_sync'].is_provisional).toBe(false);
+
+		// 14. Hub de régénération d'artefacts déterministe (No Doc Drift)
+		const projections = deliberationStore.getProjections('sub_sync');
+		expect(projections).not.toBeNull();
+		expect(projections!.mermaid).toContain('flowchart TD');
+		expect(projections!.structurizrDSL).toContain('workspace');
+		expect(projections!.sysmlV2).toContain("package 'Synchronisation Réseau & Holdover'");
+		expect(projections!.configJSON).toContain('IEEE_1588_G8275_1');
 	});
 });
+

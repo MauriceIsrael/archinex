@@ -15,7 +15,23 @@ import {
 	type DialogueMessage,
 	type DoctrineRecallRule
 } from '$lib/domain/dialectic';
-import { executeRetractionCascade } from '$lib/domain/retractation';
+import { executeRetractionCascade, findTransitiveDependents, buildCausalDAG } from '$lib/domain/retractation';
+import {
+	canFreezeSection,
+	freezeSectionAndGenerateSnapshot,
+	type SealedSnapshot,
+	type FreezeGatingResult
+} from '$lib/domain/freezeExport';
+import {
+	generateMermaidDiagram,
+	generateStructurizrDSL,
+	generateSysMLv2,
+	generatePtpConfigJSON
+} from '$lib/domain/artifactProjections';
+import {
+	type CandidateRule,
+	INITIAL_CANDIDATE_RULES
+} from '$lib/domain/smartMemoryRules';
 
 export type DeliberationPosture = 'appropriation' | 'deliberation' | 'rendu';
 
@@ -231,6 +247,11 @@ class DeliberationStore {
 		}
 	]);
 	activeRecalls = $state<DoctrineRecallRule[]>([]);
+	frozenSnapshots = $state<Record<string, SealedSnapshot>>({});
+	candidateRules = $state<CandidateRule[]>(INITIAL_CANDIDATE_RULES);
+	selectedStatementForWhy = $state<Statement | null>(null);
+	isFreezeDialogOpen = $state<boolean>(false);
+	isWhyInspectorOpen = $state<boolean>(false);
 
 	// Tri réactif automatique par déblocages (effet multiplicateur)
 	sortedSubjects = $derived(sortMaturityBoard(this.subjects));
@@ -483,6 +504,150 @@ class DeliberationStore {
 
 		this.logNotification(result.summaryMessage, 'warning');
 		return result;
+	}
+
+	/**
+	 * Vérifie les critères de gel officiel pour une section.
+	 */
+	getGatingCheck(subjectId: string): FreezeGatingResult {
+		const subject = this.subjects.find((s) => s.id === subjectId);
+		const draft = this.drafts[subjectId];
+		if (!subject || !draft) {
+			return { allowed: false, code: 'MATURITY_INSUFFICIENT', reason: 'Section ou brouillon introuvable' };
+		}
+		return canFreezeSection(subject, draft, this.statements, this.currentRole);
+	}
+
+	/**
+	 * Gèle officiellement une section et génère son snapshot scellé SHA-256 (Lot 6).
+	 */
+	freezeSection(
+		subjectId: string,
+		authorName: string = 'M. Israel'
+	): { success: boolean; snapshot?: SealedSnapshot; error?: string } {
+		const subject = this.subjects.find((s) => s.id === subjectId);
+		const draft = this.drafts[subjectId];
+		if (!subject || !draft) {
+			return { success: false, error: 'Section ou sujet introuvable' };
+		}
+
+		const gating = this.getGatingCheck(subjectId);
+		if (!gating.allowed) {
+			const err = gating.reason || 'Barrière de certification non franchie';
+			this.logNotification(`❌ Gel refusé : ${err}`, 'warning');
+			return { success: false, error: err };
+		}
+
+		const snapshot = freezeSectionAndGenerateSnapshot({
+			subject,
+			draft,
+			statements: this.statements,
+			authorName,
+			authorRole: this.currentRole
+		});
+
+		this.frozenSnapshots[subjectId] = snapshot;
+
+		// Promotion du sujet au statut scellé / archivé sans dérive
+		this.subjects = this.subjects.map((s) => {
+			if (s.id === subjectId) {
+				return {
+					...s,
+					level: 'L5_archived',
+					blocking_count: 0
+				};
+			}
+			return s;
+		});
+
+		if (this.drafts[subjectId]) {
+			this.drafts[subjectId].is_provisional = false;
+			this.drafts[subjectId].maturity = 'L5_archived';
+		}
+
+		const msg = `🔒 Section ${subject.section_ref} (${subject.name}) scellée avec succès. Empreinte SHA-256: ${snapshot.sealSha256.substring(0, 12)}...`;
+		this.logNotification(msg, 'success');
+		return { success: true, snapshot };
+	}
+
+	/**
+	 * Récupère ou génère les projections déterministes d'une section (Lot 6).
+	 */
+	getProjections(subjectId: string) {
+		const subject = this.subjects.find((s) => s.id === subjectId);
+		const draft = this.drafts[subjectId];
+		if (!subject || !draft) return null;
+
+		const sectionStatements = this.statements.filter(
+			(s) => s.section === subject.section_ref || s.triplet.subject === subject.id
+		);
+
+		return {
+			mermaid: generateMermaidDiagram(subject, draft, sectionStatements),
+			structurizrDSL: generateStructurizrDSL(subject, draft, sectionStatements),
+			sysmlV2: generateSysMLv2(subject, draft, sectionStatements),
+			configJSON: generatePtpConfigJSON(subject, draft, sectionStatements)
+		};
+	}
+
+	/**
+	 * Tour 8 : Approbation d'une règle candidate induite par SmartMemory (Lot 4).
+	 */
+	approveCandidateRule(ruleId: string): { success: boolean; message: string } {
+		const rule = this.candidateRules.find((r) => r.id === ruleId);
+		if (!rule) return { success: false, message: 'Règle candidate introuvable' };
+
+		rule.status = 'approved';
+
+		// Inscription de la doctrine dans le brouillon actif si pertinent
+		const activeDraft = this.drafts[this.activeSubjectId];
+		if (activeDraft && !activeDraft.retenu.includes(rule.id)) {
+			activeDraft.retenu = [...activeDraft.retenu, `KH:${rule.id} (${rule.title})`];
+		}
+
+		const msg = `✅ Règle doctrinale [${rule.id}] formellement validée par le Lead Architect et inscrite au graphe.`;
+		this.logNotification(msg, 'success');
+		return { success: true, message: msg };
+	}
+
+	/**
+	 * Rejet d'une règle candidate induite.
+	 */
+	rejectCandidateRule(ruleId: string): { success: boolean; message: string } {
+		const rule = this.candidateRules.find((r) => r.id === ruleId);
+		if (!rule) return { success: false, message: 'Règle candidate introuvable' };
+
+		rule.status = 'rejected';
+		const msg = `⛔ Règle candidate [${rule.id}] rejetée par le modérateur.`;
+		this.logNotification(msg, 'info');
+		return { success: true, message: msg };
+	}
+
+	openWhyInspector(statement: Statement) {
+		this.selectedStatementForWhy = statement;
+		this.isWhyInspectorOpen = true;
+	}
+
+	closeWhyInspector() {
+		this.isWhyInspectorOpen = false;
+		this.selectedStatementForWhy = null;
+	}
+
+	openFreezeDialog() {
+		this.isFreezeDialogOpen = true;
+	}
+
+	closeFreezeDialog() {
+		this.isFreezeDialogOpen = false;
+	}
+
+	getTransitiveDependents(statementId: string): string[] {
+		const dag = buildCausalDAG(this.statements);
+		return findTransitiveDependents(statementId, dag.dependentsOf);
+	}
+
+	getDependentsCount(statementId: string): number {
+		return this.getTransitiveDependents(statementId).length;
 	}
 
 	private logNotification(message: string, type: 'info' | 'success' | 'warning' = 'info') {

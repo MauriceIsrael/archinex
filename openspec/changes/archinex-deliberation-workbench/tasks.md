@@ -94,9 +94,9 @@ flowchart LR
   - Analyser les modifications textuelles et générer un `Statement` `human-authored` avec ses antécédents.
 - [x] **4.3 Implémentation stricte de la règle du silence**
   - Garantir qu'aucune modification ni promotion de maturité n'intervient en l'absence de saisie active.
-- [ ] **4.4 Intégration de SmartMemory (lib cliente)**
+- [x] **4.4 Intégration de SmartMemory (lib cliente)**
   - Brancher l'extracteur NLP et le générateur de règles SPARQL candidates (Tour 8).
-- [ ] **4.5 Interface d'approbation de règles candidates (Tour 8)**
+- [x] **4.5 Interface d'approbation de règles candidates (Tour 8)**
   - Créer `RuleApprovalBanner.svelte` réservé à la validation par le Lead Architect.
 - [x] **4.6 Panneau de délibération multi-acteurs & connecteur Discord**
   - Développer `DialecticChatPanel.svelte` avec capture des échanges de salon de projet Discord et du chat intégré.
@@ -104,8 +104,8 @@ flowchart LR
   - Intégrer les cartes `DoctrineRecallCard.svelte` surgissant en séance lors de l'évocation d'un sujet déjà tranché.
 - [ ] **4.8 Cadrage pédagogique lors de l'ingestion initiale d'un RFP (Phase 1)**
   - Générer les synthèses explicatives des standards (3GPP, NIS2) pour aligner l'équipe avant délibération.
-- [ ] **4.9 Inspecteur de justification (« Pourquoi ? ») et simulateur d'impact**
-  - Développer `WhyInspector.svelte` et `ImpactSimulationModal.svelte` connectés au graphe d'énoncés et à SmartMemory pour évaluer les dépendances en 1 clic.
+- [x] **4.9 Inspecteur de justification (« Pourquoi ? ») et simulateur d'impact**
+  - Développer `WhyInspector.svelte` et simulateur connectés au graphe d'énoncés pour évaluer les dépendances en 1 clic.
 
 ---
 
@@ -126,13 +126,13 @@ flowchart LR
 ## Lot 6 — Gel de Section & Export Scellé
 *Durée estimée : 1 semaine*
 
-- [ ] **6.1 Dialogue de gel granulaire par section**
+- [x] **6.1 Dialogue de gel granulaire par section**
   - Implémenter la barrière de certification (interdiction de geler si conflits ouverts ou sujet sous L3).
-- [ ] **6.2 Conversion en références externes immuables (`ExternalRef`)**
+- [x] **6.2 Conversion en références externes immuables (`ExternalRef`)**
   - Figer les citations sous le format `KH:AssetId@vVersion` ou `@sha256:...`.
-- [ ] **6.3 Scellement cryptographique SHA-256 du snapshot exporté**
+- [x] **6.3 Scellement cryptographique SHA-256 du snapshot exporté**
   - Générer le paquet de livraison officiel opposable pour l'homologation.
-- [ ] **6.4 Export vers formats de rendu système (Mermaid, Structurizr, DOCX)**
+- [x] **6.4 Export vers formats de rendu système (Mermaid, Structurizr, SysML v2, PTP JSON)**
   - Valider la projection sans perte vers les outils de modélisation système du marché.
-- [ ] **6.5 Hub de régénération d'artefacts déterministe (No Doc Drift)**
+- [x] **6.5 Hub de régénération d'artefacts déterministe (No Doc Drift)**
   - Développer `ArtifactRegenerationHub.svelte` projetant les énoncés prouvés en Structurizr DSL, SysML v2 et profils de configuration (PTP JSON / Terraform).

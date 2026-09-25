@@ -54,19 +54,29 @@
 			</h3>
 		</div>
 
-		<!-- Tone Health Badge -->
+		<!-- Tone Health Badge & Scellement -->
 		<div class="flex items-center gap-2">
 			{#if toneCheck.valid}
 				<div class="flex items-center gap-1.5 text-xs font-medium text-emerald-600 dark:text-emerald-400 bg-emerald-50 dark:bg-emerald-950/40 px-2.5 py-1 rounded-md border border-emerald-500/20">
 					<Sparkles class="h-3.5 w-3.5" />
-					Anti-Blabla : Conforme (Télégraphique)
+					Anti-Blabla
 				</div>
 			{:else}
 				<div class="flex items-center gap-1.5 text-xs font-medium text-destructive bg-destructive/10 px-2.5 py-1 rounded-md border border-destructive/30">
 					<ShieldAlert class="h-3.5 w-3.5" />
-					Régression de Ton ({toneCheck.errors.length} anomalie)
+					Ton ({toneCheck.errors.length})
 				</div>
 			{/if}
+
+			<button
+				type="button"
+				class="inline-flex items-center gap-1 rounded bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 py-1 text-xs font-semibold shadow-xs transition-colors"
+				onclick={() => deliberationStore.openFreezeDialog()}
+				title="Sceller la section pour homologation (Lot 6)"
+			>
+				<ShieldCheck class="h-3.5 w-3.5" />
+				<span>Sceller</span>
+			</button>
 		</div>
 	</div>
 

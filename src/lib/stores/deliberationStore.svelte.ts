@@ -32,6 +32,14 @@ import {
 	type CandidateRule,
 	INITIAL_CANDIDATE_RULES
 } from '$lib/domain/smartMemoryRules';
+import {
+	type CorpusDocument,
+	type CorpusStats,
+	type DocumentCategory,
+	type ExtractedClause,
+	INITIAL_CORPUS_DOCUMENTS,
+	computeCorpusStats
+} from '$lib/domain/corpus';
 
 export type DeliberationPosture = 'appropriation' | 'deliberation' | 'rendu';
 
@@ -253,6 +261,9 @@ class DeliberationStore {
 	isFreezeDialogOpen = $state<boolean>(false);
 	isWhyInspectorOpen = $state<boolean>(false);
 
+	corpusDocuments = $state<CorpusDocument[]>(INITIAL_CORPUS_DOCUMENTS);
+	activeDocumentId = $state<string>('DOC-CLI-01');
+
 	// Tri réactif automatique par déblocages (effet multiplicateur)
 	sortedSubjects = $derived(sortMaturityBoard(this.subjects));
 
@@ -266,8 +277,75 @@ class DeliberationStore {
 
 	totalBlocking = $derived(this.subjects.reduce((sum, s) => sum + s.blocking_count, 0));
 
+	// Propriétés dérivées du corpus documentaire
+	activeDocument = $derived(
+		this.corpusDocuments.find((d) => d.id === this.activeDocumentId) || this.corpusDocuments[0]
+	);
+
+	corpusStats = $derived(
+		computeCorpusStats(this.corpusDocuments, this.subjects.map((s) => s.id))
+	);
+
+	documentsForActiveSubject = $derived(
+		this.corpusDocuments.filter((d) => d.relatedSubjectIds.includes(this.activeSubjectId))
+	);
+
+	clientDocuments = $derived(
+		this.corpusDocuments.filter((d) => d.origin === 'client')
+	);
+
+	externalDocuments = $derived(
+		this.corpusDocuments.filter((d) => d.origin === 'contributor_external')
+	);
+
 	selectSubject(id: string) {
 		this.activeSubjectId = id;
+	}
+
+	setActiveDocument(id: string) {
+		this.activeDocumentId = id;
+	}
+
+	addContributorDocument(docData: {
+		title: string;
+		category: DocumentCategory;
+		categoryLabel: string;
+		sourceOrAuthor: string;
+		contributorRole?: string;
+		version: string;
+		pageCount?: number;
+		relatedSubjectIds: string[];
+		summary: string;
+		keyClauses: ExtractedClause[];
+	}) {
+		const newId = `DOC-EXT-${String(this.externalDocuments.length + 1).padStart(2, '0')}`;
+		const newDoc: CorpusDocument = {
+			...docData,
+			id: newId,
+			origin: 'contributor_external',
+			extractedClausesCount: docData.keyClauses.length || 1,
+			addedDate: new Date().toISOString(),
+			lastUpdated: new Date().toISOString()
+		};
+		this.corpusDocuments = [newDoc, ...this.corpusDocuments];
+		this.activeDocumentId = newId;
+		this.logNotification(
+			`Document externe ajouté : "${newDoc.title}" (${newDoc.categoryLabel})`,
+			'success'
+		);
+	}
+
+	linkDocumentToSubject(docId: string, subjectId: string) {
+		this.corpusDocuments = this.corpusDocuments.map((doc) => {
+			if (doc.id === docId && !doc.relatedSubjectIds.includes(subjectId)) {
+				return {
+					...doc,
+					relatedSubjectIds: [...doc.relatedSubjectIds, subjectId],
+					lastUpdated: new Date().toISOString()
+				};
+			}
+			return doc;
+		});
 	}
 
 	setPosture(posture: DeliberationPosture) {

@@ -10,7 +10,7 @@
 	}> = [
 		{
 			id: 'appropriation',
-			label: 'Normes & Cadrage',
+			label: 'Corpus & Appropriation',
 			icon: BookOpen
 		},
 		{

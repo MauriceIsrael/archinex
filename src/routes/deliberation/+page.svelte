@@ -5,7 +5,7 @@
 	import TelegraphicDraftView from '$lib/components/deliberation/TelegraphicDraftView.svelte';
 	import DialecticChatPanel from '$lib/components/deliberation/DialecticChatPanel.svelte';
 	import RuleApprovalBanner from '$lib/components/deliberation/RuleApprovalBanner.svelte';
-	import PedagogicalFramingPanel from '$lib/components/deliberation/PedagogicalFramingPanel.svelte';
+	import CorpusAppropriationHub from '$lib/components/deliberation/CorpusAppropriationHub.svelte';
 	import ArtifactRegenerationHub from '$lib/components/deliberation/ArtifactRegenerationHub.svelte';
 	import WhyInspector from '$lib/components/deliberation/WhyInspector.svelte';
 	import FreezeSectionDialog from '$lib/components/deliberation/FreezeSectionDialog.svelte';
@@ -16,13 +16,16 @@
 		FileText,
 		MessagesSquare,
 		Layers,
-		Lock
+		Lock,
+		Building2,
+		Globe
 	} from 'lucide-svelte';
 
 	type MobileTab = 'board' | 'draft' | 'chat' | 'projections';
 	let mobileTab = $state<MobileTab>('board');
 
 	const activeSubject = $derived(deliberationStore.activeSubject);
+	const activeDoc = $derived(deliberationStore.activeDocument);
 </script>
 
 <svelte:head>
@@ -47,11 +50,31 @@
 			</h1>
 		</div>
 
-		<!-- Statut Sujet Actif & Action Rapide -->
-		<div class="flex items-center gap-2.5 self-end sm:self-center text-xs">
+		<!-- Statut Sujet Actif, Document Actif & Action Rapide -->
+		<div class="flex flex-wrap items-center gap-2 self-start sm:self-center text-xs">
+			<!-- Indicateur du Document Actif de Travail -->
+			{#if activeDoc}
+				<button
+					type="button"
+					onclick={() => deliberationStore.setPosture('appropriation')}
+					class="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-medium transition-colors {activeDoc.origin === 'client'
+						? 'bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-500/30 hover:bg-blue-500/20'
+						: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/20'}"
+					title="Cliquer pour afficher ce document dans le corpus d'appropriation"
+				>
+					{#if activeDoc.origin === 'client'}
+						<Building2 class="h-3.5 w-3.5 shrink-0" />
+					{:else}
+						<Globe class="h-3.5 w-3.5 shrink-0" />
+					{/if}
+					<span class="opacity-80">Doc :</span>
+					<strong class="font-mono">{activeDoc.id}</strong>
+				</button>
+			{/if}
+
 			{#if activeSubject}
 				<div class="hidden sm:flex items-center gap-1.5 bg-muted/60 px-2.5 py-1 rounded-lg border text-muted-foreground">
-					<span>Actif :</span>
+					<span>Sujet :</span>
 					<strong class="font-mono text-foreground">{activeSubject.section_ref}</strong>
 					<span class="rounded bg-primary/10 text-primary px-1.5 py-0.2 font-mono text-[10px] font-bold">
 						{activeSubject.level}
@@ -62,7 +85,7 @@
 			<button
 				type="button"
 				onclick={() => deliberationStore.openFreezeDialog()}
-				class="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 text-xs font-semibold shadow-xs transition-colors"
+				class="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 text-xs font-semibold shadow-xs transition-colors shrink-0"
 			>
 				<Lock class="h-3.5 w-3.5" />
 				<span>Sceller Section</span>
@@ -79,10 +102,10 @@
 	<!-- Règle doctrinale candidate (si détectée) -->
 	<RuleApprovalBanner />
 
-	<!-- Posture 1 Dédiée : Cadrage Normatif (3GPP, NIS2) -->
+	<!-- Posture 1 Dédiée : Corpus Documentaire d'Entrée & Appropriation -->
 	{#if deliberationStore.activePosture === 'appropriation'}
 		<div class="space-y-4">
-			<PedagogicalFramingPanel />
+			<CorpusAppropriationHub />
 		</div>
 	{/if}
 

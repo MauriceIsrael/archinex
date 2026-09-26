@@ -36,10 +36,10 @@
 					</div>
 					<div>
 						<h3 id="why-title" class="text-base font-bold text-foreground">
-							Inspecteur Épistémique · Justification « Pourquoi ? »
+							Justification & Antécédents · {statement.id}
 						</h3>
 						<p class="text-xs text-muted-foreground">
-							Traçabilité neuro-symbolique et simulation d'impact en cascade
+							Traçabilité de décision et analyse d'impact en cascade
 						</p>
 					</div>
 				</div>
@@ -120,7 +120,7 @@
 						<AlertTriangle class="h-4 w-4 text-amber-600 mt-0.5 shrink-0" />
 						<div class="space-y-1 flex-1">
 							<h4 class="text-xs font-bold text-amber-800 dark:text-amber-300">
-								Simulateur d'Impact (Blast Radius) : {dependents.length} énoncé(s) dépendant(s)
+								Rayon d'impact : {dependents.length} énoncé(s) dépendant(s)
 							</h4>
 							<p class="text-[11px] text-muted-foreground leading-relaxed">
 								{#if dependents.length === 0}

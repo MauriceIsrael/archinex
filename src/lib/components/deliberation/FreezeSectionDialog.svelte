@@ -62,10 +62,10 @@
 					</div>
 					<div>
 						<h3 id="freeze-title" class="text-base font-bold text-foreground">
-							Homologation & Scellement Cryptographique · {activeSubject.section_ref}
+							Scellement Officiel · {activeSubject.section_ref}
 						</h3>
 						<p class="text-xs text-muted-foreground">
-							{activeSubject.name} — Barrière de certification formelle et scellement SHA-256
+							{activeSubject.name} — Génération du livrable scellé SHA-256
 						</p>
 					</div>
 				</div>

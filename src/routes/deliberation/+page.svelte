@@ -1,5 +1,6 @@
 <script lang="ts">
 	import ContextualPostureSelector from '$lib/components/deliberation/ContextualPostureSelector.svelte';
+	import DeliberationDashboardKpis from '$lib/components/deliberation/DeliberationDashboardKpis.svelte';
 	import MaturityBoardTable from '$lib/components/deliberation/MaturityBoardTable.svelte';
 	import TelegraphicDraftView from '$lib/components/deliberation/TelegraphicDraftView.svelte';
 	import DialecticChatPanel from '$lib/components/deliberation/DialecticChatPanel.svelte';
@@ -9,100 +10,171 @@
 	import WhyInspector from '$lib/components/deliberation/WhyInspector.svelte';
 	import FreezeSectionDialog from '$lib/components/deliberation/FreezeSectionDialog.svelte';
 	import { deliberationStore } from '$lib/stores/deliberationStore.svelte';
-	import { GitBranch, Shield, Sparkles, BookOpen, Layers, Terminal } from 'lucide-svelte';
+	import {
+		GitBranch,
+		ShieldCheck,
+		FileText,
+		MessagesSquare,
+		Layers,
+		Lock
+	} from 'lucide-svelte';
+
+	type MobileTab = 'board' | 'draft' | 'chat' | 'projections';
+	let mobileTab = $state<MobileTab>('board');
+
+	const activeSubject = $derived(deliberationStore.activeSubject);
 </script>
 
 <svelte:head>
 	<title>Archinex · Deliberation Workbench</title>
 </svelte:head>
 
-<div class="space-y-6">
-	<!-- Bannière Haut de Page -->
-	<div class="rounded-xl bg-gradient-to-r from-primary/10 via-background to-muted/40 p-5 border shadow-xs">
-		<div class="flex flex-col lg:flex-row lg:items-center justify-between gap-4">
-			<div>
-				<div class="flex items-center gap-2 mb-1.5">
-					<span class="inline-flex items-center gap-1 rounded bg-primary text-primary-foreground px-2 py-0.5 text-[11px] font-bold font-mono">
-						<GitBranch class="h-3 w-3" />
-						ARCHINEX v0.1
-					</span>
-					<span class="text-xs font-semibold text-muted-foreground">
-						Dossier CCTP : Réseau Fédérateur & Tranches 5G Hybrides
-					</span>
-				</div>
-				<h1 class="text-2xl font-black tracking-tight text-foreground">
-					Workbench de Délibération Architecturale
-				</h1>
-				<p class="text-xs text-muted-foreground mt-1 max-w-3xl leading-relaxed">
-					Convergence distribuée entre architectes experts et agents IA sous le cadre <strong class="text-foreground">SmartMemory × LLMOps</strong>.
-					Énoncés épistémiques à 5 facettes, tri strict par déblocages, brouillons-appâts percutants chiffrés et portes de validation humaines.
-				</p>
+<div class="space-y-4">
+	<!-- En-tête Compact & Professionnel -->
+	<div class="rounded-xl border bg-card p-4 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+		<div>
+			<div class="flex items-center gap-2 mb-1">
+				<span class="inline-flex items-center gap-1 rounded bg-primary text-primary-foreground px-2 py-0.5 text-[10px] font-bold font-mono">
+					<GitBranch class="h-3 w-3" />
+					CCTP 5G & CŒUR
+				</span>
+				<span class="text-xs font-semibold text-muted-foreground">
+					Réseau Fédérateur & Tranches Hybrides
+				</span>
 			</div>
+			<h1 class="text-xl font-bold tracking-tight text-foreground">
+				Workbench de Délibération
+			</h1>
+		</div>
 
-			<!-- Badges de garanties d'invariants -->
-			<div class="flex flex-wrap items-center gap-2 text-xs">
-				<div class="flex items-center gap-1.5 bg-background border px-3 py-1.5 rounded-lg shadow-xs">
-					<Shield class="h-3.5 w-3.5 text-emerald-600" />
-					<span class="font-medium">Invariants Scellés</span>
+		<!-- Statut Sujet Actif & Action Rapide -->
+		<div class="flex items-center gap-2.5 self-end sm:self-center text-xs">
+			{#if activeSubject}
+				<div class="hidden sm:flex items-center gap-1.5 bg-muted/60 px-2.5 py-1 rounded-lg border text-muted-foreground">
+					<span>Actif :</span>
+					<strong class="font-mono text-foreground">{activeSubject.section_ref}</strong>
+					<span class="rounded bg-primary/10 text-primary px-1.5 py-0.2 font-mono text-[10px] font-bold">
+						{activeSubject.level}
+					</span>
 				</div>
-				<div class="flex items-center gap-1.5 bg-background border px-3 py-1.5 rounded-lg shadow-xs">
-					<Sparkles class="h-3.5 w-3.5 text-amber-500" />
-					<span class="font-medium">Filtre Anti-Blabla</span>
-				</div>
-				<div class="flex items-center gap-1.5 bg-background border px-3 py-1.5 rounded-lg shadow-xs">
-					<Terminal class="h-3.5 w-3.5 text-indigo-500" />
-					<span class="font-medium">Sans Doc Drift</span>
-				</div>
-			</div>
+			{/if}
+
+			<button
+				type="button"
+				onclick={() => deliberationStore.openFreezeDialog()}
+				class="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 text-xs font-semibold shadow-xs transition-colors"
+			>
+				<Lock class="h-3.5 w-3.5" />
+				<span>Sceller Section</span>
+			</button>
 		</div>
 	</div>
 
-	<!-- 1. Sélecteur de Posture Contextuelle (Non-Linéaire) -->
+	<!-- Tableau de Bord & KPIs Opérationnels -->
+	<DeliberationDashboardKpis />
+
+	<!-- Sélecteur de Posture & Rôle Actif -->
 	<ContextualPostureSelector />
 
-	<!-- Tour 8 : Approbation de règles candidates induites (SmartMemory) -->
+	<!-- Règle doctrinale candidate (si détectée) -->
 	<RuleApprovalBanner />
 
-	<!-- Posture 1 dédiée : Cadrage Pédagogique & Acculturation Standards (3GPP, NIS2) -->
+	<!-- Posture 1 Dédiée : Cadrage Normatif (3GPP, NIS2) -->
 	{#if deliberationStore.activePosture === 'appropriation'}
-		<div class="space-y-6">
+		<div class="space-y-4">
 			<PedagogicalFramingPanel />
 		</div>
 	{/if}
 
-	<!-- Posture 3 dédiée : Hub d'Artefacts Système & Projections Sans Dérive -->
+	<!-- Posture 3 Dédiée : Homologation & Projections -->
 	{#if deliberationStore.activePosture === 'rendu'}
-		<div class="space-y-6">
+		<div class="space-y-4">
 			<ArtifactRegenerationHub />
 		</div>
 	{/if}
 
-	<!-- 2. Zone Principale : Board d'Effort (Gauche) & Brouillon Télégraphique (Droite) -->
-	<div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
-		<!-- Panneau Gauche : Board de Maturité (6 colonnes triées par déblocages) -->
-		<div class="lg:col-span-7 h-full">
-			<MaturityBoardTable />
-		</div>
+	<!-- Sélecteur d'Onglets Mobile (< lg) pour Consultation Fluide -->
+	<div class="lg:hidden flex items-center gap-1 bg-muted/60 p-1 rounded-lg overflow-x-auto text-xs">
+		<button
+			type="button"
+			onclick={() => (mobileTab = 'board')}
+			class="flex-1 inline-flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-md font-semibold transition-all whitespace-nowrap {mobileTab === 'board'
+				? 'bg-background text-foreground shadow-2xs'
+				: 'text-muted-foreground hover:text-foreground'}"
+		>
+			<Layers class="h-3.5 w-3.5" />
+			<span>Matrice</span>
+		</button>
 
-		<!-- Panneau Droit : Brouillon-Appât Télégraphique (Retenu, Supposé, Chiffrage, Conflits, Variantes, Diff Sensor) -->
-		<div class="lg:col-span-5 h-full">
-			<TelegraphicDraftView />
-		</div>
+		<button
+			type="button"
+			onclick={() => (mobileTab = 'draft')}
+			class="flex-1 inline-flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-md font-semibold transition-all whitespace-nowrap {mobileTab === 'draft'
+				? 'bg-background text-foreground shadow-2xs'
+				: 'text-muted-foreground hover:text-foreground'}"
+		>
+			<FileText class="h-3.5 w-3.5" />
+			<span>Brouillon</span>
+		</button>
+
+		<button
+			type="button"
+			onclick={() => (mobileTab = 'chat')}
+			class="flex-1 inline-flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-md font-semibold transition-all whitespace-nowrap {mobileTab === 'chat'
+				? 'bg-background text-foreground shadow-2xs'
+				: 'text-muted-foreground hover:text-foreground'}"
+		>
+			<MessagesSquare class="h-3.5 w-3.5" />
+			<span>Fil & Doctrines</span>
+		</button>
+
+		<button
+			type="button"
+			onclick={() => (mobileTab = 'projections')}
+			class="flex-1 inline-flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-md font-semibold transition-all whitespace-nowrap {mobileTab === 'projections'
+				? 'bg-background text-foreground shadow-2xs'
+				: 'text-muted-foreground hover:text-foreground'}"
+		>
+			<ShieldCheck class="h-3.5 w-3.5" />
+			<span>Modèles</span>
+		</button>
 	</div>
 
-	<!-- Posture Délibération / Appropriation : Affichage Projections en bas si non en posture rendu -->
-	{#if deliberationStore.activePosture !== 'rendu'}
-		<div class="grid grid-cols-1 gap-6">
+	<!-- 1. Affichage Mobile (< lg) : Uniquement l'onglet sélectionné -->
+	<div class="block lg:hidden">
+		{#if mobileTab === 'board'}
+			<MaturityBoardTable />
+		{:else if mobileTab === 'draft'}
+			<TelegraphicDraftView />
+		{:else if mobileTab === 'chat'}
+			<DialecticChatPanel />
+		{:else if mobileTab === 'projections'}
 			<ArtifactRegenerationHub />
-		</div>
-	{/if}
+		{/if}
+	</div>
 
-	<!-- 3. Zone Inférieure : Délibération Multi-Canaux & Rappel Proactif de Doctrine (Lot 4) -->
-	<div class="grid grid-cols-1 gap-6">
+	<!-- 2. Affichage Desktop (>= lg) : Command Center Dual-Panel & Vues Intégrées -->
+	<div class="hidden lg:block space-y-4">
+		<!-- Grille Supérieure : Board 7 cols + Brouillon 5 cols -->
+		<div class="grid grid-cols-12 gap-4 items-start">
+			<div class="col-span-7 h-full">
+				<MaturityBoardTable />
+			</div>
+			<div class="col-span-5 h-full">
+				<TelegraphicDraftView />
+			</div>
+		</div>
+
+		<!-- Projections en bas si non en posture rendu -->
+		{#if deliberationStore.activePosture !== 'rendu'}
+			<ArtifactRegenerationHub />
+		{/if}
+
+		<!-- Fil de Délibération & Canaux -->
 		<DialecticChatPanel />
 	</div>
 
-	<!-- Modales & Tiroirs d'Inspection -->
+	<!-- Modales d'Inspection & Scellement -->
 	<WhyInspector />
 	<FreezeSectionDialog />
 </div>

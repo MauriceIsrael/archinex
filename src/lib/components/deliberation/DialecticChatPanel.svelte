@@ -43,7 +43,7 @@
 		<div class="flex items-center gap-2">
 			<MessageSquare class="h-4 w-4 text-primary" />
 			<h3 class="text-sm font-bold tracking-tight text-foreground">
-				Délibération Multi-Canaux & Écoute Active
+				Fil de Délibération & Canaux
 			</h3>
 		</div>
 		<div class="flex items-center gap-2">
@@ -173,15 +173,14 @@
 		</div>
 	</form>
 
-	<!-- Énoncés Auditables & Maintenance de Vérité (Lots 4 & 5) -->
+	<!-- Énoncés Auditables & Maintenance de Vérité -->
 	{#if deliberationStore.statements.length > 0}
 		<div class="pt-3 border-t space-y-2">
 			<div class="flex items-center justify-between text-xs">
 				<span class="font-bold text-foreground flex items-center gap-1">
 					<ShieldCheck class="h-3.5 w-3.5 text-emerald-600" />
-					Graphe Causal d'Énoncés & Maintenance de Vérité ({deliberationStore.statements.length})
+					Registre des Énoncés ({deliberationStore.statements.length})
 				</span>
-				<span class="text-[10px] text-muted-foreground font-mono">Lot 5 : Rétrogradation en cascade</span>
 			</div>
 			<div class="space-y-2 max-h-56 overflow-y-auto pr-1">
 				{#each deliberationStore.statements as stmt}

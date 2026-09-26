@@ -7,7 +7,7 @@
 	let activeTab = $state<TabType>('mermaid');
 	let copied = $state(false);
 	let isRegenerating = $state(false);
-	let lastSyncTime = $state<string>(new Date().toLocaleTimeString());
+	let lastSyncTime = $state<string>(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
 
 	const activeSubject = $derived(deliberationStore.activeSubject);
 	const projections = $derived(
@@ -18,8 +18,8 @@
 		isRegenerating = true;
 		setTimeout(() => {
 			isRegenerating = false;
-			lastSyncTime = new Date().toLocaleTimeString();
-		}, 300);
+			lastSyncTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+		}, 250);
 	}
 
 	function getCurrentContent(): string {
@@ -70,87 +70,72 @@
 		const a = document.createElement('a');
 		a.href = url;
 		a.download = filename;
-		a.click;
+		a.click();
 		URL.revokeObjectURL(url);
 	}
 </script>
 
-<div class="rounded-xl border bg-card p-5 shadow-xs space-y-4">
+<div class="rounded-xl border bg-card p-4 shadow-xs space-y-3">
 	<!-- Header -->
-	<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4 border-b pb-4">
-		<div>
-			<div class="flex items-center gap-2 mb-1">
-				<span class="inline-flex items-center gap-1 rounded bg-indigo-600 text-white px-2 py-0.5 text-[11px] font-bold font-mono">
-					<Layers class="h-3 w-3" />
-					LOT 6 · PROJECTIONS SYSTÈME
-				</span>
-				<span class="text-xs font-semibold text-muted-foreground">
-					Régénération Déterministe Sans Dérive (No Doc Drift)
-				</span>
+	<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b pb-3">
+		<div class="flex items-center gap-2">
+			<div class="p-1 rounded-md bg-indigo-600 text-white">
+				<Layers class="h-4 w-4" />
 			</div>
-			<h3 class="text-lg font-bold tracking-tight text-foreground">
-				Hub d'Artefacts Système · {activeSubject?.section_ref} {activeSubject?.name}
-			</h3>
+			<div>
+				<h3 class="text-sm font-bold tracking-tight text-foreground">
+					Projections & Modèles Système · {activeSubject?.section_ref} {activeSubject?.name}
+				</h3>
+			</div>
 		</div>
 
-		<!-- Action de synchronisation / régénération -->
-		<div class="flex items-center gap-2">
+		<!-- Actions -->
+		<div class="flex items-center gap-2 self-end sm:self-auto">
 			<button
 				type="button"
 				onclick={handleRegenerate}
-				class="inline-flex items-center gap-1.5 rounded-md bg-primary hover:bg-primary/90 text-primary-foreground px-3 py-1.5 text-xs font-bold shadow-xs transition-colors"
+				class="inline-flex items-center gap-1.5 rounded-md bg-primary hover:bg-primary/90 text-primary-foreground px-3 py-1.5 text-xs font-semibold shadow-2xs transition-colors"
 			>
 				<RefreshCw class="h-3.5 w-3.5 {isRegenerating ? 'animate-spin' : ''}" />
-				<span>Régénérer sans dérive (`sync-artifacts`)</span>
+				<span>Synchroniser</span>
 			</button>
 
 			<button
 				type="button"
 				onclick={() => deliberationStore.openFreezeDialog()}
-				class="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 text-xs font-bold shadow-xs transition-colors"
+				class="inline-flex items-center gap-1.5 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 text-xs font-semibold shadow-2xs transition-colors"
 			>
 				<ShieldCheck class="h-3.5 w-3.5" />
-				<span>Sceller Section</span>
+				<span>Sceller</span>
 			</button>
 		</div>
 	</div>
 
-	<!-- Indicateur de synchro & Invariants -->
-	<div class="flex flex-wrap items-center justify-between gap-2 text-xs bg-muted/40 p-2.5 rounded-lg border">
-		<div class="flex items-center gap-2">
-			<div class="h-2 w-2 rounded-full bg-emerald-500 animate-pulse"></div>
-			<span class="text-muted-foreground">
-				Synchronisation active : <strong class="text-foreground">0 dérive documentaire</strong> (calculé à partir des énoncés épistémiques scellés).
-			</span>
-		</div>
-		<span class="text-[11px] font-mono text-muted-foreground">Dernière synchro : {lastSyncTime}</span>
-	</div>
-
-	<!-- Navigation par Onglets -->
-	<div class="flex items-center justify-between border-b">
-		<div class="flex items-center gap-1">
+	<!-- Navigation par Onglets & Export -->
+	<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b">
+		<div class="flex items-center gap-1 overflow-x-auto">
 			<button
 				type="button"
 				onclick={() => (activeTab = 'mermaid')}
-				class="px-3 py-2 text-xs font-bold border-b-2 transition-colors flex items-center gap-1.5 {activeTab === 'mermaid' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}"
+				class="px-2.5 py-1.5 text-xs font-semibold border-b-2 transition-colors flex items-center gap-1.5 whitespace-nowrap {activeTab === 'mermaid' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}"
 			>
 				<Layers class="h-3.5 w-3.5" />
-				<span>Mermaid Diagram</span>
+				<span>Mermaid</span>
 			</button>
 
 			<button
 				type="button"
 				onclick={() => (activeTab = 'structurizr')}
-				class="px-3 py-2 text-xs font-bold border-b-2 transition-colors flex items-center gap-1.5 {activeTab === 'structurizr' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}"
+				class="px-2.5 py-1.5 text-xs font-semibold border-b-2 transition-colors flex items-center gap-1.5 whitespace-nowrap {activeTab === 'structurizr' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}"
 			>
 				<FileCode class="h-3.5 w-3.5" />
-				<span>Structurizr DSL (.dsl)</span>
+				<span>Structurizr DSL</span>
 			</button>
 
 			<button
 				type="button"
 				onclick={() => (activeTab = 'sysml')}
-				class="px-3 py-2 text-xs font-bold border-b-2 transition-colors flex items-center gap-1.5 {activeTab === 'sysml' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}"
+				class="px-2.5 py-1.5 text-xs font-semibold border-b-2 transition-colors flex items-center gap-1.5 whitespace-nowrap {activeTab === 'sysml' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}"
 			>
 				<Terminal class="h-3.5 w-3.5" />
 				<span>SysML v2</span>
@@ -159,25 +144,26 @@
 			<button
 				type="button"
 				onclick={() => (activeTab = 'ptp')}
-				class="px-3 py-2 text-xs font-bold border-b-2 transition-colors flex items-center gap-1.5 {activeTab === 'ptp' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}"
+				class="px-2.5 py-1.5 text-xs font-semibold border-b-2 transition-colors flex items-center gap-1.5 whitespace-nowrap {activeTab === 'ptp' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}"
 			>
 				<Cpu class="h-3.5 w-3.5" />
-				<span>Profil PTP G.8275.1 (JSON)</span>
+				<span>Profil PTP JSON</span>
 			</button>
 		</div>
 
-		<!-- Actions Copier / Télécharger -->
-		<div class="flex items-center gap-2 pb-1">
+		<!-- Actions Copier / Exporter -->
+		<div class="flex items-center gap-1.5 self-end sm:self-auto pb-1 sm:pb-0">
+			<span class="text-[10px] text-muted-foreground mr-2 font-mono">Synchro : {lastSyncTime}</span>
 			<button
 				type="button"
 				onclick={copyToClipboard}
-				class="inline-flex items-center gap-1 rounded border border-input bg-background px-2.5 py-1 text-xs font-medium hover:bg-muted transition-colors"
+				class="inline-flex items-center gap-1 rounded border border-input bg-background px-2 py-1 text-xs font-medium hover:bg-muted transition-colors"
 			>
 				{#if copied}
-					<Check class="h-3.5 w-3.5 text-emerald-600" />
+					<Check class="h-3 w-3 text-emerald-600" />
 					<span>Copié</span>
 				{:else}
-					<Copy class="h-3.5 w-3.5" />
+					<Copy class="h-3 w-3" />
 					<span>Copier</span>
 				{/if}
 			</button>
@@ -185,9 +171,9 @@
 			<button
 				type="button"
 				onclick={downloadArtifact}
-				class="inline-flex items-center gap-1 rounded border border-input bg-background px-2.5 py-1 text-xs font-medium hover:bg-muted transition-colors"
+				class="inline-flex items-center gap-1 rounded border border-input bg-background px-2 py-1 text-xs font-medium hover:bg-muted transition-colors"
 			>
-				<Download class="h-3.5 w-3.5" />
+				<Download class="h-3 w-3" />
 				<span>Exporter</span>
 			</button>
 		</div>
@@ -196,11 +182,11 @@
 	<!-- Affichage du Contenu Projeté -->
 	{#if projections}
 		<div class="relative">
-			<pre class="rounded-lg bg-muted/80 p-4 font-mono text-xs text-foreground overflow-x-auto max-h-96 leading-relaxed border shadow-inner">{getCurrentContent()}</pre>
+			<pre class="rounded-lg bg-muted/80 p-3.5 font-mono text-[11px] text-foreground overflow-x-auto max-h-80 leading-relaxed border shadow-inner">{getCurrentContent()}</pre>
 		</div>
 	{:else}
-		<div class="p-8 text-center text-xs text-muted-foreground">
-			Aucun sujet sélectionné ou aucune projection disponible.
+		<div class="p-6 text-center text-xs text-muted-foreground">
+			Aucun sujet sélectionné.
 		</div>
 	{/if}
 </div>

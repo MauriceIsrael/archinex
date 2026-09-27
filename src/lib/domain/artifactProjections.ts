@@ -142,3 +142,76 @@ export function generatePtpConfigJSON(
 
 	return JSON.stringify(config, null, 2);
 }
+
+/**
+ * Génère une projection visuelle C4 interprétable par Mermaid pour le modèle Structurizr.
+ */
+export function generateStructurizrVisualMermaid(
+	subject: MaturitySubject,
+	draft: TelegraphicDraft,
+	statements: Statement[]
+): string {
+	const relevantStatements = statements.filter(
+		(s) => s.section === subject.section_ref || s.triplet.subject === subject.id
+	);
+
+	const lines: string[] = [
+		'flowchart TB',
+		'    classDef person fill:#08427b,stroke:#073b6e,color:#fff,font-weight:bold',
+		'    classDef system fill:#1168bd,stroke:#0b4884,color:#fff,font-weight:bold',
+		'    classDef container fill:#438dd5,stroke:#2e6295,color:#fff',
+		'',
+		'    user["👤 Opérateur Réseau<br/><small>[Personne]</small><br/>Supervise les flux"]:::person',
+		'',
+		`    subgraph Enterprise["🏢 Entreprise : Infrastructure Critique"]`,
+		`        subgraph SysBound["Système : ${subject.name}"]`,
+		`            direction TB`
+	];
+
+	if (relevantStatements.length === 0) {
+		lines.push(`            c_default["⚙️ Composant Architectural<br/><small>[Container]</small><br/>En cours de délibération"]:::container`);
+	} else {
+		relevantStatements.forEach((s, idx) => {
+			const safeVal = String(s.triplet.value).replace(/["[\]()]/g, '');
+			lines.push(`            c_${idx}["⚙️ ${s.triplet.predicate}<br/><small>[Container · ${s.authority.role}]</small><br/>${safeVal}"]:::container`);
+		});
+	}
+
+	lines.push('        end');
+	lines.push('    end');
+	lines.push('');
+	lines.push('    user -->|"Supervision sécurisée mTLS"| SysBound');
+
+	return lines.join('\n');
+}
+
+/**
+ * Génère une projection visuelle SysML v2 interprétable sous forme de diagramme de blocs (BDD).
+ */
+export function generateSysMLVisualMermaid(
+	subject: MaturitySubject,
+	draft: TelegraphicDraft,
+	statements: Statement[]
+): string {
+	const relevantStatements = statements.filter(
+		(s) => s.section === subject.section_ref || s.triplet.subject === subject.id
+	);
+
+	const lines: string[] = [
+		'classDiagram',
+		`    class Block_${subject.id.replace(/[^a-zA-Z0-9_]/g, '_')} {`,
+		`        <<system>>`,
+		`        +section: "${subject.section_ref}"`,
+		`        +status: "${subject.level}"`
+	];
+
+	relevantStatements.forEach((s) => {
+		const safePred = s.triplet.predicate.replace(/[^a-zA-Z0-9_]/g, '_');
+		const safeVal = String(s.triplet.value).replace(/[^a-zA-Z0-9_]/g, '_');
+		lines.push(`        +${safePred}: ${safeVal}`);
+	});
+
+	lines.push('    }');
+
+	return lines.join('\n');
+}

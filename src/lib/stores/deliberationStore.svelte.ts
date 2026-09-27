@@ -25,7 +25,9 @@ import {
 import {
 	generateMermaidDiagram,
 	generateStructurizrDSL,
+	generateStructurizrVisualMermaid,
 	generateSysMLv2,
+	generateSysMLVisualMermaid,
 	generatePtpConfigJSON
 } from '$lib/domain/artifactProjections';
 import {
@@ -267,22 +269,64 @@ class DeliberationStore {
 	statements = $state<Statement[]>(SUSE_TELCO_STATEMENTS);
 	dialogueMessages = $state<DialogueMessage[]>([
 		{
-			id: 'msg-01',
-			channel: 'discord',
+			id: 'msg-sync-01',
+			channel: 'internal',
 			author: 'P. Durand',
 			role: 'infra_expert_architect',
-			content: 'Sur le cluster RKE2, nous avons activé Multus et le SR-IOV operator pour garantir la latence UPF.',
+			content: 'Sur le site nodal, le surcoût de 180 k€ pour le double rubidium 30 jours absorbe 50% de notre enveloppe CAPEX. La variante B (GNSS durci + NTP secouru) permet d\'économiser 135 k€.',
 			timestamp: '10:14',
-			isAi: false
+			isAi: false,
+			subjectId: 'sub_sync'
 		},
 		{
-			id: 'msg-02',
+			id: 'msg-sync-02',
 			channel: 'internal',
-			author: 'Agent Élicitation',
-			role: 'AI Assistant',
-			content: 'Rappel : valider la compatibilité avec les cartes Intel E810 et les modules FIPS 140-3.',
-			timestamp: '10:15',
-			isAi: true
+			author: 'S. Bernard',
+			role: 'security_architect',
+			content: 'Attention : sous NIS2 et selon le CCTP Art. 4.2.1, l\'ANSSI refuse tout risque de désynchronisation de phase en bande TDD. Le holdover 30 jours sans signal satellite est non négociable pour les 4 nœuds nodaux.',
+			timestamp: '10:18',
+			isAi: false,
+			subjectId: 'sub_sync'
+		},
+		{
+			id: 'msg-sync-03',
+			channel: 'internal',
+			author: 'Lead Architect',
+			role: 'lead_architect',
+			content: 'Proposition de compromis : nous confirmons l\'Option A (Rubidium 30j) sur les 4 nœuds nodaux centraux, et nous autorisons la variante B sur les relais secondaires pour respecter le budget.',
+			timestamp: '10:22',
+			isAi: false,
+			subjectId: 'sub_sync'
+		},
+		{
+			id: 'msg-suse-01',
+			channel: 'internal',
+			author: 'P. Durand',
+			role: 'infra_expert_architect',
+			content: 'Sur le socle SUSE, nous devons impérativement activer Multus CNI et l\'opérateur SR-IOV pour isoler le plan utilisateur UPF du trafic OAM de gestion.',
+			timestamp: '09:45',
+			isAi: false,
+			subjectId: 'suse_cni_sriov'
+		},
+		{
+			id: 'msg-suse-02',
+			channel: 'internal',
+			author: 'S. Bernard',
+			role: 'security_architect',
+			content: 'Validé pour Multus SR-IOV, sous réserve que NeuVector inspecte les interfaces N2/N3 en couche L7 sans sidecar invasif.',
+			timestamp: '09:50',
+			isAi: false,
+			subjectId: 'suse_cni_sriov'
+		},
+		{
+			id: 'msg-dc-01',
+			channel: 'internal',
+			author: 'P. Durand',
+			role: 'infra_expert_architect',
+			content: 'L\'autonomie électrique 72h impose l\'installation de cuves fioul enterrées ICPE (+95 k€). Sommes-nous prêts à engager ce surcoût ?',
+			timestamp: '08:30',
+			isAi: false,
+			subjectId: 'sub_dc_resilience'
 		}
 	]);
 	activeRecalls = $state<DoctrineRecallRule[]>([]);
@@ -397,6 +441,34 @@ class DeliberationStore {
 	externalDocuments = $derived(
 		this.corpusDocuments.filter((d) => d.origin === 'contributor_external')
 	);
+
+	messagesForActiveSubject = $derived(
+		this.dialogueMessages.filter(
+			(m) => !m.subjectId || m.subjectId === this.activeSubjectId
+		)
+	);
+
+	sendSubjectMessage(content: string, subjectId?: string) {
+		const targetSubjectId = subjectId || this.activeSubjectId;
+		const authorName = this.isHuman
+			? (this.currentRole === 'lead_architect' ? 'M. Israel (Lead Architect)' : `Architecte (${this.currentRole})`)
+			: 'Agent Élicitation IA';
+
+		const newMsg: DialogueMessage = {
+			id: `msg-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+			channel: 'internal',
+			author: authorName,
+			role: this.currentRole,
+			content,
+			timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
+			isAi: !this.isHuman,
+			subjectId: targetSubjectId
+		};
+
+		this.dialogueMessages = [...this.dialogueMessages, newMsg];
+		const recalls = detectProactiveDoctrineRecalls(content);
+		this.activeRecalls = recalls;
+	}
 
 	selectSubject(id: string) {
 		this.activeSubjectId = id;
@@ -765,7 +837,9 @@ class DeliberationStore {
 		return {
 			mermaid: generateMermaidDiagram(subject, draft, sectionStatements),
 			structurizrDSL: generateStructurizrDSL(subject, draft, sectionStatements),
+			structurizrVisual: generateStructurizrVisualMermaid(subject, draft, sectionStatements),
 			sysmlV2: generateSysMLv2(subject, draft, sectionStatements),
+			sysmlVisual: generateSysMLVisualMermaid(subject, draft, sectionStatements),
 			configJSON: generatePtpConfigJSON(subject, draft, sectionStatements)
 		};
 	}

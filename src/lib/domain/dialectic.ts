@@ -8,6 +8,7 @@ export interface DialogueMessage {
 	content: string;
 	timestamp: string;
 	isAi?: boolean;
+	subjectId?: string;
 }
 
 export interface DoctrineRecallRule {

@@ -14,17 +14,37 @@
 		FileCode,
 		AlertTriangle,
 		RotateCcw,
-		HelpCircle
+		HelpCircle,
+		Filter
 	} from 'lucide-svelte';
 
 	let inputMessage = $state<string>('');
 	let selectedChannel = $state<'internal' | 'discord'>('internal');
+	let targetSubjectMode = $state<string>('active');
+	let filterSubject = $state<string>('all');
 	let retractingStatementId = $state<string | null>(null);
 	let retractionReason = $state<string>('');
 
+	const activeSubject = $derived(deliberationStore.activeSubject);
+	const subjects = $derived(deliberationStore.subjects);
+
+	const displayedMessages = $derived.by(() => {
+		if (filterSubject === 'all') return deliberationStore.dialogueMessages;
+		if (filterSubject === 'active') return deliberationStore.messagesForActiveSubject;
+		if (filterSubject === 'general') return deliberationStore.generalDialogueMessages;
+		return deliberationStore.dialogueMessages.filter((m) => m.subjectId === filterSubject);
+	});
+
 	function handleSendMessage() {
 		if (!inputMessage.trim()) return;
-		deliberationStore.postDialogueMessage(inputMessage, selectedChannel);
+		const subjectIdToAttach =
+			targetSubjectMode === 'active'
+				? deliberationStore.activeSubjectId
+				: targetSubjectMode === 'general'
+				? undefined
+				: targetSubjectMode;
+
+		deliberationStore.postDialogueMessage(inputMessage, selectedChannel, 'Architecte', subjectIdToAttach);
 		inputMessage = '';
 	}
 
@@ -32,7 +52,8 @@
 		deliberationStore.postDialogueMessage(
 			'Sur le site Sud, peut-on réduire l autonomie du groupe électrogène pour économiser du fioul sous NIS2 ?',
 			'discord',
-			'A. Mercier (Infra Lead)'
+			'A. Mercier (Infra Lead)',
+			deliberationStore.activeSubjectId
 		);
 	}
 </script>
@@ -111,14 +132,58 @@
 		</div>
 	{/if}
 
+	<!-- Barre de filtrage par sujet -->
+	<div class="flex items-center justify-between gap-2 text-xs bg-muted/40 p-2 rounded-lg border flex-wrap">
+		<div class="flex items-center gap-1.5 text-muted-foreground font-semibold">
+			<Filter class="h-3.5 w-3.5 text-primary" />
+			<span>Filtrer les discussions :</span>
+		</div>
+		<div class="flex items-center gap-1.5 flex-wrap">
+			<button
+				type="button"
+				onclick={() => (filterSubject = 'all')}
+				class="text-[11px] px-2 py-0.5 rounded font-mono transition-colors {filterSubject === 'all'
+					? 'bg-primary text-primary-foreground font-bold shadow-2xs'
+					: 'bg-background hover:bg-muted text-muted-foreground border'}"
+			>
+				Tous ({deliberationStore.dialogueMessages.length})
+			</button>
+			{#if activeSubject}
+				<button
+					type="button"
+					onclick={() => (filterSubject = 'active')}
+					class="text-[11px] px-2 py-0.5 rounded font-mono transition-colors {filterSubject === 'active'
+						? 'bg-blue-600 text-white font-bold shadow-2xs'
+						: 'bg-background hover:bg-muted text-muted-foreground border'}"
+					title="Voir uniquement les messages de la section active sélectionnée dans la matrice"
+				>
+					Section active : {activeSubject.section_ref} ({deliberationStore.messagesForActiveSubject.length})
+				</button>
+			{/if}
+			<select
+				bind:value={filterSubject}
+				class="text-[11px] font-mono px-2 py-0.5 rounded border border-border bg-background text-foreground"
+			>
+				<option value="all">Tous les sujets ({deliberationStore.dialogueMessages.length})</option>
+				<option value="active">Sujet actif ({activeSubject?.section_ref || 'aucun'})</option>
+				<option value="general">Général / Sans sujet ({deliberationStore.generalDialogueMessages.length})</option>
+				<optgroup label="Par section d'architecture">
+					{#each subjects as subj}
+						<option value={subj.id}>{subj.section_ref} {subj.name}</option>
+					{/each}
+				</optgroup>
+			</select>
+		</div>
+	</div>
+
 	<!-- Fil de messages -->
 	<div class="h-56 overflow-y-auto space-y-2.5 pr-1 text-xs">
-		{#if deliberationStore.dialogueMessages.length === 0}
-			<p class="text-center italic text-muted-foreground py-6">Aucun message pour le moment.</p>
+		{#if displayedMessages.length === 0}
+			<p class="text-center italic text-muted-foreground py-6">Aucun message pour ce filtre de sujet.</p>
 		{:else}
-			{#each deliberationStore.dialogueMessages as msg}
+			{#each displayedMessages as msg}
 				<div class="p-2.5 rounded-lg border bg-background/60 space-y-1">
-					<div class="flex items-center justify-between text-[11px] text-muted-foreground">
+					<div class="flex items-center justify-between text-[11px] text-muted-foreground gap-2 flex-wrap">
 						<div class="flex items-center gap-1.5 font-semibold text-foreground">
 							{#if msg.isAi}
 								<Bot class="h-3 w-3 text-primary" />
@@ -133,7 +198,24 @@
 								</span>
 							{/if}
 						</div>
-						<span class="font-mono text-[10px]">{msg.timestamp}</span>
+						<div class="flex items-center gap-1.5">
+							{#if msg.subjectId}
+								{@const subj = subjects.find((s) => s.id === msg.subjectId)}
+								<button
+									type="button"
+									onclick={() => deliberationStore.selectSubject(msg.subjectId!)}
+									class="font-mono text-[9px] px-1.5 py-0.5 rounded bg-blue-500/10 hover:bg-blue-500/20 text-blue-700 dark:text-blue-300 font-bold border border-blue-500/20 transition-colors"
+									title="Cliquer pour afficher ce sujet dans la matrice et la délibération"
+								>
+									{subj ? `${subj.section_ref} ${subj.name}` : msg.subjectId}
+								</button>
+							{:else}
+								<span class="font-mono text-[9px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground border">
+									Projet Global
+								</span>
+							{/if}
+							<span class="font-mono text-[10px]">{msg.timestamp}</span>
+						</div>
 					</div>
 					<p class="text-foreground leading-relaxed font-sans">{msg.content}</p>
 				</div>
@@ -149,19 +231,38 @@
 		}}
 		class="space-y-2 pt-2 border-t"
 	>
-		<div class="flex items-center gap-2">
+		<div class="flex items-center gap-2 flex-wrap">
 			<select
 				bind:value={selectedChannel}
-				class="text-[11px] font-mono px-2 py-1 rounded border border-border bg-background text-foreground"
+				class="text-[11px] font-mono px-2 py-1.5 rounded border border-border bg-background text-foreground"
 			>
 				<option value="internal">Interne</option>
 				<option value="discord">Salon Discord</option>
 			</select>
+
+			<select
+				bind:value={targetSubjectMode}
+				class="text-[11px] font-mono px-2 py-1.5 rounded border border-border bg-background text-foreground max-w-[220px] truncate"
+				title="Rattacher le message à une section d'architecture spécifique"
+			>
+				{#if activeSubject}
+					<option value="active">Rattaché à {activeSubject.section_ref} (Actif)</option>
+				{/if}
+				<option value="general">Message Global (Projet)</option>
+				<optgroup label="Autre section">
+					{#each subjects as subj}
+						{#if subj.id !== deliberationStore.activeSubjectId}
+							<option value={subj.id}>{subj.section_ref} {subj.name}</option>
+						{/if}
+					{/each}
+				</optgroup>
+			</select>
+
 			<input
 				type="text"
 				bind:value={inputMessage}
 				placeholder="Posez une question, mentionnez un standard (ex: NIS2, holdover, Tier IV)..."
-				class="flex-1 text-xs px-3 py-1.5 rounded-md border border-border bg-background text-foreground"
+				class="flex-1 text-xs px-3 py-1.5 rounded-md border border-border bg-background text-foreground min-w-[200px]"
 			/>
 			<button
 				type="submit"

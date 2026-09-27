@@ -62,4 +62,34 @@ describe('Dual-Engagement Engine & Local Isolation Contract', () => {
 		expect(deliberationStore.engagements).toHaveLength(2);
 		expect(deliberationStore.notifications[0].message).toContain('100% Local');
 	});
+
+	it('5. Isole les fils de discussion par engagement et filtre strictement par sujet', () => {
+		// Dans SUSE Telco Cloud, on sélectionne suse_cni_sriov
+		deliberationStore.switchEngagement('suse-telco-cloud-generic');
+		deliberationStore.selectSubject('suse_cni_sriov');
+
+		// Le fil filtré pour le sujet actif ne contient QUE les messages de suse_cni_sriov
+		const sriovMessages = deliberationStore.messagesForActiveSubject;
+		expect(sriovMessages.length).toBeGreaterThan(0);
+		expect(sriovMessages.every((m) => m.subjectId === 'suse_cni_sriov')).toBe(true);
+
+		// Les messages d'un autre sujet SUSE (ex: suse_rt_kernel) ne doivent pas fuiter
+		expect(sriovMessages.some((m) => m.subjectId === 'suse_rt_kernel')).toBe(false);
+
+		// Bascule sur suse_rt_kernel
+		deliberationStore.selectSubject('suse_rt_kernel');
+		const rtMessages = deliberationStore.messagesForActiveSubject;
+		expect(rtMessages.length).toBeGreaterThan(0);
+		expect(rtMessages.every((m) => m.subjectId === 'suse_rt_kernel')).toBe(true);
+
+		// Bascule sur CCTP Réel Nordwave
+		deliberationStore.switchEngagement('cctp-mcx-nordwave');
+		deliberationStore.selectSubject('sub_sync');
+		const syncMessages = deliberationStore.messagesForActiveSubject;
+		expect(syncMessages.length).toBeGreaterThan(0);
+		expect(syncMessages.every((m) => m.subjectId === 'sub_sync')).toBe(true);
+
+		// Les messages SUSE ne doivent PAS fuiter dans CCTP Nordwave
+		expect(deliberationStore.dialogueMessages.some((m) => m.subjectId?.startsWith('suse_'))).toBe(false);
+	});
 });

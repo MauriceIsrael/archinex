@@ -327,7 +327,7 @@
 					<div class="flex items-center justify-between">
 						<span class="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
 							<MessagesSquare class="h-3.5 w-3.5 text-blue-500" />
-							<span>Dernier Échange d'Experts sur ce Sujet</span>
+							<span>Dernier Échange d'Experts sur {activeSubject?.section_ref || 'ce sujet'}</span>
 						</span>
 						<button
 							type="button"
@@ -366,16 +366,24 @@
 								Discussion entre Experts sur {activeSubject?.section_ref} {activeSubject?.name}
 							</h4>
 						</div>
-						<span class="font-mono text-[10px] px-2 py-0.5 rounded bg-blue-500/10 text-blue-700 dark:text-blue-300 font-bold">
-							{subjectMessages.length} messages
-						</span>
+						<div class="flex items-center gap-1.5">
+							<span class="font-mono text-[10px] px-2 py-0.5 rounded bg-blue-500/10 text-blue-700 dark:text-blue-300 font-bold">
+								{subjectMessages.length} sur {activeSubject?.section_ref || 'cette section'}
+							</span>
+							{#if deliberationStore.generalDialogueMessages.length > 0}
+								<span class="font-mono text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground" title="Messages généraux au niveau du projet consultables dans le fil général">
+									+{deliberationStore.generalDialogueMessages.length} globaux
+								</span>
+							{/if}
+						</div>
 					</div>
 
 					<!-- Liste des messages d'experts -->
 					<div class="space-y-2.5 max-h-80 overflow-y-auto pr-1">
 						{#if subjectMessages.length === 0}
-							<div class="p-6 text-center text-xs text-muted-foreground">
-								Aucun message d'expert pour le moment sur cette section. Ouvrez le débat ci-dessous !
+							<div class="p-6 text-center text-xs text-muted-foreground border rounded-lg bg-muted/10 space-y-1">
+								<p class="font-semibold text-foreground">Aucun échange spécifique pour {activeSubject?.section_ref} {activeSubject?.name}.</p>
+								<p class="text-[11px]">Saisissez ci-dessous votre premier avis technique ou directive d'architecture pour initier la concertation.</p>
 							</div>
 						{:else}
 							{#each subjectMessages as msg}

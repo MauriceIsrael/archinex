@@ -46,10 +46,14 @@ import {
 import {
 	createDefaultEngagements,
 	type EngagementProfile,
+	type WorkspaceCreationInput,
+	buildEngagementProfileFromWorkspaceInput,
 	SUSE_TELCO_SUBJECTS,
 	SUSE_TELCO_DRAFTS,
 	SUSE_TELCO_STATEMENTS,
-	SUSE_TELCO_CORPUS
+	SUSE_TELCO_CORPUS,
+	SUSE_TELCO_DIALOGUE_MESSAGES,
+	CCTP_DIALOGUE_MESSAGES
 } from '$lib/domain/engagements';
 import type {
 	LLMOpsHealth,
@@ -267,68 +271,7 @@ class DeliberationStore {
 	drafts = $state<Record<string, TelegraphicDraft>>(SUSE_TELCO_DRAFTS);
 	notifications = $state<Array<{ id: string; timestamp: string; message: string; type: 'info' | 'success' | 'warning' }>>([]);
 	statements = $state<Statement[]>(SUSE_TELCO_STATEMENTS);
-	dialogueMessages = $state<DialogueMessage[]>([
-		{
-			id: 'msg-sync-01',
-			channel: 'internal',
-			author: 'P. Durand',
-			role: 'infra_expert_architect',
-			content: 'Sur le site nodal, le surcoût de 180 k€ pour le double rubidium 30 jours absorbe 50% de notre enveloppe CAPEX. La variante B (GNSS durci + NTP secouru) permet d\'économiser 135 k€.',
-			timestamp: '10:14',
-			isAi: false,
-			subjectId: 'sub_sync'
-		},
-		{
-			id: 'msg-sync-02',
-			channel: 'internal',
-			author: 'S. Bernard',
-			role: 'security_architect',
-			content: 'Attention : sous NIS2 et selon le CCTP Art. 4.2.1, l\'ANSSI refuse tout risque de désynchronisation de phase en bande TDD. Le holdover 30 jours sans signal satellite est non négociable pour les 4 nœuds nodaux.',
-			timestamp: '10:18',
-			isAi: false,
-			subjectId: 'sub_sync'
-		},
-		{
-			id: 'msg-sync-03',
-			channel: 'internal',
-			author: 'Lead Architect',
-			role: 'lead_architect',
-			content: 'Proposition de compromis : nous confirmons l\'Option A (Rubidium 30j) sur les 4 nœuds nodaux centraux, et nous autorisons la variante B sur les relais secondaires pour respecter le budget.',
-			timestamp: '10:22',
-			isAi: false,
-			subjectId: 'sub_sync'
-		},
-		{
-			id: 'msg-suse-01',
-			channel: 'internal',
-			author: 'P. Durand',
-			role: 'infra_expert_architect',
-			content: 'Sur le socle SUSE, nous devons impérativement activer Multus CNI et l\'opérateur SR-IOV pour isoler le plan utilisateur UPF du trafic OAM de gestion.',
-			timestamp: '09:45',
-			isAi: false,
-			subjectId: 'suse_cni_sriov'
-		},
-		{
-			id: 'msg-suse-02',
-			channel: 'internal',
-			author: 'S. Bernard',
-			role: 'security_architect',
-			content: 'Validé pour Multus SR-IOV, sous réserve que NeuVector inspecte les interfaces N2/N3 en couche L7 sans sidecar invasif.',
-			timestamp: '09:50',
-			isAi: false,
-			subjectId: 'suse_cni_sriov'
-		},
-		{
-			id: 'msg-dc-01',
-			channel: 'internal',
-			author: 'P. Durand',
-			role: 'infra_expert_architect',
-			content: 'L\'autonomie électrique 72h impose l\'installation de cuves fioul enterrées ICPE (+95 k€). Sommes-nous prêts à engager ce surcoût ?',
-			timestamp: '08:30',
-			isAi: false,
-			subjectId: 'sub_dc_resilience'
-		}
-	]);
+	dialogueMessages = $state<DialogueMessage[]>(SUSE_TELCO_DIALOGUE_MESSAGES);
 	activeRecalls = $state<DoctrineRecallRule[]>([]);
 	frozenSnapshots = $state<Record<string, SealedSnapshot>>({});
 	candidateRules = $state<CandidateRule[]>(INITIAL_CANDIDATE_RULES);
@@ -338,6 +281,16 @@ class DeliberationStore {
 
 	corpusDocuments = $state<CorpusDocument[]>(SUSE_TELCO_CORPUS);
 	activeDocumentId = $state<string>('DOC-SUSE-ARCH-01');
+
+	// Base de connaissances commune enrichie au gré des engagements (invariante & partagée de facto)
+	commonKnowledgeBase = $state<CorpusDocument[]>([
+		...INITIAL_CORPUS_DOCUMENTS,
+		...SUSE_TELCO_CORPUS
+	]);
+
+	get sharedKnowledgeBase(): CorpusDocument[] {
+		return this.commonKnowledgeBase;
+	}
 
 	// État d'intégration LLMOps (Dual-Mode)
 	llmopsStatus = $state<'idle' | 'connected' | 'offline' | 'syncing' | 'error'>('idle');
@@ -356,6 +309,7 @@ class DeliberationStore {
 			corpusDocuments: CorpusDocument[];
 			activeSubjectId: string;
 			activeDocumentId: string;
+			dialogueMessages: DialogueMessage[];
 		}
 	> = {};
 
@@ -372,7 +326,8 @@ class DeliberationStore {
 			statements: $state.snapshot(this.statements),
 			corpusDocuments: $state.snapshot(this.corpusDocuments),
 			activeSubjectId: this.activeSubjectId,
-			activeDocumentId: this.activeDocumentId
+			activeDocumentId: this.activeDocumentId,
+			dialogueMessages: $state.snapshot(this.dialogueMessages)
 		};
 
 		// 2. Trouver la cible
@@ -391,6 +346,7 @@ class DeliberationStore {
 			this.corpusDocuments = cached.corpusDocuments;
 			this.activeSubjectId = cached.activeSubjectId;
 			this.activeDocumentId = cached.activeDocumentId;
+			this.dialogueMessages = cached.dialogueMessages;
 		} else {
 			this.subjects = [...targetProfile.subjects];
 			this.drafts = { ...targetProfile.drafts };
@@ -398,6 +354,7 @@ class DeliberationStore {
 			this.corpusDocuments = [...targetProfile.corpusDocuments];
 			this.activeSubjectId = targetProfile.defaultSubjectId;
 			this.activeDocumentId = targetProfile.defaultDocId;
+			this.dialogueMessages = [...(targetProfile.dialogueMessages || [])];
 		}
 
 		this.activeEngagementId = targetId;
@@ -408,12 +365,47 @@ class DeliberationStore {
 		);
 	}
 
+	/**
+	 * Créer et initialiser un nouvel espace de travail pour un projet (Mini-App Onboarding)
+	 * Verse les documents amonts dans la base de connaissance commune
+	 */
+	createNewWorkspace(input: WorkspaceCreationInput): EngagementProfile {
+		const { engagement, newUpstreamDocuments } = buildEngagementProfileFromWorkspaceInput(
+			input,
+			this.commonKnowledgeBase
+		);
+
+		// 1. Enrichir la base de connaissances commune avec les nouveaux documents amonts
+		for (const doc of newUpstreamDocuments) {
+			if (!this.commonKnowledgeBase.some((d) => d.id === doc.id)) {
+				this.commonKnowledgeBase.push(doc);
+			}
+		}
+
+		// 2. Enregistrer l'engagement dans la liste des projets
+		this.engagements.push(engagement);
+
+		// 3. Basculer immédiatement sur ce nouvel espace de travail
+		this.switchEngagement(engagement.id);
+
+		this.logNotification(
+			`Nouvel espace de travail initialisé : "${engagement.title}" (${newUpstreamDocuments.length} doc(s) amont(s) versés au patrimoine commun)`,
+			'success'
+		);
+
+		return engagement;
+	}
+
 	// Tri réactif automatique par déblocages (effet multiplicateur)
 	sortedSubjects = $derived(sortMaturityBoard(this.subjects));
 
-	activeSubject = $derived(this.subjects.find((s) => s.id === this.activeSubjectId));
+	get activeSubject(): MaturitySubject | undefined {
+		return this.subjects.find((s) => s.id === this.activeSubjectId);
+	}
 
-	activeDraft = $derived(this.drafts[this.activeSubjectId] || null);
+	get activeDraft(): TelegraphicDraft | null {
+		return this.drafts[this.activeSubjectId] || null;
+	}
 
 	stalledSubjects = $derived(this.subjects.filter((s) => s.is_stalled));
 
@@ -422,31 +414,35 @@ class DeliberationStore {
 	totalBlocking = $derived(this.subjects.reduce((sum, s) => sum + s.blocking_count, 0));
 
 	// Propriétés dérivées du corpus documentaire
-	activeDocument = $derived(
-		this.corpusDocuments.find((d) => d.id === this.activeDocumentId) || this.corpusDocuments[0]
-	);
+	get activeDocument(): CorpusDocument {
+		return (
+			this.corpusDocuments.find((d) => d.id === this.activeDocumentId) || this.corpusDocuments[0]
+		);
+	}
 
 	corpusStats = $derived(
 		computeCorpusStats(this.corpusDocuments, this.subjects.map((s) => s.id))
 	);
 
-	documentsForActiveSubject = $derived(
-		this.corpusDocuments.filter((d) => d.relatedSubjectIds.includes(this.activeSubjectId))
-	);
+	get documentsForActiveSubject(): CorpusDocument[] {
+		return this.corpusDocuments.filter((d) => d.relatedSubjectIds.includes(this.activeSubjectId));
+	}
 
-	clientDocuments = $derived(
-		this.corpusDocuments.filter((d) => d.origin === 'client')
-	);
+	get clientDocuments(): CorpusDocument[] {
+		return this.corpusDocuments.filter((d) => d.origin === 'client');
+	}
 
-	externalDocuments = $derived(
-		this.corpusDocuments.filter((d) => d.origin === 'contributor_external')
-	);
+	get externalDocuments(): CorpusDocument[] {
+		return this.corpusDocuments.filter((d) => d.origin === 'contributor_external');
+	}
 
-	messagesForActiveSubject = $derived(
-		this.dialogueMessages.filter(
-			(m) => !m.subjectId || m.subjectId === this.activeSubjectId
-		)
-	);
+	get messagesForActiveSubject(): DialogueMessage[] {
+		return this.dialogueMessages.filter((m) => m.subjectId === this.activeSubjectId);
+	}
+
+	get generalDialogueMessages(): DialogueMessage[] {
+		return this.dialogueMessages.filter((m) => !m.subjectId);
+	}
 
 	sendSubjectMessage(content: string, subjectId?: string) {
 		const targetSubjectId = subjectId || this.activeSubjectId;
@@ -502,6 +498,9 @@ class DeliberationStore {
 			lastUpdated: new Date().toISOString()
 		};
 		this.corpusDocuments = [newDoc, ...this.corpusDocuments];
+		if (!this.commonKnowledgeBase.some((d) => d.id === newDoc.id)) {
+			this.commonKnowledgeBase.push(newDoc);
+		}
 		this.activeDocumentId = newId;
 		this.logNotification(
 			`Document ajouté au corpus : "${newDoc.title}" (${newDoc.categoryLabel})`,
@@ -675,7 +674,8 @@ class DeliberationStore {
 	postDialogueMessage(
 		content: string,
 		channel: 'internal' | 'discord' = 'internal',
-		author: string = 'Architecte'
+		author: string = 'Architecte',
+		subjectId?: string
 	) {
 		const trimmed = content.trim();
 		if (!trimmed) return;
@@ -687,7 +687,8 @@ class DeliberationStore {
 			role: this.currentRole,
 			content: trimmed,
 			timestamp: new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }),
-			isAi: false
+			isAi: false,
+			subjectId
 		};
 
 		this.dialogueMessages = [...this.dialogueMessages, msg];

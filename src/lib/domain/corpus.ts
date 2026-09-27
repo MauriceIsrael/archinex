@@ -43,6 +43,8 @@ export interface CorpusDocument {
 	keyIdeas?: string[];
 	inducedRules?: InducedRule[];
 	keyClauses: ExtractedClause[];
+	isGlobalStandard?: boolean;
+	engagementIds?: string[];
 	addedDate: string;
 	lastUpdated: string;
 }

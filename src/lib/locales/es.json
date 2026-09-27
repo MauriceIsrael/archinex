@@ -4,6 +4,7 @@
   },
   "nav": {
     "dashboard": "Panel de control",
+    "workspaces": "Espacios y Proyectos",
     "users": "Usuarios",
     "settings": "Ajustes",
     "language": "Idioma",

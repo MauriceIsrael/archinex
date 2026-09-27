@@ -4,6 +4,7 @@ import {
 	validateTelegraphicTone,
 	type TelegraphicDraft
 } from '$lib/domain/telegraphic';
+import { deliberationStore } from '$lib/stores/deliberationStore.svelte';
 
 describe('Lot 2 - Telegraphic Draft & Tone Non-Regression Contract Tests', () => {
 	it('Scénario 1: Rendu d\'un brouillon-appât provoquant sur un sujet non stabilisé (§4.2 Synchronisation)', () => {
@@ -86,5 +87,20 @@ describe('Lot 2 - Telegraphic Draft & Tone Non-Regression Contract Tests', () =>
 
 		expect(result.valid).toBe(true);
 		expect(result.errors).toHaveLength(0);
+	});
+
+	it('Scénario 6: Formulation d une alternative libre / variante innovante par un expert', () => {
+		const res = deliberationStore.proposeCustomVariant('suse_neuvector_mesh', {
+			title: 'Passerelle eBPF Cilium Mesh',
+			cost_delta: '-45 k€ OPEX',
+			trade_off: 'Supprime l overhead de routage mais requiert un noyau Linux 6.x récent'
+		});
+
+		expect(res.success).toBe(true);
+		expect(res.statement).toBeDefined();
+		expect(res.statement?.triplet.predicate).toBe('proposes_innovative_variant');
+		expect(deliberationStore.drafts['suse_neuvector_mesh'].variante_b?.title).toBe('Passerelle eBPF Cilium Mesh');
+		// Le sujet passe en L2_decomposed car il y a confrontation d'options
+		expect(deliberationStore.subjects.find((s) => s.id === 'suse_neuvector_mesh')?.level).toBe('L2_decomposed');
 	});
 });

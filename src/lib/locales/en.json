@@ -4,6 +4,7 @@
   },
   "nav": {
     "dashboard": "Dashboard",
+    "workspaces": "Workspaces & Projects",
     "deliberation": "Deliberation & HLD",
     "users": "Users (Example)",
     "settings": "Settings (Example)",

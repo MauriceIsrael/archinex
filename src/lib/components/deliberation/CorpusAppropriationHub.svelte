@@ -174,6 +174,24 @@
 		</div>
 	</div>
 
+	<!-- Rappel Invariant : Patrimoine Commun Partagé -->
+	<div class="rounded-xl border bg-emerald-500/10 border-emerald-500/25 p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+		<div class="flex items-center gap-2.5">
+			<ShieldCheck class="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+			<span>
+				<strong>Patrimoine de Connaissances Commun :</strong> 
+				<span class="text-foreground">{deliberationStore.commonKnowledgeBase.length} documents et standards</span> capitalisés à travers tous les engagements, valides de facto.
+			</span>
+		</div>
+		<a
+			href="/workspaces"
+			class="inline-flex items-center gap-1 font-bold text-emerald-700 dark:text-emerald-300 hover:underline shrink-0"
+		>
+			<span>Voir tous les espaces projet</span>
+			<ArrowRight class="h-3 w-3" />
+		</a>
+	</div>
+
 	<!-- 2. FOCUS : DOCUMENT ACTIF DE TRAVAIL (Très visible & immédiat) -->
 	{#if activeDoc}
 		<div

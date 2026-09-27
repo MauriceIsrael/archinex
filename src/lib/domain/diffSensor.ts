@@ -118,3 +118,51 @@ export function createVariantExclusionStatement(params: {
 		updatedAt: new Date().toISOString()
 	};
 }
+
+/**
+ * Consigne une proposition d'alternative libre / variante innovante par un expert.
+ */
+export function createCustomVariantProposalStatement(params: {
+	subjectId: string;
+	sectionRef: string;
+	variantTitle: string;
+	costDelta: string;
+	tradeOff: string;
+	authorName: string;
+	role: ArchitectRole;
+}): Statement {
+	const triplet: StatementTriplet = {
+		subject: params.subjectId,
+		predicate: 'proposes_innovative_variant',
+		value: `${params.variantTitle.trim()} (${params.costDelta.trim()}) :: ${params.tradeOff.trim()}`
+	};
+
+	const statementId = `VAR-${Date.now().toString(36)}-${Math.random().toString(36).substring(2, 6)}`;
+
+	return {
+		id: statementId,
+		section: params.sectionRef,
+		triplet,
+		justification: {
+			basedOn: [],
+			appliedRule: 'expert_free_alternative_proposal'
+		},
+		authority: {
+			author: params.authorName,
+			role: params.role,
+			productionMode: 'human-authored'
+		},
+		maturity: {
+			subjectLevel: 'L2_decomposed',
+			confidence: 'designed'
+		},
+		revisability: {
+			antecedents: [],
+			consequencesIfInvalidated: `Proposition libre d'alternative technique ${params.variantTitle}`
+		},
+		status: 'active',
+		createdAt: new Date().toISOString(),
+		updatedAt: new Date().toISOString()
+	};
+}
+

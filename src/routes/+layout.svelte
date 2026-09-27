@@ -14,6 +14,7 @@
   import GitBranch from 'lucide-svelte/icons/git-branch';
   import LogIn from 'lucide-svelte/icons/log-in';
   import LogOut from 'lucide-svelte/icons/log-out';
+  import FolderPlus from 'lucide-svelte/icons/folder-plus';
 
   import { Button } from '$lib/components/ui/button';
   import * as Sheet from '$lib/components/ui/sheet';
@@ -51,6 +52,7 @@
    */
   const menuItems = [
     { href: '/',             labelKey: 'nav.dashboard',    icon: LayoutDashboard, adminOnly: false },
+    { href: '/workspaces',   labelKey: 'nav.workspaces',   icon: FolderPlus,      adminOnly: false },
     { href: '/deliberation', labelKey: 'nav.deliberation', icon: GitBranch,       adminOnly: false },
     { href: '/users',        labelKey: 'nav.users',        icon: Users,           adminOnly: false },
     { href: '/settings',     labelKey: 'nav.settings',     icon: Settings,        adminOnly: false },

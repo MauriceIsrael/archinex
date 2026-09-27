@@ -4,6 +4,7 @@
   },
   "nav": {
     "dashboard": "Tableau de bord",
+    "workspaces": "Espaces & Projets",
     "deliberation": "Délibération & HLD",
     "users": "Utilisateurs (Exemple)",
     "settings": "Paramètres (Exemple)",

@@ -54,6 +54,18 @@
 				return 'bg-muted text-muted-foreground';
 		}
 	}
+
+	function formatMaturityShort(level: string) {
+		switch (level) {
+			case 'L0_named': return 'L0 · Cadrage';
+			case 'L1_framed': return 'L1 · Dilemme';
+			case 'L2_decomposed': return 'L2 · En débat';
+			case 'L3_decided': return 'L3 · Arbitré';
+			case 'L4_specified': return 'L4 · Spécifié';
+			case 'L5_archived': return 'L5 · Scellé';
+			default: return level;
+		}
+	}
 </script>
 
 <div class="rounded-xl border bg-card shadow-xs overflow-hidden flex flex-col h-full">
@@ -128,7 +140,7 @@
 						<div class="flex items-center gap-1.5 mb-1">
 							<span class="font-mono text-xs font-bold text-muted-foreground">{sub.section_ref}</span>
 							<span class="inline-flex items-center rounded px-1.5 py-0.5 font-mono text-[10px] font-semibold border {getLevelBadgeClass(sub.level)}">
-								{sub.level}
+								{formatMaturityShort(sub.level)}
 							</span>
 						</div>
 						<h4 class="text-xs font-bold text-foreground leading-snug">{sub.name}</h4>
@@ -233,7 +245,7 @@
 						<!-- 2. Niveau -->
 						<td class="py-2.5 px-3">
 							<span class="inline-flex items-center rounded px-2 py-0.5 font-mono text-[10px] font-semibold border {getLevelBadgeClass(sub.level)}">
-								{sub.level}
+								{formatMaturityShort(sub.level)}
 							</span>
 						</td>
 

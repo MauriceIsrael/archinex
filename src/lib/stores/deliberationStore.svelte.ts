@@ -8,7 +8,8 @@ import {
 } from '$lib/domain/maturityBoard';
 import {
 	captureTextDiffAsStatement,
-	createVariantExclusionStatement
+	createVariantExclusionStatement,
+	createCustomVariantProposalStatement
 } from '$lib/domain/diffSensor';
 import {
 	detectProactiveDoctrineRecalls,
@@ -664,6 +665,72 @@ class DeliberationStore {
 
 		const msg = `⛔ ${variantTitle} rejetée. Énoncé d'exclusion consigné [${statement.id}].`;
 		this.logNotification(msg, 'success');
+		return { success: true, message: msg, statement };
+	}
+
+	/**
+	 * Proposition d'une alternative libre / variante innovante par un expert.
+	 * Positionne la variante B sur le sujet, passe le sujet à L2_decomposed si nécessaire,
+	 * consigne l'énoncé auditable et notifie le fil de discussion.
+	 */
+	proposeCustomVariant(
+		subjectId: string,
+		variant: { title: string; cost_delta: string; trade_off: string },
+		authorName: string = 'Architecte'
+	): { success: boolean; message: string; statement?: Statement } {
+		const draft = this.drafts[subjectId];
+		if (!draft) {
+			return { success: false, message: 'Brouillon introuvable pour ce sujet' };
+		}
+
+		const cleanTitle = variant.title.trim();
+		const cleanCost = variant.cost_delta.trim() || 'Coût à évaluer';
+		const cleanTradeOff = variant.trade_off.trim();
+
+		if (!cleanTitle || !cleanTradeOff) {
+			return { success: false, message: 'Le titre et le compromis de la variante sont obligatoires.' };
+		}
+
+		// 1. Affectation de la variante B au brouillon
+		draft.variante_b = {
+			title: cleanTitle,
+			cost_delta: cleanCost,
+			trade_off: cleanTradeOff
+		};
+
+		// 2. Si le sujet était en L0 ou L1, il passe en L2_decomposed car il y a confrontation d'options
+		const targetSubject = this.subjects.find((s) => s.id === subjectId);
+		if (targetSubject && (targetSubject.level === 'L0_named' || targetSubject.level === 'L1_framed')) {
+			targetSubject.level = 'L2_decomposed';
+			draft.maturity = 'L2_decomposed';
+		}
+
+		// 3. Consignation de l'énoncé auditable
+		const effectiveAuthor = this.isHuman
+			? (this.currentRole === 'lead_architect' ? 'M. Israel (Lead Architect)' : authorName)
+			: 'Agent IA';
+
+		const statement = createCustomVariantProposalStatement({
+			subjectId,
+			sectionRef: draft.section_id,
+			variantTitle: cleanTitle,
+			costDelta: cleanCost,
+			tradeOff: cleanTradeOff,
+			authorName: effectiveAuthor,
+			role: this.currentRole
+		});
+
+		this.statements = [statement, ...this.statements];
+
+		// 4. Notification et message dans le fil de délibération du sujet
+		this.sendSubjectMessage(
+			`💡 Nouvelle alternative innovante proposée par ${effectiveAuthor} : "${cleanTitle}" (${cleanCost}). Compromis : « ${cleanTradeOff} ».`,
+			subjectId
+		);
+
+		const msg = `💡 Alternative libre enregistrée : "${cleanTitle}". Débat d'arbitrage ouvert en L2_decomposed.`;
+		this.logNotification(msg, 'success');
+
 		return { success: true, message: msg, statement };
 	}
 

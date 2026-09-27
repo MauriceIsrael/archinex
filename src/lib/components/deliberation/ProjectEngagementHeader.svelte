@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { deliberationStore, type DeliberationPosture } from '$lib/stores/deliberationStore.svelte';
 	import type { ArchitectRole } from '$lib/types/epistemic';
+	import CreateWorkspaceDialog from './CreateWorkspaceDialog.svelte';
 	import {
 		Building2,
 		FileText,
@@ -15,10 +16,12 @@
 		UserCheck,
 		Layers,
 		Lock,
-		Check
+		Check,
+		FolderPlus
 	} from 'lucide-svelte';
 
 	let { onOpenGuide }: { onOpenGuide: () => void } = $props();
+	let isCreateWorkspaceOpen = $state(false);
 
 	const activeEngagement = $derived(deliberationStore.activeEngagement);
 	const activeDoc = $derived(deliberationStore.activeDocument);
@@ -83,39 +86,59 @@
 					</span>
 				</div>
 
-				<!-- Sélecteur à deux boutons proéminents -->
-				<div class="grid grid-cols-1 sm:grid-cols-2 gap-2 max-w-2xl">
+				<!-- Sélecteur d'engagements avec bouton de création rapide -->
+				<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 max-w-3xl">
 					{#each deliberationStore.engagements as eng}
 						{@const isSelected = deliberationStore.activeEngagementId === eng.id}
 						<button
 							type="button"
 							onclick={() => deliberationStore.switchEngagement(eng.id)}
-							class="flex items-start gap-2.5 p-2.5 rounded-lg border text-left transition-all relative {isSelected
+							class="flex items-start gap-2.5 p-2 rounded-lg border text-left transition-all relative {isSelected
 								? 'bg-primary/10 border-primary shadow-xs ring-1 ring-primary/30'
 								: 'bg-muted/40 hover:bg-muted/70 border-border opacity-75 hover:opacity-100'}"
 						>
-							<div class="p-2 rounded-md {isSelected ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'} shrink-0 mt-0.5">
+							<div class="p-1.5 rounded-md {isSelected ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'} shrink-0 mt-0.5">
 								{#if eng.type === 'generic_blueprint'}
-									<Building2 class="h-4 w-4" />
+									<Building2 class="h-3.5 w-3.5" />
 								{:else}
-									<FileText class="h-4 w-4" />
+									<FileText class="h-3.5 w-3.5" />
 								{/if}
 							</div>
 							<div class="min-w-0 flex-1">
-								<div class="flex items-center gap-1.5">
+								<div class="flex items-center gap-1">
 									<strong class="text-xs font-bold truncate text-foreground">
 										{eng.title}
 									</strong>
 									{#if isSelected}
-										<Check class="h-3.5 w-3.5 text-primary shrink-0" />
+										<Check class="h-3 w-3 text-primary shrink-0" />
 									{/if}
 								</div>
-								<div class="text-[11px] text-muted-foreground line-clamp-1 mt-0.5">
-									{eng.type === 'generic_blueprint' ? 'Architecture Vierge (Blueprint)' : 'Appel d\'Offres Contractuel (RFP)'}
+								<div class="text-[10px] text-muted-foreground line-clamp-1">
+									{eng.type === 'generic_blueprint' ? 'Socle Blueprint' : eng.type === 'project_rfp' ? 'Appel d\'Offres RFP' : 'Espace Projet'}
 								</div>
 							</div>
 						</button>
 					{/each}
+
+					<!-- Bouton Nouvel Espace Projet -->
+					<button
+						type="button"
+						onclick={() => (isCreateWorkspaceOpen = true)}
+						class="flex items-center gap-2 p-2 rounded-lg border border-dashed border-primary/40 bg-primary/5 hover:bg-primary/10 text-primary transition-all text-left cursor-pointer group"
+						title="Créer un nouvel espace de travail pour un projet"
+					>
+						<div class="p-1.5 rounded-md bg-primary/10 group-hover:bg-primary/20 text-primary shrink-0">
+							<FolderPlus class="h-3.5 w-3.5" />
+						</div>
+						<div class="min-w-0 flex-1">
+							<strong class="text-xs font-bold block text-primary truncate">
+								+ Nouvel Espace
+							</strong>
+							<span class="text-[10px] text-muted-foreground line-clamp-1 block">
+								Cadrer un projet
+							</span>
+						</div>
+					</button>
 				</div>
 			</div>
 
@@ -271,4 +294,10 @@
 			</button>
 		{/each}
 	</div>
+
+	<!-- Modale Interactive de Création d'un Nouvel Espace de Travail -->
+	<CreateWorkspaceDialog
+		bind:open={isCreateWorkspaceOpen}
+		onclose={() => (isCreateWorkspaceOpen = false)}
+	/>
 </div>

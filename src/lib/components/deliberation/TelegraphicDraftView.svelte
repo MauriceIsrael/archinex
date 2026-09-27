@@ -17,7 +17,11 @@
 		UserCheck,
 		Bot,
 		ArrowRight,
-		Check
+		Check,
+		Lightbulb,
+		Sparkles,
+		Plus,
+		Compass
 	} from 'lucide-svelte';
 
 	type ViewTab = 'decision' | 'discussion' | 'draft';
@@ -35,6 +39,12 @@
 	let rejectingVariant = $state<boolean>(false);
 	let variantRejectReason = $state<string>('');
 
+	// Saisie libre d'une alternative innovante
+	let isProposingVariant = $state<boolean>(false);
+	let newVariantTitle = $state<string>('');
+	let newVariantCostDelta = $state<string>('');
+	let newVariantTradeOff = $state<string>('');
+
 	function handleSendComment() {
 		if (!newExpertComment.trim()) return;
 		deliberationStore.sendSubjectMessage(newExpertComment.trim());
@@ -45,6 +55,31 @@
 		if (e.key === 'Enter' && !e.shiftKey) {
 			e.preventDefault();
 			handleSendComment();
+		}
+	}
+
+	function handleProposeVariant() {
+		if (!newVariantTitle.trim() || !newVariantTradeOff.trim()) return;
+		deliberationStore.proposeCustomVariant(deliberationStore.activeSubjectId, {
+			title: newVariantTitle.trim(),
+			cost_delta: newVariantCostDelta.trim() || 'Coût à évaluer',
+			trade_off: newVariantTradeOff.trim()
+		});
+		isProposingVariant = false;
+		newVariantTitle = '';
+		newVariantCostDelta = '';
+		newVariantTradeOff = '';
+	}
+
+	function formatMaturityLabel(level?: string) {
+		switch (level) {
+			case 'L0_named': return 'L0 · En émergence';
+			case 'L1_framed': return 'L1 · Cadré (Dilemmes posés)';
+			case 'L2_decomposed': return 'L2 · En débat (Options ouvertes)';
+			case 'L3_decided': return 'L3 · Décision Validée & Arbitrée';
+			case 'L4_specified': return 'L4 · Spécifié';
+			case 'L5_archived': return 'L5 · Scellé opposable';
+			default: return level || 'L0';
 		}
 	}
 </script>
@@ -59,16 +94,13 @@
 				</span>
 				{#if draft?.is_provisional}
 					<span class="inline-flex items-center gap-1 rounded bg-amber-500/10 px-2 py-0.5 text-xs font-bold text-amber-700 dark:text-amber-400 border border-amber-500/30">
-						Provisoire (L0-L2)
+						{formatMaturityLabel(activeSubject?.level || draft?.maturity)}
 					</span>
 				{:else}
 					<span class="inline-flex items-center gap-1 rounded bg-emerald-500/10 px-2 py-0.5 text-xs font-bold text-emerald-700 dark:text-emerald-400 border border-emerald-500/30">
-						Acté & Tranché (L3+)
+						✅ {formatMaturityLabel(activeSubject?.level || draft?.maturity)}
 					</span>
 				{/if}
-				<span class="text-xs font-semibold uppercase tracking-wider text-muted-foreground font-mono">
-					{activeSubject?.level || draft?.maturity}
-				</span>
 				{#if activeSubject && activeSubject.blocking_count > 0}
 					<span class="font-mono text-[10px] px-1.5 py-0.2 rounded bg-destructive/10 text-destructive font-bold">
 						{activeSubject.blocking_count} bloquant
@@ -175,9 +207,19 @@
 							</div>
 						{/each}
 					{:else}
-						<div class="bg-background rounded-lg p-3 border border-emerald-500/30 text-emerald-800 dark:text-emerald-300 flex items-center gap-2">
-							<CheckCircle2 class="h-4 w-4 shrink-0 text-emerald-600" />
-							<span>Ce sujet a été tranché au niveau <strong>L3_decided</strong>. Les bloquants aval sont levés.</span>
+						<div class="bg-background rounded-lg p-3.5 border border-emerald-500/30 text-emerald-800 dark:text-emerald-300 flex items-start gap-2.5 shadow-2xs">
+							<CheckCircle2 class="h-4 w-4 shrink-0 text-emerald-600 mt-0.5" />
+							<div class="space-y-1">
+								<div class="flex items-center gap-2 flex-wrap">
+									<strong class="text-xs font-bold">Décision d'Architecture Validée & Arbitrée (Niveau L3)</strong>
+									<span class="font-mono text-[10px] px-1.5 py-0.2 rounded bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 font-bold uppercase">
+										Opposable & Validé
+									</span>
+								</div>
+								<p class="text-[11px] text-muted-foreground leading-relaxed">
+									Le choix technique sur cette section est formellement acté par le Lead Architect. Toutes les contradictions bloquantes sont levées et les sections avals dépendantes sont autorisées à entrer en spécification détaillée.
+								</p>
+							</div>
 						</div>
 					{/if}
 				</div>
@@ -189,7 +231,17 @@
 							<Split class="h-4 w-4 text-primary" />
 							<span>Les Alternatives en Compétition</span>
 						</span>
-						<span class="text-[11px] text-muted-foreground">Arbitrage d'architecture</span>
+						{#if !isProposingVariant}
+							<button
+								type="button"
+								onclick={() => (isProposingVariant = true)}
+								class="text-xs font-semibold text-purple-700 dark:text-purple-300 hover:underline inline-flex items-center gap-1"
+								title="Ouvrir le formulaire pour formuler une alternative technique innovante"
+							>
+								<Sparkles class="h-3 w-3 text-purple-600 dark:text-purple-400" />
+								<span>Proposer une alternative libre</span>
+							</button>
+						{/if}
 					</div>
 
 					<div class="grid grid-cols-1 md:grid-cols-2 gap-3">
@@ -238,8 +290,83 @@
 							</div>
 						</div>
 
-						<!-- ALTERNATIVE B : VARIANTE B / ALTERNATIVE EXPERT -->
-						{#if draft.variante_b}
+						<!-- ALTERNATIVE B : FORMULAIRE OU VARIANTE EXISTANTE OU CONSCIENTISATION -->
+						{#if isProposingVariant}
+							<!-- FORMULAIRE DE SAISIE LIBRE D'UNE ALTERNATIVE INNOVANTE -->
+							<div class="rounded-xl border-2 border-purple-500/40 bg-purple-500/[0.04] p-3.5 space-y-3 shadow-sm flex flex-col justify-between">
+								<div class="space-y-2.5">
+									<div class="flex items-center justify-between border-b pb-2">
+										<div class="flex items-center gap-1.5 font-bold text-xs text-purple-800 dark:text-purple-300">
+											<Sparkles class="h-4 w-4 text-purple-500" />
+											<span>Formuler une Alternative Libre (Innovation)</span>
+										</div>
+										<button
+											type="button"
+											onclick={() => (isProposingVariant = false)}
+											class="text-muted-foreground hover:text-foreground text-xs p-1"
+										>
+											✕
+										</button>
+									</div>
+
+									<div>
+										<label for="new-variant-title" class="text-[11px] font-bold text-foreground block mb-0.5">Titre de l'alternative technique :</label>
+										<input
+											id="new-variant-title"
+											type="text"
+											bind:value={newVariantTitle}
+											placeholder="ex: Mesh eBPF Cilium sans passerelle physique, Horloge CSAC..."
+											class="w-full text-xs px-2.5 py-1.5 rounded border border-border bg-background"
+										/>
+									</div>
+
+									<div>
+										<label for="new-variant-cost" class="text-[11px] font-bold text-foreground block mb-0.5">Impact budgétaire / effort estimé :</label>
+										<input
+											id="new-variant-cost"
+											type="text"
+											bind:value={newVariantCostDelta}
+											placeholder="ex: -65 k€ CAPEX, Gain OPEX 15%, Effort M..."
+											class="w-full text-xs px-2.5 py-1.5 rounded border border-border bg-background"
+										/>
+									</div>
+
+									<div>
+										<label for="new-variant-tradeoff" class="text-[11px] font-bold text-foreground block mb-0.5">Compromis & Valeur innovante :</label>
+										<textarea
+											id="new-variant-tradeoff"
+											bind:value={newVariantTradeOff}
+											rows={2}
+											placeholder="ex: Allège le matériel et l'empreinte rack, mais requiert une qualification préalable."
+											class="w-full text-xs px-2.5 py-1.5 rounded border border-border bg-background"
+										></textarea>
+									</div>
+								</div>
+
+								<div class="flex justify-end gap-2 pt-2 border-t">
+									<button
+										type="button"
+										onclick={() => {
+											isProposingVariant = false;
+											newVariantTitle = '';
+											newVariantCostDelta = '';
+											newVariantTradeOff = '';
+										}}
+										class="px-2.5 py-1 text-xs border rounded-lg hover:bg-muted"
+									>
+										Annuler
+									</button>
+									<button
+										type="button"
+										onclick={handleProposeVariant}
+										class="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-lg bg-purple-600 hover:bg-purple-700 text-white shadow-xs transition-colors"
+									>
+										<Sparkles class="h-3.5 w-3.5" />
+										<span>Soumettre au débat</span>
+									</button>
+								</div>
+							</div>
+						{:else if draft.variante_b}
 							<div class="rounded-xl border border-purple-500/30 bg-purple-500/[0.03] p-3.5 space-y-3 flex flex-col justify-between shadow-2xs">
 								<div class="space-y-2">
 									<div class="flex items-center justify-between">
@@ -260,13 +387,21 @@
 									</p>
 								</div>
 
-								<div class="pt-2 border-t flex items-center gap-2">
+								<div class="pt-2 border-t flex items-center gap-2 flex-wrap">
 									<button
 										type="button"
 										onclick={() => deliberationStore.arbitrateSubject(deliberationStore.activeSubjectId)}
 										class="flex-1 inline-flex items-center justify-center gap-1 border border-purple-500/40 bg-purple-500/10 hover:bg-purple-500/20 text-purple-800 dark:text-purple-300 font-semibold px-2.5 py-1.5 rounded-lg text-xs transition-colors"
 									>
 										<span>Basculer sur Option B</span>
+									</button>
+									<button
+										type="button"
+										onclick={() => { isProposingVariant = true; }}
+										class="px-2 py-1.5 text-xs text-purple-700 dark:text-purple-300 hover:bg-purple-500/10 rounded-lg border border-purple-500/20"
+										title="Proposer une autre formulation d'alternative"
+									>
+										Autre idée
 									</button>
 									<button
 										type="button"
@@ -279,9 +414,25 @@
 								</div>
 							</div>
 						{:else}
-							<div class="rounded-xl border border-dashed p-3.5 flex flex-col items-center justify-center text-center text-muted-foreground space-y-1">
-								<span class="font-semibold">Aucune variante concurrente</span>
-								<p class="text-[11px]">Seule l'Option A fait l'objet de la délibération sur cette section.</p>
+							<!-- CONSCIENTISATION DE LA DÉCISION (OPTION UNIQUE PAR DÉFAUT) -->
+							<div class="rounded-xl border border-dashed border-purple-500/30 bg-purple-500/[0.02] p-4 flex flex-col items-center justify-center text-center space-y-2.5 shadow-2xs">
+								<div class="w-8 h-8 rounded-full bg-purple-500/10 flex items-center justify-center text-purple-600 dark:text-purple-400">
+									<Lightbulb class="h-4 w-4" />
+								</div>
+								<div class="space-y-1 max-w-sm">
+									<span class="font-bold text-xs text-foreground">Conscientisation : Option unique par défaut</span>
+									<p class="text-[11px] text-muted-foreground leading-relaxed">
+										Aucune variante concurrente n'est formulée pour cette section. Vous pouvez conscientiser et entériner l'Option A, ou proposer une alternative technique innovante.
+									</p>
+								</div>
+								<button
+									type="button"
+									onclick={() => (isProposingVariant = true)}
+									class="inline-flex items-center gap-1.5 rounded-lg border border-purple-500/40 bg-purple-500/10 hover:bg-purple-500/20 text-purple-800 dark:text-purple-300 font-semibold px-3 py-1.5 text-xs transition-colors shadow-2xs"
+								>
+									<Sparkles class="h-3.5 w-3.5 text-purple-600 dark:text-purple-400" />
+									<span>Proposer une alternative libre / Variante innovante</span>
+								</button>
 							</div>
 						{/if}
 					</div>

@@ -5,6 +5,8 @@
   "nav": {
     "dashboard": "Panel de control",
     "workspaces": "Espacios y Proyectos",
+    "deliberation": "Deliberación y HLD",
+    "knowledge": "Base de Conocimiento",
     "users": "Usuarios",
     "settings": "Ajustes",
     "language": "Idioma",

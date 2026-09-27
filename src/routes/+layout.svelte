@@ -15,6 +15,7 @@
   import LogIn from 'lucide-svelte/icons/log-in';
   import LogOut from 'lucide-svelte/icons/log-out';
   import FolderPlus from 'lucide-svelte/icons/folder-plus';
+  import Network from 'lucide-svelte/icons/network';
 
   import { Button } from '$lib/components/ui/button';
   import * as Sheet from '$lib/components/ui/sheet';
@@ -54,6 +55,7 @@
     { href: '/',             labelKey: 'nav.dashboard',    icon: LayoutDashboard, adminOnly: false },
     { href: '/workspaces',   labelKey: 'nav.workspaces',   icon: FolderPlus,      adminOnly: false },
     { href: '/deliberation', labelKey: 'nav.deliberation', icon: GitBranch,       adminOnly: false },
+    { href: '/knowledge',    labelKey: 'nav.knowledge',    icon: Network,         adminOnly: false },
     { href: '/users',        labelKey: 'nav.users',        icon: Users,           adminOnly: false },
     { href: '/settings',     labelKey: 'nav.settings',     icon: Settings,        adminOnly: false },
   ];

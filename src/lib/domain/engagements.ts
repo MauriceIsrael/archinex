@@ -44,6 +44,8 @@ export interface EngagementProfile {
 	corpusDocuments: CorpusDocument[];
 	dialogueMessages: DialogueMessage[];
 	createdAt?: string;
+	status?: 'active' | 'archived';
+	archivedAt?: string;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

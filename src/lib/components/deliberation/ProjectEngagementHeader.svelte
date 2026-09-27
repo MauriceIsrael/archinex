@@ -3,6 +3,7 @@
 	import type { ArchitectRole } from '$lib/types/epistemic';
 	import CreateWorkspaceDialog from './CreateWorkspaceDialog.svelte';
 	import InviteExpertDialog from './InviteExpertDialog.svelte';
+	import WorkspaceManagerDialog from './WorkspaceManagerDialog.svelte';
 	import {
 		Building2,
 		FileText,
@@ -19,12 +20,16 @@
 		Layers,
 		Lock,
 		Check,
-		FolderPlus
+		FolderPlus,
+		FolderKanban,
+		Archive,
+		RotateCcw
 	} from 'lucide-svelte';
 
 	let { onOpenGuide }: { onOpenGuide: () => void } = $props();
 	let isCreateWorkspaceOpen = $state(false);
 	let isInviteDialogOpen = $state(false);
+	let isWorkspaceManagerOpen = $state(false);
 
 	const activeEngagement = $derived(deliberationStore.activeEngagement);
 	const activeDoc = $derived(deliberationStore.activeDocument);
@@ -93,12 +98,15 @@
 				<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2 max-w-3xl">
 					{#each deliberationStore.engagements as eng}
 						{@const isSelected = deliberationStore.activeEngagementId === eng.id}
+						{@const isArchived = eng.status === 'archived'}
 						<button
 							type="button"
 							onclick={() => deliberationStore.switchEngagement(eng.id)}
 							class="flex items-start gap-2.5 p-2 rounded-lg border text-left transition-all relative {isSelected
 								? 'bg-primary/10 border-primary shadow-xs ring-1 ring-primary/30'
-								: 'bg-muted/40 hover:bg-muted/70 border-border opacity-75 hover:opacity-100'}"
+								: isArchived
+									? 'bg-muted/20 hover:bg-muted/40 border-dashed border-border opacity-60 hover:opacity-100'
+									: 'bg-muted/40 hover:bg-muted/70 border-border opacity-75 hover:opacity-100'}"
 						>
 							<div class="p-1.5 rounded-md {isSelected ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'} shrink-0 mt-0.5">
 								{#if eng.type === 'generic_blueprint'}
@@ -116,8 +124,11 @@
 										<Check class="h-3 w-3 text-primary shrink-0" />
 									{/if}
 								</div>
-								<div class="text-[10px] text-muted-foreground line-clamp-1">
-									{eng.type === 'generic_blueprint' ? 'Socle Blueprint' : eng.type === 'project_rfp' ? 'Appel d\'Offres RFP' : 'Espace Projet'}
+								<div class="flex items-center gap-1.5 text-[10px] text-muted-foreground line-clamp-1">
+									<span>{eng.type === 'generic_blueprint' ? 'Socle Blueprint' : eng.type === 'project_rfp' ? 'Appel d\'Offres RFP' : 'Espace Projet'}</span>
+									{#if isArchived}
+										<span class="rounded bg-amber-500/10 text-amber-700 dark:text-amber-300 px-1 font-semibold">Archivé</span>
+									{/if}
 								</div>
 							</div>
 						</button>
@@ -142,11 +153,42 @@
 							</span>
 						</div>
 					</button>
+
+					<!-- Bouton Gérer les Espaces -->
+					<button
+						type="button"
+						onclick={() => (isWorkspaceManagerOpen = true)}
+						class="flex items-center gap-2 p-2 rounded-lg border bg-muted/40 hover:bg-muted/70 text-foreground transition-all text-left cursor-pointer group"
+						title="Gérer tous les espaces de travail, archiver, exporter ou supprimer"
+					>
+						<div class="p-1.5 rounded-md bg-muted group-hover:bg-background text-muted-foreground group-hover:text-foreground shrink-0">
+							<FolderKanban class="h-3.5 w-3.5" />
+						</div>
+						<div class="min-w-0 flex-1">
+							<strong class="text-xs font-bold block truncate">
+								Gérer les Projets
+							</strong>
+							<span class="text-[10px] text-muted-foreground line-clamp-1 block">
+								{deliberationStore.engagements.length} projet(s) · Archiver / Supprimer
+							</span>
+						</div>
+					</button>
 				</div>
 			</div>
 
 			<!-- Droite : Actions, Rôle, Opérateur & Statut LLMOps -->
 			<div class="flex flex-wrap items-center gap-2 self-start xl:self-center text-xs">
+				<!-- Bouton Gérer les Projets -->
+				<button
+					type="button"
+					onclick={() => (isWorkspaceManagerOpen = true)}
+					class="inline-flex items-center gap-1.5 rounded-lg border bg-background hover:bg-muted text-foreground border-border px-2.5 py-1.5 text-xs font-semibold transition-all shadow-2xs cursor-pointer"
+					title="Gérer les projets (archiver, désarchiver, supprimer, exporter)"
+				>
+					<FolderKanban class="h-3.5 w-3.5" />
+					<span>Gérer ({deliberationStore.engagements.length})</span>
+				</button>
+
 				<!-- Bouton Guide Décisionnel -->
 				<button
 					type="button"
@@ -249,6 +291,42 @@
 			</div>
 		</div>
 
+		<!-- Alerte si l'espace actif est archivé -->
+		{#if activeEngagement.status === 'archived'}
+			<div
+				class="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-amber-800 dark:text-amber-200 animate-in fade-in duration-150"
+			>
+				<div class="flex items-center gap-2">
+					<Archive class="h-4 w-4 text-amber-600 shrink-0" />
+					<span>
+						<strong>Espace Archivé</strong> : Le projet « {activeEngagement.title} » est actuellement archivé (lecture & consultation).
+						{#if activeEngagement.archivedAt}
+							<span class="opacity-80 font-mono text-[11px]"
+								>(archivé le {new Date(activeEngagement.archivedAt).toLocaleDateString('fr-FR')})</span
+							>
+						{/if}
+					</span>
+				</div>
+				<div class="flex items-center gap-2 shrink-0">
+					<button
+						type="button"
+						onclick={() => deliberationStore.unarchiveEngagement(activeEngagement.id)}
+						class="inline-flex items-center gap-1 px-3 py-1 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs shadow-xs transition-colors cursor-pointer"
+					>
+						<RotateCcw class="h-3.5 w-3.5" />
+						<span>Désarchiver le projet</span>
+					</button>
+					<button
+						type="button"
+						onclick={() => (isWorkspaceManagerOpen = true)}
+						class="px-2.5 py-1 rounded-lg border border-amber-500/30 bg-background/60 hover:bg-background text-xs font-semibold transition-colors cursor-pointer"
+					>
+						Changer d'espace
+					</button>
+				</div>
+			</div>
+		{/if}
+
 		<!-- Synthèse concise du projet sélectionné -->
 		<div class="pt-2 border-t flex flex-wrap items-center justify-between text-xs text-muted-foreground gap-2">
 			<p class="leading-relaxed">
@@ -321,5 +399,12 @@
 	<InviteExpertDialog
 		bind:open={isInviteDialogOpen}
 		onclose={() => (isInviteDialogOpen = false)}
+	/>
+
+	<!-- Modale de Gestion des Espaces (Archivage, Suppression, Export) -->
+	<WorkspaceManagerDialog
+		bind:open={isWorkspaceManagerOpen}
+		onclose={() => (isWorkspaceManagerOpen = false)}
+		onOpenCreateWorkspace={() => (isCreateWorkspaceOpen = true)}
 	/>
 </div>

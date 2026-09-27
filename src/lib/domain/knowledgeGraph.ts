@@ -570,7 +570,7 @@ export function buildTreeLegendSeries(
         }
 
         assetNodes.push({
-          name: `${a.id}: ${a.title.length > 38 ? a.title.slice(0, 36) + '…' : a.title}`,
+          name: `${a.id}: ${a.title.length > 50 ? a.title.slice(0, 48) + '…' : a.title}`,
           id: a.id,
           category: 'decision',
           typeLabel: 'Décision d\'Architecture (ADR)',
@@ -636,7 +636,7 @@ export function buildTreeLegendSeries(
         }
 
         controlNodes.push({
-          name: `${c.id} (${c.severity === 'mandatory' ? 'Req' : 'Rec'}): ${c.title.length > 34 ? c.title.slice(0, 32) + '…' : c.title}`,
+          name: `${c.id} (${c.severity === 'mandatory' ? 'Req' : 'Rec'}): ${c.title.length > 46 ? c.title.slice(0, 44) + '…' : c.title}`,
           id: c.id,
           category: 'control',
           typeLabel: `Contrôle Réglementaire ${fw}`,
@@ -693,7 +693,7 @@ export function buildTreeLegendSeries(
           return null;
         }
         return {
-          name: `${item.id}: ${item.title.length > 38 ? item.title.slice(0, 36) + '…' : item.title}`,
+          name: `${item.id}: ${item.title.length > 50 ? item.title.slice(0, 48) + '…' : item.title}`,
           id: item.id,
           category,
           typeLabel,
@@ -872,3 +872,111 @@ export function buildTreeLegendSeries(
 
   return { legendData, series };
 }
+
+export interface StackedTreeWidgetConfig {
+  id: 'decisions' | 'controls' | 'doctrine';
+  title: string;
+  badge: string;
+  categoryName: string;
+  description: string;
+  root: KnowledgeTreeNode;
+  series: any[];
+  matchedCount: number;
+  totalCount: number;
+  color: string;
+}
+
+/**
+ * Génère 3 widgets arborescents autonomes empilables verticalement.
+ * Chaque arbre bénéficie de 100% de la largeur du conteneur avec un grand confort de lecture.
+ */
+export function buildStackedTreeWidgets(
+  snapshot: KnowledgeSnapshot,
+  engagement: EngagementProfile | null,
+  isDarkTheme: boolean = true,
+  filterOnlyMatched: boolean = false
+): StackedTreeWidgetConfig[] {
+  const { summary } = computeProjectMatching(snapshot, engagement);
+  const { series } = buildTreeLegendSeries(snapshot, engagement, isDarkTheme, filterOnlyMatched);
+
+  const tree1Root = series[0]?.data?.[0];
+  const tree2Root = series[1]?.data?.[0];
+  const tree3Root = series[2]?.data?.[0];
+
+  function makeFullWidthSeries(name: string, rootNode: KnowledgeTreeNode) {
+    return [
+      {
+        type: 'tree',
+        name,
+        data: [rootNode],
+        top: '2%',
+        left: '1%', // Partir tout à gauche pour maximiser l'espace des branches
+        bottom: '2%',
+        right: '25%', // Grand espace pour les libellés des feuilles
+        layout: 'orthogonal',
+        orient: 'LR',
+        initialTreeDepth: 2,
+        expandAndCollapse: true,
+        animationDuration: 400,
+        animationDurationUpdate: 500,
+        label: {
+          position: 'left',
+          verticalAlign: 'middle',
+          align: 'right',
+          distance: 12
+        },
+        leaves: {
+          label: {
+            position: 'right',
+            verticalAlign: 'middle',
+            align: 'left',
+            distance: 12
+          }
+        },
+        emphasis: {
+          focus: 'descendant'
+        }
+      }
+    ];
+  }
+
+  return [
+    {
+      id: 'decisions',
+      title: '1. Décisions d\'Architecture (ADRs & Choix Structurants)',
+      categoryName: 'Décisions & ADRs',
+      badge: `${summary.matchedDecisions} / ${summary.totalDecisions} éclairées`,
+      description: 'Gouvernance des choix techniques majeurs classés par domaines fonctionnels (Réseau, Cloud, Observabilité, IA, Sécurité...).',
+      root: tree1Root,
+      series: makeFullWidthSeries('Décisions & ADRs', tree1Root),
+      matchedCount: summary.matchedDecisions,
+      totalCount: summary.totalDecisions,
+      color: '#3b82f6'
+    },
+    {
+      id: 'controls',
+      title: '2. Référentiels Réglementaires & Contrôles de Sécurité',
+      categoryName: 'Référentiels & Contrôles',
+      badge: `${summary.matchedControls} / ${summary.totalControls} éclairés`,
+      description: 'Exigences et mesures normatives imposées par les cadres légaux (NIS2, 3GPP Rel-18, SecNumCloud 3.2, CRA, ISO 27001, RGPD...).',
+      root: tree2Root,
+      series: makeFullWidthSeries('Référentiels & Contrôles', tree2Root),
+      matchedCount: summary.matchedControls,
+      totalCount: summary.totalControls,
+      color: '#8b5cf6'
+    },
+    {
+      id: 'doctrine',
+      title: '3. Doctrine d\'Ingénierie, Principes & Patrons de Conception',
+      categoryName: 'Doctrine & Patterns',
+      badge: `${summary.matchedPrinciples} / ${summary.totalPrinciples} éclairés`,
+      description: 'Lignes directrices d\'architecture, patrons de conception éprouvés et modèles d\'ingénierie réutilisables.',
+      root: tree3Root,
+      series: makeFullWidthSeries('Doctrine & Patterns', tree3Root),
+      matchedCount: summary.matchedPrinciples,
+      totalCount: summary.totalPrinciples,
+      color: '#f59e0b'
+    }
+  ];
+}
+

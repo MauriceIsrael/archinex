@@ -376,10 +376,27 @@ const INITIAL_STATEMENTS: Statement[] = [
 ];
 
 class DeliberationStore {
+	private readonly STORAGE_KEY_ENGAGEMENTS = 'archinex:custom_engagements:v1';
+	private readonly STORAGE_KEY_COMMON_KB = 'archinex:common_kb:v1';
+
 	engagements = $state<EngagementProfile[]>(
 		createDefaultEngagements(INITIAL_SUBJECTS, INITIAL_DRAFTS, INITIAL_STATEMENTS)
 	);
 	activeEngagementId = $state<string>('suse-telco-cloud-generic');
+
+	constructor() {
+		if (typeof window !== 'undefined') {
+			this.loadPersistedState();
+		}
+	}
+
+	get activeEngagements(): EngagementProfile[] {
+		return this.engagements.filter((e) => e.status !== 'archived');
+	}
+
+	get archivedEngagements(): EngagementProfile[] {
+		return this.engagements.filter((e) => e.status === 'archived');
+	}
 
 	get activeEngagement(): EngagementProfile {
 		return (
@@ -503,6 +520,8 @@ class DeliberationStore {
 			this.commonKnowledgeBase
 		);
 
+		engagement.status = 'active';
+
 		// 1. Enrichir la base de connaissances commune avec les nouveaux documents amonts
 		for (const doc of newUpstreamDocuments) {
 			if (!this.commonKnowledgeBase.some((d) => d.id === doc.id)) {
@@ -513,7 +532,10 @@ class DeliberationStore {
 		// 2. Enregistrer l'engagement dans la liste des projets
 		this.engagements.push(engagement);
 
-		// 3. Basculer immédiatement sur ce nouvel espace de travail
+		// 3. Sauvegarder dans le stockage persistant local
+		this.persistCustomState();
+
+		// 4. Basculer immédiatement sur ce nouvel espace de travail
 		this.switchEngagement(engagement.id);
 
 		this.logNotification(
@@ -522,6 +544,182 @@ class DeliberationStore {
 		);
 
 		return engagement;
+	}
+
+	/**
+	 * Initialise le store avec les données réelles persistées dans Prisma SQLite
+	 */
+	initFromDb(engagements: EngagementProfile[], commonDocs: CorpusDocument[]) {
+		if (engagements && engagements.length > 0) {
+			this.engagements = engagements;
+			if (!this.engagements.some((e) => e.id === this.activeEngagementId)) {
+				this.activeEngagementId = this.engagements[0].id;
+			}
+		}
+
+		if (commonDocs && commonDocs.length > 0) {
+			this.commonKnowledgeBase = commonDocs;
+		}
+
+		// Met à jour l'engagement actif
+		const current = this.activeEngagement;
+		if (current) {
+			this.subjects = current.subjects;
+			this.drafts = current.drafts;
+			this.statements = current.statements;
+			this.corpusDocuments = current.corpusDocuments;
+			this.activeSubjectId = current.defaultSubjectId || current.subjects[0]?.id || '';
+			this.activeDocumentId = current.defaultDocId || current.corpusDocuments[0]?.id || '';
+			this.dialogueMessages = current.dialogueMessages || [];
+		}
+	}
+
+	/**
+	 * Persiste les espaces de travail et le patrimoine documentaire dans localStorage et Prisma (SQLite)
+	 */
+	persistCustomState() {
+		if (typeof window === 'undefined') return;
+		try {
+			if (window.localStorage) {
+				const serializableEngagements = $state.snapshot(this.engagements);
+				window.localStorage.setItem(this.STORAGE_KEY_ENGAGEMENTS, JSON.stringify(serializableEngagements));
+
+				const serializableKb = $state.snapshot(this.commonKnowledgeBase);
+				window.localStorage.setItem(this.STORAGE_KEY_COMMON_KB, JSON.stringify(serializableKb));
+			}
+
+			// Persistance asynchrone centralisée dans Prisma SQLite
+			if (window.fetch) {
+				const activeProfile = this.activeEngagement;
+				if (activeProfile) {
+					window.fetch('/api/engagements', {
+						method: 'POST',
+						headers: { 'Content-Type': 'application/json' },
+						body: JSON.stringify({ engagement: $state.snapshot(activeProfile) })
+					}).catch((err) => console.warn('[Archinex] Sync Prisma en arrière-plan non disponible:', err));
+				}
+			}
+		} catch (err) {
+			console.warn('[Archinex] Échec de la persistance locale:', err);
+		}
+	}
+
+	/**
+	 * Charge les espaces de travail et le patrimoine documentaire depuis localStorage
+	 */
+	loadPersistedState() {
+		if (typeof window === 'undefined' || !window.localStorage) return;
+		try {
+			const storedEngagements = window.localStorage.getItem(this.STORAGE_KEY_ENGAGEMENTS);
+			if (storedEngagements) {
+				const parsed = JSON.parse(storedEngagements) as EngagementProfile[];
+				if (Array.isArray(parsed) && parsed.length > 0) {
+					this.engagements = parsed;
+					if (!this.engagements.some((e) => e.id === this.activeEngagementId)) {
+						this.activeEngagementId = this.engagements[0].id;
+					}
+				}
+			}
+
+			const storedKb = window.localStorage.getItem(this.STORAGE_KEY_COMMON_KB);
+			if (storedKb) {
+				const parsedKb = JSON.parse(storedKb) as CorpusDocument[];
+				if (Array.isArray(parsedKb) && parsedKb.length > 0) {
+					for (const doc of parsedKb) {
+						if (!this.commonKnowledgeBase.some((d) => d.id === doc.id)) {
+							this.commonKnowledgeBase.push(doc);
+						}
+					}
+				}
+			}
+		} catch (err) {
+			console.warn('[Archinex] Erreur lors du chargement de la persistance locale:', err);
+		}
+	}
+
+	/**
+	 * Archive un espace de travail
+	 */
+	archiveEngagement(targetId: string): boolean {
+		const eng = this.engagements.find((e) => e.id === targetId);
+		if (!eng) return false;
+
+		eng.status = 'archived';
+		eng.archivedAt = new Date().toISOString();
+
+		this.persistCustomState();
+		this.logNotification(`Espace de travail archivé : "${eng.title}"`, 'info');
+		return true;
+	}
+
+	/**
+	 * Désarchive / Réactive un espace de travail
+	 */
+	unarchiveEngagement(targetId: string): boolean {
+		const eng = this.engagements.find((e) => e.id === targetId);
+		if (!eng) return false;
+
+		eng.status = 'active';
+		eng.archivedAt = undefined;
+
+		this.persistCustomState();
+		this.logNotification(`Espace de travail réactivé : "${eng.title}"`, 'success');
+		return true;
+	}
+
+	/**
+	 * Supprime définitivement un espace de travail
+	 */
+	deleteEngagement(targetId: string): boolean {
+		const index = this.engagements.findIndex((e) => e.id === targetId);
+		if (index === -1) return false;
+		if (this.engagements.length <= 1) {
+			this.logNotification('Impossible de supprimer le dernier espace de travail disponible', 'warning');
+			return false;
+		}
+
+		const deletedTitle = this.engagements[index].title;
+
+		// Si l'espace supprimé est l'espace actif, basculer sur un autre projet
+		if (this.activeEngagementId === targetId) {
+			const nextActive =
+				this.engagements.find((e, idx) => idx !== index && e.status !== 'archived') ||
+				this.engagements.find((e, idx) => idx !== index) ||
+				this.engagements[0];
+			if (nextActive) {
+				this.switchEngagement(nextActive.id);
+			}
+		}
+
+		this.engagements.splice(index, 1);
+		delete this.engagementCache[targetId];
+
+		this.persistCustomState();
+		this.logNotification(`Espace de travail supprimé définitivement : "${deletedTitle}"`, 'info');
+		return true;
+	}
+
+	/**
+	 * Exporte la configuration et l'état complet d'un espace de travail en JSON souverain
+	 */
+	exportWorkspaceJSON(targetId?: string): string {
+		const id = targetId || this.activeEngagementId;
+		const eng = this.engagements.find((e) => e.id === id);
+		if (!eng) return '{}';
+		return JSON.stringify($state.snapshot(eng), null, 2);
+	}
+
+	/**
+	 * Rétablit les espaces de travail d'usine par défaut
+	 */
+	resetToDefaults() {
+		if (typeof window !== 'undefined' && window.localStorage) {
+			window.localStorage.removeItem(this.STORAGE_KEY_ENGAGEMENTS);
+			window.localStorage.removeItem(this.STORAGE_KEY_COMMON_KB);
+		}
+		this.engagements = createDefaultEngagements(INITIAL_SUBJECTS, INITIAL_DRAFTS, INITIAL_STATEMENTS);
+		this.commonKnowledgeBase = [...INITIAL_CORPUS_DOCUMENTS, ...SUSE_TELCO_CORPUS];
+		this.switchEngagement('suse-telco-cloud-generic');
 	}
 
 	// Tri réactif automatique par déblocages (effet multiplicateur)
@@ -1083,21 +1281,117 @@ class DeliberationStore {
 	}
 
 	/**
-	 * Tour 8 : Approbation d'une règle candidate induite par SmartMemory (Lot 4).
+	 * Modification préalable d'une règle doctrinale candidate avant validation ou envoi à LLMOps
 	 */
-	approveCandidateRule(ruleId: string): { success: boolean; message: string } {
+	updateCandidateRule(ruleId: string, updates: Partial<CandidateRule>): { success: boolean; rule?: CandidateRule; message: string } {
 		const rule = this.candidateRules.find((r) => r.id === ruleId);
 		if (!rule) return { success: false, message: 'Règle candidate introuvable' };
 
+		if (updates.title !== undefined) rule.title = updates.title.trim();
+		if (updates.description !== undefined) rule.description = updates.description.trim();
+		if (updates.triggerContext !== undefined) rule.triggerContext = updates.triggerContext.trim();
+		if (updates.sparqlQuery !== undefined) rule.sparqlQuery = updates.sparqlQuery.trim();
+
+		this.persistCustomState();
+		const msg = `✍️ Règle candidate [${rule.id}] modifiée avec succès.`;
+		this.logNotification(msg, 'info');
+		return { success: true, rule, message: msg };
+	}
+
+	/**
+	 * Tour 8 : Approbation d'une règle candidate induite par SmartMemory, intégration à la KB locale et envoi au Knowledge Hub LLMOps.
+	 */
+	approveCandidateRule(ruleId: string, customUpdates?: Partial<CandidateRule>): { success: boolean; message: string } {
+		const rule = this.candidateRules.find((r) => r.id === ruleId);
+		if (!rule) return { success: false, message: 'Règle candidate introuvable' };
+
+		// Appliquer d'éventuelles modifications de dernière minute
+		if (customUpdates) {
+			this.updateCandidateRule(ruleId, customUpdates);
+		}
+
 		rule.status = 'approved';
 
-		// Inscription de la doctrine dans le brouillon actif si pertinent
+		// 1. Inscription de la doctrine dans le brouillon actif si pertinent
 		const activeDraft = this.drafts[this.activeSubjectId];
 		if (activeDraft && !activeDraft.retenu.includes(rule.id)) {
 			activeDraft.retenu = [...activeDraft.retenu, `KH:${rule.id} (${rule.title})`];
 		}
 
-		const msg = `✅ Règle doctrinale [${rule.id}] formellement validée par le Lead Architect et inscrite au graphe.`;
+		// 2. Intégration immédiate dans le patrimoine commun (Common Knowledge Base)
+		const docRef = `DOC-KB-INDUCED-${rule.id}`;
+		if (!this.commonKnowledgeBase.some((d) => d.id === docRef)) {
+			this.commonKnowledgeBase.push({
+				id: docRef,
+				title: rule.title,
+				origin: 'contributor_external',
+				category: 'standard',
+				categoryLabel: 'Règle Doctrinale Validée',
+				sourceOrAuthor: 'Maurice Israel (Lead Architect)',
+				contributorRole: 'lead_architect',
+				version: '1.0',
+				addedDate: new Date().toISOString(),
+				lastUpdated: new Date().toISOString(),
+				extractedClausesCount: 1,
+				summary: rule.description,
+				keyIdeas: [
+					`Règle doctrinale validée : ${rule.title}`,
+					`Contexte : ${rule.triggerContext}`
+				],
+				inducedRules: [
+					{
+						id: `R-${rule.id}`,
+						title: rule.title,
+						type: 'obligation',
+						description: rule.description,
+						targetSubjectId: this.activeSubjectId
+					}
+				],
+				keyClauses: [
+					{
+						id: `CLS-${rule.id}`,
+						clauseRef: rule.id,
+						title: rule.title,
+						text: rule.description,
+						criticality: 'bloquant',
+						impactSummary: rule.triggerContext
+					}
+				],
+				relatedSubjectIds: [this.activeSubjectId]
+			});
+		}
+
+		// 3. Transmission asynchrone au Knowledge Hub LLMOps (Cloud Run GCP / Scribe)
+		if (typeof window !== 'undefined' && window.fetch) {
+			const authorLabel = this.isHuman ? 'M. Israel (Lead Architect)' : 'Agent IA';
+			window.fetch('/api/llmops?action=suggest', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					title: rule.title,
+					rationale: rule.triggerContext || 'Induction et validation humaine depuis Archinex',
+					suggestedChange: `### ${rule.title}\n\n${rule.description}\n\n\`\`\`sparql\n${rule.sparqlQuery}\n\`\`\``,
+					author: authorLabel,
+					sourceEngagement: this.activeEngagementId
+				})
+			})
+				.then(async (res) => {
+					if (res.ok) {
+						const json = await res.json();
+						const sugId = json.suggestionId || 'SUG-OK';
+						this.logNotification(
+							`📡 Règle [${rule.id}] transmise au Knowledge Hub LLMOps avec succès (${sugId})`,
+							'success'
+						);
+					}
+				})
+				.catch((err) => {
+					console.warn('[Archinex] Notification LLMOps différée (mode local actif):', err);
+				});
+		}
+
+		this.persistCustomState();
+		const msg = `✅ Règle doctrinale [${rule.id}] formellement validée par le Lead Architect et transmise à la KB.`;
 		this.logNotification(msg, 'success');
 		return { success: true, message: msg };
 	}
@@ -1110,6 +1404,7 @@ class DeliberationStore {
 		if (!rule) return { success: false, message: 'Règle candidate introuvable' };
 
 		rule.status = 'rejected';
+		this.persistCustomState();
 		const msg = `⛔ Règle candidate [${rule.id}] rejetée par le modérateur.`;
 		this.logNotification(msg, 'info');
 		return { success: true, message: msg };

@@ -15,11 +15,14 @@
  */
 
 import * as echarts from 'echarts/core';
-import { BarChart, PieChart } from 'echarts/charts';
+import { BarChart, PieChart, TreeChart, LineChart, RadarChart } from 'echarts/charts';
 import {
   TooltipComponent,
   GridComponent,
-  LegendComponent
+  LegendComponent,
+  TitleComponent,
+  ToolboxComponent,
+  RadarComponent
 } from 'echarts/components';
 import { CanvasRenderer } from 'echarts/renderers';
 
@@ -27,9 +30,15 @@ import { CanvasRenderer } from 'echarts/renderers';
 echarts.use([
   BarChart,
   PieChart,
+  TreeChart,
+  LineChart,
+  RadarChart,
   TooltipComponent,
   GridComponent,
   LegendComponent,
+  TitleComponent,
+  ToolboxComponent,
+  RadarComponent,
   CanvasRenderer
 ]);
 

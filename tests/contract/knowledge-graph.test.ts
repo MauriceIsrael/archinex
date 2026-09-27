@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   computeProjectMatching,
   buildTreeLegendSeries,
+  buildStackedTreeWidgets,
   formatDomainName,
   type KnowledgeSnapshot
 } from '$lib/domain/knowledgeGraph';
@@ -103,5 +104,26 @@ describe('Knowledge Graph & Project Matching Engine', () => {
 
     expect(totalDecisionsFiltered).toBeLessThanOrEqual(totalDecisionsAll);
     expect(totalDecisionsFiltered).toBeGreaterThan(0);
+  });
+
+  it('generates 3 full-width stacked tree widgets', () => {
+    const suseEngagement = defaultEngagements.find((e) => e.id === 'suse-telco-cloud-generic')!;
+    const widgets = buildStackedTreeWidgets(snapshot, suseEngagement, true, false);
+
+    expect(widgets.length).toBe(3);
+    expect(widgets[0].id).toBe('decisions');
+    expect(widgets[1].id).toBe('controls');
+    expect(widgets[2].id).toBe('doctrine');
+
+    for (const w of widgets) {
+      expect(w.series.length).toBe(1);
+      expect(w.series[0].type).toBe('tree');
+      expect(w.series[0].data.length).toBe(1);
+      expect(w.series[0].data[0].children.length).toBeGreaterThan(0);
+      expect(w.series[0].left).toBe('1%');
+      expect(w.series[0].right).toBe('25%');
+      expect(w.title).toBeDefined();
+      expect(w.badge).toBeDefined();
+    }
   });
 });

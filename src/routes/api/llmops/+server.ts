@@ -55,6 +55,22 @@ export const POST: RequestHandler = async ({ request, url }) => {
       return json(result);
     }
 
+    if (action === 'suggest' || action === 'store-rule') {
+      const { title, rationale, suggestedChange, author, sourceEngagement, contactEmail } = body;
+      if (!title || !suggestedChange) {
+        return json({ status: 'error', error: 'Missing title or suggestedChange' }, { status: 400 });
+      }
+      const result = await llmopsClient.submitKnowledgeSuggestion({
+        title,
+        rationale: rationale || 'Induction et validation humaine depuis Archinex',
+        suggestedChange,
+        author,
+        sourceEngagement,
+        contactEmail
+      });
+      return json(result);
+    }
+
     return json({ status: 'error', error: `Unsupported action '${action}'` }, { status: 400 });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown LLMOps proxy error';

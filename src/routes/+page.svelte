@@ -1,156 +1,220 @@
 <script lang="ts">
-  import { t } from 'svelte-i18n';
-  import { Button } from '$lib/components/ui/button';
-  import type { PageData } from './$types';
-  
-  import DashboardEngine from '$lib/dashboard/DashboardEngine.svelte';
-  import type { WidgetDefinition } from '$lib/dashboard/types';
-  import FilterBar from '$lib/dashboard/FilterBar.svelte';
-  
-  import StatWidget from '$lib/dashboard/widgets/StatWidget.svelte';
-  import ChartWidget from '$lib/dashboard/widgets/ChartWidget.svelte';
-  import AbacWidget from './components/AbacWidget.svelte';
-  import ApiWidget from './components/ApiWidget.svelte';
-  import NotificationsWidget from './components/NotificationsWidget.svelte';
+	import type { PageData } from './$types';
+	import { deliberationStore } from '$lib/stores/deliberationStore.svelte';
+	import { computeGlobalOverview, type EngagementSizeMetric } from '$lib/domain/dashboardOverview';
+	import GlobalKpiCards from '$lib/components/dashboard/GlobalKpiCards.svelte';
+	import EngagementsSizeTable from '$lib/components/dashboard/EngagementsSizeTable.svelte';
+	import TeamMonopolizationCard from '$lib/components/dashboard/TeamMonopolizationCard.svelte';
+	import KnowledgeGrowthChart from '$lib/components/dashboard/KnowledgeGrowthChart.svelte';
+	import EpistemicAlertsCard from '$lib/components/dashboard/EpistemicAlertsCard.svelte';
+	import {
+		Compass,
+		FolderPlus,
+		GitBranch,
+		Network,
+		Search,
+		Filter,
+		Sparkles,
+		Layers,
+		CheckCircle2,
+		ShieldCheck,
+		ArrowRight
+	} from 'lucide-svelte';
 
-  // Granular Lucide imports
-  import DollarSign from 'lucide-svelte/icons/dollar-sign';
-  import Users from 'lucide-svelte/icons/users';
-  import CreditCard from 'lucide-svelte/icons/credit-card';
-  import Activity from 'lucide-svelte/icons/activity';
+	let { data }: { data: PageData } = $props();
 
-  let { data }: { data: PageData } = $props();
-  const { abacStatus, session } = data;
+	// Synchronise deliberationStore avec les données réelles persistées dans Prisma
+	$effect(() => {
+		if (data?.engagements && data.engagements.length > 0) {
+			deliberationStore.initFromDb(data.engagements, data.corpusDocuments || []);
+		}
+	});
 
-  let editMode = $state(false);
+	// Filtres interactifs
+	let selectedTypeFilter = $state<string>('all');
+	let searchQuery = $state<string>('');
 
-  // Demo ECharts Options
-  const chartOptions = {
-    tooltip: { trigger: 'axis' },
-    grid: { left: '3%', right: '4%', bottom: '3%', top: '10%', containLabel: true },
-    xAxis: { 
-      type: 'category', 
-      data: ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug'],
-      axisLine: { show: false },
-      axisTick: { show: false }
-    },
-    yAxis: { type: 'value', splitLine: { lineStyle: { type: 'dashed' } } },
-    series: [
-      {
-        data: [40, 65, 45, 90, 55, 75, 30, 85],
-        type: 'bar',
-        itemStyle: { color: '#3b82f6', borderRadius: [4, 4, 0, 0] },
-        barWidth: '50%'
-      }
-    ]
-  };
+	// Calcul réactif des métriques globales consolidées
+	const overviewSummary = $derived.by(() => {
+		return computeGlobalOverview(
+			deliberationStore.engagements,
+			deliberationStore.commonKnowledgeBase
+		);
+	});
 
-  const pieChartOptions = {
-    tooltip: { trigger: 'item' },
-    legend: { top: '5%', left: 'center' },
-    series: [
-      {
-        name: 'Access From',
-        type: 'pie',
-        radius: ['40%', '70%'],
-        avoidLabelOverlap: false,
-        itemStyle: { borderRadius: 10, borderColor: '#fff', borderWidth: 2 },
-        label: { show: false, position: 'center' },
-        emphasis: { label: { show: true, fontSize: 20, fontWeight: 'bold' } },
-        labelLine: { show: false },
-        data: [
-          { value: 1048, name: 'Search Engine', itemStyle: { color: '#3b82f6' } },
-          { value: 735, name: 'Direct', itemStyle: { color: '#10b981' } },
-          { value: 580, name: 'Email', itemStyle: { color: '#f59e0b' } },
-          { value: 484, name: 'Union Ads', itemStyle: { color: '#ef4444' } },
-          { value: 300, name: 'Video Ads', itemStyle: { color: '#8b5cf6' } }
-        ]
-      }
-    ]
-  };
-
-  const dashboardWidgets: WidgetDefinition[] = [
-    { 
-      id: 'stat-revenue', type: 'stat', defaultSize: 'sm', 
-      props: { value: '$45,231.89', change: '+20.1% from last month', trend: 'up', icon: DollarSign } 
-    },
-    { 
-      id: 'stat-subs', type: 'stat', defaultSize: 'sm', 
-      props: { value: '+2350', change: '+180.1% from last month', trend: 'up', icon: Users } 
-    },
-    { 
-      id: 'stat-sales', type: 'stat', defaultSize: 'sm', 
-      props: { value: '+12,234', change: '+19% from last month', trend: 'up', icon: CreditCard } 
-    },
-    { 
-      id: 'stat-active', type: 'stat', defaultSize: 'sm', 
-      props: { value: '+573', change: '+201 since last hour', trend: 'neutral', icon: Activity } 
-    },
-    { 
-      id: 'chart-overview', type: 'chart', title: 'Overview', defaultSize: 'lg', w: 7, h: 4,
-      component: ChartWidget, props: { options: chartOptions }
-    },
-    { 
-      id: 'chart-traffic', type: 'chart', title: 'Traffic Sources', defaultSize: 'lg', w: 5, h: 4,
-      component: ChartWidget, props: { options: pieChartOptions }
-    },
-    { 
-      id: 'abac-status', type: 'custom', title: 'ABAC Status', defaultSize: 'lg', w: 5, h: 4,
-      component: AbacWidget, props: { session, abacStatus }
-    },
-    { 
-      id: 'demo-notifications', type: 'custom', title: 'Notifications', defaultSize: 'md', w: 6, h: 2,
-      component: NotificationsWidget 
-    },
-    { 
-      id: 'demo-api', type: 'custom', title: 'API Demo', defaultSize: 'md', w: 6, h: 2,
-      component: ApiWidget 
-    }
-  ];
-
-  // We assign the component class for stat widgets dynamically in the engine, but we can also pass it explicitly here
-  // Actually, DashboardEngine handles 'stat' type natively with StatWidget, but we need to import it there.
-  // Wait, DashboardEngine doesn't import StatWidget to avoid circular deps or bloat.
-  // We can just set type: 'custom' and pass the component for everything, or fix DashboardEngine.
-  // Let's modify the objects to just use component directly.
-  dashboardWidgets.forEach(w => {
-    if (w.type === 'stat') w.component = StatWidget;
-  });
-
+	// Filtrage des engagements pour le tableau
+	const displayedEngagements = $derived.by(() => {
+		let list = overviewSummary.engagements;
+		if (selectedTypeFilter !== 'all') {
+			list = list.filter((e) => e.type === selectedTypeFilter);
+		}
+		if (searchQuery.trim().length > 0) {
+			const q = searchQuery.toLowerCase().trim();
+			list = list.filter(
+				(e) =>
+					e.title.toLowerCase().includes(q) ||
+					e.badge.toLowerCase().includes(q) ||
+					e.shortName.toLowerCase().includes(q)
+			);
+		}
+		return list;
+	});
 </script>
 
-<div class="flex-1 space-y-4 p-4 pt-6 md:p-8 overflow-hidden flex flex-col h-[calc(100vh-64px)]">
-  <div class="flex items-center justify-between space-y-2">
-    <h2 class="text-3xl font-bold tracking-tight">{$t('nav.dashboard')}</h2>
-    <div class="flex items-center space-x-2">
-      {#if session?.user?.role === 'admin'}
-        <Button variant={editMode ? 'default' : 'outline'} onclick={() => editMode = !editMode}>
-          {editMode ? 'Terminer' : 'Modifier le layout'}
-        </Button>
-      {/if}
-    </div>
-  </div>
+<svelte:head>
+	<title>Archinex · Overview Global & Gouvernance d'Architecture</title>
+</svelte:head>
 
-  <div class="flex-1 overflow-auto -mx-4 px-4 pb-4">
-    <DashboardEngine 
-      dashboardId="main-dashboard"
-      widgets={dashboardWidgets} 
-      {editMode}
-    >
-      {#snippet filters()}
-        <FilterBar>
-          <select class="text-sm border rounded-md px-2 py-1 bg-background">
-            <option>Cette année</option>
-            <option>Ce mois-ci</option>
-            <option>Aujourd'hui</option>
-          </select>
-          <select class="text-sm border rounded-md px-2 py-1 bg-background">
-            <option>Toutes entités</option>
-            <option>Entité A</option>
-          </select>
-        </FilterBar>
-      {/snippet}
-    </DashboardEngine>
-  </div>
+<div class="space-y-6 max-w-7xl mx-auto pb-12">
+	<!-- ═════════════════════════════════════════════════════════════════════════ -->
+	<!-- EN-TÊTE PRINCIPAL : OVERVIEW GLOBAL DU PORTEFEUILLE D'ARCHITECTURE         -->
+	<!-- ═════════════════════════════════════════════════════════════════════════ -->
+	<div class="rounded-2xl border bg-card p-6 shadow-xs space-y-4">
+		<div class="flex flex-col md:flex-row md:items-center justify-between gap-4">
+			<div class="space-y-1">
+				<div class="flex items-center gap-2.5">
+					<div class="p-2.5 rounded-xl bg-primary text-primary-foreground shadow-xs">
+						<Compass class="h-6 w-6" />
+					</div>
+					<div>
+						<div class="flex items-center gap-2">
+							<h1 class="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
+								Overview Global du Portefeuille d'Architecture
+							</h1>
+							<span class="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-primary/10 text-primary border border-primary/20">
+								Executive Cockpit
+							</span>
+						</div>
+						<p class="text-xs sm:text-sm text-muted-foreground mt-0.5">
+							Pilotage transverse des engagements, charge des disciplines d'experts et grossissement du patrimoine commun
+						</p>
+					</div>
+				</div>
+			</div>
+
+			<!-- Actions d'accès direct -->
+			<div class="flex items-center gap-2 flex-wrap">
+				<a
+					href="/workspaces/new"
+					class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 font-bold text-xs shadow-xs transition-colors"
+				>
+					<FolderPlus class="h-4 w-4" />
+					<span>Nouvel Engagement</span>
+				</a>
+
+				<a
+					href="/deliberation"
+					class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border bg-background hover:bg-muted font-semibold text-xs transition-colors shadow-2xs"
+				>
+					<GitBranch class="h-4 w-4 text-primary" />
+					<span>Atelier Workbench</span>
+				</a>
+
+				<a
+					href="/knowledge"
+					class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border bg-background hover:bg-muted font-semibold text-xs transition-colors shadow-2xs"
+				>
+					<Network class="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+					<span>Base de Connaissance</span>
+				</a>
+			</div>
+		</div>
+
+		<!-- Barre de filtre interactif & Recherche -->
+		<div class="pt-2 border-t flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+			<div class="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
+				<span class="text-xs font-semibold text-muted-foreground flex items-center gap-1 shrink-0">
+					<Filter class="h-3.5 w-3.5" />
+					Type :
+				</span>
+
+				<button
+					type="button"
+					onclick={() => (selectedTypeFilter = 'all')}
+					class="px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors shrink-0 {selectedTypeFilter === 'all' ? 'bg-primary text-primary-foreground' : 'bg-muted/50 hover:bg-muted text-muted-foreground'}"
+				>
+					Tous ({overviewSummary.totalEngagements})
+				</button>
+
+				<button
+					type="button"
+					onclick={() => (selectedTypeFilter = 'project_rfp')}
+					class="px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors shrink-0 {selectedTypeFilter === 'project_rfp' ? 'bg-amber-600 text-white' : 'bg-muted/50 hover:bg-muted text-muted-foreground'}"
+				>
+					RFP Client ({overviewSummary.engagementsByType.project_rfp})
+				</button>
+
+				<button
+					type="button"
+					onclick={() => (selectedTypeFilter = 'generic_blueprint')}
+					class="px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors shrink-0 {selectedTypeFilter === 'generic_blueprint' ? 'bg-blue-600 text-white' : 'bg-muted/50 hover:bg-muted text-muted-foreground'}"
+				>
+					Blueprints ({overviewSummary.engagementsByType.generic_blueprint})
+				</button>
+
+				{#if overviewSummary.engagementsByType.audit_resilience > 0}
+					<button
+						type="button"
+						onclick={() => (selectedTypeFilter = 'audit_resilience')}
+						class="px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors shrink-0 {selectedTypeFilter === 'audit_resilience' ? 'bg-emerald-600 text-white' : 'bg-muted/50 hover:bg-muted text-muted-foreground'}"
+					>
+						Audits ({overviewSummary.engagementsByType.audit_resilience})
+					</button>
+				{/if}
+			</div>
+
+			<!-- Champ de recherche rapide -->
+			<div class="relative sm:w-64">
+				<Search class="h-3.5 w-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+				<input
+					type="text"
+					bind:value={searchQuery}
+					placeholder="Filtrer un projet..."
+					class="w-full text-xs pl-8 pr-3 py-1.5 rounded-lg border bg-background placeholder:text-muted-foreground focus:outline-hidden focus:ring-1 focus:ring-primary"
+				/>
+			</div>
+		</div>
+	</div>
+
+	<!-- ═════════════════════════════════════════════════════════════════════════ -->
+	<!-- 1. BANDEAU DE SYNTHÈSE EXÉCUTIVE (KPIS CLÉS)                               -->
+	<!-- ═════════════════════════════════════════════════════════════════════════ -->
+	<GlobalKpiCards summary={overviewSummary} />
+
+	<!-- ═════════════════════════════════════════════════════════════════════════ -->
+	<!-- 2. TAILLE ET AVANCEMENT DÉTAILLÉ DES ENGAGEMENTS (TABLEAU COMPARATIF)      -->
+	<!-- ═════════════════════════════════════════════════════════════════════════ -->
+	<EngagementsSizeTable
+		engagements={displayedEngagements}
+		selectedType={selectedTypeFilter}
+	/>
+
+	<!-- ═════════════════════════════════════════════════════════════════════════ -->
+	<!-- 3. DEUX VOLETS CÔTE À CÔTE : CHARGE ÉQUIPES & VIGILANCE ÉPISTÉMIQUE       -->
+	<!-- ═════════════════════════════════════════════════════════════════════════ -->
+	<div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+		<!-- GAUCHE : Monopolisation des Équipes & Radar (7 cols) -->
+		<div class="lg:col-span-7">
+			<TeamMonopolizationCard teams={overviewSummary.teams} />
+		</div>
+
+		<!-- DROITE : Alertes & Points d'Attention Épistémiques (5 cols) -->
+		<div class="lg:col-span-5">
+			<EpistemicAlertsCard
+				alerts={overviewSummary.epistemicAlerts}
+				totalOverrunsKiloEuros={overviewSummary.totalFinancialOverrunsKiloEuros}
+			/>
+		</div>
+	</div>
+
+	<!-- ═════════════════════════════════════════════════════════════════════════ -->
+	<!-- 4. DYNAMIQUE & GROSSISSEMENT DE LA BASE DE CONNAISSANCE COMMUNE           -->
+	<!-- ═════════════════════════════════════════════════════════════════════════ -->
+	<KnowledgeGrowthChart
+		growthPoints={overviewSummary.knowledgeGrowth}
+		categories={overviewSummary.knowledgeCategories}
+		crossProjectReusePct={overviewSummary.crossProjectReusePct}
+		totalDocuments={overviewSummary.totalKnowledgeDocuments}
+		totalClauses={overviewSummary.totalClauses}
+	/>
 </div>
-

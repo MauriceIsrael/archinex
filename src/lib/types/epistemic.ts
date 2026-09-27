@@ -37,7 +37,8 @@ export type ArchitectRole =
 	| 'lead_architect'
 	| 'infra_expert_architect'
 	| 'domain_architect'
-	| 'security_architect';
+	| 'security_architect'
+	| 'data_architect';
 
 export interface StatementTriplet {
 	subject: string;

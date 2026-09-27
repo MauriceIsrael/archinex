@@ -11,6 +11,7 @@
 	} from '$lib/domain/engagements';
 	import type { ArchitectRole } from '$lib/types/epistemic';
 	import type { DocumentCategory } from '$lib/domain/corpus';
+	import InviteExpertDialog from '$lib/components/deliberation/InviteExpertDialog.svelte';
 	import {
 		X,
 		FolderPlus,
@@ -19,6 +20,7 @@
 		Compass,
 		BookOpen,
 		Users,
+		UserPlus,
 		ListChecks,
 		ShieldCheck,
 		ArrowRight,
@@ -36,6 +38,8 @@
 	}
 
 	let { open = $bindable(false), onclose }: Props = $props();
+
+	let isInviteOpen = $state(false);
 
 	type Step = 1 | 2 | 3 | 4 | 5;
 	let currentStep = $state<Step>(1);
@@ -714,13 +718,21 @@
 				<!-- ═════════════════════════════════════════════════════════════ -->
 				{:else if currentStep === 4}
 					<div class="space-y-4 animate-in fade-in duration-100">
-						<div class="flex items-center justify-between">
+						<div class="flex items-center justify-between gap-3">
 							<div>
 								<h4 class="font-bold text-foreground">Équipe d'Architecture & Parties Prenantes</h4>
 								<p class="text-[11px] text-muted-foreground">
 									Désignez les experts habilités à instruire les controverses et arbitrer les sections
 								</p>
 							</div>
+							<button
+								type="button"
+								onclick={() => (isInviteOpen = true)}
+								class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/20 text-xs font-bold transition-colors cursor-pointer"
+							>
+								<UserPlus class="h-3.5 w-3.5" />
+								<span>Inviter par Email</span>
+							</button>
 						</div>
 
 						<div class="space-y-2.5">
@@ -853,3 +865,20 @@
 		</div>
 	</div>
 {/if}
+
+<InviteExpertDialog
+	bind:open={isInviteOpen}
+	onclose={() => (isInviteOpen = false)}
+	defaultProjectId={customId || undefined}
+	onInvited={(data) => {
+		participants = [
+			...participants,
+			{
+				id: `part-${Date.now()}`,
+				name: data.name || data.email.split('@')[0],
+				role: data.role,
+				email: data.email
+			}
+		];
+	}}
+/>

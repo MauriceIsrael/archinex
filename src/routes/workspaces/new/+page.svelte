@@ -11,6 +11,7 @@
 		type InitialSubjectInput
 	} from '$lib/domain/engagements';
 	import type { ArchitectRole } from '$lib/types/epistemic';
+	import InviteExpertDialog from '$lib/components/deliberation/InviteExpertDialog.svelte';
 	import {
 		FolderPlus,
 		Sparkles,
@@ -23,10 +24,13 @@
 		Trash2,
 		BookOpen,
 		Users,
+		UserPlus,
 		Layers,
 		Check,
 		FileText
 	} from 'lucide-svelte';
+
+	let isInviteOpen = $state(false);
 
 	type Step = 1 | 2 | 3 | 4 | 5;
 	let currentStep = $state<Step>(1);
@@ -699,11 +703,21 @@
 		{:else if currentStep === 4}
 			<!-- Étape 4 : Participants -->
 			<div class="space-y-6 text-xs">
-				<div>
-					<h3 class="text-sm font-bold text-foreground">Équipe Projet & Experts Habilités</h3>
-					<p class="text-xs text-muted-foreground mt-0.5">
-						Identifiez les architectes en charge des controverses dialectiques et de l'approbation formelle des énoncés
-					</p>
+				<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+					<div>
+						<h3 class="text-sm font-bold text-foreground">Équipe Projet & Experts Habilités</h3>
+						<p class="text-xs text-muted-foreground mt-0.5">
+							Identifiez les architectes en charge des controverses dialectiques et de l'approbation formelle des énoncés
+						</p>
+					</div>
+					<button
+						type="button"
+						onclick={() => (isInviteOpen = true)}
+						class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/20 font-bold self-start sm:self-center transition-colors cursor-pointer"
+					>
+						<UserPlus class="h-3.5 w-3.5" />
+						<span>Inviter un Expert par Email</span>
+					</button>
 				</div>
 
 				<div class="space-y-3">
@@ -828,3 +842,20 @@
 		</div>
 	</div>
 </div>
+
+<InviteExpertDialog
+	bind:open={isInviteOpen}
+	onclose={() => (isInviteOpen = false)}
+	defaultProjectId={customId || undefined}
+	onInvited={(data) => {
+		participants = [
+			...participants,
+			{
+				id: `part-${Date.now()}`,
+				name: data.name || data.email.split('@')[0],
+				role: data.role,
+				email: data.email
+			}
+		];
+	}}
+/>

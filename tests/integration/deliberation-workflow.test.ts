@@ -76,13 +76,22 @@ describe('Integration Scenario - End-to-End Deliberation & Epistemic Governance'
 		deliberationStore.sendRelance('sub_dc_resilience', 'Q-0003');
 		expect(deliberationStore.notifications[0].message).toContain('Relance envoyée à [infra_expert_architect]');
 
-		// 11. Tour 8 : Approbation de la règle doctrinale candidate induite par SmartMemory
+		// 11. Tour 8 : Modification préalable et approbation de la règle doctrinale candidate induite par SmartMemory
 		const pendingRule = deliberationStore.candidateRules[0];
 		expect(pendingRule.status).toBe('pending');
+
+		const editResult = deliberationStore.updateCandidateRule(pendingRule.id, {
+			title: 'Exigence Holdover ≥ 30j sur Tranche MCX Critique (Édition Architecte)',
+			description: 'Description reformulée et validée par le Lead Architect avant stockage KB.'
+		});
+		expect(editResult.success).toBe(true);
+		expect(pendingRule.title).toBe('Exigence Holdover ≥ 30j sur Tranche MCX Critique (Édition Architecte)');
+
 		const approvalResult = deliberationStore.approveCandidateRule(pendingRule.id);
 		expect(approvalResult.success).toBe(true);
 		expect(pendingRule.status).toBe('approved');
 		expect(deliberationStore.drafts['sub_sync'].retenu.some((r) => r.includes(pendingRule.id))).toBe(true);
+		expect(deliberationStore.commonKnowledgeBase.some((d) => d.id === `DOC-KB-INDUCED-${pendingRule.id}`)).toBe(true);
 
 		// 12. Inspecteur Why : Calcul du blast radius causal (S-0031 -> S-0042)
 		const dependentsOf31 = deliberationStore.getTransitiveDependents('S-0031');

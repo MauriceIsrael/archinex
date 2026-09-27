@@ -62,3 +62,82 @@ model Resource {
   @@index([type, identifier])
   @@map("resources")
 }
+
+// ── Engagements & Projets d'Architecture ────────────────────────────────────
+
+model Engagement {
+  id                String   @id
+  title             String
+  shortName         String
+  type              String   // generic_blueprint, project_rfp, audit_resilience, poc_migration
+  badge             String
+  description       String
+  defaultSubjectId  String?
+  defaultDocId      String?
+  status            String   @default("active") // active, archived
+  
+  // JSON serialized fields
+  strategy          String   @default("{}")   // ProjectStrategy
+  participants      String   @default("[]")   // ProjectParticipant[]
+  subjects          String   @default("[]")   // MaturitySubject[]
+  drafts            String   @default("{}")   // Record<string, TelegraphicDraft>
+  statements        String   @default("[]")   // Statement[]
+  dialogueMessages  String   @default("[]")   // DialogueMessage[]
+  
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@map("engagements")
+}
+
+// ── Patrimoine Commun de Connaissances & Documents ─────────────────────────
+
+model CorpusDocument {
+  id                    String   @id
+  title                 String
+  origin                String   // client, contributor_external
+  category              String   // cctp, standard, regulation, etc.
+  categoryLabel         String
+  sourceOrAuthor        String
+  contributorRole       String?
+  version               String   @default("v1.0")
+  pageCount             Int?     @default(0)
+  extractedClausesCount Int      @default(0)
+  summary               String
+  
+  // JSON serialized fields
+  relatedSubjectIds     String   @default("[]")
+  keyIdeas              String   @default("[]")
+  inducedRules          String   @default("[]")
+  keyClauses            String   @default("[]")
+  engagementIds         String   @default("[]")
+  
+  isGlobalStandard      Boolean  @default(false)
+  addedDate             DateTime @default(now())
+  lastUpdated           DateTime @updatedAt
+
+  @@map("corpus_documents")
+}
+
+// ── Invitations d'Experts ───────────────────────────────────────────────────
+
+model Invitation {
+  id          String   @id
+  email       String
+  name        String?
+  role        String   @default("user")
+  expertRole  String   @default("infra_expert_architect") @map("expert_role")
+  projectId   String?  @map("project_id")
+  projectName String?  @map("project_name")
+  invitedBy   String?  @map("invited_by")
+  message     String?
+  token       String   @unique
+  status      String   @default("pending")
+  expiresAt   String   @map("expires_at")
+  createdAt   String   @map("created_at")
+  updatedAt   String   @map("updated_at")
+
+  @@index([token])
+  @@index([email])
+  @@map("invitations")
+}

@@ -675,7 +675,7 @@ class DeliberationStore {
 	 */
 	proposeCustomVariant(
 		subjectId: string,
-		variant: { title: string; cost_delta: string; trade_off: string },
+		variant: { title: string; cost_delta?: string; trade_off?: string },
 		authorName: string = 'Architecte'
 	): { success: boolean; message: string; statement?: Statement } {
 		const draft = this.drafts[subjectId];
@@ -684,25 +684,31 @@ class DeliberationStore {
 		}
 
 		const cleanTitle = variant.title.trim();
-		const cleanCost = variant.cost_delta.trim() || 'Coût à évaluer';
-		const cleanTradeOff = variant.trade_off.trim();
+		const cleanCost = variant.cost_delta?.trim() || 'À évaluer en séance';
+		const cleanTradeOff = variant.trade_off?.trim() || 'Alternative innovante soumise au débat contradictoire';
 
-		if (!cleanTitle || !cleanTradeOff) {
-			return { success: false, message: 'Le titre et le compromis de la variante sont obligatoires.' };
+		if (!cleanTitle) {
+			return { success: false, message: "Le titre de l'alternative technique est obligatoire." };
 		}
 
-		// 1. Affectation de la variante B au brouillon
-		draft.variante_b = {
-			title: cleanTitle,
-			cost_delta: cleanCost,
-			trade_off: cleanTradeOff
+		// 1. Affectation réactive de la variante B au brouillon
+		this.drafts = {
+			...this.drafts,
+			[subjectId]: {
+				...draft,
+				maturity: 'L2_decomposed',
+				variante_b: {
+					title: cleanTitle,
+					cost_delta: cleanCost,
+					trade_off: cleanTradeOff
+				}
+			}
 		};
 
 		// 2. Si le sujet était en L0 ou L1, il passe en L2_decomposed car il y a confrontation d'options
 		const targetSubject = this.subjects.find((s) => s.id === subjectId);
 		if (targetSubject && (targetSubject.level === 'L0_named' || targetSubject.level === 'L1_framed')) {
 			targetSubject.level = 'L2_decomposed';
-			draft.maturity = 'L2_decomposed';
 		}
 
 		// 3. Consignation de l'énoncé auditable

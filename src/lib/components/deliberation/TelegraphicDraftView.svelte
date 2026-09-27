@@ -44,6 +44,7 @@
 	let newVariantTitle = $state<string>('');
 	let newVariantCostDelta = $state<string>('');
 	let newVariantTradeOff = $state<string>('');
+	let variantFormError = $state<string | null>(null);
 
 	function handleSendComment() {
 		if (!newExpertComment.trim()) return;
@@ -59,16 +60,31 @@
 	}
 
 	function handleProposeVariant() {
-		if (!newVariantTitle.trim() || !newVariantTradeOff.trim()) return;
-		deliberationStore.proposeCustomVariant(deliberationStore.activeSubjectId, {
-			title: newVariantTitle.trim(),
-			cost_delta: newVariantCostDelta.trim() || 'Coût à évaluer',
-			trade_off: newVariantTradeOff.trim()
+		const title = newVariantTitle.trim();
+		if (!title) {
+			variantFormError = "Veuillez renseigner au moins le titre de l'alternative technique.";
+			return;
+		}
+
+		variantFormError = null;
+		const costDelta = newVariantCostDelta.trim() || 'À chiffrer en séance';
+		const tradeOff = newVariantTradeOff.trim() || 'Alternative innovante versée au débat contradictoire';
+
+		const res = deliberationStore.proposeCustomVariant(deliberationStore.activeSubjectId, {
+			title,
+			cost_delta: costDelta,
+			trade_off: tradeOff
 		});
-		isProposingVariant = false;
-		newVariantTitle = '';
-		newVariantCostDelta = '';
-		newVariantTradeOff = '';
+
+		if (res.success) {
+			isProposingVariant = false;
+			newVariantTitle = '';
+			newVariantCostDelta = '';
+			newVariantTradeOff = '';
+			variantFormError = null;
+		} else {
+			variantFormError = res.message;
+		}
 	}
 
 	function formatMaturityLabel(level?: string) {
@@ -302,37 +318,57 @@
 										</div>
 										<button
 											type="button"
-											onclick={() => (isProposingVariant = false)}
-											class="text-muted-foreground hover:text-foreground text-xs p-1"
+											onclick={() => {
+												isProposingVariant = false;
+												variantFormError = null;
+											}}
+											class="text-muted-foreground hover:text-foreground text-xs p-1 cursor-pointer"
 										>
 											✕
 										</button>
 									</div>
 
+									{#if variantFormError}
+										<div class="rounded-lg bg-destructive/10 border border-destructive/25 p-2 text-destructive flex items-center gap-2 text-xs font-medium">
+											<AlertTriangle class="h-4 w-4 shrink-0 text-destructive" />
+											<span>{variantFormError}</span>
+										</div>
+									{/if}
+
 									<div>
-										<label for="new-variant-title" class="text-[11px] font-bold text-foreground block mb-0.5">Titre de l'alternative technique :</label>
+										<label for="new-variant-title" class="text-[11px] font-bold text-foreground flex items-center justify-between mb-0.5">
+											<span>Titre de l'alternative technique :</span>
+											<span class="text-[10px] text-destructive font-semibold">Obligatoire</span>
+										</label>
 										<input
 											id="new-variant-title"
 											type="text"
 											bind:value={newVariantTitle}
-											placeholder="ex: Mesh eBPF Cilium sans passerelle physique, Horloge CSAC..."
-											class="w-full text-xs px-2.5 py-1.5 rounded border border-border bg-background"
+											oninput={() => (variantFormError = null)}
+											placeholder="ex: Mesh eBPF Cilium sans passerelle physique, Horloge atomique CSAC..."
+											class="w-full text-xs px-2.5 py-1.5 rounded border border-border bg-background focus:ring-1 focus:ring-purple-500"
 										/>
 									</div>
 
 									<div>
-										<label for="new-variant-cost" class="text-[11px] font-bold text-foreground block mb-0.5">Impact budgétaire / effort estimé :</label>
+										<label for="new-variant-cost" class="text-[11px] font-bold text-foreground flex items-center justify-between mb-0.5">
+											<span>Impact budgétaire / effort estimé :</span>
+											<span class="text-[10px] text-muted-foreground font-normal">Optionnel</span>
+										</label>
 										<input
 											id="new-variant-cost"
 											type="text"
 											bind:value={newVariantCostDelta}
-											placeholder="ex: -65 k€ CAPEX, Gain OPEX 15%, Effort M..."
+											placeholder="ex: -65 k€ CAPEX, Gain OPEX 15%, Effort M... (défaut : À chiffrer)"
 											class="w-full text-xs px-2.5 py-1.5 rounded border border-border bg-background"
 										/>
 									</div>
 
 									<div>
-										<label for="new-variant-tradeoff" class="text-[11px] font-bold text-foreground block mb-0.5">Compromis & Valeur innovante :</label>
+										<label for="new-variant-tradeoff" class="text-[11px] font-bold text-foreground flex items-center justify-between mb-0.5">
+											<span>Compromis & Valeur innovante :</span>
+											<span class="text-[10px] text-muted-foreground font-normal">Optionnel</span>
+										</label>
 										<textarea
 											id="new-variant-tradeoff"
 											bind:value={newVariantTradeOff}
@@ -351,15 +387,16 @@
 											newVariantTitle = '';
 											newVariantCostDelta = '';
 											newVariantTradeOff = '';
+											variantFormError = null;
 										}}
-										class="px-2.5 py-1 text-xs border rounded-lg hover:bg-muted"
+										class="px-2.5 py-1 text-xs border rounded-lg hover:bg-muted cursor-pointer"
 									>
 										Annuler
 									</button>
 									<button
 										type="button"
 										onclick={handleProposeVariant}
-										class="inline-flex items-center gap-1.5 px-3 py-1 text-xs font-semibold rounded-lg bg-purple-600 hover:bg-purple-700 text-white shadow-xs transition-colors"
+										class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-purple-600 hover:bg-purple-700 text-white shadow-xs transition-colors cursor-pointer"
 									>
 										<Sparkles class="h-3.5 w-3.5" />
 										<span>Soumettre au débat</span>
@@ -406,12 +443,21 @@
 									<button
 										type="button"
 										onclick={() => { rejectingVariant = !rejectingVariant; }}
-										class="px-2 py-1.5 text-xs text-destructive hover:bg-destructive/10 rounded-lg border border-destructive/20"
+										class="px-2 py-1.5 text-xs text-destructive hover:bg-destructive/10 rounded-lg border border-destructive/20 cursor-pointer"
 										title="Exclure formellement cette variante"
 									>
 										Exclure
 									</button>
 								</div>
+
+								<button
+									type="button"
+									onclick={() => (activeTab = 'discussion')}
+									class="w-full inline-flex items-center justify-center gap-1.5 text-[11px] font-medium text-purple-700 dark:text-purple-300 hover:bg-purple-500/10 rounded-md py-1 transition-colors cursor-pointer"
+								>
+									<MessagesSquare class="h-3 w-3" />
+									<span>Voir les réactions dans le débat d'experts ({subjectMessages.length})</span>
+								</button>
 							</div>
 						{:else}
 							<!-- CONSCIENTISATION DE LA DÉCISION (OPTION UNIQUE PAR DÉFAUT) -->

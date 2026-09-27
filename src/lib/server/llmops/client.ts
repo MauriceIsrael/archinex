@@ -37,8 +37,19 @@ export class LLMOpsClient {
     this.timeoutMs = config.timeoutMs || 4000;
   }
 
+  /**
+   * Mappe les identifiants d'engagements locaux vers l'identifiant reconnu par le serveur distant GCP.
+   * L'instance GCP de démonstration est restreinte au périmètre 'nordwave-mcx-2027'.
+   */
+  resolveRemoteEngagement(engagement?: string): string {
+    if (!engagement || engagement === 'cctp-mcx-nordwave' || engagement === 'eng_cctp_nordwave' || engagement === 'nordwave-mcx-2027') {
+      return 'nordwave-mcx-2027';
+    }
+    return engagement;
+  }
+
   private getHeaders(engagement?: string): Record<string, string> {
-    const eng = engagement || this.defaultEngagement;
+    const eng = this.resolveRemoteEngagement(engagement || this.defaultEngagement);
     return {
       'Accept': 'application/json',
       'Content-Type': 'application/json',
@@ -189,10 +200,10 @@ export class LLMOpsClient {
    * Tableau de maturité d'architecture (L0-L4)
    */
   async getBoard(engagement?: string): Promise<{ data: LLMOpsBoardItem[]; source: 'live' | 'offline-fallback' }> {
-    const eng = engagement || this.defaultEngagement;
+    const remoteEng = this.resolveRemoteEngagement(engagement || this.defaultEngagement);
     try {
-      const url = `${this.baseUrl}/api/arbitration/board?engagement=${encodeURIComponent(eng)}`;
-      const res = await this.fetchWithTimeout(url, { headers: this.getHeaders(eng) });
+      const url = `${this.baseUrl}/api/arbitration/board?engagement=${encodeURIComponent(remoteEng)}`;
+      const res = await this.fetchWithTimeout(url, { headers: this.getHeaders(remoteEng) });
       if (res.ok) {
         const env = (await res.json()) as LLMOpsResponseEnvelope<LLMOpsBoardItem[]>;
         if (env.status === 'ok' && Array.isArray(env.data)) {
@@ -214,13 +225,13 @@ export class LLMOpsClient {
     engagement?: string,
     subject?: string
   ): Promise<{ data: LLMOpsStatement[]; source: 'live' | 'offline-fallback' }> {
-    const eng = engagement || this.defaultEngagement;
+    const remoteEng = this.resolveRemoteEngagement(engagement || this.defaultEngagement);
     try {
-      let url = `${this.baseUrl}/api/arbitration/statements?engagement=${encodeURIComponent(eng)}`;
+      let url = `${this.baseUrl}/api/arbitration/statements?engagement=${encodeURIComponent(remoteEng)}`;
       if (subject) {
         url += `&subject=${encodeURIComponent(subject)}`;
       }
-      const res = await this.fetchWithTimeout(url, { headers: this.getHeaders(eng) });
+      const res = await this.fetchWithTimeout(url, { headers: this.getHeaders(remoteEng) });
       if (res.ok) {
         const env = (await res.json()) as LLMOpsResponseEnvelope<LLMOpsStatement[]>;
         if (env.status === 'ok' && Array.isArray(env.data)) {
@@ -246,10 +257,10 @@ export class LLMOpsClient {
     engagement?: string,
     status = 'open'
   ): Promise<{ data: LLMOpsConflict[]; source: 'live' | 'offline-fallback' }> {
-    const eng = engagement || this.defaultEngagement;
+    const remoteEng = this.resolveRemoteEngagement(engagement || this.defaultEngagement);
     try {
-      const url = `${this.baseUrl}/api/arbitration/conflicts?engagement=${encodeURIComponent(eng)}&status=${encodeURIComponent(status)}`;
-      const res = await this.fetchWithTimeout(url, { headers: this.getHeaders(eng) });
+      const url = `${this.baseUrl}/api/arbitration/conflicts?engagement=${encodeURIComponent(remoteEng)}&status=${encodeURIComponent(status)}`;
+      const res = await this.fetchWithTimeout(url, { headers: this.getHeaders(remoteEng) });
       if (res.ok) {
         const env = (await res.json()) as LLMOpsResponseEnvelope<LLMOpsConflict[]>;
         if (env.status === 'ok' && Array.isArray(env.data)) {
@@ -329,12 +340,33 @@ export class LLMOpsClient {
    * Synchronisation globale composite (Board + Statements + Conflicts + Health)
    */
   async syncEngagement(engagement?: string): Promise<LLMOpsSyncPayload> {
-    const eng = engagement || this.defaultEngagement;
+    const localEng = engagement || this.defaultEngagement;
+    const remoteEng = this.resolveRemoteEngagement(localEng);
+
+    // Si l'engagement est un blueprint générique 100% local (ex: SUSE Telco Cloud),
+    // on sert directement le bundle local scellé pour garantir l'absence de fuite et de latence.
+    if (localEng === 'suse-telco-cloud-generic') {
+      const bundle = this.loadOfflineBundle();
+      return {
+        source: 'offline-fallback',
+        engagement: localEng,
+        syncedAt: new Date().toISOString(),
+        health: {
+          ...bundle.health,
+          service: 'archinex-sovereign-local'
+        },
+        board: bundle.board,
+        statements: bundle.statements,
+        conflicts: bundle.conflicts,
+        snapshotMeta: bundle.health.kb
+      };
+    }
+
     const [healthRes, boardRes, statementsRes, conflictsRes] = await Promise.all([
       this.getHealth(),
-      this.getBoard(eng),
-      this.getStatements(eng),
-      this.getConflicts(eng)
+      this.getBoard(remoteEng),
+      this.getStatements(remoteEng),
+      this.getConflicts(remoteEng)
     ]);
 
     const isLive =
@@ -344,7 +376,7 @@ export class LLMOpsClient {
 
     return {
       source: isLive ? 'live' : 'offline-fallback',
-      engagement: eng,
+      engagement: localEng,
       syncedAt: new Date().toISOString(),
       health: healthRes.data,
       board: boardRes.data,

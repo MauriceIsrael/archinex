@@ -2,6 +2,7 @@
 	import { deliberationStore, type DeliberationPosture } from '$lib/stores/deliberationStore.svelte';
 	import type { ArchitectRole } from '$lib/types/epistemic';
 	import CreateWorkspaceDialog from './CreateWorkspaceDialog.svelte';
+	import InviteExpertDialog from './InviteExpertDialog.svelte';
 	import {
 		Building2,
 		FileText,
@@ -14,6 +15,7 @@
 		CheckCircle2,
 		Bot,
 		UserCheck,
+		UserPlus,
 		Layers,
 		Lock,
 		Check,
@@ -22,6 +24,7 @@
 
 	let { onOpenGuide }: { onOpenGuide: () => void } = $props();
 	let isCreateWorkspaceOpen = $state(false);
+	let isInviteDialogOpen = $state(false);
 
 	const activeEngagement = $derived(deliberationStore.activeEngagement);
 	const activeDoc = $derived(deliberationStore.activeDocument);
@@ -155,18 +158,29 @@
 					<span>Comment décider ?</span>
 				</button>
 
+				<!-- Bouton Inviter un Expert par Email -->
+				<button
+					type="button"
+					onclick={() => (isInviteDialogOpen = true)}
+					class="inline-flex items-center gap-1.5 rounded-lg bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 px-2.5 py-1.5 text-xs font-semibold transition-all shadow-2xs cursor-pointer"
+					title="Inviter un expert par email sur ce projet (création de compte automatique)"
+				>
+					<UserPlus class="h-3.5 w-3.5" />
+					<span>Inviter un Expert</span>
+				</button>
+
 				<!-- Statut LLMOps (Dual-Mode) -->
 				{#if deliberationStore.llmopsStatus === 'connected'}
 					<button
 						type="button"
 						onclick={() => deliberationStore.syncWithLLMOps()}
 						disabled={deliberationStore.isSyncingLLMOps}
-						class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/20 transition-colors"
-						title="LLMOps Connecté ({deliberationStore.activeEngagementId}) · Cliquez pour resynchroniser"
+						class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/20 transition-colors cursor-pointer"
+						title="Connecté au Knowledge Hub GCP Cloud Run ({deliberationStore.activeEngagementId}) · Cliquez pour resynchroniser"
 					>
 						<span class="inline-block h-2 w-2 rounded-full bg-emerald-500"></span>
 						<span class="opacity-80">LLMOps :</span>
-						<strong class="font-mono">Connecté</strong>
+						<strong class="font-mono">Connecté (GCP)</strong>
 						{#if deliberationStore.isSyncingLLMOps}
 							<RefreshCw class="h-3 w-3 animate-spin ml-0.5" />
 						{/if}
@@ -176,8 +190,8 @@
 						type="button"
 						onclick={() => deliberationStore.syncWithLLMOps()}
 						disabled={deliberationStore.isSyncingLLMOps}
-						class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30 hover:bg-amber-500/20 transition-colors"
-						title="Mode Local (Instantané Scellé) · Cliquez pour rafraîchir"
+						class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30 hover:bg-amber-500/20 transition-colors cursor-pointer"
+						title="Mode 100% Souverain Local (Snapshot Scellé hors-ligne) · Cliquez pour tester la connexion GCP"
 					>
 						<span class="inline-block h-2 w-2 rounded-full bg-amber-500"></span>
 						<span class="opacity-80">LLMOps :</span>
@@ -188,20 +202,22 @@
 					</button>
 				{/if}
 
-				<!-- Commutateur Humain / IA -->
+				<!-- Commutateur Humain / IA (Gouvernance & Gate Tour 8) -->
 				<button
 					type="button"
 					onclick={() => deliberationStore.setIsHuman(!deliberationStore.isHuman)}
-					class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border transition-colors {deliberationStore.isHuman
-						? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30'
-						: 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30'}"
-					title="Basculer entre opérateur humain et agent IA"
+					class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border transition-colors cursor-pointer {deliberationStore.isHuman
+						? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/20'
+						: 'bg-purple-500/10 text-purple-700 dark:text-purple-300 border-purple-500/30 hover:bg-purple-500/20'}"
+					title={deliberationStore.isHuman
+						? 'Opérateur Humain : Vous avez autorité pour trancher et arbitrer (Gates L3/L4/L5 débloqués)'
+						: 'Mode Agent IA : Suggestions & élicitation (l\'arbitrage L3 est bloqué selon le Gate Tour 8)'}
 				>
 					{#if deliberationStore.isHuman}
-						<UserCheck class="h-3.5 w-3.5 text-emerald-600" />
-						<span class="font-medium">Humain</span>
+						<UserCheck class="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+						<span class="font-medium">Opérateur Humain</span>
 					{:else}
-						<Bot class="h-3.5 w-3.5 text-amber-600" />
+						<Bot class="h-3.5 w-3.5 text-purple-600 dark:text-purple-400" />
 						<span class="font-medium">Agent IA</span>
 					{/if}
 				</button>
@@ -299,5 +315,11 @@
 	<CreateWorkspaceDialog
 		bind:open={isCreateWorkspaceOpen}
 		onclose={() => (isCreateWorkspaceOpen = false)}
+	/>
+
+	<!-- Modale d'Invitation d'un Expert par Email -->
+	<InviteExpertDialog
+		bind:open={isInviteDialogOpen}
+		onclose={() => (isInviteDialogOpen = false)}
 	/>
 </div>

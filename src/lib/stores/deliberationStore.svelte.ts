@@ -996,6 +996,18 @@ class DeliberationStore {
 			this.lastSyncTime = payload.syncedAt;
 			this.llmopsConflicts = payload.conflicts || [];
 
+			if (payload.source === 'live') {
+				this.logNotification(
+					`Synchronisation réussie avec GCP Cloud Run (${payload.engagement}) · En direct`,
+					'success'
+				);
+			} else {
+				this.logNotification(
+					`Mode Souverain Local (${payload.engagement}) · Données scellées hors-ligne`,
+					'info'
+				);
+			}
+
 			// Fusionner / hydrater les sujets de LLMOps dans le board
 			if (payload.board && payload.board.length > 0) {
 				const updatedSubjects = [...this.subjects];

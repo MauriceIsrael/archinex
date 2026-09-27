@@ -35,11 +35,19 @@ import {
 import {
 	type CorpusDocument,
 	type CorpusStats,
+	type DocumentOrigin,
 	type DocumentCategory,
 	type ExtractedClause,
 	INITIAL_CORPUS_DOCUMENTS,
 	computeCorpusStats
 } from '$lib/domain/corpus';
+import type {
+	LLMOpsHealth,
+	LLMOpsSyncPayload,
+	LLMOpsConflict,
+	LLMOpsBoardItem,
+	LLMOpsStatement
+} from '$lib/types/llmops';
 
 export type DeliberationPosture = 'appropriation' | 'deliberation' | 'rendu';
 
@@ -264,6 +272,15 @@ class DeliberationStore {
 	corpusDocuments = $state<CorpusDocument[]>(INITIAL_CORPUS_DOCUMENTS);
 	activeDocumentId = $state<string>('DOC-CLI-01');
 
+	// État d'intégration LLMOps (Dual-Mode)
+	llmopsStatus = $state<'idle' | 'connected' | 'offline' | 'syncing' | 'error'>('idle');
+	llmopsHealth = $state<LLMOpsHealth | null>(null);
+	activeEngagementId = $state<string>('nordwave-mcx-2027');
+	lastSyncTime = $state<string | null>(null);
+	llmopsSyncSource = $state<'live' | 'offline-fallback' | null>(null);
+	llmopsConflicts = $state<LLMOpsConflict[]>([]);
+	isSyncingLLMOps = $state<boolean>(false);
+
 	// Tri réactif automatique par déblocages (effet multiplicateur)
 	sortedSubjects = $derived(sortMaturityBoard(this.subjects));
 
@@ -307,7 +324,9 @@ class DeliberationStore {
 	}
 
 	addContributorDocument(docData: {
+		id?: string;
 		title: string;
+		origin?: DocumentOrigin;
 		category: DocumentCategory;
 		categoryLabel: string;
 		sourceOrAuthor: string;
@@ -318,11 +337,11 @@ class DeliberationStore {
 		summary: string;
 		keyClauses: ExtractedClause[];
 	}) {
-		const newId = `DOC-EXT-${String(this.externalDocuments.length + 1).padStart(2, '0')}`;
+		const newId = docData.id || `DOC-EXT-${String(this.externalDocuments.length + 1).padStart(2, '0')}`;
 		const newDoc: CorpusDocument = {
 			...docData,
 			id: newId,
-			origin: 'contributor_external',
+			origin: docData.origin || 'contributor_external',
 			extractedClausesCount: docData.keyClauses.length || 1,
 			addedDate: new Date().toISOString(),
 			lastUpdated: new Date().toISOString()
@@ -330,7 +349,7 @@ class DeliberationStore {
 		this.corpusDocuments = [newDoc, ...this.corpusDocuments];
 		this.activeDocumentId = newId;
 		this.logNotification(
-			`Document externe ajouté : "${newDoc.title}" (${newDoc.categoryLabel})`,
+			`Document ajouté au corpus : "${newDoc.title}" (${newDoc.categoryLabel})`,
 			'success'
 		);
 	}
@@ -726,6 +745,156 @@ class DeliberationStore {
 
 	getDependentsCount(statementId: string): number {
 		return this.getTransitiveDependents(statementId).length;
+	}
+
+	/**
+	 * Synchronisation avec le moteur Knowledge Hub / LLMOps
+	 * Récupère le board de maturité, les énoncés et les conflits réels (Live Cloud Run ou Snapshot Scellé local)
+	 */
+	async syncWithLLMOps(engagementId?: string, customFetch?: typeof fetch) {
+		const eng = engagementId || this.activeEngagementId;
+		this.isSyncingLLMOps = true;
+		this.llmopsStatus = 'syncing';
+
+		try {
+			const fetcher = customFetch || (typeof window !== 'undefined' ? window.fetch.bind(window) : fetch);
+			const res = await fetcher(`/api/llmops?action=sync&engagement=${encodeURIComponent(eng)}`);
+			if (!res.ok) {
+				throw new Error(`Erreur HTTP ${res.status}`);
+			}
+			const payload = (await res.json()) as LLMOpsSyncPayload;
+
+			this.activeEngagementId = payload.engagement;
+			this.llmopsStatus = payload.source === 'live' ? 'connected' : 'offline';
+			this.llmopsSyncSource = payload.source;
+			this.llmopsHealth = payload.health;
+			this.lastSyncTime = payload.syncedAt;
+			this.llmopsConflicts = payload.conflicts || [];
+
+			// Fusionner / hydrater les sujets de LLMOps dans le board
+			if (payload.board && payload.board.length > 0) {
+				const updatedSubjects = [...this.subjects];
+
+				for (const item of payload.board) {
+					const existingIndex = updatedSubjects.findIndex((s) => s.id === item.subject);
+					const sectionRef = item.dependent_sections?.[0] ? `§${item.dependent_sections[0]}` : '§4.x';
+					const role: ArchitectRole = (item.assigned_role as ArchitectRole) || 'lead_architect';
+
+					if (existingIndex >= 0) {
+						updatedSubjects[existingIndex] = {
+							...updatedSubjects[existingIndex],
+							name: item.name,
+							level: item.level as MaturityLevel,
+							is_stalled: item.is_stalled,
+							stall_days: item.days_at_level
+						};
+					} else {
+						updatedSubjects.push({
+							id: item.subject,
+							name: item.name,
+							section_ref: sectionRef,
+							level: item.level as MaturityLevel,
+							blocking_count: 0,
+							unlocks_count: 1,
+							waiting_for_role: role,
+							relative_effort: 'M',
+							last_transition_date: item.updated_at || new Date().toISOString(),
+							stall_days: item.days_at_level,
+							is_stalled: item.is_stalled,
+							dependent_subject_ids: []
+						});
+					}
+				}
+				this.subjects = updatedSubjects;
+			}
+
+			// Fusionner / hydrater les énoncés
+			if (payload.statements && payload.statements.length > 0) {
+				const existingStatementIds = new Set(this.statements.map((s) => s.id));
+				const newStatements: Statement[] = [];
+
+				for (const s of payload.statements) {
+					if (!existingStatementIds.has(s.id)) {
+						newStatements.push({
+							id: s.id,
+							section: s.section.startsWith('§') ? s.section : `§${s.section}`,
+							triplet: {
+								subject: s.subject,
+								predicate: s.predicate,
+								value: s.value
+							},
+							justification: {
+								basedOn: s.based_on || []
+							},
+							authority: {
+								author: s.author,
+								role: (s.role as ArchitectRole) || 'infra_expert_architect',
+								productionMode: 'human-authored'
+							},
+							maturity: {
+								subjectLevel: 'L2_decomposed',
+								confidence: s.confidence as any
+							},
+							revisability: {
+								antecedents: s.based_on || []
+							},
+							status: s.status === 'retracted' ? 'superseded' : (s.status as 'active' | 'under_review' | 'contested') || 'active',
+							createdAt: new Date().toISOString(),
+							updatedAt: new Date().toISOString()
+						});
+					}
+				}
+				if (newStatements.length > 0) {
+					this.statements = [...this.statements, ...newStatements];
+				}
+			}
+
+			// Hydrater les brouillons télégraphiques pour les sujets LLMOps
+			for (const bItem of payload.board || []) {
+				const stmts = (payload.statements || []).filter((s) => s.subject === bItem.subject);
+				const subConflicts = (payload.conflicts || []).filter((c) => c.detail.includes(bItem.subject));
+
+				if (!this.drafts[bItem.subject] || this.drafts[bItem.subject].retenu.length === 0) {
+					this.drafts[bItem.subject] = {
+						section_id: bItem.dependent_sections?.[0] ? `§${bItem.dependent_sections[0]}` : '§4.x',
+						subject: bItem.name,
+						maturity: bItem.level as MaturityLevel,
+						is_provisional: bItem.level !== 'L4_specified',
+						retenu: stmts.map((s) => `${s.predicate} : ${s.value}`),
+						suppose: [],
+						conflit: subConflicts.map((c) => ({
+							text: c.detail,
+							opposing_reference: c.id,
+							requires_arbitration: c.status === 'open'
+						})),
+						manque: bItem.open_question_ref
+							? [
+									{
+										id: bItem.open_question_ref,
+										question: `Question bloquante ${bItem.open_question_ref}`,
+										assigned_role: (bItem.assigned_role as ArchitectRole) || 'lead_architect'
+									}
+								]
+							: []
+					};
+				}
+			}
+
+			const sourceLabel = payload.source === 'live' ? 'Cloud Run (Direct)' : 'Instantané Hors-Ligne';
+			this.logNotification(
+				`Synchronisation LLMOps réussie (${sourceLabel} · ${payload.engagement} · ${payload.board.length} sujets · ${payload.statements.length} énoncés)`,
+				'success'
+			);
+
+			return { success: true, payload };
+		} catch (err: unknown) {
+			this.llmopsStatus = 'error';
+			const msg = err instanceof Error ? err.message : 'Erreur inconnue';
+			this.logNotification(`Échec synchronisation LLMOps : ${msg}`, 'warning');
+			return { success: false, error: msg };
+		} finally {
+			this.isSyncingLLMOps = false;
+		}
 	}
 
 	private logNotification(message: string, type: 'info' | 'success' | 'warning' = 'info') {

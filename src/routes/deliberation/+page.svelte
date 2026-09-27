@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { onMount } from 'svelte';
 	import ContextualPostureSelector from '$lib/components/deliberation/ContextualPostureSelector.svelte';
 	import DeliberationDashboardKpis from '$lib/components/deliberation/DeliberationDashboardKpis.svelte';
 	import MaturityBoardTable from '$lib/components/deliberation/MaturityBoardTable.svelte';
@@ -18,7 +19,8 @@
 		Layers,
 		Lock,
 		Building2,
-		Globe
+		Globe,
+		RefreshCw
 	} from 'lucide-svelte';
 
 	type MobileTab = 'board' | 'draft' | 'chat' | 'projections';
@@ -26,6 +28,10 @@
 
 	const activeSubject = $derived(deliberationStore.activeSubject);
 	const activeDoc = $derived(deliberationStore.activeDocument);
+
+	onMount(async () => {
+		await deliberationStore.syncWithLLMOps();
+	});
 </script>
 
 <svelte:head>
@@ -52,6 +58,59 @@
 
 		<!-- Statut Sujet Actif, Document Actif & Action Rapide -->
 		<div class="flex flex-wrap items-center gap-2 self-start sm:self-center text-xs">
+			<!-- Badge de Statut LLMOps (FastMCP / Snapshot Dual-Mode) -->
+			{#if deliberationStore.llmopsStatus === 'connected'}
+				<button
+					type="button"
+					onclick={() => deliberationStore.syncWithLLMOps()}
+					disabled={deliberationStore.isSyncingLLMOps}
+					class="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-medium bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/20 transition-colors"
+					title="LLMOps Connecté ({deliberationStore.activeEngagementId}) · Cliquez pour resynchroniser"
+				>
+					<span class="inline-block h-2 w-2 rounded-full bg-emerald-500"></span>
+					<span class="opacity-80">LLMOps :</span>
+					<strong class="font-mono">Connecté</strong>
+					{#if deliberationStore.llmopsHealth?.engine_commit}
+						<span class="text-[10px] opacity-75 font-mono">({deliberationStore.llmopsHealth.engine_commit})</span>
+					{/if}
+					{#if deliberationStore.isSyncingLLMOps}
+						<RefreshCw class="h-3 w-3 animate-spin ml-0.5" />
+					{/if}
+				</button>
+			{:else if deliberationStore.llmopsStatus === 'offline'}
+				<button
+					type="button"
+					onclick={() => deliberationStore.syncWithLLMOps()}
+					disabled={deliberationStore.isSyncingLLMOps}
+					class="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-medium bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30 hover:bg-amber-500/20 transition-colors"
+					title="LLMOps Mode Hors-Ligne (Snapshot Scellé Local) · Cliquez pour reconnecter"
+				>
+					<span class="inline-block h-2 w-2 rounded-full bg-amber-500"></span>
+					<span class="opacity-80">LLMOps :</span>
+					<strong class="font-mono">Hors-Ligne</strong>
+					<span class="text-[10px] opacity-75">(Snapshot)</span>
+					{#if deliberationStore.isSyncingLLMOps}
+						<RefreshCw class="h-3 w-3 animate-spin ml-0.5" />
+					{/if}
+				</button>
+			{:else if deliberationStore.llmopsStatus === 'syncing'}
+				<div class="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-medium bg-muted text-muted-foreground">
+					<RefreshCw class="h-3 w-3 animate-spin text-primary" />
+					<span>Sync LLMOps...</span>
+				</div>
+			{:else}
+				<button
+					type="button"
+					onclick={() => deliberationStore.syncWithLLMOps()}
+					disabled={deliberationStore.isSyncingLLMOps}
+					class="flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-medium bg-muted/60 text-muted-foreground hover:bg-muted transition-colors"
+					title="Cliquer pour connecter LLMOps"
+				>
+					<RefreshCw class="h-3 w-3" />
+					<span>Connecter LLMOps</span>
+				</button>
+			{/if}
+
 			<!-- Indicateur du Document Actif de Travail -->
 			{#if activeDoc}
 				<button

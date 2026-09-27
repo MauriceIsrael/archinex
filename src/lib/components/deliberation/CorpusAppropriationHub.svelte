@@ -6,6 +6,7 @@
 		type DocumentOrigin
 	} from '$lib/domain/corpus';
 	import AddContributorDocDialog from './AddContributorDocDialog.svelte';
+	import RfpShredderDialog from './RfpShredderDialog.svelte';
 	import {
 		BookOpen,
 		Building2,
@@ -20,7 +21,8 @@
 		ShieldAlert,
 		Sparkles,
 		Eye,
-		Filter
+		Filter,
+		Scissors
 	} from 'lucide-svelte';
 
 	type FilterOriginTab = 'all' | 'client' | 'external';
@@ -28,6 +30,7 @@
 	let searchQuery = $state('');
 	let filterByActiveSubject = $state(false);
 	let isAddDialogOpen = $state(false);
+	let isShredDialogOpen = $state(false);
 
 	const activeDoc = $derived(deliberationStore.activeDocument);
 	const activeSubject = $derived(deliberationStore.activeSubject);
@@ -81,6 +84,16 @@
 
 			<!-- Actions Rapides -->
 			<div class="flex items-center gap-2">
+				<button
+					type="button"
+					onclick={() => (isShredDialogOpen = true)}
+					class="inline-flex items-center gap-1.5 rounded-lg border bg-primary/10 hover:bg-primary/20 text-primary border-primary/30 px-3 py-1.5 text-xs font-semibold shadow-xs transition-colors"
+					title="Dépouiller automatiquement un CCTP avec le moteur LLMOps"
+				>
+					<Scissors class="h-3.5 w-3.5" />
+					<span>Dépouiller CCTP</span>
+				</button>
+
 				<button
 					type="button"
 					onclick={() => (isAddDialogOpen = true)}
@@ -508,3 +521,7 @@
 	open={isAddDialogOpen}
 	onclose={() => (isAddDialogOpen = false)}
 />
+
+<!-- Boîte de dialogue de dépouillement CCTP via LLMOps -->
+<RfpShredderDialog bind:open={isShredDialogOpen} />
+

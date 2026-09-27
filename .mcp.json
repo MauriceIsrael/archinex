@@ -1,0 +1,10 @@
+{
+  "mcpServers": {
+    "llmops-remote": {
+      "url": "https://llmops-mcp-server-344571265365.europe-west1.run.app/sse",
+      "headers": {
+        "Authorization": "Bearer demo-public-2026-08"
+      }
+    }
+  }
+}

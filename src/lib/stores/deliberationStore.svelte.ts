@@ -218,6 +218,133 @@ const INITIAL_DRAFTS: Record<string, TelegraphicDraft> = {
 				assigned_role: 'infra_expert_architect'
 			}
 		]
+	},
+	sub_core: {
+		section_id: '§4.4',
+		subject: 'Cœur de Réseau & Tranches 5G (Slicing)',
+		maturity: 'L1_framed',
+		is_provisional: true,
+		retenu: [
+			'Cœur 5G Standalone (5G SA) 3GPP Rel-17',
+			'Fonctions UPF distribuées sur les nœuds régionaux'
+		],
+		suppose: [
+			{
+				text: 'Isolation stricte des tranches 5QI 65 (MCX Voice) et 5QI 69 (Données critiques)',
+				consequence: 'Garantie de bande passante et latence < 10 ms sans contention avec les flux généraux',
+				cost_hint: 'Inclus socle 5G SA'
+			}
+		],
+		conflit: [
+			{
+				text: 'UPF physique dédié par site nodal vs Découpage logique mutualisé (Network Slicing E2E)',
+				opposing_reference: 'Exigence CCTP Art. 4.4.2 & Doctrine Résilience Réseau',
+				requires_arbitration: true
+			}
+		],
+		manque: [
+			{
+				id: 'Q-CORE-001',
+				question: 'L\'ANSSI valide-t-elle le découpage logique des files d\'attente ou exige-t-elle des cartes réseau et vSwitch physiquement séparés ?',
+				assigned_role: 'security_architect'
+			}
+		],
+		variante_b: {
+			title: 'Tranches logiques mutualisées avec Dynamic QoS (Slicing E2E)',
+			cost_delta: '-85 k€ CAPEX matériel',
+			trade_off: 'Partage de mémoire tampon UPF, requiert qualification de cloisonnement CSPN'
+		}
+	},
+	sub_ppdr: {
+		section_id: '§5.1',
+		subject: 'Terminaux PPDR & Ergonomie Terrain',
+		maturity: 'L2_decomposed',
+		is_provisional: true,
+		retenu: [
+			'Terminaux mobiles MCX 3GPP Rel-17 certifiés IP68',
+			'Bouton Push-To-Talk (PTT) physique dédié utilisable avec gants'
+		],
+		suppose: [
+			{
+				text: 'Autonomie batterie ≥ 18h en veille active avec géolocalisation continue',
+				consequence: 'Batteries haute capacité amovibles remplaçables à chaud sur le terrain',
+				cost_hint: '+120 € / terminal'
+			}
+		],
+		conflit: [
+			{
+				text: 'Flotte de terminaux durcis propriétaires dédiés vs Smartphones professionnels COTS sous conteneur durci',
+				opposing_reference: 'CCTP Annexe 5.1 & Guide d\'Équipement Forces d\'Intervention',
+				requires_arbitration: true
+			}
+		],
+		manque: [
+			{
+				id: 'Q-PPDR-001',
+				question: 'Les utilisateurs opérationnels imposent-ils un bouton de détresse (SOS) sous capot mécanique ?',
+				assigned_role: 'domain_architect'
+			}
+		],
+		variante_b: {
+			title: 'Smartphones durcis COTS Android Enterprise + Coque tactique bouton PTT externe',
+			cost_delta: '-35% sur le budget terminaux (gain ~95 k€)',
+			trade_off: 'Moins résistant aux chocs extrêmes, dépendance aux cycles de mise à jour constructeur'
+		}
+	},
+	sub_radio: {
+		section_id: '§4.3',
+		subject: 'Transmission Radio Fréquences MCX',
+		maturity: 'L1_framed',
+		is_provisional: true,
+		retenu: [
+			'Bandes 5G NR n78 (3.5 GHz) et n28 (700 MHz)',
+			'MIMO 4T4R sur stations nodales'
+		],
+		suppose: [
+			{
+				text: 'Couverture extérieure garantie > 98% du territoire opérationnel',
+				consequence: 'Nécessite 12 pylônes relais supplémentaires en zone rurale',
+				cost_hint: '+240 k€ investissement pylônes'
+			}
+		],
+		conflit: [
+			{
+				text: 'Densification de pylônes 700 MHz dédiés vs Itinérance secourue sur opérateurs commerciaux',
+				opposing_reference: 'SLA Disponibilité CCTP Art 4.3.1',
+				requires_arbitration: true
+			}
+		],
+		manque: [
+			{
+				id: 'Q-RAD-001',
+				question: 'Autorisation d\'émission ARCEP temporaire ou licence de bande dédiée accordée ?',
+				assigned_role: 'infra_expert_architect'
+			}
+		],
+		variante_b: {
+			title: 'Agrégation hybride réseau propre + Accès prioritaire eCall/PPDR sur réseau commercial',
+			cost_delta: '-180 k€ CAPEX initial',
+			trade_off: 'Dépendance partielle à un opérateur tiers en zone blanche'
+		}
+	},
+	sub_pqc: {
+		section_id: '§6.2',
+		subject: 'Cryptographie Post-Quantique (PQC) & Chiffrement Flux',
+		maturity: 'L3_decided',
+		is_provisional: false,
+		retenu: [
+			'Chiffrement hybride ML-KEM (Kyber-768) + X25519 sur les flux inter-sites',
+			'Tunnels IPsec IKEv2 conformes au guide ANSSI PQC 2026'
+		],
+		suppose: [
+			{
+				text: 'Accélération cryptographique matérielle FPGA sur passerelles nodales',
+				consequence: 'Débit garanti 10 Gbps sans saturation des processeurs hôtes',
+				cost_hint: '+40 k€ équipement'
+			}
+		],
+		conflit: [],
+		manque: []
 	}
 };
 
@@ -405,7 +532,34 @@ class DeliberationStore {
 	}
 
 	get activeDraft(): TelegraphicDraft | null {
-		return this.drafts[this.activeSubjectId] || null;
+		const existing = this.drafts[this.activeSubjectId];
+		if (existing) return existing;
+
+		const subj = this.activeSubject;
+		if (!subj) return null;
+
+		return {
+			section_id: subj.section_ref,
+			subject: subj.name,
+			maturity: subj.level,
+			is_provisional: subj.level !== 'L3_decided' && subj.level !== 'L4_specified' && subj.level !== 'L5_archived',
+			retenu: [`Spécification de référence pour ${subj.name}`],
+			suppose: [
+				{
+					text: `Cadrage architectural et dimensionnement cible (${subj.name})`,
+					consequence: `Attente de délibération ou d'arbitrage par le rôle ${subj.waiting_for_role}`,
+					cost_hint: `Effort estimé : ${subj.relative_effort}`
+				}
+			],
+			conflit: [],
+			manque: [
+				{
+					id: `Q-AUTO-${subj.id}`,
+					question: `Quelles sont les contraintes et métriques clés à valider sur la section ${subj.section_ref} ?`,
+					assigned_role: subj.waiting_for_role
+				}
+			]
+		};
 	}
 
 	stalledSubjects = $derived(this.subjects.filter((s) => s.is_stalled));
@@ -678,9 +832,19 @@ class DeliberationStore {
 		variant: { title: string; cost_delta?: string; trade_off?: string },
 		authorName: string = 'Architecte'
 	): { success: boolean; message: string; statement?: Statement } {
-		const draft = this.drafts[subjectId];
+		let draft = this.drafts[subjectId];
 		if (!draft) {
-			return { success: false, message: 'Brouillon introuvable pour ce sujet' };
+			const subj = this.subjects.find((s) => s.id === subjectId);
+			draft = {
+				section_id: subj?.section_ref || '§x.x',
+				subject: subj?.name || subjectId,
+				maturity: subj?.level || 'L0_named',
+				is_provisional: true,
+				retenu: [`Spécification initiale pour ${subj?.name || subjectId}`],
+				suppose: [],
+				conflit: [],
+				manque: []
+			};
 		}
 
 		const cleanTitle = variant.title.trim();

@@ -11,6 +11,7 @@
 	import WhyInspector from '$lib/components/deliberation/WhyInspector.svelte';
 	import FreezeSectionDialog from '$lib/components/deliberation/FreezeSectionDialog.svelte';
 	import { deliberationStore } from '$lib/stores/deliberationStore.svelte';
+	import DecisionGuideModal from '$lib/components/deliberation/DecisionGuideModal.svelte';
 	import {
 		GitBranch,
 		ShieldCheck,
@@ -20,11 +21,14 @@
 		Lock,
 		Building2,
 		Globe,
-		RefreshCw
+		RefreshCw,
+		HelpCircle,
+		ChevronDown
 	} from 'lucide-svelte';
 
 	type MobileTab = 'board' | 'draft' | 'chat' | 'projections';
 	let mobileTab = $state<MobileTab>('board');
+	let isDecisionGuideOpen = $state<boolean>(false);
 
 	const activeSubject = $derived(deliberationStore.activeSubject);
 	const activeDoc = $derived(deliberationStore.activeDocument);
@@ -42,18 +46,52 @@
 	<!-- En-tête Compact & Professionnel -->
 	<div class="rounded-xl border bg-card p-4 shadow-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
 		<div>
-			<div class="flex items-center gap-2 mb-1">
-				<span class="inline-flex items-center gap-1 rounded bg-primary text-primary-foreground px-2 py-0.5 text-[10px] font-bold font-mono">
+			<div class="flex items-center gap-2 mb-1.5 flex-wrap">
+				<!-- Sélecteur d'Instance d'Engagement -->
+				<div class="relative inline-flex items-center">
+					<select
+						class="bg-background text-foreground text-xs font-bold rounded-lg border border-border px-2.5 py-1 pr-7 appearance-none cursor-pointer focus:outline-hidden focus:ring-2 focus:ring-primary shadow-2xs hover:bg-muted/50 transition-colors"
+						value={deliberationStore.activeEngagementId}
+						onchange={(e) => deliberationStore.switchEngagement(e.currentTarget.value)}
+						aria-label="Sélectionner l'instance d'engagement"
+					>
+						{#each deliberationStore.engagements as eng}
+							<option value={eng.id}>
+								{eng.type === 'generic_blueprint' ? '🏢' : '📋'} {eng.title}
+							</option>
+						{/each}
+					</select>
+					<ChevronDown class="h-3.5 w-3.5 pointer-events-none absolute right-2 text-muted-foreground" />
+				</div>
+
+				<span class="inline-flex items-center gap-1 rounded bg-primary/10 text-primary border border-primary/20 px-2 py-0.5 text-[10px] font-bold font-mono">
 					<GitBranch class="h-3 w-3" />
-					CCTP 5G & CŒUR
+					{deliberationStore.activeEngagement.badge}
 				</span>
-				<span class="text-xs font-semibold text-muted-foreground">
-					Réseau Fédérateur & Tranches Hybrides
+
+				<span
+					class="inline-flex items-center gap-1 rounded bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/25 px-2 py-0.5 text-[10px] font-semibold"
+					title="Garantie de Souveraineté : 100% du traitement et des données restent en local sur votre machine"
+				>
+					<ShieldCheck class="h-3 w-3" />
+					100% Local
 				</span>
 			</div>
-			<h1 class="text-xl font-bold tracking-tight text-foreground">
-				Workbench de Délibération
-			</h1>
+
+			<div class="flex items-center gap-3">
+				<h1 class="text-xl font-bold tracking-tight text-foreground">
+					Workbench de Délibération
+				</h1>
+				<button
+					type="button"
+					onclick={() => (isDecisionGuideOpen = true)}
+					class="inline-flex items-center gap-1.5 rounded-full bg-primary/10 hover:bg-primary/20 text-primary border border-primary/25 px-2.5 py-0.5 text-xs font-semibold transition-all shadow-2xs cursor-pointer"
+					title="Ouvrir le guide : Où et comment prendre les décisions dans Archinex ?"
+				>
+					<HelpCircle class="h-3.5 w-3.5" />
+					<span>Comment décider ?</span>
+				</button>
+			</div>
 		</div>
 
 		<!-- Statut Sujet Actif, Document Actif & Action Rapide -->
@@ -256,7 +294,8 @@
 		<DialecticChatPanel />
 	</div>
 
-	<!-- Modales d'Inspection & Scellement -->
+	<!-- Modales d'Inspection, Scellement & Guide Décisionnel -->
 	<WhyInspector />
 	<FreezeSectionDialog />
+	<DecisionGuideModal bind:isOpen={isDecisionGuideOpen} />
 </div>

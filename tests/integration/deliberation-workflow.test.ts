@@ -4,6 +4,9 @@ import { renderTelegraphicDraft, validateTelegraphicTone } from '$lib/domain/tel
 
 describe('Integration Scenario - End-to-End Deliberation & Epistemic Governance', () => {
 	it('Scénario Intégration Complet: Cycle d\'élicitation, priorité des déblocages, garde-fous humains et effet domino', () => {
+		// 0. Sélection de l'engagement CCTP 5G & MCX (Projet Réel)
+		deliberationStore.switchEngagement('cctp-mcx-nordwave');
+
 		// 1. État initial : Vérification du tri par effet multiplicateur (unlocks_count)
 		const sorted = deliberationStore.sortedSubjects;
 		expect(sorted[0].id).toBe('sub_dc_resilience'); // unlocks_count = 4

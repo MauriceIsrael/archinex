@@ -41,6 +41,14 @@ import {
 	INITIAL_CORPUS_DOCUMENTS,
 	computeCorpusStats
 } from '$lib/domain/corpus';
+import {
+	createDefaultEngagements,
+	type EngagementProfile,
+	SUSE_TELCO_SUBJECTS,
+	SUSE_TELCO_DRAFTS,
+	SUSE_TELCO_STATEMENTS,
+	SUSE_TELCO_CORPUS
+} from '$lib/domain/engagements';
 import type {
 	LLMOpsHealth,
 	LLMOpsSyncPayload,
@@ -234,21 +242,36 @@ const INITIAL_STATEMENTS: Statement[] = [
 ];
 
 class DeliberationStore {
-	activeSubjectId = $state<string>('sub_sync');
+	engagements = $state<EngagementProfile[]>(
+		createDefaultEngagements(INITIAL_SUBJECTS, INITIAL_DRAFTS, INITIAL_STATEMENTS)
+	);
+	activeEngagementId = $state<string>('suse-telco-cloud-generic');
+
+	get activeEngagement(): EngagementProfile {
+		return (
+			this.engagements.find(
+				(e) =>
+					e.id === this.activeEngagementId ||
+					(this.activeEngagementId === 'nordwave-mcx-2027' && e.id === 'cctp-mcx-nordwave')
+			) || this.engagements[0]
+		);
+	}
+
+	activeSubjectId = $state<string>('suse_cni_sriov');
 	activePosture = $state<DeliberationPosture>('deliberation');
 	currentRole = $state<ArchitectRole>('lead_architect');
 	isHuman = $state<boolean>(true);
-	subjects = $state<MaturitySubject[]>(INITIAL_SUBJECTS);
-	drafts = $state<Record<string, TelegraphicDraft>>(INITIAL_DRAFTS);
+	subjects = $state<MaturitySubject[]>(SUSE_TELCO_SUBJECTS);
+	drafts = $state<Record<string, TelegraphicDraft>>(SUSE_TELCO_DRAFTS);
 	notifications = $state<Array<{ id: string; timestamp: string; message: string; type: 'info' | 'success' | 'warning' }>>([]);
-	statements = $state<Statement[]>(INITIAL_STATEMENTS);
+	statements = $state<Statement[]>(SUSE_TELCO_STATEMENTS);
 	dialogueMessages = $state<DialogueMessage[]>([
 		{
 			id: 'msg-01',
 			channel: 'discord',
 			author: 'P. Durand',
 			role: 'infra_expert_architect',
-			content: 'Sur le site MCX Nord, on a prévu un oscillateur rubidium pour tenir 30 jours de holdover.',
+			content: 'Sur le cluster RKE2, nous avons activé Multus et le SR-IOV operator pour garantir la latence UPF.',
 			timestamp: '10:14',
 			isAi: false
 		},
@@ -257,7 +280,7 @@ class DeliberationStore {
 			channel: 'internal',
 			author: 'Agent Élicitation',
 			role: 'AI Assistant',
-			content: 'Rappel : cela implique un dimensionnement Tier IV (+180 k€ CAPEX). Confirmez-vous le maintien de cette exigence ?',
+			content: 'Rappel : valider la compatibilité avec les cartes Intel E810 et les modules FIPS 140-3.',
 			timestamp: '10:15',
 			isAi: true
 		}
@@ -269,17 +292,77 @@ class DeliberationStore {
 	isFreezeDialogOpen = $state<boolean>(false);
 	isWhyInspectorOpen = $state<boolean>(false);
 
-	corpusDocuments = $state<CorpusDocument[]>(INITIAL_CORPUS_DOCUMENTS);
-	activeDocumentId = $state<string>('DOC-CLI-01');
+	corpusDocuments = $state<CorpusDocument[]>(SUSE_TELCO_CORPUS);
+	activeDocumentId = $state<string>('DOC-SUSE-ARCH-01');
 
 	// État d'intégration LLMOps (Dual-Mode)
 	llmopsStatus = $state<'idle' | 'connected' | 'offline' | 'syncing' | 'error'>('idle');
 	llmopsHealth = $state<LLMOpsHealth | null>(null);
-	activeEngagementId = $state<string>('nordwave-mcx-2027');
 	lastSyncTime = $state<string | null>(null);
 	llmopsSyncSource = $state<'live' | 'offline-fallback' | null>(null);
 	llmopsConflicts = $state<LLMOpsConflict[]>([]);
 	isSyncingLLMOps = $state<boolean>(false);
+
+	private engagementCache: Record<
+		string,
+		{
+			subjects: MaturitySubject[];
+			drafts: Record<string, TelegraphicDraft>;
+			statements: Statement[];
+			corpusDocuments: CorpusDocument[];
+			activeSubjectId: string;
+			activeDocumentId: string;
+		}
+	> = {};
+
+	/**
+	 * Basculement instantané d'instance de projet / engagement (100% Local)
+	 */
+	switchEngagement(targetId: string) {
+		if (targetId === this.activeEngagementId) return;
+
+		// 1. Sauvegarder l'état de l'instance courante en cache local
+		this.engagementCache[this.activeEngagementId] = {
+			subjects: $state.snapshot(this.subjects),
+			drafts: $state.snapshot(this.drafts),
+			statements: $state.snapshot(this.statements),
+			corpusDocuments: $state.snapshot(this.corpusDocuments),
+			activeSubjectId: this.activeSubjectId,
+			activeDocumentId: this.activeDocumentId
+		};
+
+		// 2. Trouver la cible
+		const targetProfile = this.engagements.find((e) => e.id === targetId);
+		if (!targetProfile) {
+			this.logNotification(`Engagement introuvable : ${targetId}`, 'warning');
+			return;
+		}
+
+		// 3. Charger depuis le cache ou initialiser depuis le profil
+		const cached = this.engagementCache[targetId];
+		if (cached) {
+			this.subjects = cached.subjects;
+			this.drafts = cached.drafts;
+			this.statements = cached.statements;
+			this.corpusDocuments = cached.corpusDocuments;
+			this.activeSubjectId = cached.activeSubjectId;
+			this.activeDocumentId = cached.activeDocumentId;
+		} else {
+			this.subjects = [...targetProfile.subjects];
+			this.drafts = { ...targetProfile.drafts };
+			this.statements = [...targetProfile.statements];
+			this.corpusDocuments = [...targetProfile.corpusDocuments];
+			this.activeSubjectId = targetProfile.defaultSubjectId;
+			this.activeDocumentId = targetProfile.defaultDocId;
+		}
+
+		this.activeEngagementId = targetId;
+
+		this.logNotification(
+			`Bascule d'instance : "${targetProfile.title}" (${targetProfile.badge}) · 100% Local`,
+			'info'
+		);
+	}
 
 	// Tri réactif automatique par déblocages (effet multiplicateur)
 	sortedSubjects = $derived(sortMaturityBoard(this.subjects));

@@ -1,0 +1,274 @@
+<script lang="ts">
+	import { deliberationStore, type DeliberationPosture } from '$lib/stores/deliberationStore.svelte';
+	import type { ArchitectRole } from '$lib/types/epistemic';
+	import {
+		Building2,
+		FileText,
+		ShieldCheck,
+		GitBranch,
+		RefreshCw,
+		HelpCircle,
+		BookOpen,
+		MessagesSquare,
+		CheckCircle2,
+		Bot,
+		UserCheck,
+		Layers,
+		Lock,
+		Check
+	} from 'lucide-svelte';
+
+	let { onOpenGuide }: { onOpenGuide: () => void } = $props();
+
+	const activeEngagement = $derived(deliberationStore.activeEngagement);
+	const activeDoc = $derived(deliberationStore.activeDocument);
+	const activeSubject = $derived(deliberationStore.activeSubject);
+
+	const phases: Array<{
+		id: DeliberationPosture;
+		number: string;
+		label: string;
+		subtitle: string;
+		icon: typeof BookOpen;
+	}> = [
+		{
+			id: 'appropriation',
+			number: 'Phase 1',
+			label: 'Appropriation Documentaire',
+			subtitle: 'Corpus, Idées clés, Règles induites & Base de connaissances',
+			icon: BookOpen
+		},
+		{
+			id: 'deliberation',
+			number: 'Phase 2',
+			label: 'Délibération Architecturale',
+			subtitle: 'Matrice de maturité, Brouillon télégraphique & Arbitrages L3',
+			icon: MessagesSquare
+		},
+		{
+			id: 'rendu',
+			number: 'Phase 3',
+			label: 'Rendu & Homologation',
+			subtitle: 'Projections d\'architecture, Modèles systèmes & Sceau SHA-256',
+			icon: CheckCircle2
+		}
+	];
+
+	const roles: Array<{ id: ArchitectRole; label: string }> = [
+		{ id: 'lead_architect', label: 'Lead Architect' },
+		{ id: 'infra_expert_architect', label: 'Architecte Infra / Réseau' },
+		{ id: 'domain_architect', label: 'Architecte Métier' },
+		{ id: 'security_architect', label: 'Architecte Sécurité NIS2' }
+	];
+</script>
+
+<div class="space-y-4">
+	<!-- ═════════════════════════════════════════════════════════════════════════ -->
+	<!-- 1. BANDEAU SUPÉRIEUR : SÉLECTEUR DE PROJET & SOUVERAINETÉ (TRÈS VISIBLE)  -->
+	<!-- ═════════════════════════════════════════════════════════════════════════ -->
+	<div class="rounded-xl border bg-card p-4 shadow-sm space-y-3">
+		<div class="flex flex-col xl:flex-row xl:items-center justify-between gap-4">
+			<!-- Gauche : Sélecteur de Projet / Engagement Interactif -->
+			<div class="space-y-2">
+				<div class="flex items-center gap-2">
+					<span class="text-[11px] font-bold uppercase tracking-wider text-muted-foreground font-mono">
+						Projet & Engagement Actif :
+					</span>
+					<span
+						class="inline-flex items-center gap-1 rounded bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/25 px-2 py-0.5 text-[10px] font-semibold"
+						title="Garantie de souveraineté : 100% du traitement et des données restent en local sur votre machine"
+					>
+						<ShieldCheck class="h-3 w-3" />
+						100% Local & Souverain
+					</span>
+				</div>
+
+				<!-- Sélecteur à deux boutons proéminents -->
+				<div class="grid grid-cols-1 sm:grid-cols-2 gap-2 max-w-2xl">
+					{#each deliberationStore.engagements as eng}
+						{@const isSelected = deliberationStore.activeEngagementId === eng.id}
+						<button
+							type="button"
+							onclick={() => deliberationStore.switchEngagement(eng.id)}
+							class="flex items-start gap-2.5 p-2.5 rounded-lg border text-left transition-all relative {isSelected
+								? 'bg-primary/10 border-primary shadow-xs ring-1 ring-primary/30'
+								: 'bg-muted/40 hover:bg-muted/70 border-border opacity-75 hover:opacity-100'}"
+						>
+							<div class="p-2 rounded-md {isSelected ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'} shrink-0 mt-0.5">
+								{#if eng.type === 'generic_blueprint'}
+									<Building2 class="h-4 w-4" />
+								{:else}
+									<FileText class="h-4 w-4" />
+								{/if}
+							</div>
+							<div class="min-w-0 flex-1">
+								<div class="flex items-center gap-1.5">
+									<strong class="text-xs font-bold truncate text-foreground">
+										{eng.title}
+									</strong>
+									{#if isSelected}
+										<Check class="h-3.5 w-3.5 text-primary shrink-0" />
+									{/if}
+								</div>
+								<div class="text-[11px] text-muted-foreground line-clamp-1 mt-0.5">
+									{eng.type === 'generic_blueprint' ? 'Architecture Vierge (Blueprint)' : 'Appel d\'Offres Contractuel (RFP)'}
+								</div>
+							</div>
+						</button>
+					{/each}
+				</div>
+			</div>
+
+			<!-- Droite : Actions, Rôle, Opérateur & Statut LLMOps -->
+			<div class="flex flex-wrap items-center gap-2 self-start xl:self-center text-xs">
+				<!-- Bouton Guide Décisionnel -->
+				<button
+					type="button"
+					onclick={onOpenGuide}
+					class="inline-flex items-center gap-1.5 rounded-lg bg-primary/10 hover:bg-primary/20 text-primary border border-primary/25 px-2.5 py-1.5 text-xs font-semibold transition-all shadow-2xs cursor-pointer"
+					title="Ouvrir le guide : Où et comment prendre les décisions dans Archinex ?"
+				>
+					<HelpCircle class="h-3.5 w-3.5" />
+					<span>Comment décider ?</span>
+				</button>
+
+				<!-- Statut LLMOps (Dual-Mode) -->
+				{#if deliberationStore.llmopsStatus === 'connected'}
+					<button
+						type="button"
+						onclick={() => deliberationStore.syncWithLLMOps()}
+						disabled={deliberationStore.isSyncingLLMOps}
+						class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/20 transition-colors"
+						title="LLMOps Connecté ({deliberationStore.activeEngagementId}) · Cliquez pour resynchroniser"
+					>
+						<span class="inline-block h-2 w-2 rounded-full bg-emerald-500"></span>
+						<span class="opacity-80">LLMOps :</span>
+						<strong class="font-mono">Connecté</strong>
+						{#if deliberationStore.isSyncingLLMOps}
+							<RefreshCw class="h-3 w-3 animate-spin ml-0.5" />
+						{/if}
+					</button>
+				{:else}
+					<button
+						type="button"
+						onclick={() => deliberationStore.syncWithLLMOps()}
+						disabled={deliberationStore.isSyncingLLMOps}
+						class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30 hover:bg-amber-500/20 transition-colors"
+						title="Mode Local (Instantané Scellé) · Cliquez pour rafraîchir"
+					>
+						<span class="inline-block h-2 w-2 rounded-full bg-amber-500"></span>
+						<span class="opacity-80">LLMOps :</span>
+						<strong class="font-mono">Snapshot Local</strong>
+						{#if deliberationStore.isSyncingLLMOps}
+							<RefreshCw class="h-3 w-3 animate-spin ml-0.5" />
+						{/if}
+					</button>
+				{/if}
+
+				<!-- Commutateur Humain / IA -->
+				<button
+					type="button"
+					onclick={() => deliberationStore.setIsHuman(!deliberationStore.isHuman)}
+					class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border transition-colors {deliberationStore.isHuman
+						? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30'
+						: 'bg-amber-500/10 text-amber-700 dark:text-amber-400 border-amber-500/30'}"
+					title="Basculer entre opérateur humain et agent IA"
+				>
+					{#if deliberationStore.isHuman}
+						<UserCheck class="h-3.5 w-3.5 text-emerald-600" />
+						<span class="font-medium">Humain</span>
+					{:else}
+						<Bot class="h-3.5 w-3.5 text-amber-600" />
+						<span class="font-medium">Agent IA</span>
+					{/if}
+				</button>
+
+				<!-- Rôle d'architecte actif -->
+				<div class="flex items-center gap-1.5">
+					<label for="header-role-select" class="sr-only">Rôle actif</label>
+					<select
+						id="header-role-select"
+						class="bg-background border rounded-lg px-2.5 py-1.5 text-xs font-medium focus:ring-1 focus:ring-primary shadow-xs"
+						value={deliberationStore.currentRole}
+						onchange={(e) => deliberationStore.setRole(e.currentTarget.value as ArchitectRole)}
+					>
+						{#each roles as r}
+							<option value={r.id}>{r.label}</option>
+						{/each}
+					</select>
+				</div>
+
+				<!-- Sceller Section (Raccourci) -->
+				<button
+					type="button"
+					onclick={() => deliberationStore.openFreezeDialog()}
+					class="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 text-xs font-semibold shadow-xs transition-colors shrink-0"
+				>
+					<Lock class="h-3.5 w-3.5" />
+					<span>Sceller</span>
+				</button>
+			</div>
+		</div>
+
+		<!-- Synthèse concise du projet sélectionné -->
+		<div class="pt-2 border-t flex flex-wrap items-center justify-between text-xs text-muted-foreground gap-2">
+			<p class="leading-relaxed">
+				<strong class="text-foreground">{activeEngagement.badge}</strong> : {activeEngagement.description}
+			</p>
+			<div class="flex items-center gap-3 shrink-0 font-mono text-[11px]">
+				<span><strong>{deliberationStore.corpusDocuments.length}</strong> docs au corpus</span>
+				<span>•</span>
+				<span><strong>{deliberationStore.subjects.length}</strong> sections</span>
+				<span>•</span>
+				<span><strong>{deliberationStore.statements.length}</strong> énoncés</span>
+			</div>
+		</div>
+	</div>
+
+	<!-- ═════════════════════════════════════════════════════════════════════════ -->
+	<!-- 2. LES 3 GRANDS ONGLETS DU PROJET (SÉPARATION HERMÉTIQUE DES 3 PHASES)     -->
+	<!-- ═════════════════════════════════════════════════════════════════════════ -->
+	<div class="grid grid-cols-1 md:grid-cols-3 gap-2 p-1.5 rounded-xl border bg-muted/30">
+		{#each phases as phase}
+			{@const isActive = deliberationStore.activePosture === phase.id}
+			{@const Icon = phase.icon}
+			<button
+				type="button"
+				onclick={() => deliberationStore.setPosture(phase.id)}
+				class="flex items-start gap-3 p-3 rounded-lg text-left transition-all relative {isActive
+					? 'bg-card text-foreground shadow-sm border border-primary/40 ring-1 ring-primary/20'
+					: 'hover:bg-card/60 text-muted-foreground hover:text-foreground border border-transparent'}"
+			>
+				<div class="p-2 rounded-lg {isActive ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'} shrink-0 mt-0.5">
+					<Icon class="h-4 w-4" />
+				</div>
+				<div class="min-w-0 flex-1">
+					<div class="flex items-center justify-between gap-1">
+						<span class="text-[10px] font-bold uppercase tracking-wider font-mono {isActive ? 'text-primary' : 'text-muted-foreground'}">
+							{phase.number}
+						</span>
+						{#if phase.id === 'appropriation'}
+							<span class="font-mono text-[10px] px-1.5 py-0.2 rounded bg-muted text-muted-foreground">
+								{deliberationStore.corpusDocuments.length} docs
+							</span>
+						{:else if phase.id === 'deliberation'}
+							<span class="font-mono text-[10px] px-1.5 py-0.2 rounded bg-muted text-muted-foreground">
+								{deliberationStore.subjects.length} sections
+							</span>
+						{:else}
+							<span class="font-mono text-[10px] px-1.5 py-0.2 rounded bg-muted text-muted-foreground">
+								{Object.keys(deliberationStore.frozenSnapshots).length} scellés
+							</span>
+						{/if}
+					</div>
+					<h3 class="text-xs font-bold text-foreground truncate mt-0.5">
+						{phase.label}
+					</h3>
+					<p class="text-[11px] text-muted-foreground line-clamp-1 mt-0.5">
+						{phase.subtitle}
+					</p>
+				</div>
+			</button>
+		{/each}
+	</div>
+</div>

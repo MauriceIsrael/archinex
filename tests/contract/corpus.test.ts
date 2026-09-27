@@ -74,4 +74,30 @@ describe('Corpus Domain Logic & Separation', () => {
 		expect(searchResults.length).toBeGreaterThan(0);
 		expect(searchResults.some((d) => d.id === 'DOC-CLI-01' || d.id === 'DOC-EXT-02')).toBe(true);
 	});
+
+	it('should provide key ideas and induced engineering rules for comprehension in appropriation phase', () => {
+		const cctpDoc = getDocumentById(INITIAL_CORPUS_DOCUMENTS, 'DOC-CLI-01');
+		expect(cctpDoc).toBeDefined();
+		expect(cctpDoc?.keyIdeas).toBeDefined();
+		expect(cctpDoc?.keyIdeas?.length).toBeGreaterThanOrEqual(2);
+		expect(cctpDoc?.inducedRules).toBeDefined();
+		expect(cctpDoc?.inducedRules?.length).toBeGreaterThanOrEqual(1);
+
+		const firstRule = cctpDoc!.inducedRules![0];
+		expect(firstRule.id).toBeTruthy();
+		expect(firstRule.type).toBe('obligation');
+		expect(firstRule.targetSubjectId).toBe('sub_sync');
+	});
+
+	it('should match relevant organizational knowledge base rules (SmartMemory / ADRs) applicable to client documents', async () => {
+		const { getApplicableDoctrineRules } = await import('$lib/domain/dialectic');
+		const cctpDoc = getDocumentById(INITIAL_CORPUS_DOCUMENTS, 'DOC-CLI-01')!;
+		const applicable = getApplicableDoctrineRules(cctpDoc);
+
+		expect(applicable.length).toBeGreaterThanOrEqual(1);
+		// DOC-CLI-01 (CCTP Lot 2) mentions synchronisation, holdover, phase precision -> must match ADR-0014
+		const hasAdr14 = applicable.some((r) => r.id === 'KH:ADR-0014');
+		expect(hasAdr14).toBe(true);
+	});
 });
+

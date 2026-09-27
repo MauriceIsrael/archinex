@@ -5,6 +5,7 @@
 		type CorpusDocument,
 		type DocumentOrigin
 	} from '$lib/domain/corpus';
+	import { getApplicableDoctrineRules } from '$lib/domain/dialectic';
 	import AddContributorDocDialog from './AddContributorDocDialog.svelte';
 	import RfpShredderDialog from './RfpShredderDialog.svelte';
 	import {
@@ -22,7 +23,11 @@
 		Sparkles,
 		Eye,
 		Filter,
-		Scissors
+		Scissors,
+		Lightbulb,
+		BrainCircuit,
+		Scale,
+		ShieldCheck
 	} from 'lucide-svelte';
 
 	type FilterOriginTab = 'all' | 'client' | 'external';
@@ -35,6 +40,9 @@
 	const activeDoc = $derived(deliberationStore.activeDocument);
 	const activeSubject = $derived(deliberationStore.activeSubject);
 	const stats = $derived(deliberationStore.corpusStats);
+	const applicableRules = $derived(
+		activeDoc ? getApplicableDoctrineRules(activeDoc) : []
+	);
 
 	// Filtrage dynamique
 	const filteredDocs = $derived(
@@ -277,7 +285,121 @@
 				</div>
 			</div>
 
-			<!-- Clauses Clés & Exigences Extraites du Document Actif -->
+			<!-- 2.1 IDÉES CLÉS DU DOCUMENT SÉLECTIONNÉ -->
+			{#if activeDoc.keyIdeas && activeDoc.keyIdeas.length > 0}
+				<div class="rounded-xl border border-primary/20 bg-primary/[0.03] p-3.5 space-y-2">
+					<div class="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-primary">
+						<Lightbulb class="h-4 w-4" />
+						<span>Idées Clés & Objectifs Stratégiques ({activeDoc.keyIdeas.length})</span>
+					</div>
+					<div class="grid grid-cols-1 md:grid-cols-3 gap-2">
+						{#each activeDoc.keyIdeas as idea}
+							<div class="flex items-start gap-2 bg-background p-2.5 rounded-lg border text-xs leading-relaxed text-foreground shadow-2xs">
+								<CheckCircle2 class="h-3.5 w-3.5 text-primary mt-0.5 shrink-0" />
+								<span>{idea}</span>
+							</div>
+						{/each}
+					</div>
+				</div>
+			{/if}
+
+			<!-- 2.2 RÈGLES QUI EN DÉCOULENT (PRESCRIPTIONS INDUITES) -->
+			{#if activeDoc.inducedRules && activeDoc.inducedRules.length > 0}
+				<div class="rounded-xl border border-amber-500/25 bg-amber-500/[0.03] p-3.5 space-y-2">
+					<div class="flex items-center justify-between">
+						<div class="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-amber-700 dark:text-amber-400">
+							<Scale class="h-4 w-4" />
+							<span>Règles d'Ingénierie Induites par ce Document ({activeDoc.inducedRules.length})</span>
+						</div>
+						<span class="text-[11px] text-muted-foreground font-mono">Prescriptions directes</span>
+					</div>
+					<div class="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+						{#each activeDoc.inducedRules as rule}
+							<div class="rounded-lg border bg-background p-3 space-y-1.5 shadow-2xs">
+								<div class="flex items-center justify-between gap-2">
+									<strong class="text-xs font-bold text-foreground">{rule.title}</strong>
+									<span class="font-mono text-[10px] px-1.5 py-0.2 rounded font-bold uppercase {rule.type === 'obligation'
+										? 'bg-rose-500/10 text-rose-700 dark:text-rose-400 border border-rose-500/20'
+										: rule.type === 'interdiction'
+											? 'bg-destructive/10 text-destructive border border-destructive/20'
+											: 'bg-blue-500/10 text-blue-700 dark:text-blue-400 border border-blue-500/20'}">
+										{rule.type}
+									</span>
+								</div>
+								<p class="text-xs text-muted-foreground leading-relaxed">
+									{rule.description}
+								</p>
+								{#if rule.targetSubjectId}
+									{@const subj = deliberationStore.subjects.find((s) => s.id === rule.targetSubjectId)}
+									{#if subj}
+										<div class="flex items-center justify-between pt-1 border-t text-[11px]">
+											<span class="text-muted-foreground">Section liée :</span>
+											<button
+												type="button"
+												onclick={() => jumpToSubjectAndDeliberate(rule.targetSubjectId!)}
+												class="font-mono font-semibold text-primary hover:underline inline-flex items-center gap-1"
+											>
+												<span>{subj.section_ref} {subj.name}</span>
+												<ArrowRight class="h-3 w-3" />
+											</button>
+										</div>
+									{/if}
+								{/if}
+							</div>
+						{/each}
+					</div>
+				</div>
+			{/if}
+
+			<!-- 2.3 RÈGLES DE LA BASE DE CONNAISSANCES APPLICABLES (SMARTMEMORY / ADRS) -->
+			<div class="rounded-xl border border-violet-500/25 bg-violet-500/[0.03] p-3.5 space-y-2">
+				<div class="flex items-center justify-between flex-wrap gap-2">
+					<div class="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-violet-700 dark:text-violet-400">
+						<BrainCircuit class="h-4 w-4" />
+						<span>Règles de la Base de Connaissances Applicables ({applicableRules.length})</span>
+					</div>
+					<span class="inline-flex items-center gap-1 rounded bg-violet-500/10 text-violet-700 dark:text-violet-300 border border-violet-500/20 px-2 py-0.5 text-[10px] font-semibold">
+						<ShieldCheck class="h-3 w-3" />
+						Doctrines & ADRs Entreprise
+					</span>
+				</div>
+				<p class="text-[11px] text-muted-foreground">
+					Normes internes, standards de durcissement et décisions d'architecture (ADRs) cadrant ce document {activeDoc.origin === 'client' ? 'client' : 'contributeur'} :
+				</p>
+				<div class="grid grid-cols-1 md:grid-cols-2 gap-2.5">
+					{#each applicableRules as rule}
+						<div class="rounded-lg border bg-background p-3 space-y-1.5 shadow-2xs">
+							<div class="flex items-start justify-between gap-2">
+								<div class="space-y-0.5">
+									<span class="font-mono text-[10px] font-bold px-1.5 py-0.5 rounded bg-violet-500/10 text-violet-700 dark:text-violet-300">
+										{rule.id}
+									</span>
+									<h5 class="text-xs font-bold text-foreground">
+										{rule.title}
+									</h5>
+								</div>
+								<span class="font-mono text-[10px] px-1.5 py-0.2 rounded font-bold uppercase shrink-0 {rule.enforcementLevel === 'mandatory'
+									? 'bg-rose-500/10 text-rose-700 dark:text-rose-400 border border-rose-500/20'
+									: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-400 border border-emerald-500/20'}">
+									{rule.enforcementLevel === 'mandatory' ? 'Obligatoire' : 'Recommandé'}
+								</span>
+							</div>
+							<p class="text-xs text-muted-foreground leading-relaxed">
+								{rule.summary}
+							</p>
+							<div class="rounded bg-muted/40 p-2 text-[11px] text-foreground space-y-0.5 border">
+								<div class="text-muted-foreground font-semibold">Ligne directrice entreprise :</div>
+								<div>{rule.guidance}</div>
+								<div class="text-[10px] text-muted-foreground font-mono pt-1">
+									Réf : {rule.referenceDocument}
+								</div>
+							</div>
+						</div>
+					{/each}
+				</div>
+			</div>
+
+			<!-- 2.4 Clauses Clés & Exigences Extraites du Document Actif -->
 			<div class="pt-2 border-t space-y-2">
 				<div class="flex items-center justify-between">
 					<span class="text-xs font-bold uppercase tracking-wider text-muted-foreground">

@@ -19,6 +19,14 @@ export interface ExtractedClause {
 	impactSummary?: string;
 }
 
+export interface InducedRule {
+	id: string;
+	title: string;
+	type: 'obligation' | 'interdiction' | 'recommandation';
+	description: string;
+	targetSubjectId?: string;
+}
+
 export interface CorpusDocument {
 	id: string;
 	title: string;
@@ -32,6 +40,8 @@ export interface CorpusDocument {
 	extractedClausesCount: number;
 	relatedSubjectIds: string[];
 	summary: string;
+	keyIdeas?: string[];
+	inducedRules?: InducedRule[];
 	keyClauses: ExtractedClause[];
 	addedDate: string;
 	lastUpdated: string;
@@ -52,6 +62,27 @@ export const INITIAL_CORPUS_DOCUMENTS: CorpusDocument[] = [
 		relatedSubjectIds: ['sub_sync', 'sub_core', 'sub_radio'],
 		summary:
 			'Cahier des charges principal fixant les exigences de débit, latence sub-microseconde, tranches prioritaires et interopérabilité pour le réseau fédérateur national.',
+		keyIdeas: [
+			'Réseau fédérateur 5G SA souverain pour les services régaliens et de sécurité publique (PPDR).',
+			'Alignement de phase sub-microseconde (±1.5 µs) impératif sur l\'ensemble des stations de base.',
+			'Étanchéité stricte des tranches critiques (Slicing) sans contention avec les trafics commerciaux.'
+		],
+		inducedRules: [
+			{
+				id: 'RULE-CLI-01',
+				title: 'Synchronisation Phase PTP G.8275.1 Obligatoire',
+				type: 'obligation',
+				description: 'Interdiction du NTP classique. Le protocole IEEE 1588v2 / PTP profil télécom est requis.',
+				targetSubjectId: 'sub_sync'
+			},
+			{
+				id: 'RULE-CLI-02',
+				title: 'Tranche MCX Étanche & Prioritaire',
+				type: 'obligation',
+				description: 'Réservation de ressources dédiées sur le plan de contrôle et le plan utilisateur (UPF).',
+				targetSubjectId: 'sub_core'
+			}
+		],
 		keyClauses: [
 			{
 				id: 'cl-cli-01',
@@ -94,6 +125,27 @@ export const INITIAL_CORPUS_DOCUMENTS: CorpusDocument[] = [
 		relatedSubjectIds: ['sub_dc_resilience', 'sub_pqc'],
 		summary:
 			'Exigences d\'autonomie des infrastructures physiques, alimentation secourue, détection d\'intrusion et continuité d\'activité en cas d\'avarie majeure.',
+		keyIdeas: [
+			'Autonomie énergétique totale de 72 heures sans ravitaillement extérieur pour les nœuds nodaux.',
+			'Chiffrement de bout en bout des liaisons d\'administration conforme aux standards ANSSI.',
+			'Préparation obligatoire de la cryptographie post-quantique (PQC) pour la pérennité 10 ans.'
+		],
+		inducedRules: [
+			{
+				id: 'RULE-CLI-SEC-01',
+				title: 'Alimentation Secourue 72h Sans Rupture',
+				type: 'obligation',
+				description: 'Groupes électrogènes redondés N+1 et cuves de carburant certifiées ICPE.',
+				targetSubjectId: 'sub_dc_resilience'
+			},
+			{
+				id: 'RULE-CLI-SEC-02',
+				title: 'Chiffrement Homologué ANSSI & Hybridation PQC',
+				type: 'obligation',
+				description: 'Prohibition de suites cryptographiques dépréciées sur les flux inter-sites.',
+				targetSubjectId: 'sub_pqc'
+			}
+		],
 		keyClauses: [
 			{
 				id: 'cl-cli-04',
@@ -128,6 +180,20 @@ export const INITIAL_CORPUS_DOCUMENTS: CorpusDocument[] = [
 		relatedSubjectIds: ['sub_ppdr'],
 		summary:
 			'Besoins opérationnels des primo-intervenants : push-to-talk, vidéo tactique, résistance IP68 et passage automatique réseau privé / public.',
+		keyIdeas: [
+			'Réactivité immédiate pour les situations d\'urgence vitale sur le terrain.',
+			'Ouverture du canal voix (Push-to-Talk) en moins de 300 ms sur appui bouton d\'urgence.',
+			'Transition continue et transparente sans coupure entre couverture dédiée et roaming opérateur.'
+		],
+		inducedRules: [
+			{
+				id: 'RULE-CLI-PPDR-01',
+				title: 'Garantie Latence Voix MCPTT < 300 ms',
+				type: 'obligation',
+				description: 'Priorité préemptive sur les files d\'attente QoS radio et cœur de réseau.',
+				targetSubjectId: 'sub_ppdr'
+			}
+		],
 		keyClauses: [
 			{
 				id: 'cl-cli-06',

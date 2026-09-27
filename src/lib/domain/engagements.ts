@@ -319,8 +319,27 @@ export const SUSE_TELCO_CORPUS: CorpusDocument[] = [
 		extractedClausesCount: 2,
 		relatedSubjectIds: ['suse_cni_sriov', 'suse_rt_kernel', 'suse_rke2_hardened'],
 		summary: 'Spécifications officielles pour le déploiement de CNF 5G critiques sur RKE2, SLERT et Rancher.',
-		addedDate: '2026-09-20T00:00:00Z',
-		lastUpdated: '2026-09-20T00:00:00Z',
+		keyIdeas: [
+			'Socle Kubernetes souverain et temps réel optimisé pour charges de travail télécoms haut débit.',
+			'Séparation stricte du trafic OAM de gestion et du trafic utilisateur UPF sans contention.',
+			'Déterminisme temporel absolu (gigue sub-milliseconde) via le noyau SLERT et l\'isolation des cœurs.'
+		],
+		inducedRules: [
+			{
+				id: 'RULE-SUSE-01',
+				title: 'Double Adduction Réseau Multus CNI Obligatoire',
+				type: 'obligation',
+				description: 'Les pods CNF 5G doivent posséder une interface OAM et des VF SR-IOV dédiées au trafic données.',
+				targetSubjectId: 'suse_cni_sriov'
+			},
+			{
+				id: 'RULE-SUSE-02',
+				title: 'Exécution sur Noyau Temps Réel SLERT',
+				type: 'obligation',
+				description: 'Les nœuds hébergeant les fonctions UPF et vDU doivent être configurés avec isolcpus et nohz_full.',
+				targetSubjectId: 'suse_rt_kernel'
+			}
+		],
 		keyClauses: [
 			{
 				id: 'CLAUSE-SUSE-01',
@@ -338,7 +357,9 @@ export const SUSE_TELCO_CORPUS: CorpusDocument[] = [
 				criticality: 'bloquant',
 				impactSummary: 'Garantit une latence de traitement déterministe inférieure à 20 µs'
 			}
-		]
+		],
+		addedDate: '2026-09-20T00:00:00Z',
+		lastUpdated: '2026-09-20T00:00:00Z'
 	},
 	{
 		id: 'DOC-SUSE-RKE2-SEC',
@@ -353,8 +374,20 @@ export const SUSE_TELCO_CORPUS: CorpusDocument[] = [
 		extractedClausesCount: 1,
 		relatedSubjectIds: ['suse_rke2_hardened', 'suse_neuvector_mesh'],
 		summary: 'Guide opérationnel pour durcir les clusters RKE2 en conformité avec les exigences ANSSI / SecNumCloud et CIS Benchmark.',
-		addedDate: '2026-09-21T00:00:00Z',
-		lastUpdated: '2026-09-21T00:00:00Z',
+		keyIdeas: [
+			'Distribution Kubernetes durcie par défaut sans composants legacy superflus.',
+			'Chiffrement systématique au repos des secrets etcd validé FIPS 140-3.',
+			'Alignement complet sur les profils de conformité CIS Benchmark Level 2.'
+		],
+		inducedRules: [
+			{
+				id: 'RULE-SUSE-SEC-01',
+				title: 'Chiffrement etcd FIPS 140-3',
+				type: 'obligation',
+				description: 'Interdiction de stocker des secrets en clair dans etcd. KMS ou clé FIPS exigée.',
+				targetSubjectId: 'suse_rke2_hardened'
+			}
+		],
 		keyClauses: [
 			{
 				id: 'CLAUSE-SUSE-SEC-01',
@@ -363,7 +396,9 @@ export const SUSE_TELCO_CORPUS: CorpusDocument[] = [
 				text: 'Tous les secrets au repos dans etcd doivent être chiffrés avec AES-CBC ou KMS externe certifié FIPS 140-3.',
 				criticality: 'bloquant'
 			}
-		]
+		],
+		addedDate: '2026-09-21T00:00:00Z',
+		lastUpdated: '2026-09-21T00:00:00Z'
 	},
 	{
 		id: 'DOC-SUSE-NEUVECTOR',
@@ -378,6 +413,20 @@ export const SUSE_TELCO_CORPUS: CorpusDocument[] = [
 		extractedClausesCount: 1,
 		relatedSubjectIds: ['suse_neuvector_mesh'],
 		summary: 'Inspection protocolaire profonde DPI (Deep Packet Inspection) et segmentation réseau L7 pour les microservices 5G SBA.',
+		keyIdeas: [
+			'Sécurité conteneur Zero-Trust sans injection de sidecars invasifs.',
+			'Inspection protocolaire L7 en temps réel des interfaces 5G SBA (N2, N3, N4).',
+			'Détection et blocage immédiat des flux latéraux non autorisés.'
+		],
+		inducedRules: [
+			{
+				id: 'RULE-SUSE-NV-01',
+				title: 'Inspection DPI N2/N3 Transparente',
+				type: 'obligation',
+				description: 'L\'analyse comportementale des microservices SBA doit être faite en temps réel sans injection de sidecar invasif.',
+				targetSubjectId: 'suse_neuvector_mesh'
+			}
+		],
 		addedDate: '2026-09-22T00:00:00Z',
 		lastUpdated: '2026-09-22T00:00:00Z',
 		keyClauses: [

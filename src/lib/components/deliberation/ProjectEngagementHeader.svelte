@@ -3,7 +3,6 @@
 	import type { ArchitectRole } from '$lib/types/epistemic';
 	import CreateWorkspaceDialog from './CreateWorkspaceDialog.svelte';
 	import InviteExpertDialog from './InviteExpertDialog.svelte';
-	import WorkspaceManagerDialog from './WorkspaceManagerDialog.svelte';
 	import {
 		Building2,
 		FileText,
@@ -29,7 +28,6 @@
 	let { onOpenGuide }: { onOpenGuide: () => void } = $props();
 	let isCreateWorkspaceOpen = $state(false);
 	let isInviteDialogOpen = $state(false);
-	let isWorkspaceManagerOpen = $state(false);
 
 	const activeEngagement = $derived(deliberationStore.activeEngagement);
 	const activeDoc = $derived(deliberationStore.activeDocument);
@@ -154,40 +152,29 @@
 						</div>
 					</button>
 
-					<!-- Bouton Gérer les Espaces -->
-					<button
-						type="button"
-						onclick={() => (isWorkspaceManagerOpen = true)}
-						class="flex items-center gap-2 p-2 rounded-lg border bg-muted/40 hover:bg-muted/70 text-foreground transition-all text-left cursor-pointer group"
-						title="Gérer tous les espaces de travail, archiver, exporter ou supprimer"
+					<!-- Lien vers la mini-app Espaces & Projets -->
+					<a
+						href="/workspaces"
+						class="flex items-center gap-2 p-2 rounded-lg border bg-muted/40 hover:bg-muted/70 text-foreground transition-all text-left group"
+						title="Accéder à la mini-app Espaces & Projets pour gérer, archiver et exporter tous vos projets"
 					>
 						<div class="p-1.5 rounded-md bg-muted group-hover:bg-background text-muted-foreground group-hover:text-foreground shrink-0">
 							<FolderKanban class="h-3.5 w-3.5" />
 						</div>
 						<div class="min-w-0 flex-1">
 							<strong class="text-xs font-bold block truncate">
-								Gérer les Projets
+								Espaces & Projets
 							</strong>
 							<span class="text-[10px] text-muted-foreground line-clamp-1 block">
-								{deliberationStore.engagements.length} projet(s) · Archiver / Supprimer
+								Gérer dans la mini-app →
 							</span>
 						</div>
-					</button>
+					</a>
 				</div>
 			</div>
 
 			<!-- Droite : Actions, Rôle, Opérateur & Statut LLMOps -->
 			<div class="flex flex-wrap items-center gap-2 self-start xl:self-center text-xs">
-				<!-- Bouton Gérer les Projets -->
-				<button
-					type="button"
-					onclick={() => (isWorkspaceManagerOpen = true)}
-					class="inline-flex items-center gap-1.5 rounded-lg border bg-background hover:bg-muted text-foreground border-border px-2.5 py-1.5 text-xs font-semibold transition-all shadow-2xs cursor-pointer"
-					title="Gérer les projets (archiver, désarchiver, supprimer, exporter)"
-				>
-					<FolderKanban class="h-3.5 w-3.5" />
-					<span>Gérer ({deliberationStore.engagements.length})</span>
-				</button>
 
 				<!-- Bouton Guide Décisionnel -->
 				<button
@@ -316,13 +303,12 @@
 						<RotateCcw class="h-3.5 w-3.5" />
 						<span>Désarchiver le projet</span>
 					</button>
-					<button
-						type="button"
-						onclick={() => (isWorkspaceManagerOpen = true)}
-						class="px-2.5 py-1 rounded-lg border border-amber-500/30 bg-background/60 hover:bg-background text-xs font-semibold transition-colors cursor-pointer"
+					<a
+						href="/workspaces"
+						class="px-2.5 py-1 rounded-lg border border-amber-500/30 bg-background/60 hover:bg-background text-xs font-semibold transition-colors inline-block"
 					>
 						Changer d'espace
-					</button>
+					</a>
 				</div>
 			</div>
 		{/if}
@@ -399,12 +385,5 @@
 	<InviteExpertDialog
 		bind:open={isInviteDialogOpen}
 		onclose={() => (isInviteDialogOpen = false)}
-	/>
-
-	<!-- Modale de Gestion des Espaces (Archivage, Suppression, Export) -->
-	<WorkspaceManagerDialog
-		bind:open={isWorkspaceManagerOpen}
-		onclose={() => (isWorkspaceManagerOpen = false)}
-		onOpenCreateWorkspace={() => (isCreateWorkspaceOpen = true)}
 	/>
 </div>

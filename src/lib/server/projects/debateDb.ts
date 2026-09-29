@@ -11,7 +11,7 @@ import {
 import type { EpistemicConfidence, ProductionMode } from '$lib/types/epistemic';
 
 export interface CreateArgumentData {
-	id: string;
+	id?: string;
 	optionId?: string | null;
 	targetArgumentId?: string | null;
 	stance: Stance;
@@ -112,9 +112,10 @@ export async function createArgument(
 			}
 		}
 
+		const argId = data.id || `arg-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
 		const created = await tx.argument.create({
 			data: {
-				id: data.id,
+				id: argId,
 				subjectId,
 				optionId: data.optionId || null,
 				targetArgumentId: data.targetArgumentId || null,

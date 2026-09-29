@@ -23,14 +23,17 @@
 		Plus,
 		Compass,
 		Database,
-		RefreshCw
+		RefreshCw,
+		Gavel
 	} from 'lucide-svelte';
 	import OptionsMatrix from './OptionsMatrix.svelte';
 	import DebateThreadView from './DebateThreadView.svelte';
+	import ArbitrationPanel from './ArbitrationPanel.svelte';
 	import type { Criterion, Option, OptionEvaluation, TradeOff, Decision } from '$lib/domain/options';
 	import type { Argument } from '$lib/domain/debate';
+	import type { MaturityComputationResult } from '$lib/domain/maturityRules';
 
-	type ViewTab = 'decision' | 'discussion' | 'draft';
+	type ViewTab = 'decision' | 'discussion' | 'draft' | 'arbitration';
 	let activeTab = $state<ViewTab>('decision');
 
 	const draft = $derived(deliberationStore.activeDraft);
@@ -58,6 +61,7 @@
 	let matrixEvaluations = $state<OptionEvaluation[]>([]);
 	let matrixTradeOffs = $state<TradeOff[]>([]);
 	let matrixDecision = $state<Decision | null>(null);
+	let subjectMaturityResult = $state<MaturityComputationResult | null>(null);
 	let debateArguments = $state<Argument[]>([]);
 	let isLoadingMatrix = $state<boolean>(false);
 
@@ -78,7 +82,11 @@
 			if (oRes.ok) matrixOptions = await oRes.json();
 			if (eRes.ok) matrixEvaluations = await eRes.json();
 			if (tRes.ok) matrixTradeOffs = await tRes.json();
-			if (dRes.ok) matrixDecision = await dRes.json();
+			if (dRes.ok) {
+				const dData = await dRes.json();
+				matrixDecision = dData.decision || null;
+				subjectMaturityResult = dData.maturityResult || null;
+			}
 			if (aRes.ok) debateArguments = await aRes.json();
 		} catch (err) {
 			console.warn('Erreur chargement matrice options:', err);
@@ -392,6 +400,17 @@
 			<FileText class="h-3.5 w-3.5 text-primary" />
 			<span>3. Synthèse Télégraphique</span>
 		</button>
+
+		<button
+			type="button"
+			onclick={() => (activeTab = 'arbitration')}
+			class="flex-1 inline-flex items-center justify-center gap-1.5 py-1.5 px-2 rounded-md font-semibold transition-all whitespace-nowrap {activeTab === 'arbitration'
+				? 'bg-background text-foreground shadow-2xs'
+				: 'text-muted-foreground hover:text-foreground'}"
+		>
+			<Gavel class="h-3.5 w-3.5 text-emerald-500" />
+			<span>4. Arbitrage G3 {#if matrixDecision}✅{:else if subjectMaturityResult?.readyForArbitration}⚡{/if}</span>
+		</button>
 	</div>
 
 	{#if !draft}
@@ -682,6 +701,28 @@
 						{/each}
 					</div>
 				</div>
+			{/if}
+
+			<!-- ═════════════════════════════════════════════════════════════════ -->
+			<!-- VUE 4 : PORTE D'ARBITRAGE OPPOSABLE G3 ET FORMULAIRE DE DÉCISION -->
+			<!-- ═════════════════════════════════════════════════════════════════ -->
+			{#if activeTab === 'arbitration'}
+				<ArbitrationPanel
+					projectId={deliberationStore.activeEngagement?.id || ''}
+					subjectId={deliberationStore.activeSubjectId}
+					options={matrixOptions}
+					criteria={matrixCriteria}
+					argumentsList={debateArguments}
+					maturityResult={subjectMaturityResult}
+					decision={matrixDecision}
+					onDecisionMade={() => {
+						const pId = deliberationStore.activeEngagement?.id;
+						const sId = deliberationStore.activeSubjectId;
+						if (pId && sId) {
+							loadSubjectMatrix(pId, sId);
+						}
+					}}
+				/>
 			{/if}
 		</div>
 	{/if}

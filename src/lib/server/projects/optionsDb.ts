@@ -23,7 +23,7 @@ export async function listCriteria(subjectId: string): Promise<Criterion[]> {
 export async function createCriterion(
 	subjectId: string,
 	data: {
-		id: string;
+		id?: string;
 		name: string;
 		description?: string;
 		kind: CriterionKind;
@@ -32,13 +32,14 @@ export async function createCriterion(
 	},
 	actor: ActorInfo
 ) {
+	const criterionId = data.id || `crit-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
 	return await prisma.$transaction(async (tx) => {
 		const subject = await tx.subject.findUnique({ where: { id: subjectId } });
 		if (!subject) throw new Error(`Subject ${subjectId} introuvable`);
 
 		const created = await tx.criterion.create({
 			data: {
-				id: data.id,
+				id: criterionId,
 				subjectId,
 				name: data.name,
 				description: data.description || '',
@@ -217,7 +218,7 @@ export async function getOption(optionId: string) {
 export async function createOption(
 	subjectId: string,
 	data: {
-		id: string;
+		id?: string;
 		title: string;
 		summary: string;
 		origin?: OptionOrigin;
@@ -226,13 +227,14 @@ export async function createOption(
 	},
 	actor: ActorInfo
 ) {
+	const optionId = data.id || `opt-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`;
 	return await prisma.$transaction(async (tx) => {
 		const subject = await tx.subject.findUnique({ where: { id: subjectId } });
 		if (!subject) throw new Error(`Subject ${subjectId} introuvable`);
 
 		const created = await tx.option.create({
 			data: {
-				id: data.id,
+				id: optionId,
 				subjectId,
 				title: data.title,
 				summary: data.summary,

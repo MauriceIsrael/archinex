@@ -106,7 +106,7 @@ export function canTransitionMaturity(
 		};
 	}
 
-	// Passage vers L3_decided (Gate Tour 8)
+	// Passage vers L3_decided (Gate Tour 8 / Porte G3)
 	if (targetIndex >= 3 && !actor.is_human) {
 		return {
 			allowed: false,

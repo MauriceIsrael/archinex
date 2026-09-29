@@ -1,0 +1,15 @@
+id: a4-calculated-maturity
+title: Maturité Calculée, Couverture Réglementaire et Porte d'Arbitrage Humain G3
+version: 1.0.0
+status: in_progress
+authors:
+  - Lead Architect
+created_at: 2026-09-29
+depends_on:
+  - a3-multi-agent-debate
+tags:
+  - maturity
+  - arbitration
+  - gate-g3
+  - regulatory-coverage
+  - casbin

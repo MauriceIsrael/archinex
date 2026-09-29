@@ -10,6 +10,8 @@ export type ConfidenceLevel =
 	| 'stated-by-client'  // Exigence brute exprimée par le client
 	| 'assumed';          // Hypothèse de travail non arbitrée
 
+export type EpistemicConfidence = ConfidenceLevel;
+
 export type ProductionMode =
 	| 'human-authored'               // Rédigé directement par un humain
 	| 'llm-proposed-human-approved'  // Proposé par un LLM et validé par un humain

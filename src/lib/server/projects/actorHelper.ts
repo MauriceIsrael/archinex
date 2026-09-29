@@ -24,3 +24,15 @@ export function getActorFromEvent(event: RequestEvent): ActorInfo {
 		productionMode
 	};
 }
+
+export function getActorInfo(input: RequestEvent | Request): ActorInfo {
+	if ('request' in input) {
+		return getActorFromEvent(input as RequestEvent);
+	}
+	const req = input as Request;
+	return {
+		userId: req.headers.get('x-user-id') || 'lead-architect',
+		role: req.headers.get('x-user-role') || 'lead_architect',
+		productionMode: req.headers.get('x-production-mode') || 'human-authored'
+	};
+}

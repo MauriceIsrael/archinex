@@ -151,6 +151,8 @@ model Subject {
   criteria           Criterion[]
   options            Option[]
   decision           Decision?
+  arguments          Argument[]
+  debateRuns         DebateRun[]
   
   createdAt          DateTime @default(now())
   updatedAt          DateTime @updatedAt
@@ -301,6 +303,7 @@ model Option {
   subject        Subject  @relation(fields: [subjectId], references: [id], onDelete: Cascade)
   evaluations    OptionEvaluation[]
   tradeOffs      TradeOff[]
+  arguments      Argument[]
   
   createdAt      DateTime @default(now())
   updatedAt      DateTime @updatedAt
@@ -369,6 +372,59 @@ model Decision {
   updatedAt          DateTime @updatedAt
 
   @@map("decisions")
+}
+
+// ── Débat Multi-Agents & Arguments Structurés (Lot A3) ──────────────────────
+
+model Argument {
+  id               String    @id
+  subjectId        String
+  optionId         String?
+  targetArgumentId String?
+  stance           String    // support, objection, question, verification, synthesis
+  claim            String    // Assertion télégraphique courte
+  grounds          String    // Fondement factuel, calcul ou référence (REQUIS)
+  kbRefs           String    @default("[]") // JSON array d'identifiants doctrine
+  confidence       String    @default("assumed") // certified, verified, assumed, dubious
+  author           String
+  authorKind       String    // agent:proposer, agent:challenger, agent:verifier, agent:synthesizer, human
+  productionMode   String    // human-authored, llm-derived
+  round            Int       @default(1)
+  resolution       String    @default("open") // open, answered, accepted_risk, withdrawn
+  resolvedBy       String?
+  resolvedAt       DateTime?
+  version          Int       @default(1)
+
+  subject          Subject   @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+  option           Option?   @relation(fields: [optionId], references: [id], onDelete: Cascade)
+  targetArgument   Argument? @relation("ArgumentReplies", fields: [targetArgumentId], references: [id], onDelete: SetNull)
+  replies          Argument[] @relation("ArgumentReplies")
+
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@index([subjectId, optionId])
+  @@index([targetArgumentId])
+  @@map("arguments")
+}
+
+model DebateRun {
+  id          String    @id
+  subjectId   String
+  status      String    @default("running") // running, completed, failed
+  round       Int       @default(1)
+  maxRounds   Int       @default(3)
+  startedAt   DateTime  @default(now())
+  finishedAt  DateTime?
+  error       String?
+
+  subject     Subject   @relation(fields: [subjectId], references: [id], onDelete: Cascade)
+
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+
+  @@index([subjectId])
+  @@map("debate_runs")
 }
 
 // ── Patrimoine Commun de Connaissances & Documents ─────────────────────────

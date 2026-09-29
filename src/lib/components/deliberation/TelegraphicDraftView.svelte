@@ -26,7 +26,9 @@
 		RefreshCw
 	} from 'lucide-svelte';
 	import OptionsMatrix from './OptionsMatrix.svelte';
+	import DebateThreadView from './DebateThreadView.svelte';
 	import type { Criterion, Option, OptionEvaluation, TradeOff, Decision } from '$lib/domain/options';
+	import type { Argument } from '$lib/domain/debate';
 
 	type ViewTab = 'decision' | 'discussion' | 'draft';
 	let activeTab = $state<ViewTab>('decision');
@@ -56,18 +58,20 @@
 	let matrixEvaluations = $state<OptionEvaluation[]>([]);
 	let matrixTradeOffs = $state<TradeOff[]>([]);
 	let matrixDecision = $state<Decision | null>(null);
+	let debateArguments = $state<Argument[]>([]);
 	let isLoadingMatrix = $state<boolean>(false);
 
 	async function loadSubjectMatrix(projectId: string, subjectId: string) {
 		if (!projectId || !subjectId) return;
 		isLoadingMatrix = true;
 		try {
-			const [cRes, oRes, eRes, tRes, dRes] = await Promise.all([
+			const [cRes, oRes, eRes, tRes, dRes, aRes] = await Promise.all([
 				fetch(`/api/projects/${projectId}/subjects/${subjectId}/criteria`),
 				fetch(`/api/projects/${projectId}/subjects/${subjectId}/options`),
 				fetch(`/api/projects/${projectId}/subjects/${subjectId}/evaluations`),
 				fetch(`/api/projects/${projectId}/subjects/${subjectId}/tradeoffs`),
-				fetch(`/api/projects/${projectId}/subjects/${subjectId}/decision`)
+				fetch(`/api/projects/${projectId}/subjects/${subjectId}/decision`),
+				fetch(`/api/projects/${projectId}/subjects/${subjectId}/arguments`)
 			]);
 
 			if (cRes.ok) matrixCriteria = await cRes.json();
@@ -75,6 +79,7 @@
 			if (eRes.ok) matrixEvaluations = await eRes.json();
 			if (tRes.ok) matrixTradeOffs = await tRes.json();
 			if (dRes.ok) matrixDecision = await dRes.json();
+			if (aRes.ok) debateArguments = await aRes.json();
 		} catch (err) {
 			console.warn('Erreur chargement matrice options:', err);
 		} finally {
@@ -374,7 +379,7 @@
 				: 'text-muted-foreground hover:text-foreground'}"
 		>
 			<MessagesSquare class="h-3.5 w-3.5 text-blue-500" />
-			<span>2. Débat Experts ({subjectMessages.length})</span>
+			<span>2. Débat Multi-Agents ({debateArguments.length})</span>
 		</button>
 
 		<button
@@ -552,81 +557,15 @@
 			<!-- VUE 2 : DISCUSSION ENTRE EXPERTS SUR CE SUJET                     -->
 			<!-- ═════════════════════════════════════════════════════════════════ -->
 			{:else if activeTab === 'discussion'}
-				<div class="rounded-xl border bg-card p-3 space-y-3">
-					<div class="flex items-center justify-between border-b pb-2">
-						<div class="flex items-center gap-2">
-							<MessagesSquare class="h-4 w-4 text-blue-500" />
-							<h4 class="text-xs font-bold text-foreground">
-								Discussion entre Experts sur {activeSubject?.section_ref} {activeSubject?.name}
-							</h4>
-						</div>
-						<div class="flex items-center gap-1.5">
-							<span class="font-mono text-[10px] px-2 py-0.5 rounded bg-blue-500/10 text-blue-700 dark:text-blue-300 font-bold">
-								{subjectMessages.length} sur {activeSubject?.section_ref || 'cette section'}
-							</span>
-							{#if deliberationStore.generalDialogueMessages.length > 0}
-								<span class="font-mono text-[10px] px-1.5 py-0.5 rounded bg-muted text-muted-foreground" title="Messages généraux au niveau du projet consultables dans le fil général">
-									+{deliberationStore.generalDialogueMessages.length} globaux
-								</span>
-							{/if}
-						</div>
-					</div>
-
-					<!-- Liste des messages d'experts -->
-					<div class="space-y-2.5 max-h-80 overflow-y-auto pr-1">
-						{#if subjectMessages.length === 0}
-							<div class="p-6 text-center text-xs text-muted-foreground border rounded-lg bg-muted/10 space-y-1">
-								<p class="font-semibold text-foreground">Aucun échange spécifique pour {activeSubject?.section_ref} {activeSubject?.name}.</p>
-								<p class="text-[11px]">Saisissez ci-dessous votre premier avis technique ou directive d'architecture pour initier la concertation.</p>
-							</div>
-						{:else}
-							{#each subjectMessages as msg}
-								<div class="rounded-lg p-2.5 border text-xs space-y-1 {msg.isAi ? 'bg-primary/5 border-primary/20' : 'bg-muted/30 border-border'}">
-									<div class="flex items-center justify-between gap-2">
-										<div class="flex items-center gap-1.5">
-											{#if msg.isAi}
-												<Bot class="h-3.5 w-3.5 text-primary" />
-											{:else}
-												<UserCheck class="h-3.5 w-3.5 text-emerald-600" />
-											{/if}
-											<strong class="font-semibold text-foreground">{msg.author}</strong>
-											<span class="rounded bg-muted px-1.5 py-0.2 text-[10px] font-mono text-muted-foreground">
-												{msg.role}
-											</span>
-										</div>
-										<span class="font-mono text-[10px] text-muted-foreground">{msg.timestamp}</span>
-									</div>
-									<p class="text-muted-foreground leading-relaxed pl-5">
-										{msg.content}
-									</p>
-								</div>
-							{/each}
-						{/if}
-					</div>
-
-					<!-- Champ de saisie pour intervenir dans le débat -->
-					<div class="pt-2 border-t space-y-2">
-						<label for="expert-comment-input" class="sr-only">Participer au débat expert</label>
-						<div class="flex gap-2">
-							<input
-								id="expert-comment-input"
-								type="text"
-								bind:value={newExpertComment}
-								onkeydown={handleKeydown}
-								placeholder="Participer au débat ou argumenter un arbitrage..."
-								class="flex-1 bg-background border rounded-lg px-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:ring-1 focus:ring-primary shadow-xs"
-							/>
-							<button
-								type="button"
-								onclick={handleSendComment}
-								class="inline-flex items-center gap-1 bg-primary text-primary-foreground hover:bg-primary/90 px-3 py-1.5 rounded-lg text-xs font-semibold shadow-xs transition-colors shrink-0"
-							>
-								<Send class="h-3.5 w-3.5" />
-								<span>Envoyer</span>
-							</button>
-						</div>
-					</div>
-				</div>
+				<DebateThreadView
+					projectId={deliberationStore.activeEngagement?.id || ''}
+					subjectId={deliberationStore.activeSubjectId}
+					options={matrixOptions}
+					bind:argumentsList={debateArguments}
+					userRole={deliberationStore.currentRole}
+					onArgumentAdded={() => loadSubjectMatrix(deliberationStore.activeEngagement?.id || '', deliberationStore.activeSubjectId)}
+					onError={(msg) => deliberationStore.logNotification(msg, 'warning')}
+				/>
 
 			<!-- ═════════════════════════════════════════════════════════════════ -->
 			<!-- VUE 3 : SYNTHÈSE TÉLÉGRAPHIQUE DU SUJET                           -->

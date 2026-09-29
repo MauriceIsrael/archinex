@@ -174,27 +174,18 @@ export async function deleteCriterion(
 // OPTIONS
 // -------------------------------------------------------------
 
-export async function listOptions(subjectId: string) {
+export async function listOptions(subjectId: string): Promise<Option[]> {
 	const options = await prisma.option.findMany({
 		where: { subjectId },
-		include: {
-			evaluations: true,
-			tradeOffs: true
-		},
 		orderBy: { createdAt: 'asc' }
 	});
 
 	return options.map((opt) => ({
 		...opt,
-		kbRefs: JSON.parse(opt.kbRefs || '[]'),
-		evaluations: opt.evaluations.map((ev) => ({
-			...ev,
-			evidenceRefs: JSON.parse(ev.evidenceRefs || '[]')
-		})),
-		tradeOffs: opt.tradeOffs.map((t) => ({
-			...t,
-			criterionIds: JSON.parse(t.criterionIds || '[]')
-		}))
+		origin: opt.origin as OptionOrigin,
+		status: opt.status as OptionStatus,
+		productionMode: opt.productionMode as any,
+		kbRefs: JSON.parse(opt.kbRefs || '[]')
 	}));
 }
 

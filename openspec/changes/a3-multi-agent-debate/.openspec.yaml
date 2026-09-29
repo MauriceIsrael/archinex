@@ -1,0 +1,15 @@
+id: a3-multi-agent-debate
+title: Débat Multi-Agents Borné & Arguments Structurés (Porte G3 - Partie 1)
+version: 1.0.0
+status: in_progress
+authors:
+  - Lead Architect
+created_at: 2026-09-29
+depends_on:
+  - a2-options-criteria
+tags:
+  - dialectic
+  - multi-agent
+  - arguments
+  - doctrine
+  - bounded-debate

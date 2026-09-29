@@ -79,7 +79,18 @@ describe('Subject Elicitor & Provocation Dialectique (raptor-nino)', () => {
 		expect(result.elicitedDraft.manque[0].assigned_role).toBe('domain_architect');
 		expect(result.elicitedDraft.variante_b?.title).toBe('Variante Quartz OCXO durci');
 		expect(result.provocationMessage).toContain('variante 7 jours');
+		// Vérification du contrat Lot A2 : au moins 3 critères et 3 options
+		expect(result.criteria.length).toBeGreaterThanOrEqual(3);
+		expect(result.options.length).toBeGreaterThanOrEqual(3);
 
 		chatSpy.mockRestore();
+	});
+
+	it('génère au moins 3 critères et 3 options dans le fallback heuristique (Lot A2)', () => {
+		const res = fallbackDeterministicElicitation(sampleRequest);
+		expect(res.criteria.length).toBeGreaterThanOrEqual(3);
+		expect(res.options.length).toBeGreaterThanOrEqual(3);
+		expect(res.criteria.some((c) => c.kind === 'compliance')).toBe(true);
+		expect(res.options.some((o) => o.origin === 'kb-pattern')).toBe(true);
 	});
 });

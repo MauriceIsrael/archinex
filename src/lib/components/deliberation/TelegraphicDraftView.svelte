@@ -25,6 +25,8 @@
 		Database,
 		RefreshCw
 	} from 'lucide-svelte';
+	import OptionsMatrix from './OptionsMatrix.svelte';
+	import type { Criterion, Option, OptionEvaluation, TradeOff, Decision } from '$lib/domain/options';
 
 	type ViewTab = 'decision' | 'discussion' | 'draft';
 	let activeTab = $state<ViewTab>('decision');
@@ -47,6 +49,98 @@
 	let newVariantCostDelta = $state<string>('');
 	let newVariantTradeOff = $state<string>('');
 	let variantFormError = $state<string | null>(null);
+
+	// Multi-criteria options matrix state
+	let matrixCriteria = $state<Criterion[]>([]);
+	let matrixOptions = $state<Option[]>([]);
+	let matrixEvaluations = $state<OptionEvaluation[]>([]);
+	let matrixTradeOffs = $state<TradeOff[]>([]);
+	let matrixDecision = $state<Decision | null>(null);
+	let isLoadingMatrix = $state<boolean>(false);
+
+	async function loadSubjectMatrix(projectId: string, subjectId: string) {
+		if (!projectId || !subjectId) return;
+		isLoadingMatrix = true;
+		try {
+			const [cRes, oRes, eRes, tRes, dRes] = await Promise.all([
+				fetch(`/api/projects/${projectId}/subjects/${subjectId}/criteria`),
+				fetch(`/api/projects/${projectId}/subjects/${subjectId}/options`),
+				fetch(`/api/projects/${projectId}/subjects/${subjectId}/evaluations`),
+				fetch(`/api/projects/${projectId}/subjects/${subjectId}/tradeoffs`),
+				fetch(`/api/projects/${projectId}/subjects/${subjectId}/decision`)
+			]);
+
+			if (cRes.ok) matrixCriteria = await cRes.json();
+			if (oRes.ok) matrixOptions = await oRes.json();
+			if (eRes.ok) matrixEvaluations = await eRes.json();
+			if (tRes.ok) matrixTradeOffs = await tRes.json();
+			if (dRes.ok) matrixDecision = await dRes.json();
+		} catch (err) {
+			console.warn('Erreur chargement matrice options:', err);
+		} finally {
+			isLoadingMatrix = false;
+		}
+	}
+
+	$effect(() => {
+		const pId = deliberationStore.activeEngagement?.id;
+		const sId = deliberationStore.activeSubjectId;
+		if (pId && sId) {
+			loadSubjectMatrix(pId, sId);
+		}
+	});
+
+	function handleDecisionMade(dec: Decision) {
+		matrixDecision = dec;
+		const retained = matrixOptions.find((o) => o.id === dec.retainedOptionId);
+		if (retained && draft) {
+			if (!draft.retenu.includes(retained.title)) {
+				draft.retenu = [retained.title, ...draft.retenu];
+			}
+		}
+		if (activeSubject) {
+			deliberationStore.setSubjectLevel(activeSubject.id, 'L3_decided');
+		}
+		deliberationStore.logNotification(
+			`Décision formelle L3 enregistrée : option "${retained?.title || dec.retainedOptionId}" retenue.`,
+			'success'
+		);
+	}
+
+	async function handleConvertVarianteB() {
+		const pId = deliberationStore.activeEngagement?.id;
+		const sId = deliberationStore.activeSubjectId;
+		if (!pId || !sId || !draft?.variante_b) return;
+
+		try {
+			const optATitle = draft.retenu[0] || draft.suppose[0]?.text || 'Option A (Référence CCTP)';
+			const optASummary = draft.suppose[0]?.consequence || 'Conformité directe avec les exigences';
+			await fetch(`/api/projects/${pId}/subjects/${sId}/options`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					title: optATitle,
+					summary: optASummary,
+					origin: 'human'
+				})
+			});
+
+			await fetch(`/api/projects/${pId}/subjects/${sId}/options`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					title: draft.variante_b.title,
+					summary: draft.variante_b.trade_off,
+					origin: 'llm-proposed'
+				})
+			});
+
+			await loadSubjectMatrix(pId, sId);
+			deliberationStore.logNotification('Variante B convertie avec succès en option structurée A2.', 'success');
+		} catch (err: any) {
+			deliberationStore.logNotification('Erreur conversion : ' + err.message, 'warning');
+		}
+	}
 
 	function handleSendComment() {
 		if (!newExpertComment.trim()) return;
@@ -357,282 +451,68 @@
 					{/if}
 				</div>
 
-				<!-- 2. LES ALTERNATIVES EN COMPÉTITION (COMPARATIF CÔTE À CÔTE) -->
-				<div class="space-y-2">
-					<div class="flex items-center justify-between">
-						<span class="text-xs font-bold uppercase tracking-wider text-muted-foreground flex items-center gap-1.5">
-							<Split class="h-4 w-4 text-primary" />
-							<span>Les Alternatives en Compétition</span>
-						</span>
-						{#if !isProposingVariant}
-							<button
-								type="button"
-								onclick={() => (isProposingVariant = true)}
-								class="text-xs font-semibold text-purple-700 dark:text-purple-300 hover:underline inline-flex items-center gap-1"
-								title="Ouvrir le formulaire pour formuler une alternative technique innovante"
-							>
-								<Sparkles class="h-3 w-3 text-purple-600 dark:text-purple-400" />
-								<span>Proposer une alternative libre</span>
-							</button>
-						{/if}
-					</div>
-
-					<div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-						<!-- ALTERNATIVE A : OPTION RETENUE / CCTP -->
-						<div class="rounded-xl border border-primary/30 bg-primary/[0.03] p-3.5 space-y-3 flex flex-col justify-between shadow-2xs">
-							<div class="space-y-2">
-								<div class="flex items-center justify-between">
-									<span class="font-mono text-[10px] font-bold px-2 py-0.5 rounded bg-primary/10 text-primary uppercase">
-										Option A (Retenue CCTP)
-									</span>
-									{#if draft.suppose[0]?.cost_hint}
-										<span class="font-mono text-[11px] font-bold text-destructive bg-destructive/10 px-1.5 py-0.5 rounded">
-											{draft.suppose[0].cost_hint}
-										</span>
-									{/if}
-								</div>
-
-								<h4 class="text-xs font-bold text-foreground">
-									{#if draft.retenu.length > 0}
-										{draft.retenu[0]}
-									{:else if draft.suppose.length > 0}
-										{draft.suppose[0].text}
-									{:else}
-										Spécification de référence
-									{/if}
-								</h4>
-
-								<p class="text-[11px] text-muted-foreground leading-relaxed">
-									{#if draft.suppose.length > 0}
-										{draft.suppose[0].consequence}
-									{:else}
-										Conformité directe avec les exigences contractuelles du client.
-									{/if}
+				<!-- 2. MATRICE MULTI-CRITÈRES & ALTERNATIVES (LOT A2) -->
+				<div class="space-y-3">
+					{#if matrixOptions.length > 0 || matrixCriteria.length > 0}
+						<OptionsMatrix
+							projectId={deliberationStore.activeEngagement?.id || ''}
+							subjectId={deliberationStore.activeSubjectId}
+							bind:criteria={matrixCriteria}
+							bind:options={matrixOptions}
+							bind:evaluations={matrixEvaluations}
+							bind:tradeOffs={matrixTradeOffs}
+							bind:decision={matrixDecision}
+							userRole={deliberationStore.currentRole}
+							onDecisionMade={handleDecisionMade}
+							onError={(msg) => deliberationStore.logNotification(msg, 'warning')}
+						/>
+					{:else}
+						<!-- Si aucune option n'a encore été créée, proposer l'élicitation ou la conversion -->
+						<div class="rounded-xl border border-dashed p-4 bg-card text-center space-y-3">
+							<div class="flex flex-col items-center justify-center space-y-1">
+								<Scale class="h-6 w-6 text-primary" />
+								<h4 class="text-xs font-bold text-foreground">Matrice Multi-Critères (Lot A2)</h4>
+								<p class="text-[11px] text-muted-foreground max-w-md">
+									Ce sujet ne dispose pas encore de critères d'évaluation ni d'options normalisées. Vous pouvez lancer l'élicitation automatique (3 critères, 3 options) ou convertir la variante existante.
 								</p>
 							</div>
 
-							<div class="pt-2 border-t">
+							<div class="flex items-center justify-center gap-2 flex-wrap pt-1">
 								<button
 									type="button"
-									onclick={() => deliberationStore.arbitrateSubject(deliberationStore.activeSubjectId)}
-									class="w-full inline-flex items-center justify-center gap-1.5 bg-primary text-primary-foreground hover:bg-primary/90 font-semibold px-3 py-1.5 rounded-lg shadow-2xs transition-colors"
+									onclick={handleElicitDetails}
+									disabled={isEliciting}
+									class="inline-flex items-center gap-1.5 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 px-3 py-1.5 text-xs font-semibold shadow-xs"
 								>
-									<Check class="h-3.5 w-3.5" />
-									<span>Confirmer & Trancher (L3)</span>
+									<Sparkles class="h-3.5 w-3.5" />
+									<span>Éliciter critères & options (LLM)</span>
 								</button>
+
+								{#if draft.variante_b}
+									<button
+										type="button"
+										onclick={handleConvertVarianteB}
+										class="inline-flex items-center gap-1.5 rounded-lg border border-purple-500/40 bg-purple-500/10 hover:bg-purple-500/20 text-purple-800 dark:text-purple-300 px-3 py-1.5 text-xs font-semibold shadow-xs"
+									>
+										<Split class="h-3.5 w-3.5 text-purple-600" />
+										<span>Convertir Variante B (« {draft.variante_b.title} »)</span>
+									</button>
+								{/if}
 							</div>
 						</div>
 
-						<!-- ALTERNATIVE B : FORMULAIRE OU VARIANTE EXISTANTE OU CONSCIENTISATION -->
-						{#if isProposingVariant}
-							<!-- FORMULAIRE DE SAISIE LIBRE D'UNE ALTERNATIVE INNOVANTE -->
-							<div class="rounded-xl border-2 border-purple-500/40 bg-purple-500/[0.04] p-3.5 space-y-3 shadow-sm flex flex-col justify-between">
-								<div class="space-y-2.5">
-									<div class="flex items-center justify-between border-b pb-2">
-										<div class="flex items-center gap-1.5 font-bold text-xs text-purple-800 dark:text-purple-300">
-											<Sparkles class="h-4 w-4 text-purple-500" />
-											<span>Formuler une Alternative Libre (Innovation)</span>
-										</div>
-										<button
-											type="button"
-											onclick={() => {
-												isProposingVariant = false;
-												variantFormError = null;
-											}}
-											class="text-muted-foreground hover:text-foreground text-xs p-1 cursor-pointer"
-										>
-											✕
-										</button>
-									</div>
-
-									{#if variantFormError}
-										<div class="rounded-lg bg-destructive/10 border border-destructive/25 p-2 text-destructive flex items-center gap-2 text-xs font-medium">
-											<AlertTriangle class="h-4 w-4 shrink-0 text-destructive" />
-											<span>{variantFormError}</span>
-										</div>
-									{/if}
-
-									<div>
-										<label for="new-variant-title" class="text-[11px] font-bold text-foreground flex items-center justify-between mb-0.5">
-											<span>Titre de l'alternative technique :</span>
-											<span class="text-[10px] text-destructive font-semibold">Obligatoire</span>
-										</label>
-										<input
-											id="new-variant-title"
-											type="text"
-											bind:value={newVariantTitle}
-											oninput={() => (variantFormError = null)}
-											placeholder="ex: Mesh eBPF Cilium sans passerelle physique, Horloge atomique CSAC..."
-											class="w-full text-xs px-2.5 py-1.5 rounded border border-border bg-background focus:ring-1 focus:ring-purple-500"
-										/>
-									</div>
-
-									<div>
-										<label for="new-variant-cost" class="text-[11px] font-bold text-foreground flex items-center justify-between mb-0.5">
-											<span>Impact budgétaire / effort estimé :</span>
-											<span class="text-[10px] text-muted-foreground font-normal">Optionnel</span>
-										</label>
-										<input
-											id="new-variant-cost"
-											type="text"
-											bind:value={newVariantCostDelta}
-											placeholder="ex: -65 k€ CAPEX, Gain OPEX 15%, Effort M... (défaut : À chiffrer)"
-											class="w-full text-xs px-2.5 py-1.5 rounded border border-border bg-background"
-										/>
-									</div>
-
-									<div>
-										<label for="new-variant-tradeoff" class="text-[11px] font-bold text-foreground flex items-center justify-between mb-0.5">
-											<span>Compromis & Valeur innovante :</span>
-											<span class="text-[10px] text-muted-foreground font-normal">Optionnel</span>
-										</label>
-										<textarea
-											id="new-variant-tradeoff"
-											bind:value={newVariantTradeOff}
-											rows={2}
-											placeholder="ex: Allège le matériel et l'empreinte rack, mais requiert une qualification préalable."
-											class="w-full text-xs px-2.5 py-1.5 rounded border border-border bg-background"
-										></textarea>
-									</div>
-								</div>
-
-								<div class="flex justify-end gap-2 pt-2 border-t">
-									<button
-										type="button"
-										onclick={() => {
-											isProposingVariant = false;
-											newVariantTitle = '';
-											newVariantCostDelta = '';
-											newVariantTradeOff = '';
-											variantFormError = null;
-										}}
-										class="px-2.5 py-1 text-xs border rounded-lg hover:bg-muted cursor-pointer"
-									>
-										Annuler
-									</button>
-									<button
-										type="button"
-										onclick={handleProposeVariant}
-										class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-semibold rounded-lg bg-purple-600 hover:bg-purple-700 text-white shadow-xs transition-colors cursor-pointer"
-									>
-										<Sparkles class="h-3.5 w-3.5" />
-										<span>Soumettre au débat</span>
-									</button>
-								</div>
-							</div>
-						{:else if draft.variante_b}
-							<div class="rounded-xl border border-purple-500/30 bg-purple-500/[0.03] p-3.5 space-y-3 flex flex-col justify-between shadow-2xs">
-								<div class="space-y-2">
-									<div class="flex items-center justify-between">
-										<span class="font-mono text-[10px] font-bold px-2 py-0.5 rounded bg-purple-500/10 text-purple-700 dark:text-purple-400 uppercase">
-											Option B (Variante B)
-										</span>
-										<span class="font-mono text-[11px] font-bold text-emerald-700 dark:text-emerald-400 bg-emerald-500/10 px-1.5 py-0.5 rounded">
-											{draft.variante_b.cost_delta}
-										</span>
-									</div>
-
-									<h4 class="text-xs font-bold text-foreground">
-										{draft.variante_b.title}
-									</h4>
-
-									<p class="text-[11px] text-muted-foreground leading-relaxed italic">
-										« {draft.variante_b.trade_off} »
-									</p>
-								</div>
-
-								<div class="pt-2 border-t flex items-center gap-2 flex-wrap">
-									<button
-										type="button"
-										onclick={() => deliberationStore.arbitrateSubject(deliberationStore.activeSubjectId)}
-										class="flex-1 inline-flex items-center justify-center gap-1 border border-purple-500/40 bg-purple-500/10 hover:bg-purple-500/20 text-purple-800 dark:text-purple-300 font-semibold px-2.5 py-1.5 rounded-lg text-xs transition-colors"
-									>
-										<span>Basculer sur Option B</span>
-									</button>
-									<button
-										type="button"
-										onclick={() => { isProposingVariant = true; }}
-										class="px-2 py-1.5 text-xs text-purple-700 dark:text-purple-300 hover:bg-purple-500/10 rounded-lg border border-purple-500/20"
-										title="Proposer une autre formulation d'alternative"
-									>
-										Autre idée
-									</button>
-									<button
-										type="button"
-										onclick={() => { rejectingVariant = !rejectingVariant; }}
-										class="px-2 py-1.5 text-xs text-destructive hover:bg-destructive/10 rounded-lg border border-destructive/20 cursor-pointer"
-										title="Exclure formellement cette variante"
-									>
-										Exclure
-									</button>
-								</div>
-
-								<button
-									type="button"
-									onclick={() => (activeTab = 'discussion')}
-									class="w-full inline-flex items-center justify-center gap-1.5 text-[11px] font-medium text-purple-700 dark:text-purple-300 hover:bg-purple-500/10 rounded-md py-1 transition-colors cursor-pointer"
-								>
-									<MessagesSquare class="h-3 w-3" />
-									<span>Voir les réactions dans le débat d'experts ({subjectMessages.length})</span>
-								</button>
-							</div>
-						{:else}
-							<!-- CONSCIENTISATION DE LA DÉCISION (OPTION UNIQUE PAR DÉFAUT) -->
-							<div class="rounded-xl border border-dashed border-purple-500/30 bg-purple-500/[0.02] p-4 flex flex-col items-center justify-center text-center space-y-2.5 shadow-2xs">
-								<div class="w-8 h-8 rounded-full bg-purple-500/10 flex items-center justify-center text-purple-600 dark:text-purple-400">
-									<Lightbulb class="h-4 w-4" />
-								</div>
-								<div class="space-y-1 max-w-sm">
-									<span class="font-bold text-xs text-foreground">Conscientisation : Option unique par défaut</span>
-									<p class="text-[11px] text-muted-foreground leading-relaxed">
-										Aucune variante concurrente n'est formulée pour cette section. Vous pouvez conscientiser et entériner l'Option A, ou proposer une alternative technique innovante.
-									</p>
-								</div>
-								<button
-									type="button"
-									onclick={() => (isProposingVariant = true)}
-									class="inline-flex items-center gap-1.5 rounded-lg border border-purple-500/40 bg-purple-500/10 hover:bg-purple-500/20 text-purple-800 dark:text-purple-300 font-semibold px-3 py-1.5 text-xs transition-colors shadow-2xs"
-								>
-									<Sparkles class="h-3.5 w-3.5 text-purple-600 dark:text-purple-400" />
-									<span>Proposer une alternative libre / Variante innovante</span>
-								</button>
-							</div>
-						{/if}
-					</div>
-
-					<!-- Formulaire d'exclusion de variante si cliqué -->
-					{#if rejectingVariant}
-						<div class="rounded-lg border border-destructive/30 bg-destructive/5 p-3 space-y-2">
-							<label for="variant-reject-input" class="text-xs font-bold text-destructive block">
-								Motif d'exclusion formelle de la variante :
-							</label>
-							<input
-								id="variant-reject-input"
-								type="text"
-								bind:value={variantRejectReason}
-								class="w-full text-xs font-mono px-2.5 py-1.5 rounded border border-border bg-background"
-								placeholder="ex: Incompatible avec l'exigence CCTP §4.2 d'autonomie sans GNSS"
-							/>
-							<div class="flex justify-end gap-2">
-								<button
-									type="button"
-									onclick={() => (rejectingVariant = false)}
-									class="px-2.5 py-1 rounded text-xs border"
-								>
-									Annuler
-								</button>
-								<button
-									type="button"
-									onclick={() => {
-										deliberationStore.rejectVariant(deliberationStore.activeSubjectId, variantRejectReason || 'Rejetée en comité d\'architecture');
-										rejectingVariant = false;
-									}}
-									class="px-3 py-1 rounded text-xs bg-destructive text-destructive-foreground font-semibold"
-								>
-									Confirmer l'exclusion
-								</button>
-							</div>
-						</div>
+						<OptionsMatrix
+							projectId={deliberationStore.activeEngagement?.id || ''}
+							subjectId={deliberationStore.activeSubjectId}
+							bind:criteria={matrixCriteria}
+							bind:options={matrixOptions}
+							bind:evaluations={matrixEvaluations}
+							bind:tradeOffs={matrixTradeOffs}
+							bind:decision={matrixDecision}
+							userRole={deliberationStore.currentRole}
+							onDecisionMade={handleDecisionMade}
+							onError={(msg) => deliberationStore.logNotification(msg, 'warning')}
+						/>
 					{/if}
 				</div>
 

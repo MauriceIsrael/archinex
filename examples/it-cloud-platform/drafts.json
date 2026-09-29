@@ -1,0 +1,26 @@
+{
+  "subj-it-virt": {
+    "conflit": [
+      {
+        "id": "c-virt-01",
+        "text": "Virtualisation hyperconvergée logicielle pure vs Baie SAN partagée dédiée",
+        "category": "architecture"
+      }
+    ],
+    "incontournables": [
+      "Isolation matérielle VT-x / AMD-V",
+      "Chiffrement des disques virtuels LUKS au repos",
+      "Support des réseaux virtuels SDN avec encapsulation Geneve/VxLAN"
+    ],
+    "options": [
+      "KVM/QEMU avec orchestration OpenStack/Kubevirt",
+      "Hyperviseur propriétaire sous licence commerciale"
+    ],
+    "retenu": [
+      "Pile KVM/QEMU open-source avec stockage Ceph distribué"
+    ],
+    "ecarte": [
+      "Hyperviseur propriétaire commercial pour risque de hausse tarifaire et dépendance éditeur"
+    ]
+  }
+}

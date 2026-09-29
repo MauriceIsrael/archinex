@@ -1,0 +1,59 @@
+{
+  "id": "it-cloud-platform-sovereign",
+  "title": "Plateforme Cloud Privé Souveraine (Architecture Neutre)",
+  "shortName": "Cloud Privé IT",
+  "type": "generic_blueprint",
+  "badge": "Cloud Privé Souverain · Baseline IT",
+  "description": "Patrimoine d'architecture pour concevoir une pile Cloud Privé ouverte, résiliente et souveraine (Provisionnement Bare Metal, Virtualisation KVM, Orchestration Kubernetes CNCF, PaaS applicatif).",
+  "defaultSubjectId": "subj-it-virt",
+  "defaultDocId": "DOC-IT-ARCH-01",
+  "status": "active",
+  "requiredFrameworks": ["NIS2", "ISO 27001", "SecNumCloud"],
+  "strategy": {
+    "objectives": [
+      "Souveraineté européenne des données et des opérations",
+      "Haute disponibilité 99.99% multi-sites",
+      "Conformité réglementaire NIS2, ISO 27001 et SecNumCloud"
+    ],
+    "principles": [
+      "Standards ouverts et interopérabilité CNCF",
+      "Infrastructure as Code déclarative et immuable",
+      "Sécurité Zero-Trust et cloisonnement strict des flux"
+    ],
+    "constraints": [
+      "Serveurs COTS x86_64 sans verrouillage matériel",
+      "Aucune dépendance runtime envers des hyperscalers extra-européens",
+      "Fonctionnement garanti en mode isolé / air-gap"
+    ]
+  },
+  "participants": [
+    {
+      "id": "alice-lead",
+      "name": "Alice Martin",
+      "role": "lead_architect",
+      "email": "alice.martin@cloud-sovereign.local",
+      "isLead": true
+    },
+    {
+      "id": "bob-infra",
+      "name": "Bob Lemoine",
+      "role": "domain_expert",
+      "email": "bob.lemoine@cloud-sovereign.local",
+      "domains": ["infrastructure"]
+    },
+    {
+      "id": "claire-sec",
+      "name": "Claire Dupont",
+      "role": "domain_expert",
+      "email": "claire.dupont@cloud-sovereign.local",
+      "domains": ["security"]
+    },
+    {
+      "id": "david-cloud",
+      "name": "David Vasseur",
+      "role": "domain_expert",
+      "email": "david.vasseur@cloud-sovereign.local",
+      "domains": ["cloud"]
+    }
+  ]
+}

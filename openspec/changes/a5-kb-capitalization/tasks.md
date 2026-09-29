@@ -1,0 +1,27 @@
+# Tâches A5 — Capitalisation vers la KB & Cas de Test IT Pure
+
+- [x] 1. Domaine pur `src/lib/domain/capitalization.ts`
+  - [x] 1.1 Types et interface `buildKbCandidates`
+  - [x] 1.2 Cas `new_asset`, `amendment`, `rex`
+  - [x] 1.3 Moteur d'anonymisation `anonymizeText` et `anonymizeCandidate` (noms, IPs, volumes)
+- [x] 2. Tests de contrat `tests/contract/capitalization.test.ts`
+  - [x] 2.1 Test génération des 3 types de candidats
+  - [x] 2.2 Test conditionnel `new_asset` (absent si `kbRefs` non vide)
+  - [x] 2.3 Test conditionnel `amendment` (absent si aucune violation acceptée)
+  - [x] 2.4 Test anonymisation exhaustive (projets, clients, IPs, volumes, participants)
+- [x] 3. Service de capitalisation et enrichissement LLMOps
+  - [x] 3.1 Méthodes sur `DoctrineService` (`submitKbCandidate`, `listKbCandidates`)
+  - [x] 3.2 Service `src/lib/server/projects/capitalizationDb.ts`
+  - [x] 3.3 Mise à jour atomique de `Decision.kbCandidateIds` et écriture du `DomainEvent`
+- [x] 4. Schémas et route API
+  - [x] 4.1 Schéma Zod `src/lib/schemas/capitalizationSchemas.ts`
+  - [x] 4.2 Endpoint `GET/POST /api/projects/[projectId]/subjects/[subjectId]/capitalization`
+- [x] 5. Interface utilisateur & Dépréciation legacy
+  - [x] 5.1 Composant `CapitalizationPanel.svelte` avec prévisualisation et édition humaine
+  - [x] 5.2 Intégration dans `ArbitrationPanel.svelte`
+  - [x] 5.3 Dépréciation/redirection de l'ancien flux `harvestSubjectToKnowledgeBase`
+- [x] 6. Tests d'intégration et E2E
+  - [x] 6.1 Test d'intégration `tests/integration/kb-capitalization.test.ts`
+  - [x] 6.2 Fixture exemple `examples/it-cloud-platform/` (spécification neutre plateforme cloud privé)
+  - [x] 6.3 Test E2E complet `tests/e2e/it-cloud-platform.test.ts` (seed -> extraction -> options/critères -> débat -> maturité -> arbitrage -> capitalisation)
+- [x] 7. Vérification des portes qualité (`npm run verify`, `.project-names-denylist`)

@@ -1,0 +1,37 @@
+[
+  {
+    "id": "DOC-IT-ARCH-01",
+    "title": "Spécification d Architecture Technique - Plateforme Cloud Privé Ouverte",
+    "origin": "client",
+    "category": "cctp",
+    "categoryLabel": "Cahier des Charges Techniques Particulières",
+    "sourceOrAuthor": "Direction des Systèmes d Information",
+    "contributorRole": "lead_architect",
+    "version": "1.0",
+    "extractedClausesCount": 4,
+    "summary": "Exigences fonctionnelles et techniques pour la construction d'un socle d'infrastructure cloud privé souverain.",
+    "keyIdeas": [
+      "Indépendance technologique et logicielle",
+      "Conformité NIS2 et SecNumCloud",
+      "Résilience et plan de reprise d activité RPO=0 RTO<15min"
+    ],
+    "keyClauses": [
+      {
+        "id": "CLS-IT-01",
+        "title": "Souveraineté des hyperviseurs",
+        "verbatim": "Les couches d'hypervision et de virtualisation doivent reposer sur des briques open source pérennes auditables par l'ANSSI.",
+        "applicability": "Obligatoire",
+        "section": "§1.2"
+      },
+      {
+        "id": "CLS-IT-02",
+        "title": "Sécurité des conteneurs",
+        "verbatim": "Les nœuds d'exécution Kubernetes doivent être isolés et durcis selon les référentiels CIS Benchmark de niveau 2.",
+        "applicability": "Obligatoire",
+        "section": "§2.1"
+      }
+    ],
+    "inducedRules": ["RULE-VIRT-KVM", "RULE-K8S-CIS"],
+    "relatedSubjectIds": ["subj-it-virt", "subj-it-k8s"]
+  }
+]

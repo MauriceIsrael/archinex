@@ -1,0 +1,15 @@
+[
+  {
+    "id": "ST-IT-01",
+    "section": "§1.2",
+    "subject": "subj-it-virt",
+    "predicate": "implements",
+    "value": "Hyperviseur KVM durci avec QEMU et libvirt",
+    "unit": null,
+    "author": "Alice Martin",
+    "role": "lead_architect",
+    "confidence": "verified",
+    "verbatim": "Virtualisation bare-metal basée sur KVM natif Linux sans surcouche fermée.",
+    "status": "active"
+  }
+]

@@ -4,7 +4,8 @@ import type {
 	DoctrineItem,
 	CheckOptionRequest,
 	CheckResult,
-	FrameworkCoverage
+	FrameworkCoverage,
+	KbCandidate
 } from '$lib/types/llmops';
 
 export class DoctrineService {
@@ -54,6 +55,20 @@ export class DoctrineService {
 	async setApplicableFrameworks(project: string, frameworks: string[]): Promise<boolean> {
 		const res = await llmopsClient.setApplicableFrameworks(project, frameworks);
 		return res.status === 'ok';
+	}
+
+	/**
+	 * Soumet un candidat à la base de connaissances LLMOps (Porte G4)
+	 */
+	async submitKbCandidate(candidate: KbCandidate): Promise<{ candidate_id: string; status: string }> {
+		return llmopsClient.submitCandidate(candidate);
+	}
+
+	/**
+	 * Récupère la liste des candidats de doctrine pour un engagement ou une source
+	 */
+	async listKbCandidates(filter: { source?: string; engagement?: string } = {}): Promise<KbCandidate[]> {
+		return llmopsClient.listCandidates(filter);
 	}
 
 	/**

@@ -17,6 +17,7 @@
 	import type { Option, Criterion, Decision } from '$lib/domain/options';
 	import type { MaturityComputationResult, MaturityBlocker } from '$lib/domain/maturityRules';
 	import type { Argument } from '$lib/domain/debate';
+	import CapitalizationPanel from './CapitalizationPanel.svelte';
 
 	let {
 		projectId = '',
@@ -179,24 +180,27 @@
 			</div>
 
 			<div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-xs">
-				<div class="p-3 rounded-lg bg-background border border-border/60">
-					<span class="text-muted-foreground block text-[11px] font-medium uppercase tracking-wider mb-1">Option Retenue</span>
-					<p class="font-semibold text-foreground text-sm">
-						{options.find((o: Option) => o.id === decision.retainedOptionId)?.title || decision.retainedOptionId}
+				<div class="p-3 rounded-lg bg-background/80 border border-border/60 space-y-1">
+					<span class="text-muted-foreground block text-[11px] font-medium uppercase tracking-wider">Option Retenue</span>
+					<strong class="text-foreground text-sm font-semibold block">
+						{options.find((o: Option) => o.id === decision?.retainedOptionId)?.title || decision.retainedOptionId}
+					</strong>
+					<p class="text-muted-foreground text-xs mt-1">
+						{options.find((o: Option) => o.id === decision?.retainedOptionId)?.summary || ''}
 					</p>
 				</div>
 
-				<div class="p-3 rounded-lg bg-background border border-border/60">
-					<span class="text-muted-foreground block text-[11px] font-medium uppercase tracking-wider mb-1">Degré de Réversibilité</span>
-					<span class="capitalize font-medium text-foreground">
-						{decision.reversibility === 'reversible' ? 'Réversible' : decision.reversibility === 'costly' ? 'Coûteuse' : 'Irréversible'}
-					</span>
+				<div class="p-3 rounded-lg bg-background/80 border border-border/60 space-y-1">
+					<span class="text-muted-foreground block text-[11px] font-medium uppercase tracking-wider">Réversibilité & Rationale</span>
+					<div class="flex items-center gap-2">
+						<span class="px-2 py-0.5 rounded-full font-mono text-[11px] font-semibold {decision.reversibility === 'reversible' ? 'bg-emerald-500/10 text-emerald-700' : decision.reversibility === 'costly' ? 'bg-amber-500/10 text-amber-700' : 'bg-rose-500/10 text-rose-700'}">
+							{decision.reversibility}
+						</span>
+					</div>
+					<p class="text-foreground text-xs mt-1 italic">
+						"{decision.rationale}"
+					</p>
 				</div>
-			</div>
-
-			<div class="p-3 rounded-lg bg-background border border-border/60 text-xs">
-				<span class="text-muted-foreground block text-[11px] font-medium uppercase tracking-wider mb-1">Motivation & Justification</span>
-				<p class="text-foreground whitespace-pre-line leading-relaxed">{decision.rationale}</p>
 			</div>
 
 			{#if decision.rejected && decision.rejected.length > 0}
@@ -216,6 +220,9 @@
 				</div>
 			{/if}
 		</div>
+
+		<!-- Capitalisation vers LLMOps KB (Porte G4) -->
+		<CapitalizationPanel {projectId} {subjectId} {decision} {options} />
 
 	<!-- Formulaire d'Arbitrage (actif si prêt ou pour préparation) -->
 	{:else}

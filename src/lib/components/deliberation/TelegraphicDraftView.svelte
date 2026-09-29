@@ -265,12 +265,11 @@
 
 	async function handleHarvestSubject() {
 		if (!activeSubject) return;
-		isHarvesting = true;
-		try {
-			await deliberationStore.harvestSubjectToKnowledgeBase(activeSubject.id);
-		} finally {
-			isHarvesting = false;
-		}
+		activeTab = 'arbitration';
+		deliberationStore.logNotification(
+			'La capitalisation s’effectue désormais via la Porte G4 dans l’onglet Arbitrage & Capitalisation.',
+			'info'
+		);
 	}
 
 	function formatMaturityLabel(level?: string) {
@@ -409,7 +408,7 @@
 				: 'text-muted-foreground hover:text-foreground'}"
 		>
 			<Gavel class="h-3.5 w-3.5 text-emerald-500" />
-			<span>4. Arbitrage G3 {#if matrixDecision}✅{:else if subjectMaturityResult?.readyForArbitration}⚡{/if}</span>
+			<span>4. Arbitrage G3 & Capitalisation G4 {#if matrixDecision}✅{:else if subjectMaturityResult?.readyForArbitration}⚡{/if}</span>
 		</button>
 	</div>
 

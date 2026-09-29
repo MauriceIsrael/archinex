@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { deliberationStore } from '$lib/stores/deliberationStore.svelte';
 	import type { MaturitySubject } from '$lib/domain/maturityBoard';
+	import { partitionSubjectsByParts, type SubjectPart } from '$lib/domain/subjectPartitioning';
 	import {
 		AlertCircle,
 		ArrowUpRight,
@@ -9,30 +10,46 @@
 		Layers,
 		Send,
 		Zap,
-		Filter
+		Filter,
+		FolderKanban,
+		BookmarkCheck
 	} from 'lucide-svelte';
 
 	type FilterType = 'all' | 'blocking' | 'todo' | 'decided';
 
 	let activeFilter = $state<FilterType>('all');
+	let selectedPartId = $state<string>('all');
 
-	const subjects = $derived(deliberationStore.sortedSubjects);
+	const allSubjects = $derived(deliberationStore.sortedSubjects);
 	const activeSubjectId = $derived(deliberationStore.activeSubjectId);
+
+	// Découpage automatique des sujets en Parties / Lots d'architecture
+	const parts = $derived(partitionSubjectsByParts(allSubjects));
+
+	const selectedPart = $derived.by(() => {
+		if (selectedPartId === 'all') return null;
+		return parts.find((p) => p.id === selectedPartId) || null;
+	});
+
+	const partSubjects = $derived.by(() => {
+		if (selectedPartId === 'all') return allSubjects;
+		return selectedPart ? selectedPart.subjects : allSubjects;
+	});
 
 	const filteredSubjects = $derived.by(() => {
 		switch (activeFilter) {
 			case 'blocking':
-				return subjects.filter((s) => s.blocking_count > 0);
+				return partSubjects.filter((s) => s.blocking_count > 0);
 			case 'todo':
-				return subjects.filter(
+				return partSubjects.filter(
 					(s) => s.level === 'L0_named' || s.level === 'L1_framed' || s.level === 'L2_decomposed'
 				);
 			case 'decided':
-				return subjects.filter(
+				return partSubjects.filter(
 					(s) => s.level === 'L3_decided' || s.level === 'L4_specified' || s.level === 'L5_archived'
 				);
 			default:
-				return subjects;
+				return partSubjects;
 		}
 	});
 
@@ -69,14 +86,78 @@
 </script>
 
 <div class="rounded-xl border bg-card shadow-xs overflow-hidden flex flex-col h-full">
-	<!-- Barre supérieure : Titre et filtres rapides -->
+	<!-- ─── 1. Barre de Découpage par Parties / Lots d'Architecture ────────── -->
+	{#if parts.length > 1}
+		<div class="px-3.5 py-2 bg-muted/40 border-b flex items-center gap-1.5 overflow-x-auto text-xs shrink-0">
+			<span class="text-[10px] font-bold text-muted-foreground uppercase tracking-wider shrink-0 mr-1 flex items-center gap-1">
+				<FolderKanban class="h-3.5 w-3.5 text-primary" />
+				Lots / Parties :
+			</span>
+			<button
+				type="button"
+				onclick={() => (selectedPartId = 'all')}
+				class="px-2.5 py-1 rounded-lg text-xs font-semibold transition-all whitespace-nowrap flex items-center gap-1.5 cursor-pointer {selectedPartId === 'all'
+					? 'bg-primary text-primary-foreground shadow-xs'
+					: 'bg-background hover:bg-muted text-muted-foreground hover:text-foreground border'}"
+			>
+				<span>Toutes ({allSubjects.length})</span>
+			</button>
+
+			{#each parts as part}
+				{@const isSelected = selectedPartId === part.id}
+				<button
+					type="button"
+					onclick={() => (selectedPartId = part.id)}
+					class="px-2.5 py-1 rounded-lg text-xs font-semibold transition-all whitespace-nowrap flex items-center gap-1.5 cursor-pointer {isSelected
+						? 'bg-primary text-primary-foreground shadow-xs ring-1 ring-primary'
+						: 'bg-background hover:bg-muted text-foreground border'}"
+					title="{part.name} ({part.sectionRange})"
+				>
+					<span class="font-mono text-[10px] opacity-80">{part.code}</span>
+					<span>{part.name.length > 24 ? part.name.slice(0, 24) + '...' : part.name}</span>
+					
+					<!-- Badge de complétion L3 du lot -->
+					<span class="px-1.5 py-0.2 rounded text-[10px] font-mono {part.metrics.maturityRate === 100
+						? 'bg-emerald-500/20 text-emerald-800 dark:text-emerald-200 font-bold'
+						: part.metrics.blockingCount > 0
+							? 'bg-destructive/20 text-destructive font-bold'
+							: 'bg-muted text-muted-foreground'}">
+						{part.metrics.maturityRate}%
+					</span>
+
+					{#if part.metrics.blockingCount > 0}
+						<span class="h-1.5 w-1.5 rounded-full bg-destructive animate-pulse" title="{part.metrics.blockingCount} bloquant(s)"></span>
+					{/if}
+				</button>
+			{/each}
+		</div>
+
+		<!-- Fiche d'information sur la Partie sélectionnée -->
+		{#if selectedPart}
+			<div class="px-3.5 py-2 bg-primary/5 border-b flex flex-wrap items-center justify-between gap-2 text-xs">
+				<div class="flex items-center gap-2">
+					<span class="font-bold text-foreground">{selectedPart.name}</span>
+					<span class="text-[11px] text-muted-foreground font-mono bg-background px-1.5 py-0.5 rounded border">
+						{selectedPart.sectionRange}
+					</span>
+					<span class="text-[11px] text-muted-foreground hidden sm:inline">· {selectedPart.description}</span>
+				</div>
+				<div class="flex items-center gap-3 text-[11px]">
+					<span>Référent : <strong class="text-foreground">{selectedPart.leadRole}</strong></span>
+					<span>Avancement : <strong class="text-primary font-mono">{selectedPart.metrics.decidedCount}/{selectedPart.metrics.totalCount} scellés ({selectedPart.metrics.maturityRate}%)</strong></span>
+				</div>
+			</div>
+		{/if}
+	{/if}
+
+	<!-- ─── 2. Barre de Titre et Filtres rapides ───────────────────────────── -->
 	<div class="p-3.5 border-b bg-muted/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
 		<div class="flex items-center gap-2">
 			<div class="p-1 rounded-md bg-primary/10 text-primary">
 				<Layers class="h-4 w-4" />
 			</div>
 			<h3 class="font-bold text-sm tracking-tight text-foreground">
-				Matrice d'Allocation d'Effort
+				Matrice d'Effort {selectedPart ? `· ${selectedPart.code}` : ''}
 			</h3>
 			<span class="rounded bg-primary/10 text-primary px-1.5 py-0.5 text-[11px] font-mono font-bold">
 				{filteredSubjects.length}
@@ -88,38 +169,38 @@
 			<button
 				type="button"
 				onclick={() => (activeFilter = 'all')}
-				class="px-2.5 py-1 rounded-md font-medium transition-colors whitespace-nowrap {activeFilter === 'all'
+				class="px-2.5 py-1 rounded-md font-medium transition-colors whitespace-nowrap cursor-pointer {activeFilter === 'all'
 					? 'bg-primary text-primary-foreground font-semibold shadow-2xs'
 					: 'bg-muted text-muted-foreground hover:text-foreground'}"
 			>
-				Tous ({subjects.length})
+				Tous ({partSubjects.length})
 			</button>
 			<button
 				type="button"
 				onclick={() => (activeFilter = 'blocking')}
-				class="px-2.5 py-1 rounded-md font-medium transition-colors whitespace-nowrap {activeFilter === 'blocking'
+				class="px-2.5 py-1 rounded-md font-medium transition-colors whitespace-nowrap cursor-pointer {activeFilter === 'blocking'
 					? 'bg-destructive text-destructive-foreground font-semibold shadow-2xs'
 					: 'bg-muted text-muted-foreground hover:text-foreground'}"
 			>
-				Bloquants ({subjects.filter((s) => s.blocking_count > 0).length})
+				Bloquants ({partSubjects.filter((s) => s.blocking_count > 0).length})
 			</button>
 			<button
 				type="button"
 				onclick={() => (activeFilter = 'todo')}
-				class="px-2.5 py-1 rounded-md font-medium transition-colors whitespace-nowrap {activeFilter === 'todo'
+				class="px-2.5 py-1 rounded-md font-medium transition-colors whitespace-nowrap cursor-pointer {activeFilter === 'todo'
 					? 'bg-amber-600 text-white font-semibold shadow-2xs'
 					: 'bg-muted text-muted-foreground hover:text-foreground'}"
 			>
-				À arbitrer ({subjects.filter((s) => s.level < 'L3').length})
+				À arbitrer ({partSubjects.filter((s) => s.level < 'L3').length})
 			</button>
 			<button
 				type="button"
 				onclick={() => (activeFilter = 'decided')}
-				class="px-2.5 py-1 rounded-md font-medium transition-colors whitespace-nowrap {activeFilter === 'decided'
+				class="px-2.5 py-1 rounded-md font-medium transition-colors whitespace-nowrap cursor-pointer {activeFilter === 'decided'
 					? 'bg-emerald-600 text-white font-semibold shadow-2xs'
 					: 'bg-muted text-muted-foreground hover:text-foreground'}"
 			>
-				Actés L3+ ({subjects.filter((s) => s.level >= 'L3').length})
+				Actés L3+ ({partSubjects.filter((s) => s.level >= 'L3').length})
 			</button>
 		</div>
 	</div>

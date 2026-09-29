@@ -37,6 +37,7 @@ export type ArchitectRole =
 	| 'lead_architect'
 	| 'infra_expert_architect'
 	| 'domain_architect'
+	| 'domain_expert'
 	| 'security_architect'
 	| 'data_architect';
 

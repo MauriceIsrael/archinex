@@ -22,11 +22,14 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 
 // ─── Configuration ────────────────────────────────────────────────────────────
 
+const IS_REMOTE_ENABLED = process.env.RUN_REMOTE_MCP_TESTS === 'true';
 const BASE_URL =
 	process.env.LLMOPS_BASE_URL ??
-	'https://llmops-mcp-server-344571265365.europe-west1.run.app';
+	(IS_REMOTE_ENABLED
+		? 'https://llmops-mcp-server-344571265365.europe-west1.run.app'
+		: 'http://127.0.0.1:8000');
 
-const TOKEN = process.env.LLMOPS_TOKEN ?? 'demo-public-2026-08';
+const TOKEN = process.env.LLMOPS_TOKEN ?? 'demo-local-sovereign-2026';
 const ENGAGEMENT = process.env.LLMOPS_ENGAGEMENT ?? 'nordwave-mcx-2027';
 const TIMEOUT_MS = 15_000;
 
@@ -186,7 +189,15 @@ let session: McpSession;
 
 // ─── Suite de tests ───────────────────────────────────────────────────────────
 
-describe('LLMOps MCP Server — Intégration Archinex', () => {
+let isServerLive = false;
+try {
+	const ping = await fetch(`${BASE_URL}/health`, { signal: AbortSignal.timeout(600) });
+	isServerLive = ping.ok;
+} catch {
+	isServerLive = false;
+}
+
+describe.skipIf(!isServerLive)('LLMOps MCP Server — Intégration Archinex', () => {
 	beforeAll(async () => {
 		session = new McpSession();
 		// openSse() est appelé dans le constructeur ; on attend qu'il soit prêt

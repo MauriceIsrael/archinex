@@ -31,15 +31,55 @@ export class LLMOpsClient {
   private timeoutMs: number;
 
   constructor(config: LLMOpsClientConfig = {}) {
-    this.baseUrl = (config.baseUrl || process.env.LLMOPS_BASE_URL || 'https://llmops-mcp-server-344571265365.europe-west1.run.app').replace(/\/+$/, '');
-    this.authToken = config.authToken || process.env.LLMOPS_AUTH_TOKEN || 'demo-public-2026-08';
+    // Par défaut, le client fonctionne STRICTEMENT en réseau local souverain (127.0.0.1:8000 ou mode hors-ligne scellé).
+    // Tout appel vers GCP Cloud Run ou un cloud externe est rigoureusement bloqué pour garantir l'étanchéité absolue des RFP.
+    this.baseUrl = (config.baseUrl || process.env.LLMOPS_BASE_URL || 'http://127.0.0.1:8000').replace(/\/+$/, '');
+    this.authToken = config.authToken || process.env.LLMOPS_AUTH_TOKEN || 'demo-local-sovereign-2026';
     this.defaultEngagement = config.defaultEngagement || process.env.LLMOPS_ENGAGEMENT || 'nordwave-mcx-2027';
-    this.timeoutMs = config.timeoutMs || 4000;
+    this.timeoutMs = config.timeoutMs || 1500;
   }
 
   /**
-   * Mappe les identifiants d'engagements locaux vers l'identifiant reconnu par le serveur distant GCP.
-   * L'instance GCP de démonstration est restreinte au périmètre 'nordwave-mcx-2027'.
+   * Vérifie si une URL appartient strictement au réseau local ou à la machine hôte.
+   * Tout domaine cloud externe (GCP, AWS, Azure, internet public) est bloqué par défaut.
+   */
+  isLocalNetworkUrl(urlStr: string): boolean {
+    try {
+      const parsed = new URL(urlStr);
+      const host = parsed.hostname.toLowerCase();
+      // Domaines cloud / externes formellement interdits
+      if (
+        host.includes('run.app') ||
+        host.includes('googleapis.com') ||
+        host.includes('amazonaws.com') ||
+        host.includes('openai.com') ||
+        host.includes('azure.com')
+      ) {
+        return false;
+      }
+
+      return (
+        host === 'localhost' ||
+        host === '127.0.0.1' ||
+        host === '::1' ||
+        host === '0.0.0.0' ||
+        host === 'raptor-nino' ||
+        !host.includes('.') || // Noms d'hôtes locaux intranet (ex: raptor-nino, nas, srv-local)
+        host.endsWith('.local') ||
+        host.endsWith('.internal') ||
+        host.endsWith('.lan') ||
+        host.endsWith('.home') ||
+        /^192\.168\./.test(host) ||
+        /^10\./.test(host) ||
+        /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(host)
+      );
+    } catch {
+      return false;
+    }
+  }
+
+  /**
+   * Mappe les identifiants d'engagements locaux vers l'identifiant reconnu par le serveur local.
    */
   resolveRemoteEngagement(engagement?: string): string {
     if (!engagement || engagement === 'cctp-mcx-nordwave' || engagement === 'eng_cctp_nordwave' || engagement === 'nordwave-mcx-2027') {
@@ -59,6 +99,11 @@ export class LLMOpsClient {
   }
 
   private async fetchWithTimeout(url: string, options: RequestInit = {}): Promise<Response> {
+    if (!this.isLocalNetworkUrl(url)) {
+      console.warn(`🔒 [Air-Gap Souverain] Blocage d'exfiltration : tentative de connexion vers un cloud externe (${url}) bloquée net. Les données du RFP restent confinées à votre réseau local.`);
+      throw new Error(`Air-Gap Security: External cloud access prohibited (${url}). Working in local network only.`);
+    }
+
     const controller = new AbortController();
     const timer = setTimeout(() => controller.abort(), this.timeoutMs);
     try {
@@ -92,10 +137,16 @@ export class LLMOpsClient {
     for (const filePath of candidates) {
       if (existsSync(filePath)) {
         try {
-          const raw = readFileSync(filePath, 'utf-8');
+          const raw = readFileSync(filePath, 'utf-8').replace(/^\uFEFF/, '');
           const parsed = JSON.parse(raw);
           if (parsed.health && parsed.board && parsed.statements) {
-            return parsed;
+            return {
+              engagement: parsed.engagement || this.defaultEngagement,
+              health: parsed.health,
+              board: parsed.board,
+              statements: parsed.statements,
+              conflicts: parsed.conflicts || []
+            };
           }
         } catch {
           // Continue to next candidate
@@ -189,7 +240,7 @@ export class LLMOpsClient {
 
     const fixturePath = resolve(process.cwd(), 'src/lib/fixtures/llmops-sealed-snapshot.json');
     if (existsSync(fixturePath)) {
-      const raw = readFileSync(fixturePath, 'utf-8');
+      const raw = readFileSync(fixturePath, 'utf-8').replace(/^\uFEFF/, '');
       return { data: JSON.parse(raw) as LLMOpsSnapshot, source: 'offline-fallback' };
     }
 
@@ -388,14 +439,15 @@ export class LLMOpsClient {
 
   /**
    * Synchronisation globale composite (Board + Statements + Conflicts + Health)
+   * Optimisée : Court-circuit immédiat en local si offline ou si engagement personnalisé
    */
   async syncEngagement(engagement?: string): Promise<LLMOpsSyncPayload> {
     const localEng = engagement || this.defaultEngagement;
     const remoteEng = this.resolveRemoteEngagement(localEng);
 
-    // Si l'engagement est un blueprint générique 100% local (ex: SUSE Telco Cloud),
-    // on sert directement le bundle local scellé pour garantir l'absence de fuite et de latence.
-    if (localEng === 'suse-telco-cloud-generic') {
+    // Si l'engagement est un blueprint générique 100% local ou un projet custom différent de nordwave-mcx-2027,
+    // on sert directement le bundle local scellé pour garantir 0ms de latence et aucune erreur 500 distante.
+    if (localEng === 'suse-telco-cloud-generic' || remoteEng !== 'nordwave-mcx-2027') {
       const bundle = this.loadOfflineBundle();
       return {
         source: 'offline-fallback',
@@ -412,8 +464,23 @@ export class LLMOpsClient {
       };
     }
 
-    const [healthRes, boardRes, statementsRes, conflictsRes] = await Promise.all([
-      this.getHealth(),
+    // Fast-fail health check : si Cloud Run est injoignable, on bascule immédiatement en local sans attendre
+    const healthRes = await this.getHealth();
+    if (healthRes.source !== 'live') {
+      const bundle = this.loadOfflineBundle();
+      return {
+        source: 'offline-fallback',
+        engagement: localEng,
+        syncedAt: new Date().toISOString(),
+        health: bundle.health,
+        board: bundle.board,
+        statements: bundle.statements,
+        conflicts: bundle.conflicts,
+        snapshotMeta: bundle.health.kb
+      };
+    }
+
+    const [boardRes, statementsRes, conflictsRes] = await Promise.all([
       this.getBoard(remoteEng),
       this.getStatements(remoteEng),
       this.getConflicts(remoteEng)

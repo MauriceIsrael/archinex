@@ -1,0 +1,12 @@
+.gcloudignore
+.git
+.gitignore
+node_modules/
+.svelte-kit/
+build/
+tests/
+.env
+.env.*
+! .env.example
+*.log
+*.db

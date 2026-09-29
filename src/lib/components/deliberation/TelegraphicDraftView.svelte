@@ -21,7 +21,9 @@
 		Lightbulb,
 		Sparkles,
 		Plus,
-		Compass
+		Compass,
+		Database,
+		RefreshCw
 	} from 'lucide-svelte';
 
 	type ViewTab = 'decision' | 'discussion' | 'draft';
@@ -87,6 +89,83 @@
 		}
 	}
 
+	let isEliciting = $state<boolean>(false);
+	let isHarvesting = $state<boolean>(false);
+
+	async function handleElicitDetails() {
+		if (!draft || !activeSubject) return;
+		isEliciting = true;
+
+		try {
+			const res = await fetch('/api/deliberation/elicit', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					subjectId: activeSubject.id,
+					subjectName: activeSubject.name,
+					sectionRef: draft.section_id,
+					currentLevel: activeSubject.level,
+					existingRetenu: draft.retenu,
+					existingHypotheses: draft.suppose,
+					existingConflicts: draft.conflit,
+					clausesText: activeSubject.name
+				})
+			});
+
+			if (!res.ok) {
+				const errData = await res.json().catch(() => ({}));
+				throw new Error(errData.message || `Erreur serveur (${res.status})`);
+			}
+
+			const data = await res.json();
+			if (data.elicitedDraft) {
+				// Enrichissement du draft
+				if (data.elicitedDraft.suppose && data.elicitedDraft.suppose.length > 0) {
+					draft.suppose = [...data.elicitedDraft.suppose];
+				}
+				if (data.elicitedDraft.conflit && data.elicitedDraft.conflit.length > 0) {
+					draft.conflit = [...data.elicitedDraft.conflit];
+				}
+				if (data.elicitedDraft.manque && data.elicitedDraft.manque.length > 0) {
+					draft.manque = [...data.elicitedDraft.manque];
+				}
+				if (data.elicitedDraft.variante_b) {
+					draft.variante_b = data.elicitedDraft.variante_b;
+				}
+
+				// Progression de maturité : passage en L2 (Décomposé / En débat)
+				if (activeSubject.level === 'L0_named' || activeSubject.level === 'L1_framed') {
+					deliberationStore.setSubjectLevel(activeSubject.id, 'L2_decomposed');
+				}
+
+				// Provocation dialectique injectée dans le chat d'experts
+				if (data.provocationMessage) {
+					deliberationStore.sendSubjectMessage(data.provocationMessage, activeSubject.id);
+				}
+
+				deliberationStore.logNotification(
+					`✨ Élicitation réussie (${data.modelUsed}) : sous-questions et hypothèses intégrées. Le débat d'experts est lancé !`,
+					'success'
+				);
+			}
+		} catch (err: unknown) {
+			const msg = err instanceof Error ? err.message : 'Échec de l\'élicitation';
+			deliberationStore.logNotification(msg, 'warning');
+		} finally {
+			isEliciting = false;
+		}
+	}
+
+	async function handleHarvestSubject() {
+		if (!activeSubject) return;
+		isHarvesting = true;
+		try {
+			await deliberationStore.harvestSubjectToKnowledgeBase(activeSubject.id);
+		} finally {
+			isHarvesting = false;
+		}
+	}
+
 	function formatMaturityLabel(level?: string) {
 		switch (level) {
 			case 'L0_named': return 'L0 · En émergence';
@@ -129,7 +208,45 @@
 		</div>
 
 		<!-- Actions Rapides -->
-		<div class="flex items-center gap-1.5 shrink-0">
+		<div class="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
+			{#if draft}
+				<!-- Bouton Élicitation Assistée par LLM Local Souverain -->
+				<button
+					type="button"
+					class="inline-flex items-center gap-1 rounded-lg bg-gradient-to-r from-primary to-primary/80 hover:opacity-95 text-primary-foreground px-2.5 py-1 text-xs font-semibold shadow-2xs transition-all cursor-pointer disabled:opacity-50"
+					onclick={handleElicitDetails}
+					disabled={isEliciting}
+					title="Éliciter les hypothèses (SUPPOSE), controverses (CONFLIT) et sous-questions (MANQUE) via raptor-nino"
+				>
+					{#if isEliciting}
+						<RefreshCw class="h-3.5 w-3.5 animate-spin" />
+						<span>Élicitation...</span>
+					{:else}
+						<Sparkles class="h-3.5 w-3.5 text-amber-300" />
+						<span>Éliciter (raptor-nino)</span>
+					{/if}
+				</button>
+
+				<!-- Bouton Récolter (Harvesting) dans LLMOps -->
+				{#if draft.retenu.length > 0}
+					<button
+						type="button"
+						class="inline-flex items-center gap-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white px-2.5 py-1 text-xs font-semibold shadow-2xs transition-colors shrink-0 cursor-pointer disabled:opacity-50"
+						onclick={handleHarvestSubject}
+						disabled={isHarvesting}
+						title="Récolter les décisions validées de ce sujet dans le Patrimoine Commun (LLMOps)"
+					>
+						{#if isHarvesting}
+							<RefreshCw class="h-3.5 w-3.5 animate-spin" />
+							<span>Récolte...</span>
+						{:else}
+							<Database class="h-3.5 w-3.5 text-indigo-200" />
+							<span>Récolter dans LLMOps</span>
+						{/if}
+					</button>
+				{/if}
+			{/if}
+
 			<button
 				type="button"
 				class="inline-flex items-center gap-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 py-1 text-xs font-semibold shadow-2xs transition-colors shrink-0"

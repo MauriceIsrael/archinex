@@ -8,6 +8,8 @@
 	import { getApplicableDoctrineRules } from '$lib/domain/dialectic';
 	import AddContributorDocDialog from './AddContributorDocDialog.svelte';
 	import RfpShredderDialog from './RfpShredderDialog.svelte';
+	import RfpConfrontationDialog from './RfpConfrontationDialog.svelte';
+	import type { UpstreamDocInput, InitialSubjectInput } from '$lib/domain/engagements';
 	import {
 		BookOpen,
 		Building2,
@@ -36,6 +38,38 @@
 	let filterByActiveSubject = $state(false);
 	let isAddDialogOpen = $state(false);
 	let isShredDialogOpen = $state(false);
+	let isConfrontDialogOpen = $state(false);
+
+	function handleRfpImportedInCorpus(result: {
+		document: UpstreamDocInput;
+		initialSubjects: InitialSubjectInput[];
+	}) {
+		deliberationStore.addContributorDocument({
+			id: result.document.id,
+			title: result.document.title,
+			origin: 'client',
+			category: result.document.category || 'cctp',
+			categoryLabel: result.document.categoryLabel || 'CCTP Contractuel',
+			sourceOrAuthor: result.document.sourceOrAuthor,
+			version: result.document.version || 'v1.0',
+			summary: result.document.summary,
+			relatedSubjectIds: [deliberationStore.activeSubjectId],
+			keyClauses: (result.document.clauses || []).map((c, idx) => ({
+				id: `clause-${Date.now()}-${idx + 1}`,
+				clauseRef: c.clauseRef,
+				title: c.title,
+				text: c.text,
+				criticality: c.criticality,
+				impactSummary: c.impactSummary
+			}))
+		});
+
+		if (result.initialSubjects && result.initialSubjects.length > 0) {
+			for (const subj of result.initialSubjects) {
+				deliberationStore.addMaturitySubject(subj);
+			}
+		}
+	}
 
 	const activeDoc = $derived(deliberationStore.activeDocument);
 	const activeSubject = $derived(deliberationStore.activeSubject);
@@ -92,6 +126,16 @@
 
 			<!-- Actions Rapides -->
 			<div class="flex items-center gap-2">
+				<button
+					type="button"
+					onclick={() => (isConfrontDialogOpen = true)}
+					class="inline-flex items-center gap-1.5 rounded-lg border bg-purple-500/10 hover:bg-purple-500/20 text-purple-700 dark:text-purple-300 border-purple-500/30 px-3 py-1.5 text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+					title="Dépouiller et confronter un RFP aux doctrines et standards du patrimoine"
+				>
+					<BrainCircuit class="h-3.5 w-3.5" />
+					<span>Confronter un RFP</span>
+				</button>
+
 				<button
 					type="button"
 					onclick={() => (isShredDialogOpen = true)}
@@ -664,4 +708,11 @@
 
 <!-- Boîte de dialogue de dépouillement CCTP via LLMOps -->
 <RfpShredderDialog bind:open={isShredDialogOpen} />
+
+<!-- Boîte de dialogue de confrontation RFP au patrimoine commun -->
+<RfpConfrontationDialog
+	bind:open={isConfrontDialogOpen}
+	onclose={() => (isConfrontDialogOpen = false)}
+	onImported={handleRfpImportedInCorpus}
+/>
 

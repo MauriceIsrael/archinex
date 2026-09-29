@@ -21,7 +21,7 @@ Ce guide permet de déployer Archinex sur votre compte GCP pour pouvoir tester, 
 
 ---
 
-## 2. Déploiement en une seule commande
+## 2. Déploiement Cloud Run avec connexion LLMOps
 
 Depuis la racine du projet `archinex`, lancez :
 
@@ -33,15 +33,13 @@ gcloud run deploy archinex \
   --port 8080 \
   --memory 1Gi \
   --cpu 1 \
-  --set-env-vars NODE_ENV=production,JWT_SECRET="archinex-remote-validation-key-$(openssl rand -hex 16 2>/dev/null || echo secret)"
+  --set-env-vars NODE_ENV=production,DATABASE_URL="file:/app/prisma/dev.db",JWT_SECRET="archinex-remote-gcp-validation-secret-key-2026",LLMOPS_BASE_URL="https://llmops-mcp-server-344571265365.europe-west1.run.app",LLMOPS_AUTH_TOKEN="demo-public-2026-08",LLMOPS_ENGAGEMENT="nordwave-mcx-2027"
 ```
 
-### Ce qui se passe automatiquement :
-1. Google Cloud Build envoie les sources et construit l'image Docker multi-stage via `Dockerfile`.
-2. L'image est stockée dans Artifact Registry.
-3. Le conteneur est instancié sur Cloud Run.
-4. Au démarrage, `docker-entrypoint.sh` initialise le schéma SQLite Prisma et applique le seed de démarrage.
-5. Une URL publique HTTPS sécurisée vous est retournée (ex: `https://archinex-xxxxxx-ew.a.run.app`).
+### Instance active en production :
+- **URL Archinex** : `https://archinex-344571265365.europe-west1.run.app`
+- **Serveur LLMOps connecté** : `https://llmops-mcp-server-344571265365.europe-west1.run.app` (Région `europe-west1`)
+- **Vérification de synchronisation en direct** : `GET https://archinex-344571265365.europe-west1.run.app/api/llmops?action=sync` (statut : `live`)
 
 ---
 

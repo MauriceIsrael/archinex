@@ -22,7 +22,7 @@ FROM node:22-alpine AS runner
 
 WORKDIR /app
 
-RUN apk add --no-cache dumb-init
+RUN apk add --no-cache dumb-init libstdc++
 
 ENV NODE_ENV=production
 ENV PORT=8080

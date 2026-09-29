@@ -861,6 +861,85 @@ class DeliberationStore {
 		);
 	}
 
+	/**
+	 * Ajoute un nouveau sujet de délibération au tableau de maturité de l'espace actif
+	 */
+	addMaturitySubject(input: {
+		sectionRef?: string;
+		name: string;
+		waitingForRole?: ArchitectRole;
+		effort?: 'S' | 'M' | 'L' | 'XL';
+		initialRetenu?: string[];
+		initialHypothesis?: string;
+		initialConflict?: string;
+		initialQuestion?: string;
+	}): MaturitySubject {
+		const newId = `sub_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+		const sectionRef = input.sectionRef || `§${this.subjects.length + 1}.0`;
+		const role = input.waitingForRole || 'lead_architect';
+
+		const newSubject: MaturitySubject = {
+			id: newId,
+			section_ref: sectionRef,
+			name: input.name,
+			level: 'L0_named',
+			blocking_count: 1,
+			unlocks_count: 2,
+			waiting_for_role: role,
+			relative_effort: input.effort || 'M',
+			last_transition_date: new Date().toISOString(),
+			stall_days: 0,
+			is_stalled: false,
+			dependent_subject_ids: []
+		};
+
+		this.subjects.push(newSubject);
+
+		// Initialiser le brouillon télégraphique associé
+		this.drafts[newId] = {
+			section_id: sectionRef,
+			subject: input.name,
+			maturity: 'L0_named',
+			is_provisional: true,
+			retenu: input.initialRetenu && input.initialRetenu.length > 0 ? input.initialRetenu : [`Cadrage initial pour ${input.name}`],
+			suppose: input.initialHypothesis
+				? [
+						{
+							text: input.initialHypothesis,
+							consequence: `Nécessite instruction et validation formelle`,
+							cost_hint: `Effort ${input.effort || 'M'}`
+						}
+					]
+				: [],
+			conflit: input.initialConflict
+				? [
+						{
+							text: input.initialConflict,
+							opposing_reference: 'RFP Client vs Doctrines du Patrimoine Commun',
+							requires_arbitration: true
+						}
+					]
+				: [],
+			manque: input.initialQuestion
+				? [
+						{
+							id: `Q-${newId}`,
+							question: input.initialQuestion,
+							assigned_role: role
+						}
+					]
+				: []
+		};
+
+		// Synchroniser avec l'engagement actif et persister
+		this.activeEngagement.subjects = $state.snapshot(this.subjects);
+		this.activeEngagement.drafts = $state.snapshot(this.drafts);
+		this.persistCustomState();
+
+		this.logNotification(`Nouveau sujet ajouté au tableau de maturité : "${input.name}" (${sectionRef})`, 'success');
+		return newSubject;
+	}
+
 	linkDocumentToSubject(docId: string, subjectId: string) {
 		this.corpusDocuments = this.corpusDocuments.map((doc) => {
 			if (doc.id === docId && !doc.relatedSubjectIds.includes(subjectId)) {
@@ -1397,6 +1476,101 @@ class DeliberationStore {
 	}
 
 	/**
+	 * Récolte (Harvesting) : Transforme une décision d'architecture validée
+	 * en une règle doctrinale permanente et la transmet au Knowledge Hub LLMOps.
+	 * Idéal pour capitaliser sur un premier projet quand LLMOps est initialement vierge.
+	 */
+	async harvestSubjectToKnowledgeBase(subjectId?: string): Promise<{ success: boolean; ruleId?: string; message: string }> {
+		const targetId = subjectId || this.activeSubjectId;
+		const subj = this.subjects.find((s) => s.id === targetId);
+		const draft = this.drafts[targetId];
+
+		if (!subj || !draft) {
+			return { success: false, message: 'Sujet ou dossier de délibération introuvable.' };
+		}
+
+		if (draft.retenu.length === 0) {
+			return {
+				success: false,
+				message: 'Ce sujet ne contient aucun élément acté dans "RETENU". Veuillez valider au moins un choix technique avant de récolter.'
+			};
+		}
+
+		const ruleId = `RULE-${subj.section_ref.replace(/[^a-zA-Z0-9]/g, '')}-${Date.now().toString(36).toUpperCase()}`;
+		const title = `Standard Doctrinal : ${subj.name}`;
+		const description = draft.retenu.join(' ; ');
+		const rationale = draft.conflit.length > 0
+			? `Arbitrage de la controverse : ${draft.conflit.map((c) => c.text).join(' | ')}`
+			: `Capitalisation de la décision ${subj.section_ref} (${subj.name})`;
+
+		// 1. Ajouter à candidateRules pour visibilité dans le banner
+		const newRule: CandidateRule = {
+			id: ruleId,
+			title,
+			description,
+			triggerContext: rationale,
+			sparqlQuery: `# Règle capitalisée depuis le sujet ${subj.section_ref}\nSELECT ?s WHERE { ?s a :System ; :implements "${subj.name}" }`,
+			antecedents: [subj.section_ref],
+			confidenceScore: 0.95,
+			status: 'approved',
+			suggestedBy: 'Maurice Israel (Lead Architect - Récolte)',
+			suggestedAt: new Date().toISOString()
+		};
+		this.candidateRules = [newRule, ...this.candidateRules];
+
+		// 2. Intégrer au Patrimoine Commun local (commonKnowledgeBase)
+		const docRef = `DOC-KB-HARVEST-${ruleId}`;
+		if (!this.commonKnowledgeBase.some((d) => d.id === docRef)) {
+			this.commonKnowledgeBase.push({
+				id: docRef,
+				title,
+				origin: 'contributor_external',
+				category: 'standard',
+				categoryLabel: 'Capitalisation de Projet (Harvested)',
+				sourceOrAuthor: 'M. Israel (Lead Architect)',
+				contributorRole: 'lead_architect',
+				version: '1.0',
+				addedDate: new Date().toISOString(),
+				lastUpdated: new Date().toISOString(),
+				extractedClausesCount: draft.retenu.length,
+				summary: description,
+				keyIdeas: [title, rationale],
+				keyClauses: draft.retenu.map((r, idx) => ({
+					id: `CLS-HARVEST-${idx + 1}`,
+					clauseRef: `${subj.section_ref}.${idx + 1}`,
+					title: `Décision Validée ${idx + 1}`,
+					text: r,
+					criticality: 'bloquant',
+					impactSummary: 'Capitalisation issue de la délibération'
+				})),
+				relatedSubjectIds: [targetId]
+			});
+		}
+
+		// 3. Transmission au Knowledge Hub LLMOps local souverain
+		try {
+			await fetch('/api/llmops?action=suggest', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					title,
+					rationale,
+					suggestedChange: `### ${title}\n\n${description}\n\n*Source : Sujet ${subj.section_ref} (${this.activeEngagement.title})*`,
+					author: 'M. Israel (Lead Architect)',
+					sourceEngagement: this.activeEngagementId
+				})
+			});
+		} catch {
+			// Enregistré en local
+		}
+
+		this.persistCustomState();
+		const msg = `🌾 Décision récoltée avec succès dans le Patrimoine Commun (LLMOps) sous la référence [${ruleId}].`;
+		this.logNotification(msg, 'success');
+		return { success: true, ruleId, message: msg };
+	}
+
+	/**
 	 * Rejet d'une règle candidate induite.
 	 */
 	rejectCandidateRule(ruleId: string): { success: boolean; message: string } {
@@ -1599,7 +1773,23 @@ class DeliberationStore {
 		}
 	}
 
-	private logNotification(message: string, type: 'info' | 'success' | 'warning' = 'info') {
+	/**
+	 * Change le niveau de maturité d'un sujet (ex: passage à L2_decomposed lors de l'élicitation)
+	 */
+	setSubjectLevel(subjectId: string, level: MaturityLevel) {
+		const subj = this.subjects.find((s) => s.id === subjectId);
+		if (subj) {
+			subj.level = level;
+			subj.last_transition_date = new Date().toISOString();
+			const draft = this.drafts[subjectId];
+			if (draft) {
+				draft.maturity = level;
+			}
+			this.persistCustomState();
+		}
+	}
+
+	logNotification(message: string, type: 'info' | 'success' | 'warning' = 'info') {
 		this.notifications = [
 			{
 				id: Math.random().toString(36).substring(2, 9),

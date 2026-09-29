@@ -12,6 +12,7 @@
 	} from '$lib/domain/engagements';
 	import type { ArchitectRole } from '$lib/types/epistemic';
 	import InviteExpertDialog from '$lib/components/deliberation/InviteExpertDialog.svelte';
+	import RfpConfrontationDialog from '$lib/components/deliberation/RfpConfrontationDialog.svelte';
 	import {
 		FolderPlus,
 		Sparkles,
@@ -27,13 +28,25 @@
 		UserPlus,
 		Layers,
 		Check,
-		FileText
+		FileText,
+		BrainCircuit
 	} from 'lucide-svelte';
 
 	let isInviteOpen = $state(false);
+	let isRfpImporterOpen = $state(false);
 
 	type Step = 1 | 2 | 3 | 4 | 5;
 	let currentStep = $state<Step>(1);
+
+	function handleRfpImported(result: {
+		document: UpstreamDocInput;
+		initialSubjects: InitialSubjectInput[];
+	}) {
+		upstreamDocs = [...upstreamDocs, result.document];
+		if (result.initialSubjects && result.initialSubjects.length > 0) {
+			initialSubjects = [...initialSubjects, ...result.initialSubjects];
+		}
+	}
 
 	// Étape 1 : Cadrage
 	let title = $state('');
@@ -585,16 +598,26 @@
 
 				<!-- Documents Amonts Spécifiques -->
 				<div class="space-y-3">
-					<div class="flex items-center justify-between">
+					<div class="flex items-center justify-between gap-3">
 						<h3 class="text-sm font-bold text-foreground">Documents Amonts Fournis pour ce Projet</h3>
-						<button
-							type="button"
-							onclick={addEmptyUpstreamDoc}
-							class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border bg-primary/10 text-primary border-primary/25 hover:bg-primary/20 font-semibold"
-						>
-							<Plus class="h-3.5 w-3.5" />
-							<span>Ajouter un document</span>
-						</button>
+						<div class="flex items-center gap-2">
+							<button
+								type="button"
+								onclick={() => (isRfpImporterOpen = true)}
+								class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/20 font-bold transition-colors cursor-pointer"
+							>
+								<BrainCircuit class="h-3.5 w-3.5" />
+								<span>Importer & Confronter un RFP</span>
+							</button>
+							<button
+								type="button"
+								onclick={addEmptyUpstreamDoc}
+								class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border bg-primary/10 text-primary border-primary/25 hover:bg-primary/20 font-semibold cursor-pointer"
+							>
+								<Plus class="h-3.5 w-3.5" />
+								<span>Ajouter manuellement</span>
+							</button>
+						</div>
 					</div>
 
 					<div class="space-y-3">
@@ -858,4 +881,10 @@
 			}
 		];
 	}}
+/>
+
+<RfpConfrontationDialog
+	bind:open={isRfpImporterOpen}
+	onclose={() => (isRfpImporterOpen = false)}
+	onImported={handleRfpImported}
 />

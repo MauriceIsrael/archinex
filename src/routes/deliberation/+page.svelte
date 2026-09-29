@@ -18,8 +18,12 @@
 	let mobileTab = $state<MobileTab>('board');
 	let isDecisionGuideOpen = $state<boolean>(false);
 
-	onMount(async () => {
-		await deliberationStore.syncWithLLMOps();
+	onMount(() => {
+		// Synchronisation non-bloquante en arrière-plan (Stale-While-Revalidate) :
+		// Les sujets et la matrice s'affichent immédiatement sans attendre le réseau externe
+		deliberationStore.syncWithLLMOps().catch((err) => {
+			console.warn('[Deliberation] Synchro LLMOps différée en tâche de fond :', err);
+		});
 	});
 </script>
 

@@ -58,6 +58,10 @@ async function main() {
     ]
   });
 
+  // 4. Seed Engagements and Corpus Documents
+  const { seedEngagementsIfEmpty } = await import('../src/lib/server/engagementsDb');
+  await seedEngagementsIfEmpty();
+
   console.log('✅ Seeding complete.');
 }
 

@@ -287,14 +287,14 @@ class DeliberationStore {
 			this.dialogueMessages = current.dialogueMessages || [];
 		}
 	}
+	subjectVersions = $state<Record<string, number>>({});
 
 	/**
-	 * Persiste les espaces de travail et le patrimoine documentaire dans localStorage et Prisma (SQLite)
+	 * Persiste l'état de l'espace de travail sur le serveur centralisé
 	 */
 	persistCustomState() {
 		if (typeof window === 'undefined') return;
 		try {
-
 			// Persistance asynchrone centralisée dans Prisma SQLite
 			if (window.fetch) {
 				const activeProfile = this.activeEngagement;
@@ -307,15 +307,62 @@ class DeliberationStore {
 				}
 			}
 		} catch (err) {
-			console.warn('[Archinex] Échec de la persistance locale:', err);
+			console.warn('[Archinex] Échec de la persistance serveur:', err);
 		}
 	}
 
 	/**
-	 * Charge les espaces de travail et le patrimoine documentaire depuis localStorage
+	 * Charge les espaces de travail depuis le serveur centralisé
 	 */
 	loadPersistedState() {
-		// Persistance assurée par le serveur (/api/engagements)
+		// Persistance assurée par le serveur (/api/engagements et /api/projects)
+	}
+
+	/**
+	 * Synchronise un sujet avec l'API normalisée /api/projects/[id]/subjects/[id]
+	 * Gère la concurrence optimiste et notifie en cas de conflit 409
+	 */
+	async syncSubjectToServer(
+		subjectId: string,
+		updates: Partial<MaturitySubject & { deliberationStatus?: string }>
+	): Promise<boolean> {
+		if (typeof window === 'undefined' || !this.activeEngagementId) return true;
+
+		const expectedVersion = this.subjectVersions[subjectId] || 1;
+		try {
+			const res = await fetch(`/api/projects/${this.activeEngagementId}/subjects/${subjectId}`, {
+				method: 'PATCH',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					expectedVersion,
+					maturityLevel: updates.level,
+					deliberationStatus: updates.deliberationStatus,
+					name: updates.name,
+					waitingForRole: updates.waiting_for_role,
+					relativeEffort: updates.relative_effort
+				})
+			});
+
+			if (res.status === 409) {
+				const conflictData = await res.json().catch(() => ({}));
+				this.logNotification(
+					`⚠️ Conflit de concurrence sur le sujet ${subjectId} : version serveur plus récente (${conflictData.currentVersion || 'inconnue'}). Veuillez recharger.`,
+					'warning'
+				);
+				return false;
+			}
+
+			if (res.ok) {
+				const data = await res.json();
+				if (data.subject?.version) {
+					this.subjectVersions[subjectId] = data.subject.version;
+				}
+				return true;
+			}
+		} catch (err) {
+			console.warn(`[Archinex] Échec sync sujet ${subjectId} vers API serveur:`, err);
+		}
+		return true;
 	}
 
 	/**
@@ -945,6 +992,15 @@ class DeliberationStore {
 		this.drafts = result.updatedDrafts;
 
 		this.logNotification(result.summaryMessage, 'warning');
+
+		if (typeof window !== 'undefined' && this.activeEngagementId) {
+			fetch(`/api/projects/${this.activeEngagementId}/statements/${statementId}/retract`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ reason })
+			}).catch((err) => console.warn('[Archinex] Erreur sync rétractation serveur:', err));
+		}
+
 		return result;
 	}
 

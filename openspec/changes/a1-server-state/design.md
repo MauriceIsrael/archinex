@@ -1,97 +1,14 @@
-// This is your Prisma schema file,
-// learn more about it in the docs: https://pris.ly/d/prisma-schema
+# Conception Technique A1 — État serveur partagé
 
-generator client {
-  provider = "prisma-client-js"
-}
+## 1. Choix d'Architecture de Stockage & Compatibilité
+- **Dualité SQLite (Dev) / PostgreSQL (Prod)** : Le schéma Prisma n'utilise aucune fonctionnalité propriétaire d'un SGBD spécifique. Les tableaux et objets complexes sont sérialisés en chaînes JSON standardisées (`String`).
+- **Transition `Engagement` vers `Project`** :
+  - Création du modèle `Project` mappé sur la table `projects`.
+  - La table `engagements` reste présente et lisible pour assurer la non-régression immédiate, puis sera dépréciée au profit des tables relationnelles.
 
-datasource db {
-  provider = "sqlite"
-  url      = env("DATABASE_URL")
-}
+## 2. Modèles Prisma Normalisés
 
-// ── Authentication & Users ──────────────────────────────────────────────────
-
-model User {
-  id            String    @id @default(cuid())
-  name          String
-  email         String    @unique
-  passwordHash  String
-  role          String    @default("user") // Default base role
-  
-  // ABAC Attributes (JSON for flexibility)
-  // Store things like: { "clearance": 1, "department": "R&D", "tags": ["beta"] }
-  attributes    String    @default("{}") 
-  
-  createdAt     DateTime  @default(now())
-  updatedAt     DateTime  @updatedAt
-
-  @@map("users")
-}
-
-// ── Casbin Authorization (Persistence) ──────────────────────────────────────
-
-model CasbinRule {
-  id    Int     @id @default(autoincrement())
-  ptype String
-  v0    String?
-  v1    String?
-  v2    String?
-  v3    String?
-  v4    String?
-  v5    String?
-
-  @@map("casbin_rule")
-}
-
-// ── Resource Management (Tagging) ───────────────────────────────────────────
-
-model Resource {
-  id          String   @id @default(cuid())
-  type        String   // e.g. "api:demo", "ui:settings"
-  identifier  String   // e.g. "item_123"
-  
-  // Dynamic tags/labels added by users
-  tags        String   @default("[]") // JSON array of strings
-  
-  ownerId     String?
-  
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
-
-  @@index([type, identifier])
-  @@map("resources")
-}
-
-// ── Engagements & Projets d'Architecture ────────────────────────────────────
-
-model Engagement {
-  id                String   @id
-  title             String
-  shortName         String
-  type              String   // generic_blueprint, project_rfp, audit_resilience, poc_migration
-  badge             String
-  description       String
-  defaultSubjectId  String?
-  defaultDocId      String?
-  status            String   @default("active") // active, archived
-  
-  // JSON serialized fields
-  strategy          String   @default("{}")   // ProjectStrategy
-  participants      String   @default("[]")   // ProjectParticipant[]
-  subjects          String   @default("[]")   // MaturitySubject[]
-  drafts            String   @default("{}")   // Record<string, TelegraphicDraft>
-  statements        String   @default("[]")   // Statement[]
-  dialogueMessages  String   @default("[]")   // DialogueMessage[]
-  
-  createdAt         DateTime @default(now())
-  updatedAt         DateTime @updatedAt
-
-  @@map("engagements")
-}
-
-// ── Projets Normalisés & Entités Métier (Lot A1) ────────────────────────────
-
+```prisma
 model Project {
   id          String   @id
   title       String
@@ -256,55 +173,51 @@ model ProjectFramework {
   @@unique([projectId, framework])
   @@map("project_frameworks")
 }
+```
 
-// ── Patrimoine Commun de Connaissances & Documents ─────────────────────────
-
-model CorpusDocument {
-  id                    String   @id
-  title                 String
-  origin                String   // client, contributor_external
-  category              String   // cctp, standard, regulation, etc.
-  categoryLabel         String
-  sourceOrAuthor        String
-  contributorRole       String?
-  version               String   @default("v1.0")
-  pageCount             Int?     @default(0)
-  extractedClausesCount Int      @default(0)
-  summary               String
+## 3. Mécanisme de Verrouillage Optimiste & Gestion de Concurrence
+Chaque requête de mise à jour (`PATCH`, `DELETE`) envoie `expectedVersion`.
+Exemple sur `Subject` :
+```typescript
+const updated = await prisma.$transaction(async (tx) => {
+  const current = await tx.subject.findUnique({ where: { id: subjectId } });
+  if (!current) throw new NotFoundError();
+  if (current.version !== expectedVersion) {
+    throw new ConflictError('Version mismatch', current);
+  }
   
-  // JSON serialized fields
-  relatedSubjectIds     String   @default("[]")
-  keyIdeas              String   @default("[]")
-  inducedRules          String   @default("[]")
-  keyClauses            String   @default("[]")
-  engagementIds         String   @default("[]")
-  
-  isGlobalStandard      Boolean  @default(false)
-  addedDate             DateTime @default(now())
-  lastUpdated           DateTime @updatedAt
+  const next = await tx.subject.update({
+    where: { id: subjectId },
+    data: {
+      ...updates,
+      version: current.version + 1
+    }
+  });
 
-  @@map("corpus_documents")
-}
+  await tx.domainEvent.create({
+    data: {
+      projectId: current.projectId,
+      entityType: 'subject',
+      entityId: subjectId,
+      type: 'SUBJECT_UPDATED',
+      payload: JSON.stringify(updates),
+      actorId,
+      actorRole,
+      productionMode
+    }
+  });
 
-// ── Invitations d'Experts ───────────────────────────────────────────────────
+  return next;
+});
+```
 
-model Invitation {
-  id          String   @id
-  email       String
-  name        String?
-  role        String   @default("user")
-  expertRole  String   @default("infra_expert_architect") @map("expert_role")
-  projectId   String?  @map("project_id")
-  projectName String?  @map("project_name")
-  invitedBy   String?  @map("invited_by")
-  message     String?
-  token       String   @unique
-  status      String   @default("pending")
-  expiresAt   String   @map("expires_at")
-  createdAt   String   @map("created_at")
-  updatedAt   String   @map("updated_at")
+En cas de conflit (`409 Conflict`), le serveur renvoie l'entité courante avec sa nouvelle version pour que l'IHM propose la fusion ou le rechargement.
 
-  @@index([token])
-  @@index([email])
-  @@map("invitations")
-}
+## 4. Rejeu d'État par Événements (`replaySubject`)
+Une fonction pure `replaySubject(initialState, events)` permet de reconstituer l'état exact d'un sujet à un instant $t$ à partir de son journal de bord `DomainEvent`, garantissant l'auditabilité et la reproductibilité des décisions d'architecture.
+
+## 5. Rétractation Causalement Clôturée en Base (Invariant VI)
+Lorsqu'un énoncé $S_1$ est invalidé (`status = 'retracted'`), la fonction serveur `retractStatementCascade(projectId, statementId)` :
+1. Recherche récursivement tous les énoncés dépendants dans `StatementAntecedent`.
+2. Dégrade tous les descendants au statut `assumed` ou `retracted` selon la criticité.
+3. Écrit un événement `STATEMENT_RETRACTED` pour chacun dans la même transaction.

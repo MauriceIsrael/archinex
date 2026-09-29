@@ -1,16 +1,17 @@
 import { describe, it, expect, beforeAll } from 'vitest';
 import {
-	seedEngagementsIfEmpty,
 	getAllEngagementsFromDb,
 	getEngagementByIdFromDb,
 	saveEngagementToDb,
 	updateEngagementInDb,
 	getAllCorpusDocumentsFromDb
 } from '$lib/server/engagementsDb';
+import { seedProject } from '../../scripts/seed';
 
 describe('Prisma Engagements & Knowledge Base Persistence Integration', () => {
 	beforeAll(async () => {
-		await seedEngagementsIfEmpty();
+		await seedProject('examples/suse-telco-cloud');
+		await seedProject('examples/cctp-rfp');
 	});
 
 	it('1. Initialise et charge les engagements depuis Prisma SQLite', async () => {

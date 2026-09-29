@@ -6,9 +6,9 @@ import {
 	SUSE_TELCO_STATEMENTS,
 	SUSE_TELCO_CORPUS,
 	SUSE_TELCO_DIALOGUE_MESSAGES,
-	createDefaultEngagements
-} from '$lib/domain/engagements';
-import { INITIAL_CORPUS_DOCUMENTS } from '$lib/domain/corpus';
+	createTestDefaultEngagements as createDefaultEngagements,
+	INITIAL_CORPUS_DOCUMENTS
+} from '../fixtures/sample-data';
 
 describe('Global Overview Dashboard Analytics Contract', () => {
 	const initialCctpSubjects = [

@@ -1,0 +1,58 @@
+{
+  "id": "DOC-SUSE-ARCH-01",
+  "title": "SUSE Telco Cloud · Architecture de Référence & Matrice de Compatibilité",
+  "origin": "client",
+  "category": "standard",
+  "categoryLabel": "Architecture de Référence",
+  "sourceOrAuthor": "SUSE Telco Engineering Team",
+  "version": "v2.4",
+  "pageCount": 86,
+  "extractedClausesCount": 2,
+  "relatedSubjectIds": [
+    "suse_cni_sriov",
+    "suse_rt_kernel",
+    "suse_rke2_hardened"
+  ],
+  "summary": "Spécifications officielles pour le déploiement de CNF 5G critiques sur RKE2, SLERT et Rancher.",
+  "keyIdeas": [
+    "Socle Kubernetes souverain et temps réel optimisé pour charges de travail télécoms haut débit.",
+    "Séparation stricte du trafic OAM de gestion et du trafic utilisateur UPF sans contention.",
+    "Déterminisme temporel absolu (gigue sub-milliseconde) via le noyau SLERT et l'isolation des cœurs."
+  ],
+  "inducedRules": [
+    {
+      "id": "RULE-SUSE-01",
+      "title": "Double Adduction Réseau Multus CNI Obligatoire",
+      "type": "obligation",
+      "description": "Les pods CNF 5G doivent posséder une interface OAM et des VF SR-IOV dédiées au trafic données.",
+      "targetSubjectId": "suse_cni_sriov"
+    },
+    {
+      "id": "RULE-SUSE-02",
+      "title": "Exécution sur Noyau Temps Réel SLERT",
+      "type": "obligation",
+      "description": "Les nœuds hébergeant les fonctions UPF et vDU doivent être configurés avec isolcpus et nohz_full.",
+      "targetSubjectId": "suse_rt_kernel"
+    }
+  ],
+  "keyClauses": [
+    {
+      "id": "CLAUSE-SUSE-01",
+      "clauseRef": "§3.2.1",
+      "title": "Support Multus & SR-IOV",
+      "text": "La plateforme doit obligatoirement fournir une double adduction réseau via Multus CNI pour séparer le trafic OAM du plan utilisateur UPF.",
+      "criticality": "bloquant",
+      "impactSummary": "Conditionne le choix des cartes NIC et du driver SR-IOV"
+    },
+    {
+      "id": "CLAUSE-SUSE-02",
+      "clauseRef": "§4.1",
+      "title": "Noyau Temps Réel SLERT",
+      "text": "Pour les charges de travail O-RAN et UPF, le système hôte doit exécuter le noyau SUSE Linux Enterprise Real Time avec isolation CPU (isolcpus) et nohz_full.",
+      "criticality": "bloquant",
+      "impactSummary": "Garantit une latence de traitement déterministe inférieure à 20 µs"
+    }
+  ],
+  "addedDate": "2026-09-20T00:00:00Z",
+  "lastUpdated": "2026-09-20T00:00:00Z"
+}

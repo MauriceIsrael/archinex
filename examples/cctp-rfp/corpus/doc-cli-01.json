@@ -1,0 +1,66 @@
+{
+  "id": "DOC-CLI-01",
+  "title": "CCTP Lot 2 · Spécifications Réseau Fédérateur & Tranches 5G",
+  "origin": "client",
+  "category": "cctp",
+  "categoryLabel": "CCTP Contractuel",
+  "sourceOrAuthor": "Maîtrise d'Ouvrage (MOA Télécom)",
+  "version": "v2.1",
+  "pageCount": 142,
+  "extractedClausesCount": 52,
+  "relatedSubjectIds": [
+    "sub_sync",
+    "sub_core",
+    "sub_radio"
+  ],
+  "summary": "Cahier des charges principal fixant les exigences de débit, latence sub-microseconde, tranches prioritaires et interopérabilité pour le réseau fédérateur national.",
+  "keyIdeas": [
+    "Réseau fédérateur 5G SA souverain pour les services régaliens et de sécurité publique (PPDR).",
+    "Alignement de phase sub-microseconde (±1.5 µs) impératif sur l'ensemble des stations de base.",
+    "Étanchéité stricte des tranches critiques (Slicing) sans contention avec les trafics commerciaux."
+  ],
+  "inducedRules": [
+    {
+      "id": "RULE-CLI-01",
+      "title": "Synchronisation Phase PTP G.8275.1 Obligatoire",
+      "type": "obligation",
+      "description": "Interdiction du NTP classique. Le protocole IEEE 1588v2 / PTP profil télécom est requis.",
+      "targetSubjectId": "sub_sync"
+    },
+    {
+      "id": "RULE-CLI-02",
+      "title": "Tranche MCX Étanche & Prioritaire",
+      "type": "obligation",
+      "description": "Réservation de ressources dédiées sur le plan de contrôle et le plan utilisateur (UPF).",
+      "targetSubjectId": "sub_core"
+    }
+  ],
+  "keyClauses": [
+    {
+      "id": "cl-cli-01",
+      "clauseRef": "Art. 4.2.1",
+      "title": "Synchronisation temporelle absolue",
+      "text": "Le réseau de transmission doit maintenir une précision de phase globale de ±1.5 µs par rapport à la référence UTC sur l'ensemble des stations de base.",
+      "criticality": "bloquant",
+      "impactSummary": "Impose l'usage d'horloges PTP G.8275.1 ou holdover rubidium."
+    },
+    {
+      "id": "cl-cli-02",
+      "clauseRef": "Art. 4.4.3",
+      "title": "Isolation stricte des tranches critiques (Slicing)",
+      "text": "Les flux MCX (Mission Critical) doivent bénéficier d'un plan de contrôle et de ressources radio strictement étanches sans contention.",
+      "criticality": "bloquant",
+      "impactSummary": "Contraint le choix de l'architecture 5G SA (Standalone)."
+    },
+    {
+      "id": "cl-cli-03",
+      "clauseRef": "Art. 4.3.2",
+      "title": "Couverture continue en bande prioritaire",
+      "text": "Disponibilité radio exigée de 99.999% sur les corridors d'intervention rapide.",
+      "criticality": "majeur",
+      "impactSummary": "Nécessite une redondance de transmission hertzienne/optique."
+    }
+  ],
+  "addedDate": "2026-09-01T08:00:00Z",
+  "lastUpdated": "2026-09-01T08:00:00Z"
+}

@@ -8,13 +8,16 @@
     "dev:host": "vite dev --host",
     "build": "vite build",
     "preview": "vite preview",
+    "pretest": "prisma generate && svelte-kit sync",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
+    "check:denylist": "node scripts/check-no-project-names.mjs",
+    "seed": "tsx scripts/seed.ts",
     "test": "vitest run",
     "test:integration:closed-loop": "vitest run tests/integration/closed-loop-deliberation.test.ts",
     "test:integration:retraction": "vitest run tests/integration/causal-retraction-cascade.test.ts",
     "test:integration:debate": "vitest run tests/integration/expert-debate-maturation.test.ts",
-    "verify": "npm run test && npm run check && npm run build"
+    "verify": "npm run check:denylist && npm run test && npm run check && npm run build"
   },
   "devDependencies": {
     "@internationalized/date": "^3.12.1",

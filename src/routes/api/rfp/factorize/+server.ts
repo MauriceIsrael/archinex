@@ -2,16 +2,15 @@ import { json, error, type RequestHandler } from '@sveltejs/kit';
 import {
 	factorizeRfpWithLocalLlm,
 	buildSystemPrompt,
-	DEFAULT_KB_STANDARDS,
 	type KbItemSummary
 } from '$lib/server/llm/rfpFactorizer';
 import { localLlmClient } from '$lib/server/llm/localLlmClient';
-import { llmopsClient } from '$lib/server/llmops';
+import { doctrineService } from '$lib/server/doctrine/doctrineService';
 
 /**
  * GET /api/rfp/factorize
- * Renvoie les informations d'environnement : modèles disponibles sur raptor-nino,
- * état de santé du LLM local et prompt système d'orientation modifiable.
+ * Renvoie les informations d'environnement : modèles disponibles sur le LLM local,
+ * état de santé et prompt système d'orientation modifiable.
  */
 export const GET: RequestHandler = async () => {
 	try {
@@ -25,7 +24,7 @@ export const GET: RequestHandler = async () => {
 			defaultModel: 'ministral:latest',
 			models: health.models,
 			defaultSystemPrompt: defaultPrompt,
-			kbStandardsCount: DEFAULT_KB_STANDARDS.length,
+			kbStandardsCount: 0,
 			error: health.error
 		});
 	} catch (err: unknown) {
@@ -57,22 +56,22 @@ export const POST: RequestHandler = async ({ request }) => {
 			throw error(400, 'Un tableau de clauses non vide est requis dans "clauses".');
 		}
 
-		// Récupération des règles du Patrimoine Commun depuis LLMOps (ou standards par défaut)
-		let kbStandards: KbItemSummary[] = DEFAULT_KB_STANDARDS;
+		// Récupération de la doctrine applicable depuis LLMOps
+		let kbStandards: KbItemSummary[] = [];
 		try {
-			const engagement = body.engagementId || 'nordwave-mcx-2027';
-			const sync = await llmopsClient.syncEngagement(engagement);
-			if (sync && Array.isArray(sync.statements) && sync.statements.length > 0) {
-				const fromSync = sync.statements.map((st: any) => ({
-					id: st.id,
-					title: `${st.subject} - ${st.predicate}`,
-					category: st.role.toUpperCase(),
-					ruleOrStatement: st.value
+			const ctx = await doctrineService.getDoctrineContext({
+				projectType: body.projectType
+			});
+			if (ctx && Array.isArray(ctx.items)) {
+				kbStandards = ctx.items.map((item) => ({
+					id: item.id,
+					title: item.title,
+					category: (item.domain || item.type || 'ARCHITECTURE').toUpperCase(),
+					ruleOrStatement: item.content
 				}));
-				kbStandards = [...DEFAULT_KB_STANDARDS, ...fromSync];
 			}
 		} catch {
-			// On garde DEFAULT_KB_STANDARDS
+			// En cas d'erreur de doctrine, on continue avec un tableau vide
 		}
 
 		const result = await factorizeRfpWithLocalLlm(
@@ -88,10 +87,7 @@ export const POST: RequestHandler = async ({ request }) => {
 
 		return json(result);
 	} catch (err: unknown) {
-		if (err && typeof err === 'object' && 'status' in err) {
-			throw err;
-		}
-		const msg = err instanceof Error ? err.message : 'Erreur interne de factorisation';
-		throw error(500, `Échec de la factorisation sémantique : ${msg}`);
+		const message = err instanceof Error ? err.message : 'Erreur interne lors de la factorisation.';
+		return json({ status: 'error', error: message }, { status: 500 });
 	}
 };

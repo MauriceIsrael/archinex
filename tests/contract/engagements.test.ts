@@ -1,10 +1,11 @@
 import { describe, it, expect } from 'vitest';
 import { deliberationStore } from '$lib/stores/deliberationStore.svelte';
-import { createDefaultEngagements, SUSE_TELCO_SUBJECTS, SUSE_TELCO_CORPUS } from '$lib/domain/engagements';
+import { createTestDefaultEngagements as createDefaultEngagements, SUSE_TELCO_SUBJECTS, SUSE_TELCO_CORPUS } from '../fixtures/sample-data';
 
 describe('Dual-Engagement Engine & Local Isolation Contract', () => {
 	it('1. Initialise les 2 profils d\'engagement distincts (Blueprint SUSE Telco Cloud & RFP CCTP)', () => {
 		const engagements = createDefaultEngagements([], {}, []);
+		deliberationStore.initFromDb(engagements, SUSE_TELCO_CORPUS);
 		expect(engagements).toHaveLength(2);
 
 		const suse = engagements.find((e) => e.id === 'suse-telco-cloud-generic');

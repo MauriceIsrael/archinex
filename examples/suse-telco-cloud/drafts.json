@@ -1,0 +1,156 @@
+{
+  "suse_cni_sriov": {
+    "section_id": "§2.1",
+    "subject": "Accélération Réseau CNI & SR-IOV/DPDK",
+    "maturity": "L2_decomposed",
+    "is_provisional": true,
+    "retenu": [
+      "SUSE:Multus CNI Dual-Homing",
+      "SUSE:SR-IOV Network Operator pour UPF 5G",
+      "RKE2 Telco Profile v1.30"
+    ],
+    "suppose": [
+      {
+        "text": "Cartes NIC Intel E810 100GbE avec DDP (Dynamic Device Personalization)",
+        "consequence": "Firmware certifié requis sur tous les serveurs Edge distants",
+        "cost_hint": "+32 k€ / site Edge"
+      }
+    ],
+    "conflit": [
+      {
+        "text": "Calico eBPF vs Kube-OVN pour le routage est-ouest",
+        "opposing_reference": "ADR-SUSE-003 Performance CNI Telco",
+        "requires_arbitration": true
+      }
+    ],
+    "manque": [
+      {
+        "id": "Q-SUSE-001",
+        "question": "Le fournisseur de CNF UPF exige-t-il DPDK natif ou supporte-t-il AF_XDP ?",
+        "assigned_role": "infra_expert_architect"
+      }
+    ],
+    "variante_b": {
+      "title": "Pure eBPF avec Cilium CNI",
+      "cost_delta": "-15% latence de contrôle",
+      "trade_off": "Non certifié sur certaines CNF vIMS Nokia / Ericsson"
+    }
+  },
+  "suse_rt_kernel": {
+    "section_id": "§2.2",
+    "subject": "Noyau Temps Réel (SLERT) & Gigue Sub-ms",
+    "maturity": "L1_framed",
+    "is_provisional": true,
+    "retenu": [
+      "SUSE Linux Enterprise Real Time (SLERT 15 SP5)"
+    ],
+    "suppose": [
+      {
+        "text": "Isolation CPU stricte (isolcpus=2-31, nohz_full, rcu_nocbs)",
+        "consequence": "Réservation de 30 cœurs physiques dédiés au plan usager 5G",
+        "cost_hint": "Pas de surcoût matériel direct"
+      }
+    ],
+    "conflit": [],
+    "manque": [
+      {
+        "id": "Q-SUSE-003",
+        "question": "Test de gigue cyclictest < 15 µs sous charge I/O 100G validé sur matériel cible ?",
+        "assigned_role": "infra_expert_architect"
+      }
+    ]
+  },
+  "suse_rke2_hardened": {
+    "section_id": "§3.1",
+    "subject": "Cluster Kubernetes RKE2 Durci (CIS/FIPS)",
+    "maturity": "L3_decided",
+    "is_provisional": false,
+    "retenu": [
+      "CIS Kubernetes Benchmark Level 2 Profile",
+      "Modules Cryptographiques FIPS 140-3 natifs",
+      "SELinux Enforcing mode strict"
+    ],
+    "suppose": [
+      {
+        "text": "Control plane 3 nœuds haute disponibilité avec etcd sur NVMe",
+        "consequence": "Tolérance à la panne d'un contrôleur sans indisponibilité de l'API",
+        "cost_hint": "Standard infra"
+      }
+    ],
+    "conflit": [],
+    "manque": []
+  },
+  "suse_neuvector_mesh": {
+    "section_id": "§3.2",
+    "subject": "Sécurité Zero-Trust & Inspection DPI (NeuVector)",
+    "maturity": "L0_named",
+    "is_provisional": true,
+    "retenu": [
+      "NeuVector Container Security Suite"
+    ],
+    "suppose": [
+      {
+        "text": "Inspection DPI à la volée sur les flux N2/N3 du cœur 5G",
+        "consequence": "Surcoût CPU estimé à 8% par cœur de calcul",
+        "cost_hint": "+4 vCPU par nœud worker"
+      }
+    ],
+    "conflit": [
+      {
+        "text": "Mode Discover vs Mode Protect bloquant dès la mise en service",
+        "opposing_reference": "SLA Disponibilité 99.999% Cœur",
+        "requires_arbitration": true
+      }
+    ],
+    "manque": [
+      {
+        "id": "Q-SUSE-002",
+        "question": "Quelle politique d'apprentissage NeuVector autorisée en pré-production ?",
+        "assigned_role": "security_architect"
+      }
+    ]
+  },
+  "suse_harvester_kvm": {
+    "section_id": "§4.1",
+    "subject": "Virtualisation Edge Hybride (Harvester / KubeVirt)",
+    "maturity": "L0_named",
+    "is_provisional": true,
+    "retenu": [
+      "SUSE Harvester HCI v1.3"
+    ],
+    "suppose": [
+      {
+        "text": "Hébergement conjoint des VNFs legacy (VM KVM) et des CNFs 5G conteneurisées",
+        "consequence": "Stockage distribué Longhorn NVMe requis sur tous les hyperviseurs Edge",
+        "cost_hint": "+45 k€ stockage distribué"
+      }
+    ],
+    "conflit": [],
+    "manque": [
+      {
+        "id": "Q-SUSE-004",
+        "question": "Les VNF transmises par le client supportent-elles la migration à chaud sous KubeVirt ?",
+        "assigned_role": "infra_expert_architect"
+      }
+    ]
+  },
+  "suse_rancher_fleet": {
+    "section_id": "§5.1",
+    "subject": "Orchestration GitOps Multi-Clusters Edge (Fleet)",
+    "maturity": "L2_decomposed",
+    "is_provisional": true,
+    "retenu": [
+      "Rancher Prime Management Server",
+      "Fleet GitOps Controller pour 50+ clusters Edge"
+    ],
+    "suppose": [
+      {
+        "text": "Dépôt Git souverain interne avec signature des commits Sigstore",
+        "consequence": "Air-gapped registry local avec miroir d'images synchronisé de nuit",
+        "cost_hint": "Inclus socle tooling"
+      }
+    ],
+    "conflit": [],
+    "manque": []
+  }
+}

@@ -21,6 +21,12 @@ export interface CleanTestEnvironment {
  * Démarre le conteneur Docker éphémère LLMOps et initialise une base SQLite Archinex 100% vierge.
  */
 export async function setupCleanEnvironment(): Promise<CleanTestEnvironment> {
+	if (process.env.TEST_CONTAINERS !== '1') {
+		throw new Error(
+			'[TestEnv] Ignoré : TEST_CONTAINERS n\'est pas activé (définir TEST_CONTAINERS=1 pour exécuter les tests avec conteneur Docker éphémère).'
+		);
+	}
+
 	// 1. Démarrage du conteneur LLMOps éphémère avec volume mémoire tmpfs
 	console.log('[TestEnv] Démarrage du conteneur LLMOps éphémère (llmops-test:latest)...');
 	const container = await new GenericContainer('llmops-test:latest')

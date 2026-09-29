@@ -1,7 +1,7 @@
 import { json, error, type RequestHandler } from '@sveltejs/kit';
 import { elicitSubjectDetails } from '$lib/server/llm/subjectElicitor';
-import { DEFAULT_KB_STANDARDS, type KbItemSummary } from '$lib/server/llm/rfpFactorizer';
-import { llmopsClient } from '$lib/server/llmops';
+import type { KbItemSummary } from '$lib/server/llm/rfpFactorizer';
+import { doctrineService } from '$lib/server/doctrine/doctrineService';
 
 export const POST: RequestHandler = async ({ request }) => {
 	try {
@@ -12,22 +12,20 @@ export const POST: RequestHandler = async ({ request }) => {
 			throw error(400, 'subjectId et subjectName sont requis pour l\'élicitation.');
 		}
 
-		// Récupération du patrimoine commun depuis LLMOps (ou standards par défaut)
-		let kbStandards: KbItemSummary[] = DEFAULT_KB_STANDARDS;
+		// Récupération de la doctrine applicable depuis LLMOps
+		let kbStandards: KbItemSummary[] = [];
 		try {
-			const engagement = body.engagementId || 'nordwave-mcx-2027';
-			const sync = await llmopsClient.syncEngagement(engagement);
-			if (sync && Array.isArray(sync.statements) && sync.statements.length > 0) {
-				const fromSync = sync.statements.map((st: any) => ({
-					id: st.id,
-					title: `${st.subject} - ${st.predicate}`,
-					category: st.role.toUpperCase(),
-					ruleOrStatement: st.value
+			const ctx = await doctrineService.getDoctrineContext({ topics: [subjectName] });
+			if (ctx && Array.isArray(ctx.items)) {
+				kbStandards = ctx.items.map((item) => ({
+					id: item.id,
+					title: item.title,
+					category: (item.domain || item.type || 'ARCHITECTURE').toUpperCase(),
+					ruleOrStatement: item.content
 				}));
-				kbStandards = [...DEFAULT_KB_STANDARDS, ...fromSync];
 			}
 		} catch {
-			// On garde les standards par défaut
+			// En cas d'erreur de doctrine, on continue avec un tableau vide
 		}
 
 		const result = await elicitSubjectDetails(
@@ -47,10 +45,7 @@ export const POST: RequestHandler = async ({ request }) => {
 
 		return json(result);
 	} catch (err: unknown) {
-		if (err && typeof err === 'object' && 'status' in err) {
-			throw err;
-		}
-		const msg = err instanceof Error ? err.message : 'Erreur interne lors de l\'élicitation';
-		throw error(500, `Échec de l'élicitation architecturale : ${msg}`);
+		const message = err instanceof Error ? err.message : 'Erreur interne lors de l\'élicitation.';
+		return json({ status: 'error', error: message }, { status: 500 });
 	}
 };

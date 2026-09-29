@@ -1,0 +1,28 @@
+{
+  "id": "DOC-EXT-03",
+  "title": "Uptime Institute Tier Standards & Norme EN 50600",
+  "origin": "contributor_external",
+  "category": "standard",
+  "categoryLabel": "Standard Datacenter",
+  "sourceOrAuthor": "P. Durand",
+  "contributorRole": "Architecte Infra / Réseau",
+  "version": "2024 Rev",
+  "pageCount": 76,
+  "extractedClausesCount": 9,
+  "relatedSubjectIds": [
+    "sub_dc_resilience"
+  ],
+  "summary": "Référentiel mondial de disponibilité des centres de données : critères de tolérance aux pannes (Tier IV) et de maintenance concurrente sans coupure (Tier III).",
+  "keyClauses": [
+    {
+      "id": "cl-ext-03",
+      "clauseRef": "Tier III / Tier IV Matrix",
+      "title": "Continuité d'alimentation électrique sans interruption",
+      "text": "La topologie Tier IV exige deux chemins de distribution actifs simultanément avec compartimentation physique étanche.",
+      "criticality": "majeur",
+      "impactSummary": "Arbitrage requis avec le donneur d'ordre sur l'investissement salle."
+    }
+  ],
+  "addedDate": "2026-09-11T09:00:00Z",
+  "lastUpdated": "2026-09-11T09:00:00Z"
+}

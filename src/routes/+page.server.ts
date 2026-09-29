@@ -2,8 +2,7 @@ import { checkPermission } from '$lib/server/casbin';
 import type { PageServerLoad } from './$types';
 import {
 	getAllEngagementsFromDb,
-	getAllCorpusDocumentsFromDb,
-	seedEngagementsIfEmpty
+	getAllCorpusDocumentsFromDb
 } from '$lib/server/engagementsDb';
 
 export const load: PageServerLoad = async ({ locals }) => {
@@ -33,8 +32,7 @@ export const load: PageServerLoad = async ({ locals }) => {
 		abacStatus.canAccessSecretAPI = canSecret;
 	}
 
-	// Initialisation et chargement des données persistées dans Prisma SQLite
-	await seedEngagementsIfEmpty();
+	// Chargement des données persistées dans Prisma SQLite
 	const [engagements, corpusDocuments] = await Promise.all([
 		getAllEngagementsFromDb(),
 		getAllCorpusDocumentsFromDb()

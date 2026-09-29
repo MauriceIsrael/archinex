@@ -216,14 +216,14 @@
 					class="inline-flex items-center gap-1 rounded-lg bg-gradient-to-r from-primary to-primary/80 hover:opacity-95 text-primary-foreground px-2.5 py-1 text-xs font-semibold shadow-2xs transition-all cursor-pointer disabled:opacity-50"
 					onclick={handleElicitDetails}
 					disabled={isEliciting}
-					title="Éliciter les hypothèses (SUPPOSE), controverses (CONFLIT) et sous-questions (MANQUE) via raptor-nino"
+					title="Éliciter les hypothèses (SUPPOSE), controverses (CONFLIT) et sous-questions (MANQUE) via le LLM local"
 				>
 					{#if isEliciting}
 						<RefreshCw class="h-3.5 w-3.5 animate-spin" />
 						<span>Élicitation...</span>
 					{:else}
 						<Sparkles class="h-3.5 w-3.5 text-amber-300" />
-						<span>Éliciter (raptor-nino)</span>
+						<span>Éliciter (LLM Local)</span>
 					{/if}
 				</button>
 

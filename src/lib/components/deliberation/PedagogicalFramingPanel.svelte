@@ -18,11 +18,11 @@
 				standard: '3GPP Release 17 / TS 38.300',
 				category: 'Télécoms & Radio 5G TDD',
 				executiveSummary: 'La 5G New Radio en mode TDD requiert un alignement de phase sub-microseconde (±1.5 µs) entre toutes les stations gNodeB.',
-				cctpImpact: 'Un déphasage > 3 µs provoque un brouillage inter-cellulaire direct, coupant les appels d\'urgence et flux prioritaires MCX.',
+				cctpImpact: 'Un déphasage > 3 µs provoque un brouillage inter-cellulaire direct, coupant les appels d\'urgence et flux prioritaires de mission critique.',
 				keyRequirements: [
 					'Synchronisation temporelle absolue avec référence UTC (PRTC-B).',
 					'Maintien de phase holdover < 1.5 µs lors de la perte GNSS.',
-					'Profil PTP ITU-T G.8275.1 sur chaque nœud intermédiaire.'
+					'Profil temporel télécom ITU-T G.8275.1 sur chaque nœud intermédiaire.'
 				]
 			},
 			{
@@ -31,7 +31,7 @@
 				executiveSummary: 'Résilience renforcée contre les attaques hybrides et le brouillage GNSS volontaire sur les entités essentielles.',
 				cctpImpact: 'Exigence de fonctionnement autonome nominal sans couverture satellite extérieure pendant 30 jours consécutifs.',
 				keyRequirements: [
-					'Double adduction avec oscillateurs atomiques locaux (Rubidium / OCXO).',
+					'Double adduction avec oscillateurs atomiques locaux (horloge atomique / OCXO).',
 					'Surveillance continue de la dérive d\'horloge et télé-alerte SOC.',
 					'Auditabilité et traçabilité formelle du dimensionnement.'
 				]

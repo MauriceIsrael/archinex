@@ -1,0 +1,28 @@
+{
+  "id": "DOC-EXT-05",
+  "title": "ITU-T G.8275.1 / Y.1369.1 Telecom Profile for Phase/Time",
+  "origin": "contributor_external",
+  "category": "standard",
+  "categoryLabel": "Profil Télécom PTP",
+  "sourceOrAuthor": "L. Moreau",
+  "contributorRole": "Lead Architect",
+  "version": "2023 Amd.2",
+  "pageCount": 54,
+  "extractedClausesCount": 8,
+  "relatedSubjectIds": [
+    "sub_sync"
+  ],
+  "summary": "Profil IEEE 1588 normalisé par l'UIT pour la synchronisation précise de phase dans les réseaux télécoms avec support de synchronisation à chaque bond (Boundary Clock).",
+  "keyClauses": [
+    {
+      "id": "cl-ext-05",
+      "clauseRef": "ITU-T §6.3",
+      "title": "Support matériel PTP sur commutateurs de transit",
+      "text": "Chaque commutateur ou routeur traversé doit intégrer une horloge Boundary Clock de classe C (< 10 ns par saut).",
+      "criticality": "bloquant",
+      "impactSummary": "Conditionne le choix des équipements de transmission optique."
+    }
+  ],
+  "addedDate": "2026-09-12T11:20:00Z",
+  "lastUpdated": "2026-09-12T11:20:00Z"
+}

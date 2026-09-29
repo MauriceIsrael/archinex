@@ -1,0 +1,176 @@
+{
+  "sub_sync": {
+    "section_id": "§4.2",
+    "subject": "Synchronisation Réseau & Holdover",
+    "maturity": "L2_decomposed",
+    "is_provisional": true,
+    "retenu": [
+      "Option A : Rubidium sur 4 nœuds (+180 k€, holdover 30j)",
+      "Profil PTP G.8275.1 phase ±1.5 µs"
+    ],
+    "suppose": [
+      {
+        "text": "Disponibilité GNSS nominale",
+        "consequence": "Bascule auto oscillateur si coupure",
+        "cost_hint": "+180 k€"
+      }
+    ],
+    "conflit": [
+      {
+        "text": "Option A vs Variante B (-135 k€)",
+        "opposing_reference": "ANSSI NIS2 Art. 4.2.1",
+        "requires_arbitration": true
+      }
+    ],
+    "manque": [
+      {
+        "id": "Q-SYNC-01",
+        "question": "Validation accord préfectoral antenne GNSS",
+        "assigned_role": "lead_architect"
+      }
+    ],
+    "variante_b": {
+      "title": "variante B : GNSS multi-constellation + NTP durci",
+      "cost_delta": "-135 k€",
+      "trade_off": "Holdover 4h max si brouillage"
+    }
+  },
+  "sub_dc_resilience": {
+    "section_id": "§3.1",
+    "subject": "Résilience Datacenter & Énergie",
+    "maturity": "L0_named",
+    "is_provisional": true,
+    "retenu": [
+      "Double adduction électrique HTA + Groupe électrogène avec autonomie 72h"
+    ],
+    "suppose": [
+      {
+        "text": "Capacité de stockage fioul sur site conforme aux normes ICPE",
+        "consequence": "Nécessite autorisation administrative et cuve double paroi",
+        "cost_hint": "+95 k€ génie civil"
+      }
+    ],
+    "conflit": [
+      {
+        "text": "Autonomie 72h demandée vs contraintes environnementales urbaines",
+        "opposing_reference": "Règlement local d'urbanisme (PLU)",
+        "requires_arbitration": true
+      }
+    ],
+    "manque": [
+      {
+        "id": "Q-DC-01",
+        "question": "Confirmation de la puissance crête requise pour le datacenter secondaire",
+        "assigned_role": "infra_expert_architect"
+      }
+    ]
+  },
+  "sub_core": {
+    "section_id": "§4.4",
+    "subject": "Cœur de Réseau & Tranches 5G (Slicing)",
+    "maturity": "L1_framed",
+    "is_provisional": true,
+    "retenu": [
+      "Option A : UPF dédié physique sur chaque site sensible (+110 k€ CAPEX, zéro risque de fuite)"
+    ],
+    "suppose": [
+      {
+        "text": "Isolation stricte des tranches critiques conforme aux profils 3GPP Rel. 16/17",
+        "consequence": "Garantie de non-interférence entre flux régaliens et secondaires",
+        "cost_hint": "+85 k€ licences de slicing"
+      }
+    ],
+    "conflit": [
+      {
+        "text": "UPF dédié sur site sensible vs tranches logiques isolées mutualisées",
+        "opposing_reference": "Exigence ANSSI CSPN sur le plan de contrôle",
+        "requires_arbitration": true
+      }
+    ],
+    "manque": [
+      {
+        "id": "Q-CORE-01",
+        "question": "Le plan de contrôle 5G mutualisé peut-il obtenir une qualification CSPN dans le calendrier imparti ?",
+        "assigned_role": "domain_architect"
+      }
+    ]
+  },
+  "sub_ppdr": {
+    "section_id": "§5.1",
+    "subject": "Terminaux PPDR & Ergonomie Terrain",
+    "maturity": "L2_decomposed",
+    "is_provisional": false,
+    "retenu": [
+      "Option A : Terminaux durcis propriétaires MCX IP68 utilisables avec gants"
+    ],
+    "suppose": [
+      {
+        "text": "Cycle de vie garanti 7 ans avec mises à jour de sécurité constructeur",
+        "consequence": "Pérennité de la flotte d'intervention",
+        "cost_hint": "Contrat de maintenance triennal"
+      }
+    ],
+    "conflit": [
+      {
+        "text": "Terminaux dédiés ultra-durcis vs Smartphones durcis COTS sous Android Enterprise (-35% budget)",
+        "opposing_reference": "CCTP Art 5.1 (Ergonomie bouton PTT mécanique obligatoire)",
+        "requires_arbitration": true
+      }
+    ],
+    "manque": [
+      {
+        "id": "Q-PPDR-01",
+        "question": "Compatibilité des accessoires audio antibruit avec les casques de protection actuels",
+        "assigned_role": "domain_architect"
+      }
+    ]
+  },
+  "sub_radio": {
+    "section_id": "§4.3",
+    "subject": "Transmission Radio Fréquences MCX",
+    "maturity": "L1_framed",
+    "is_provisional": true,
+    "retenu": [
+      "Option A : Densification 700 MHz propre (+240 k€ CAPEX, 14 pylônes dédiés)"
+    ],
+    "suppose": [
+      {
+        "text": "Autorisations ANFR obtenues pour les bandes n28/n78 avant T1 2027",
+        "consequence": "Conditionne le calendrier de déploiement des stations sol",
+        "cost_hint": "Redevance annuelle fréquences"
+      }
+    ],
+    "conflit": [
+      {
+        "text": "Densification dédiée vs Itinérance commerciale de secours (Option B : -180 k€)",
+        "opposing_reference": "Exigence de résilience en cas de coupure réseau commercial",
+        "requires_arbitration": true
+      }
+    ],
+    "manque": [
+      {
+        "id": "Q-RADIO-01",
+        "question": "Cartographie précise des zones blanches en zone péri-urbaine",
+        "assigned_role": "domain_architect"
+      }
+    ]
+  },
+  "sub_pqc": {
+    "section_id": "§6.2",
+    "subject": "Cryptographie Post-Quantique (PQC) & Chiffrement Flux",
+    "maturity": "L3_decided",
+    "is_provisional": false,
+    "retenu": [
+      "Chiffrement hybride IPsec IKEv2 (ML-KEM Kyber-768 + Curve25519) sur liaisons inter-sites"
+    ],
+    "suppose": [
+      {
+        "text": "Accélération cryptographique matérielle FPGA sur passerelles nodales",
+        "consequence": "Débit garanti 10 Gbps sans saturation des processeurs hôtes",
+        "cost_hint": "+40 k€ équipement"
+      }
+    ],
+    "conflit": [],
+    "manque": []
+  }
+}

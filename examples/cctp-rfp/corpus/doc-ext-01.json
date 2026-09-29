@@ -1,0 +1,29 @@
+{
+  "id": "DOC-EXT-01",
+  "title": "3GPP Release 17 / TS 38.300 · NR and NG-RAN Architecture",
+  "origin": "contributor_external",
+  "category": "standard",
+  "categoryLabel": "Norme Télécom Internationale",
+  "sourceOrAuthor": "P. Durand",
+  "contributorRole": "Architecte Infra / Réseau",
+  "version": "Rel-17 v17.4.0",
+  "pageCount": 380,
+  "extractedClausesCount": 14,
+  "relatedSubjectIds": [
+    "sub_sync",
+    "sub_radio"
+  ],
+  "summary": "Spécification de référence mondiale pour le fonctionnement de la radio 5G New Radio en mode TDD, imposant un alignement de phase sub-microseconde (±1.5 µs).",
+  "keyClauses": [
+    {
+      "id": "cl-ext-01",
+      "clauseRef": "TS 38.300 §8.2",
+      "title": "Alignement de trame TDD sans interférence",
+      "text": "Tout décalage de phase supérieur à 3.0 µs entre cellules contiguës engendre une désynchronisation des créneaux émission/réception et un brouillage destructif.",
+      "criticality": "bloquant",
+      "impactSummary": "Justifie l'exigence d'horloges de haute stabilité."
+    }
+  ],
+  "addedDate": "2026-09-08T10:00:00Z",
+  "lastUpdated": "2026-09-08T10:00:00Z"
+}

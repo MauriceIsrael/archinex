@@ -1,0 +1,41 @@
+{
+  "id": "DOC-CLI-03",
+  "title": "Spécification Métier · Terminaux Tactiques & Ergonomie PPDR",
+  "origin": "client",
+  "category": "business_spec",
+  "categoryLabel": "Expression de Besoins Métier",
+  "sourceOrAuthor": "État-Major Sécurité Civile & Police",
+  "version": "v1.0",
+  "pageCount": 64,
+  "extractedClausesCount": 31,
+  "relatedSubjectIds": [
+    "sub_ppdr"
+  ],
+  "summary": "Besoins opérationnels des primo-intervenants : push-to-talk, vidéo tactique, résistance IP68 et passage automatique réseau privé / public.",
+  "keyIdeas": [
+    "Réactivité immédiate pour les situations d'urgence vitale sur le terrain.",
+    "Ouverture du canal voix (Push-to-Talk) en moins de 300 ms sur appui bouton d'urgence.",
+    "Transition continue et transparente sans coupure entre couverture dédiée et roaming opérateur."
+  ],
+  "inducedRules": [
+    {
+      "id": "RULE-CLI-PPDR-01",
+      "title": "Garantie Latence Voix MCPTT < 300 ms",
+      "type": "obligation",
+      "description": "Priorité préemptive sur les files d'attente QoS radio et cœur de réseau.",
+      "targetSubjectId": "sub_ppdr"
+    }
+  ],
+  "keyClauses": [
+    {
+      "id": "cl-cli-06",
+      "clauseRef": "EB §2.4",
+      "title": "Temps d'établissement d'appel d'urgence < 300 ms",
+      "text": "L'appui sur le bouton d'urgence doit ouvrir le canal voix prioritaire en moins de 300 millisecondes sur tous les terminaux de la flotte.",
+      "criticality": "bloquant",
+      "impactSummary": "Dimensionne les files d'attente QoS et la priorité ARP."
+    }
+  ],
+  "addedDate": "2026-09-03T11:00:00Z",
+  "lastUpdated": "2026-09-03T11:00:00Z"
+}

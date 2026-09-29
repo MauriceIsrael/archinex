@@ -1,0 +1,55 @@
+{
+  "id": "cctp-mcx-nordwave",
+  "title": "CCTP 5G & MCX (Projet Réel RFP)",
+  "shortName": "CCTP 5G & MCX",
+  "type": "project_rfp",
+  "badge": "CCTP 5G & CŒUR · RFP Réel",
+  "description": "Appel d'offres contractuel client : réseau fédérateur critique, tranches hybrides MCX, contraintes de résilience et arbitrages 3GPP.",
+  "defaultSubjectId": "sub_sync",
+  "defaultDocId": "DOC-CLI-01",
+  "status": "active",
+  "strategy": {
+    "objectives": [
+      "Couverture 98% territoire",
+      "Disponibilité 99.999%",
+      "Résilience coupure 72h"
+    ],
+    "principles": [
+      "Architecture ouverte 3GPP",
+      "Sécurité par conception NIS2",
+      "Multi-constructeurs"
+    ],
+    "constraints": [
+      "Budget infrastructure contraint",
+      "Délai mise en service T2 2027",
+      "Sites classés"
+    ]
+  },
+  "participants": [
+    {
+      "id": "part-lead",
+      "name": "M. Israel",
+      "role": "lead_architect",
+      "email": "m.israel@archinex.local",
+      "isLead": true
+    },
+    {
+      "id": "part-infra",
+      "name": "P. Durand",
+      "role": "infra_expert_architect",
+      "email": "p.durand@archinex.local"
+    },
+    {
+      "id": "part-sec",
+      "name": "S. Bernard",
+      "role": "security_architect",
+      "email": "s.bernard@archinex.local"
+    },
+    {
+      "id": "part-domain",
+      "name": "A. Chen",
+      "role": "domain_architect",
+      "email": "a.chen@archinex.local"
+    }
+  ]
+}

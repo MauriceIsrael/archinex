@@ -6,12 +6,27 @@ import {
 	fallbackDeterministicFactorization,
 	promoteClauseToSubject,
 	factorizeRfpWithLocalLlm,
-	DEFAULT_KB_STANDARDS
+	type KbItemSummary
 } from '../../src/lib/server/llm/rfpFactorizer';
 import type { ExtractedClause } from '../../src/lib/domain/corpus';
 
-describe('Local LLM Souverain (raptor-nino) & Factorisation de RFP', () => {
-	const client = new LocalLlmClient({ endpoint: 'http://raptor-nino:11434' });
+describe('Local LLM Souverain & Factorisation de RFP', () => {
+	const client = new LocalLlmClient({ endpoint: 'http://localhost:11434' });
+
+	const testKbStandards: KbItemSummary[] = [
+		{
+			id: 'STD-SOUV-01',
+			title: 'Souveraineté des Données & Immunité Extraterritoriale',
+			category: 'SOUVERAINETE',
+			ruleOrStatement: 'Hébergement souverain qualifié SecNumCloud.'
+		},
+		{
+			id: 'STD-TELCO-01',
+			title: 'Synchronisation de Précision Temporelle',
+			category: 'TELECOM',
+			ruleOrStatement: 'Synchronisation de phase <= 1.5 µs.'
+		}
+	];
 
 	const sampleClauses: ExtractedClause[] = [
 		{
@@ -75,7 +90,7 @@ describe('Local LLM Souverain (raptor-nino) & Factorisation de RFP', () => {
 		});
 
 		it('génère le message utilisateur avec les clauses brutes et l index KB', () => {
-			const userMsg = buildUserMessage(sampleClauses, DEFAULT_KB_STANDARDS);
+			const userMsg = buildUserMessage(sampleClauses, testKbStandards);
 			expect(userMsg).toContain('PATRIMOINE COMMUN');
 			expect(userMsg).toContain('STD-SOUV-01');
 			expect(userMsg).toContain('§1.1');
@@ -83,7 +98,7 @@ describe('Local LLM Souverain (raptor-nino) & Factorisation de RFP', () => {
 		});
 
 		it('assure une factorisation déterministe de repli avec 100% de couverture', () => {
-			const res = fallbackDeterministicFactorization(sampleClauses, DEFAULT_KB_STANDARDS);
+			const res = fallbackDeterministicFactorization(sampleClauses, testKbStandards);
 			expect(res.status).toBe('fallback');
 			expect(res.totalClauses).toBe(4);
 			expect(res.coverageRate).toBe(100);

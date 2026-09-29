@@ -3,7 +3,7 @@
 	import MermaidViewer from './MermaidViewer.svelte';
 	import { RefreshCw, Download, Copy, Check, Terminal, FileCode, Layers, Cpu, ShieldCheck } from 'lucide-svelte';
 
-	type TabType = 'mermaid' | 'structurizr' | 'sysml' | 'ptp';
+	type TabType = 'mermaid' | 'structurizr' | 'sysml' | 'config';
 
 	let activeTab = $state<TabType>('mermaid');
 	let copied = $state(false);
@@ -32,7 +32,7 @@
 				return projections.structurizrDSL;
 			case 'sysml':
 				return projections.sysmlV2;
-			case 'ptp':
+			case 'config':
 				return projections.configJSON;
 		}
 	}
@@ -60,8 +60,8 @@
 			case 'sysml':
 				filename = `${activeSubject?.id || 'arch'}_model.sysml`;
 				break;
-			case 'ptp':
-				filename = `ptp_g8275_1_profile.json`;
+			case 'config':
+				filename = `${activeSubject?.id || 'arch'}_config.json`;
 				mimeType = 'application/json';
 				break;
 		}
@@ -158,13 +158,13 @@
 
 			<button
 				type="button"
-				onclick={() => (activeTab = 'ptp')}
-				class="px-3 py-1.5 font-semibold rounded-lg transition-colors flex items-center gap-1.5 whitespace-nowrap {activeTab === 'ptp'
+				onclick={() => (activeTab = 'config')}
+				class="px-3 py-1.5 font-semibold rounded-lg transition-colors flex items-center gap-1.5 whitespace-nowrap {activeTab === 'config'
 					? 'bg-primary text-primary-foreground shadow-2xs'
 					: 'text-muted-foreground hover:text-foreground hover:bg-muted/60'}"
 			>
 				<Cpu class="h-3.5 w-3.5" />
-				<span>Profil PTP JSON</span>
+				<span>Configuration JSON</span>
 			</button>
 		</div>
 
@@ -255,10 +255,10 @@
 						<pre class="rounded bg-muted/80 p-3 font-mono text-[11px] text-foreground overflow-x-auto max-h-48 border">{projections.sysmlV2}</pre>
 					</div>
 				</div>
-			{:else if activeTab === 'ptp'}
+			{:else if activeTab === 'config'}
 				<div class="space-y-2">
 					<div class="flex items-center justify-between text-xs font-bold text-muted-foreground">
-						<span>Profil PTP Télécom G.8275.1 (Configuration Validée) :</span>
+						<span>Configuration Technique Validée :</span>
 						<span class="font-mono text-[10px] text-emerald-600 dark:text-emerald-400">JSON Formaté</span>
 					</div>
 					<pre class="rounded-lg bg-muted/80 p-4 font-mono text-xs text-foreground overflow-x-auto max-h-96 leading-relaxed border shadow-inner">{projections.configJSON}</pre>

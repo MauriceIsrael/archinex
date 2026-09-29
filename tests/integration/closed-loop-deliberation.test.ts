@@ -23,13 +23,16 @@ import {
 import { LLMOpsClient } from '$lib/server/llmops/client';
 import { deliberationStore } from '$lib/stores/deliberationStore.svelte';
 import { canTransitionMaturity } from '$lib/domain/maturityBoard';
+import type { StatementTriplet, ContributionEnvelope } from '$lib/types/epistemic';
 import {
 	computeTripletSha256,
 	validateInboundEnvelope
 } from '$lib/validation/epistemicEnvelope';
-import type { ContributionEnvelope, StatementTriplet } from '$lib/types/epistemic';
+const isContainersEnabled = process.env.TEST_CONTAINERS === '1';
 
-describe('Test d\'Intégration n°1 · Closed-Loop Délibération & Capitalisation en KB Vierge', () => {
+describe.skipIf(!isContainersEnabled)(
+	'Test d\'Intégration n°1 · Closed-Loop Délibération & Capitalisation en KB Vierge',
+	() => {
 	let env: CleanTestEnvironment;
 	let client: LLMOpsClient;
 

@@ -163,7 +163,7 @@
 			return 'LOT-01-SOUV';
 		if (lower.includes('bare') || lower.includes('k8s') || lower.includes('serveur'))
 			return 'LOT-02-INFRA';
-		if (lower.includes('ptp') || lower.includes('upf') || lower.includes('radio') || lower.includes('5g'))
+		if (lower.includes('synchro') || lower.includes('upf') || lower.includes('radio') || lower.includes('5g'))
 			return 'LOT-03-TELCO';
 		if (lower.includes('chiffr') || lower.includes('tls') || lower.includes('nis2') || lower.includes('cert'))
 			return 'LOT-04-SECOPS';
@@ -205,7 +205,7 @@
 						</span>
 					</h3>
 					<p class="text-[11px] text-muted-foreground">
-						Modèle : <strong class="text-foreground font-mono">{modelUsed}</strong> sur <span class="font-mono text-primary">raptor-nino:11434</span>
+						Modèle : <strong class="text-foreground font-mono">{modelUsed}</strong> sur <span class="font-mono text-primary">LLM Local</span>
 					</p>
 				</div>
 			</div>

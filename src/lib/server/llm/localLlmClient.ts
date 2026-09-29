@@ -1,6 +1,6 @@
 /**
  * Client d'Inférence LLM Local Souverain (Air-Gapped)
- * Interagit avec les moteurs locaux sur le réseau d'entreprise (Ollama / vLLM sur raptor-nino:11434).
+ * Interagit avec les moteurs locaux sur le réseau d'entreprise (Ollama / vLLM sur localhost:11434).
  * Conforme à la politique d'étanchéité stricte : aucun appel vers le cloud public ou des tiers.
  */
 
@@ -13,11 +13,11 @@ export class LocalLlmClient {
 	private temperature: number;
 
 	constructor(config: Partial<LocalLlmConfig> = {}) {
-		// Par défaut, cible le serveur local souverain raptor-nino sur le port standard Ollama (11434)
+		// Par défaut, cible le serveur local souverain sur le port standard Ollama (11434)
 		this.endpoint = (
 			config.endpoint ||
 			process.env.LLM_LOCAL_ENDPOINT ||
-			'http://raptor-nino:11434'
+			'http://localhost:11434'
 		).replace(/\/+$/, '');
 
 		this.defaultModel = config.defaultModel || process.env.LLM_LOCAL_MODEL || 'ministral:latest';
@@ -52,8 +52,7 @@ export class LocalLlmClient {
 				host === '127.0.0.1' ||
 				host === '::1' ||
 				host === '0.0.0.0' ||
-				host === 'raptor-nino' ||
-				!host.includes('.') || // Hôtes intranet sans TLD public (ex: raptor-nino, nas, srv-local)
+				!host.includes('.') || // Hôtes intranet sans TLD public (ex: nas, srv-local)
 				host.endsWith('.local') ||
 				host.endsWith('.internal') ||
 				host.endsWith('.lan') ||
@@ -155,7 +154,7 @@ export class LocalLlmClient {
 			return [];
 		} catch (err: unknown) {
 			clearTimeout(timer);
-			// Fallback si la requête réseau échoue mais qu'on sait que raptor-nino a ces modèles
+			// Fallback si la requête réseau échoue mais qu'on sait que le serveur local a ces modèles
 			return [
 				{ id: 'ministral:latest', name: 'ministral:latest (Ministral 14B Reasoning)' },
 				{ id: 'qwen2.5-coder:14b', name: 'qwen2.5-coder:14b (Qwen 14.8B Coder)' }

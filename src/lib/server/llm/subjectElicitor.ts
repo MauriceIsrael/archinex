@@ -1,7 +1,7 @@
 /**
  * Moteur d'Élicitation Architecturale & Provocation Dialectique
  * Conçu pour forcer la maturation d'un sujet (L1 -> L2 -> L3)
- * Fonctionne en local souverain sur raptor-nino:11434 (Ministral 14B / Qwen 14B).
+ * Fonctionne en local souverain via Ollama (Ministral 14B / Qwen 14B).
  */
 
 import type { ArchitectRole } from '$lib/types/epistemic';
@@ -12,7 +12,7 @@ import type {
 	TelegraphicVariant
 } from '$lib/domain/telegraphic';
 import { localLlmClient } from './localLlmClient';
-import { DEFAULT_KB_STANDARDS, type KbItemSummary } from './rfpFactorizer';
+import type { KbItemSummary } from './rfpFactorizer';
 
 export interface ElicitationRequest {
 	subjectId: string;
@@ -53,7 +53,7 @@ RÈGLES D'OR DE L'ÉLICITATION D'ARCHITECTURE :
 3. ASSIGNER DES QUESTIONS ULTRA-CIBLÉES (MANQUE) : Chaque question doit être attribuée au rôle expert pertinent :
    - "lead_architect" (gouvernance, arbitrage financier/légal, souveraineté)
    - "infra_expert_architect" (bare-metal, serveurs, baies, k8s, stockage)
-   - "domain_architect" (réseau, cœurs télécom, radio, latence, PTP)
+   - "domain_architect" (réseau, cœurs télécom, radio, latence, synchronisation)
    - "security_architect" (chiffrement, ANSSI, NIS2, IAM, durcissement)
    - "data_architect" (persistance, flux, rétention)
 4. FORMULER UNE VARIANTE B : Proposer une alternative technique concrète avec son compromis coût/performance ("Trade-Off").
@@ -118,7 +118,7 @@ Procède à l'élicitation approfondie : dégage les hypothèses cachées (SUPPO
  */
 export async function elicitSubjectDetails(
 	req: ElicitationRequest,
-	kbStandards: KbItemSummary[] = DEFAULT_KB_STANDARDS
+	kbStandards: KbItemSummary[] = []
 ): Promise<ElicitationResult> {
 	const model = req.model || 'ministral:latest';
 
@@ -188,7 +188,7 @@ export async function elicitSubjectDetails(
  */
 export function fallbackDeterministicElicitation(req: ElicitationRequest): ElicitationResult {
 	const sName = req.subjectName.toLowerCase();
-	const isTelco = sName.includes('ptp') || sName.includes('upf') || sName.includes('telco') || sName.includes('radio');
+	const isTelco = sName.includes('synchro') || sName.includes('upf') || sName.includes('telco') || sName.includes('radio');
 	const isSec = sName.includes('chiffr') || sName.includes('sec') || sName.includes('nis2') || sName.includes('cert');
 
 	const role: ArchitectRole = isTelco

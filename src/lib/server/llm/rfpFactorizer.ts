@@ -22,61 +22,6 @@ export interface KbItemSummary {
 }
 
 /**
- * Catalogue doctrinal compact du Patrimoine Commun (LLMOps)
- * Utilisé pour contextualiser l'inférence sans saturer la fenêtre de contexte.
- */
-export const DEFAULT_KB_STANDARDS: KbItemSummary[] = [
-	{
-		id: 'STD-SOUV-01',
-		title: 'Souveraineté des Données & Immunité Extraterritoriale',
-		category: 'SOUVERAINETE',
-		ruleOrStatement: 'Hébergement exclusif sur le territoire national avec qualification SecNumCloud 3.2. Chiffrement avec gestion de clés souveraine (HSM EAL4+).'
-	},
-	{
-		id: 'STD-INFRA-01',
-		title: 'Socle Matériel Bare-Metal & OS Minimal Immuable',
-		category: 'INFRASTRUCTURE',
-		ruleOrStatement: 'Déploiement sur bare-metal durci (x86_64 / ARM64). OS conteneurisé immuable (SLE Micro / Linux durci CIS Benchmark Niveau 2).'
-	},
-	{
-		id: 'STD-TELCO-01',
-		title: 'Synchronisation de Précision Temporelle PTP IEEE 1588v2',
-		category: 'TELECOM',
-		ruleOrStatement: 'Profil ITU-T G.8275.1 avec précision de phase <= 1.5 µs. Mode Holdover d\'autonomie sans GNSS >= 30 jours pour les cœurs critiques.'
-	},
-	{
-		id: 'STD-TELCO-02',
-		title: 'Double Attachement & Accélération Réseau UPF',
-		category: 'TELECOM',
-		ruleOrStatement: 'Accélération matérielle SR-IOV ou DPDK obligatoire pour les fonctions UPF. Double attachement Multus CNI avec isolation des plans de commande et usager.'
-	},
-	{
-		id: 'STD-SECOPS-01',
-		title: 'Posture Zero-Trust & Chiffrement de Bout-en-Bout',
-		category: 'SECOPS',
-		ruleOrStatement: 'mTLS obligatoire avec certificats X.509 à rotation automatisée. Conformité stricte aux suites cryptographiques ANSSI.'
-	},
-	{
-		id: 'STD-SECOPS-02',
-		title: 'Homologation NIS2 & Export des Télémétries de Sécurité',
-		category: 'SECOPS',
-		ruleOrStatement: 'Export standardisé des alertes d\'intrusion vers le SIEM souverain sous 24 heures pour conformité légale Directive NIS2.'
-	},
-	{
-		id: 'STD-OBS-01',
-		title: 'Observabilité Unifiée & Télémétrie Ouverte',
-		category: 'OBSERVABILITE',
-		ruleOrStatement: 'Collecte via OpenTelemetry (OTel Collector), métriques Prometheus et traçage distribué sans dépendance propriétaire.'
-	},
-	{
-		id: 'STD-RESIL-01',
-		title: 'Résilience en Mode Déconnecté & Haute Disponibilité',
-		category: 'RESILIENCE',
-		ruleOrStatement: 'Autonomie opérationnelle complète des nœuds locaux en cas d\'isolement du WAN. Synchronisation asynchrone dès rétablissement.'
-	}
-];
-
-/**
  * Construit le prompt système pour le LLM local
  */
 export function buildSystemPrompt(customDirectives?: string): string {
@@ -93,7 +38,7 @@ RÈGLES D'OR DE FACTORISATION ARCHITECTURALE :
 4. Assigner le rôle responsable adéquat parmi :
    - "lead_architect" (gouvernance, souveraineté, arbitrages globaux)
    - "infra_expert_architect" (bare-metal, serveurs, stockage, virtualisation, k8s)
-   - "telco_expert_architect" (cœurs de réseau, radio, PTP, SR-IOV, slicing)
+   - "telco_expert_architect" (cœurs de réseau, radio, synchronisation, SR-IOV, slicing)
    - "secops_expert_architect" (chiffrement, IAM, NIS2, ANSSI, firewalling)
    - "data_ai_expert_architect" (flux de données, modèles, persistance)
    - "qa_governance_architect" (conformité, tests de charge, SLAs)
@@ -140,7 +85,7 @@ RÈGLES D'OR DE FACTORISATION ARCHITECTURALE :
  */
 export function buildUserMessage(
 	clauses: ExtractedClause[],
-	kbStandards: KbItemSummary[] = DEFAULT_KB_STANDARDS
+	kbStandards: KbItemSummary[] = []
 ): string {
 	const kbText = kbStandards
 		.map((k) => `[${k.id}] (${k.category}) ${k.title} : ${k.ruleOrStatement}`)
@@ -166,7 +111,7 @@ Procède à la factorisation en 8 à 12 sujets d'architecture majeurs en veillan
  */
 export async function factorizeRfpWithLocalLlm(
 	request: RfpFactorizationRequest,
-	kbStandards: KbItemSummary[] = DEFAULT_KB_STANDARDS
+	kbStandards: KbItemSummary[] = []
 ): Promise<RfpFactorizationResponse> {
 	const clauses = request.clauses || [];
 	const model = request.model || 'ministral:latest';
@@ -265,7 +210,7 @@ export async function factorizeRfpWithLocalLlm(
  */
 export function fallbackDeterministicFactorization(
 	clauses: ExtractedClause[],
-	kbStandards: KbItemSummary[] = DEFAULT_KB_STANDARDS,
+	kbStandards: KbItemSummary[] = [],
 	warningMessage?: string
 ): RfpFactorizationResponse {
 	const totalClauses = clauses.length;
@@ -300,12 +245,12 @@ export function fallbackDeterministicFactorization(
 			keywords: ['bare-metal', 'matériel', 'kubernetes', 'cis', 'conteneur', 'cpu', 'mémoire', 'serveur']
 		},
 		telco: {
-			name: 'Synchronisation PTP & Accélération Réseau UPF',
+			name: 'Synchronisation Temporelle & Accélération Réseau UPF',
 			lotId: 'LOT-03-TELCO',
 			role: 'domain_architect',
 			kbIds: ['STD-TELCO-01', 'STD-TELCO-02'],
 			clauses: [],
-			keywords: ['ptp', '1588v2', 'upf', 'sr-iov', 'multus', 'latence', '5g', 'gnss', 'holdover', 'frmcs', 'etcs']
+			keywords: ['synchronisation', '1588v2', 'upf', 'sr-iov', 'multus', 'latence', '5g', 'gnss', 'holdover', 'frmcs', 'etcs']
 		},
 		secops: {
 			name: 'Sécurité Réseau, Chiffrement TLS 1.3 & Conformité NIS2',
@@ -455,7 +400,7 @@ function inferLotFromRef(str: string): string {
 	const s = (str || '').toLowerCase();
 	if (s.includes('souv') || s.includes('secnum') || s.includes('juridique')) return 'LOT-01-SOUV';
 	if (s.includes('infra') || s.includes('bare') || s.includes('k8s')) return 'LOT-02-INFRA';
-	if (s.includes('telco') || s.includes('ptp') || s.includes('upf') || s.includes('radio')) return 'LOT-03-TELCO';
+	if (s.includes('telco') || s.includes('synchro') || s.includes('upf') || s.includes('radio')) return 'LOT-03-TELCO';
 	if (s.includes('sec') || s.includes('chiffr') || s.includes('nis2')) return 'LOT-04-SECOPS';
 	return 'LOT-02-INFRA';
 }

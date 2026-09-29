@@ -1,11 +1,12 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { deliberationStore } from '$lib/stores/deliberationStore.svelte';
 import type { WorkspaceCreationInput } from '$lib/domain/engagements';
+import { createTestDefaultEngagements } from '../fixtures/sample-data';
 
 describe('Workspace Lifecycle, Persistence, Archiving & Deletion Contract', () => {
 	beforeEach(() => {
 		// Réinitialiser vers l'état usine avant les tests
-		deliberationStore.resetToDefaults();
+		deliberationStore.initFromDb(createTestDefaultEngagements(), []);
 	});
 
 	it('1. Démarre avec les espaces de travail par défaut actifs', () => {

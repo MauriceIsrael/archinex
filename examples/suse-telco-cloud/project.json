@@ -1,0 +1,55 @@
+{
+  "id": "suse-telco-cloud-generic",
+  "title": "SUSE Telco Cloud (Architecture Générique)",
+  "shortName": "SUSE Telco Cloud",
+  "type": "generic_blueprint",
+  "badge": "SUSE Telco Cloud · Baseline",
+  "description": "Patrimoine d'architecture pour concevoir une pile Telco Cloud souveraine (Rancher, RKE2, SLERT, NeuVector, Harvester). 100% Local.",
+  "defaultSubjectId": "suse_cni_sriov",
+  "defaultDocId": "DOC-SUSE-ARCH-01",
+  "status": "active",
+  "strategy": {
+    "objectives": [
+      "Souveraineté européenne",
+      "Latence sub-milliseconde SLERT",
+      "Sécurité Zero-Trust"
+    ],
+    "principles": [
+      "Standardisation O-RAN",
+      "Open Source certifié",
+      "Audits de sécurité continus"
+    ],
+    "constraints": [
+      "Matériel COTS x86_64",
+      "Pas de dépendance cloud public",
+      "Air-gap total"
+    ]
+  },
+  "participants": [
+    {
+      "id": "part-lead",
+      "name": "M. Israel",
+      "role": "lead_architect",
+      "email": "m.israel@archinex.local",
+      "isLead": true
+    },
+    {
+      "id": "part-infra",
+      "name": "P. Durand",
+      "role": "infra_expert_architect",
+      "email": "p.durand@archinex.local"
+    },
+    {
+      "id": "part-sec",
+      "name": "S. Bernard",
+      "role": "security_architect",
+      "email": "s.bernard@archinex.local"
+    },
+    {
+      "id": "part-domain",
+      "name": "A. Chen",
+      "role": "domain_architect",
+      "email": "a.chen@archinex.local"
+    }
+  ]
+}

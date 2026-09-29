@@ -72,19 +72,19 @@
 	let factorizationResponse = $state<RfpFactorizationResponse | null>(null);
 	let factorizationError = $state<string | null>(null);
 
-	// Modèles et configuration locale (raptor-nino)
+	// Modèles et configuration locale (LLM Local)
 	let availableModels = $state<LocalLlmModel[]>([
 		{ id: 'ministral:latest', name: 'ministral:latest (Ministral 14B Reasoning - 256k)' },
 		{ id: 'qwen2.5-coder:14b', name: 'qwen2.5-coder:14b (Qwen 14.8B Coder)' }
 	]);
 	let selectedModel = $state<string>('ministral:latest');
-	let serverEndpoint = $state<string>('http://raptor-nino:11434');
+	let serverEndpoint = $state<string>('http://localhost:11434');
 	let serverAvailable = $state<boolean>(true);
 	let showPromptSettings = $state<boolean>(false);
 	let customPromptDirectives = $state<string>('');
 	let defaultSystemPrompt = $state<string>('');
 
-	// Découverte dynamique de raptor-nino à l'ouverture
+	// Découverte dynamique du LLM local à l'ouverture
 	$effect(() => {
 		if (open) {
 			fetch('/api/rfp/factorize')
@@ -581,7 +581,7 @@
 							></textarea>
 						</div>
 
-						<!-- ─── Volet de Configuration du Moteur LLM Souverain (raptor-nino) ─── -->
+						<!-- ─── Volet de Configuration du Moteur LLM Souverain ─── -->
 						<div class="p-3.5 rounded-xl border bg-card space-y-3">
 							<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
 								<div class="flex items-center gap-2">
@@ -624,7 +624,7 @@
 								{#if showPromptSettings}
 									<div class="mt-2.5 space-y-2 p-3 rounded-lg bg-muted/20 border animate-in fade-in duration-150">
 										<label for="prompt-directives" class="text-[11px] font-semibold text-foreground block">
-											Directives particulières de cadrage (ex: insister sur la souveraineté, le maintien PTP, etc.) :
+											Directives particulières de cadrage (ex: insister sur la souveraineté, la résilience, etc.) :
 										</label>
 										<textarea
 											id="prompt-directives"
@@ -662,7 +662,7 @@
 							>
 								{#if isFactorizing}
 									<RefreshCw class="h-4 w-4 animate-spin" />
-									<span>Factorisation en cours sur raptor-nino ({selectedModel})...</span>
+									<span>Factorisation en cours sur le LLM local ({selectedModel})...</span>
 								{:else}
 									<Sparkles class="h-4 w-4 text-amber-300" />
 									<span>Factoriser en 8-12 Sujets d'Architecture via LLM Souverain ({selectedModel})</span>

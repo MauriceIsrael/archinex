@@ -1,12 +1,12 @@
 import { describe, it, expect } from 'vitest';
 import {
-	INITIAL_CORPUS_DOCUMENTS,
 	computeCorpusStats,
 	filterCorpusDocuments,
 	getDocumentById,
 	getDocumentsForSubject,
 	type CorpusDocument
 } from '$lib/domain/corpus';
+import { INITIAL_CORPUS_DOCUMENTS } from '../fixtures/sample-data';
 
 describe('Corpus Domain Logic & Separation', () => {
 	it('should clearly distinguish client documents from contributor external documents', () => {
@@ -91,8 +91,9 @@ describe('Corpus Domain Logic & Separation', () => {
 
 	it('should match relevant organizational knowledge base rules (SmartMemory / ADRs) applicable to client documents', async () => {
 		const { getApplicableDoctrineRules } = await import('$lib/domain/dialectic');
+		const { TEST_DOCTRINE_RULES } = await import('../fixtures/sample-doctrine-rules');
 		const cctpDoc = getDocumentById(INITIAL_CORPUS_DOCUMENTS, 'DOC-CLI-01')!;
-		const applicable = getApplicableDoctrineRules(cctpDoc);
+		const applicable = getApplicableDoctrineRules(cctpDoc, TEST_DOCTRINE_RULES);
 
 		expect(applicable.length).toBeGreaterThanOrEqual(1);
 		// DOC-CLI-01 (CCTP Lot 2) mentions synchronisation, holdover, phase precision -> must match ADR-0014

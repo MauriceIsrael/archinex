@@ -1,0 +1,97 @@
+[
+  {
+    "id": "suse_cni_sriov",
+    "section_ref": "§2.1",
+    "name": "Accélération Réseau CNI & SR-IOV/DPDK",
+    "level": "L2_decomposed",
+    "blocking_count": 1,
+    "unlocks_count": 3,
+    "waiting_for_role": "infra_expert_architect",
+    "relative_effort": "M",
+    "last_transition_date": "2026-09-20T00:00:00Z",
+    "stall_days": 7,
+    "is_stalled": false,
+    "dependent_subject_ids": [
+      "suse_rt_kernel",
+      "suse_neuvector_mesh"
+    ]
+  },
+  {
+    "id": "suse_rt_kernel",
+    "section_ref": "§2.2",
+    "name": "Noyau Temps Réel (SLERT) & Gigue Sub-ms",
+    "level": "L1_framed",
+    "blocking_count": 2,
+    "unlocks_count": 2,
+    "waiting_for_role": "infra_expert_architect",
+    "relative_effort": "S",
+    "last_transition_date": "2026-09-18T00:00:00Z",
+    "stall_days": 9,
+    "is_stalled": false,
+    "dependent_subject_ids": [
+      "suse_cni_sriov"
+    ]
+  },
+  {
+    "id": "suse_rke2_hardened",
+    "section_ref": "§3.1",
+    "name": "Cluster Kubernetes RKE2 Durci (CIS/FIPS)",
+    "level": "L3_decided",
+    "blocking_count": 0,
+    "unlocks_count": 4,
+    "waiting_for_role": "security_architect",
+    "relative_effort": "M",
+    "last_transition_date": "2026-09-22T00:00:00Z",
+    "stall_days": 5,
+    "is_stalled": false,
+    "dependent_subject_ids": [
+      "suse_neuvector_mesh"
+    ]
+  },
+  {
+    "id": "suse_neuvector_mesh",
+    "section_ref": "§3.2",
+    "name": "Sécurité Zero-Trust & Inspection DPI (NeuVector)",
+    "level": "L0_named",
+    "blocking_count": 2,
+    "unlocks_count": 2,
+    "waiting_for_role": "security_architect",
+    "relative_effort": "L",
+    "last_transition_date": "2026-09-10T00:00:00Z",
+    "stall_days": 17,
+    "is_stalled": true,
+    "dependent_subject_ids": [
+      "suse_rke2_hardened"
+    ]
+  },
+  {
+    "id": "suse_harvester_kvm",
+    "section_ref": "§4.1",
+    "name": "Virtualisation Edge Hybride (Harvester / KubeVirt)",
+    "level": "L0_named",
+    "blocking_count": 1,
+    "unlocks_count": 1,
+    "waiting_for_role": "infra_expert_architect",
+    "relative_effort": "XL",
+    "last_transition_date": "2026-09-12T00:00:00Z",
+    "stall_days": 15,
+    "is_stalled": true,
+    "dependent_subject_ids": []
+  },
+  {
+    "id": "suse_rancher_fleet",
+    "section_ref": "§5.1",
+    "name": "Orchestration GitOps Multi-Clusters Edge (Fleet)",
+    "level": "L2_decomposed",
+    "blocking_count": 0,
+    "unlocks_count": 3,
+    "waiting_for_role": "lead_architect",
+    "relative_effort": "L",
+    "last_transition_date": "2026-09-24T00:00:00Z",
+    "stall_days": 3,
+    "is_stalled": false,
+    "dependent_subject_ids": [
+      "suse_rke2_hardened"
+    ]
+  }
+]

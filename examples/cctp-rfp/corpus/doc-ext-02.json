@@ -1,0 +1,30 @@
+{
+  "id": "DOC-EXT-02",
+  "title": "Directive NIS2 & Recommandations ANSSI · Réseaux Vitaux",
+  "origin": "contributor_external",
+  "category": "regulation",
+  "categoryLabel": "Cadre Réglementaire ANSSI",
+  "sourceOrAuthor": "S. Bernard",
+  "contributorRole": "Architecte Sécurité NIS2",
+  "version": "Édition 2025",
+  "pageCount": 92,
+  "extractedClausesCount": 18,
+  "relatedSubjectIds": [
+    "sub_sync",
+    "sub_dc_resilience",
+    "sub_pqc"
+  ],
+  "summary": "Réglementation européenne transposée imposant aux entités essentielles la résilience face au brouillage électromagnétique et aux cyberattaques étatiques sur le positionnement GNSS.",
+  "keyClauses": [
+    {
+      "id": "cl-ext-02",
+      "clauseRef": "ANSSI R-07",
+      "title": "Autonomie locale en cas de perte de signal satellite",
+      "text": "Les systèmes de commande et télécommunications d'importance vitale doivent pouvoir fonctionner au minimum 30 jours sans référence externe GNSS.",
+      "criticality": "bloquant",
+      "impactSummary": "Règle doctrinale imposant les oscillateurs atomiques locaux (Rubidium)."
+    }
+  ],
+  "addedDate": "2026-09-10T14:15:00Z",
+  "lastUpdated": "2026-09-10T14:15:00Z"
+}

@@ -127,7 +127,7 @@ export function formatDomainName(rawDomain: string): string {
     'cloud-platform': 'Plateforme Cloud & Infrastructure',
     'observability': 'Observabilité & Télémétrie',
     'ai-assistance': 'Assistance IA & MLOps',
-    'mobile-core': 'Cœur Mobile & 5G/MCX',
+    'mobile-core': 'Cœur Mobile & 5G/Mission-Critique',
     'security': 'Sécurité & Confiance Numérique',
     'security-architecture': 'Architecture de Sécurité',
     'security-cryptography': 'Cryptographie & PQC',
@@ -251,13 +251,13 @@ export function computeProjectMatching(
 
   // Détection des domaines chauds dans le projet
   const projectDomainKeywords: Record<string, string[]> = {
-    'network-automation': ['réseau', 'network', 'cni', 'sriov', 'dpdk', 'routant', 'bgp', 'gitops', 'ptp', 'automatisation', 'transmission'],
-    'cloud-platform': ['kubernetes', 'rke2', 'harvester', 'cluster', 'kvm', 'cloud', 'conteneur', 'worker', 'baremetal', 'iaas', 'plateforme'],
+    'network-automation': ['réseau', 'network', 'cni', 'sriov', 'dpdk', 'routant', 'bgp', 'gitops', 'automatisation', 'transmission'],
+    'cloud-platform': ['kubernetes', 'cluster', 'kvm', 'cloud', 'conteneur', 'worker', 'baremetal', 'iaas', 'plateforme'],
     'observability': ['observabilité', 'mda', 'télémétrie', 'monitoring', 'metrics', 'logs', 'traces', 'gigue', 'cyclictest'],
     'ai-assistance': ['ia', 'llm', 'inférence', 'mlops', 'modèle', 'assistant', 'prompt', 'vllm'],
-    'mobile-core': ['5g', 'mcx', 'upf', 'cœur', 'core', 'slicing', 'tranches', '3gpp', 'amf', 'smf', 'qcis', 'sba'],
-    'security': ['sécurité', 'secnumcloud', 'nis2', 'chiffrement', 'pqc', 'fips', 'cis', 'durci', 'zero-trust', 'neuvector', 'homologation', 'anssi'],
-    'telecom-core': ['ferroviaire', 'frmcs', 'gsm-r', 'sol-bord', 'signalisation', 'etcs', 'radio', 'uic', 'rubidium']
+    'mobile-core': ['5g', 'upf', 'cœur', 'core', 'slicing', 'tranches', '3gpp', 'amf', 'smf', 'qcis', 'sba'],
+    'security': ['sécurité', 'secnumcloud', 'nis2', 'chiffrement', 'pqc', 'fips', 'cis', 'durci', 'zero-trust', 'homologation', 'anssi'],
+    'telecom-core': ['ferroviaire', 'frmcs', 'gsm-r', 'sol-bord', 'signalisation', 'etcs', 'radio', 'uic', 'atomique']
   };
 
   const activeProjectDomains = new Set<string>();

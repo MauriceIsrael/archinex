@@ -1,0 +1,72 @@
+[
+  {
+    "id": "msg-suse-01",
+    "channel": "internal",
+    "author": "P. Durand",
+    "role": "infra_expert_architect",
+    "content": "Sur le socle SUSE, nous devons impérativement activer Multus CNI et l'opérateur SR-IOV pour isoler le plan utilisateur UPF du trafic OAM de gestion.",
+    "timestamp": "09:45",
+    "isAi": false,
+    "subjectId": "suse_cni_sriov"
+  },
+  {
+    "id": "msg-suse-02",
+    "channel": "internal",
+    "author": "S. Bernard",
+    "role": "security_architect",
+    "content": "Validé pour Multus SR-IOV, sous réserve que NeuVector inspecte les interfaces N2/N3 en couche L7 sans injection de sidecar invasif dans les pods UPF.",
+    "timestamp": "09:50",
+    "isAi": false,
+    "subjectId": "suse_cni_sriov"
+  },
+  {
+    "id": "msg-suse-03",
+    "channel": "internal",
+    "author": "M. Israel (Lead Architect)",
+    "role": "lead_architect",
+    "content": "D'accord avec la séparation Multus. Pour le DPDK, nous fixons 4 cœurs isolés par nœud worker edge.",
+    "timestamp": "09:55",
+    "isAi": false,
+    "subjectId": "suse_cni_sriov"
+  },
+  {
+    "id": "msg-suse-rt-01",
+    "channel": "internal",
+    "author": "P. Durand",
+    "role": "infra_expert_architect",
+    "content": "Pour le profil temps réel SLERT (kernel PREEMPT_RT), les tests montrent une gigue maximale de 12 µs avec isolcpus=2-7 et nohz_full=2-7.",
+    "timestamp": "10:05",
+    "isAi": false,
+    "subjectId": "suse_rt_kernel"
+  },
+  {
+    "id": "msg-suse-rt-02",
+    "channel": "internal",
+    "author": "M. Israel (Lead Architect)",
+    "role": "lead_architect",
+    "content": "Ce profil SLERT est conforme aux exigences O-RAN FH. Nous verrouillons l'hypothèse de dimensionnement.",
+    "timestamp": "10:10",
+    "isAi": false,
+    "subjectId": "suse_rt_kernel"
+  },
+  {
+    "id": "msg-suse-rke2-01",
+    "channel": "internal",
+    "author": "S. Bernard",
+    "role": "security_architect",
+    "content": "Le profil de durcissement CIS Benchmark L2 est appliqué via les profils RKE2 natifs. Chiffrement etcd activé avec clés AES-CBC.",
+    "timestamp": "10:15",
+    "isAi": false,
+    "subjectId": "suse_rke2_hardened"
+  },
+  {
+    "id": "msg-suse-nv-01",
+    "channel": "internal",
+    "author": "S. Bernard",
+    "role": "security_architect",
+    "content": "Le contrôleur NeuVector doit être déployé en mode Enforce sur le cluster d'administration et en mode Monitor initial sur les nœuds radio edge.",
+    "timestamp": "10:30",
+    "isAi": false,
+    "subjectId": "suse_neuvector_mesh"
+  }
+]

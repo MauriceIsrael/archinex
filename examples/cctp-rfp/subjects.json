@@ -1,0 +1,102 @@
+[
+  {
+    "id": "sub_sync",
+    "section_ref": "§4.2",
+    "name": "Synchronisation Réseau & Holdover",
+    "level": "L2_decomposed",
+    "blocking_count": 1,
+    "unlocks_count": 3,
+    "waiting_for_role": "lead_architect",
+    "relative_effort": "S",
+    "last_transition_date": "2026-09-08T00:00:00Z",
+    "stall_days": 12,
+    "is_stalled": false,
+    "dependent_subject_ids": [
+      "sub_radio",
+      "sub_core",
+      "sub_ppdr"
+    ]
+  },
+  {
+    "id": "sub_dc_resilience",
+    "section_ref": "§3.1",
+    "name": "Résilience Datacenter & Énergie",
+    "level": "L0_named",
+    "blocking_count": 2,
+    "unlocks_count": 4,
+    "waiting_for_role": "infra_expert_architect",
+    "relative_effort": "M",
+    "last_transition_date": "2026-08-28T00:00:00Z",
+    "stall_days": 23,
+    "is_stalled": true,
+    "dependent_subject_ids": [
+      "sub_sync",
+      "sub_storage",
+      "sub_core",
+      "sub_backup"
+    ]
+  },
+  {
+    "id": "sub_radio",
+    "section_ref": "§4.3",
+    "name": "Transmission Radio Fréquences MCX",
+    "level": "L1_framed",
+    "blocking_count": 2,
+    "unlocks_count": 1,
+    "waiting_for_role": "domain_architect",
+    "relative_effort": "M",
+    "last_transition_date": "2026-09-14T00:00:00Z",
+    "stall_days": 6,
+    "is_stalled": false,
+    "dependent_subject_ids": [
+      "sub_ppdr"
+    ]
+  },
+  {
+    "id": "sub_core",
+    "section_ref": "§4.4",
+    "name": "Cœur de Réseau & Tranches 5G (Slicing)",
+    "level": "L1_framed",
+    "blocking_count": 2,
+    "unlocks_count": 1,
+    "waiting_for_role": "domain_architect",
+    "relative_effort": "L",
+    "last_transition_date": "2026-09-12T00:00:00Z",
+    "stall_days": 8,
+    "is_stalled": false,
+    "dependent_subject_ids": [
+      "sub_ppdr"
+    ]
+  },
+  {
+    "id": "sub_ppdr",
+    "section_ref": "§5.1",
+    "name": "Terminaux PPDR & Ergonomie Terrain",
+    "level": "L2_decomposed",
+    "blocking_count": 5,
+    "unlocks_count": 0,
+    "waiting_for_role": "domain_architect",
+    "relative_effort": "XL",
+    "last_transition_date": "2026-09-15T00:00:00Z",
+    "stall_days": 5,
+    "is_stalled": false,
+    "dependent_subject_ids": []
+  },
+  {
+    "id": "sub_pqc",
+    "section_ref": "§6.2",
+    "name": "Cryptographie Post-Quantique (PQC) & Chiffrement Flux",
+    "level": "L3_decided",
+    "blocking_count": 0,
+    "unlocks_count": 2,
+    "waiting_for_role": "security_architect",
+    "relative_effort": "S",
+    "last_transition_date": "2026-09-19T00:00:00Z",
+    "stall_days": 1,
+    "is_stalled": false,
+    "dependent_subject_ids": [
+      "sub_core",
+      "sub_ppdr"
+    ]
+  }
+]

@@ -191,10 +191,10 @@
 					<div class="rounded-lg border bg-background p-3 space-y-1.5">
 						<div class="flex items-center gap-2">
 							<span class="text-base">🏢</span>
-							<strong class="text-foreground">SUSE Telco Cloud (Blueprint Vierge)</strong>
+							<strong class="text-foreground">Socle Blueprint (Architecture de Référence)</strong>
 						</div>
 						<p class="text-muted-foreground">
-							Projet générique pour concevoir votre socle souverain : Kubernetes durci RKE2, SLERT temps réel, NeuVector Zero-Trust, Harvester virtualisation, CNI Multus/SR-IOV.
+							Projet générique pour concevoir votre socle souverain : conteneurisation durcie, noyau temps réel, sécurité Zero-Trust, virtualisation hybride et interfaces réseau accélérées.
 						</p>
 						<span class="inline-block rounded bg-primary/10 text-primary px-2 py-0.5 font-mono text-[10px] font-semibold">
 							Idéal pour définir votre architecture de référence
@@ -204,10 +204,10 @@
 					<div class="rounded-lg border bg-background p-3 space-y-1.5">
 						<div class="flex items-center gap-2">
 							<span class="text-base">📋</span>
-							<strong class="text-foreground">CCTP 5G & MCX (Projet Réel RFP)</strong>
+							<strong class="text-foreground">Projet Réel RFP (Appel d'Offres)</strong>
 						</div>
 						<p class="text-muted-foreground">
-							Appel d'offres contractuel client : tranches critiques MCX, exigences de résilience, clauses CCTP et arbitrage formel d'antagonismes 3GPP.
+							Appel d'offres contractuel client : tranches critiques prioritaires, exigences de résilience, clauses CCTP et arbitrage formel d'antagonismes normatifs.
 						</p>
 						<span class="inline-block rounded bg-amber-500/10 text-amber-700 dark:text-amber-300 px-2 py-0.5 font-mono text-[10px] font-semibold">
 							Idéal pour délibérer sur une réponse à appel d'offres

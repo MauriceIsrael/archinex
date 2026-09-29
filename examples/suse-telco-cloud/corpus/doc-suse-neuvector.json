@@ -1,0 +1,41 @@
+{
+  "id": "DOC-SUSE-NEUVECTOR",
+  "title": "NeuVector Zero-Trust Container Security for Telco Cloud",
+  "origin": "contributor_external",
+  "category": "vendor_whitepaper",
+  "categoryLabel": "Livre Blanc Éditeur",
+  "sourceOrAuthor": "SUSE Security Labs",
+  "contributorRole": "security_architect",
+  "version": "v5.3",
+  "pageCount": 42,
+  "extractedClausesCount": 1,
+  "relatedSubjectIds": [
+    "suse_neuvector_mesh"
+  ],
+  "summary": "Inspection protocolaire profonde DPI (Deep Packet Inspection) et segmentation réseau L7 pour les microservices 5G SBA.",
+  "keyIdeas": [
+    "Sécurité conteneur Zero-Trust sans injection de sidecars invasifs.",
+    "Inspection protocolaire L7 en temps réel des interfaces 5G SBA (N2, N3, N4).",
+    "Détection et blocage immédiat des flux latéraux non autorisés."
+  ],
+  "inducedRules": [
+    {
+      "id": "RULE-SUSE-NV-01",
+      "title": "Inspection DPI N2/N3 Transparente",
+      "type": "obligation",
+      "description": "L'analyse comportementale des microservices SBA doit être faite en temps réel sans injection de sidecar invasif.",
+      "targetSubjectId": "suse_neuvector_mesh"
+    }
+  ],
+  "addedDate": "2026-09-22T00:00:00Z",
+  "lastUpdated": "2026-09-22T00:00:00Z",
+  "keyClauses": [
+    {
+      "id": "CLAUSE-SUSE-NV-01",
+      "clauseRef": "§5.2",
+      "title": "Inspection DPI N2/N3 sans agent hôte",
+      "text": "L'inspection des paquets SBA doit s'effectuer en couche de routage conteneur sans modifier les binaires CNF opérateurs.",
+      "criticality": "majeur"
+    }
+  ]
+}

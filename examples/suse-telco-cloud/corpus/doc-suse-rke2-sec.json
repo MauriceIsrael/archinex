@@ -1,0 +1,42 @@
+{
+  "id": "DOC-SUSE-RKE2-SEC",
+  "title": "RKE2 Hardening & Conformité CIS Benchmark Level 2",
+  "origin": "contributor_external",
+  "category": "guideline",
+  "categoryLabel": "Guide de Durcissement",
+  "sourceOrAuthor": "Équipe Sécurité Archinex",
+  "contributorRole": "security_architect",
+  "version": "v1.4",
+  "pageCount": 38,
+  "extractedClausesCount": 1,
+  "relatedSubjectIds": [
+    "suse_rke2_hardened",
+    "suse_neuvector_mesh"
+  ],
+  "summary": "Guide opérationnel pour durcir les clusters RKE2 en conformité avec les exigences ANSSI / SecNumCloud et CIS Benchmark.",
+  "keyIdeas": [
+    "Distribution Kubernetes durcie par défaut sans composants legacy superflus.",
+    "Chiffrement systématique au repos des secrets etcd validé FIPS 140-3.",
+    "Alignement complet sur les profils de conformité CIS Benchmark Level 2."
+  ],
+  "inducedRules": [
+    {
+      "id": "RULE-SUSE-SEC-01",
+      "title": "Chiffrement etcd FIPS 140-3",
+      "type": "obligation",
+      "description": "Interdiction de stocker des secrets en clair dans etcd. KMS ou clé FIPS exigée.",
+      "targetSubjectId": "suse_rke2_hardened"
+    }
+  ],
+  "keyClauses": [
+    {
+      "id": "CLAUSE-SUSE-SEC-01",
+      "clauseRef": "§2.4",
+      "title": "FIPS 140-3 et Chiffrement etcd",
+      "text": "Tous les secrets au repos dans etcd doivent être chiffrés avec AES-CBC ou KMS externe certifié FIPS 140-3.",
+      "criticality": "bloquant"
+    }
+  ],
+  "addedDate": "2026-09-21T00:00:00Z",
+  "lastUpdated": "2026-09-21T00:00:00Z"
+}

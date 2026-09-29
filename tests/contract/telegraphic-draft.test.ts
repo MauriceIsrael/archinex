@@ -1,12 +1,16 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import {
 	renderTelegraphicDraft,
 	validateTelegraphicTone,
 	type TelegraphicDraft
 } from '$lib/domain/telegraphic';
 import { deliberationStore } from '$lib/stores/deliberationStore.svelte';
+import { createTestDefaultEngagements } from '../fixtures/sample-data';
 
 describe('Lot 2 - Telegraphic Draft & Tone Non-Regression Contract Tests', () => {
+	beforeEach(() => {
+		deliberationStore.initFromDb(createTestDefaultEngagements(), []);
+	});
 	it('Scénario 1: Rendu d\'un brouillon-appât provoquant sur un sujet non stabilisé (§4.2 Synchronisation)', () => {
 		const draft: TelegraphicDraft = {
 			section_id: '§4.2',

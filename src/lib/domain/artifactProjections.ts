@@ -111,9 +111,9 @@ ${parts.join('\n')}
 }
 
 /**
- * Génère le profil technique d'infrastructure / synchronisation (PTP G.8275.1 JSON).
+ * Génère la configuration opérationnelle JSON (No Doc Drift).
  */
-export function generatePtpConfigJSON(
+export function generateConfigJSON(
 	subject: MaturitySubject,
 	draft: TelegraphicDraft,
 	statements: Statement[]
@@ -127,7 +127,7 @@ export function generatePtpConfigJSON(
 		subjectId: subject.id,
 		parameters: {
 			domainNumber: 24,
-			clockClass: holdoverStmt ? 6 : 7, // Grandmaster class with atomic holdover
+			clockClass: holdoverStmt ? 6 : 7,
 			holdoverSpec: holdoverStmt ? String(holdoverStmt.triplet.value) : '24h',
 			powerRedundancy: powerStmt ? String(powerStmt.triplet.value) : 'Single_feed',
 			transport: 'Ethernet_Multicast',

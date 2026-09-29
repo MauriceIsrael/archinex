@@ -1,0 +1,28 @@
+{
+  "id": "DOC-CLI-04",
+  "title": "Cadrage Budgétaire & Jalons Contractuels de Déploiement",
+  "origin": "client",
+  "category": "cctp",
+  "categoryLabel": "Cadre Financier MOA",
+  "sourceOrAuthor": "Direction Financière & Achats Client",
+  "version": "v1.2",
+  "pageCount": 18,
+  "extractedClausesCount": 8,
+  "relatedSubjectIds": [
+    "sub_dc_resilience",
+    "sub_sync"
+  ],
+  "summary": "Plafonds budgétaires CAPEX/OPEX par tranche de déploiement et pénalités de retard sur les jalons critiques de mise en service.",
+  "keyClauses": [
+    {
+      "id": "cl-cli-07",
+      "clauseRef": "Fin. §1.3",
+      "title": "Plafond surcoût CAPEX Phase 1",
+      "text": "Tout surcoût matériel au-delà de 350 k€ sur le lot infrastructure nécessite un arbitrage exprès du comité directeur.",
+      "criticality": "info",
+      "impactSummary": "Surveille la somme cumulée des options techniques retenues."
+    }
+  ],
+  "addedDate": "2026-09-02T09:30:00Z",
+  "lastUpdated": "2026-09-02T09:30:00Z"
+}

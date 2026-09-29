@@ -79,7 +79,7 @@ export interface StatementRevisability {
 }
 
 export interface Statement {
-	id: string;                     // ex: "ENG:nordwave-mcx-2027/S-0042"
+	id: string;                     // ex: "ENG:project-1/S-0042"
 	section: string;                // ex: "§4.2"
 	triplet: StatementTriplet;
 	justification: StatementJustification;

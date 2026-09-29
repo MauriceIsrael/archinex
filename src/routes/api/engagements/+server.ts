@@ -3,8 +3,7 @@ import type { RequestHandler } from './$types';
 import {
 	getAllEngagementsFromDb,
 	saveEngagementToDb,
-	updateEngagementInDb,
-	seedEngagementsIfEmpty
+	updateEngagementInDb
 } from '$lib/server/engagementsDb';
 import {
 	buildEngagementProfileFromWorkspaceInput,
@@ -14,7 +13,6 @@ import {
 import { getAllCorpusDocumentsFromDb, saveCorpusDocumentToDb } from '$lib/server/engagementsDb';
 
 export const GET: RequestHandler = async () => {
-	await seedEngagementsIfEmpty();
 	const engagements = await getAllEngagementsFromDb();
 	return json({ engagements });
 };

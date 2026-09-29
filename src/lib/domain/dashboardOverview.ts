@@ -103,7 +103,7 @@ export const ROLE_LABELS: Record<string, { label: string; short: string; color: 
 		color: '#8b5cf6' // Violet
 	},
 	infra_expert_architect: {
-		label: 'Architecte Infra & Réseau (CNI, PTP, SLERT)',
+		label: 'Architecte Infra & Réseau (CNI, Temps Réel)',
 		short: 'Infra & Réseau',
 		color: '#0ea5e9' // Sky / Cyan
 	},
@@ -142,7 +142,7 @@ const CATEGORY_COLORS: Record<string, { label: string; color: string }> = {
 	cctp: { label: 'CCTP Contractuels', color: '#3b82f6' },
 	standard: { label: 'Standards & Normes (3GPP, ITU)', color: '#8b5cf6' },
 	regulation: { label: 'Directives & Sécurité (ANSSI, NIS2)', color: '#10b981' },
-	vendor_whitepaper: { label: 'Blueprints Éditeur (SUSE, Linux)', color: '#06b6d4' },
+	vendor_whitepaper: { label: 'Blueprints Éditeur (OS, Cloud)', color: '#06b6d4' },
 	business_spec: { label: 'Spécifications Métier', color: '#f59e0b' },
 	rfp_annex: { label: 'Annexes Techniques RFP', color: '#ec4899' },
 	guideline: { label: 'Guides & Bonnes Pratiques', color: '#64748b' },

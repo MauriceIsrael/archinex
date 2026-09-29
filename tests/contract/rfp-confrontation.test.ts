@@ -4,8 +4,7 @@ import {
 	confrontClausesWithKnowledgeBase,
 	SAMPLE_RFP_TEMPLATES
 } from '$lib/domain/rfpConfrontation';
-import { INITIAL_CORPUS_DOCUMENTS } from '$lib/domain/corpus';
-import { SUSE_TELCO_CORPUS, SUSE_TELCO_STATEMENTS } from '$lib/domain/engagements';
+import { INITIAL_CORPUS_DOCUMENTS, SUSE_TELCO_CORPUS, SUSE_TELCO_STATEMENTS } from '../fixtures/sample-data';
 import { deliberationStore } from '$lib/stores/deliberationStore.svelte';
 
 describe('RFP Shredding & Knowledge Base Confrontation Contract', () => {

@@ -14,7 +14,14 @@ import type {
   LLMOpsConflict,
   LLMOpsRfpShredResponse,
   LLMOpsResponseEnvelope,
-  LLMOpsSyncPayload
+  LLMOpsSyncPayload,
+  DoctrineContext,
+  DoctrineItem,
+  CheckResult,
+  OptionVerdict,
+  FrameworkCoverage,
+  FrameworkStatus,
+  KbCandidate
 } from './types';
 
 export interface LLMOpsClientConfig {
@@ -35,7 +42,7 @@ export class LLMOpsClient {
     // Tout appel vers GCP Cloud Run ou un cloud externe est rigoureusement bloqué pour garantir l'étanchéité absolue des RFP.
     this.baseUrl = (config.baseUrl || process.env.LLMOPS_BASE_URL || 'http://127.0.0.1:8000').replace(/\/+$/, '');
     this.authToken = config.authToken || process.env.LLMOPS_AUTH_TOKEN || 'demo-local-sovereign-2026';
-    this.defaultEngagement = config.defaultEngagement || process.env.LLMOPS_ENGAGEMENT || 'nordwave-mcx-2027';
+    this.defaultEngagement = config.defaultEngagement || process.env.LLMOPS_ENGAGEMENT || 'default-project';
     this.timeoutMs = config.timeoutMs || 1500;
   }
 
@@ -63,8 +70,7 @@ export class LLMOpsClient {
         host === '127.0.0.1' ||
         host === '::1' ||
         host === '0.0.0.0' ||
-        host === 'raptor-nino' ||
-        !host.includes('.') || // Noms d'hôtes locaux intranet (ex: raptor-nino, nas, srv-local)
+        !host.includes('.') || // Noms d'hôtes locaux intranet (ex: nas, srv-local)
         host.endsWith('.local') ||
         host.endsWith('.internal') ||
         host.endsWith('.lan') ||
@@ -82,10 +88,7 @@ export class LLMOpsClient {
    * Mappe les identifiants d'engagements locaux vers l'identifiant reconnu par le serveur local.
    */
   resolveRemoteEngagement(engagement?: string): string {
-    if (!engagement || engagement === 'cctp-mcx-nordwave' || engagement === 'eng_cctp_nordwave' || engagement === 'nordwave-mcx-2027') {
-      return 'nordwave-mcx-2027';
-    }
-    return engagement;
+    return engagement || this.defaultEngagement;
   }
 
   private getHeaders(engagement?: string): Record<string, string> {
@@ -130,7 +133,7 @@ export class LLMOpsClient {
     conflicts: LLMOpsConflict[];
   } {
     const candidates = [
-      resolve(process.cwd(), 'src/lib/fixtures/llmops-nordwave-bundle.json'),
+      resolve(process.cwd(), 'tests/fixtures/llmops/llmops-offline-bundle.json'),
       resolve(process.cwd(), '../LLMOps/data/snapshots/latest.json')
     ];
 
@@ -173,29 +176,29 @@ export class LLMOpsClient {
       },
       board: [
         {
-          subject: 'mcx-services',
-          name: 'mcx-services',
+          subject: 'core-platform',
+          name: 'core-platform',
           level: 'L2_decomposed',
           origin: 'blueprint',
           days_at_level: 0,
           updated_at: new Date().toISOString(),
           is_stalled: false,
           open_question_ref: null,
-          assigned_role: 'mcx-service-architect',
-          dependent_sections: ['4.1']
+          assigned_role: 'domain_architect',
+          dependent_sections: ['1.1']
         }
       ],
       statements: [
         {
           id: 'S-OFFLINE-01',
-          section: '4.1',
-          subject: 'mcx-services',
+          section: '1.1',
+          subject: 'core-platform',
           predicate: 'implements',
-          value: '3GPP Release 17 MCX Voice/Data Service Layer',
+          value: 'Baseline Standard Architecture',
           unit: null,
           author: 'archinex-offline',
           role: 'system',
-          confidence: 'verified',
+          confidence: 'designed',
           verbatim: 'Instantané hors-ligne par défaut.',
           status: 'active'
         }
@@ -238,7 +241,7 @@ export class LLMOpsClient {
       // Fallback
     }
 
-    const fixturePath = resolve(process.cwd(), 'src/lib/fixtures/llmops-sealed-snapshot.json');
+    const fixturePath = resolve(process.cwd(), 'tests/fixtures/llmops/llmops-sealed-snapshot.json');
     if (existsSync(fixturePath)) {
       const raw = readFileSync(fixturePath, 'utf-8').replace(/^\uFEFF/, '');
       return { data: JSON.parse(raw) as LLMOpsSnapshot, source: 'offline-fallback' };
@@ -438,33 +441,268 @@ export class LLMOpsClient {
   }
 
   /**
+   * Doctrine applicable à un sujet (GET /api/knowledge/context)
+   */
+  async getDoctrineContext(params: {
+    subject?: string;
+    domains?: string[];
+    frameworks?: string[];
+    max_items?: number;
+    max_chars?: number;
+  } = {}): Promise<DoctrineContext> {
+    try {
+      const q = new URLSearchParams();
+      if (params.subject) q.set('subject', params.subject);
+      if (params.domains && params.domains.length > 0) q.set('domains', params.domains.join(','));
+      if (params.frameworks && params.frameworks.length > 0) q.set('frameworks', params.frameworks.join(','));
+      if (params.max_items) q.set('max_items', String(params.max_items));
+      if (params.max_chars) q.set('max_chars', String(params.max_chars));
+
+      const url = `${this.baseUrl}/api/knowledge/context?${q.toString()}`;
+      const res = await this.fetchWithTimeout(url, { headers: this.getHeaders() });
+      if (res.ok) {
+        const body = await res.json();
+        const data = (body.data || body) as DoctrineContext;
+        return { ...data, offline: false };
+      }
+    } catch {
+      // Live unreachable -> fallback offline
+    }
+
+    // Repli hors ligne scellé : filtre l'instantané scellé par termes et domaines
+    return this.getDoctrineContextOffline(params);
+  }
+
+  /**
+   * Filtrage hors-ligne scellé pour getDoctrineContext
+   */
+  private getDoctrineContextOffline(params: {
+    subject?: string;
+    domains?: string[];
+    frameworks?: string[];
+    max_items?: number;
+  }): DoctrineContext {
+    let items: DoctrineItem[] = [];
+
+    const fixturePath = resolve(process.cwd(), 'tests/fixtures/llmops/llmops-sealed-snapshot.json');
+    if (existsSync(fixturePath)) {
+      try {
+        const raw = readFileSync(fixturePath, 'utf-8').replace(/^\uFEFF/, '');
+        const snapshot = JSON.parse(raw) as LLMOpsSnapshot;
+        const appIndex = snapshot.applicability_index || {};
+
+        const domainsFilter = (params.domains || []).map((d) => d.toLowerCase());
+        const subjectFilter = (params.subject || '').toLowerCase();
+
+        for (const [key, meta] of Object.entries(appIndex)) {
+          const entry = meta as { domains?: string[]; rules?: string[]; phases?: string[] };
+          const entryDomains = (entry.domains || []).map((d) => d.toLowerCase());
+
+          const matchesDomain =
+            domainsFilter.length === 0 || entryDomains.some((d) => domainsFilter.includes(d));
+          const matchesSubject =
+            !subjectFilter ||
+            key.toLowerCase().includes(subjectFilter) ||
+            (entry.rules || []).some((r) => r.toLowerCase().includes(subjectFilter));
+
+          if (matchesDomain && matchesSubject) {
+            items.push({
+              id: key,
+              type: key.startsWith('ADR-') ? 'adr' : key.startsWith('TPL-') ? 'pattern' : 'rule',
+              title: `Règle doctrinale ${key}`,
+              content: `Extrait scellé pour ${key} (domaines : ${entry.domains?.join(', ') || 'général'}).`,
+              domain: entry.domains?.[0],
+              confidence: 'verified'
+            });
+          }
+        }
+      } catch {
+        // En cas d'erreur de parsing, items reste vide
+      }
+    }
+
+    if (params.max_items && items.length > params.max_items) {
+      items = items.slice(0, params.max_items);
+    }
+
+    return {
+      subject: params.subject,
+      domains: params.domains,
+      frameworks: params.frameworks,
+      items,
+      total_items: items.length,
+      truncated: false,
+      offline: true
+    };
+  }
+
+  /**
+   * Vérification d'une option d'architecture par rapport à la doctrine (POST /api/knowledge/check)
+   */
+  async checkOption(params: {
+    option: { id: string; title: string; summary: string; kbRefs?: string[] };
+    subject?: string;
+    domain?: string;
+    frameworks?: string[];
+  }): Promise<CheckResult> {
+    try {
+      const url = `${this.baseUrl}/api/knowledge/check`;
+      const res = await this.fetchWithTimeout(url, {
+        method: 'POST',
+        headers: this.getHeaders(),
+        body: JSON.stringify(params)
+      });
+      if (res.ok) {
+        const body = await res.json();
+        const data = (body.data || body) as CheckResult;
+        return { ...data, offline: false };
+      }
+    } catch {
+      // Live unreachable -> fallback offline
+    }
+
+    // Repli hors-ligne : renvoie tout en unassessed, avec offline: true. Ne jamais inventer de verdict.
+    const kbRefs = params.option.kbRefs || [];
+    const verdicts: OptionVerdict[] = kbRefs.map((ref) => ({
+      rule_id: ref,
+      status: 'unassessed',
+      rationale: 'Évaluation non disponible en mode hors-ligne. Verdict non émis.',
+      exception_allowed: false
+    }));
+
+    if (verdicts.length === 0) {
+      verdicts.push({
+        rule_id: 'RULE-DEFAULT',
+        status: 'unassessed',
+        rationale: 'Aucun référentiel KB associé à cette option. Vérification hors-ligne indisponible.',
+        exception_allowed: false
+      });
+    }
+
+    return {
+      verdicts,
+      offline: true
+    };
+  }
+
+  /**
+   * Couverture réglementaire du projet (GET /api/compliance/frameworks/applicable)
+   */
+  async getFrameworkCoverage(engagement?: string): Promise<FrameworkCoverage> {
+    const remoteEng = this.resolveRemoteEngagement(engagement || this.defaultEngagement);
+    try {
+      const url = `${this.baseUrl}/api/compliance/frameworks/applicable?engagement=${encodeURIComponent(remoteEng)}`;
+      const res = await this.fetchWithTimeout(url, { headers: this.getHeaders(remoteEng) });
+      if (res.ok) {
+        const body = await res.json();
+        const data = (body.data || body) as FrameworkCoverage;
+        return { ...data, offline: false };
+      }
+    } catch {
+      // Live unreachable -> fallback offline
+    }
+
+    return {
+      frameworks: [],
+      overall_coverage: 'unknown',
+      checked_at: new Date().toISOString(),
+      offline: true
+    };
+  }
+
+  /**
+   * Déclaration des référentiels applicables au projet (PUT /api/compliance/frameworks/applicable)
+   */
+  async setApplicableFrameworks(
+    engagement: string,
+    frameworks: string[]
+  ): Promise<{ status: string }> {
+    const remoteEng = this.resolveRemoteEngagement(engagement);
+    try {
+      const url = `${this.baseUrl}/api/compliance/frameworks/applicable`;
+      const res = await this.fetchWithTimeout(url, {
+        method: 'PUT',
+        headers: this.getHeaders(remoteEng),
+        body: JSON.stringify({ engagement: remoteEng, frameworks })
+      });
+      if (res.ok) {
+        return { status: 'ok' };
+      }
+    } catch {
+      // Live unreachable -> fallback offline
+    }
+
+    return { status: 'offline_recorded' };
+  }
+
+  /**
+   * Soumission d'un candidat à la KB (POST /api/knowledge/candidates)
+   */
+  async submitCandidate(candidate: KbCandidate): Promise<{ candidate_id: string; status: string }> {
+    const eng = candidate.source.engagement || this.defaultEngagement;
+    const remoteEng = this.resolveRemoteEngagement(eng);
+
+    try {
+      const url = `${this.baseUrl}/api/knowledge/candidates`;
+      const res = await this.fetchWithTimeout(url, {
+        method: 'POST',
+        headers: this.getHeaders(remoteEng),
+        body: JSON.stringify(candidate)
+      });
+      if (res.ok) {
+        const body = await res.json();
+        const payload = body.data || body;
+        return {
+          candidate_id: payload.candidate_id || payload.id || `CAND-${Date.now()}`,
+          status: payload.status || 'in_review'
+        };
+      }
+    } catch {
+      // Live unreachable -> fallback offline
+    }
+
+    const localId = `CAND-LOCAL-${Date.now().toString(36).toUpperCase()}`;
+    return {
+      candidate_id: localId,
+      status: 'in_review'
+    };
+  }
+
+  /**
+   * Liste des candidats KB (GET /api/knowledge/candidates)
+   */
+  async listCandidates(filter: { source?: string; engagement?: string } = {}): Promise<KbCandidate[]> {
+    const eng = filter.engagement || this.defaultEngagement;
+    const remoteEng = this.resolveRemoteEngagement(eng);
+
+    try {
+      const q = new URLSearchParams();
+      if (filter.source) q.set('source', filter.source);
+      if (remoteEng) q.set('engagement', remoteEng);
+
+      const url = `${this.baseUrl}/api/knowledge/candidates?${q.toString()}`;
+      const res = await this.fetchWithTimeout(url, { headers: this.getHeaders(remoteEng) });
+      if (res.ok) {
+        const body = await res.json();
+        const data = body.data || body;
+        return Array.isArray(data) ? data : [];
+      }
+    } catch {
+      // Fallback
+    }
+
+    return [];
+  }
+
+  /**
    * Synchronisation globale composite (Board + Statements + Conflicts + Health)
-   * Optimisée : Court-circuit immédiat en local si offline ou si engagement personnalisé
+   * Bascule automatiquement en local si offline
    */
   async syncEngagement(engagement?: string): Promise<LLMOpsSyncPayload> {
     const localEng = engagement || this.defaultEngagement;
     const remoteEng = this.resolveRemoteEngagement(localEng);
 
-    // Si l'engagement est un blueprint générique 100% local ou un projet custom différent de nordwave-mcx-2027,
-    // on sert directement le bundle local scellé pour garantir 0ms de latence et aucune erreur 500 distante.
-    if (localEng === 'suse-telco-cloud-generic' || remoteEng !== 'nordwave-mcx-2027') {
-      const bundle = this.loadOfflineBundle();
-      return {
-        source: 'offline-fallback',
-        engagement: localEng,
-        syncedAt: new Date().toISOString(),
-        health: {
-          ...bundle.health,
-          service: 'archinex-sovereign-local'
-        },
-        board: bundle.board,
-        statements: bundle.statements,
-        conflicts: bundle.conflicts,
-        snapshotMeta: bundle.health.kb
-      };
-    }
-
-    // Fast-fail health check : si Cloud Run est injoignable, on bascule immédiatement en local sans attendre
+    // Fast-fail health check : si Cloud Run / serveur est injoignable, on bascule immédiatement en local sans attendre
     const healthRes = await this.getHealth();
     if (healthRes.source !== 'live') {
       const bundle = this.loadOfflineBundle();

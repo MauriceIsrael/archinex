@@ -39,13 +39,13 @@ export interface RfpConfrontationResult {
  */
 export const SAMPLE_RFP_TEMPLATES = [
 	{
-		id: 'rfp-mcx-5g',
+		id: 'rfp-critical-5g',
 		name: 'CCTP Télécom · Réseau Critique 5G SA & Slicing Souverain',
 		description: 'Exigences régaliennes de latence sub-microseconde, chiffrement TLS 1.3 certifié ANSSI et autonomie locale.',
 		text: `Art. 1.1 - Hébergement Souverain et Immunité Juridique
 L'ensemble de la chaîne de traitement et des cœurs de réseau doit être opéré exclusivement sur le territoire national au sein d'une infrastructure qualifiée SecNumCloud 3.2, avec une immunité stricte contre toute juridiction extraterritoriale (notamment le Cloud Act).
 
-Art. 2.1 - Synchronisation de Phase PTP et Autonomie Temporelle
+Art. 2.1 - Synchronisation de Phase Temporelle et Autonomie
 Les passerelles nodales et stations de base doivent implémenter le profil télécom IEEE 1588v2 / ITU-T G.8275.1 avec une précision temporelle de phase meilleure que ±1.5 µs. En cas de perte du signal GNSS satellitaire, chaque nœud critique doit garantir un maintien autonome (Holdover) supérieur ou égal à 30 jours sans dérive de trame.
 
 Art. 3.4 - Séparation Étanche des Tranches et Accélération UPF
@@ -439,11 +439,10 @@ function evaluateClauseCompliance(
  */
 function computeKeywordOverlap(textA: string, textB: string): number {
 	const KEYWORDS = [
-		'ptp',
 		'g.8275.1',
 		'1588v2',
 		'holdover',
-		'rubidium',
+		'atomique',
 		'gnss',
 		'secnumcloud',
 		'souverain',

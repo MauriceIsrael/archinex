@@ -1,0 +1,57 @@
+{
+  "id": "DOC-CLI-02",
+  "title": "Annexe Sécurité & Résilience Opérationnelle des Datacenters",
+  "origin": "client",
+  "category": "rfp_annex",
+  "categoryLabel": "Annexe Sécurité CCTP",
+  "sourceOrAuthor": "RSSI Client (Homologation)",
+  "version": "v1.4",
+  "pageCount": 48,
+  "extractedClausesCount": 24,
+  "relatedSubjectIds": [
+    "sub_dc_resilience",
+    "sub_pqc"
+  ],
+  "summary": "Exigences d'autonomie des infrastructures physiques, alimentation secourue, détection d'intrusion et continuité d'activité en cas d'avarie majeure.",
+  "keyIdeas": [
+    "Autonomie énergétique totale de 72 heures sans ravitaillement extérieur pour les nœuds nodaux.",
+    "Chiffrement de bout en bout des liaisons d'administration conforme aux standards ANSSI.",
+    "Préparation obligatoire de la cryptographie post-quantique (PQC) pour la pérennité 10 ans."
+  ],
+  "inducedRules": [
+    {
+      "id": "RULE-CLI-SEC-01",
+      "title": "Alimentation Secourue 72h Sans Rupture",
+      "type": "obligation",
+      "description": "Groupes électrogènes redondés N+1 et cuves de carburant certifiées ICPE.",
+      "targetSubjectId": "sub_dc_resilience"
+    },
+    {
+      "id": "RULE-CLI-SEC-02",
+      "title": "Chiffrement Homologué ANSSI & Hybridation PQC",
+      "type": "obligation",
+      "description": "Prohibition de suites cryptographiques dépréciées sur les flux inter-sites.",
+      "targetSubjectId": "sub_pqc"
+    }
+  ],
+  "keyClauses": [
+    {
+      "id": "cl-cli-04",
+      "clauseRef": "Annexe §3.1.2",
+      "title": "Autonomie énergétique continue 72h",
+      "text": "Les sites centraux et nœuds de transit doivent disposer d'une réserve carburant et de groupes électrogènes garantissant 72h d'autonomie à pleine charge.",
+      "criticality": "bloquant",
+      "impactSummary": "Génère un surcoût de cuve enterrée ICPE (+95 k€)."
+    },
+    {
+      "id": "cl-cli-05",
+      "clauseRef": "Annexe §6.2.1",
+      "title": "Chiffrement de bout en bout des liaisons d'administration",
+      "text": "Tous les flux de gestion doivent être protégés par un chiffrement conforme aux algorithmes homologués par l'ANSSI.",
+      "criticality": "majeur",
+      "impactSummary": "Exige la préparation au chiffrement hybride post-quantique."
+    }
+  ],
+  "addedDate": "2026-09-01T08:00:00Z",
+  "lastUpdated": "2026-09-05T14:00:00Z"
+}

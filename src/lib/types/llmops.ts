@@ -116,3 +116,90 @@ export interface LLMOpsSyncPayload {
   conflicts: LLMOpsConflict[];
   snapshotMeta?: LLMOpsKbMeta;
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CONTRATS LLMOps L1, L2, L3 (Conformes au plan d'implémentation Archinex)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface DoctrineItem {
+  id: string;
+  type: 'rule' | 'adr' | 'principle' | 'pattern' | 'standard';
+  title: string;
+  content: string;
+  domain?: string;
+  framework?: string;
+  confidence?: string;
+  url?: string;
+}
+
+export interface DoctrineContext {
+  subject?: string;
+  domains?: string[];
+  frameworks?: string[];
+  items: DoctrineItem[];
+  total_items: number;
+  truncated: boolean;
+  offline?: boolean;
+}
+
+export interface OptionVerdict {
+  rule_id: string;
+  status: 'supports' | 'violates' | 'unassessed';
+  rationale: string;
+  severity?: 'error' | 'warning' | 'info';
+  exception_allowed?: boolean;
+}
+
+export interface CheckOptionRequest {
+  option_id?: string;
+  option_label: string;
+  option_description?: string;
+  rules?: string[];
+  frameworks?: string[];
+}
+
+export interface CheckResult {
+  verdicts: OptionVerdict[];
+  offline?: boolean;
+}
+
+export interface FrameworkStatus {
+  name: string;
+  required: boolean;
+  status: 'covered' | 'partial' | 'missing' | 'unknown';
+  covered_count: number;
+  total_count: number;
+  missing_clauses?: string[];
+}
+
+export interface FrameworkCoverage {
+  frameworks: FrameworkStatus[];
+  overall_coverage: 'covered' | 'partial' | 'missing' | 'unknown';
+  checked_at: string;
+  offline?: boolean;
+}
+
+export interface KbCandidate {
+  id?: string;
+  kind: 'new_asset' | 'amendment' | 'rex';
+  title: string;
+  summary: string;
+  suggested_change?: string;
+  rationale: string;
+  source: {
+    system: 'archinex';
+    engagement: string;
+    decision_id?: string;
+    subject_id?: string;
+  };
+  target_asset_ref?: string;
+  accepted_violation_justification?: string;
+  status?: 'in_review' | 'accepted' | 'rejected';
+  rejection_reason?: string;
+  author: string;
+  author_role?: string;
+  production_mode: 'human-authored' | 'llm-proposed-human-approved' | 'llm-derived';
+  created_at?: string;
+  updated_at?: string;
+}
+

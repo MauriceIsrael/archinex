@@ -1,8 +1,14 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeEach } from 'vitest';
 import { deliberationStore } from '$lib/stores/deliberationStore.svelte';
 import { renderTelegraphicDraft, validateTelegraphicTone } from '$lib/domain/telegraphic';
+import { createTestDefaultEngagements, SAMPLE_CANDIDATE_RULES } from '../fixtures/sample-data';
 
 describe('Integration Scenario - End-to-End Deliberation & Epistemic Governance', () => {
+	beforeEach(() => {
+		deliberationStore.initFromDb(createTestDefaultEngagements(), []);
+		deliberationStore.candidateRules = JSON.parse(JSON.stringify(SAMPLE_CANDIDATE_RULES));
+	});
+
 	it('Scénario Intégration Complet: Cycle d\'élicitation, priorité des déblocages, garde-fous humains et effet domino', () => {
 		// 0. Sélection de l'engagement CCTP 5G & MCX (Projet Réel)
 		deliberationStore.switchEngagement('cctp-mcx-nordwave');

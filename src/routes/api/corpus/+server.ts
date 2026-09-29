@@ -2,13 +2,11 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import {
 	getAllCorpusDocumentsFromDb,
-	saveCorpusDocumentToDb,
-	seedEngagementsIfEmpty
+	saveCorpusDocumentToDb
 } from '$lib/server/engagementsDb';
 import type { CorpusDocument } from '$lib/domain/corpus';
 
 export const GET: RequestHandler = async () => {
-	await seedEngagementsIfEmpty();
 	const documents = await getAllCorpusDocumentsFromDb();
 	return json({ documents });
 };

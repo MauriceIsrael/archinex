@@ -1,0 +1,9 @@
+# Denylist of specific project/vendor terms forbidden in src/
+# Enforced by scripts/check-no-project-names.mjs
+suse
+telco-cloud
+nordwave
+mcx
+rubidium
+raptor-nino
+\bptp\b

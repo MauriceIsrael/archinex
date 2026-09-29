@@ -16,8 +16,8 @@
 	let { open = $bindable(false) } = $props<{ open?: boolean }>();
 
 	let rfpText = $state<string>('');
-	let documentId = $state<string>('CCTP-MCX-ANNEXE-04');
-	let documentTitle = $state<string>('CCTP Annexe 4 · Exigences Débit & Chiffrement MCX');
+	let documentId = $state<string>('CCTP-ANNEXE-04');
+	let documentTitle = $state<string>('CCTP Annexe 4 · Exigences Débit & Chiffrement');
 	let documentVersion = $state<string>('v1.0');
 	let isLoading = $state<boolean>(false);
 	let errorMessage = $state<string | null>(null);
@@ -26,12 +26,12 @@
 
 	const SAMPLE_TEXT = `Le système complet doit être hébergé sur SecNumCloud 3.2 avec une immunité stricte aux lois extraterritoriales.
 Les flux voix prioritaires (MCPTT) doivent être arbitrés en moins de 100 ms sur chaque site isolé.
-Le raccordement au réseau opérateur exige une redondance PTP IEEE 1588v2 avec un holdover rubidium supérieur à 30 jours sans signal GNSS.`;
+Le raccordement au réseau opérateur exige une redondance de synchronisation IEEE 1588v2 avec un maintien supérieur à 30 jours sans signal GNSS.`;
 
 	function loadSample() {
 		rfpText = SAMPLE_TEXT;
 		documentId = 'CCTP-LOT2-ANNEXE-OIV';
-		documentTitle = 'CCTP Lot 2 · Exigences Souveraineté & Latence MCX';
+		documentTitle = 'CCTP Lot 2 · Exigences Souveraineté & Latence';
 	}
 
 	async function handleShred() {
@@ -177,7 +177,7 @@ Le raccordement au réseau opérateur exige une redondance PTP IEEE 1588v2 avec 
 							onclick={loadSample}
 							class="text-xs text-primary hover:underline font-medium"
 						>
-							Charger exemple CCTP MCX
+							Charger extrait d'exemple
 						</button>
 					</div>
 					<textarea

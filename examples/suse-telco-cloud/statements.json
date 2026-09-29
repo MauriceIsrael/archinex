@@ -1,0 +1,89 @@
+[
+  {
+    "id": "STMT-SUSE-01",
+    "section": "§2.1",
+    "triplet": {
+      "subject": "suse_cni_sriov",
+      "predicate": "network_acceleration",
+      "value": "Multus CNI + SR-IOV Intel E810"
+    },
+    "justification": {
+      "basedOn": [
+        "DOC-SUSE-ARCH-01/§3.2.1"
+      ]
+    },
+    "authority": {
+      "author": "M. Israel",
+      "role": "infra_expert_architect",
+      "productionMode": "human-authored"
+    },
+    "maturity": {
+      "subjectLevel": "L2_decomposed",
+      "confidence": "designed"
+    },
+    "revisability": {
+      "antecedents": []
+    },
+    "status": "active",
+    "createdAt": "2026-09-20T10:00:00Z",
+    "updatedAt": "2026-09-20T10:00:00Z"
+  },
+  {
+    "id": "STMT-SUSE-02",
+    "section": "§3.1",
+    "triplet": {
+      "subject": "suse_rke2_hardened",
+      "predicate": "compliance",
+      "value": "CIS Kubernetes Benchmark Level 2"
+    },
+    "justification": {
+      "basedOn": [
+        "DOC-SUSE-RKE2-SEC/§2.4"
+      ]
+    },
+    "authority": {
+      "author": "Lead SecOps",
+      "role": "security_architect",
+      "productionMode": "human-authored"
+    },
+    "maturity": {
+      "subjectLevel": "L3_decided",
+      "confidence": "verified"
+    },
+    "revisability": {
+      "antecedents": []
+    },
+    "status": "active",
+    "createdAt": "2026-09-21T11:00:00Z",
+    "updatedAt": "2026-09-21T11:00:00Z"
+  },
+  {
+    "id": "STMT-SUSE-03",
+    "section": "§2.2",
+    "triplet": {
+      "subject": "suse_rt_kernel",
+      "predicate": "os_kernel",
+      "value": "SUSE Linux Enterprise Real Time (SLERT)"
+    },
+    "justification": {
+      "basedOn": [
+        "DOC-SUSE-ARCH-01/§4.1"
+      ]
+    },
+    "authority": {
+      "author": "P. Durand",
+      "role": "infra_expert_architect",
+      "productionMode": "human-authored"
+    },
+    "maturity": {
+      "subjectLevel": "L1_framed",
+      "confidence": "designed"
+    },
+    "revisability": {
+      "antecedents": []
+    },
+    "status": "active",
+    "createdAt": "2026-09-22T09:00:00Z",
+    "updatedAt": "2026-09-22T09:00:00Z"
+  }
+]

@@ -29,32 +29,21 @@ import {
 	generateStructurizrVisualMermaid,
 	generateSysMLv2,
 	generateSysMLVisualMermaid,
-	generatePtpConfigJSON
+	generateConfigJSON
 } from '$lib/domain/artifactProjections';
-import {
-	type CandidateRule,
-	INITIAL_CANDIDATE_RULES
-} from '$lib/domain/smartMemoryRules';
+import type { CandidateRule } from '$lib/domain/smartMemoryRules';
 import {
 	type CorpusDocument,
 	type CorpusStats,
 	type DocumentOrigin,
 	type DocumentCategory,
 	type ExtractedClause,
-	INITIAL_CORPUS_DOCUMENTS,
 	computeCorpusStats
 } from '$lib/domain/corpus';
 import {
-	createDefaultEngagements,
 	type EngagementProfile,
 	type WorkspaceCreationInput,
-	buildEngagementProfileFromWorkspaceInput,
-	SUSE_TELCO_SUBJECTS,
-	SUSE_TELCO_DRAFTS,
-	SUSE_TELCO_STATEMENTS,
-	SUSE_TELCO_CORPUS,
-	SUSE_TELCO_DIALOGUE_MESSAGES,
-	CCTP_DIALOGUE_MESSAGES
+	buildEngagementProfileFromWorkspaceInput
 } from '$lib/domain/engagements';
 import type {
 	LLMOpsHealth,
@@ -76,319 +65,49 @@ export interface DeliberationState {
 	notificationLog: Array<{ id: string; timestamp: string; message: string; type: 'info' | 'success' | 'warning' }>;
 }
 
-const INITIAL_SUBJECTS: MaturitySubject[] = [
-	{
-		id: 'sub_sync',
-		section_ref: '§4.2',
-		name: 'Synchronisation Réseau & Holdover',
-		level: 'L2_decomposed',
-		blocking_count: 1,
-		unlocks_count: 3,
-		waiting_for_role: 'lead_architect',
-		relative_effort: 'S',
-		last_transition_date: '2026-09-08T00:00:00Z',
-		stall_days: 12,
-		is_stalled: false,
-		dependent_subject_ids: ['sub_radio', 'sub_core', 'sub_ppdr']
-	},
-	{
-		id: 'sub_dc_resilience',
-		section_ref: '§3.1',
-		name: 'Résilience Datacenter & Énergie',
-		level: 'L0_named',
-		blocking_count: 2,
-		unlocks_count: 4,
-		waiting_for_role: 'infra_expert_architect',
-		relative_effort: 'M',
-		last_transition_date: '2026-08-28T00:00:00Z',
-		stall_days: 23,
-		is_stalled: true,
-		dependent_subject_ids: ['sub_sync', 'sub_storage', 'sub_core', 'sub_backup']
-	},
-	{
-		id: 'sub_radio',
-		section_ref: '§4.3',
-		name: 'Transmission Radio Fréquences MCX',
-		level: 'L1_framed',
-		blocking_count: 2,
-		unlocks_count: 1,
-		waiting_for_role: 'domain_architect',
-		relative_effort: 'M',
-		last_transition_date: '2026-09-14T00:00:00Z',
-		stall_days: 6,
-		is_stalled: false,
-		dependent_subject_ids: ['sub_ppdr']
-	},
-	{
-		id: 'sub_core',
-		section_ref: '§4.4',
-		name: 'Cœur de Réseau & Tranches 5G (Slicing)',
-		level: 'L1_framed',
-		blocking_count: 2,
-		unlocks_count: 1,
-		waiting_for_role: 'domain_architect',
-		relative_effort: 'L',
-		last_transition_date: '2026-09-12T00:00:00Z',
-		stall_days: 8,
-		is_stalled: false,
-		dependent_subject_ids: ['sub_ppdr']
-	},
-	{
-		id: 'sub_ppdr',
-		section_ref: '§5.1',
-		name: 'Terminaux PPDR & Ergonomie Terrain',
-		level: 'L2_decomposed',
-		blocking_count: 5,
-		unlocks_count: 0,
-		waiting_for_role: 'domain_architect',
-		relative_effort: 'XL',
-		last_transition_date: '2026-09-15T00:00:00Z',
-		stall_days: 5,
-		is_stalled: false,
-		dependent_subject_ids: []
-	},
-	{
-		id: 'sub_pqc',
-		section_ref: '§6.2',
-		name: 'Cryptographie Post-Quantique (PQC) & Chiffrement Flux',
-		level: 'L3_decided',
-		blocking_count: 0,
-		unlocks_count: 2,
-		waiting_for_role: 'security_architect',
-		relative_effort: 'S',
-		last_transition_date: '2026-09-19T00:00:00Z',
-		stall_days: 1,
-		is_stalled: false,
-		dependent_subject_ids: ['sub_core', 'sub_ppdr']
-	}
-];
-
-const INITIAL_DRAFTS: Record<string, TelegraphicDraft> = {
-	sub_sync: {
-		section_id: '§4.2',
-		subject: 'Synchronisation Réseau & Holdover',
-		maturity: 'L2_decomposed',
-		is_provisional: true,
-		retenu: ['KH:ADR-0042@v2 PTP G.8275.1 boundary clocks', 'PAT-0012 double adduction optique'],
-		suppose: [
-			{
-				text: 'holdover ≥ 30 j sans GNSS',
-				consequence: 'rubidium par site ⇒ Tier IV nord ⇒ +1 salle technique',
-				cost_hint: '+180 k€ · CAPEX 2026'
-			}
-		],
-		conflit: [
-			{
-				text: 'buffer MTIE (PTP)',
-				opposing_reference: 'SLA Opérateur Fédérateur (ADR-0019)',
-				requires_arbitration: true
-			}
-		],
-		manque: [
-			{
-				id: 'Q-0012',
-				question: 'MTIE toléré en holdover 30 j sur les stations de base MCX ?',
-				assigned_role: 'infra_expert_architect'
-			}
-		],
-		variante_b: {
-			title: 'GNSS multi-constellation + NTP durci',
-			cost_delta: '÷3 le coût (-120 k€)',
-			trade_off: 'Perd l\'éligibilité MCX Priorité 1 en cas de brouillage'
-		}
-	},
-	sub_dc_resilience: {
-		section_id: '§3.1',
-		subject: 'Résilience Datacenter & Énergie',
-		maturity: 'L0_named',
-		is_provisional: true,
-		retenu: ['KH:STD-0089 Dual-cord power supply'],
-		suppose: [
-			{
-				text: 'autonomie groupe électrogène 72 h',
-				consequence: 'cuve fioul 10 000 L enterrée avec permis ICPE',
-				cost_hint: '+95 k€'
-			}
-		],
-		conflit: [],
-		manque: [
-			{
-				id: 'Q-0003',
-				question: 'Classification Tier III suffisante ou Tier IV exigé par le client ?',
-				assigned_role: 'infra_expert_architect'
-			}
-		]
-	},
-	sub_core: {
-		section_id: '§4.4',
-		subject: 'Cœur de Réseau & Tranches 5G (Slicing)',
-		maturity: 'L1_framed',
-		is_provisional: true,
-		retenu: [
-			'Cœur 5G Standalone (5G SA) 3GPP Rel-17',
-			'Fonctions UPF distribuées sur les nœuds régionaux'
-		],
-		suppose: [
-			{
-				text: 'Isolation stricte des tranches 5QI 65 (MCX Voice) et 5QI 69 (Données critiques)',
-				consequence: 'Garantie de bande passante et latence < 10 ms sans contention avec les flux généraux',
-				cost_hint: 'Inclus socle 5G SA'
-			}
-		],
-		conflit: [
-			{
-				text: 'UPF physique dédié par site nodal vs Découpage logique mutualisé (Network Slicing E2E)',
-				opposing_reference: 'Exigence CCTP Art. 4.4.2 & Doctrine Résilience Réseau',
-				requires_arbitration: true
-			}
-		],
-		manque: [
-			{
-				id: 'Q-CORE-001',
-				question: 'L\'ANSSI valide-t-elle le découpage logique des files d\'attente ou exige-t-elle des cartes réseau et vSwitch physiquement séparés ?',
-				assigned_role: 'security_architect'
-			}
-		],
-		variante_b: {
-			title: 'Tranches logiques mutualisées avec Dynamic QoS (Slicing E2E)',
-			cost_delta: '-85 k€ CAPEX matériel',
-			trade_off: 'Partage de mémoire tampon UPF, requiert qualification de cloisonnement CSPN'
-		}
-	},
-	sub_ppdr: {
-		section_id: '§5.1',
-		subject: 'Terminaux PPDR & Ergonomie Terrain',
-		maturity: 'L2_decomposed',
-		is_provisional: true,
-		retenu: [
-			'Terminaux mobiles MCX 3GPP Rel-17 certifiés IP68',
-			'Bouton Push-To-Talk (PTT) physique dédié utilisable avec gants'
-		],
-		suppose: [
-			{
-				text: 'Autonomie batterie ≥ 18h en veille active avec géolocalisation continue',
-				consequence: 'Batteries haute capacité amovibles remplaçables à chaud sur le terrain',
-				cost_hint: '+120 € / terminal'
-			}
-		],
-		conflit: [
-			{
-				text: 'Flotte de terminaux durcis propriétaires dédiés vs Smartphones professionnels COTS sous conteneur durci',
-				opposing_reference: 'CCTP Annexe 5.1 & Guide d\'Équipement Forces d\'Intervention',
-				requires_arbitration: true
-			}
-		],
-		manque: [
-			{
-				id: 'Q-PPDR-001',
-				question: 'Les utilisateurs opérationnels imposent-ils un bouton de détresse (SOS) sous capot mécanique ?',
-				assigned_role: 'domain_architect'
-			}
-		],
-		variante_b: {
-			title: 'Smartphones durcis COTS Android Enterprise + Coque tactique bouton PTT externe',
-			cost_delta: '-35% sur le budget terminaux (gain ~95 k€)',
-			trade_off: 'Moins résistant aux chocs extrêmes, dépendance aux cycles de mise à jour constructeur'
-		}
-	},
-	sub_radio: {
-		section_id: '§4.3',
-		subject: 'Transmission Radio Fréquences MCX',
-		maturity: 'L1_framed',
-		is_provisional: true,
-		retenu: [
-			'Bandes 5G NR n78 (3.5 GHz) et n28 (700 MHz)',
-			'MIMO 4T4R sur stations nodales'
-		],
-		suppose: [
-			{
-				text: 'Couverture extérieure garantie > 98% du territoire opérationnel',
-				consequence: 'Nécessite 12 pylônes relais supplémentaires en zone rurale',
-				cost_hint: '+240 k€ investissement pylônes'
-			}
-		],
-		conflit: [
-			{
-				text: 'Densification de pylônes 700 MHz dédiés vs Itinérance secourue sur opérateurs commerciaux',
-				opposing_reference: 'SLA Disponibilité CCTP Art 4.3.1',
-				requires_arbitration: true
-			}
-		],
-		manque: [
-			{
-				id: 'Q-RAD-001',
-				question: 'Autorisation d\'émission ARCEP temporaire ou licence de bande dédiée accordée ?',
-				assigned_role: 'infra_expert_architect'
-			}
-		],
-		variante_b: {
-			title: 'Agrégation hybride réseau propre + Accès prioritaire eCall/PPDR sur réseau commercial',
-			cost_delta: '-180 k€ CAPEX initial',
-			trade_off: 'Dépendance partielle à un opérateur tiers en zone blanche'
-		}
-	},
-	sub_pqc: {
-		section_id: '§6.2',
-		subject: 'Cryptographie Post-Quantique (PQC) & Chiffrement Flux',
-		maturity: 'L3_decided',
-		is_provisional: false,
-		retenu: [
-			'Chiffrement hybride ML-KEM (Kyber-768) + X25519 sur les flux inter-sites',
-			'Tunnels IPsec IKEv2 conformes au guide ANSSI PQC 2026'
-		],
-		suppose: [
-			{
-				text: 'Accélération cryptographique matérielle FPGA sur passerelles nodales',
-				consequence: 'Débit garanti 10 Gbps sans saturation des processeurs hôtes',
-				cost_hint: '+40 k€ équipement'
-			}
-		],
-		conflit: [],
-		manque: []
-	}
-};
-
-const INITIAL_STATEMENTS: Statement[] = [
-	{
-		id: 'S-0031',
-		section: '§3.1',
-		triplet: { subject: 'sub_dc_resilience', predicate: 'power_redundancy', value: 'Double adduction secourue 72h' },
-		justification: { basedOn: ['KH:ADR-0008'] },
-		authority: { author: 'M. Israel', role: 'infra_expert_architect', productionMode: 'human-authored' },
-		maturity: { subjectLevel: 'L0_named', confidence: 'designed' },
-		revisability: { antecedents: ['KH:ADR-0008'] },
-		status: 'active',
-		createdAt: '2026-09-01T10:00:00Z',
-		updatedAt: '2026-09-01T10:00:00Z'
-	},
-	{
-		id: 'S-0042',
-		section: '§4.2',
-		triplet: { subject: 'sub_sync', predicate: 'holdover', value: 'Holdover ≥ 30 j sans GNSS' },
-		justification: { basedOn: ['S-0031', 'KH:ADR-0014'] },
-		authority: { author: 'P. Durand', role: 'infra_expert_architect', productionMode: 'human-authored' },
-		maturity: { subjectLevel: 'L2_decomposed', confidence: 'designed' },
-		revisability: { antecedents: ['S-0031'] },
-		status: 'active',
-		createdAt: '2026-09-02T14:30:00Z',
-		updatedAt: '2026-09-02T14:30:00Z'
-	}
-];
-
 class DeliberationStore {
-	private readonly STORAGE_KEY_ENGAGEMENTS = 'archinex:custom_engagements:v1';
-	private readonly STORAGE_KEY_COMMON_KB = 'archinex:common_kb:v1';
-
-	engagements = $state<EngagementProfile[]>(
-		createDefaultEngagements(INITIAL_SUBJECTS, INITIAL_DRAFTS, INITIAL_STATEMENTS)
-	);
-	activeEngagementId = $state<string>('suse-telco-cloud-generic');
+	engagements = $state<EngagementProfile[]>([]);
+	activeEngagementId = $state<string>('');
+	isLoading = $state<boolean>(false);
 
 	constructor() {
 		if (typeof window !== 'undefined') {
-			this.loadPersistedState();
+			this.loadFromServer();
 		}
 	}
+
+	async loadFromServer() {
+		this.isLoading = true;
+		try {
+			const res = await fetch('/api/engagements');
+			if (res.ok) {
+				const data = (await res.json()) as EngagementProfile[];
+				if (Array.isArray(data) && data.length > 0) {
+					this.initFromDb(data, []);
+				}
+			}
+		} catch (err) {
+			console.warn('[Archinex] Impossible de charger les projets depuis le serveur:', err);
+		} finally {
+			this.isLoading = false;
+		}
+	}
+
+	private emptyEngagement: EngagementProfile = {
+		id: '',
+		title: 'Aucun projet sélectionné',
+		shortName: 'Aucun projet',
+		type: 'generic_blueprint',
+		badge: 'PROJET',
+		description: 'Aucun projet actif. Créez un projet ou chargez un exemple.',
+		defaultSubjectId: '',
+		defaultDocId: '',
+		subjects: [],
+		drafts: {},
+		statements: [],
+		corpusDocuments: [],
+		dialogueMessages: []
+	};
 
 	get activeEngagements(): EngagementProfile[] {
 		return this.engagements.filter((e) => e.status !== 'archived');
@@ -400,38 +119,33 @@ class DeliberationStore {
 
 	get activeEngagement(): EngagementProfile {
 		return (
-			this.engagements.find(
-				(e) =>
-					e.id === this.activeEngagementId ||
-					(this.activeEngagementId === 'nordwave-mcx-2027' && e.id === 'cctp-mcx-nordwave')
-			) || this.engagements[0]
+			this.engagements.find((e) => e.id === this.activeEngagementId) ||
+			this.engagements[0] ||
+			this.emptyEngagement
 		);
 	}
 
-	activeSubjectId = $state<string>('suse_cni_sriov');
+	activeSubjectId = $state<string>('');
 	activePosture = $state<DeliberationPosture>('deliberation');
 	currentRole = $state<ArchitectRole>('lead_architect');
 	isHuman = $state<boolean>(true);
-	subjects = $state<MaturitySubject[]>(SUSE_TELCO_SUBJECTS);
-	drafts = $state<Record<string, TelegraphicDraft>>(SUSE_TELCO_DRAFTS);
+	subjects = $state<MaturitySubject[]>([]);
+	drafts = $state<Record<string, TelegraphicDraft>>({});
 	notifications = $state<Array<{ id: string; timestamp: string; message: string; type: 'info' | 'success' | 'warning' }>>([]);
-	statements = $state<Statement[]>(SUSE_TELCO_STATEMENTS);
-	dialogueMessages = $state<DialogueMessage[]>(SUSE_TELCO_DIALOGUE_MESSAGES);
+	statements = $state<Statement[]>([]);
+	dialogueMessages = $state<DialogueMessage[]>([]);
 	activeRecalls = $state<DoctrineRecallRule[]>([]);
 	frozenSnapshots = $state<Record<string, SealedSnapshot>>({});
-	candidateRules = $state<CandidateRule[]>(INITIAL_CANDIDATE_RULES);
+	candidateRules = $state<CandidateRule[]>([]);
 	selectedStatementForWhy = $state<Statement | null>(null);
 	isFreezeDialogOpen = $state<boolean>(false);
 	isWhyInspectorOpen = $state<boolean>(false);
 
-	corpusDocuments = $state<CorpusDocument[]>(SUSE_TELCO_CORPUS);
-	activeDocumentId = $state<string>('DOC-SUSE-ARCH-01');
+	corpusDocuments = $state<CorpusDocument[]>([]);
+	activeDocumentId = $state<string>('');
 
 	// Base de connaissances commune enrichie au gré des engagements (invariante & partagée de facto)
-	commonKnowledgeBase = $state<CorpusDocument[]>([
-		...INITIAL_CORPUS_DOCUMENTS,
-		...SUSE_TELCO_CORPUS
-	]);
+	commonKnowledgeBase = $state<CorpusDocument[]>([]);
 
 	get sharedKnowledgeBase(): CorpusDocument[] {
 		return this.commonKnowledgeBase;
@@ -580,13 +294,6 @@ class DeliberationStore {
 	persistCustomState() {
 		if (typeof window === 'undefined') return;
 		try {
-			if (window.localStorage) {
-				const serializableEngagements = $state.snapshot(this.engagements);
-				window.localStorage.setItem(this.STORAGE_KEY_ENGAGEMENTS, JSON.stringify(serializableEngagements));
-
-				const serializableKb = $state.snapshot(this.commonKnowledgeBase);
-				window.localStorage.setItem(this.STORAGE_KEY_COMMON_KB, JSON.stringify(serializableKb));
-			}
 
 			// Persistance asynchrone centralisée dans Prisma SQLite
 			if (window.fetch) {
@@ -608,33 +315,7 @@ class DeliberationStore {
 	 * Charge les espaces de travail et le patrimoine documentaire depuis localStorage
 	 */
 	loadPersistedState() {
-		if (typeof window === 'undefined' || !window.localStorage) return;
-		try {
-			const storedEngagements = window.localStorage.getItem(this.STORAGE_KEY_ENGAGEMENTS);
-			if (storedEngagements) {
-				const parsed = JSON.parse(storedEngagements) as EngagementProfile[];
-				if (Array.isArray(parsed) && parsed.length > 0) {
-					this.engagements = parsed;
-					if (!this.engagements.some((e) => e.id === this.activeEngagementId)) {
-						this.activeEngagementId = this.engagements[0].id;
-					}
-				}
-			}
-
-			const storedKb = window.localStorage.getItem(this.STORAGE_KEY_COMMON_KB);
-			if (storedKb) {
-				const parsedKb = JSON.parse(storedKb) as CorpusDocument[];
-				if (Array.isArray(parsedKb) && parsedKb.length > 0) {
-					for (const doc of parsedKb) {
-						if (!this.commonKnowledgeBase.some((d) => d.id === doc.id)) {
-							this.commonKnowledgeBase.push(doc);
-						}
-					}
-				}
-			}
-		} catch (err) {
-			console.warn('[Archinex] Erreur lors du chargement de la persistance locale:', err);
-		}
+		// Persistance assurée par le serveur (/api/engagements)
 	}
 
 	/**
@@ -712,14 +393,8 @@ class DeliberationStore {
 	/**
 	 * Rétablit les espaces de travail d'usine par défaut
 	 */
-	resetToDefaults() {
-		if (typeof window !== 'undefined' && window.localStorage) {
-			window.localStorage.removeItem(this.STORAGE_KEY_ENGAGEMENTS);
-			window.localStorage.removeItem(this.STORAGE_KEY_COMMON_KB);
-		}
-		this.engagements = createDefaultEngagements(INITIAL_SUBJECTS, INITIAL_DRAFTS, INITIAL_STATEMENTS);
-		this.commonKnowledgeBase = [...INITIAL_CORPUS_DOCUMENTS, ...SUSE_TELCO_CORPUS];
-		this.switchEngagement('suse-telco-cloud-generic');
+	async resetToDefaults() {
+		await this.loadFromServer();
 	}
 
 	// Tri réactif automatique par déblocages (effet multiplicateur)
@@ -1355,7 +1030,7 @@ class DeliberationStore {
 			structurizrVisual: generateStructurizrVisualMermaid(subject, draft, sectionStatements),
 			sysmlV2: generateSysMLv2(subject, draft, sectionStatements),
 			sysmlVisual: generateSysMLVisualMermaid(subject, draft, sectionStatements),
-			configJSON: generatePtpConfigJSON(subject, draft, sectionStatements)
+			configJSON: generateConfigJSON(subject, draft, sectionStatements)
 		};
 	}
 

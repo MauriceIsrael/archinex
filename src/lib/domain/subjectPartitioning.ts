@@ -48,7 +48,7 @@ const DEFAULT_PART_METADATA: Record<number, { name: string; code: string; role: 
 		name: 'Réseau, Synchronisation & Cœur de Système',
 		code: 'LOT-03-TELCO',
 		role: 'infra_expert_architect',
-		desc: 'Synchronisation de phase PTP G.8275.1, holdover, interfaces réseau CNI/SR-IOV et routage'
+		desc: 'Synchronisation de phase G.8275.1, holdover, interfaces réseau CNI/SR-IOV et routage'
 	},
 	4: {
 		name: 'Cybersécurité, Zero-Trust & Homologation',

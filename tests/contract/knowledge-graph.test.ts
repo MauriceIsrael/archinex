@@ -6,13 +6,13 @@ import {
   formatDomainName,
   type KnowledgeSnapshot
 } from '$lib/domain/knowledgeGraph';
-import sealedSnapshot from '$lib/fixtures/llmops-sealed-snapshot.json';
+import sealedSnapshot from '../fixtures/llmops/llmops-sealed-snapshot.json';
 import {
-  createDefaultEngagements,
+  createTestDefaultEngagements as createDefaultEngagements,
   SUSE_TELCO_SUBJECTS,
   SUSE_TELCO_DRAFTS,
   SUSE_TELCO_STATEMENTS
-} from '$lib/domain/engagements';
+} from '../fixtures/sample-data';
 
 describe('Knowledge Graph & Project Matching Engine', () => {
   const snapshot = sealedSnapshot as unknown as KnowledgeSnapshot;

@@ -28,3 +28,14 @@ vite.config.ts.timestamp-*
 .codex/*
 !.codex/agents/
 !.codex/config.toml
+
+# Generated DB and logs
+prisma/dev.db
+prisma/dev.db-journal
+prisma/test-clean.db
+prisma/test-clean.db-journal
+*.log
+check_output.txt
+npm_output.log
+svelte-check-output.txt
+

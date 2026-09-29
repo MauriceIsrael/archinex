@@ -6,7 +6,7 @@ import {
 	generateMermaidDiagram,
 	generateStructurizrDSL,
 	generateSysMLv2,
-	generatePtpConfigJSON
+	generateConfigJSON
 } from '$lib/domain/artifactProjections';
 
 export interface ExternalRef {
@@ -146,7 +146,7 @@ export function freezeSectionAndGenerateSnapshot(params: {
 		mermaid: generateMermaidDiagram(params.subject, params.draft, sectionStatements),
 		structurizrDSL: generateStructurizrDSL(params.subject, params.draft, sectionStatements),
 		sysmlV2: generateSysMLv2(params.subject, params.draft, sectionStatements),
-		configJSON: generatePtpConfigJSON(params.subject, params.draft, sectionStatements)
+		configJSON: generateConfigJSON(params.subject, params.draft, sectionStatements)
 	};
 
 	const sealedAt = new Date().toISOString();

@@ -1,4 +1,4 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll } from 'vitest';
 import { deliberationStore } from '$lib/stores/deliberationStore.svelte';
 import {
 	buildEngagementProfileFromWorkspaceInput,
@@ -6,9 +6,12 @@ import {
 	DEFAULT_PARTICIPANTS,
 	type WorkspaceCreationInput
 } from '$lib/domain/engagements';
-import { INITIAL_CORPUS_DOCUMENTS } from '$lib/domain/corpus';
+import { INITIAL_CORPUS_DOCUMENTS, createTestDefaultEngagements } from '../fixtures/sample-data';
 
 describe('Workspace Creation & Common Knowledge Base Contract', () => {
+	beforeAll(() => {
+		deliberationStore.initFromDb(createTestDefaultEngagements(), [...INITIAL_CORPUS_DOCUMENTS]);
+	});
 	it('1. Construit un profil d\'engagement complet à partir de la saisie de l\'espace de travail', () => {
 		const input: WorkspaceCreationInput = {
 			title: 'Supervision Réseau Critique 2027',

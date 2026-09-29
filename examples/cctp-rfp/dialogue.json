@@ -1,0 +1,152 @@
+[
+  {
+    "id": "msg-sync-01",
+    "channel": "internal",
+    "author": "P. Durand",
+    "role": "infra_expert_architect",
+    "content": "Sur le site nodal, le surcoût de 180 k€ pour le double rubidium 30 jours absorbe 50% de notre enveloppe CAPEX. La variante B (GNSS durci + NTP secouru) permet d'économiser 135 k€.",
+    "timestamp": "10:14",
+    "isAi": false,
+    "subjectId": "sub_sync"
+  },
+  {
+    "id": "msg-sync-02",
+    "channel": "internal",
+    "author": "S. Bernard",
+    "role": "security_architect",
+    "content": "Attention : sous NIS2 et selon le CCTP Art. 4.2.1, l'ANSSI refuse tout risque de désynchronisation de phase en bande TDD. Le holdover 30 jours sans signal satellite est non négociable pour les 4 nœuds nodaux.",
+    "timestamp": "10:18",
+    "isAi": false,
+    "subjectId": "sub_sync"
+  },
+  {
+    "id": "msg-sync-03",
+    "channel": "internal",
+    "author": "Lead Architect",
+    "role": "lead_architect",
+    "content": "Proposition de compromis : nous confirmons l'Option A (Rubidium 30j) sur les 4 nœuds nodaux centraux, et nous autorisons la variante B sur les relais secondaires pour respecter le budget.",
+    "timestamp": "10:22",
+    "isAi": false,
+    "subjectId": "sub_sync"
+  },
+  {
+    "id": "msg-dc-01",
+    "channel": "internal",
+    "author": "P. Durand",
+    "role": "infra_expert_architect",
+    "content": "L'autonomie électrique 72h impose l'installation de cuves fioul enterrées ICPE (+95 k€). Sommes-nous prêts à engager ce surcoût ?",
+    "timestamp": "08:30",
+    "isAi": false,
+    "subjectId": "sub_dc_resilience"
+  },
+  {
+    "id": "msg-dc-02",
+    "channel": "internal",
+    "author": "S. Bernard",
+    "role": "security_architect",
+    "content": "L'obligation NIS2 Art. 21 impose la redondance d'alimentation sur site sensible. Une cuve tampon avec accord préfectoral est impérative.",
+    "timestamp": "08:45",
+    "isAi": false,
+    "subjectId": "sub_dc_resilience"
+  },
+  {
+    "id": "msg-pqc-01",
+    "channel": "internal",
+    "author": "S. Bernard",
+    "role": "security_architect",
+    "content": "Pour les flux inter-sites N2/N3, l'ANSSI préconise un chiffrement hybride classique + ML-KEM (Kyber-768). Les cartes crypto accélèrent le débit sans surcoût CPU.",
+    "timestamp": "11:15",
+    "isAi": false,
+    "subjectId": "sub_pqc"
+  },
+  {
+    "id": "msg-core-01",
+    "channel": "internal",
+    "author": "P. Durand",
+    "role": "infra_expert_architect",
+    "content": "Le découpage de réseau (network slicing) requiert l'isolation stricte des files d'attente UPF pour les tranches tactiques PPDR.",
+    "timestamp": "11:30",
+    "isAi": false,
+    "subjectId": "sub_core"
+  },
+  {
+    "id": "msg-core-02",
+    "channel": "internal",
+    "author": "S. Bernard",
+    "role": "security_architect",
+    "content": "L'ANSSI exige des garanties formelles sur le non-débordement des files mémoire entre la tranche régalienne PPDR (5QI 65) et la tranche ouverte. Si nous mutualisons l'UPF physique, une qualification de cloisonnement CSPN est requise.",
+    "timestamp": "11:34",
+    "isAi": false,
+    "subjectId": "sub_core"
+  },
+  {
+    "id": "msg-core-03",
+    "channel": "internal",
+    "author": "Lead Architect",
+    "role": "lead_architect",
+    "content": "Deux options s'offrent à nous : l'Option A (UPF dédié physique, +85 k€ de matériel mais zéro risque réglementaire) ou l'Option B (Slicing logique avec Dynamic QoS). Quel est le temps d'obtention de la qualification CSPN ?",
+    "timestamp": "11:40",
+    "isAi": false,
+    "subjectId": "sub_core"
+  },
+  {
+    "id": "msg-core-04",
+    "channel": "internal",
+    "author": "S. Bernard",
+    "role": "security_architect",
+    "content": "Le délai d'évaluation CESTI est estimé à 6 mois. Si le calendrier de mise en service opérationnelle est T2 2027, l'Option A avec serveurs nodaux dédiés reste la plus sûre.",
+    "timestamp": "11:45",
+    "isAi": false,
+    "subjectId": "sub_core"
+  },
+  {
+    "id": "msg-ppdr-01",
+    "channel": "internal",
+    "author": "Lead Architect",
+    "role": "lead_architect",
+    "content": "Le CCTP impose des terminaux utilisables avec gants d'intervention et bouton PTT mécanique. Les retours terrain confirment que les écrans tactiles purs sous la pluie sont inopérants.",
+    "timestamp": "14:05",
+    "isAi": false,
+    "subjectId": "sub_ppdr"
+  },
+  {
+    "id": "msg-ppdr-02",
+    "channel": "internal",
+    "author": "P. Durand",
+    "role": "infra_expert_architect",
+    "content": "La flotte de terminaux propriétaires ultra-durcis pèse lourd dans l'enveloppe budgétaire. La variante B (smartphones durcis COTS sous Android Enterprise avec bouton PTT externe) permet d'économiser 95 k€.",
+    "timestamp": "14:15",
+    "isAi": false,
+    "subjectId": "sub_ppdr"
+  },
+  {
+    "id": "msg-ppdr-03",
+    "channel": "internal",
+    "author": "S. Bernard",
+    "role": "security_architect",
+    "content": "Attention aux mises à jour de sécurité Android : les terminaux COTS ont souvent un cycle de vie OS de seulement 3 ans, contre 7 ans pour les terminaux radio professionnels scellés.",
+    "timestamp": "14:22",
+    "isAi": false,
+    "subjectId": "sub_ppdr"
+  },
+  {
+    "id": "msg-radio-01",
+    "channel": "internal",
+    "author": "P. Durand",
+    "role": "infra_expert_architect",
+    "content": "Pour atteindre les 98% de couverture géographique exigés par l'Art 4.3, nous devons soit ériger 12 nouveaux pylônes 700 MHz (+240 k€), soit contractualiser une itinérance prioritaire sur un opérateur commercial.",
+    "timestamp": "15:10",
+    "isAi": false,
+    "subjectId": "sub_radio"
+  },
+  {
+    "id": "msg-radio-02",
+    "channel": "internal",
+    "author": "Lead Architect",
+    "role": "lead_architect",
+    "content": "L'itinérance commerciale peut servir de filet de secours (Variante B), mais le cœur de zone doit impérativement disposer d'une couverture propre en n28/n78 pour préserver la souveraineté.",
+    "timestamp": "15:20",
+    "isAi": false,
+    "subjectId": "sub_radio"
+  }
+]

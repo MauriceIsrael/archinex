@@ -1,179 +1,144 @@
 # Archinex · Software Architecture Documentation
 
-> **Document d'Architecture Système du Workbench de Délibération Archinex.**
-> Conforme aux standards de modélisation système et aux spécifications *SmartMemory × LLMOps*.
+> **Document d'Architecture Système du Moteur de Co-Conception et Délibération Archinex.**
+> Conforme aux standards de modélisation système, à la constitution épistémique et aux spécifications *LLMOps × SmartMemory*.
 
 ---
 
 ## 1. Vue Globale du Système
 
-Archinex repose sur une architecture bicéphale intégrée sous **SvelteKit 2** :
-1. **Socle d'Administration & Sécurité** : Authentification JWT, contrôle d'accès basé sur les attributs (Casbin ABAC/RBAC) et persistance Prisma ORM sur SQLite (`better-sqlite3`).
-2. **Workbench de Délibération Architecturale** : Moteur de vérité logique, gestion des controverses épistémiques, brouillons-appâts télégraphiques, rappels de doctrine proactifs et projections déterministes vers les outils système tiers.
+Archinex est le **seul propriétaire de l'état des projets et du déroulé de co-conception**, orchestré selon une architecture SvelteKit 2 / Prisma :
+1. **Socle d'Administration & Sécurité** : Authentification JWT, contrôle d'accès basé sur les attributs (Casbin ABAC/RBAC) et persistance relationnelle Prisma ORM (SQLite en développement, PostgreSQL en production).
+2. **Moteur de Délibération Architecturale** : Chaîne de co-conception opposable en 6 étapes :
+   - Extraction des sujets et cadrage télégraphique ;
+   - Critères multi-facettes, options contrastées et compromis ;
+   - Débat contradictoire multi-agents borné (Proposer, Challenger, Verifier, Synthesizer) ;
+   - Évaluation automatisée de la maturité calculée (`computeMaturity`) ;
+   - Arbitrage humain opposable (Porte G3, passage à `L3_decided`) ;
+   - Capitalisation souveraine vers le Knowledge Hub LLMOps (Porte G4).
 
 ```mermaid
 graph TD
-    User((Architecte / Expert)) <--> UI[Interface Svelte 5 / Runes]
+    User((Architecte / Expert Humain)) <--> UI[Interface Svelte 5 / Runes]
     
-    subgraph "Couche Client & Postures Contextuelles"
-        UI --> PostureSelector[ContextualPostureSelector]
+    subgraph "Couche Interface & Délibération"
         UI --> Board[MaturityBoardTable]
-        UI --> Draft[TelegraphicDraftView / Diff Sensor]
-        UI --> Chat[DialecticChatPanel]
-        UI --> RuleBanner[RuleApprovalBanner Tour 8]
-        UI --> Inspector[WhyInspector & Blast Radius]
-        UI --> Hub[ArtifactRegenerationHub]
-        UI --> FreezeModal[FreezeSectionDialog]
+        UI --> Matrix[OptionsCriteriaMatrix]
+        UI --> Debate[DebateThreadView]
+        UI --> Arbitrate[ArbitrationPanel Gate G3]
+        UI --> Capitalize[CapitalizationPanel Gate G4]
     end
     
     subgraph "Couche Domaine Métier (Logique Pure TypeScript)"
-        Store[deliberationStore.svelte.ts]
-        Store --> Epistemic[epistemicEnvelope.ts / universalSha256]
-        Store --> Tone[telegraphic.ts / Anti-Blabla Filter]
-        Store --> DAG[retractation.ts / Causal DAG & Truth Maintenance]
-        Store --> Diff[diffSensor.ts / Rule of Silence]
-        Store --> Dialectic[dialectic.ts / ADR Proactive Recall]
-        Store --> Freeze[freezeExport.ts / Certification Gating]
-        Store --> Projections[artifactProjections.ts / Mermaid, DSL, SysML, JSON]
+        Maturity[maturityRules.ts / computeMaturity]
+        Capitalization[capitalization.ts / buildKbCandidates & anonymize]
+        Epistemic[epistemicEnvelope.ts / Triplet 5 Facettes]
+        DAG[retractation.ts / Truth Maintenance DAG]
     end
     
-    subgraph "Couche Persistance & Sécurité Serveur"
-        Hooks[hooks.server.ts]
-        JWT[Service JWT / Cookies Sécurisés]
-        Casbin[Moteur Casbin ABAC/RBAC]
-        Prisma[Prisma ORM]
-        DB[(Base dev.db - SQLite)]
+    subgraph "Couche Agents & Intelligence Locale"
+        Orchestrator[debateOrchestrator.ts]
+        Orchestrator --> Proposer[proposer.ts]
+        Orchestrator --> Challenger[challenger.ts]
+        Orchestrator --> Verifier[verifier.ts]
+        Orchestrator --> Synthesizer[synthesizer.ts]
+        LocalLLM[localLlmClient.ts / Ollama Local Air-Gap]
+    end
+
+    subgraph "Couche Persistance Serveur & Passerelle Doctrinale"
+        Prisma[Prisma ORM / projectsDb, optionsDb, debateDb, arbitrationDb, capitalizationDb]
+        Casbin[Casbin RBAC & Habilitation Domaine]
+        DoctrineService[doctrineService.ts / LLMOps Client]
+        DB[(Base dev.db)]
     end
     
-    PostureSelector & Board & Draft & Chat & Hub <--> Store
-    Hooks --> JWT
-    Hooks --> Casbin
-    Casbin --> Prisma
+    UI <--> Prisma
+    Prisma --> Casbin
     Prisma <--> DB
+    Debate --> Orchestrator
+    Orchestrator --> LocalLLM
+    Orchestrator --> DoctrineService
+    Arbitrate --> Maturity
+    Capitalize --> Capitalization
+    Capitalize --> DoctrineService
 ```
 
 ---
 
-## 2. Le Modèle Épistémique à 5 Facettes
+## 2. Le Modèle Épistémique et la Constitution
 
-Pour éviter l'illusion de consensus et l'hallucination d'accords par l'IA, tout énoncé d'architecture manipulé par Archinex est encapsulé dans un contrat strict à 5 facettes :
+Tout énoncé, option, argument ou décision manipulé par Archinex obéit aux invariants de la Constitution (`openspec/constitution.md`) :
+
+### Invariants Inviolables
+1. **Énoncé à 5 facettes** : Contenu (triplet ontologique), Justification (antécédents), Autorité (auteur, rôle, mode de production), Maturité (niveau, confiance), Révisabilité.
+2. **Règle Bloquante `verified × llm-derived`** : Aucun énoncé ni argument ne peut être promu au statut de confiance `verified` s'il est produit en mode `llm-derived`. La vérification et la décision requièrent formellement l'intervention humaine d'un architecte qualifié (`human-authored` ou `llm-proposed-human-approved`).
+3. **Règle du Silence** : Une hypothèse, objection ou dilemme non contesté n'est **jamais** considéré comme approuvé tacitement. L'approbation doit résulter d'un acte formel d'arbitrage.
+4. **Brouillon Télégraphique** : Style télégraphique dense, sans jargon creux ni verbiage IA non vérifié.
+
+---
+
+## 3. Le Cycle de Co-Conception en 6 Étapes
 
 ```mermaid
-classDiagram
-    class Statement {
-        +String id
-        +String section
-        +Triplet triplet
-        +Justification justification
-        +Authority authority
-        +Maturity maturity
-        +Revisability revisability
-        +String status
-    }
-    class Triplet {
-        +String subject
-        +String predicate
-        +Any value
-    }
-    class Justification {
-        +String[] basedOn
-        +String rule
-        +String validationDate
-    }
-    class Authority {
-        +String author
-        +ArchitectRole role
-        +ProductionMode productionMode
-    }
-    class Maturity {
-        +MaturityLevel subjectLevel
-        +ConfidenceLevel confidence
-    }
-    class Revisability {
-        +String[] antecedents
-        +String lastReviewDate
-    }
-    Statement *-- Triplet
-    Statement *-- Justification
-    Statement *-- Authority
-    Statement *-- Maturity
-    Statement *-- Revisability
+flowchart LR
+    S1["1. Cadrage Sujet"] --> S2["2. Critères & Options"]
+    S2 --> S3["3. Débat Multi-Agents"]
+    S3 --> S4["4. Maturité Calculée"]
+    S4 --> S5["5. Arbitrage Humain G3"]
+    S5 --> S6["6. Capitalisation KB G4"]
 ```
 
-### Invariant Inviolable : Règle Bloquante `verified × llm-derived`
-Aucun énoncé ne peut être promu au statut de confiance `verified` s'il est produit en mode `llm-derived`. La vérification requiert formellement l'intervention humaine d'un architecte qualifié (`human-authored` ou `llm-proposed-human-approved`). Tout manquement est rejeté dès la couche de validation du schéma (`epistemicEnvelope.ts`).
+### Étape 1 : Cadrage du Sujet
+Énonciation claire du `problemStatement` et référence de section. Le sujet démarre au niveau `L0_named` puis `L1_framed`.
 
-### Hachage FIPS 180-2 Client / Serveur Isomorphe
-Afin d'éviter tout écueil d'incompatibilité entre l'environnement Node.js (`crypto.createHash`) et le bundle navigateur Vite, le calcul des empreintes d'intégrité repose sur une implémentation pure TypeScript de **SHA-256** (`universalSha256`), garantissant une stricte parité d'empreinte sur l'ensemble des couches.
+### Étape 2 : Critères & Options Contrastées
+Définition d'au moins 2 critères d'évaluation pondérés et formulation d'au moins 2 options d'architecture viables. Chaque option est notée (de -2 à +2) sur l'ensemble des critères avec justification obligatoire.
 
----
+### Étape 3 : Débat Multi-Agents Borné
+Un tour d'orchestration (3 tours maximum) enchaîne 4 agents spécialisés :
+- **Proposer** : Défend les options et suggère des options complémentaires si nécessaire.
+- **Challenger** : Émet au moins une objection argumentée par option (risques, coûts cachés, dépendances).
+- **Verifier** : Contrôle la conformité avec la doctrine via `checkOption` et produit des arguments de vérification avec références KB strictes.
+- **Synthesizer** : Résume les points de tension, les compromis et les questions clés pour l'arbitre humain.
 
-## 3. Le Moteur de Rétractation Causale (Truth Maintenance System)
+Toute objection doit être résolue (`answered` ou `accepted_risk`) par un expert humain habilité avant l'arbitrage.
 
-Lorsqu'une hypothèse est contestée ou invalidée par un architecte (par exemple lors de la remise en cause d'un oscillateur Rubidium sur `S-0031`), le système ne supprime pas l'historique : il propage l'invalidation le long du graphe acyclique direct (DAG) des dépendances.
+### Étape 4 : Calcul Dynamique de la Maturité (`computeMaturity`)
+La maturité d'un sujet n'est plus fixée manuellement : elle est calculée par une fonction pure qui évalue 8 codes de blocage :
+- `MISSING_PROBLEM_STATEMENT` : Problème non formulé.
+- `MISSING_CRITERIA` : Moins de 2 critères définis.
+- `INSUFFICIENT_OPTIONS` : Moins de 2 options formulées.
+- `UNEVALUATED_OPTION` : Option non évaluée sur tous les critères.
+- `OPEN_OBJECTION` : Objection ouverte non résolue dans le débat.
+- `UNRESOLVED_VIOLATION` : Règle doctrinale violée sans dérogation justifiée.
+- `OPEN_BLOCKING_QUESTION` : Question bloquante sans réponse.
+- `COVERAGE_INCOMPLETE` : Référentiel réglementaire projet (`NIS2`, `SecNumCloud`...) non couvert.
 
-```mermaid
-sequenceDiagram
-    autonumber
-    actor Arch as Lead Architect
-    participant UI as DialecticChatPanel / WhyInspector
-    participant Store as deliberationStore
-    participant Retract as retractation.ts (Moteur DAG)
-    participant Board as MaturityBoardTable
+### Étape 5 : Arbitrage Humain Opposable (Porte G3)
+Seul un `lead_architect` ou un `domain_expert` habilité sur le domaine du sujet peut prononcer l'arbitrage :
+- Sélection de l'option retenue ;
+- Enregistrement des motifs d'écartement pour chaque alternative ;
+- Évaluation de la réversibilité (`reversible`, `costly`, `irreversible`) ;
+- Enregistrement des dérogations acceptées avec justification opposable ;
+- Promotion formelle à `L3_decided` et transformation des énoncés dérivés en `llm-proposed-human-approved`.
 
-    Arch->>UI: Clic "Contester / Rétracter" sur S-0031
-    UI->>Store: retractStatement('S-0031', 'Perte certif Tier IV')
-    Store->>Retract: executeRetractionCascade(S-0031)
-    Retract->>Retract: buildCausalDAG(statements)
-    Retract->>Retract: findTransitiveDependents('S-0031') -> ['S-0042']
-    Retract-->>Store: Énoncés descendants rétrogradés à 'assumed'
-    Store->>Board: Rétrogradation des sujets liés en 'is_provisional: true'
-    Store-->>UI: Notification visuelle & Journalisation d'invalidation
-    Note over Board: sub_sync retombe sous L3 et déverrouille les alertes
-```
+### Étape 6 : Capitalisation Souveraine vers LLMOps (Porte G4)
+Chaque arbitrage produit automatiquement des candidats à la Knowledge Base :
+1. `new_asset` : Si l'option retenue constitue un nouveau pattern sans antécédent doctrinal.
+2. `amendment` : Pour chaque dérogation acceptée, afin d'adapter la règle d'entreprise.
+3. `rex` : Synthèse systématique du compromis architectural et des motifs du choix.
 
----
-
-## 4. Capteur par le Diff & Règle Stricte du Silence
-
-- **Édition textuelle en place** : L'architecte modifie directement les brouillons télégraphiques. Le composant `diffSensor.ts` calcule la différence (`oldValue` vs `newValue`) et génère immédiatement un énoncé auditable sans exiger de formulaire verbeux.
-- **Règle du Silence** : Une hypothèse non contestée n'est **jamais** considérée comme acceptée. L'approbation doit résulter d'un acte formel d'arbitrage.
-
----
-
-## 5. Gel de Section & Projections Déterministes Sans Dérive (No Doc Drift)
-
-Archinex ne stocke pas de représentations graphiques statiques. Tout artefact système est une **projection déterministe** générée à la volée à partir des énoncés scellés :
-
-```mermaid
-graph LR
-    Statements[(Énoncés Scellés L3+)] --> Engine[Générateur Déterministe]
-    Engine --> Mermaid["Mermaid C4 (Visuel & Flux)"]
-    Engine --> DSL["Structurizr DSL (.dsl)"]
-    Engine --> SysML["SysML v2 (Ingénierie Système)"]
-    Engine --> PTP["Profil PTP ITU-T G.8275.1 (JSON)"]
-    
-    subgraph "Garantie No Doc Drift"
-        Statements -.-> Snapshot["Snapshot Scellé SHA-256 (Livrable d'Homologation)"]
-    end
-```
-
-### Critères de la Barrière de Certification (Gating)
-1. **Maturité** : Section $\ge$ `L3_decided`.
-2. **Conflits** : 0 conflit d'architecture ouvert.
-3. **Hypothèses** : 0 énoncé `assumed` actif.
-4. **Habilitation** : Rôle `Lead Architect` requis.
+**Garanties Souveraines :**
+- **Anonymisation stricte** : Nettoyage automatique des noms de projets, clients, sites, participants, adresses IP et volumes chiffrés.
+- **Invariant III (Human-in-the-loop)** : L'architecte prévisualise et peut modifier chaque candidat avant envoi. Rien n'est expédié sans action humaine explicite.
+- **Suivi des statuts** : Synchronisation avec la file LLMOps (`in_review`, `accepted`, `rejected`).
 
 ---
 
-## 6. Pipeline de Validation et d'Assurance Qualité
+## 4. Pipeline de Validation et d'Assurance Qualité
 
-Le système est validé par une pyramide de tests contractuels et d'intégration :
-- `epistemic-statement.test.ts` : Rejet des énoncés invalides et interdiction `verified × llm-derived`.
-- `telegraphic-draft.test.ts` : Rendu strict et filtre anti-blabla.
-- `maturity-board.test.ts` : Ordonnancement par déblocages et détection de stagnation.
-- `diff-sensor.test.ts` : Capture de rectifications et règle du silence.
-- `dialectic-recall.test.ts` : Moteur de rappel proactif d'ADRs.
-- `retractation-engine.test.ts` : Propagation de clôture logique sur DAG causal.
-- `freeze-export.test.ts` : Scellement cryptographique et projections sans dérive.
-- `deliberation-workflow.test.ts` : Scénario d'intégration bout-en-bout.
+La qualité et l'étanchéité du système sont garanties par le script unifié `node scripts/verify.mjs` validant 4 portes d'acceptation :
+1. **Denylist Check** : 0 terme projet ou fournisseur interdit dans `src/`.
+2. **Vitest Test Suites** : 188 tests unitaires, contractuels et d'intégration validés.
+3. **Svelte Check** : 0 erreur, 0 avertissement de typage strict TypeScript / Svelte 5.
+4. **Production Build** : Compilation complète des bundles client et serveur SSR.

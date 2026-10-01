@@ -658,10 +658,45 @@ export async function startFakeLlmopsServer(initialState?: Partial<FakeLlmopsSta
         chunks.push(chunk);
       }
       const raw = Buffer.concat(chunks).toString();
-      try {
-        body = raw ? JSON.parse(raw) : {};
-      } catch {
+      const contentType = (req.headers['content-type'] as string) || '';
+      if (contentType.includes('multipart/form-data')) {
         body = {};
+        const boundaryMatch = contentType.match(/boundary=([^\s;]+)/i);
+        const boundary = boundaryMatch ? boundaryMatch[1].replace(/^["']|["']$/g, '') : null;
+        const separator = boundary ? `--${boundary}` : '--';
+        const parts = raw.split(separator);
+        for (const part of parts) {
+          if (!part || part.trim() === '--' || part.trim() === '') continue;
+          const headerBodySplit = part.split(/\r?\n\r?\n/);
+          if (headerBodySplit.length < 2) continue;
+          const header = headerBodySplit[0];
+          const content = headerBodySplit.slice(1).join('\n\n').replace(/\r?\n(--)?$/, '');
+          const nameMatch = header.match(/name="([^"]+)"/);
+          const filenameMatch = header.match(/filename="([^"]+)"/);
+          if (nameMatch) {
+            const fieldName = nameMatch[1];
+            if (filenameMatch) {
+              body.file_name = filenameMatch[1];
+              body.raw_text = content;
+            } else if (fieldName === 'requirements') {
+              try {
+                body.requirements = JSON.parse(content);
+              } catch {
+                body.requirements = [];
+              }
+            } else {
+              body[fieldName] = content.trim();
+            }
+          }
+        }
+        if (body.framework && !body.framework_id) body.framework_id = body.framework;
+        if (body.framework_id && !body.framework) body.framework = body.framework_id;
+      } else {
+        try {
+          body = raw ? JSON.parse(raw) : {};
+        } catch {
+          body = {};
+        }
       }
     }
 
@@ -1429,8 +1464,8 @@ export async function startFakeLlmopsServer(initialState?: Partial<FakeLlmopsSta
         });
       }
 
-      const fwId = framework_id || 'FW-CUSTOM';
-      const fwName = framework_name || file_name || 'Référentiel Inconnu';
+      const fwId = framework_id || body?.framework || 'FW-CUSTOM';
+      const fwName = framework_name || framework_id || body?.framework || file_name || 'Référentiel Inconnu';
       const ingId = `ing-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
 
       let parsedRequirements: FrameworkRequirement[] = [];
@@ -1510,13 +1545,13 @@ export async function startFakeLlmopsServer(initialState?: Partial<FakeLlmopsSta
       });
     }
 
-    // PATCH /api/frameworks/ingestions/:id/requirements/:reqId
+    // PATCH /api/frameworks/ingestions/:id/requirements/:reqId or /rows/:reqId
     const reqPatchMatch = pathname.match(
-      /^\/api\/frameworks\/ingestions\/([a-zA-Z0-9_-]+)\/requirements\/([a-zA-Z0-9_-]+)$/
+      /^\/api\/frameworks\/ingestions\/([a-zA-Z0-9_-]+)\/(requirements|rows)\/([a-zA-Z0-9_-]+)$/
     );
     if (reqPatchMatch && method === 'PATCH') {
       const ingId = reqPatchMatch[1];
-      const reqId = reqPatchMatch[2];
+      const reqId = reqPatchMatch[3];
       const ingestion = state.frameworkIngestions[ingId];
       if (!ingestion) {
         return json(404, { status: 'error', error: `Ingestion '${ingId}' introuvable` });
@@ -1538,7 +1573,14 @@ export async function startFakeLlmopsServer(initialState?: Partial<FakeLlmopsSta
         }
       }
 
-      const { status: newStatus, mapped_assets, amendment_notes, rejection_reason } = body || {};
+      let { status: newStatus, decision, mapped_assets, links, amendment_notes, rejection_reason, comment } = body || {};
+      if (!newStatus && decision) {
+        if (decision === 'accept') newStatus = 'accepted';
+        else if (decision === 'amend') newStatus = 'amended';
+        else if (decision === 'reject') newStatus = 'rejected';
+      }
+      if (!mapped_assets && links) mapped_assets = links;
+      if (decision === 'reject' && !rejection_reason && comment) rejection_reason = comment;
 
       if (newStatus === 'rejected' && (!rejection_reason || rejection_reason.trim() === '')) {
         return json(400, {

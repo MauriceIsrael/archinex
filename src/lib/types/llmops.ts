@@ -220,6 +220,8 @@ export interface KbOwner {
 
 export interface KbOwnersRegistry {
   owners: KbOwner[];
+  domains?: Record<string, string>;
+  default_owner?: string;
   total?: number;
   offline?: boolean;
 }
@@ -236,7 +238,7 @@ export interface KbUserProfile {
 }
 
 export interface KbMeResponse {
-  status: 'ok' | 'error' | 'unavailable';
+  status: 'ok' | 'error' | 'unavailable' | 'forbidden';
   data?: KbUserProfile;
   error?: string;
 }
@@ -318,9 +320,9 @@ export type KbEventType =
   | 'reminder.due';
 
 export interface KbEvent {
-  id: string;
+  id: string | number;
   type: KbEventType;
-  cursor: string;
+  cursor?: string;
   candidate_id?: string;
   recipients: string[]; // Handles ex: ["@sec-lead", "@cloud-architect"]
   payload: {
@@ -332,7 +334,8 @@ export interface KbEvent {
     due_at?: string;
     [key: string]: any;
   };
-  timestamp: string;
+  timestamp?: string;
+  at?: string;
 }
 
 export interface KbInboxResponse {

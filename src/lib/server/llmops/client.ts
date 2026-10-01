@@ -695,7 +695,12 @@ export class LLMOpsClient {
           status: payload.status || 'in_review'
         };
       }
-    } catch {
+      const errBody = await res.json().catch(() => ({}));
+      throw new Error(errBody.error || errBody.reason || `Erreur HTTP ${res.status} lors de la soumission du candidat`);
+    } catch (e: any) {
+      if (e.message && (e.message.startsWith('Erreur HTTP') || e.message.includes('Air-Gap Security'))) {
+        throw e;
+      }
       // Live unreachable -> fallback offline
     }
 
@@ -767,6 +772,12 @@ export class LLMOpsClient {
           }
         };
       }
+
+      const errBody = await res.json().catch(() => ({}));
+      return {
+        status: res.status === 403 ? 'forbidden' : 'error',
+        error: errBody.error || errBody.reason || errBody.detail || `HTTP ${res.status}`
+      };
     } catch {
       // Live inaccessible -> fallback local
     }
@@ -800,6 +811,8 @@ export class LLMOpsClient {
         const owners = Array.isArray(payload) ? payload : (payload.owners || []);
         return {
           owners,
+          domains: payload.domains || {},
+          default_owner: payload.default_owner,
           total: owners.length
         };
       }
@@ -820,11 +833,42 @@ export class LLMOpsClient {
    */
   async updateOwners(owners: KbOwner[], actorEmail?: string): Promise<{ success: boolean; updated_count: number; offline?: boolean; error?: string }> {
     try {
+      // Préserver les domaines et le default_owner existants si possible
+      let currentDomains: Record<string, string> = {};
+      let defaultOwner = '@maintainers';
+
+      try {
+        const current = await this.getOwners(actorEmail);
+        if (current.domains && Object.keys(current.domains).length > 0) currentDomains = current.domains;
+        if (current.default_owner) defaultOwner = current.default_owner;
+      } catch {
+        // Ignorer si échec
+      }
+
+      // Reconstruire la liste des owners au format attendu par LLMOps
+      const cleanOwners = owners.map((o) => ({
+        handle: o.handle,
+        email: o.email || null,
+        roles: o.roles || [],
+        delegated: Boolean(o.delegated)
+      }));
+
+      // S'assurer que defaultOwner fait partie des owners
+      if (!cleanOwners.some((o) => o.handle === defaultOwner) && cleanOwners.length > 0) {
+        defaultOwner = cleanOwners[0].handle;
+      }
+
+      const payload = {
+        owners: cleanOwners,
+        domains: currentDomains,
+        default_owner: defaultOwner
+      };
+
       const url = `${this.baseUrl}/api/knowledge/owners`;
       const res = await this.fetchWithTimeout(url, {
         method: 'PUT',
         headers: this.getHeaders(undefined, actorEmail),
-        body: JSON.stringify({ owners })
+        body: JSON.stringify(payload)
       });
 
       if (res.status === 503) {
@@ -833,12 +877,19 @@ export class LLMOpsClient {
 
       if (res.ok) {
         const body = await res.json();
-        const payload = body.data || body;
+        const resPayload = body.data || body;
         return {
           success: true,
-          updated_count: payload.updated_count ?? owners.length
+          updated_count: resPayload.owners ?? resPayload.updated_count ?? owners.length
         };
       }
+
+      const errBody = await res.json().catch(() => ({}));
+      return {
+        success: false,
+        updated_count: 0,
+        error: errBody.error || errBody.reason || `HTTP ${res.status}`
+      };
     } catch {
       // Fallback
     }
@@ -882,9 +933,45 @@ export class LLMOpsClient {
 
       if (res.ok) {
         const body = await res.json();
+        const rawPayload = body.data || body;
+        const rawItems: any[] = Array.isArray(rawPayload)
+          ? rawPayload
+          : Array.isArray(rawPayload.items)
+            ? rawPayload.items
+            : [];
+
+        const now = new Date();
+        const items: KbReviewInboxItem[] = rawItems.map((item) => {
+          const due = item.due_at ? new Date(item.due_at) : null;
+          const is_overdue = due ? now > due : false;
+          const candId = item.candidate_id || item.id || '';
+          return {
+            id: candId,
+            candidate_id: candId,
+            title: item.title || '',
+            kind: item.kind || item.asset_type || 'new_asset',
+            domain: Array.isArray(item.domain) ? item.domain.join(', ') : (item.domain || ''),
+            reason: item.reason || 'review',
+            waiting_since: item.waiting_since || item.created_at || '',
+            due_at: item.due_at || '',
+            is_overdue: item.is_overdue ?? is_overdue,
+            author: item.author || '',
+            author_role: item.author_role,
+            severity: item.severity
+          };
+        });
+
+        let filtered = items;
+        if (filters?.domain) {
+          filtered = filtered.filter((i) => i.domain.toLowerCase().includes(filters.domain!.toLowerCase()));
+        }
+        if (filters?.kind) {
+          filtered = filtered.filter((i) => i.kind.toLowerCase() === filters.kind!.toLowerCase());
+        }
+
         return {
           status: 'ok',
-          data: body.data || body
+          data: filtered
         };
       }
 
@@ -1029,7 +1116,7 @@ export class LLMOpsClient {
     assignee: string,
     reason: string,
     actorEmail: string
-  ): Promise<{ status: 'ok' | 'error' | 'unavailable'; data?: KbCandidateDetail; error?: string }> {
+  ): Promise<{ status: 'ok' | 'error' | 'forbidden' | 'unavailable'; data?: KbCandidateDetail; error?: string }> {
     if (!this.isLocalNetworkUrl(this.baseUrl)) {
       return { status: 'unavailable', error: 'Enclave locale non configurée' };
     }
@@ -1041,9 +1128,17 @@ export class LLMOpsClient {
           ...this.getHeaders(undefined, actorEmail),
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ assignee, reason }),
+        body: JSON.stringify({ handle: assignee, assignee, reason }),
         signal: AbortSignal.timeout(this.timeoutMs)
       });
+
+      if (res.status === 403) {
+        const body = await res.json().catch(() => ({}));
+        return {
+          status: 'forbidden',
+          error: body.error || body.reason || 'Seul le propriétaire actuel ou un mainteneur peut réassigner ce candidat'
+        };
+      }
 
       if (res.status === 503) {
         return { status: 'unavailable', error: 'Service de gouvernance KB indisponible (503)' };
@@ -1054,7 +1149,8 @@ export class LLMOpsClient {
         return { status: 'ok', data: body.data || body };
       }
 
-      return { status: 'error', error: `Erreur HTTP ${res.status} lors de l'assignation` };
+      const body = await res.json().catch(() => ({}));
+      return { status: 'error', error: body.error || body.reason || `Erreur HTTP ${res.status} lors de l'assignation` };
     } catch {
       return { status: 'unavailable', error: 'Service indisponible' };
     }
@@ -1073,6 +1169,14 @@ export class LLMOpsClient {
     }
 
     try {
+      const payload = {
+        handle: req.recipient || (req as any).handle,
+        recipient: req.recipient,
+        kind: req.kind,
+        message: req.message,
+        due_at: req.due_at
+      };
+
       const res = await fetch(
         `${this.baseUrl}/api/knowledge/candidates/${candidateId}/request-review`,
         {
@@ -1081,7 +1185,7 @@ export class LLMOpsClient {
             ...this.getHeaders(undefined, actorEmail),
             'Content-Type': 'application/json'
           },
-          body: JSON.stringify(req),
+          body: JSON.stringify(payload),
           signal: AbortSignal.timeout(this.timeoutMs)
         }
       );
@@ -1094,7 +1198,8 @@ export class LLMOpsClient {
         return { status: 'ok', success: true };
       }
 
-      return { status: 'error', error: `Erreur HTTP ${res.status} lors de la sollicitation de revue` };
+      const body = await res.json().catch(() => ({}));
+      return { status: 'error', error: body.error || body.reason || `Erreur HTTP ${res.status} lors de la sollicitation de revue` };
     } catch {
       return { status: 'unavailable', error: 'Service indisponible' };
     }
@@ -1123,10 +1228,26 @@ export class LLMOpsClient {
 
       if (res.ok) {
         const body = await res.json();
-        return { status: 'ok', data: body.data?.comments || body.comments || [] };
+        const raw = Array.isArray(body.data)
+          ? body.data
+          : Array.isArray(body.data?.comments)
+            ? body.data.comments
+            : Array.isArray(body.comments)
+              ? body.comments
+              : [];
+        const comments: KbComment[] = raw.map((c: any) => ({
+          id: String(c.id ?? ''),
+          candidate_id: c.candidate_id || candidateId,
+          author_handle: c.author_handle || c.author || '',
+          author_name: c.author_name || c.author || '',
+          message: c.message || c.body || '',
+          created_at: c.created_at || c.at || ''
+        }));
+        return { status: 'ok', data: comments };
       }
 
-      return { status: 'error', error: `Erreur HTTP ${res.status} lors du chargement des commentaires` };
+      const body = await res.json().catch(() => ({}));
+      return { status: 'error', error: body.error || body.reason || `Erreur HTTP ${res.status} lors du chargement des commentaires` };
     } catch {
       return { status: 'unavailable', error: 'Service indisponible' };
     }
@@ -1151,7 +1272,7 @@ export class LLMOpsClient {
           ...this.getHeaders(undefined, actorEmail),
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ message }),
+        body: JSON.stringify({ body: message, message }),
         signal: AbortSignal.timeout(this.timeoutMs)
       });
 
@@ -1161,10 +1282,22 @@ export class LLMOpsClient {
 
       if (res.ok) {
         const body = await res.json();
-        return { status: 'ok', data: body.data || body };
+        const c = body.data || body;
+        return {
+          status: 'ok',
+          data: {
+            id: String(c.id ?? ''),
+            candidate_id: c.candidate_id || candidateId,
+            author_handle: c.author_handle || c.author || '',
+            author_name: c.author_name || c.author || '',
+            message: c.message || c.body || message,
+            created_at: c.created_at || c.at || new Date().toISOString()
+          }
+        };
       }
 
-      return { status: 'error', error: `Erreur HTTP ${res.status} lors de l'ajout du commentaire` };
+      const body = await res.json().catch(() => ({}));
+      return { status: 'error', error: body.error || body.reason || `Erreur HTTP ${res.status} lors de l'ajout du commentaire` };
     } catch {
       return { status: 'unavailable', error: 'Service indisponible' };
     }
@@ -1193,13 +1326,29 @@ export class LLMOpsClient {
 
       if (res.ok) {
         const body = await res.json();
+        const payload = body.data || body;
+        const rawEvents = Array.isArray(payload.events) ? payload.events : [];
+        const events: KbEvent[] = rawEvents.map((e: any) => ({
+          id: String(e.id ?? ''),
+          type: e.type || e.action || 'candidate.submitted',
+          cursor: String(e.id ?? payload.next_cursor ?? ''),
+          candidate_id: e.candidate_id || e.payload?.candidate_id,
+          recipients: Array.isArray(e.recipients) ? e.recipients : [],
+          payload: e.payload || {},
+          timestamp: e.at || e.timestamp || '',
+          at: e.at || e.timestamp || ''
+        }));
         return {
           status: 'ok',
-          data: body.data || body
+          data: {
+            events,
+            next_cursor: String(payload.next_cursor ?? '')
+          }
         };
       }
 
-      return { status: 'error', error: `Erreur HTTP ${res.status} lors du polling d'événements` };
+      const body = await res.json().catch(() => ({}));
+      return { status: 'error', error: body.error || body.reason || `Erreur HTTP ${res.status} lors du polling d'événements` };
     } catch {
       return { status: 'unavailable', error: 'Service indisponible' };
     }
@@ -1409,24 +1558,70 @@ export class LLMOpsClient {
    */
   async ingestFramework(
     payload: {
-      framework_id: string;
+      framework_id?: string;
+      framework?: string;
       framework_name?: string;
       version?: string;
+      tag?: string;
       domain?: string;
       file_name?: string;
       file_format?: string;
       file_size_bytes?: number;
+      file_content?: Buffer | Uint8Array | Blob | string;
       raw_text?: string;
       requirements?: any[];
     },
     actorEmail?: string
   ): Promise<{ status: 'ok' | 'error' | 'unavailable' | 'too_large'; data?: FrameworkIngestion; error?: string }> {
+    const MAX_FILE_SIZE = 20 * 1024 * 1024;
+    const declaredSize = payload.file_size_bytes ?? 0;
+    const bufferSize = payload.file_content
+      ? (payload.file_content as any).length ?? (payload.file_content as any).byteLength ?? 0
+      : payload.raw_text
+        ? Buffer.byteLength(payload.raw_text)
+        : 0;
+    if (Math.max(declaredSize, bufferSize) > MAX_FILE_SIZE) {
+      return {
+        status: 'too_large',
+        error: 'Fichier trop volumineux (taille maximale autorisée : 20 Mo)'
+      };
+    }
+
     try {
       const url = `${this.baseUrl}/api/frameworks/ingestions`;
+      const fwName = payload.framework || payload.framework_id || 'NIS2';
+      const version = payload.version || '1.0';
+      const fileName = payload.file_name || `${fwName.toLowerCase()}.txt`;
+
+      // Build multipart/form-data for live LLMOps server
+      const formData = new FormData();
+      formData.append('framework', fwName);
+      formData.append('framework_id', fwName);
+      formData.append('version', version);
+      if (payload.tag) formData.append('tag', payload.tag);
+      if (payload.domain) formData.append('domain', payload.domain);
+      if (payload.framework_name) formData.append('framework_name', payload.framework_name);
+      if (payload.file_format) formData.append('file_format', payload.file_format);
+      if (payload.file_size_bytes) formData.append('file_size_bytes', String(payload.file_size_bytes));
+      if (payload.requirements) formData.append('requirements', JSON.stringify(payload.requirements));
+
+      const content = payload.file_content ?? payload.raw_text ?? '';
+      const blob = content instanceof Blob
+        ? content
+        : new Blob([content], { type: 'text/plain' });
+      formData.append('file', blob, fileName);
+
+      // Note: when sending FormData, omit 'Content-Type' so fetch generates multipart boundary
+      const headers: Record<string, string> = {
+        'Accept': 'application/json',
+        'Authorization': `Bearer ${this.authToken}`
+      };
+      if (actorEmail) headers['X-Actor-Email'] = actorEmail;
+
       const res = await this.fetchWithTimeout(url, {
         method: 'POST',
-        headers: this.getHeaders(undefined, actorEmail),
-        body: JSON.stringify(payload)
+        headers,
+        body: formData
       });
 
       if (res.status === 413) {
@@ -1447,7 +1642,7 @@ export class LLMOpsClient {
       const body = await res.json().catch(() => ({}));
       return {
         status: 'error',
-        error: body.error || `Erreur HTTP ${res.status} lors de l'ingestion`
+        error: body.error || body.reason || `Erreur HTTP ${res.status} lors de l'ingestion`
       };
     } catch {
       return {
@@ -1458,32 +1653,69 @@ export class LLMOpsClient {
   }
 
   /**
-   * Revue unitaire d'une exigence réglementaire (PATCH /api/frameworks/ingestions/:id/requirements/:reqId)
+   * Revue unitaire d'une exigence réglementaire (PATCH /api/frameworks/ingestions/:id/rows/:reqId)
    */
   async reviewFrameworkRequirement(
     ingestionId: string,
     reqId: string,
     review: {
-      status: FrameworkRequirementStatus;
+      status?: FrameworkRequirementStatus;
+      decision?: 'accept' | 'amend' | 'reject' | '';
+      links?: string[];
       mapped_assets?: string[];
       amendment_notes?: string;
       rejection_reason?: string;
+      comment?: string;
+      acceptance_criteria?: string;
     },
     actorEmail?: string
   ): Promise<{ status: 'ok' | 'error' | 'forbidden' | 'bad_request' | 'unavailable'; data?: FrameworkRequirement; error?: string }> {
     try {
-      const url = `${this.baseUrl}/api/frameworks/ingestions/${encodeURIComponent(ingestionId)}/requirements/${encodeURIComponent(reqId)}`;
-      const res = await this.fetchWithTimeout(url, {
+      // Normaliser decision
+      let decision = review.decision;
+      if (!decision && review.status) {
+        if (review.status === 'accepted' || (review.status as any) === 'compliant') decision = 'accept';
+        else if (review.status === 'amended' || (review.status as any) === 'amendment_needed') decision = 'amend';
+        else if (review.status === 'rejected' || (review.status as any) === 'not_applicable') decision = 'reject';
+        else decision = review.status as any;
+      }
+      const links = review.links ?? review.mapped_assets ?? [];
+      const comment = review.comment ?? review.amendment_notes ?? review.rejection_reason;
+
+      const bodyToSend = {
+        decision: decision ?? '',
+        links,
+        comment,
+        acceptance_criteria: review.acceptance_criteria,
+        status: review.status,
+        mapped_assets: review.mapped_assets,
+        amendment_notes: review.amendment_notes,
+        rejection_reason: review.rejection_reason
+      };
+
+      // In LLMOps, the route is /api/frameworks/ingestions/:id/rows/:reqId
+      let url = `${this.baseUrl}/api/frameworks/ingestions/${encodeURIComponent(ingestionId)}/rows/${encodeURIComponent(reqId)}`;
+      let res = await this.fetchWithTimeout(url, {
         method: 'PATCH',
         headers: this.getHeaders(undefined, actorEmail),
-        body: JSON.stringify(review)
+        body: JSON.stringify(bodyToSend)
       });
+
+      // Fallback to /requirements/:reqId if 404 (for legacy/fake compatibility)
+      if (res.status === 404) {
+        url = `${this.baseUrl}/api/frameworks/ingestions/${encodeURIComponent(ingestionId)}/requirements/${encodeURIComponent(reqId)}`;
+        res = await this.fetchWithTimeout(url, {
+          method: 'PATCH',
+          headers: this.getHeaders(undefined, actorEmail),
+          body: JSON.stringify(bodyToSend)
+        });
+      }
 
       if (res.status === 403) {
         const body = await res.json().catch(() => ({}));
         return {
           status: 'forbidden',
-          error: body.error || 'Interdit : domaine non possédé'
+          error: body.error || body.reason || 'Interdit : domaine non possédé'
         };
       }
 
@@ -1491,7 +1723,7 @@ export class LLMOpsClient {
         const body = await res.json().catch(() => ({}));
         return {
           status: 'bad_request',
-          error: body.error || 'Requête invalide ou motif de rejet manquant'
+          error: body.error || body.reason || 'Requête invalide ou motif de rejet manquant'
         };
       }
 
@@ -1506,7 +1738,7 @@ export class LLMOpsClient {
       const body = await res.json().catch(() => ({}));
       return {
         status: 'error',
-        error: body.error || `Erreur HTTP ${res.status}`
+        error: body.error || body.reason || `Erreur HTTP ${res.status}`
       };
     } catch {
       return {

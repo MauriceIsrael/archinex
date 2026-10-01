@@ -95,8 +95,10 @@
       if (!res.ok) {
         uploadError = resData.error || `Erreur HTTP ${res.status}`;
       } else {
-        uploadSuccess = `Référentiel '${resData.data.framework_name}' ingéré avec succès (${resData.data.total_requirements} exigences extraites).`;
-        frameworksList = [resData.data, ...frameworksList];
+        const item = resData.data;
+        uploadSuccess = `Référentiel '${item.framework_name || item.framework}' ingéré avec succès (${item.total_requirements || item.requirements?.length || 0} exigences extraites).`;
+        const existing = Array.isArray(frameworksList) ? frameworksList : [];
+        frameworksList = [item, ...existing];
         selectedFile = null;
         frameworkId = '';
         frameworkName = '';
@@ -223,6 +225,7 @@
             accept=".pdf,.html,.htm,.txt,.md,.docx"
             onchange={handleFileSelect}
             class="hidden"
+            data-testid="framework-file-input"
           />
         </label>
         <span class="ml-3 text-xs text-surface-500">
@@ -241,6 +244,7 @@
       <button
         onclick={uploadFramework}
         disabled={isUploading || !selectedFile}
+        data-testid="framework-upload-button"
         class="px-5 py-2 bg-primary-600 hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-lg shadow-sm flex items-center gap-2 transition-colors"
       >
         {#if isUploading}
@@ -277,7 +281,7 @@
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {#each frameworksList as fw (fw.id)}
           {@const percentReviewed = fw.total_requirements > 0 ? Math.round((fw.reviewed_requirements / fw.total_requirements) * 100) : 0}
-          <div class="bg-white border border-surface-200 rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between">
+          <div data-testid="framework-card" class="bg-white border border-surface-200 rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between">
             <div>
               <div class="flex items-start justify-between gap-2 mb-2">
                 <span class="px-2.5 py-1 text-xs font-bold rounded bg-primary-50 border border-primary-200 text-primary-800 uppercase font-mono">
@@ -318,6 +322,7 @@
               </span>
               <a
                 href="/kb/frameworks/{fw.id}"
+                data-testid="framework-examine-link"
                 class="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-surface-900 hover:bg-surface-800 text-white transition-colors"
               >
                 <span>Examiner</span>

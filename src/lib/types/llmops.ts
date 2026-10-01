@@ -85,6 +85,12 @@ export interface LLMOpsCandidate {
   suggestedDestination: string;
   routingConfidence: number;
   verificationModes: string[];
+  matched_controls?: string[];
+  section?: string;
+  category?: string;
+  status?: string;
+  matched_assets?: string[];
+  rationale?: string;
 }
 
 export interface LLMOpsRfpShredResponse {
@@ -93,6 +99,17 @@ export interface LLMOpsRfpShredResponse {
   documentVersion: string;
   count: number;
   candidates: LLMOpsCandidate[];
+  requirements?: Array<{
+    id: string;
+    section: string;
+    category: string;
+    text: string;
+    criticality: string;
+    status: string;
+    matched_assets: string[];
+    matched_controls: string[];
+    rationale: string;
+  }>;
   error?: string;
 }
 
@@ -593,6 +610,8 @@ export interface VerdictFeedbackItem {
 // ─────────────────────────────────────────────────────────────────────────────
 
 export interface KbHealthMetrics {
+  coverage?: Record<string, any>;
+  assets?: any;
   doctrine_health: {
     total_assets: number;
     principles_count: number;
@@ -643,6 +662,7 @@ export interface KbPublication {
   changelog: string;
   assets_count: number;
   storage_persistent: boolean;
+  published?: string[];
   published_candidates?: string[];
   warnings?: string[];
 }

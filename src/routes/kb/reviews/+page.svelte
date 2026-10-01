@@ -331,6 +331,7 @@
         {@const kindInfo = getKindLabel(item.kind)}
         {@const reasonInfo = getReasonBadge(item.reason)}
         <div
+          data-testid="review-candidate-item"
           class="rounded-xl border bg-card p-4 transition-all hover:border-primary/40 hover:shadow-sm space-y-3 {item.is_overdue ? 'border-destructive/40 bg-destructive/5' : ''}"
         >
           <div class="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
@@ -381,6 +382,7 @@
                 variant={item.is_overdue ? 'destructive' : 'default'}
                 size="sm"
                 href="/kb/reviews/{item.candidate_id}"
+                data-testid="btn-examine-candidate"
                 class="gap-1.5 w-full sm:w-auto"
               >
                 <span>Examiner</span>

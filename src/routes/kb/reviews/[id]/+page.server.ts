@@ -20,9 +20,13 @@ export const load: PageServerLoad = async ({ params, locals }) => {
   }
 
   const ownedDomains = localExpert?.ownedDomains || [];
-  const candidateDomain = candRes.data.domain || 'security';
-  const isAuthorizedForDomain = ownedDomains.some(
-    (d) => d.toLowerCase() === candidateDomain.toLowerCase()
+  const rawDomain = candRes.data.domain;
+  const candidateDomains: string[] = Array.isArray(rawDomain)
+    ? rawDomain.map((d: any) => String(d))
+    : [String(rawDomain || 'security')];
+
+  const isAuthorizedForDomain = ownedDomains.some((d) =>
+    candidateDomains.some((cd) => cd.toLowerCase() === d.toLowerCase())
   );
 
   return {

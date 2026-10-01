@@ -138,12 +138,13 @@
 
 				<button
 					type="button"
+					data-testid="btn-open-rfp-shredder"
 					onclick={() => (isShredDialogOpen = true)}
 					class="inline-flex items-center gap-1.5 rounded-lg border bg-primary/10 hover:bg-primary/20 text-primary border-primary/30 px-3 py-1.5 text-xs font-semibold shadow-xs transition-colors"
 					title="Dépouiller automatiquement un CCTP avec le moteur LLMOps"
 				>
 					<Scissors class="h-3.5 w-3.5" />
-					<span>Dépouiller CCTP</span>
+					<span>Dépouillement CCTP · RFP Shredder</span>
 				</button>
 
 				<button

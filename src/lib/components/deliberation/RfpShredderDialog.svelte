@@ -233,7 +233,7 @@ Le raccordement au réseau opérateur exige une redondance de synchronisation IE
 							</div>
 						</div>
 
-						<div class="space-y-2 max-h-56 overflow-y-auto pr-1">
+						<div data-testid="shredded-clauses-list" class="space-y-2 max-h-56 overflow-y-auto pr-1">
 							{#each candidates as cand, idx (cand.id)}
 								<div class="p-3 rounded-lg border bg-muted/30 text-xs space-y-1.5">
 									<div class="flex items-center justify-between gap-2">
@@ -250,6 +250,15 @@ Le raccordement au réseau opérateur exige une redondance de synchronisation IE
 									<p class="text-muted-foreground italic leading-relaxed">
 										"{cand.normalizedText || cand.originalText}"
 									</p>
+									{#if cand.matched_controls && cand.matched_controls.length > 0}
+										<div class="flex flex-wrap items-center gap-1 pt-1">
+											{#each cand.matched_controls as ctrl}
+												<span class="rounded bg-primary/10 text-primary border border-primary/20 px-1.5 py-0.5 font-mono text-[10px] font-semibold">
+													{ctrl}
+												</span>
+											{/each}
+										</div>
+									{/if}
 								</div>
 							{/each}
 						</div>

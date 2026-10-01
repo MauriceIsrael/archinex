@@ -263,6 +263,7 @@
       <button
         onclick={triggerCoverageDeclaration}
         disabled={isDeclaringCoverage}
+        data-testid="btn-declare-coverage"
         class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-semibold text-sm rounded-lg shadow-sm flex items-center gap-2 transition-colors"
       >
         {#if isDeclaringCoverage}
@@ -406,7 +407,7 @@
   <div class="space-y-4">
     {#each filteredRequirements as req (req.id)}
       {@const isOwned = userOwnsDomain(req.domain)}
-      <div class="bg-white border border-surface-200 rounded-xl p-5 shadow-sm space-y-4">
+      <div data-testid="framework-requirement-row" class="bg-white border border-surface-200 rounded-xl p-5 shadow-sm space-y-4">
         <!-- Ligne supérieure : Section, Titre, Statut, Domaine -->
         <div class="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
           <div>

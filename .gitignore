@@ -34,9 +34,13 @@ prisma/dev.db
 prisma/dev.db-journal
 prisma/test-clean.db
 prisma/test-clean.db-journal
+prisma/test-playwright.db*
 prisma/backup*.json
 *.log
 check_output.txt
 npm_output.log
 svelte-check-output.txt
+playwright-report/
+test-results/
+tests/e2e/.auth/
 

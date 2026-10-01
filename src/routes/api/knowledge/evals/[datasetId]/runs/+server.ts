@@ -6,7 +6,8 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
   const actorEmail =
     request.headers.get('x-actor-email') || locals.session?.user?.email || undefined;
 
-  const result = await llmopsClient.runEvalBenchmark(params.datasetId, actorEmail);
+  const datasetId = (!params.datasetId || params.datasetId === 'undefined') ? 'check_option_v1' : params.datasetId;
+  const result = await llmopsClient.runEvalBenchmark(datasetId, actorEmail);
 
   if (result.status === 'unavailable') {
     return json({ status: 'unavailable', error: result.error }, { status: 503 });

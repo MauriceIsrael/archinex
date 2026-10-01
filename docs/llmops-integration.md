@@ -179,4 +179,28 @@ Les lots de gouvernance étendent l'intégration au-delà du protocole MCP en ap
 | **A8** | Atelier de doctrine : templates d'actifs, assertions formelles et simulateur d'impact | Validé | Closes #3 |
 | **A10** | Ingestion multi-format (.pdf, .md, .txt), revue ligne par ligne et déclaration de couverture | Validé | Closes #5 |
 
+---
+
+## 9. Test E2E API — Réglementation → RFP → Délibération → Décision → Capitalisation (Issue #12)
+
+Le test d'intégration bout-en-bout en boucle fermée vérifie l'ensemble des 6 actes contre une instance réelle de LLMOps isolée et conteneurisée :
+
+```bash
+# Avec conteneur éphémère (testcontainers Docker) :
+TEST_CONTAINERS=1 npx vitest run tests/e2e/regulatory-to-capitalization.test.ts
+
+# Ou contre un serveur de contrat existant :
+LLMOPS_LIVE_URL=http://127.0.0.1:8099 npx vitest run tests/e2e/regulatory-to-capitalization.test.ts
+```
+
+### Déroulement des 6 actes validés :
+1. **Acte 0 — Base vierge** : vérification de l'état initial normal et de la non-couverture de NIS2.
+2. **Acte 1 — RFP Référence** : découpage du RFP avant ingestion, extraction des contrôles baseline et verdict initial d'option.
+3. **Acte 2 — Ingestion réglementaire** : ingestion multipart de l'extrait NIS2 (19 exigences), revue collégiale d'experts, application et publication doctrinale (`status: covered`).
+4. **Acte 3 — Preuve de causalité RFP** : re-découpage du RFP prouvant formellement avant ≠ après (apparition des contrôles `NIS2-ART20`, `NIS2-ART21-3`, `NIS2-ART23-4`).
+5. **Acte 4 — Délibération & Porte G3** : débat contradictoire, traitement des objections et arbitrage humain opposable L3_decided.
+6. **Acte 5 — Capitalisation** : préparation de candidats anonymisés, revue par pairs (double revue sur principes), promotion, scellement de snapshot et distribution des notifications de gouvernance.
+7. **Acte 6 — Boucle fermée** : réévaluation par le juge d'options prouvant la prise en compte immédiate de la règle capitalisée (`PAT-099`).
+
+
 

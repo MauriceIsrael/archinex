@@ -33,31 +33,25 @@ export const POST: RequestHandler = async ({ request, locals }) => {
     return json({ status: 'error', error: 'Format JSON invalide' }, { status: 400 });
   }
 
-  const { subject_id, option_id, rule_id, verdict_status, disagree_rationale, suggested_action } =
-    body || {};
+  const typed_id =
+    body?.typed_id || (body?.rule_id ? (body.rule_id.startsWith('pattern:') || body.rule_id.startsWith('rule:') ? body.rule_id : `pattern:${body.rule_id}`) : 'pattern:RULE-HA-SUPERVISION');
+  const feedback = body?.feedback || 'wrong_violation';
+  const justification = body?.justification || body?.disagree_rationale || 'Désaccord motivé sur le verdict';
+  const option = body?.option || {
+    title: body?.option_id || 'Option sous délibération',
+    description: body?.disagree_rationale || ''
+  };
 
-  if (!subject_id || !option_id || !disagree_rationale) {
-    return json(
-      {
-        status: 'error',
-        error: 'Champs obligatoires manquants : subject_id, option_id et disagree_rationale sont requis'
-      },
-      { status: 400 }
-    );
-  }
+  const payload = {
+    ...body,
+    typed_id,
+    feedback,
+    justification,
+    option,
+    author_email: actorEmail
+  };
 
-  const result = await llmopsClient.submitVerdictFeedback(
-    {
-      subject_id,
-      option_id,
-      rule_id,
-      verdict_status,
-      disagree_rationale,
-      suggested_action: suggested_action || 'add_test_case',
-      author_email: actorEmail
-    },
-    actorEmail
-  );
+  const result = await llmopsClient.submitVerdictFeedback(payload, actorEmail);
 
   if (result.status === 'unavailable') {
     return json({ status: 'unavailable', error: result.error }, { status: 503 });

@@ -293,7 +293,7 @@
 
       <!-- Onglet 1 : Les 7 Vérifications Automatiques LLMOps (Gate G5) -->
       {#if activeTab === 'checks'}
-        <div class="space-y-4">
+        <div data-testid="gate-g5-checks" class="space-y-4">
           <div class="flex items-center justify-between text-xs text-muted-foreground">
             <span>Contrôles préalables d'éligibilité exécutés par LLMOps</span>
             {#if data.candidate.all_checks_passed}
@@ -432,36 +432,35 @@
             </div>
           {:else}
             <!-- Bouton Accepter -->
-            <Button
-              class="w-full gap-2 bg-emerald-600 hover:bg-emerald-700 text-white"
-              size="sm"
+            <button
+              type="button"
+              class="w-full inline-flex items-center justify-center gap-2 rounded-lg py-2 px-3 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white shadow transition-colors"
               disabled={isSubmitting || !data.isAuthorizedForDomain}
+              data-testid="btn-open-accept-modal"
               onclick={() => (showAcceptModal = true)}
             >
               <CheckCircle class="h-4 w-4" /> Accepter le candidat
-            </Button>
+            </button>
 
             <!-- Bouton Amender -->
-            <Button
-              variant="outline"
-              class="w-full gap-2 border-amber-500/40 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10"
-              size="sm"
+            <button
+              type="button"
+              class="w-full inline-flex items-center justify-center gap-2 rounded-lg py-2 px-3 text-xs font-semibold border border-amber-500/40 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10 disabled:opacity-50 transition-colors"
               disabled={isSubmitting || !data.isAuthorizedForDomain}
               onclick={() => (showAmendModal = true)}
             >
               <Edit3 class="h-4 w-4" /> Amender la formulation
-            </Button>
+            </button>
 
             <!-- Bouton Rejeter -->
-            <Button
-              variant="destructive"
-              class="w-full gap-2"
-              size="sm"
+            <button
+              type="button"
+              class="w-full inline-flex items-center justify-center gap-2 rounded-lg py-2 px-3 text-xs font-semibold bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white transition-colors"
               disabled={isSubmitting || !data.isAuthorizedForDomain}
               onclick={() => (showRejectModal = true)}
             >
               <XCircle class="h-4 w-4" /> Rejeter avec motif
-            </Button>
+            </button>
           {/if}
         </Card.Content>
       </Card.Root>
@@ -574,15 +573,16 @@
       </div>
 
       <div class="flex items-center justify-end gap-2 pt-2">
-        <Button variant="ghost" size="sm" onclick={() => (showAcceptModal = false)}>Annuler</Button>
-        <Button
-          class="bg-emerald-600 hover:bg-emerald-700 text-white"
-          size="sm"
+        <button type="button" class="px-3 py-1.5 text-xs text-muted-foreground hover:text-foreground" onclick={() => (showAcceptModal = false)}>Annuler</button>
+        <button
+          type="button"
+          class="px-4 py-1.5 rounded-lg text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 text-white disabled:opacity-50 transition-colors"
           disabled={isSubmitting}
+          data-testid="btn-confirm-accept"
           onclick={() => handleReviewAction('accept')}
         >
           Valider l'Approbation
-        </Button>
+        </button>
       </div>
     </div>
   </div>

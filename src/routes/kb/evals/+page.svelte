@@ -42,12 +42,12 @@
   let isSavingAnnotation = $state(false);
 
   async function handleRunBenchmark() {
-    if (!dataset) return;
+    const datasetId = dataset?.id || (dataset as any)?.dataset_id || 'check_option_v1';
     isRunningBenchmark = true;
     benchmarkError = null;
 
     try {
-      const res = await fetch(`/api/knowledge/evals/${dataset.id}/runs`, {
+      const res = await fetch(`/api/knowledge/evals/${datasetId}/runs`, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -168,6 +168,7 @@
       <button
         onclick={handleRunBenchmark}
         disabled={isRunningBenchmark || !dataset}
+        data-testid="btn-run-benchmark"
         class="px-5 py-2.5 bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white font-semibold text-sm rounded-lg shadow-sm flex items-center gap-2 transition-colors flex-shrink-0"
       >
         {#if isRunningBenchmark}
@@ -201,7 +202,7 @@
           <!-- Carte Rappel Réel (Objectif G6) -->
           <div class="p-4 rounded-xl border {benchmarkResult.meets_target ? 'bg-emerald-50 border-emerald-300 text-emerald-900' : 'bg-rose-50 border-rose-300 text-rose-900'}">
             <div class="text-xs font-semibold uppercase tracking-wider">Rappel Réel (Humain)</div>
-            <div class="text-3xl font-black mt-1">{benchmarkResult.actual_recall}%</div>
+            <div data-testid="benchmark-recall-metric" class="text-3xl font-black mt-1">{benchmarkResult.actual_recall}%</div>
             <div class="text-xs mt-1 font-semibold flex items-center gap-1">
               {#if benchmarkResult.meets_target}
                 <CheckCircle class="w-3.5 h-3.5 text-emerald-600" />

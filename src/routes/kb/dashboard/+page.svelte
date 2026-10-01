@@ -191,6 +191,21 @@
     </div>
   </div>
 
+  <!-- Alerte Service Indisponible (Mode Hors-Ligne) -->
+  {#if data.offline}
+    <div class="rounded-xl border border-rose-500/40 bg-rose-500/10 p-4 text-rose-900 dark:text-rose-200" data-testid="llmops-offline-banner">
+      <div class="flex items-start gap-3">
+        <AlertTriangle class="h-5 w-5 text-rose-600 dark:text-rose-400 shrink-0 mt-0.5" />
+        <div class="space-y-1">
+          <h3 class="font-semibold text-sm">Service de gouvernance indisponible (Mode Hors-Ligne)</h3>
+          <p class="text-xs text-muted-foreground dark:text-rose-300/80">
+            Le Knowledge Hub distant LLMOps n'est pas joignable. Les métriques et fonctionnalités de gouvernance fonctionnent en mode dégradé local.
+          </p>
+        </div>
+      </div>
+    </div>
+  {/if}
+
   <!-- Alerte Stockage Éphémère (Mode Démo) -->
   {#if isDemoStorage}
     <div class="rounded-xl border border-amber-500/40 bg-amber-500/10 p-4 text-amber-900 dark:text-amber-200">
@@ -216,13 +231,13 @@
           <Layers class="h-4 w-4 text-primary" />
         </div>
         <div class="flex items-baseline gap-2">
-          <span class="text-3xl font-extrabold">{health.doctrine_health.total_assets}</span>
+          <span class="text-3xl font-extrabold">{health.doctrine_health?.total_assets ?? 0}</span>
           <span class="text-xs text-muted-foreground">actifs indexés</span>
         </div>
         <div class="text-xs text-muted-foreground pt-1 border-t flex flex-wrap gap-2">
-          <span>{health.doctrine_health.principles_count} principes</span> •
-          <span>{health.doctrine_health.patterns_count} patrons</span> •
-          <span>{health.doctrine_health.controls_count} contrôles</span>
+          <span>{health.doctrine_health?.principles_count ?? 0} principes</span> •
+          <span>{health.doctrine_health?.patterns_count ?? 0} patrons</span> •
+          <span>{health.doctrine_health?.controls_count ?? 0} contrôles</span>
         </div>
       </div>
 
@@ -233,20 +248,20 @@
           <Clock class="h-4 w-4 text-amber-500" />
         </div>
         <div class="flex items-baseline gap-2">
-          <span class="text-3xl font-extrabold">{health.reviews_summary.pending_count}</span>
+          <span class="text-3xl font-extrabold">{health.reviews_summary?.pending_count ?? 0}</span>
           <span class="text-xs text-muted-foreground">en attente</span>
         </div>
         <div class="pt-1 border-t flex items-center justify-between text-xs">
-          {#if health.reviews_summary.overdue_count === 0}
+          {#if (health.reviews_summary?.overdue_count ?? 0) === 0}
             <span class="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-medium">
               <CheckCircle2 class="h-3.5 w-3.5" /> 0 en retard (G5 OK)
             </span>
           {:else}
             <span class="inline-flex items-center gap-1 text-rose-600 dark:text-rose-400 font-medium">
-              <XCircle class="h-3.5 w-3.5" /> {health.reviews_summary.overdue_count} en retard
+              <XCircle class="h-3.5 w-3.5" /> {health.reviews_summary?.overdue_count ?? 0} en retard
             </span>
           {/if}
-          <span class="text-muted-foreground">Moy. {health.reviews_summary.avg_review_duration_days}j</span>
+          <span class="text-muted-foreground">Moy. {health.reviews_summary?.avg_review_duration_days ?? 0}j</span>
         </div>
       </div>
 
@@ -257,11 +272,11 @@
           <FileText class="h-4 w-4 text-indigo-500" />
         </div>
         <div class="flex items-baseline gap-2">
-          <span class="text-3xl font-extrabold">{health.regulatory_coverage.coverage_percentage}%</span>
+          <span class="text-3xl font-extrabold">{health.regulatory_coverage?.coverage_percentage ?? 0}%</span>
           <span class="text-xs text-muted-foreground">des exigences</span>
         </div>
         <div class="pt-1 border-t text-xs text-muted-foreground">
-          {health.regulatory_coverage.covered_requirements} / {health.regulatory_coverage.total_requirements} clauses couvertes ({health.regulatory_coverage.total_frameworks} cadre{health.regulatory_coverage.total_frameworks > 1 ? 's' : ''})
+          {health.regulatory_coverage?.covered_requirements ?? 0} / {health.regulatory_coverage?.total_requirements ?? 0} clauses couvertes ({health.regulatory_coverage?.total_frameworks ?? 0} cadre{(health.regulatory_coverage?.total_frameworks ?? 0) > 1 ? 's' : ''})
         </div>
       </div>
 
@@ -272,11 +287,11 @@
           <Target class="h-4 w-4 text-emerald-500" />
         </div>
         <div class="flex items-baseline gap-2">
-          <span class="text-3xl font-extrabold">{Math.round(health.evals_summary.latest_recall * 100)}%</span>
+          <span class="text-3xl font-extrabold">{Math.round((health.evals_summary?.latest_recall ?? 0) * 100)}%</span>
           <span class="text-xs text-muted-foreground">sur cas vérifiés</span>
         </div>
         <div class="pt-1 border-t text-xs">
-          {#if health.evals_summary.gate_g6_passed}
+          {#if health.evals_summary?.gate_g6_passed}
             <span class="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-medium">
               <CheckCircle2 class="h-3.5 w-3.5" /> Porte G6 Validée (≥ 80%)
             </span>
@@ -315,6 +330,7 @@
         <button
           onclick={() => (showPublishModal = true)}
           disabled={!data.expert.canPublish || !health?.gate_g7_eligible}
+          data-testid="btn-open-publish-modal"
           class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-sm font-semibold bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed shadow transition-colors"
         >
           <Lock class="h-4 w-4" />
@@ -345,7 +361,7 @@
       {:else}
         <div class="space-y-3">
           {#each publications as pub}
-            <div class="rounded-lg border p-4 bg-muted/20 space-y-2">
+            <div data-testid="publication-item" class="rounded-lg border p-4 bg-muted/20 space-y-2">
               <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
                 <div class="flex items-center gap-2">
                   <span class="px-2 py-0.5 rounded text-xs font-bold bg-primary/10 text-primary">
@@ -479,6 +495,7 @@
           id="changelog"
           bind:value={publishChangelog}
           rows="4"
+          data-testid="publish-changelog-input"
           placeholder="Ex: Intégration des règles de chiffrement inter-services et conformité NIS2..."
           class="w-full p-2.5 rounded-lg border bg-background text-sm focus:outline-none focus:ring-2 focus:ring-primary"
         ></textarea>
@@ -495,6 +512,7 @@
         <button
           onclick={handlePublish}
           disabled={isPublishing}
+          data-testid="btn-submit-publish"
           class="inline-flex items-center gap-2 px-4 py-2 rounded-lg text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 transition-colors"
         >
           {#if isPublishing}

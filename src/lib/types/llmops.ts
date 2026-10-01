@@ -428,6 +428,67 @@ export interface ClauseSimulationResult {
   verdicts: ClauseSimulationVerdict[];
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// RÉFÉRENTIELS RÉGLEMENTAIRES : INGESTION & COUVERTURE (Lot A10)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type FrameworkIngestionFormat = 'pdf' | 'html' | 'txt' | 'md' | 'docx';
+export type FrameworkRequirementStatus = 'pending' | 'accepted' | 'amended' | 'rejected';
+
+export interface FrameworkRequirement {
+  id: string;
+  framework_id: string;
+  section: string;
+  title: string;
+  text: string;
+  domain: string;
+  status: FrameworkRequirementStatus;
+  mapped_assets: string[];
+  amendment_notes?: string;
+  rejection_reason?: string;
+  reviewed_by?: string;
+  reviewed_at?: string;
+}
+
+export interface FrameworkIngestion {
+  id: string;
+  framework_id: string;
+  framework_name: string;
+  version: string;
+  file_name: string;
+  file_format: FrameworkIngestionFormat;
+  file_size_bytes: number;
+  created_at: string;
+  status: 'processing' | 'ready' | 'failed';
+  total_requirements: number;
+  reviewed_requirements: number;
+  requirements: FrameworkRequirement[];
+}
+
+export interface FrameworkLinkSuggestion {
+  asset_id: string;
+  title: string;
+  confidence: number;
+  rationale: string;
+}
+
+export interface FrameworkLinkSuggestionResult {
+  suggested_assets: FrameworkLinkSuggestion[];
+  llm_derived: true;
+}
+
+export interface CoverageDeclarationResult {
+  success: boolean;
+  framework_id: string;
+  coverage_declared: boolean;
+  declared_at: string;
+  declared_by: string;
+  total_requirements: number;
+  covered_requirements: number;
+  uncovered_requirements?: string[];
+}
+
+
 
 
 

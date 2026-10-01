@@ -38,7 +38,12 @@ import type {
   TestablePredicates,
   CandidateValidationResult,
   ClauseSimulationRequest,
-  ClauseSimulationResult
+  ClauseSimulationResult,
+  FrameworkIngestion,
+  FrameworkRequirement,
+  FrameworkRequirementStatus,
+  FrameworkLinkSuggestionResult,
+  CoverageDeclarationResult
 } from './types';
 
 export interface LLMOpsClientConfig {
@@ -1326,6 +1331,260 @@ export class LLMOpsClient {
       return {
         status: 'unavailable',
         error: 'Mode hors-ligne : simulation de clause indisponible'
+      };
+    }
+  }
+
+  /**
+   * Liste des référentiels réglementaires ingérés (GET /api/frameworks/ingestions)
+   */
+  async listFrameworkIngestions(
+    actorEmail?: string
+  ): Promise<{ status: 'ok' | 'error' | 'unavailable'; data?: FrameworkIngestion[]; error?: string }> {
+    try {
+      const url = `${this.baseUrl}/api/frameworks/ingestions`;
+      const res = await this.fetchWithTimeout(url, {
+        headers: this.getHeaders(undefined, actorEmail)
+      });
+      if (res.ok) {
+        const body = await res.json();
+        return {
+          status: 'ok',
+          data: body.data || body
+        };
+      }
+      return {
+        status: 'error',
+        error: `Erreur HTTP ${res.status} lors de la récupération des référentiels`
+      };
+    } catch {
+      return {
+        status: 'unavailable',
+        error: 'Mode hors-ligne : référentiels réglementaires indisponibles'
+      };
+    }
+  }
+
+  /**
+   * Détails d'une ingestion de référentiel (GET /api/frameworks/ingestions/:id)
+   */
+  async getFrameworkIngestion(
+    ingestionId: string,
+    actorEmail?: string
+  ): Promise<{ status: 'ok' | 'error' | 'unavailable'; data?: FrameworkIngestion; error?: string }> {
+    try {
+      const url = `${this.baseUrl}/api/frameworks/ingestions/${encodeURIComponent(ingestionId)}`;
+      const res = await this.fetchWithTimeout(url, {
+        headers: this.getHeaders(undefined, actorEmail)
+      });
+      if (res.ok) {
+        const body = await res.json();
+        return {
+          status: 'ok',
+          data: body.data || body
+        };
+      }
+      return {
+        status: 'error',
+        error: `Erreur HTTP ${res.status} lors de la consultation du référentiel`
+      };
+    } catch {
+      return {
+        status: 'unavailable',
+        error: 'Mode hors-ligne : consultation du référentiel indisponible'
+      };
+    }
+  }
+
+  /**
+   * Ingestion / Téléversement d'un référentiel (POST /api/frameworks/ingestions)
+   */
+  async ingestFramework(
+    payload: {
+      framework_id: string;
+      framework_name?: string;
+      version?: string;
+      domain?: string;
+      file_name?: string;
+      file_format?: string;
+      file_size_bytes?: number;
+      raw_text?: string;
+      requirements?: any[];
+    },
+    actorEmail?: string
+  ): Promise<{ status: 'ok' | 'error' | 'unavailable' | 'too_large'; data?: FrameworkIngestion; error?: string }> {
+    try {
+      const url = `${this.baseUrl}/api/frameworks/ingestions`;
+      const res = await this.fetchWithTimeout(url, {
+        method: 'POST',
+        headers: this.getHeaders(undefined, actorEmail),
+        body: JSON.stringify(payload)
+      });
+
+      if (res.status === 413) {
+        return {
+          status: 'too_large',
+          error: 'Fichier trop volumineux (taille maximale autorisée : 20 Mo)'
+        };
+      }
+
+      if (res.ok) {
+        const body = await res.json();
+        return {
+          status: 'ok',
+          data: body.data || body
+        };
+      }
+
+      const body = await res.json().catch(() => ({}));
+      return {
+        status: 'error',
+        error: body.error || `Erreur HTTP ${res.status} lors de l'ingestion`
+      };
+    } catch {
+      return {
+        status: 'unavailable',
+        error: 'Mode hors-ligne : ingestion de référentiel indisponible'
+      };
+    }
+  }
+
+  /**
+   * Revue unitaire d'une exigence réglementaire (PATCH /api/frameworks/ingestions/:id/requirements/:reqId)
+   */
+  async reviewFrameworkRequirement(
+    ingestionId: string,
+    reqId: string,
+    review: {
+      status: FrameworkRequirementStatus;
+      mapped_assets?: string[];
+      amendment_notes?: string;
+      rejection_reason?: string;
+    },
+    actorEmail?: string
+  ): Promise<{ status: 'ok' | 'error' | 'forbidden' | 'bad_request' | 'unavailable'; data?: FrameworkRequirement; error?: string }> {
+    try {
+      const url = `${this.baseUrl}/api/frameworks/ingestions/${encodeURIComponent(ingestionId)}/requirements/${encodeURIComponent(reqId)}`;
+      const res = await this.fetchWithTimeout(url, {
+        method: 'PATCH',
+        headers: this.getHeaders(undefined, actorEmail),
+        body: JSON.stringify(review)
+      });
+
+      if (res.status === 403) {
+        const body = await res.json().catch(() => ({}));
+        return {
+          status: 'forbidden',
+          error: body.error || 'Interdit : domaine non possédé'
+        };
+      }
+
+      if (res.status === 400) {
+        const body = await res.json().catch(() => ({}));
+        return {
+          status: 'bad_request',
+          error: body.error || 'Requête invalide ou motif de rejet manquant'
+        };
+      }
+
+      if (res.ok) {
+        const body = await res.json();
+        return {
+          status: 'ok',
+          data: body.data || body
+        };
+      }
+
+      const body = await res.json().catch(() => ({}));
+      return {
+        status: 'error',
+        error: body.error || `Erreur HTTP ${res.status}`
+      };
+    } catch {
+      return {
+        status: 'unavailable',
+        error: 'Mode hors-ligne : revue d’exigence indisponible'
+      };
+    }
+  }
+
+  /**
+   * Suggestion assistée de correspondances doctrinales (POST .../suggest-links)
+   */
+  async suggestFrameworkRequirementLinks(
+    ingestionId: string,
+    reqId: string,
+    actorEmail?: string
+  ): Promise<{ status: 'ok' | 'error' | 'unavailable'; data?: FrameworkLinkSuggestionResult; error?: string }> {
+    try {
+      const url = `${this.baseUrl}/api/frameworks/ingestions/${encodeURIComponent(ingestionId)}/requirements/${encodeURIComponent(reqId)}/suggest-links`;
+      const res = await this.fetchWithTimeout(url, {
+        method: 'POST',
+        headers: this.getHeaders(undefined, actorEmail),
+        body: JSON.stringify({})
+      });
+
+      if (res.ok) {
+        const body = await res.json();
+        return {
+          status: 'ok',
+          data: body.data || body
+        };
+      }
+
+      return {
+        status: 'error',
+        error: `Erreur HTTP ${res.status}`
+      };
+    } catch {
+      return {
+        status: 'unavailable',
+        error: 'Mode hors-ligne : suggestion doctrinale indisponible'
+      };
+    }
+  }
+
+  /**
+   * Déclaration formelle de couverture d'un référentiel (POST /api/frameworks/:fw/coverage-declaration)
+   */
+  async declareFrameworkCoverage(
+    frameworkId: string,
+    actorEmail?: string
+  ): Promise<{ status: 'ok' | 'error' | 'conflict' | 'unavailable'; data?: CoverageDeclarationResult; error?: string; missing_requirements?: string[] }> {
+    try {
+      const url = `${this.baseUrl}/api/frameworks/${encodeURIComponent(frameworkId)}/coverage-declaration`;
+      const res = await this.fetchWithTimeout(url, {
+        method: 'POST',
+        headers: this.getHeaders(undefined, actorEmail),
+        body: JSON.stringify({})
+      });
+
+      if (res.status === 409) {
+        const body = await res.json().catch(() => ({}));
+        return {
+          status: 'conflict',
+          error: body.error || 'Des exigences non couvertes subsistent dans le référentiel',
+          missing_requirements: body.missing_requirements || []
+        };
+      }
+
+      if (res.ok) {
+        const body = await res.json();
+        return {
+          status: 'ok',
+          data: body.data || body
+        };
+      }
+
+      const body = await res.json().catch(() => ({}));
+      return {
+        status: 'error',
+        error: body.error || `Erreur HTTP ${res.status}`
+      };
+    } catch {
+      return {
+        status: 'unavailable',
+        error: 'Mode hors-ligne : déclaration de couverture indisponible'
       };
     }
   }

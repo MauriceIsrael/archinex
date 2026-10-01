@@ -20,7 +20,11 @@ import type {
   ClauseSimulationResult,
   LLMOpsBoardItem,
   LLMOpsStatement,
-  LLMOpsConflict
+  LLMOpsConflict,
+  FrameworkIngestion,
+  FrameworkRequirement,
+  FrameworkLinkSuggestionResult,
+  CoverageDeclarationResult
 } from '../../src/lib/types/llmops';
 
 export interface FakeLlmopsState {
@@ -36,6 +40,7 @@ export interface FakeLlmopsState {
   board: LLMOpsBoardItem[];
   statements: LLMOpsStatement[];
   conflicts: LLMOpsConflict[];
+  frameworkIngestions: Record<string, FrameworkIngestion>;
 }
 
 export function generateDefaultChecks(title: string, content: string = ''): KbAutomaticCheck[] {
@@ -444,7 +449,56 @@ export function createDefaultFakeState(): FakeLlmopsState {
     ],
     board: [],
     statements: [],
-    conflicts: []
+    conflicts: [],
+    frameworkIngestions: {
+      'ing-nis2-01': {
+        id: 'ing-nis2-01',
+        framework_id: 'NIS2',
+        framework_name: 'Directive NIS2 (UE 2022/2555)',
+        version: '2022/2555',
+        file_name: 'directive-nis2.pdf',
+        file_format: 'pdf',
+        file_size_bytes: 1048576,
+        created_at: new Date(now.getTime() - 2 * 24 * 3600 * 1000).toISOString(),
+        status: 'ready',
+        total_requirements: 3,
+        reviewed_requirements: 1,
+        requirements: [
+          {
+            id: 'req-nis2-01',
+            framework_id: 'NIS2',
+            section: 'Article 21.1',
+            title: 'Mesures de gestion des risques de cybersécurité',
+            text: 'Les entités essentielles et importantes prennent des mesures techniques, opérationnelles et organisationnelles appropriées et proportionnées pour gérer les risques pesant sur la sécurité des réseaux et des systèmes d’information.',
+            domain: 'security',
+            status: 'accepted',
+            mapped_assets: ['CTRL-SEC-01', 'PRIN-RES-01'],
+            reviewed_by: 'expert@archinex.local',
+            reviewed_at: new Date(now.getTime() - 24 * 3600 * 1000).toISOString()
+          },
+          {
+            id: 'req-nis2-02',
+            framework_id: 'NIS2',
+            section: 'Article 23.1',
+            title: 'Notification des incidents majeurs dans les 24h',
+            text: 'Tout incident ayant un impact significatif sur la fourniture de leurs services doit faire l’objet d’une alerte précoce sans retard injustifié et en tout état de cause dans les 24 heures suivant la prise de connaissance.',
+            domain: 'security',
+            status: 'pending',
+            mapped_assets: []
+          },
+          {
+            id: 'req-nis2-03',
+            framework_id: 'NIS2',
+            section: 'Article 21.2.d',
+            title: 'Sécurité de la chaîne d’approvisionnement',
+            text: 'La sécurité de la chaîne d’approvisionnement et les relations avec les fournisseurs directs font l’objet de politiques de gestion des risques formelles.',
+            domain: 'architecture',
+            status: 'pending',
+            mapped_assets: []
+          }
+        ]
+      }
+    }
   };
 }
 
@@ -1221,6 +1275,262 @@ export async function startFakeLlmopsServer(initialState?: Partial<FakeLlmopsSta
         data: state.conflicts
       });
     }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // LOT A10 : INGESTION DE RÉFÉRENTIELS & COUVERTURE
+    // ─────────────────────────────────────────────────────────────────────────
+
+    // GET /api/frameworks/ingestions
+    if (pathname === '/api/frameworks/ingestions' && method === 'GET') {
+      return json(200, {
+        status: 'ok',
+        data: Object.values(state.frameworkIngestions)
+      });
+    }
+
+    // POST /api/frameworks/ingestions
+    if (pathname === '/api/frameworks/ingestions' && method === 'POST') {
+      const contentLength = parseInt((req.headers['content-length'] as string) || '0', 10);
+      if (contentLength > 20 * 1024 * 1024 || (body?.file_size_bytes && body.file_size_bytes > 20 * 1024 * 1024)) {
+        return json(413, {
+          status: 'error',
+          error: 'Fichier trop volumineux (taille maximale autorisée : 20 Mo)'
+        });
+      }
+
+      const { framework_id, framework_name, version, domain, file_name, file_format, raw_text, requirements } = body || {};
+
+      const validFormats = ['pdf', 'html', 'txt', 'md', 'docx'];
+      const ext = file_name ? file_name.split('.').pop()?.toLowerCase() : file_format;
+      if (ext && !validFormats.includes(ext) && !validFormats.includes(file_format)) {
+        return json(400, {
+          status: 'error',
+          error: 'Format de fichier non supporté. Formats acceptés : .pdf, .html, .txt, .md, .docx'
+        });
+      }
+
+      const fwId = framework_id || 'FW-CUSTOM';
+      const fwName = framework_name || file_name || 'Référentiel Inconnu';
+      const ingId = `ing-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+
+      let parsedRequirements: FrameworkRequirement[] = [];
+      if (Array.isArray(requirements) && requirements.length > 0) {
+        parsedRequirements = requirements;
+      } else if (raw_text && typeof raw_text === 'string') {
+        const lines = raw_text.split('\n').filter((l: string) => l.trim().length > 10);
+        parsedRequirements = lines.slice(0, 5).map((line: string, idx: number) => ({
+          id: `req-${fwId.toLowerCase()}-${idx + 1}`,
+          framework_id: fwId,
+          section: `Section ${idx + 1}`,
+          title: line.substring(0, 40) + '...',
+          text: line,
+          domain: domain || 'security',
+          status: 'pending' as const,
+          mapped_assets: []
+        }));
+      } else {
+        parsedRequirements = [
+          {
+            id: `req-${fwId.toLowerCase()}-01`,
+            framework_id: fwId,
+            section: 'Exigence 1.1',
+            title: 'Politique générale de conformité',
+            text: 'Mise en œuvre des contrôles fondamentaux.',
+            domain: domain || 'security',
+            status: 'pending' as const,
+            mapped_assets: []
+          },
+          {
+            id: `req-${fwId.toLowerCase()}-02`,
+            framework_id: fwId,
+            section: 'Exigence 1.2',
+            title: 'Auditabilité continue et logs scellés',
+            text: 'Journalisation opposable des accès sensibles.',
+            domain: domain || 'security',
+            status: 'pending' as const,
+            mapped_assets: []
+          }
+        ];
+      }
+
+      const ingestion: FrameworkIngestion = {
+        id: ingId,
+        framework_id: fwId,
+        framework_name: fwName,
+        version: version || '1.0',
+        file_name: file_name || `${fwId.toLowerCase()}.txt`,
+        file_format: (ext as any) || 'txt',
+        file_size_bytes: body?.file_size_bytes || contentLength || 1024,
+        created_at: new Date().toISOString(),
+        status: 'ready',
+        total_requirements: parsedRequirements.length,
+        reviewed_requirements: parsedRequirements.filter((r) => r.status !== 'pending').length,
+        requirements: parsedRequirements
+      };
+
+      state.frameworkIngestions[ingId] = ingestion;
+
+      return json(201, {
+        status: 'ok',
+        data: ingestion
+      });
+    }
+
+    // GET /api/frameworks/ingestions/:id
+    const ingGetMatch = pathname.match(/^\/api\/frameworks\/ingestions\/([a-zA-Z0-9_-]+)$/);
+    if (ingGetMatch && method === 'GET') {
+      const ingId = ingGetMatch[1];
+      const ingestion = state.frameworkIngestions[ingId];
+      if (!ingestion) {
+        return json(404, { status: 'error', error: `Ingestion '${ingId}' introuvable` });
+      }
+      return json(200, {
+        status: 'ok',
+        data: ingestion
+      });
+    }
+
+    // PATCH /api/frameworks/ingestions/:id/requirements/:reqId
+    const reqPatchMatch = pathname.match(
+      /^\/api\/frameworks\/ingestions\/([a-zA-Z0-9_-]+)\/requirements\/([a-zA-Z0-9_-]+)$/
+    );
+    if (reqPatchMatch && method === 'PATCH') {
+      const ingId = reqPatchMatch[1];
+      const reqId = reqPatchMatch[2];
+      const ingestion = state.frameworkIngestions[ingId];
+      if (!ingestion) {
+        return json(404, { status: 'error', error: `Ingestion '${ingId}' introuvable` });
+      }
+
+      const requirement = ingestion.requirements.find((r) => r.id === reqId);
+      if (!requirement) {
+        return json(404, { status: 'error', error: `Exigence '${reqId}' introuvable dans l'ingestion` });
+      }
+
+      const actorEmail = (req.headers['x-actor-email'] as string) || '';
+      if (actorEmail) {
+        const owner = state.owners.find((o) => o.email.toLowerCase() === actorEmail.toLowerCase());
+        if (owner && !owner.domains.some((d) => d.toLowerCase() === requirement.domain.toLowerCase())) {
+          return json(403, {
+            status: 'error',
+            error: `Interdit: l'expert ${actorEmail} ne possède pas le domaine '${requirement.domain}' requis pour statuer sur cette exigence`
+          });
+        }
+      }
+
+      const { status: newStatus, mapped_assets, amendment_notes, rejection_reason } = body || {};
+
+      if (newStatus === 'rejected' && (!rejection_reason || rejection_reason.trim() === '')) {
+        return json(400, {
+          status: 'error',
+          error: 'Le motif de rejet est obligatoire'
+        });
+      }
+
+      if (newStatus) requirement.status = newStatus;
+      if (Array.isArray(mapped_assets)) requirement.mapped_assets = mapped_assets;
+      if (amendment_notes !== undefined) requirement.amendment_notes = amendment_notes;
+      if (rejection_reason !== undefined) requirement.rejection_reason = rejection_reason;
+      requirement.reviewed_by = actorEmail || 'expert@archinex.local';
+      requirement.reviewed_at = new Date().toISOString();
+
+      ingestion.reviewed_requirements = ingestion.requirements.filter((r) => r.status !== 'pending').length;
+
+      return json(200, {
+        status: 'ok',
+        data: requirement
+      });
+    }
+
+    // POST /api/frameworks/ingestions/:id/requirements/:reqId/suggest-links
+    const suggestMatch = pathname.match(
+      /^\/api\/frameworks\/ingestions\/([a-zA-Z0-9_-]+)\/requirements\/([a-zA-Z0-9_-]+)\/suggest-links$/
+    );
+    if (suggestMatch && method === 'POST') {
+      const ingId = suggestMatch[1];
+      const reqId = suggestMatch[2];
+      const ingestion = state.frameworkIngestions[ingId];
+      if (!ingestion) {
+        return json(404, { status: 'error', error: `Ingestion '${ingId}' introuvable` });
+      }
+
+      const requirement = ingestion.requirements.find((r) => r.id === reqId);
+      if (!requirement) {
+        return json(404, { status: 'error', error: `Exigence '${reqId}' introuvable` });
+      }
+
+      const suggestionResult: FrameworkLinkSuggestionResult = {
+        suggested_assets: [
+          {
+            asset_id: 'CTRL-SEC-01',
+            title: 'Contrôle de Redondance & Résilience',
+            confidence: 0.94,
+            rationale: 'Exigence couverte par la politique de résilience et de haute disponibilité'
+          },
+          {
+            asset_id: 'PRIN-RES-01',
+            title: 'Principe Fondamental d’Immuabilité des Traces Audit',
+            confidence: 0.88,
+            rationale: 'Correspondance avec les obligations de traçabilité et d’alerte'
+          }
+        ],
+        llm_derived: true
+      };
+
+      return json(200, {
+        status: 'ok',
+        data: suggestionResult
+      });
+    }
+
+    // POST /api/frameworks/:fw/coverage-declaration
+    const declMatch = pathname.match(/^\/api\/frameworks\/([a-zA-Z0-9_-]+)\/coverage-declaration$/);
+    if (declMatch && method === 'POST') {
+      const fw = declMatch[1];
+      const actorEmail = (req.headers['x-actor-email'] as string) || 'expert@archinex.local';
+
+      // Recherche toutes les exigences du framework
+      const allReqs: FrameworkRequirement[] = [];
+      for (const ing of Object.values(state.frameworkIngestions)) {
+        if (ing.framework_id.toLowerCase() === fw.toLowerCase()) {
+          allReqs.push(...ing.requirements);
+        }
+      }
+
+      if (allReqs.length === 0) {
+        return json(404, {
+          status: 'error',
+          error: `Aucun référentiel ingéré trouvé pour '${fw}'`
+        });
+      }
+
+      const pending = allReqs.filter((r) => r.status === 'pending');
+      if (pending.length > 0) {
+        return json(409, {
+          status: 'error',
+          error: 'Déclaration de couverture refusée : des exigences non résolues subsistent',
+          missing_requirements: pending.map((p) => p.id)
+        });
+      }
+
+      const coveredCount = allReqs.filter((r) => r.status === 'accepted' || r.status === 'amended').length;
+
+      const result: CoverageDeclarationResult = {
+        success: true,
+        framework_id: fw,
+        coverage_declared: true,
+        declared_at: new Date().toISOString(),
+        declared_by: actorEmail,
+        total_requirements: allReqs.length,
+        covered_requirements: coveredCount
+      };
+
+      return json(200, {
+        status: 'ok',
+        data: result
+      });
+    }
+
 
     // Default 404
     return json(404, {

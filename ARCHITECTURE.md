@@ -278,4 +278,60 @@ sequenceDiagram
 4. **Moteur de Simulation & Alerte de Régression** : La simulation sur cas de test historiques évalue la Précision et le Rappel de la clause. Si une nouvelle version de clause casse des cas conformes existants (`regression_detected: true`), une bannière d'alerte rouge bloque la soumission non surveillée.
 5. **Circuit Ouvert vers la Boîte de Revue (Porte G5)** : Une clause rédigée et validée est directement enregistrée comme candidat `DRAFT` ou `SUBMITTED`, garantissant la continuité immédiate avec la boîte d'examen experte (`/kb/reviews`).
 
+---
+
+## 8. Ingestion des Référentiels Réglementaires et Déclaration de Couverture (Lot A10 - Issue #5)
+
+L'espace Référentiels Réglementaires (`/kb/frameworks`) dote Archinex de la capacité d'ingérer des référentiels externes multi-formats, d'instruire chaque exigence ligne par ligne et d'émettre des attestations formelles de conformité opposables.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Expert as Expert Domaine (sec-lead)
+    participant UI as Interface (/kb/frameworks)
+    participant Archinex as Archinex API
+    participant LLMOps as Knowledge Hub LLMOps
+
+    Expert->>UI: Téléverse le référentiel (.pdf, .html, .txt, .md, .docx ≤ 20 Mo)
+    UI->>Archinex: POST /api/frameworks/ingestions (multipart/form-data)
+    Archinex->>LLMOps: POST /api/frameworks/ingestions [X-Actor-Email]
+    LLMOps-->>Archinex: 201 Created (Découpage en exigences + ID d'ingestion)
+    Archinex-->>UI: Affichage du tableau de bord d'instruction
+
+    loop Instruction Ligne par Ligne
+        Expert->>UI: Sélectionne une exigence
+        opt Suggestions de Liaisons Doctrinales
+            UI->>Archinex: POST .../requirements/{id}/suggest-links
+            Archinex->>LLMOps: POST .../suggest-links
+            LLMOps-->>Archinex: 200 OK { suggested_assets, llm_derived: true }
+            Archinex-->>UI: Affiche suggestions avec étiquette d'assistance IA
+        end
+        Expert->>UI: Statut (accept / amend / reject avec motif)
+        UI->>Archinex: PATCH .../requirements/{id}
+        Note over Archinex: Vérifie habilitation domaine (403 si non possédé)<br/>Vérifie motif obligatoire si rejet (400 si vide)
+        Archinex->>LLMOps: PATCH .../requirements/{id} [X-Actor-Email]
+        LLMOps-->>Archinex: 200 OK (Exigence instruite)
+    end
+
+    Expert->>UI: Clique sur "Déclarer la Couverture Opposable"
+    UI->>Archinex: POST /api/frameworks/{fw}/coverage-declaration
+    Archinex->>LLMOps: POST /api/frameworks/{fw}/coverage-declaration [X-Actor-Email]
+    alt Exigences non résolues en attente
+        LLMOps-->>Archinex: 409 Conflict { missing_requirements: [...] }
+        Archinex-->>UI: Blocage formel et affichage des exigences incomplètes
+    else 100% des exigences instruites
+        LLMOps-->>Archinex: 200 OK { coverage_declared: true, declared_at, declared_by }
+        Archinex-->>UI: Certificat souverain d'attestation de conformité
+    end
+```
+
+### Invariants & Règles de Gouvernance Clés (Lot A10)
+1. **Téléversement Multi-Format Sécurisé** : Prise en charge des formats `.pdf`, `.html`, `.txt`, `.md`, `.docx` avec contrôle strict de taille plafonné à 20 Mo (HTTP 413).
+2. **Découpage & Indexation d'Exigences** : Chaque clause réglementaire devient une entité atomique inspectable, traçable et rattachée à un domaine d'architecture.
+3. **Assistance IA Étiquetée (`llm-derived`)** : Les correspondances sémantiques proposées par le LLM local ne constituent que des suggestions d'aide à la décision ; elles nécessitent obligatoirement un acte de validation explicite par l'expert humain (Invariant II).
+4. **Cloisonnement d'Habilitation par Domaine (403 Forbidden)** : Un relecteur ne peut accepter, amender ou rejeter une exigence que s'il est formellement propriétaire du domaine correspondant (`ownedDomains`).
+5. **Interdiction Absolue du Rejet Arbitraire (400 Bad Request)** : Tout rejet d'exigence réglementaire impose un motif textuel circonstancié expliquant l'inapplicabilité (Règle constitutionnelle IV).
+6. **Scellement Opposable & Détection de Conflit (409 Conflict)** : La déclaration de couverture est conditionnée à la résolution exhaustive de 100% des exigences du référentiel. Toute lacune déclenche un blocage 409 mentionnant nominativement les exigences manquantes.
+
+
 

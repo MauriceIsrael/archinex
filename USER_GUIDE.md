@@ -163,12 +163,42 @@ Au-delà du texte libre en Markdown, chaque clause structure ses contraintes for
 
 ---
 
-## 7. Dépannage Fréquent
+## 7. Référentiels Réglementaires & Déclaration de Couverture (`/kb/frameworks`) — Lot A10
+
+L'espace Référentiels permet d'ingérer des cadres réglementaires et normes externes (ex: NIS2, ISO 27001, RGPD, SecNumCloud, DORA), de les instruire exigence par exigence et d'émettre une attestation formelle de couverture opposable.
+
+### 7.1 Téléversement Multi-Format
+Depuis `/kb/frameworks`, téléversez le document réglementaire :
+- **Formats supportés** : PDF (`.pdf`), HTML (`.html`), Texte brut (`.txt`), Markdown (`.md`), Word (`.docx`).
+- **Taille maximale** : 20 Mo par fichier.
+- **Extraction** : Le système découpe automatiquement le document en exigences unitaires (`Article`, `Clause`, `Section`) et pré-attribue le domaine de gouvernance.
+
+### 7.2 Revue Ligne par Ligne Interactive (`/kb/frameworks/[id]`)
+Chaque exigence réglementaire dispose de son cycle d'instruction :
+1. **Correspondances Assistées par l'IA** : Cliquez sur *"Suggérer correspondances IA"* pour obtenir des propositions de liaisons doctrinales vers des contrôles ou principes existants, validées formellement et étiquetées `llm-derived`.
+2. **Décisions Unitaires** :
+   - **Accepter** : L'exigence est alignée sur les contrôles et principes sélectionnés.
+   - **Amender** : Préciser des notes d'adaptation opérationnelle ou des restrictions spécifiques.
+   - **Rejeter** : Refuser l'applicabilité de l'exigence avec un **motif obligatoire circonstancié** (règle constitutionnelle IV).
+3. **Contrôle d'Habilitation par Domaine** : Seul l'expert propriétaire du domaine de l'exigence (`ownedDomains`) peut statuer (code HTTP 403 sinon).
+
+### 7.3 Déclaration Formelle de Couverture Opposable (Porte G6)
+Lorsque l'instruction est terminée :
+- Cliquez sur **"Déclarer la Couverture Opposable"**.
+- **Contrôle d'Exhaustivité (409 Conflict)** : Si des exigences non résolues (en attente) subsistent, la déclaration est formellement bloquée avec la liste des exigences à finaliser.
+- **Attestation Souveraine (200 OK)** : Dès lors que 100% des exigences sont acceptées, amendées ou rejetées avec motif, l'attestation de conformité scellée est émise et archivée.
+
+---
+
+## 8. Dépannage Fréquent
 
 - **"Arbitrage refusé (blocages actifs)"** : Vérifiez que toutes les options sont évaluées, qu'aucune objection n'est ouverte et que la couverture des référentiels projet est complète.
 - **"403 Habilitation insuffisante"** : Seul le Lead Architect ou un expert affecté au domaine du sujet (ex: `infrastructure`) peut enregistrer la décision.
-- **"403 Interdit : domaine non possédé"** : Lors de l'examen d'un candidat KB, vous devez être explicitement propriétaire du domaine concerné (`ownedDomains`).
+- **"403 Interdit : domaine non possédé"** : Lors de l'examen d'un candidat KB ou d'une exigence réglementaire, vous devez être explicitement propriétaire du domaine concerné (`ownedDomains`).
+- **"409 Conflit : exigences non couvertes restantes"** : Toutes les exigences d'un référentiel doivent avoir été instruites (acceptées, amendées ou rejetées) avant de pouvoir émettre la déclaration de couverture.
 - **"409 Conflit d'état"** : Le candidat a déjà été accepté ou rejeté définitivement.
+- **"413 Fichier trop volumineux"** : La taille maximale autorisée pour le téléversement de référentiel est de 20 Mo.
 - **"Mode Hors-Ligne (Offline)"** : En l'absence de serveur LLMOps joignable sur le réseau local, Archinex bascule sur l'instantané scellé sans interruption de service.
 - **"Jeton d'invitation expiré"** : Les invitations d'experts sont valables strictement 7 jours. Demandez à un administrateur d'émettre une nouvelle invitation.
+
 

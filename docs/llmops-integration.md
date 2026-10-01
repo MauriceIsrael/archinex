@@ -157,9 +157,23 @@ Ce mapping permettra à terme d'alimenter Archinex depuis le graphe LLMOps (impo
 
 ## 7. Variables d'environnement supportées
 
-| Variable | Défaut | Usage |
-|---|---|---|
 | `LLMOPS_BASE_URL` | URL Cloud Run prod | Rediriger vers staging/local |
 | `LLMOPS_TOKEN` | `demo-public-2026-08` | Surcharger le jeton |
 | `LLMOPS_ENGAGEMENT` | `nordwave-mcx-2027` | Tester un autre engagement |
+| `LLMOPS_LIVE_URL` | Non défini (optionnel) | URL du serveur de contrat local LLMOps pour tests de contrat vivants |
+| `LLMOPS_LIVE_TOKEN` | `contract-service-token` | Jeton de service portant les scopes `kb:review,kb:delegate` |
+
+---
+
+## 8. Gouvernance de la Base de Connaissances (API v1)
+
+Les lots de gouvernance étendent l'intégration au-delà du protocole MCP en appelant directement l'API REST de gouvernance avec propagation d'identité souveraine (`X-Actor-Email`) :
+
+| Lot | Objet | Portes & Validation | Issue associée |
+|---|---|---|---|
+| **A6** | Comptes experts, rôles KB (`kb:review`, `kb:evaluate`, `kb:maintain`, `kb:admin`) et en-tête `X-Actor-Email` | Validé (Porte G5 prérequis) | Closes #1 |
+| **A7** | Boîte de revue d'experts, actions (`accept`, `amend`, `reject`), réassignation et notifications | Validé (Porte G5) | Closes #2 |
+| **A8** | Atelier de doctrine : templates d'actifs, assertions formelles et simulateur d'impact | Validé | Closes #3 |
+| **A10** | Ingestion multi-format (.pdf, .md, .txt), revue ligne par ligne et déclaration de couverture | Validé | Closes #5 |
+
 

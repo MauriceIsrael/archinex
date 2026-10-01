@@ -1,0 +1,9 @@
+schema: "1.0"
+change:
+  name: "a11-dashboard-publication"
+  title: "Tableau de Bord KB, Publication Scellée et Porte G7 (Issue #6)"
+  description: "Tableau de bord de santé unifié de la base de connaissances (/kb/dashboard), bandeau d'alerte stockage éphémère demo, promotion et publication scellée cryptographiquement (Porte G7), et campagnes d'enrichissement ciblées."
+  status: "in_progress"
+  authors:
+    - "Maurice Israel <maurice@archinex.io>"
+  created_at: "2026-10-01"

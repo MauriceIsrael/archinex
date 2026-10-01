@@ -219,18 +219,53 @@ En cours de délibération (`/deliberation`), chaque argument appuyé sur une cl
 
 ---
 
-## 9. Dépannage Fréquent
+## 9. Tableau de Bord KB, Publication Scellée (Porte G7) & Campagnes (`/kb/dashboard`) — Lot A11
+
+Le Tableau de Bord de Gouvernance constitue la tour de contrôle de la doctrine architecturale d'entreprise, permettant de superviser l'ensemble des indicateurs de santé, de sceller les versions officielles (Porte G7) et de piloter les campagnes d'enrichissement ciblées.
+
+### 9.1 Tour de Contrôle & Santé Consolidée
+Depuis `/kb/dashboard`, quatre cartes de bord synthétisent l'état opérationnel :
+- **Doctrine Active** : Nombre total d'actifs indexés ventilés par typologie (principes fondamentaux, patrons d'architecture, décisions ADR, contrôles automatisés, termes du glossaire).
+- **Boîte de Revue (Porte G5)** : Nombre de dossiers en attente et en retard d'instruction, avec calcul du délai moyen de traitement.
+- **Couverture Référentiels** : Pourcentage d'exigences normatives couvertes et opposables sur l'ensemble des cadres ingérés (ex: NIS2, ISO 27001).
+- **Rappel Benchmark (Porte G6)** : Taux de conformité sur le jeu de test de référence `check_option_v1`, attestant de l'éligibilité de la doctrine ($\ge 80\%$).
+
+> [!WARNING]
+> **Bandeau d'Alerte Mode Démo Éphémère** : Lorsque le moteur LLMOps s'exécute sur une enclave mémoire non persistante (`storage.mode = "demo"`), un bandeau d'avertissement permanent signale que les modifications doctrinales seront purgées au redémarrage du conteneur.
+
+### 9.2 Scellement Cryptographique & Publication Officielle (Porte G7)
+L'acte de publication fige l'état de la doctrine dans un instantané immuable et opposable :
+1. **Habilitations Strictes (403 Forbidden)** : Seuls les experts dotés du rôle `kb:admin` ou `kb:maintain` (ou administrateurs de plateforme) sont autorisés à déclencher la publication.
+2. **Contrôle d'Éligibilité Porte G7 (409 Conflict)** : La publication est rigoureusement bloquée tant que :
+   - Des revues critiques en retard subsistent dans la boîte de réception (Porte G5 non respectée).
+   - Le taux de rappel calculé sur les cas d'évaluation vérifiés par l'humain est inférieur à 80% (Porte G6 non validée).
+3. **Scellement SHA-256 & Versionnage** :
+   - Saisie du journal d'évolution (*changelog*) officiel.
+   - Génération de l'identifiant d'instantané (`snapshot-YYYY-MM-DD-<hash>`) et incrémentation de version (ex: `v1.2.0`).
+   - Calcul et archivage de l'empreinte cryptographique SHA-256 scellée avec badge d'authenticité.
+
+### 9.3 Campagnes d'Enrichissement Ciblées
+Pour combler les lacunes doctrinales identifiées par les architectes ou auditeurs :
+- **Lancer une Campagne** : Définition d'un titre, domaine (`architecture`, `security`, `cloud`, `data`, `network`), type d'actif cible (`pattern`, `control`, `principle`), volume attendu de clauses et échéance.
+- **Suivi de Progression** : Visualisation en direct du taux d'avancement (clauses validées vs objectif) et clôture automatique au terme de la campagne.
+
+---
+
+## 10. Dépannage Fréquent
 
 - **"Arbitrage refusé (blocages actifs)"** : Vérifiez que toutes les options sont évaluées, qu'aucune objection n'est ouverte et que la couverture des référentiels projet est complète.
 - **"403 Habilitation insuffisante"** : Seul le Lead Architect ou un expert affecté au domaine du sujet (ex: `infrastructure`) peut enregistrer la décision.
 - **"403 Interdit : domaine non possédé"** : Lors de l'examen d'un candidat KB ou d'une exigence réglementaire, vous devez être explicitement propriétaire du domaine concerné (`ownedDomains`).
 - **"403 Habilitation d'évaluation manquante"** : Seul un expert détenteur du rôle `kb:evaluate` peut annoter le jeu de test canonique ou modifier le ground truth d'un cas d'évaluation.
+- **"403 Habilitation de publication manquante"** : La publication officielle et le scellement de la doctrine requièrent impérativement les rôles `kb:admin` ou `kb:maintain`.
+- **"409 Conflit : Conditions de la Porte G7 non remplies"** : La publication est formellement bloquée tant que des revues critiques en retard subsistent ou que le rappel benchmark est inférieur au seuil de 80%.
 - **"Porte G6 non atteinte (Rappel < 80%)"** : Le taux de rappel calculé sur les cas vérifiés par un expert humain est insuffisant. Vérifiez les clauses doctrinales associées ou annotez les cas litigieux.
 - **"409 Conflit : exigences non couvertes restantes"** : Toutes les exigences d'un référentiel doivent avoir été instruites (acceptées, amendées ou rejetées) avant de pouvoir émettre la déclaration de couverture.
 - **"409 Conflit d'état"** : Le candidat a déjà été accepté ou rejeté définitivement.
 - **"413 Fichier trop volumineux"** : La taille maximale autorisée pour le téléversement de référentiel est de 20 Mo.
 - **"Mode Hors-Ligne (Offline)"** : En l'absence de serveur LLMOps joignable sur le réseau local, Archinex bascule sur l'instantané scellé sans interruption de service.
 - **"Jeton d'invitation expiré"** : Les invitations d'experts sont valables strictement 7 jours. Demandez à un administrateur d'émettre une nouvelle invitation.
+
 
 
 

@@ -562,6 +562,74 @@ export interface VerdictFeedbackItem {
   converted_ref?: string;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// TABLEAU DE BORD, PUBLICATION SCELLÉE ET CAMPAGNES (Lot A11 - Porte G7)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface KbHealthMetrics {
+  doctrine_health: {
+    total_assets: number;
+    principles_count: number;
+    patterns_count: number;
+    decisions_count: number;
+    controls_count: number;
+    glossary_count: number;
+  };
+  reviews_summary: {
+    pending_count: number;
+    overdue_count: number;
+    avg_review_duration_days: number;
+  };
+  regulatory_coverage: {
+    total_frameworks: number;
+    total_requirements: number;
+    covered_requirements: number;
+    coverage_percentage: number;
+  };
+  evals_summary: {
+    latest_recall: number;
+    gate_g6_passed: boolean;
+    last_benchmark_at: string;
+  };
+  storage: {
+    mode: 'demo' | 'persistent';
+    persistent: boolean;
+    provider: string;
+  };
+  gate_g7_eligible: boolean;
+  gate_g7_blockers: string[];
+}
+
+export interface KbPublication {
+  id: string;
+  snapshot_id: string;
+  version: string;
+  published_at: string;
+  published_by: string;
+  sha256_checksum: string;
+  changelog: string;
+  assets_count: number;
+  storage_persistent: boolean;
+}
+
+export interface KbCampaign {
+  id: string;
+  title: string;
+  domain: string;
+  target_asset_type: string;
+  target_count: number;
+  created_at: string;
+  created_by: string;
+  due_at: string;
+  status: 'active' | 'completed' | 'cancelled';
+  description: string;
+  progress: {
+    current: number;
+    target: number;
+  };
+}
+
+
 
 
 

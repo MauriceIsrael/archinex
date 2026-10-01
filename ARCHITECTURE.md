@@ -377,6 +377,61 @@ sequenceDiagram
 3. **Seuil de Porte Qualité G6 ($\ge 80\%$)** : Pour déclarer la Porte G6 franchie (*Atelier & Evals Validés*), le rappel réel doit être supérieur ou égal à 0.80 et le nombre de régressions inexpliquées doit être strictement nul.
 4. **Continuité Opérationnelle & Traçabilité des Feedbacks** : Tout désaccord signalé lors d'un arbitrage ou d'un débat en séance est historisé avec son horodatage, l'auteur (`X-Actor-Email`), la raison (`false_positive`, `false_negative`, `ambiguity`, `outdated_doctrine`), la règle alternative proposée et la référence de délibération.
 
+---
+
+## 10. Tableau de Bord de Santé KB, Scellement Cryptographique et Porte G7 (Lot A11)
+
+Le sous-système de publication et de pilotage centralise les indicateurs de maturité de la doctrine d'entreprise, impose le respect des portes de qualité amont (Portes G5 et G6), et scelle les instantanés officiels sous empreinte cryptographique SHA-256 opposable.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Curator as Curateur KB (kb:maintain / kb:admin)
+    participant UI as Archinex UI (/kb/dashboard)
+    participant Archinex as Archinex SvelteKit API
+    participant LLMOps as Service LLMOps Local
+
+    Note over Curator,LLMOps: 1. Surveillance & Évaluation de la Porte G7
+    Curator->>UI: Ouvre le tableau de bord de gouvernance
+    UI->>Archinex: GET /api/knowledge/health
+    Archinex->>LLMOps: GET /api/knowledge/health [X-Actor-Email]
+    LLMOps-->>Archinex: 200 OK { doctrine_health, reviews_summary, evals_summary, storage, gate_g7_eligible, gate_g7_blockers }
+    Archinex-->>UI: Affiche KPIs, statut d'éligibilité G7 et alerte si stockage éphémère
+
+    Note over Curator,LLMOps: 2. Tentative de Publication & Scellement Officiel
+    Curator->>UI: Clique sur "Publier & Sceller la Doctrine" (saisie changelog)
+    UI->>Archinex: POST /api/knowledge/publications
+    Note over Archinex: Vérifie habilitation (403 si pas kb:admin/kb:maintain)
+    Archinex->>LLMOps: POST /api/knowledge/publications [X-Actor-Email]
+
+    alt Conditions G7 non remplies (Revues en retard ou Rappel < 80%)
+        LLMOps-->>Archinex: 409 Conflict { blockers: ["Porte G5 non satisfaite...", "Porte G6..."] }
+        Archinex-->>UI: Affichage explicite des blocages et interdiction de scellement
+    else Portes G5 et G6 franchies (Eligible G7)
+        Note over LLMOps: Calcule SHA-256 du catalogue actif<br/>Génère identifiant snapshot immuable<br/>Incrémente la version officielle
+        LLMOps-->>Archinex: 201 Created { version, snapshot_id, sha256_checksum, published_at, published_by }
+        Archinex-->>UI: Confirmation de scellement et archivage dans l'historique
+    end
+
+    Note over Curator,LLMOps: 3. Campagnes d'Enrichissement Ciblées
+    Curator->>UI: Crée une campagne d'enrichissement par domaine
+    UI->>Archinex: POST /api/knowledge/campaigns
+    Archinex->>LLMOps: POST /api/knowledge/campaigns
+    LLMOps-->>Archinex: 201 Created { campaign: { id, progress, due_at } }
+    Archinex-->>UI: Campagne active affichée avec jauge de progression
+```
+
+### Invariants & Règles de Gouvernance Clés (Lot A11)
+1. **Contrôle d'Habilitation de Publication (403 Forbidden)** : Seuls les profils d'experts détenteurs du rôle `kb:admin` ou `kb:maintain` (ou administrateurs système) sont habilités à déclencher une publication officielle de doctrine.
+2. **Scellement Conditionné par la Porte G7 (409 Conflict)** : L'émission d'un instantané officiel exige impérativement que :
+   - Zéro revue critique ne soit en retard dans la boîte de réception des experts (Porte G5 respectée).
+   - Le rappel réel sur le jeu de test vérifié par l'humain atteigne ou dépasse 80% (Porte G6 validée).
+   Toute anomalie ou dette non traitée déclenche un rejet 409 bloquant mentionnant nominativement les critères défaillants.
+3. **Scellement Cryptographique Immuable (SHA-256)** : Chaque publication produit une empreinte SHA-256 calculée sur l'instantané, le changelog et l'horodatage, rendant toute altération ultérieure immédiatement détectable.
+4. **Détection Obligatoire de Stockage Éphémère (Mode Démo)** : L'interface avertit obligatoirement par un bandeau d'alerte visible dès lors que le moteur LLMOps sous-jacent tourne en mémoire non persistante (`storage.mode = "demo"`), empêchant toute fausse assurance de pérennité.
+5. **Pilotage Proactif par Campagnes** : Les curateurs peuvent initier des campagnes d'enrichissement ciblées par domaine d'architecture (`security`, `cloud`, `resilience`) avec jauge de progression et date d'échéance.
+
+
 
 
 

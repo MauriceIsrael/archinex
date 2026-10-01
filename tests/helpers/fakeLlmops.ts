@@ -1,4 +1,5 @@
 import http from 'node:http';
+import crypto from 'node:crypto';
 import type { AddressInfo } from 'node:net';
 import type {
   LLMOpsHealth,
@@ -29,7 +30,10 @@ import type {
   EvalDataset,
   EvalBenchmarkRunResult,
   VerdictFeedbackRequest,
-  VerdictFeedbackItem
+  VerdictFeedbackItem,
+  KbHealthMetrics,
+  KbPublication,
+  KbCampaign
 } from '../../src/lib/types/llmops';
 
 export interface FakeLlmopsState {
@@ -48,7 +52,11 @@ export interface FakeLlmopsState {
   frameworkIngestions: Record<string, FrameworkIngestion>;
   evalDatasets: Record<string, EvalDataset>;
   verdictFeedbacks: VerdictFeedbackItem[];
+  publications: KbPublication[];
+  campaigns: KbCampaign[];
+  storageMode: 'demo' | 'persistent';
 }
+
 
 export function generateDefaultChecks(title: string, content: string = ''): KbAutomaticCheck[] {
   return [
@@ -581,7 +589,36 @@ export function createDefaultFakeState(): FakeLlmopsState {
         ]
       }
     },
-    verdictFeedbacks: []
+    verdictFeedbacks: [],
+    publications: [
+      {
+        id: 'pub-001',
+        snapshot_id: 'snapshot-2026-09-13-06f3455',
+        version: 'v1.0.0',
+        published_at: new Date(now.getTime() - 14 * 24 * 3600 * 1000).toISOString(),
+        published_by: 'expert@archinex.local',
+        sha256_checksum: '8f4c2e6b9a1d3f5e7c8b0a2d4e6f8a1b3c5d7e9f0a2b4c6d8e0f1a3b5c7d9e1f',
+        changelog: "Publication initiale du référentiel d'architecture souveraine et résiliente.",
+        assets_count: 60,
+        storage_persistent: true
+      }
+    ],
+    campaigns: [
+      {
+        id: 'camp-001',
+        title: 'Durcissement Résilience & Haute Disponibilité',
+        domain: 'architecture',
+        target_asset_type: 'pattern',
+        target_count: 5,
+        created_at: new Date(now.getTime() - 7 * 24 * 3600 * 1000).toISOString(),
+        created_by: 'expert@archinex.local',
+        due_at: new Date(now.getTime() + 14 * 24 * 3600 * 1000).toISOString(),
+        status: 'active',
+        description: "Enrichissement des patrons d'isolation des pannes et de résilience multi-régions.",
+        progress: { current: 3, target: 5 }
+      }
+    ],
+    storageMode: 'persistent'
   };
 }
 
@@ -1813,6 +1850,209 @@ export async function startFakeLlmopsServer(initialState?: Partial<FakeLlmopsSta
         data: state.verdictFeedbacks
       });
     }
+
+    // GET /api/knowledge/health
+    if (pathname === '/api/knowledge/health' && method === 'GET') {
+      const overdueCount = state.inbox.filter((i) => i.is_overdue).length;
+      const recall = 0.85;
+      const blockers: string[] = [];
+      if (overdueCount > 0) {
+        blockers.push(`Porte G5 non satisfaite : ${overdueCount} revue(s) critique(s) en retard`);
+      }
+      if (recall < 0.80) {
+        blockers.push(`Porte G6 non satisfaite : rappel de ${Math.round(recall * 100)}% inférieur au seuil de 80%`);
+      }
+
+      let totalReqs = 0;
+      let coveredReqs = 0;
+      for (const fw of Object.values(state.frameworkIngestions)) {
+        totalReqs += fw.total_requirements;
+        coveredReqs += fw.reviewed_requirements;
+      }
+      if (totalReqs === 0) {
+        totalReqs = 20;
+        coveredReqs = 18;
+      }
+
+      const metrics: KbHealthMetrics = {
+        doctrine_health: {
+          total_assets: 60 + state.candidates.filter((c) => c.status === 'accepted').length,
+          principles_count: 12,
+          patterns_count: 24,
+          decisions_count: 14,
+          controls_count: 10,
+          glossary_count: 17
+        },
+        reviews_summary: {
+          pending_count: state.inbox.length,
+          overdue_count: overdueCount,
+          avg_review_duration_days: 2.4
+        },
+        regulatory_coverage: {
+          total_frameworks: Math.max(1, Object.keys(state.frameworkIngestions).length),
+          total_requirements: totalReqs,
+          covered_requirements: coveredReqs,
+          coverage_percentage: Math.round((coveredReqs / totalReqs) * 100)
+        },
+        evals_summary: {
+          latest_recall: recall,
+          gate_g6_passed: recall >= 0.80,
+          last_benchmark_at: new Date(Date.now() - 3600000).toISOString()
+        },
+        storage: {
+          mode: state.storageMode,
+          persistent: state.storageMode === 'persistent',
+          provider: state.storageMode === 'persistent' ? 'GCS Sovereign Vault' : 'In-Memory Ephemeral RAM'
+        },
+        gate_g7_eligible: blockers.length === 0,
+        gate_g7_blockers: blockers
+      };
+
+      return json(200, {
+        status: 'ok',
+        data: metrics
+      });
+    }
+
+    // GET /api/knowledge/publications
+    if (pathname === '/api/knowledge/publications' && method === 'GET') {
+      return json(200, {
+        status: 'ok',
+        data: state.publications
+      });
+    }
+
+    // POST /api/knowledge/publications
+    if (pathname === '/api/knowledge/publications' && method === 'POST') {
+      const actorEmail = (req.headers['x-actor-email'] as string) || '';
+      const actorOwner = state.owners.find((o) => o.email.toLowerCase() === actorEmail.toLowerCase());
+      const canPublish = actorOwner?.roles.includes('kb:admin') || actorOwner?.roles.includes('kb:maintain');
+      if (!canPublish) {
+        return json(403, {
+          status: 'error',
+          error: "Habilitation insuffisante : rôle kb:admin ou kb:maintain requis"
+        });
+      }
+
+      // Check Gate G7 blockers
+      const overdueCount = state.inbox.filter((i) => i.is_overdue).length;
+      const recall = 0.85;
+
+      const blockers: string[] = [];
+      if (overdueCount > 0) {
+        blockers.push(`Porte G5 non satisfaite : ${overdueCount} revue(s) critique(s) en retard`);
+      }
+      if (recall < 0.80) {
+        blockers.push(`Porte G6 non satisfaite : rappel de ${Math.round(recall * 100)}% inférieur au seuil de 80%`);
+      }
+
+      if (blockers.length > 0) {
+        return json(409, {
+          status: 'error',
+          error: "Conditions de la Porte G7 non remplies pour la publication",
+          blockers
+        });
+      }
+
+      const snapshot_id = `snapshot-${new Date().toISOString().slice(0, 10)}-${Math.random().toString(36).substring(2, 9)}`;
+      const version = `v1.${state.publications.length + 1}.0`;
+      const sha256_checksum = crypto
+        .createHash('sha256')
+        .update(snapshot_id + (body.changelog || '') + Date.now())
+        .digest('hex');
+
+      const pub: KbPublication = {
+        id: `pub-${Date.now()}`,
+        snapshot_id,
+        version,
+        published_at: new Date().toISOString(),
+        published_by: actorEmail,
+        sha256_checksum,
+        changelog: body.changelog || "Publication officielle de la doctrine d'architecture validée.",
+        assets_count: 60 + state.candidates.filter((c) => c.status === 'accepted').length,
+        storage_persistent: state.storageMode === 'persistent'
+      };
+
+      state.publications.unshift(pub);
+
+      return json(201, {
+        status: 'ok',
+        data: pub
+      });
+    }
+
+    // GET /api/knowledge/campaigns
+    if (pathname === '/api/knowledge/campaigns' && method === 'GET') {
+      return json(200, {
+        status: 'ok',
+        data: state.campaigns
+      });
+    }
+
+    // POST /api/knowledge/campaigns
+    if (pathname === '/api/knowledge/campaigns' && method === 'POST') {
+      const actorEmail = (req.headers['x-actor-email'] as string) || 'expert@archinex.local';
+      const { title, domain, target_asset_type, target_count, due_at, description } = body;
+      if (!title || !domain) {
+        return json(400, {
+          status: 'error',
+          error: "Champs obligatoires manquants : title et domain sont requis"
+        });
+      }
+
+      const newCamp: KbCampaign = {
+        id: `camp-${Date.now()}`,
+        title,
+        domain,
+        target_asset_type: target_asset_type || 'pattern',
+        target_count: Number(target_count) || 1,
+        created_at: new Date().toISOString(),
+        created_by: actorEmail,
+        due_at: due_at || new Date(Date.now() + 14 * 86400000).toISOString(),
+        status: 'active',
+        description: description || '',
+        progress: {
+          current: 0,
+          target: Number(target_count) || 1
+        }
+      };
+
+      state.campaigns.unshift(newCamp);
+
+      return json(201, {
+        status: 'ok',
+        data: newCamp
+      });
+    }
+
+    // PATCH /api/knowledge/campaigns/:id
+    const campaignMatch = pathname.match(/^\/api\/knowledge\/campaigns\/([^/]+)$/);
+    if (campaignMatch && method === 'PATCH') {
+      const campId = decodeURIComponent(campaignMatch[1]);
+      const camp = state.campaigns.find((c) => c.id === campId);
+      if (!camp) {
+        return json(404, {
+          status: 'error',
+          error: `Campagne ${campId} introuvable`
+        });
+      }
+
+      if (body.status) {
+        camp.status = body.status;
+      }
+      if (typeof body.progress_increment === 'number') {
+        camp.progress.current = Math.min(camp.progress.target, camp.progress.current + body.progress_increment);
+        if (camp.progress.current >= camp.progress.target) {
+          camp.status = 'completed';
+        }
+      }
+
+      return json(200, {
+        status: 'ok',
+        data: camp
+      });
+    }
+
 
 
     // Default 404

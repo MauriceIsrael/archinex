@@ -190,15 +190,47 @@ Lorsque l'instruction est terminée :
 
 ---
 
-## 8. Dépannage Fréquent
+## 8. Banc d'Évaluation Doctrinal & Retours Débats (`/kb/evals`) — Lot A9
+
+L'espace Évaluations permet de mesurer objectivement la précision et le rappel de la doctrine architecturale sur le jeu de test canonique `check_option_v1`, d'enrichir le jeu de données par annotation humaine qualifiée, et de remonter les désaccords observés en séance de délibération.
+
+### 8.1 Inspection & Annotation du Jeu de Test (`check_option_v1`)
+Le jeu de test de référence `check_option_v1` regroupe des cas d'évaluation représentatifs des arbitrages architecturaux :
+- **Habilitation Requise (403 Forbidden)** : L'annotation et la modification de la vérité terrain (*ground truth*) sont strictement réservées aux experts détenteurs du rôle `kb:evaluate`. Les relecteurs standards (`kb:review`) disposent d'un accès en lecture seule.
+- **Statuts d'Annotation** :
+  - `human_verified` : Cas formellement qualifié et validé par un expert humain assermenté.
+  - `disputed` : Cas faisant l'objet d'une controverse ou d'un désaccord doctrinal ouvert.
+  - `needs_review` : Nouveau cas issu d'un retour de délibération nécessitant instruction.
+- **Édition des Attendus** : Possibilité de modifier le verdict attendu (`conform`, `non_conform`, `conditional`), la justification textuelle et la liste des clauses doctrinales de référence (`expected_clauses`).
+
+### 8.2 Exécution du Benchmark & Validation de la Porte G6
+Depuis la console `/kb/evals`, cliquez sur **"Lancer le Benchmark"** :
+- **Calcul du Rappel Réel** : Le taux de rappel est calculé rigoureusement sur les cas vérifiés par l'humain (`human_verified_cases`), garantissant l'absence de biais synthétique.
+- **Critère de Porte Qualité G6** : Le taux de rappel doit impérativement atteindre ou dépasser **80%** ($\ge 0.80$) pour valider la Porte G6 (*Atelier & Evals Validés*).
+- **Rapport de Régression** : Identification immédiate des faux négatifs ou des dégradations de rappel par rapport au passage précédent.
+
+### 8.3 Boucle de Rétroaction sur les Débats Doctrinaux
+En cours de délibération (`/deliberation`), chaque argument appuyé sur une clause doctrinale dispose d'un bouton d'alerte :
+1. **Signaler un Désaccord** : Cliquez sur l'icône de signalement à côté de la référence KB.
+2. **Formulaire Modal Circonstancié** :
+   - Motif : Faux positif (`false_positive`), faux négatif (`false_negative`), ambiguïté de la clause (`ambiguity`) ou doctrine obsolète (`outdated_doctrine`).
+   - Règle alternative suggérée et justification circonstanciée.
+3. **Instruction & Conversion** : Les signalements sont injectés dans la file d'attente d'évaluation (`/kb/evals`), permettant aux curateurs KB de convertir le retour en nouveau cas de test ou en proposition d'amendement doctrinal.
+
+---
+
+## 9. Dépannage Fréquent
 
 - **"Arbitrage refusé (blocages actifs)"** : Vérifiez que toutes les options sont évaluées, qu'aucune objection n'est ouverte et que la couverture des référentiels projet est complète.
 - **"403 Habilitation insuffisante"** : Seul le Lead Architect ou un expert affecté au domaine du sujet (ex: `infrastructure`) peut enregistrer la décision.
 - **"403 Interdit : domaine non possédé"** : Lors de l'examen d'un candidat KB ou d'une exigence réglementaire, vous devez être explicitement propriétaire du domaine concerné (`ownedDomains`).
+- **"403 Habilitation d'évaluation manquante"** : Seul un expert détenteur du rôle `kb:evaluate` peut annoter le jeu de test canonique ou modifier le ground truth d'un cas d'évaluation.
+- **"Porte G6 non atteinte (Rappel < 80%)"** : Le taux de rappel calculé sur les cas vérifiés par un expert humain est insuffisant. Vérifiez les clauses doctrinales associées ou annotez les cas litigieux.
 - **"409 Conflit : exigences non couvertes restantes"** : Toutes les exigences d'un référentiel doivent avoir été instruites (acceptées, amendées ou rejetées) avant de pouvoir émettre la déclaration de couverture.
 - **"409 Conflit d'état"** : Le candidat a déjà été accepté ou rejeté définitivement.
 - **"413 Fichier trop volumineux"** : La taille maximale autorisée pour le téléversement de référentiel est de 20 Mo.
 - **"Mode Hors-Ligne (Offline)"** : En l'absence de serveur LLMOps joignable sur le réseau local, Archinex bascule sur l'instantané scellé sans interruption de service.
 - **"Jeton d'invitation expiré"** : Les invitations d'experts sont valables strictement 7 jours. Demandez à un administrateur d'émettre une nouvelle invitation.
+
 
 

@@ -24,7 +24,12 @@ import type {
   FrameworkIngestion,
   FrameworkRequirement,
   FrameworkLinkSuggestionResult,
-  CoverageDeclarationResult
+  CoverageDeclarationResult,
+  EvalTestCase,
+  EvalDataset,
+  EvalBenchmarkRunResult,
+  VerdictFeedbackRequest,
+  VerdictFeedbackItem
 } from '../../src/lib/types/llmops';
 
 export interface FakeLlmopsState {
@@ -41,6 +46,8 @@ export interface FakeLlmopsState {
   statements: LLMOpsStatement[];
   conflicts: LLMOpsConflict[];
   frameworkIngestions: Record<string, FrameworkIngestion>;
+  evalDatasets: Record<string, EvalDataset>;
+  verdictFeedbacks: VerdictFeedbackItem[];
 }
 
 export function generateDefaultChecks(title: string, content: string = ''): KbAutomaticCheck[] {
@@ -348,7 +355,7 @@ export function createDefaultFakeState(): FakeLlmopsState {
         handle: '@sec-lead',
         name: 'Security Lead',
         email: 'expert@archinex.local',
-        roles: ['kb:review', 'kb:maintain'],
+        roles: ['kb:review', 'kb:maintain', 'kb:evaluate'],
         domains: ['security', 'cloud'],
         delegated: true
       },
@@ -498,7 +505,83 @@ export function createDefaultFakeState(): FakeLlmopsState {
           }
         ]
       }
-    }
+    },
+    evalDatasets: {
+      check_option_v1: {
+        id: 'check_option_v1',
+        name: 'Banc d’Évaluation des Vérifications d’Options (check_option)',
+        version: '1.0',
+        description: 'Jeu de test de référence pour la mesure du rappel de conformité doctrinale.',
+        total_cases: 5,
+        human_annotated_count: 4,
+        cases: [
+          {
+            id: 'case-01',
+            dataset_id: 'check_option_v1',
+            option_title: 'Cluster Kubernetes multi-AZ avec etcd chiffré',
+            option_summary: 'Déploiement managé multi-zones avec chiffrement KMS souverain des secrets et du plan de contrôle.',
+            domain: 'security',
+            rule_id: 'CTRL-SEC-01',
+            expected_status: 'supports',
+            human_annotated: true,
+            annotated_by: 'expert@archinex.local',
+            annotated_at: new Date(now.getTime() - 48 * 3600 * 1000).toISOString(),
+            notes: 'Validation formelle des mesures de résilience multi-zones'
+          },
+          {
+            id: 'case-02',
+            dataset_id: 'check_option_v1',
+            option_title: 'Instance VM monolithique sans réplication hors-site',
+            option_summary: 'Serveur unique exposé sans sauvegarde immuable ni répartition de charge.',
+            domain: 'security',
+            rule_id: 'CTRL-SEC-01',
+            expected_status: 'violates',
+            human_annotated: true,
+            annotated_by: 'expert@archinex.local',
+            annotated_at: new Date(now.getTime() - 36 * 3600 * 1000).toISOString(),
+            notes: 'Présence d’un SPOF critique non toléré'
+          },
+          {
+            id: 'case-03',
+            dataset_id: 'check_option_v1',
+            option_title: 'Synchronisation temporelle via serveur NTP public non certifié',
+            option_summary: 'Flux NTP ouvert vers pool.ntp.org sans signature cryptographique ni relais souverain.',
+            domain: 'cloud',
+            rule_id: 'CTRL-NET-02',
+            expected_status: 'violates',
+            human_annotated: true,
+            annotated_by: 'expert@archinex.local',
+            annotated_at: new Date(now.getTime() - 24 * 3600 * 1000).toISOString(),
+            notes: 'Non-conformité aux exigences de traçabilité horodatée'
+          },
+          {
+            id: 'case-04',
+            dataset_id: 'check_option_v1',
+            option_title: 'Base de données distribuée avec réplication synchrone et bascule automatique',
+            option_summary: 'Cluster PostgreSQL actif/passif avec réplication synchrone et bascule automatique en moins de 10s.',
+            domain: 'architecture',
+            rule_id: 'PAT-HA-01',
+            expected_status: 'supports',
+            human_annotated: true,
+            annotated_by: 'expert@archinex.local',
+            annotated_at: new Date(now.getTime() - 12 * 3600 * 1000).toISOString(),
+            notes: 'RPO=0 et RTO minimal validés'
+          },
+          {
+            id: 'case-05',
+            dataset_id: 'check_option_v1',
+            option_title: 'API gateway sans rate-limiting ni coupe-circuit',
+            option_summary: 'Passerelle d’entrée traitant les flux partenaires sans limitation volumétrique.',
+            domain: 'architecture',
+            rule_id: 'PAT-HA-01',
+            expected_status: 'violates',
+            human_annotated: false,
+            notes: 'En attente d’annotation humaine experte'
+          }
+        ]
+      }
+    },
+    verdictFeedbacks: []
   };
 }
 
@@ -1528,6 +1611,206 @@ export async function startFakeLlmopsServer(initialState?: Partial<FakeLlmopsSta
       return json(200, {
         status: 'ok',
         data: result
+      });
+    }
+
+    // ─────────────────────────────────────────────────────────────────────────
+    // LOT A9 : ÉVALUATIONS & BOUCLE DE RETOUR SUR VERDICTS (Porte G6)
+    // ─────────────────────────────────────────────────────────────────────────
+
+    // GET /api/knowledge/evals/:datasetId
+    const evalGetMatch = pathname.match(/^\/api\/knowledge\/evals\/([a-zA-Z0-9_-]+)$/);
+    if (evalGetMatch && method === 'GET') {
+      const datasetId = evalGetMatch[1];
+      const dataset = state.evalDatasets[datasetId];
+      if (!dataset) {
+        return json(404, {
+          status: 'error',
+          error: `Dataset d'évaluation '${datasetId}' introuvable`
+        });
+      }
+      return json(200, {
+        status: 'ok',
+        data: dataset
+      });
+    }
+
+    // PATCH /api/knowledge/evals/:datasetId/cases/:caseId
+    const evalCaseMatch = pathname.match(
+      /^\/api\/knowledge\/evals\/([a-zA-Z0-9_-]+)\/cases\/([a-zA-Z0-9_-]+)$/
+    );
+    if (evalCaseMatch && method === 'PATCH') {
+      const datasetId = evalCaseMatch[1];
+      const caseId = evalCaseMatch[2];
+      const dataset = state.evalDatasets[datasetId];
+      if (!dataset) {
+        return json(404, { status: 'error', error: `Dataset '${datasetId}' introuvable` });
+      }
+
+      const evalCase = dataset.cases.find((c) => c.id === caseId);
+      if (!evalCase) {
+        return json(404, { status: 'error', error: `Cas de test '${caseId}' introuvable` });
+      }
+
+      const actorEmail = (req.headers['x-actor-email'] as string) || '';
+      if (actorEmail) {
+        const owner = state.owners.find((o) => o.email.toLowerCase() === actorEmail.toLowerCase());
+        const hasEvalRole = owner && (owner.roles.includes('kb:evaluate') || owner.roles.includes('kb:admin'));
+        if (!hasEvalRole) {
+          return json(403, {
+            status: 'error',
+            error: `Interdit: l'expert ${actorEmail} ne possède pas le rôle 'kb:evaluate' requis pour annoter ce jeu de test`
+          });
+        }
+      }
+
+      const { expected_status, notes } = body || {};
+      if (expected_status && !['supports', 'violates'].includes(expected_status)) {
+        return json(400, {
+          status: 'error',
+          error: "Statut attendu invalide : doit être 'supports' ou 'violates'"
+        });
+      }
+
+      if (expected_status) evalCase.expected_status = expected_status;
+      if (notes !== undefined) evalCase.notes = notes;
+      evalCase.human_annotated = true;
+      evalCase.annotated_by = actorEmail || 'expert@archinex.local';
+      evalCase.annotated_at = new Date().toISOString();
+
+      dataset.human_annotated_count = dataset.cases.filter((c) => c.human_annotated).length;
+
+      return json(200, {
+        status: 'ok',
+        data: evalCase
+      });
+    }
+
+    // POST /api/knowledge/evals/:datasetId/runs
+    const evalRunMatch = pathname.match(/^\/api\/knowledge\/evals\/([a-zA-Z0-9_-]+)\/runs$/);
+    if (evalRunMatch && method === 'POST') {
+      const datasetId = evalRunMatch[1];
+      const dataset = state.evalDatasets[datasetId];
+      if (!dataset) {
+        return json(404, { status: 'error', error: `Dataset '${datasetId}' introuvable` });
+      }
+
+      const actorEmail = (req.headers['x-actor-email'] as string) || 'expert@archinex.local';
+
+      const verdicts = dataset.cases.map((c) => {
+        const predicted: 'supports' | 'violates' = c.expected_status;
+        const matched = predicted === c.expected_status;
+        return {
+          case_id: c.id,
+          option_title: c.option_title,
+          rule_id: c.rule_id,
+          predicted_status: predicted,
+          expected_status: c.expected_status,
+          matched,
+          human_annotated: c.human_annotated
+        };
+      });
+
+      const humanVerified = verdicts.filter((v) => v.human_annotated);
+      const passedHuman = humanVerified.filter((v) => v.matched);
+      const actualRecall =
+        humanVerified.length > 0 ? Math.round((passedHuman.length / humanVerified.length) * 100) : 100;
+      const precision = 95;
+      const meetsTarget = actualRecall >= 80;
+
+      const runResult: EvalBenchmarkRunResult = {
+        run_id: `run-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        dataset_id: datasetId,
+        executed_at: new Date().toISOString(),
+        executed_by: actorEmail,
+        total_cases: dataset.cases.length,
+        human_verified_cases: humanVerified.length,
+        passed_cases: passedHuman.length,
+        precision,
+        actual_recall: actualRecall,
+        meets_target: meetsTarget,
+        verdicts
+      };
+
+      return json(200, {
+        status: 'ok',
+        data: runResult
+      });
+    }
+
+    // POST /api/knowledge/verdict-feedback
+    if (pathname === '/api/knowledge/verdict-feedback' && method === 'POST') {
+      const actorEmail =
+        (req.headers['x-actor-email'] as string) || body?.author_email || 'architect@archinex.local';
+
+      const { subject_id, option_id, rule_id, verdict_status, disagree_rationale, suggested_action } =
+        body || {};
+
+      if (!subject_id || !option_id || !disagree_rationale) {
+        return json(400, {
+          status: 'error',
+          error: "Champs obligatoires manquants : subject_id, option_id et disagree_rationale sont requis"
+        });
+      }
+
+      const fbId = `fb-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
+      let convertedRef: string | undefined = undefined;
+      let finalStatus: VerdictFeedbackItem['status'] = 'pending';
+
+      if (suggested_action === 'add_test_case') {
+        const dataset = state.evalDatasets['check_option_v1'];
+        if (dataset) {
+          const newCase: EvalTestCase = {
+            id: `case-fb-${Date.now()}`,
+            dataset_id: 'check_option_v1',
+            option_title: `Cas issu de retour : ${option_id}`,
+            option_summary: disagree_rationale,
+            domain: 'security',
+            rule_id: rule_id || 'CTRL-SEC-01',
+            expected_status: verdict_status === 'supports' ? 'violates' : 'supports',
+            human_annotated: true,
+            annotated_by: actorEmail,
+            annotated_at: new Date().toISOString(),
+            notes: `Généré automatiquement depuis le retour de débat ${fbId}`
+          };
+          dataset.cases.push(newCase);
+          dataset.total_cases++;
+          dataset.human_annotated_count++;
+          convertedRef = newCase.id;
+          finalStatus = 'converted_to_test_case';
+        }
+      } else if (suggested_action === 'propose_amendment') {
+        convertedRef = `cand-amend-${Date.now()}`;
+        finalStatus = 'converted_to_amendment';
+      }
+
+      const feedbackItem: VerdictFeedbackItem = {
+        id: fbId,
+        subject_id,
+        option_id,
+        rule_id,
+        verdict_status,
+        disagree_rationale,
+        suggested_action: suggested_action || 'add_test_case',
+        author_email: actorEmail,
+        status: finalStatus,
+        created_at: new Date().toISOString(),
+        converted_ref: convertedRef
+      };
+
+      state.verdictFeedbacks.push(feedbackItem);
+
+      return json(201, {
+        status: 'ok',
+        data: feedbackItem
+      });
+    }
+
+    // GET /api/knowledge/verdict-feedback
+    if (pathname === '/api/knowledge/verdict-feedback' && method === 'GET') {
+      return json(200, {
+        status: 'ok',
+        data: state.verdictFeedbacks
       });
     }
 

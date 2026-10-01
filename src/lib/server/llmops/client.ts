@@ -43,7 +43,12 @@ import type {
   FrameworkRequirement,
   FrameworkRequirementStatus,
   FrameworkLinkSuggestionResult,
-  CoverageDeclarationResult
+  CoverageDeclarationResult,
+  EvalTestCase,
+  EvalDataset,
+  EvalBenchmarkRunResult,
+  VerdictFeedbackRequest,
+  VerdictFeedbackItem
 } from './types';
 
 export interface LLMOpsClientConfig {
@@ -1585,6 +1590,186 @@ export class LLMOpsClient {
       return {
         status: 'unavailable',
         error: 'Mode hors-ligne : déclaration de couverture indisponible'
+      };
+    }
+  }
+
+  /**
+   * Consultation d'un jeu de test d'évaluation (GET /api/knowledge/evals/:datasetId)
+   */
+  async getEvalDataset(
+    datasetId: string = 'check_option_v1',
+    actorEmail?: string
+  ): Promise<{ status: 'ok' | 'error' | 'unavailable'; data?: EvalDataset; error?: string }> {
+    try {
+      const url = `${this.baseUrl}/api/knowledge/evals/${encodeURIComponent(datasetId)}`;
+      const res = await this.fetchWithTimeout(url, {
+        headers: this.getHeaders(undefined, actorEmail)
+      });
+      if (res.ok) {
+        const body = await res.json();
+        return {
+          status: 'ok',
+          data: body.data || body
+        };
+      }
+      const body = await res.json().catch(() => ({}));
+      return {
+        status: 'error',
+        error: body.error || `Erreur HTTP ${res.status} lors de la consultation du jeu de test d'évaluation`
+      };
+    } catch {
+      return {
+        status: 'unavailable',
+        error: 'Mode hors-ligne : banc d’évaluation indisponible'
+      };
+    }
+  }
+
+  /**
+   * Annotation humaine d'un cas de test d'évaluation (PATCH /api/knowledge/evals/:datasetId/cases/:caseId)
+   */
+  async annotateEvalTestCase(
+    datasetId: string,
+    caseId: string,
+    payload: { expected_status?: 'supports' | 'violates'; notes?: string },
+    actorEmail?: string
+  ): Promise<{ status: 'ok' | 'error' | 'forbidden' | 'unavailable'; data?: EvalTestCase; error?: string }> {
+    try {
+      const url = `${this.baseUrl}/api/knowledge/evals/${encodeURIComponent(datasetId)}/cases/${encodeURIComponent(caseId)}`;
+      const res = await this.fetchWithTimeout(url, {
+        method: 'PATCH',
+        headers: this.getHeaders(undefined, actorEmail),
+        body: JSON.stringify(payload)
+      });
+
+      if (res.status === 403) {
+        const body = await res.json().catch(() => ({}));
+        return {
+          status: 'forbidden',
+          error: body.error || "Interdit : rôle 'kb:evaluate' requis"
+        };
+      }
+
+      if (res.ok) {
+        const body = await res.json();
+        return {
+          status: 'ok',
+          data: body.data || body
+        };
+      }
+
+      const body = await res.json().catch(() => ({}));
+      return {
+        status: 'error',
+        error: body.error || `Erreur HTTP ${res.status}`
+      };
+    } catch {
+      return {
+        status: 'unavailable',
+        error: 'Mode hors-ligne : annotation de cas d’évaluation indisponible'
+      };
+    }
+  }
+
+  /**
+   * Exécution du benchmark de rappel (POST /api/knowledge/evals/:datasetId/runs)
+   */
+  async runEvalBenchmark(
+    datasetId: string = 'check_option_v1',
+    actorEmail?: string
+  ): Promise<{ status: 'ok' | 'error' | 'unavailable'; data?: EvalBenchmarkRunResult; error?: string }> {
+    try {
+      const url = `${this.baseUrl}/api/knowledge/evals/${encodeURIComponent(datasetId)}/runs`;
+      const res = await this.fetchWithTimeout(url, {
+        method: 'POST',
+        headers: this.getHeaders(undefined, actorEmail),
+        body: JSON.stringify({})
+      });
+
+      if (res.ok) {
+        const body = await res.json();
+        return {
+          status: 'ok',
+          data: body.data || body
+        };
+      }
+
+      const body = await res.json().catch(() => ({}));
+      return {
+        status: 'error',
+        error: body.error || `Erreur HTTP ${res.status} lors de l'exécution du benchmark`
+      };
+    } catch {
+      return {
+        status: 'unavailable',
+        error: 'Mode hors-ligne : benchmark d’évaluation indisponible'
+      };
+    }
+  }
+
+  /**
+   * Signalement d'un désaccord sur verdict d'architecture (POST /api/knowledge/verdict-feedback)
+   */
+  async submitVerdictFeedback(
+    feedback: VerdictFeedbackRequest,
+    actorEmail?: string
+  ): Promise<{ status: 'ok' | 'error' | 'unavailable'; data?: VerdictFeedbackItem; error?: string }> {
+    try {
+      const url = `${this.baseUrl}/api/knowledge/verdict-feedback`;
+      const res = await this.fetchWithTimeout(url, {
+        method: 'POST',
+        headers: this.getHeaders(undefined, actorEmail),
+        body: JSON.stringify(feedback)
+      });
+
+      if (res.ok) {
+        const body = await res.json();
+        return {
+          status: 'ok',
+          data: body.data || body
+        };
+      }
+
+      const body = await res.json().catch(() => ({}));
+      return {
+        status: 'error',
+        error: body.error || `Erreur HTTP ${res.status}`
+      };
+    } catch {
+      return {
+        status: 'unavailable',
+        error: 'Mode hors-ligne : transmission de retour sur verdict indisponible'
+      };
+    }
+  }
+
+  /**
+   * Liste des retours sur verdicts enregistrés (GET /api/knowledge/verdict-feedback)
+   */
+  async listVerdictFeedbacks(
+    actorEmail?: string
+  ): Promise<{ status: 'ok' | 'error' | 'unavailable'; data?: VerdictFeedbackItem[]; error?: string }> {
+    try {
+      const url = `${this.baseUrl}/api/knowledge/verdict-feedback`;
+      const res = await this.fetchWithTimeout(url, {
+        headers: this.getHeaders(undefined, actorEmail)
+      });
+      if (res.ok) {
+        const body = await res.json();
+        return {
+          status: 'ok',
+          data: body.data || body
+        };
+      }
+      return {
+        status: 'error',
+        error: `Erreur HTTP ${res.status}`
+      };
+    } catch {
+      return {
+        status: 'unavailable',
+        error: 'Mode hors-ligne : liste des retours indisponible'
       };
     }
   }

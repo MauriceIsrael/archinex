@@ -488,6 +488,81 @@ export interface CoverageDeclarationResult {
   uncovered_requirements?: string[];
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// ÉVALUATIONS & BOUCLE DE RETOUR SUR VERDICTS (Lot A9 - Porte G6)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export interface EvalTestCase {
+  id: string;
+  dataset_id: string;
+  option_title: string;
+  option_summary: string;
+  domain: string;
+  rule_id: string;
+  expected_status: 'supports' | 'violates';
+  human_annotated: boolean;
+  annotated_by?: string;
+  annotated_at?: string;
+  notes?: string;
+}
+
+export interface EvalDataset {
+  id: string;
+  name: string;
+  version: string;
+  description: string;
+  total_cases: number;
+  human_annotated_count: number;
+  cases: EvalTestCase[];
+}
+
+export interface EvalBenchmarkRunResult {
+  run_id: string;
+  dataset_id: string;
+  executed_at: string;
+  executed_by: string;
+  total_cases: number;
+  human_verified_cases: number;
+  passed_cases: number;
+  precision: number;
+  actual_recall: number;
+  meets_target: boolean; // actual_recall >= 80%
+  verdicts: Array<{
+    case_id: string;
+    option_title: string;
+    rule_id: string;
+    predicted_status: 'supports' | 'violates';
+    expected_status: 'supports' | 'violates';
+    matched: boolean;
+    human_annotated: boolean;
+  }>;
+}
+
+export interface VerdictFeedbackRequest {
+  subject_id: string;
+  option_id: string;
+  rule_id?: string;
+  verdict_status?: string;
+  disagree_rationale: string;
+  suggested_action: 'add_test_case' | 'propose_amendment' | 'clarify_rule';
+  author_email?: string;
+}
+
+export interface VerdictFeedbackItem {
+  id: string;
+  subject_id: string;
+  option_id: string;
+  rule_id?: string;
+  verdict_status?: string;
+  disagree_rationale: string;
+  suggested_action: 'add_test_case' | 'propose_amendment' | 'clarify_rule';
+  author_email: string;
+  status: 'pending' | 'converted_to_test_case' | 'converted_to_amendment' | 'dismissed';
+  created_at: string;
+  converted_ref?: string;
+}
+
+
 
 
 

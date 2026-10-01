@@ -1,0 +1,10 @@
+schema_version: "1.0"
+id: a9-evaluations-feedback
+title: "Évaluations : Annotation du Jeu de Test check_option_v1 et Retours sur Verdicts (Porte G6)"
+status: in_progress
+authors:
+  - MauriceIsrael
+created_at: "2026-10-01"
+milestone: "Gate G6"
+related_issues:
+  - "#4"

@@ -19,6 +19,7 @@
   import Inbox from 'lucide-svelte/icons/inbox';
   import Sparkles from 'lucide-svelte/icons/sparkles';
   import FileText from 'lucide-svelte/icons/file-text';
+  import CheckCircle from 'lucide-svelte/icons/check-circle';
 
   import { Button } from '$lib/components/ui/button';
   import * as Sheet from '$lib/components/ui/sheet';
@@ -214,6 +215,10 @@
             <DropdownMenu.Item onclick={() => goto('/kb/frameworks')} class="cursor-pointer">
               <FileText class="mr-2 h-4 w-4 text-primary" />
               Référentiels & Couverture
+            </DropdownMenu.Item>
+            <DropdownMenu.Item onclick={() => goto('/kb/evals')} class="cursor-pointer">
+              <CheckCircle class="mr-2 h-4 w-4 text-primary" />
+              Banc d'Évaluation KB
             </DropdownMenu.Item>
             <DropdownMenu.Item onclick={handleLogout} class="text-destructive focus:text-destructive cursor-pointer">
               <LogOut class="mr-2 h-4 w-4" />

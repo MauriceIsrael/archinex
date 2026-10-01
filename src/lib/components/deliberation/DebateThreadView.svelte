@@ -52,6 +52,55 @@
 	// Action de résolution d'objection
 	let resolvingArgId = $state<string | null>(null);
 
+	// Feedback sur verdict doctrinal (Lot A9)
+	let feedbackArg = $state<Argument | null>(null);
+	let feedbackRationale = $state('');
+	let feedbackSuggestedAction = $state<'add_test_case' | 'propose_amendment' | 'clarify_rule'>('add_test_case');
+	let isSubmittingFeedback = $state(false);
+	let feedbackSuccessMsg = $state<string | null>(null);
+
+	function openVerdictFeedbackModal(arg: Argument) {
+		feedbackArg = arg;
+		feedbackRationale = '';
+		feedbackSuggestedAction = 'add_test_case';
+		feedbackSuccessMsg = null;
+	}
+
+	async function handleSubmitVerdictFeedback() {
+		if (!feedbackArg || !feedbackRationale.trim()) {
+			return;
+		}
+		isSubmittingFeedback = true;
+		try {
+			const res = await fetch('/api/knowledge/verdict-feedback', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					subject_id: subjectId,
+					option_id: feedbackArg.optionId || 'transverse',
+					rule_id: feedbackArg.kbRefs?.[0] || 'RULE-DEF',
+					verdict_status: feedbackArg.stance === 'objection' ? 'violates' : 'supports',
+					disagree_rationale: feedbackRationale,
+					suggested_action: feedbackSuggestedAction
+				})
+			});
+			if (res.ok) {
+				feedbackSuccessMsg = 'Votre retour a été transmis à la gouvernance de la doctrine.';
+				setTimeout(() => {
+					feedbackArg = null;
+					feedbackSuccessMsg = null;
+				}, 1500);
+			} else {
+				const err = await res.json().catch(() => ({}));
+				alert(err.error || 'Erreur lors de la transmission du retour');
+			}
+		} catch (err: any) {
+			alert(err.message || 'Erreur réseau');
+		} finally {
+			isSubmittingFeedback = false;
+		}
+	}
+
 	const grouped = $derived(groupArgumentsByOption(argumentsList));
 	const openObjectionsCount = $derived(countOpenObjections(argumentsList));
 	const transverseCount = $derived(argumentsList.filter((a) => !a.optionId).length);
@@ -302,13 +351,25 @@
 
 						<!-- Références KB -->
 						{#if arg.kbRefs && arg.kbRefs.length > 0}
-							<div class="flex items-center gap-1.5 flex-wrap pt-1">
-								<span class="text-[10px] text-muted-foreground font-semibold">Doctrine citée :</span>
-								{#each arg.kbRefs as ref}
-									<span class="font-mono text-[10px] px-1.5 py-0.2 rounded bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-500/20 font-bold">
-										§ {ref}
-									</span>
-								{/each}
+							<div class="flex items-center justify-between gap-1.5 flex-wrap pt-1">
+								<div class="flex items-center gap-1.5 flex-wrap">
+									<span class="text-[10px] text-muted-foreground font-semibold">Doctrine citée :</span>
+									{#each arg.kbRefs as ref}
+										<span class="font-mono text-[10px] px-1.5 py-0.2 rounded bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-500/20 font-bold">
+											§ {ref}
+										</span>
+									{/each}
+								</div>
+
+								<button
+									type="button"
+									onclick={() => openVerdictFeedbackModal(arg)}
+									class="text-[10px] text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1 font-semibold cursor-pointer"
+									title="Signaler un désaccord ou une contestation sur cette règle doctrinale"
+								>
+									<AlertTriangle class="h-3 w-3" />
+									<span>Signaler un désaccord</span>
+								</button>
 							</div>
 						{/if}
 
@@ -424,4 +485,80 @@
 			</button>
 		</div>
 	</div>
+
+	<!-- Modale de Signalement de Désaccord sur Verdict Doctrinal (Lot A9) -->
+	{#if feedbackArg}
+		<div class="fixed inset-0 bg-surface-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+			<div class="bg-card text-card-foreground rounded-xl shadow-xl border max-w-lg w-full p-5 space-y-4">
+				<div class="flex items-center gap-2 text-indigo-600 dark:text-indigo-400">
+					<AlertTriangle class="h-5 w-5" />
+					<h3 class="text-base font-bold text-foreground">Signaler un désaccord sur la doctrine</h3>
+				</div>
+
+				<div class="text-xs p-3 rounded-lg bg-muted border space-y-1">
+					<div><strong>Argument ciblé :</strong> {feedbackArg.claim}</div>
+					{#if feedbackArg.kbRefs && feedbackArg.kbRefs.length > 0}
+						<div class="font-mono text-primary"><strong>Règle KB :</strong> {feedbackArg.kbRefs.join(', ')}</div>
+					{/if}
+				</div>
+
+				{#if feedbackSuccessMsg}
+					<div class="p-3 bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-300 text-emerald-800 dark:text-emerald-300 text-xs rounded-lg font-semibold flex items-center gap-2">
+						<CheckCircle2 class="h-4 w-4" />
+						<span>{feedbackSuccessMsg}</span>
+					</div>
+				{/if}
+
+				<div>
+					<label for="feedbackRationale" class="block text-xs font-semibold text-foreground mb-1">
+						Motif du désaccord / Contestation technique *
+					</label>
+					<textarea
+						id="feedbackRationale"
+						bind:value={feedbackRationale}
+						rows="3"
+						placeholder="Expliquez pourquoi le verdict doctrinal est inadapté ou contredit les impératifs du projet..."
+						class="w-full rounded-md border bg-background px-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:ring-2 focus:ring-primary"
+					></textarea>
+				</div>
+
+				<div>
+					<label for="feedbackActionSelect" class="block text-xs font-semibold text-foreground mb-1">
+						Action recommandée pour la gouvernance
+					</label>
+					<select
+						id="feedbackActionSelect"
+						bind:value={feedbackSuggestedAction}
+						class="w-full rounded-md border bg-background px-2.5 py-1.5 text-xs text-foreground focus:ring-2 focus:ring-primary"
+					>
+						<option value="add_test_case">Créer un nouveau cas de test d'évaluation (Banc de test)</option>
+						<option value="propose_amendment">Proposer un amendement doctrinal officiel</option>
+						<option value="clarify_rule">Demander une clarification de la règle au propriétaire</option>
+					</select>
+				</div>
+
+				<div class="flex items-center justify-end gap-2 pt-2 border-t">
+					<button
+						type="button"
+						onclick={() => (feedbackArg = null)}
+						class="px-3.5 py-1.5 text-xs font-medium text-muted-foreground hover:bg-muted rounded-md transition-colors cursor-pointer"
+					>
+						Annuler
+					</button>
+					<button
+						type="button"
+						onclick={handleSubmitVerdictFeedback}
+						disabled={isSubmittingFeedback || !feedbackRationale.trim()}
+						class="px-4 py-1.5 text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 disabled:opacity-50 text-white rounded-md shadow-xs transition-colors cursor-pointer"
+					>
+						{#if isSubmittingFeedback}
+							Envoi en cours...
+						{:else}
+							Transmettre à la gouvernance
+						{/if}
+					</button>
+				</div>
+			</div>
+		</div>
+	{/if}
 </div>

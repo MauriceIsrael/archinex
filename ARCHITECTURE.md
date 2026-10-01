@@ -333,5 +333,50 @@ sequenceDiagram
 5. **Interdiction Absolue du Rejet Arbitraire (400 Bad Request)** : Tout rejet d'exigence réglementaire impose un motif textuel circonstancié expliquant l'inapplicabilité (Règle constitutionnelle IV).
 6. **Scellement Opposable & Détection de Conflit (409 Conflict)** : La déclaration de couverture est conditionnée à la résolution exhaustive de 100% des exigences du référentiel. Toute lacune déclenche un blocage 409 mentionnant nominativement les exigences manquantes.
 
+---
+
+## 9. Moteur d'Évaluation Doctrinale, Porte G6 et Boucle de Rétroaction des Débats (Lot A9)
+
+Le sous-système d'évaluation garantit la rigueur et l'exactitude de la doctrine architecturale en mesurant empiriquement le taux de rappel et de précision sur le banc de référence `check_option_v1`, tout en permettant l'amélioration continue via le signalement des désaccords depuis les délibérations en direct.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Expert as Evaluateur (kb:evaluate)
+    actor Architect as Architecte en Délibération
+    participant UI as Archinex UI (/kb/evals & /deliberation)
+    participant Archinex as Archinex SvelteKit API
+    participant LLMOps as Service LLMOps Local
+
+    Note over Expert,LLMOps: 1. Cycle d'Annotation & Benchmark (Porte G6)
+    Expert->>UI: Modifie un cas de test (ground truth, verdict, clauses)
+    UI->>Archinex: PATCH /api/knowledge/evals/:datasetId/cases/:caseId
+    Note over Archinex: Vérifie habilitation (403 Forbidden si sans rôle kb:evaluate)
+    Archinex->>LLMOps: PATCH .../cases/:caseId [X-Actor-Email]
+    LLMOps-->>Archinex: 200 OK (Cas annoté human_verified)
+    
+    Expert->>UI: Lance le benchmark d'évaluation
+    UI->>Archinex: POST /api/knowledge/evals/:datasetId/runs
+    Archinex->>LLMOps: POST .../runs
+    LLMOps-->>Archinex: 200 OK { metrics: { actual_recall_human_verified, precision }, gate_g6_passed }
+    Archinex-->>UI: Affiche métriques et jauge Porte G6 (Rappel >= 80%)
+
+    Note over Architect,LLMOps: 2. Boucle de Rétroaction Délibération -> Évaluation
+    Architect->>UI: Signale un désaccord sur une clause KB (/deliberation)
+    UI->>Archinex: POST /api/knowledge/verdict-feedback
+    Archinex->>LLMOps: POST /api/knowledge/verdict-feedback
+    LLMOps-->>Archinex: 201 Created (Feedback enregistré dans la file d'évaluation)
+    Archinex-->>UI: Confirmation du signalement & mise en file d'attente
+```
+
+### Invariants & Règles de Gouvernance Clés (Lot A9)
+1. **Contrôle d'Accès d'Évaluation RBAC (403 Forbidden)** : Seuls les experts dotés explicitement du rôle `kb:evaluate` sont autorisés à annoter les cas de test ou à modifier la vérité terrain du jeu de test. Les relecteurs standards (`kb:review`) ne disposent que d'un accès en lecture seule.
+2. **Calcul Strict du Rappel Réel sur les Cas Vérifiés par l'Humain** :
+   $$\text{Rappel}_{\text{humain}} = \frac{\text{Vrais Positifs sur cas vérifiés}}{\text{Total des cas vérifiés conformes}}$$
+   Le calcul de rappel pour la validation de la Porte G6 exclut les cas non révisés ou purement synthétiques, interdisant toute surestimation artificielle de la complétude doctrinale.
+3. **Seuil de Porte Qualité G6 ($\ge 80\%$)** : Pour déclarer la Porte G6 franchie (*Atelier & Evals Validés*), le rappel réel doit être supérieur ou égal à 0.80 et le nombre de régressions inexpliquées doit être strictement nul.
+4. **Continuité Opérationnelle & Traçabilité des Feedbacks** : Tout désaccord signalé lors d'un arbitrage ou d'un débat en séance est historisé avec son horodatage, l'auteur (`X-Actor-Email`), la raison (`false_positive`, `false_negative`, `ambiguity`, `outdated_doctrine`), la règle alternative proposée et la référence de délibération.
+
+
 
 

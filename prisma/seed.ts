@@ -59,8 +59,9 @@ async function main() {
   });
 
   // 4. Seed Engagements and Corpus Documents
-  const { seedEngagementsIfEmpty } = await import('../src/lib/server/engagementsDb');
-  await seedEngagementsIfEmpty();
+  const { seedProject } = await import('../scripts/seed');
+  await seedProject('examples/suse-telco-cloud');
+  await seedProject('examples/cctp-rfp');
 
   console.log('✅ Seeding complete.');
 }

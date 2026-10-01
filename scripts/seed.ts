@@ -136,7 +136,7 @@ async function main() {
 }
 
 // Run directly if invoked via CLI
-if (process.argv[1] && process.argv[1].endsWith('seed.ts')) {
+if (process.argv[1] && (process.argv[1].endsWith('scripts/seed.ts') || process.argv[1].endsWith('scripts\\seed.ts'))) {
 	main()
 		.catch((e) => {
 			console.error('[seed] Erreur critique :', e);

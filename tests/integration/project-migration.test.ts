@@ -1,11 +1,16 @@
-import { describe, it, expect, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { runMigration } from '../../scripts/migrate-json-engagements';
 import { prisma } from '$lib/server/prisma';
+import { seedProject } from '../../scripts/seed';
 import * as fs from 'fs';
 import * as path from 'path';
 
 describe('Project Migration Integration (JSON Engagements -> Relational)', () => {
 	const tempBackup = path.resolve(process.cwd(), 'prisma', 'temp-test-backup.json');
+
+	beforeAll(async () => {
+		await seedProject('examples/suse-telco-cloud');
+	});
 
 	afterAll(() => {
 		if (fs.existsSync(tempBackup)) {

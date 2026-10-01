@@ -228,3 +228,54 @@ sequenceDiagram
 5. **Idempotence Absolue du Moteur d'Événements** : Le curseur persistant `KbEventCursor` et le suivi des identifiants d'événements garantissent zéro doublon de notification, même en cas de pollings multiples concurrents.
 6. **Résilience et Dégradation Gracieuse** : En cas de code 503 du service de gouvernance LLMOps, l'interface bascule en lecture dégradée sans planter.
 
+---
+
+## 7. Atelier de Doctrine, Templates d'Actifs et Simulation de Clauses (Lot A8 - Issue #3)
+
+L'Atelier de Doctrine (`/kb/workshop`) est l'environnement d'ingénierie doctrinale souveraine permettant aux architectes et experts de concevoir, valider et simuler des clauses de doctrine avant leur soumission formelle.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Architect as Architecte / Expert
+    participant UI as Studio d'Auteur (/kb/workshop)
+    participant Archinex as Archinex SvelteKit API
+    participant LLMOps as Knowledge Hub LLMOps
+
+    Architect->>UI: Sélectionne un type d'actif (ex: control, rule, pattern)
+    UI->>Archinex: GET /api/knowledge/templates/{type}
+    Archinex->>LLMOps: GET /api/knowledge/templates/{type}
+    LLMOps-->>Archinex: 200 OK (Schéma formel, squelette YAML, prédicats types)
+    Archinex-->>UI: Préremplit le formulaire et l'éditeur de prédicats
+
+    loop Édition & Validation Live
+        Architect->>UI: Modifie le draft & affine when/expect/requires/forbids
+        UI->>Archinex: POST /api/knowledge/candidates/validate
+        Archinex->>LLMOps: POST /api/knowledge/candidates/validate
+        LLMOps-->>Archinex: 200 OK (valid: boolean, 7 automated checks pré-estimés)
+        Archinex-->>UI: Affiche le diagnostic pré-vol (schéma, clarté, testabilité...)
+    end
+
+    opt Simulation sur Bancs de Tests & Non-Régression
+        Architect->>UI: Clique sur "Simuler les clauses"
+        UI->>Archinex: POST /api/knowledge/checks/simulate { predicates, test_cases }
+        Archinex->>LLMOps: POST /api/knowledge/checks/simulate
+        LLMOps-->>Archinex: 200 OK { precision, recall, regression_detected, verdicts }
+        Archinex-->>UI: Affiche Precision/Recall + Bannière alerte si régression détectée
+    end
+
+    Architect->>UI: Soumettre pour revue formelle
+    UI->>Archinex: POST /api/knowledge/candidates (draft validé)
+    Archinex->>LLMOps: POST /api/knowledge/candidates [X-Actor-Email]
+    LLMOps-->>Archinex: 201 Created (candidat inséré dans l'inbox G5)
+    Archinex-->>UI: Redirection / confirmation avec identifiant canonique
+```
+
+### Invariants & Règles de Conception (Lot A8)
+1. **Templates Canoniques Déclaratifs** : 7 types d'actifs normés (`principle`, `pattern`, `decision`, `control`, `glossary`, `rule`, `amendment`) disposant chacun de règles de validation strictes et d'exemples de prédicats testables.
+2. **Prédicats Formels Opérables** : Chaque règle ou clause de contrôle articule ses conditions autour de quatre axes unifiés : `when` (champ d'application/déclencheur), `expect` (condition d'admissibilité), `requires` (dépendances obligatoires) et `forbids` (anti-patrons proscrits).
+3. **Pré-vol Live (Zero Bad Submission)** : Le point d'entrée `POST /api/knowledge/candidates/validate` anticipe la notation des 7 contrôles automatiques LLMOps, alertant l'auteur sur les manques de clarté, de testabilité ou de complétude avant toute publication.
+4. **Moteur de Simulation & Alerte de Régression** : La simulation sur cas de test historiques évalue la Précision et le Rappel de la clause. Si une nouvelle version de clause casse des cas conformes existants (`regression_detected: true`), une bannière d'alerte rouge bloque la soumission non surveillée.
+5. **Circuit Ouvert vers la Boîte de Revue (Porte G5)** : Une clause rédigée et validée est directement enregistrée comme candidat `DRAFT` ou `SUBMITTED`, garantissant la continuité immédiate avec la boîte d'examen experte (`/kb/reviews`).
+
+

@@ -350,5 +350,84 @@ export interface KbEventsResponse {
   error?: string;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// ATELIER DE DOCTRINE, CRÉATION & SIMULATION DE CLAUSES (Lot A8)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type KbAssetType =
+  | 'principle'
+  | 'pattern'
+  | 'decision'
+  | 'control'
+  | 'glossary'
+  | 'rule'
+  | 'amendment';
+
+export interface TestablePredicates {
+  when: string;
+  expect: string;
+  requires?: string[];
+  forbids?: string[];
+}
+
+export interface KbAssetTemplate {
+  asset_type: KbAssetType;
+  title: string;
+  description: string;
+  default_predicates: TestablePredicates;
+  fields: Array<{
+    name: string;
+    label: string;
+    type: 'text' | 'textarea' | 'select' | 'array';
+    required: boolean;
+    placeholder?: string;
+  }>;
+  skeleton: string;
+}
+
+export interface CandidateValidationResult {
+  valid: boolean;
+  errors: string[];
+  warnings: string[];
+  checks: KbAutomaticCheck[];
+  all_checks_passed: boolean;
+}
+
+export interface ClauseSimulationCase {
+  id: string;
+  label: string;
+  description: string;
+  expected_status: 'supports' | 'violates';
+}
+
+export interface ClauseSimulationRequest {
+  asset_type: KbAssetType;
+  title: string;
+  domain: string;
+  predicates: TestablePredicates;
+  test_cases?: ClauseSimulationCase[];
+}
+
+export interface ClauseSimulationVerdict {
+  case_id: string;
+  case_label: string;
+  status: 'supports' | 'violates' | 'unassessed';
+  expected: 'supports' | 'violates';
+  matched: boolean;
+  rationale: string;
+}
+
+export interface ClauseSimulationResult {
+  simulated_at: string;
+  total_cases: number;
+  passed_cases: number;
+  precision: number;
+  recall: number;
+  regression_detected: boolean;
+  regression_details?: string;
+  verdicts: ClauseSimulationVerdict[];
+}
+
+
 
 

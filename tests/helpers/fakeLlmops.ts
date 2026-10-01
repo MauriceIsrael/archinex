@@ -13,6 +13,11 @@ import type {
   KbAutomaticCheck,
   KbComment,
   KbEvent,
+  KbAssetType,
+  KbAssetTemplate,
+  CandidateValidationResult,
+  ClauseSimulationRequest,
+  ClauseSimulationResult,
   LLMOpsBoardItem,
   LLMOpsStatement,
   LLMOpsConflict
@@ -97,6 +102,128 @@ export function generateDefaultChecks(title: string, content: string = ''): KbAu
     }
   ];
 }
+
+export const DEFAULT_KB_TEMPLATES: Record<KbAssetType, KbAssetTemplate> = {
+  principle: {
+    asset_type: 'principle',
+    title: 'Gabarit de Principe Fondamental',
+    description: 'Principe directeur transversal à portée stratégique non négociable.',
+    default_predicates: {
+      when: 'Dans toute architecture de système distribué manipulant des données critiques',
+      expect: 'L’immuabilité et la traçabilité des enregistrements d’audit doivent être garanties par chiffrement asymétrique',
+      requires: ['Journalisation signée', 'Horodatage certifié'],
+      forbids: ['Suppression directe de logs sans archivage scellé']
+    },
+    fields: [
+      { name: 'title', label: 'Intitulé du principe', type: 'text', required: true, placeholder: 'Ex: Principe d’immuabilité...' },
+      { name: 'summary', label: 'Énoncé synthétique', type: 'textarea', required: true, placeholder: 'Énoncé clair et assertif...' },
+      { name: 'rationale', label: 'Motivation architecturale', type: 'textarea', required: true, placeholder: 'Justification des contraintes...' }
+    ],
+    skeleton: '# Principe : [Titre]\n\n## Énoncé\n[Énoncé assertif sans ambiguïté]\n\n## Justification & Valeur\n[Impact stratégique]\n\n## Prédicats Formels\n- WHEN: ...\n- EXPECT: ...'
+  },
+  pattern: {
+    asset_type: 'pattern',
+    title: 'Gabarit de Patron d’Architecture',
+    description: 'Solution éprouvée à un problème récurrent dans un contexte donné.',
+    default_predicates: {
+      when: 'En cas de couplage asynchrone entre services à haute volumétrie',
+      expect: 'Le patron Outbox avec courtier de messages persistant doit être implémenté',
+      requires: ['Base de données transactionnelle relationnelle', 'Idempotence des consommateurs'],
+      forbids: ['Appel synchrone bloquant HTTP dans la transaction base']
+    },
+    fields: [
+      { name: 'title', label: 'Nom du patron', type: 'text', required: true },
+      { name: 'summary', label: 'Description', type: 'textarea', required: true },
+      { name: 'rationale', label: 'Contexte d’application', type: 'textarea', required: true }
+    ],
+    skeleton: '# Patron : [Nom]\n\n## Contexte\n...\n## Solution\n...'
+  },
+  decision: {
+    asset_type: 'decision',
+    title: 'Gabarit de Décision Architecturale (ADR)',
+    description: 'Enregistrement formel d’un choix technologique ou organisationnel structurant.',
+    default_predicates: {
+      when: 'Lors de l’arbitrage sur le composant de stockage persistant',
+      expect: 'La solution doit respecter les contraintes de réversibilité et de portabilité',
+      requires: ['Étude comparative d’au moins 3 options'],
+      forbids: ['Verrou propriétaire non exportable']
+    },
+    fields: [
+      { name: 'title', label: 'Titre de la décision', type: 'text', required: true },
+      { name: 'summary', label: 'Décision retenue', type: 'textarea', required: true },
+      { name: 'rationale', label: 'Alternatives écartées', type: 'textarea', required: true }
+    ],
+    skeleton: '# ADR : [Titre]\n\n## Statut\nAccepté\n\n## Décision\n...'
+  },
+  control: {
+    asset_type: 'control',
+    title: 'Gabarit de Règle de Contrôle Sécuritaire',
+    description: 'Exigence de conformité vérifiable sous forme d’assertion automatique.',
+    default_predicates: {
+      when: 'Pour tout flux réseau inter-zones ou franchissant une frontière de confiance',
+      expect: 'Le protocole mTLS v1.3 avec chiffrement post-quantique et certificats éphémères est requis',
+      requires: ['PKI interne souveraine'],
+      forbids: ['Communication en clair HTTP ou TLS < 1.3']
+    },
+    fields: [
+      { name: 'title', label: 'Nom de la règle de contrôle', type: 'text', required: true },
+      { name: 'summary', label: 'Clause vérifiable', type: 'textarea', required: true },
+      { name: 'rationale', label: 'Référentiel source', type: 'textarea', required: true }
+    ],
+    skeleton: '# Contrôle : [Nom]\n\n## Règle\n...\n'
+  },
+  glossary: {
+    asset_type: 'glossary',
+    title: 'Gabarit de Terme du Glossaire Métier',
+    description: 'Définition canonique et acronymes sans ambiguïté sémantique.',
+    default_predicates: {
+      when: 'Dans tout livrable d’architecture ou spécification de co-conception',
+      expect: 'Le terme doit être employé dans son acception formelle définie par le glossaire',
+      requires: [],
+      forbids: ['Utilisation de synonymes contradictoires']
+    },
+    fields: [
+      { name: 'title', label: 'Terme ou acronyme', type: 'text', required: true },
+      { name: 'summary', label: 'Définition canonique', type: 'textarea', required: true },
+      { name: 'rationale', label: 'Domaines concernés', type: 'text', required: true }
+    ],
+    skeleton: '# Terme : [Intitulé]\n\n## Définition\n...\n'
+  },
+  rule: {
+    asset_type: 'rule',
+    title: 'Gabarit de Règle Doctrinale Standard',
+    description: 'Clause normative de conception.',
+    default_predicates: {
+      when: 'Dans tout composant cloud ou conteneurisé',
+      expect: 'La redondance N+1 multi-nœuds doit être respectée',
+      requires: ['Healthcheck actif'],
+      forbids: ['Single Point of Failure (SPOF)']
+    },
+    fields: [
+      { name: 'title', label: 'Titre de la règle', type: 'text', required: true },
+      { name: 'summary', label: 'Énoncé', type: 'textarea', required: true },
+      { name: 'rationale', label: 'Justification', type: 'textarea', required: true }
+    ],
+    skeleton: '# Règle : [Titre]\n\n...'
+  },
+  amendment: {
+    asset_type: 'amendment',
+    title: 'Gabarit d’Amendement de Doctrine',
+    description: 'Proposition d’évolution ou de précision sur une clause existante.',
+    default_predicates: {
+      when: 'Lorsqu’une règle existante nécessite une adaptation opérationnelle',
+      expect: 'La clause amendée doit maintenir l’alignement avec les référentiels souverains',
+      requires: ['Référence de la règle cible'],
+      forbids: ['Régression de sécurité']
+    },
+    fields: [
+      { name: 'title', label: 'Titre de l’amendement', type: 'text', required: true },
+      { name: 'summary', label: 'Texte amendé', type: 'textarea', required: true },
+      { name: 'rationale', label: 'Motivation de la modification', type: 'textarea', required: true }
+    ],
+    skeleton: '# Amendement : [Titre]\n\n...'
+  }
+};
 
 export function createDefaultFakeState(): FakeLlmopsState {
   const now = new Date();
@@ -456,9 +583,196 @@ export async function startFakeLlmopsServer(initialState?: Partial<FakeLlmopsSta
         created_at: new Date().toISOString()
       };
       state.candidates.push(candidate);
+
+      const candidateDetail: KbCandidateDetail = {
+        ...candidate,
+        domain: body?.domain || 'security',
+        checks: generateDefaultChecks(candidate.title, candidate.summary),
+        all_checks_passed: true,
+        history: [
+          {
+            timestamp: candidate.created_at || new Date().toISOString(),
+            actor: candidate.author,
+            action: 'submitted',
+            details: 'Soumis pour examen'
+          }
+        ]
+      };
+      state.candidateDetails[candidate.id!] = candidateDetail;
+
+      state.inbox.push({
+        id: `rev-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        candidate_id: candidate.id!,
+        title: candidate.title,
+        kind: candidate.kind as any,
+        domain: candidateDetail.domain,
+        reason: 'review',
+        waiting_since: new Date().toISOString(),
+        due_at: new Date(Date.now() + 5 * 24 * 3600 * 1000).toISOString(),
+        is_overdue: false,
+        author: candidate.author,
+        severity: candidate.kind === 'principle' ? 'critical' : 'major'
+      });
+
       return json(201, {
         status: 'ok',
         data: candidate
+      });
+    }
+
+    // Templates: GET /api/knowledge/templates/:type ou /kb/templates/:type
+    const tmplMatch = pathname.match(/^\/(api\/knowledge|kb)\/templates\/([a-zA-Z0-9_-]+)$/);
+    if (tmplMatch && method === 'GET') {
+      const assetType = tmplMatch[2] as KbAssetType;
+      const tmpl = DEFAULT_KB_TEMPLATES[assetType];
+      if (!tmpl) {
+        return json(404, {
+          status: 'error',
+          error: `Gabarit introuvable pour le type d'actif '${assetType}'`
+        });
+      }
+      return json(200, {
+        status: 'ok',
+        data: tmpl
+      });
+    }
+
+    // Validate: POST /api/knowledge/candidates/validate ou /kb/candidates/validate
+    if (
+      (pathname === '/api/knowledge/candidates/validate' ||
+        pathname === '/kb/candidates/validate') &&
+      method === 'POST'
+    ) {
+      const { title, summary, domain, predicates } = body || {};
+      const errors: string[] = [];
+      const warnings: string[] = [];
+
+      if (!title || typeof title !== 'string' || title.trim() === '') {
+        errors.push('Le titre de l’actif est obligatoire');
+      }
+      if (!summary || typeof summary !== 'string' || summary.trim() === '') {
+        errors.push('L’énoncé ou résumé de la clause est obligatoire');
+      }
+      if (!domain || typeof domain !== 'string' || domain.trim() === '') {
+        errors.push('Le domaine de responsabilité (security, cloud...) est obligatoire');
+      }
+
+      if (predicates) {
+        if (!predicates.when || predicates.when.trim() === '') {
+          warnings.push(
+            'La condition d’activation (WHEN) est recommandée pour la testabilité automatique'
+          );
+        }
+        if (!predicates.expect || predicates.expect.trim() === '') {
+          warnings.push(
+            'L’assertion de résultat (EXPECT) est recommandée pour les prédicats testables'
+          );
+        }
+      }
+
+      const checks = generateDefaultChecks(title || 'Brouillon', summary || '');
+      const allPassed = errors.length === 0 && checks.every((c) => c.passed);
+
+      const valResult: CandidateValidationResult = {
+        valid: errors.length === 0,
+        errors,
+        warnings,
+        checks,
+        all_checks_passed: allPassed
+      };
+
+      return json(200, {
+        status: 'ok',
+        data: valResult
+      });
+    }
+
+    // Simulate: POST /api/knowledge/checks/simulate ou /kb/checks/simulate
+    if (
+      (pathname === '/api/knowledge/checks/simulate' ||
+        pathname === '/kb/checks/simulate') &&
+      method === 'POST'
+    ) {
+      const { asset_type, title, domain, predicates, test_cases } = body || {};
+      const whenStr = (predicates?.when || '').toLowerCase();
+      const expectStr = (predicates?.expect || '').toLowerCase();
+
+      const benchmarkCases =
+        test_cases && test_cases.length > 0
+          ? test_cases
+          : [
+              {
+                id: 'case-01',
+                label: 'Architecture multi-nœuds avec réplication synchrone',
+                description: 'Option conforme aux règles de redondance et de tolérance aux pannes',
+                expected_status: 'supports' as const
+              },
+              {
+                id: 'case-02',
+                label: 'Nœud unique sans réplication ni sauvegarde hors-site',
+                description: 'Architecture à point unique de défaillance non toléré (SPOF)',
+                expected_status: 'violates' as const
+              },
+              {
+                id: 'case-03',
+                label: 'Déploiement conteneurisé avec sondes de vivacité et reprise automatique',
+                description: 'Haute disponibilité applicative et observabilité continue',
+                expected_status: 'supports' as const
+              },
+              {
+                id: 'case-04',
+                label: 'Composant legacy sans sonde d’état avec synchronisation manuelle',
+                description: 'Non-conformité aux exigences d’observabilité',
+                expected_status: 'violates' as const
+              }
+            ];
+
+      const regressionDetected =
+        title?.toLowerCase().includes('regression') ||
+        whenStr.includes('regression') ||
+        expectStr.includes('regression');
+
+      const verdicts = benchmarkCases.map((tc: any) => {
+        let status: 'supports' | 'violates' | 'unassessed' = tc.expected_status;
+
+        // Si regression simulée, inverse un cas de test
+        if (regressionDetected && tc.id === 'case-03') {
+          status = 'violates';
+        }
+
+        const matched = status === tc.expected_status;
+        return {
+          case_id: tc.id,
+          case_label: tc.label,
+          status,
+          expected: tc.expected_status,
+          matched,
+          rationale: matched
+            ? `Prédicats cohérents avec les critères attendus (${status})`
+            : `Divergence détectée : attendu ${tc.expected_status}, obtenu ${status}`
+        };
+      });
+
+      const passedCases = verdicts.filter((v: any) => v.matched).length;
+      const precision = regressionDetected ? 82 : 96;
+      const recall = regressionDetected ? 75 : 98;
+
+      const simResult: ClauseSimulationResult = {
+        simulated_at: new Date().toISOString(),
+        total_cases: verdicts.length,
+        passed_cases: passedCases,
+        precision,
+        recall,
+        regression_detected: regressionDetected,
+        regression_details: regressionDetected
+          ? 'Alerte : régression de rappel détectée (-23%) par rapport à la suite de référence.'
+          : undefined,
+        verdicts
+      };
+
+      return json(200, {
+        status: 'ok',
+        data: simResult
       });
     }
 

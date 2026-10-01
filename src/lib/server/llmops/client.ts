@@ -32,7 +32,13 @@ import type {
   KbComment,
   KbEvent,
   KbInboxResponse,
-  KbEventsResponse
+  KbEventsResponse,
+  KbAssetType,
+  KbAssetTemplate,
+  TestablePredicates,
+  CandidateValidationResult,
+  ClauseSimulationRequest,
+  ClauseSimulationResult
 } from './types';
 
 export interface LLMOpsClientConfig {
@@ -1183,6 +1189,144 @@ export class LLMOpsClient {
       return { status: 'error', error: `Erreur HTTP ${res.status} lors du polling d'événements` };
     } catch {
       return { status: 'unavailable', error: 'Service indisponible' };
+    }
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // ATELIER DE DOCTRINE & SIMULATION DE CLAUSES (Lot A8)
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Récupère le gabarit officiel pour un type d'actif (principle, pattern, decision, etc.)
+   */
+  async getAssetTemplate(
+    assetType: KbAssetType
+  ): Promise<{ status: 'ok' | 'error' | 'unavailable'; data?: KbAssetTemplate; error?: string }> {
+    if (!this.isLocalNetworkUrl(this.baseUrl)) {
+      return { status: 'unavailable', error: 'Enclave locale non configurée' };
+    }
+
+    try {
+      const res = await fetch(`${this.baseUrl}/api/knowledge/templates/${assetType}`, {
+        headers: this.getHeaders(),
+        signal: AbortSignal.timeout(this.timeoutMs)
+      });
+
+      if (res.status === 503) {
+        return { status: 'unavailable', error: 'Service LLMOps indisponible (503)' };
+      }
+
+      if (res.ok) {
+        const body = await res.json();
+        return {
+          status: 'ok',
+          data: body.data || body
+        };
+      }
+
+      return {
+        status: 'error',
+        error: `Gabarit introuvable pour ${assetType} (HTTP ${res.status})`
+      };
+    } catch {
+      return {
+        status: 'unavailable',
+        error: 'Mode hors-ligne : consultation de gabarit indisponible'
+      };
+    }
+  }
+
+  /**
+   * Validation à blanc en temps réel d'un brouillon d'actif (syntaxe, 7 contrôles prévisionnels)
+   */
+  async validateCandidate(candidateDraft: {
+    title?: string;
+    summary?: string;
+    domain?: string;
+    predicates?: TestablePredicates;
+    [key: string]: any;
+  }): Promise<{ status: 'ok' | 'error' | 'unavailable'; data?: CandidateValidationResult; error?: string }> {
+    if (!this.isLocalNetworkUrl(this.baseUrl)) {
+      return { status: 'unavailable', error: 'Enclave locale non configurée' };
+    }
+
+    try {
+      const res = await fetch(`${this.baseUrl}/api/knowledge/candidates/validate`, {
+        method: 'POST',
+        headers: {
+          ...this.getHeaders(),
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(candidateDraft),
+        signal: AbortSignal.timeout(this.timeoutMs)
+      });
+
+      if (res.status === 503) {
+        return { status: 'unavailable', error: 'Service LLMOps indisponible (503)' };
+      }
+
+      if (res.ok) {
+        const body = await res.json();
+        return {
+          status: 'ok',
+          data: body.data || body
+        };
+      }
+
+      return {
+        status: 'error',
+        error: `Erreur HTTP ${res.status} lors de la validation à blanc`
+      };
+    } catch {
+      return {
+        status: 'unavailable',
+        error: 'Mode hors-ligne : validation à blanc indisponible'
+      };
+    }
+  }
+
+  /**
+   * Simule l'impact d'une clause et de ses prédicats (précision, rappel, alertes régressions)
+   */
+  async simulateClause(
+    req: ClauseSimulationRequest
+  ): Promise<{ status: 'ok' | 'error' | 'unavailable'; data?: ClauseSimulationResult; error?: string }> {
+    if (!this.isLocalNetworkUrl(this.baseUrl)) {
+      return { status: 'unavailable', error: 'Enclave locale non configurée' };
+    }
+
+    try {
+      const res = await fetch(`${this.baseUrl}/api/knowledge/checks/simulate`, {
+        method: 'POST',
+        headers: {
+          ...this.getHeaders(),
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(req),
+        signal: AbortSignal.timeout(this.timeoutMs)
+      });
+
+      if (res.status === 503) {
+        return { status: 'unavailable', error: 'Service LLMOps indisponible (503)' };
+      }
+
+      if (res.ok) {
+        const body = await res.json();
+        return {
+          status: 'ok',
+          data: body.data || body
+        };
+      }
+
+      return {
+        status: 'error',
+        error: `Erreur HTTP ${res.status} lors de la simulation de clause`
+      };
+    } catch {
+      return {
+        status: 'unavailable',
+        error: 'Mode hors-ligne : simulation de clause indisponible'
+      };
     }
   }
 

@@ -1,0 +1,10 @@
+schema_version: "1.0"
+id: a8-doctrine-workshop
+title: "Atelier de Doctrine : Création, Amendement et Simulation de Clauses Testables"
+status: in_progress
+authors:
+  - MauriceIsrael
+created_at: "2026-10-01"
+milestone: "Gate G6 Prerequisite"
+related_issues:
+  - "#3"

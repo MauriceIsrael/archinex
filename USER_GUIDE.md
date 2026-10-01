@@ -132,7 +132,38 @@ En cliquant sur **Examiner** sur un candidat, l'expert accède à son espace de 
 
 ---
 
-## 6. Dépannage Fréquent
+## 6. Atelier de Doctrine & Simulation de Clauses (`/kb/workshop`) — Lot A8
+
+L'Atelier de Doctrine permet aux experts (`kb:maintain`, `kb:review`, `kb:admin`) de formuler de nouvelles clauses de doctrine, de définir des prédicats formels vérifiables par machine, de simuler l'impact sur un banc de test et de détecter d'éventuelles régressions de rappel avant soumission.
+
+### 6.1 Modèles d'Actifs & Gabarits Officiels
+En haut de l'atelier, sélectionnez le gabarit adapté :
+- **Principe Fondamental (`principle`)** : Orientation stratégique pérenne (soumis à double-revue collégiale).
+- **Patron d’Architecture (`pattern`)** : Solution éprouvée à un problème récurrent dans un contexte donné.
+- **Décision Architecturale (`decision`)** : ADR formel motivé avec alternatives écartées.
+- **Règle de Contrôle (`control`)** : Assertion de conformité automatique (sécurité, réseau, résilience).
+- **Terme du Glossaire (`glossary`)** : Définition canonique sans ambiguïté sémantique.
+- **Règle Standard (`rule`)** : Exigence normative générale.
+- **Amendement (`amendment`)** : Évolution ciblée d'une règle existante.
+
+### 6.2 Prédicats Testables (Machine-Readable)
+Au-delà du texte libre en Markdown, chaque clause structure ses contraintes formelles :
+- **`WHEN` (Contexte d'activation)** : Condition déclenchant la règle (ex: *Dans tout composant manipulant des clés cryptographiques*).
+- **`EXPECT` (Assertion vérifiée)** : Résultat attendu non négociable (ex: *L'utilisation d'un HSM souverain certifié est requise*).
+- **`REQUIRES` (Prérequis obligatoires)** : Dépendances préalables (ex: *PKI interne, audit log signée*).
+- **`FORBIDS` (Anti-patrons proscrits)** : Pratiques strictement interdites (ex: *Clé en clair, export non chiffré*).
+
+### 6.3 Validation à Blanc & Simulateur d'Impact en Direct
+1. **Validation à blanc** : Vérifie en temps réel la complétude des champs et calcule l'estimation des 7 contrôles automatiques LLMOps.
+2. **Tester la clause** : Exécute le banc de test de référence et calcule :
+   - Le taux de **Précision Estimée** (% de vrais positifs).
+   - Le taux de **Rappel de Doctrine** (% des cas conformes couverts).
+   - **Alerte de Régression** : En cas de baisse du rappel ou d'introduction de faux négatifs, un bandeau d'alerte rouge signale le risque de rupture de rétro-compatibilité.
+3. **Soumettre à la revue** : Verse la clause formulée dans la boîte de réception des revues (`/kb/reviews`) sous l'autorité de l'expert connecté (`X-Actor-Email`).
+
+---
+
+## 7. Dépannage Fréquent
 
 - **"Arbitrage refusé (blocages actifs)"** : Vérifiez que toutes les options sont évaluées, qu'aucune objection n'est ouverte et que la couverture des référentiels projet est complète.
 - **"403 Habilitation insuffisante"** : Seul le Lead Architect ou un expert affecté au domaine du sujet (ex: `infrastructure`) peut enregistrer la décision.

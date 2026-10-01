@@ -154,7 +154,10 @@ describe.skipIf(!LIVE)('Contrat réel LLMOps (serveur vivant)', () => {
     }
     const cursor = String(first.data!.next_cursor);
     const again = await client.pollEvents(cursor);
-    expect(again.data!.events.length).toBe(0); // même curseur : rien de nouveau, rien de dupliqué
+    // même curseur : aucun événement déjà vu n'est renvoyé (d'autres clients peuvent en créer de nouveaux entre-temps)
+    for (const e of again.data!.events as any[]) {
+      expect(Number(e.id)).toBeGreaterThan(Number(cursor));
+    }
   });
 
   it('A7 — décision : relecteur = acteur ; une seconde décision est un conflit', async () => {

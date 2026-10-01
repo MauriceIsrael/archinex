@@ -191,7 +191,7 @@ describe.skipIf(!LIVE)('Contrat réel LLMOps (serveur vivant)', () => {
     expect((res.data as any).metrics.after.violation_recall).toBeLessThan((res.data as any).metrics.before.violation_recall);
   });
 
-  const excerpt = process.env.LLMOPS_NIS2_EXCERPT;
+  const excerpt = process.env.LLMOPS_NIS2_EXCERPT || (existsSync('../LLMOps/tests/fixtures/frameworks/nis2_excerpt.txt') ? '../LLMOps/tests/fixtures/frameworks/nis2_excerpt.txt' : undefined);
   it.skipIf(!excerpt || !existsSync(excerpt))('A10 — ingestion NIS2 (multipart), revue d’une ligne, déclaration refusée avec la liste des manques', async () => {
     const up = await client.ingestFramework(
       {

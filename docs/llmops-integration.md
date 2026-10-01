@@ -158,7 +158,10 @@ Ce mapping permettra à terme d'alimenter Archinex depuis le graphe LLMOps (impo
 ## 7. Variables d'environnement supportées
 
 | `LLMOPS_BASE_URL` | URL Cloud Run prod | Rediriger vers staging/local |
-| `LLMOPS_TOKEN` | `demo-public-2026-08` | Surcharger le jeton |
+| `LLMOPS_TOKEN` | `demo-public-2026-08` | Surcharger le jeton (tests réseau historiques) |
+| `LLMOPS_AUTH_TOKEN` | — | Jeton de service du client applicatif : doit porter `kb:review,kb:delegate` (+ l'engagement) pour la gouvernance |
+| `LLMOPS_ALLOWED_HOSTS` | vide | Hôtes LLMOps hors réseau local autorisés nommément (ex. l'hôte Cloud Run) ; sans elle, `*.run.app` est bloqué (règle air-gap) |
+| `LLMOPS_TIMEOUT_MS` | non défini | Délai uniforme (ms) qui prime sur les délais par opération (voir `GCP_CLOUD_RUN_DEPLOYMENT.md`) |
 | `LLMOPS_ENGAGEMENT` | `nordwave-mcx-2027` | Tester un autre engagement |
 | `LLMOPS_LIVE_URL` | Non défini (optionnel) | URL du serveur de contrat local LLMOps pour tests de contrat vivants |
 | `LLMOPS_LIVE_TOKEN` | `contract-service-token` | Jeton de service portant les scopes `kb:review,kb:delegate` |

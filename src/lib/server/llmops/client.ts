@@ -58,14 +58,50 @@ export interface LLMOpsClientConfig {
   baseUrl?: string;
   authToken?: string;
   defaultEngagement?: string;
+  /** Délai uniforme (ms) : prime sur les délais par opération (tests, diagnostic). */
   timeoutMs?: number;
+  /** Hôtes autorisés en plus du réseau local (voir LLMOPS_ALLOWED_HOSTS). */
+  allowedHosts?: string[];
+}
+
+/**
+ * Délais par opération (ms), mesurés contre un vrai serveur LLMOps : une soumission de candidat prend 2,4 à 2,9 s
+ * (contrôles + index de doctrine), une simulation ~3 s, une publication ~9 s (reconstruction du graphe), un upload
+ * de référentiel jusqu'à 120 s (extraction bornée côté LLMOps), une application jusqu'à plusieurs dizaines de secondes.
+ * Les lectures « moteur » historiques (health, board, snapshots) gardent un délai court : leur repli hors-ligne est voulu.
+ */
+export const LLMOPS_DEFAULT_TIMEOUT_MS = 1500;
+export const LLMOPS_GOVERNANCE_TIMEOUT_MS = 15_000;
+const OPERATION_TIMEOUTS: Array<{ method?: string; pattern: RegExp; ms: number }> = [
+  { method: 'POST', pattern: /\/api\/knowledge\/publications$/, ms: 300_000 },
+  { method: 'POST', pattern: /\/api\/knowledge\/candidates\/[^/]+\/promote$/, ms: 300_000 },
+  { method: 'POST', pattern: /\/api\/frameworks\/ingestions\/[^/]+\/apply$/, ms: 300_000 },
+  { method: 'POST', pattern: /\/api\/frameworks\/ingestions$/, ms: 150_000 },
+  { method: 'POST', pattern: /\/api\/knowledge\/(checks\/simulate|candidates\/validate)$/, ms: 30_000 },
+  { method: 'POST', pattern: /\/api\/knowledge\/evals\/[^/]+\/runs$/, ms: 60_000 },
+  { method: 'POST', pattern: /\/api\/knowledge\/candidates$/, ms: 30_000 },
+  { method: 'PATCH', pattern: /\/api\/knowledge\/candidates\/[^/]+$/, ms: 30_000 },
+  { pattern: /\/api\/knowledge\/health$/, ms: 30_000 },
+  { pattern: /\/api\/(knowledge|frameworks)(\/|$)/, ms: LLMOPS_GOVERNANCE_TIMEOUT_MS }
+];
+
+/** Vrai si `host` correspond à une entrée de liste (nom exact, ou `*.suffixe` pour tout sous-domaine). */
+export function hostMatchesAllowList(host: string, allowed: string[]): boolean {
+  const h = host.toLowerCase();
+  return allowed.some((entry) => {
+    const e = entry.trim().toLowerCase();
+    if (!e) return false;
+    if (e.startsWith('*.')) return h.endsWith(e.slice(1)) && h.length > e.length - 1;
+    return h === e;
+  });
 }
 
 export class LLMOpsClient {
   private baseUrl: string;
   private authToken: string;
   private defaultEngagement: string;
-  private timeoutMs: number;
+  private timeoutMs: number | undefined;
+  private allowedHosts: string[];
 
   constructor(config: LLMOpsClientConfig = {}) {
     // Par défaut, le client fonctionne STRICTEMENT en réseau local souverain (127.0.0.1:8000 ou mode hors-ligne scellé).
@@ -73,7 +109,23 @@ export class LLMOpsClient {
     this.baseUrl = (config.baseUrl || process.env.LLMOPS_BASE_URL || 'http://127.0.0.1:8000').replace(/\/+$/, '');
     this.authToken = config.authToken || process.env.LLMOPS_AUTH_TOKEN || 'demo-local-sovereign-2026';
     this.defaultEngagement = config.defaultEngagement || process.env.LLMOPS_ENGAGEMENT || 'default-project';
-    this.timeoutMs = config.timeoutMs || 1500;
+    this.timeoutMs = config.timeoutMs || (Number(process.env.LLMOPS_TIMEOUT_MS) || undefined);
+    this.allowedHosts = (config.allowedHosts ?? (process.env.LLMOPS_ALLOWED_HOSTS || '').split(','))
+      .map((h) => h.trim())
+      .filter(Boolean);
+  }
+
+  /** Délai applicable à un appel : uniforme si configuré, sinon selon l'opération (voir OPERATION_TIMEOUTS). */
+  timeoutFor(url: string, method = 'GET'): number {
+    if (this.timeoutMs) return this.timeoutMs;
+    let path = url;
+    try {
+      path = new URL(url).pathname;
+    } catch {
+      // chemin relatif : utilisé tel quel
+    }
+    const rule = OPERATION_TIMEOUTS.find((r) => r.pattern.test(path) && (!r.method || r.method === method.toUpperCase()));
+    return rule ? rule.ms : LLMOPS_DEFAULT_TIMEOUT_MS;
   }
 
   setBaseUrl(url: string) {
@@ -88,6 +140,11 @@ export class LLMOpsClient {
     try {
       const parsed = new URL(urlStr);
       const host = parsed.hostname.toLowerCase();
+      // Exception explicite et nominative (LLMOPS_ALLOWED_HOSTS) : le serveur LLMOps déployé de l'organisation.
+      // Rien d'autre n'est ouvert : un hôte absent de la liste reste soumis aux règles ci-dessous.
+      if (hostMatchesAllowList(host, this.allowedHosts)) {
+        return true;
+      }
       // Domaines cloud / externes formellement interdits
       if (
         host.includes('run.app') ||
@@ -146,7 +203,7 @@ export class LLMOpsClient {
     }
 
     const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), this.timeoutMs);
+    const timer = setTimeout(() => controller.abort(), this.timeoutFor(url, options.method || 'GET'));
     try {
       const response = await fetch(url, {
         ...options,
@@ -701,7 +758,15 @@ export class LLMOpsClient {
       if (e.message && (e.message.startsWith('Erreur HTTP') || e.message.includes('Air-Gap Security'))) {
         throw e;
       }
-      // Live unreachable -> fallback offline
+      if (e?.name === 'AbortError' || e?.name === 'TimeoutError') {
+        // Délai dépassé : LLMOps a pu enregistrer le candidat. Ne JAMAIS fabriquer un identifiant factice
+        // (doublon ou candidat fantôme) : l'appelant doit vérifier la file avant de réessayer.
+        throw new Error(
+          'Erreur HTTP : LLMOps n’a pas répondu à temps ; la soumission a peut-être été enregistrée. ' +
+            'Vérifiez la file des candidats avant de la renvoyer.'
+        );
+      }
+      // Serveur injoignable (connexion refusée) -> repli hors-ligne uniquement
     }
 
     const localId = `CAND-LOCAL-${Date.now().toString(36).toUpperCase()}`;
@@ -922,9 +987,8 @@ export class LLMOpsClient {
       if (filters?.domain) url.searchParams.set('domain', filters.domain);
       if (filters?.kind) url.searchParams.set('kind', filters.kind);
 
-      const res = await fetch(url.toString(), {
-        headers: this.getHeaders(undefined, actorEmail),
-        signal: AbortSignal.timeout(this.timeoutMs)
+      const res = await this.fetchWithTimeout(url.toString(), {
+        headers: this.getHeaders(undefined, actorEmail)
       });
 
       if (res.status === 503) {
@@ -999,9 +1063,8 @@ export class LLMOpsClient {
     }
 
     try {
-      const res = await fetch(`${this.baseUrl}/api/knowledge/candidates/${candidateId}`, {
-        headers: this.getHeaders(undefined, actorEmail),
-        signal: AbortSignal.timeout(this.timeoutMs)
+      const res = await this.fetchWithTimeout(`${this.baseUrl}/api/knowledge/candidates/${candidateId}`, {
+        headers: this.getHeaders(undefined, actorEmail)
       });
 
       if (res.status === 503) {
@@ -1053,14 +1116,13 @@ export class LLMOpsClient {
         amended_content: payload.amended_content
       };
 
-      const res = await fetch(`${this.baseUrl}/api/knowledge/candidates/${candidateId}`, {
+      const res = await this.fetchWithTimeout(`${this.baseUrl}/api/knowledge/candidates/${candidateId}`, {
         method: 'PATCH',
         headers: {
           ...this.getHeaders(undefined, actorEmail),
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(bodyToSend),
-        signal: AbortSignal.timeout(this.timeoutMs)
+        body: JSON.stringify(bodyToSend)
       });
 
       if (res.status === 403) {
@@ -1122,14 +1184,13 @@ export class LLMOpsClient {
     }
 
     try {
-      const res = await fetch(`${this.baseUrl}/api/knowledge/candidates/${candidateId}/assign`, {
+      const res = await this.fetchWithTimeout(`${this.baseUrl}/api/knowledge/candidates/${candidateId}/assign`, {
         method: 'POST',
         headers: {
           ...this.getHeaders(undefined, actorEmail),
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ handle: assignee, assignee, reason }),
-        signal: AbortSignal.timeout(this.timeoutMs)
+        body: JSON.stringify({ handle: assignee, assignee, reason })
       });
 
       if (res.status === 403) {
@@ -1177,7 +1238,7 @@ export class LLMOpsClient {
         due_at: req.due_at
       };
 
-      const res = await fetch(
+      const res = await this.fetchWithTimeout(
         `${this.baseUrl}/api/knowledge/candidates/${candidateId}/request-review`,
         {
           method: 'POST',
@@ -1185,8 +1246,7 @@ export class LLMOpsClient {
             ...this.getHeaders(undefined, actorEmail),
             'Content-Type': 'application/json'
           },
-          body: JSON.stringify(payload),
-          signal: AbortSignal.timeout(this.timeoutMs)
+          body: JSON.stringify(payload)
         }
       );
 
@@ -1217,9 +1277,8 @@ export class LLMOpsClient {
     }
 
     try {
-      const res = await fetch(`${this.baseUrl}/api/knowledge/candidates/${candidateId}/comments`, {
-        headers: this.getHeaders(undefined, actorEmail),
-        signal: AbortSignal.timeout(this.timeoutMs)
+      const res = await this.fetchWithTimeout(`${this.baseUrl}/api/knowledge/candidates/${candidateId}/comments`, {
+        headers: this.getHeaders(undefined, actorEmail)
       });
 
       if (res.status === 503) {
@@ -1266,14 +1325,13 @@ export class LLMOpsClient {
     }
 
     try {
-      const res = await fetch(`${this.baseUrl}/api/knowledge/candidates/${candidateId}/comments`, {
+      const res = await this.fetchWithTimeout(`${this.baseUrl}/api/knowledge/candidates/${candidateId}/comments`, {
         method: 'POST',
         headers: {
           ...this.getHeaders(undefined, actorEmail),
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ body: message, message }),
-        signal: AbortSignal.timeout(this.timeoutMs)
+        body: JSON.stringify({ body: message, message })
       });
 
       if (res.status === 503) {
@@ -1315,9 +1373,8 @@ export class LLMOpsClient {
       const url = new URL(`${this.baseUrl}/api/knowledge/events`);
       if (sinceCursor) url.searchParams.set('since', sinceCursor);
 
-      const res = await fetch(url.toString(), {
-        headers: this.getHeaders(),
-        signal: AbortSignal.timeout(this.timeoutMs)
+      const res = await this.fetchWithTimeout(url.toString(), {
+        headers: this.getHeaders()
       });
 
       if (res.status === 503) {
@@ -1369,9 +1426,8 @@ export class LLMOpsClient {
     }
 
     try {
-      const res = await fetch(`${this.baseUrl}/api/knowledge/templates/${assetType}`, {
-        headers: this.getHeaders(),
-        signal: AbortSignal.timeout(this.timeoutMs)
+      const res = await this.fetchWithTimeout(`${this.baseUrl}/api/knowledge/templates/${assetType}`, {
+        headers: this.getHeaders()
       });
 
       if (res.status === 503) {
@@ -1413,14 +1469,13 @@ export class LLMOpsClient {
     }
 
     try {
-      const res = await fetch(`${this.baseUrl}/api/knowledge/candidates/validate`, {
+      const res = await this.fetchWithTimeout(`${this.baseUrl}/api/knowledge/candidates/validate`, {
         method: 'POST',
         headers: {
           ...this.getHeaders(),
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(candidateDraft),
-        signal: AbortSignal.timeout(this.timeoutMs)
+        body: JSON.stringify(candidateDraft)
       });
 
       if (res.status === 503) {
@@ -1458,14 +1513,13 @@ export class LLMOpsClient {
     }
 
     try {
-      const res = await fetch(`${this.baseUrl}/api/knowledge/checks/simulate`, {
+      const res = await this.fetchWithTimeout(`${this.baseUrl}/api/knowledge/checks/simulate`, {
         method: 'POST',
         headers: {
           ...this.getHeaders(),
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify(req),
-        signal: AbortSignal.timeout(this.timeoutMs)
+        body: JSON.stringify(req)
       });
 
       if (res.status === 503) {

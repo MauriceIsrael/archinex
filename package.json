@@ -12,6 +12,8 @@
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
     "check:denylist": "node scripts/check-no-project-names.mjs",
+    "db:push": "prisma db push",
+    "db:generate": "prisma generate",
     "seed": "tsx scripts/seed.ts",
     "test": "vitest run",
     "test:integration:closed-loop": "vitest run tests/integration/closed-loop-deliberation.test.ts",

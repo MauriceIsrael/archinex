@@ -218,7 +218,7 @@ describe.skipIf(!LIVE)('Contrat réel LLMOps — A11 santé, promotion, publicat
     const again = await client.publishKbDoctrine({}, MAINT);
     expect(again.status).toBe('ok'); // « rien à publier » n'est pas une erreur
     expect((again.data as any).published).toEqual([]);
-  });
+  }, 30000);
 
   it('A11 — liste des publications : n’appelle aucune route inexistante (LLMOps n’a pas GET /publications)', async () => {
     const res = await client.listKbPublications(MAINT);

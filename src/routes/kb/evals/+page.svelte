@@ -70,7 +70,7 @@
 
   function openAnnotateModal(c: EvalTestCase) {
     annotatingCase = c;
-    editExpectedStatus = c.expected_status;
+    editExpectedStatus = (c.expected || c.expected_status || 'supports') as 'supports' | 'violates';
     editNotes = c.notes || '';
   }
 
@@ -376,7 +376,7 @@
             </p>
 
             <div class="flex items-center justify-between text-[11px] text-surface-400">
-              <span>Auteur : {fb.author_email} • {new Date(fb.created_at).toLocaleString()}</span>
+              <span>Auteur : {fb.author_email || fb.reporter || 'Anonyme'} • {fb.created_at ? new Date(fb.created_at).toLocaleString() : ''}</span>
               {#if fb.converted_ref}
                 <span class="font-mono text-primary-700 font-semibold">Réf : {fb.converted_ref}</span>
               {/if}

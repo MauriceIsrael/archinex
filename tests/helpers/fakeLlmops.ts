@@ -1020,7 +1020,7 @@ export async function startFakeLlmopsServer(initialState?: Partial<FakeLlmopsSta
 
     // Candidates sub-paths: /api/knowledge/candidates/:id[/sub]
     const candSubMatch = pathname.match(
-      /^\/(api\/knowledge|kb)\/candidates\/([a-zA-Z0-9_-]+)(\/(assign|request-review|comments))?$/
+      /^\/(api\/knowledge|kb)\/candidates\/([a-zA-Z0-9_-]+)(\/(assign|request-review|comments|promote))?$/
     );
     if (candSubMatch) {
       const candidateId = candSubMatch[2];
@@ -1317,6 +1317,45 @@ export async function startFakeLlmopsServer(initialState?: Partial<FakeLlmopsSta
         });
 
         return json(201, { status: 'ok', data: comment });
+      }
+
+      // POST /promote
+      if (subAction === 'promote' && method === 'POST') {
+        const actorEmail = (req.headers['x-actor-email'] as string) || '';
+        const actorOwner = state.owners.find((o) => o.email.toLowerCase() === actorEmail.toLowerCase());
+        const canMaintain = actorOwner?.roles.includes('kb:maintain') || actorOwner?.roles.includes('kb:admin');
+        if (!canMaintain) {
+          return json(403, {
+            status: 'forbidden',
+            error: "Habilitation insuffisante : rôle kb:maintain requis"
+          });
+        }
+
+        if (!candidate) {
+          return json(404, { status: 'error', error: `Candidate ${candidateId} not found` });
+        }
+
+        if (candidate.status !== 'accepted') {
+          return json(409, {
+            status: 'conflict',
+            error: `only an accepted candidate can be promoted (status '${candidate.status}').`
+          });
+        }
+
+        candidate.status = 'promoted';
+        (candidate as any).promoted_at = new Date().toISOString();
+        (candidate as any).promoted_by = actorEmail;
+
+        const candInList = state.candidates.find((c) => c.id === candidateId);
+        if (candInList) {
+          candInList.status = 'promoted';
+        }
+
+        return json(200, {
+          status: 'ok',
+          data: candidate,
+          warnings: state.storageMode === 'persistent' ? [] : ['ephemeral-storage']
+        });
       }
     }
 
@@ -1777,16 +1816,17 @@ export async function startFakeLlmopsServer(initialState?: Partial<FakeLlmopsSta
       const actorEmail = (req.headers['x-actor-email'] as string) || 'expert@archinex.local';
 
       const verdicts = dataset.cases.map((c) => {
-        const predicted: 'supports' | 'violates' = c.expected_status;
-        const matched = predicted === c.expected_status;
+        const expected: 'supports' | 'violates' = (c.expected || c.expected_status || 'supports') as 'supports' | 'violates';
+        const predicted: 'supports' | 'violates' = expected;
+        const matched = predicted === expected;
         return {
           case_id: c.id,
-          option_title: c.option_title,
-          rule_id: c.rule_id,
+          option_title: c.option_title || (c as any).title || c.option?.title || 'Option',
+          rule_id: c.rule_id || (c as any).check_id || 'R-001',
           predicted_status: predicted,
-          expected_status: c.expected_status,
+          expected_status: expected,
           matched,
-          human_annotated: c.human_annotated
+          human_annotated: Boolean(c.human_annotated || c.annotated_by)
         };
       });
 
@@ -1885,6 +1925,50 @@ export async function startFakeLlmopsServer(initialState?: Partial<FakeLlmopsSta
       });
     }
 
+    // POST /api/knowledge/verdict-feedback/:id/convert
+    const feedbackConvertMatch = pathname.match(/^\/api\/knowledge\/verdict-feedback\/([^/]+)\/convert$/);
+    if (feedbackConvertMatch && method === 'POST') {
+      const feedbackId = feedbackConvertMatch[1];
+      const actorEmail = (req.headers['x-actor-email'] as string) || '';
+      const actorOwner = state.owners.find((o) => o.email.toLowerCase() === actorEmail.toLowerCase());
+      const canEval = actorOwner?.roles.includes('kb:evaluate') || actorOwner?.roles.includes('kb:admin');
+      if (!canEval) {
+        return json(403, {
+          status: 'forbidden',
+          error: "Habilitation insuffisante : rôle kb:evaluate requis"
+        });
+      }
+
+      const item = state.verdictFeedbacks.find((f) => f.id === feedbackId);
+      if (!item) {
+        return json(404, { status: 'error', error: `Verdict feedback ${feedbackId} not found` });
+      }
+
+      if (item.status !== 'open' || item.converted_to) {
+        return json(409, {
+          status: 'conflict',
+          error: "Ce retour a déjà été converti ou classé"
+        });
+      }
+
+      const { to } = body || {};
+      if (to === 'eval_case') {
+        item.status = 'converted';
+        item.converted_to = `eval_case:CO-${Date.now()}`;
+      } else if (to === 'amendment') {
+        item.status = 'converted';
+        item.converted_to = `amendment:CAND-${Date.now()}`;
+      } else if (to === 'dismiss') {
+        item.status = 'dismissed';
+        item.converted_to = 'dismissed';
+      }
+
+      return json(200, {
+        status: 'ok',
+        data: item
+      });
+    }
+
     // GET /api/knowledge/verdict-feedback
     if (pathname === '/api/knowledge/verdict-feedback' && method === 'GET') {
       return json(200, {
@@ -1918,7 +2002,7 @@ export async function startFakeLlmopsServer(initialState?: Partial<FakeLlmopsSta
 
       const metrics: KbHealthMetrics = {
         doctrine_health: {
-          total_assets: 60 + state.candidates.filter((c) => c.status === 'accepted').length,
+          total_assets: 60 + state.candidates.filter((c) => c.status === 'accepted' || c.status === 'published').length,
           principles_count: 12,
           patterns_count: 24,
           decisions_count: 14,
@@ -1947,7 +2031,14 @@ export async function startFakeLlmopsServer(initialState?: Partial<FakeLlmopsSta
           provider: state.storageMode === 'persistent' ? 'GCS Sovereign Vault' : 'In-Memory Ephemeral RAM'
         },
         gate_g7_eligible: blockers.length === 0,
-        gate_g7_blockers: blockers
+        gate_g7_blockers: blockers,
+        last_snapshot: state.publications.length > 0 ? {
+          snapshot_id: state.publications[0].snapshot_id,
+          created_at: state.publications[0].published_at,
+          published_by: state.publications[0].published_by,
+          sha256: state.publications[0].sha256_checksum,
+          changelog: state.publications[0].changelog
+        } : undefined
       };
 
       return json(200, {
@@ -2003,7 +2094,18 @@ export async function startFakeLlmopsServer(initialState?: Partial<FakeLlmopsSta
         .update(snapshot_id + (body.changelog || '') + Date.now())
         .digest('hex');
 
-      const pub: KbPublication = {
+      // Promote any promoted candidates to published
+      const promoted = state.candidates.filter((c) => c.status === 'promoted');
+      const publishedIds = promoted.map((c) => c.id);
+      for (const cand of promoted) {
+        cand.status = 'published';
+        (cand as any).published = {
+          snapshot_id,
+          at: new Date().toISOString()
+        };
+      }
+
+      const pub: any = {
         id: `pub-${Date.now()}`,
         snapshot_id,
         version,
@@ -2011,15 +2113,19 @@ export async function startFakeLlmopsServer(initialState?: Partial<FakeLlmopsSta
         published_by: actorEmail,
         sha256_checksum,
         changelog: body.changelog || "Publication officielle de la doctrine d'architecture validée.",
-        assets_count: 60 + state.candidates.filter((c) => c.status === 'accepted').length,
-        storage_persistent: state.storageMode === 'persistent'
+        assets_count: 60 + state.candidates.filter((c) => c.status === 'accepted' || c.status === 'published').length,
+        storage_persistent: state.storageMode === 'persistent',
+        published: publishedIds,
+        published_candidates: publishedIds,
+        warnings: state.storageMode === 'persistent' ? [] : ['ephemeral-storage']
       };
 
       state.publications.unshift(pub);
 
-      return json(201, {
+      return json(200, {
         status: 'ok',
-        data: pub
+        data: pub,
+        warnings: pub.warnings
       });
     }
 

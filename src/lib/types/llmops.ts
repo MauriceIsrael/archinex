@@ -194,7 +194,10 @@ export interface KbCandidate {
   };
   target_asset_ref?: string;
   accepted_violation_justification?: string;
-  status?: 'in_review' | 'accepted' | 'rejected';
+  status?: 'proposed' | 'in_review' | 'accepted' | 'rejected' | 'promoted' | 'published' | 'checks_failed';
+  published?: { snapshot_id: string; at: string };
+  promoted_at?: string;
+  promoted_by?: string;
   rejection_reason?: string;
   author: string;
   author_role?: string;
@@ -497,16 +500,22 @@ export interface CoverageDeclarationResult {
 
 export interface EvalTestCase {
   id: string;
-  dataset_id: string;
-  option_title: string;
-  option_summary: string;
-  domain: string;
-  rule_id: string;
-  expected_status: 'supports' | 'violates';
-  human_annotated: boolean;
+  dataset_id?: string;
+  option_title?: string;
+  option_summary?: string;
+  domain?: string;
+  rule_id?: string;
+  expected_status?: 'supports' | 'violates';
+  human_annotated?: boolean;
   annotated_by?: string;
   annotated_at?: string;
   notes?: string;
+  expected?: Record<string, 'violates' | 'supports'>;
+  annotation_status?: 'proposed' | 'validated' | 'rejected';
+  option?: { title: string; description?: string };
+  subject?: string;
+  sector?: string;
+  frameworks?: string[];
 }
 
 export interface EvalDataset {
@@ -542,26 +551,40 @@ export interface EvalBenchmarkRunResult {
 }
 
 export interface VerdictFeedbackRequest {
-  subject_id: string;
-  option_id: string;
+  typed_id?: string;
+  check_id?: string;
+  feedback?: 'wrong_violation' | 'missed_violation' | 'correct';
+  justification?: string;
+  option?: { title: string; description?: string };
+  subject?: string;
+  subject_id?: string;
+  option_id?: string;
   rule_id?: string;
   verdict_status?: string;
-  disagree_rationale: string;
-  suggested_action: 'add_test_case' | 'propose_amendment' | 'clarify_rule';
+  disagree_rationale?: string;
+  suggested_action?: 'add_test_case' | 'propose_amendment' | 'clarify_rule';
   author_email?: string;
 }
 
 export interface VerdictFeedbackItem {
-  id: string;
-  subject_id: string;
-  option_id: string;
+  id: string | number;
+  typed_id?: string;
+  check_id?: string;
+  feedback?: string;
+  justification?: string;
+  option?: { title: string; description?: string };
+  subject?: string;
+  reporter?: string;
+  status: 'open' | 'converted' | 'dismissed' | 'pending' | 'converted_to_test_case' | 'converted_to_amendment';
+  converted_to?: string;
+  subject_id?: string;
+  option_id?: string;
   rule_id?: string;
   verdict_status?: string;
-  disagree_rationale: string;
-  suggested_action: 'add_test_case' | 'propose_amendment' | 'clarify_rule';
-  author_email: string;
-  status: 'pending' | 'converted_to_test_case' | 'converted_to_amendment' | 'dismissed';
-  created_at: string;
+  disagree_rationale?: string;
+  suggested_action?: string;
+  author_email?: string;
+  created_at?: string;
   converted_ref?: string;
 }
 
@@ -595,12 +618,19 @@ export interface KbHealthMetrics {
     last_benchmark_at: string;
   };
   storage: {
-    mode: 'demo' | 'persistent';
+    mode: 'demo' | 'normal' | 'persistent';
     persistent: boolean;
-    provider: string;
+    provider?: string;
   };
   gate_g7_eligible: boolean;
   gate_g7_blockers: string[];
+  last_snapshot?: {
+    snapshot_id: string;
+    created_at?: string;
+    published_by?: string;
+    sha256?: string;
+    changelog?: string;
+  };
 }
 
 export interface KbPublication {
@@ -613,19 +643,22 @@ export interface KbPublication {
   changelog: string;
   assets_count: number;
   storage_persistent: boolean;
+  published_candidates?: string[];
+  warnings?: string[];
 }
 
 export interface KbCampaign {
   id: string;
   title: string;
   domain: string;
-  target_asset_type: string;
+  target_asset_type?: string;
   target_count: number;
   created_at: string;
   created_by: string;
-  due_at: string;
-  status: 'active' | 'completed' | 'cancelled';
-  description: string;
+  due_at?: string;
+  status: 'active' | 'completed' | 'cancelled' | 'archived';
+  description?: string;
+  current_count?: number;
   progress: {
     current: number;
     target: number;

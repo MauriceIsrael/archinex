@@ -75,8 +75,35 @@ L'onglet **Administration** permet aux administrateurs de :
 
 ---
 
-## 4. Dépannage Fréquent
+## 4. Gouvernance Knowledge Hub & Comptes Experts (Lot A6)
+
+Archinex permet de gérer la communauté des experts doctrbraux intervenant sur la base de connaissances (KB) :
+
+### Inviter un Expert KB (Administrateurs)
+1. Rendez-vous dans **Administration** > onglet **Experts KB**.
+2. Cliquez sur **Inviter un expert**.
+3. Renseignez le nom, l'email professionnel, le handle unique (ex: `@sec-lead`), les domaines techniques couverts et les rôles KB :
+   - `kb:review` : Voter et statuer sur les candidats de règles ;
+   - `kb:evaluate` : Piloter et annoter les bancs de tests et évaluations ;
+   - `kb:maintain` : Éditer et adapter les clauses de doctrine ;
+   - `kb:admin` : Gouvernance et publication des versions KB.
+4. Un lien d'activation sécurisé valable 7 jours à usage unique est généré. Copiez-le et transmettez-le à l'expert.
+
+### Activer son Compte Expert
+1. L'expert accède au lien reçu (`/invite?token=...`).
+2. Il définit son mot de passe sécurisé.
+3. Dès validation, le jeton est scellé et l'expert est immédiatement activé et synchronisé avec LLMOps (`delegated: true`).
+
+### Consulter son Profil Expert (`/kb/me`)
+- Depuis le menu utilisateur en haut à droite, sélectionnez **Profil Expert KB**.
+- Visualisez votre handle canonique, votre statut de délégation auprès de LLMOps, vos rôles KB actifs et le nombre de revues doctrinales en attente.
+
+---
+
+## 5. Dépannage Fréquent
 
 - **"Arbitrage refusé (blocages actifs)"** : Vérifiez que toutes les options sont évaluées, qu'aucune objection n'est ouverte et que la couverture des référentiels projet est complète.
 - **"403 Habilitation insuffisante"** : Seul le Lead Architect ou un expert affecté au domaine du sujet (ex: `infrastructure`) peut enregistrer la décision.
 - **"Mode Hors-Ligne (Offline)"** : En l'absence de serveur LLMOps joignable sur le réseau local, Archinex bascule sur l'instantané scellé sans interruption de service.
+- **"Jeton d'invitation expiré"** : Les invitations d'experts sont valables strictement 7 jours. Demandez à un administrateur d'émettre une nouvelle invitation.
+

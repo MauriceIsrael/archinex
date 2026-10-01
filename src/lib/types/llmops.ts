@@ -203,3 +203,42 @@ export interface KbCandidate {
   updated_at?: string;
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// CONTRATS GOUVERNANCE KB & COMPTES EXPERTS (Lot A6)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type KbRole = 'kb:review' | 'kb:evaluate' | 'kb:maintain' | 'kb:admin';
+
+export interface KbOwner {
+  handle: string;
+  name: string;
+  email: string;
+  roles: KbRole[];
+  domains: string[];
+  delegated: boolean;
+}
+
+export interface KbOwnersRegistry {
+  owners: KbOwner[];
+  total?: number;
+  offline?: boolean;
+}
+
+export interface KbUserProfile {
+  handle: string;
+  email: string;
+  name?: string;
+  kb_roles: KbRole[];
+  owned_domains: string[];
+  pending_reviews: number;
+  delegated?: boolean;
+  offline?: boolean;
+}
+
+export interface KbMeResponse {
+  status: 'ok' | 'error' | 'unavailable';
+  data?: KbUserProfile;
+  error?: string;
+}
+
+

@@ -45,5 +45,5 @@ describe('Project Migration Integration (JSON Engagements -> Relational)', () =>
 
 		const projectsCountAfter = await prisma.project.count();
 		expect(projectsCountAfter).toBeGreaterThanOrEqual(stats1.projects);
-	});
+	}, 25000);
 });

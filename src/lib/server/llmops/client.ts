@@ -21,7 +21,12 @@ import type {
   OptionVerdict,
   FrameworkCoverage,
   FrameworkStatus,
-  KbCandidate
+  KbCandidate,
+  KbRole,
+  KbOwner,
+  KbOwnersRegistry,
+  KbUserProfile,
+  KbMeResponse
 } from './types';
 
 export interface LLMOpsClientConfig {
@@ -91,14 +96,18 @@ export class LLMOpsClient {
     return engagement || this.defaultEngagement;
   }
 
-  private getHeaders(engagement?: string): Record<string, string> {
+  private getHeaders(engagement?: string, actorEmail?: string): Record<string, string> {
     const eng = this.resolveRemoteEngagement(engagement || this.defaultEngagement);
-    return {
+    const headers: Record<string, string> = {
       'Accept': 'application/json',
       'Content-Type': 'application/json',
       'Authorization': `Bearer ${this.authToken}`,
       'X-Engagement-Id': eng
     };
+    if (actorEmail) {
+      headers['X-Actor-Email'] = actorEmail;
+    }
+    return headers;
   }
 
   private async fetchWithTimeout(url: string, options: RequestInit = {}): Promise<Response> {
@@ -638,7 +647,7 @@ export class LLMOpsClient {
   /**
    * Soumission d'un candidat à la KB (POST /api/knowledge/candidates)
    */
-  async submitCandidate(candidate: KbCandidate): Promise<{ candidate_id: string; status: string }> {
+  async submitCandidate(candidate: KbCandidate, actorEmail?: string): Promise<{ candidate_id: string; status: string }> {
     const eng = candidate.source.engagement || this.defaultEngagement;
     const remoteEng = this.resolveRemoteEngagement(eng);
 
@@ -646,7 +655,7 @@ export class LLMOpsClient {
       const url = `${this.baseUrl}/api/knowledge/candidates`;
       const res = await this.fetchWithTimeout(url, {
         method: 'POST',
-        headers: this.getHeaders(remoteEng),
+        headers: this.getHeaders(remoteEng, actorEmail),
         body: JSON.stringify(candidate)
       });
       if (res.ok) {
@@ -671,7 +680,7 @@ export class LLMOpsClient {
   /**
    * Liste des candidats KB (GET /api/knowledge/candidates)
    */
-  async listCandidates(filter: { source?: string; engagement?: string } = {}): Promise<KbCandidate[]> {
+  async listCandidates(filter: { source?: string; engagement?: string } = {}, actorEmail?: string): Promise<KbCandidate[]> {
     const eng = filter.engagement || this.defaultEngagement;
     const remoteEng = this.resolveRemoteEngagement(eng);
 
@@ -681,7 +690,7 @@ export class LLMOpsClient {
       if (remoteEng) q.set('engagement', remoteEng);
 
       const url = `${this.baseUrl}/api/knowledge/candidates?${q.toString()}`;
-      const res = await this.fetchWithTimeout(url, { headers: this.getHeaders(remoteEng) });
+      const res = await this.fetchWithTimeout(url, { headers: this.getHeaders(remoteEng, actorEmail) });
       if (res.ok) {
         const body = await res.json();
         const data = body.data || body;
@@ -692,6 +701,124 @@ export class LLMOpsClient {
     }
 
     return [];
+  }
+
+  /**
+   * Récupère le profil KB de l'utilisateur connecté auprès de LLMOps
+   * GET /api/knowledge/me avec X-Actor-Email
+   */
+  async getMe(actorEmail: string): Promise<KbMeResponse> {
+    if (!actorEmail) {
+      return { status: 'error', error: 'Actor email required' };
+    }
+
+    try {
+      const url = `${this.baseUrl}/api/knowledge/me`;
+      const res = await this.fetchWithTimeout(url, {
+        headers: this.getHeaders(undefined, actorEmail)
+      });
+
+      if (res.status === 503) {
+        return { status: 'unavailable', error: 'LLMOps governance database unavailable (503)' };
+      }
+
+      if (res.ok) {
+        const body = await res.json();
+        const data = body.data || body;
+        return {
+          status: 'ok',
+          data: {
+            handle: data.handle || `@${actorEmail.split('@')[0]}`,
+            email: data.email || actorEmail,
+            name: data.name,
+            kb_roles: (data.kb_roles || data.roles || []) as KbRole[],
+            owned_domains: data.owned_domains || data.domains || [],
+            pending_reviews: data.pending_reviews ?? 0,
+            delegated: data.delegated ?? false
+          }
+        };
+      }
+    } catch {
+      // Live inaccessible -> fallback local
+    }
+
+    return {
+      status: 'ok',
+      data: {
+        handle: `@${actorEmail.split('@')[0]}`,
+        email: actorEmail,
+        kb_roles: [],
+        owned_domains: [],
+        pending_reviews: 0,
+        offline: true
+      }
+    };
+  }
+
+  /**
+   * Récupère le registre des propriétaires (owners) de doctrine
+   * GET /api/knowledge/owners
+   */
+  async getOwners(actorEmail?: string): Promise<KbOwnersRegistry> {
+    try {
+      const url = `${this.baseUrl}/api/knowledge/owners`;
+      const res = await this.fetchWithTimeout(url, {
+        headers: this.getHeaders(undefined, actorEmail)
+      });
+      if (res.ok) {
+        const body = await res.json();
+        const payload = body.data || body;
+        const owners = Array.isArray(payload) ? payload : (payload.owners || []);
+        return {
+          owners,
+          total: owners.length
+        };
+      }
+    } catch {
+      // Fallback
+    }
+
+    return {
+      owners: [],
+      total: 0,
+      offline: true
+    };
+  }
+
+  /**
+   * Met à jour le registre des propriétaires (owners)
+   * PUT /api/knowledge/owners
+   */
+  async updateOwners(owners: KbOwner[], actorEmail?: string): Promise<{ success: boolean; updated_count: number; offline?: boolean; error?: string }> {
+    try {
+      const url = `${this.baseUrl}/api/knowledge/owners`;
+      const res = await this.fetchWithTimeout(url, {
+        method: 'PUT',
+        headers: this.getHeaders(undefined, actorEmail),
+        body: JSON.stringify({ owners })
+      });
+
+      if (res.status === 503) {
+        return { success: false, updated_count: 0, error: 'LLMOps governance database unavailable (503)' };
+      }
+
+      if (res.ok) {
+        const body = await res.json();
+        const payload = body.data || body;
+        return {
+          success: true,
+          updated_count: payload.updated_count ?? owners.length
+        };
+      }
+    } catch {
+      // Fallback
+    }
+
+    return {
+      success: false,
+      updated_count: 0,
+      offline: true
+    };
   }
 
   /**

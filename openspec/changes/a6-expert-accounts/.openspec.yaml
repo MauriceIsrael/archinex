@@ -1,0 +1,12 @@
+name: a6-expert-accounts
+schema_version: 1
+status: completed
+created_at: 2026-10-01T08:16:00Z
+completed_at: 2026-10-01T08:31:00Z
+summary: Comptes experts, habilitations KB (kb:review, kb:evaluate, kb:maintain, kb:admin), propagation d'identité souveraine (X-Actor-Email), gestion des invitations 7j et synchronisation d'owners avec LLMOps.
+tags:
+  - expert-accounts
+  - kb-governance
+  - identity-propagation
+  - casbin
+  - llmops-kh

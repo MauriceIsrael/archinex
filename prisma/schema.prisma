@@ -23,11 +23,34 @@ model User {
   // Store things like: { "clearance": 1, "department": "R&D", "tags": ["beta"] }
   attributes    String    @default("{}") 
   
+  kbProfile     KbProfile?
+
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
 
   @@map("users")
 }
+
+// ── Profils Experts & Gouvernance KB (Lot A6) ────────────────────────────────
+
+model KbProfile {
+  id                  String    @id @default(cuid())
+  userId              String    @unique
+  user                User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+  kbHandle            String    @unique
+  kbRoles             String    @default("[\"kb:review\"]") // JSON array of string roles: kb:review, kb:evaluate, kb:maintain, kb:admin
+  ownedDomains        String    @default("[]") // JSON array of string domain tags
+  delegated           Boolean   @default(false) // Synchronisé avec LLMOps owners registry
+  invitationToken     String?   @unique
+  invitationExpiresAt DateTime?
+  isActive            Boolean   @default(true)
+  
+  createdAt           DateTime  @default(now())
+  updatedAt           DateTime  @updatedAt
+
+  @@map("kb_profiles")
+}
+
 
 // ── Casbin Authorization (Persistence) ──────────────────────────────────────
 

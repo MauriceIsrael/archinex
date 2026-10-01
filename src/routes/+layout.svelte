@@ -196,6 +196,10 @@
                 {session.user.role}
               </span>
             </div>
+            <DropdownMenu.Item onclick={() => goto('/kb/me')} class="cursor-pointer">
+              <Shield class="mr-2 h-4 w-4 text-primary" />
+              Profil Expert KB
+            </DropdownMenu.Item>
             <DropdownMenu.Item onclick={handleLogout} class="text-destructive focus:text-destructive cursor-pointer">
               <LogOut class="mr-2 h-4 w-4" />
               {$t('auth.signOut')}

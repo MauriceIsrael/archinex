@@ -7,6 +7,7 @@ import type {
   CheckResult,
   FrameworkCoverage,
   KbCandidate,
+  KbOwner,
   LLMOpsBoardItem,
   LLMOpsStatement,
   LLMOpsConflict
@@ -17,6 +18,7 @@ export interface FakeLlmopsState {
   doctrine: DoctrineItem[];
   frameworkCoverage: FrameworkCoverage;
   candidates: KbCandidate[];
+  owners: KbOwner[];
   board: LLMOpsBoardItem[];
   statements: LLMOpsStatement[];
   conflicts: LLMOpsConflict[];
@@ -56,6 +58,16 @@ export function createDefaultFakeState(): FakeLlmopsState {
       checked_at: new Date().toISOString()
     },
     candidates: [],
+    owners: [
+      {
+        handle: '@sec-lead',
+        name: 'Security Lead',
+        email: 'expert@archinex.local',
+        roles: ['kb:review', 'kb:maintain'],
+        domains: ['security', 'cloud'],
+        delegated: true
+      }
+    ],
     board: [],
     statements: [],
     conflicts: []
@@ -175,8 +187,8 @@ export async function startFakeLlmopsServer(initialState?: Partial<FakeLlmopsSta
       });
     }
 
-    // Candidates: POST /kb/candidates
-    if (pathname === '/kb/candidates' && method === 'POST') {
+    // Candidates: POST /kb/candidates ou /api/knowledge/candidates
+    if ((pathname === '/kb/candidates' || pathname === '/api/knowledge/candidates') && method === 'POST') {
       const candidate: KbCandidate = {
         id: `cand-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
         kind: body?.kind || 'new_asset',
@@ -186,7 +198,7 @@ export async function startFakeLlmopsServer(initialState?: Partial<FakeLlmopsSta
         rationale: body?.rationale || 'Co-design suggestion',
         source: {
           system: 'archinex',
-          engagement: body?.sourceEngagementId || 'test-engagement'
+          engagement: body?.sourceEngagementId || body?.source?.engagement || 'test-engagement'
         },
         status: 'in_review',
         author: body?.author || 'Test Author',
@@ -200,11 +212,76 @@ export async function startFakeLlmopsServer(initialState?: Partial<FakeLlmopsSta
       });
     }
 
-    // Candidates: GET /kb/candidates
-    if (pathname === '/kb/candidates' && method === 'GET') {
+    // Candidates: GET /kb/candidates ou /api/knowledge/candidates
+    if ((pathname === '/kb/candidates' || pathname === '/api/knowledge/candidates') && method === 'GET') {
       return json(200, {
         status: 'ok',
         data: state.candidates
+      });
+    }
+
+    // Owners: GET /api/knowledge/owners ou /kb/owners
+    if ((pathname === '/api/knowledge/owners' || pathname === '/kb/owners') && method === 'GET') {
+      return json(200, {
+        status: 'ok',
+        data: {
+          owners: state.owners,
+          total: state.owners.length
+        }
+      });
+    }
+
+    // Owners: PUT /api/knowledge/owners ou /kb/owners
+    if ((pathname === '/api/knowledge/owners' || pathname === '/kb/owners') && method === 'PUT') {
+      const { owners } = body || {};
+      if (Array.isArray(owners)) {
+        state.owners = owners;
+      }
+      return json(200, {
+        status: 'ok',
+        data: {
+          success: true,
+          updated_count: state.owners.length
+        }
+      });
+    }
+
+    // Me: GET /api/knowledge/me ou /kb/me
+    if ((pathname === '/api/knowledge/me' || pathname === '/kb/me') && method === 'GET') {
+      const actorEmail = (req.headers['x-actor-email'] as string) || '';
+      if (!actorEmail) {
+        return json(401, {
+          status: 'error',
+          error: 'Missing X-Actor-Email header'
+        });
+      }
+
+      const found = state.owners.find((o) => o.email.toLowerCase() === actorEmail.toLowerCase());
+      if (found) {
+        return json(200, {
+          status: 'ok',
+          data: {
+            handle: found.handle,
+            email: found.email,
+            name: found.name,
+            kb_roles: found.roles,
+            owned_domains: found.domains,
+            pending_reviews: 1,
+            delegated: found.delegated
+          }
+        });
+      }
+
+      return json(200, {
+        status: 'ok',
+        data: {
+          handle: `@${actorEmail.split('@')[0]}`,
+          email: actorEmail,
+          kb_roles: [],
+          owned_domains: [],
+          pending_reviews: 0,
+          delegated: false
+        }
       });
     }
 

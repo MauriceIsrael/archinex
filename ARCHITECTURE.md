@@ -139,6 +139,47 @@ Chaque arbitrage produit automatiquement des candidats à la Knowledge Base :
 
 La qualité et l'étanchéité du système sont garanties par le script unifié `node scripts/verify.mjs` validant 4 portes d'acceptation :
 1. **Denylist Check** : 0 terme projet ou fournisseur interdit dans `src/`.
-2. **Vitest Test Suites** : 188 tests unitaires, contractuels et d'intégration validés.
+2. **Vitest Test Suites** : 201 tests unitaires, contractuels et d'intégration validés.
 3. **Svelte Check** : 0 erreur, 0 avertissement de typage strict TypeScript / Svelte 5.
 4. **Production Build** : Compilation complète des bundles client et serveur SSR.
+
+---
+
+## 5. Gouvernance Knowledge Hub & Comptes Experts (Lot A6)
+
+Archinex gère les comptes utilisateurs locaux et assure la propagation stricte de l'identité des experts vers LLMOps, qui demeure l'autorité sur le registre des propriétaires (`owners`) et la recevabilité doctrinale.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Admin as Administrateur Archinex
+    actor Expert as Expert KB Humain
+    participant Archinex as Serveur Archinex
+    participant Casbin as Moteur Casbin (ABAC/RBAC)
+    participant LLMOps as Knowledge Hub LLMOps
+
+    Admin->>Archinex: POST /api/admin/experts (name, email, @handle, kbRoles, domains)
+    Archinex->>Archinex: Crée User + KbProfile (invitationToken 7j)
+    Archinex->>Casbin: Enregistre les politiques de groupement g(userId, kb:*)
+    Archinex-->>Admin: Lien d'activation unique (/invite?token=...)
+    
+    Expert->>Archinex: POST /api/invite/activate (token, password)
+    Archinex->>Archinex: Valide le jeton, scelle le mot de passe (delegated=true)
+    Archinex->>LLMOps: PUT /api/knowledge/owners [X-Actor-Email: expert@...]
+    LLMOps-->>Archinex: 200 OK (Propriétaire synchronisé)
+
+    Expert->>Archinex: GET /api/knowledge/me
+    Archinex->>LLMOps: GET /api/knowledge/me [X-Actor-Email: expert@...]
+    LLMOps-->>Archinex: { handle, kb_roles, owned_domains, pending_reviews }
+    Archinex-->>Expert: Fiche d'identité souveraine opposable
+```
+
+### Rôles KB Canoniques
+- `kb:review` : Droit de voter, d'approuver ou de rejeter les candidats de doctrine et amendements.
+- `kb:evaluate` : Droit d'exécuter et d'annoter les bancs d'évaluation et suites de tests.
+- `kb:maintain` : Droit de modifier et de mettre à jour directement les règles de doctrine et templates de prompt.
+- `kb:admin` : Droit de superviser les propriétaires, publier des releases doctrinales et administrer la gouvernance.
+
+### Propagation d'Identité Souveraine (`X-Actor-Email`)
+Tout appel expert émis vers LLMOps (`/api/knowledge/me`, `/api/knowledge/owners`, `/api/knowledge/candidates`...) propage l'entête HTTP `X-Actor-Email: <user_email>`. Aucun secret de service (`LLMOPS_AUTH_TOKEN`) n'est jamais exposé au navigateur client.
+

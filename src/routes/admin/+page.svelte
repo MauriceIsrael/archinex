@@ -13,6 +13,7 @@
 
   import AdminUserDialog from '$lib/components/admin/AdminUserDialog.svelte';
   import AdminPolicyTable from '$lib/components/admin/AdminPolicyTable.svelte';
+  import AdminKbExpertsTable from '$lib/components/admin/AdminKbExpertsTable.svelte';
 
   let { data } = $props();
 
@@ -54,11 +55,17 @@
     </div>
   </div>
 
-  <Tabs.Root value="users" class="space-y-6">
+  <Tabs.Root value="experts" class="space-y-6">
     <Tabs.List>
+      <Tabs.Trigger value="experts">Experts KB</Tabs.Trigger>
       <Tabs.Trigger value="users">{$t('admin.tabs.users')}</Tabs.Trigger>
       <Tabs.Trigger value="permissions">{$t('admin.tabs.permissions')}</Tabs.Trigger>
     </Tabs.List>
+
+    <!-- EXPERTS KB TAB (Lot A6) -->
+    <Tabs.Content value="experts" class="space-y-4">
+      <AdminKbExpertsTable experts={data.experts ?? []} />
+    </Tabs.Content>
 
     <!-- USERS TAB -->
     <Tabs.Content value="users" class="space-y-4">

@@ -181,7 +181,7 @@ export interface FrameworkCoverage {
 
 export interface KbCandidate {
   id?: string;
-  kind: 'new_asset' | 'amendment' | 'rex';
+  kind: 'new_asset' | 'amendment' | 'rex' | 'principle';
   title: string;
   summary: string;
   suggested_change?: string;
@@ -240,5 +240,115 @@ export interface KbMeResponse {
   data?: KbUserProfile;
   error?: string;
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CONTRATS BOÎTE DE REVUE, ACTIONS EXPERTES & NOTIFICATIONS (Lot A7 - Porte G5)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type KbAutomaticCheckName =
+  | 'schema_validity'
+  | 'clarity_score'
+  | 'testability'
+  | 'non_duplication'
+  | 'sovereign_compliance'
+  | 'domain_alignment'
+  | 'architectural_impact';
+
+export interface KbAutomaticCheck {
+  name: KbAutomaticCheckName;
+  label: string;
+  passed: boolean;
+  score?: number; // 0 à 100
+  details: string;
+  severity: 'error' | 'warning' | 'info';
+}
+
+export type KbReviewReason = 'review' | 'second_review' | 'advice';
+
+export interface KbReviewInboxItem {
+  id: string; // ID de l'assignation de revue
+  candidate_id: string;
+  title: string;
+  kind: 'new_asset' | 'amendment' | 'rex' | 'principle';
+  domain: string;
+  reason: KbReviewReason;
+  waiting_since: string;
+  due_at: string;
+  is_overdue: boolean;
+  author: string;
+  author_role?: string;
+  severity?: 'critical' | 'major' | 'minor' | 'info';
+}
+
+export interface KbCandidateHistoryEntry {
+  timestamp: string;
+  actor: string;
+  actor_name?: string;
+  action: 'submitted' | 'assigned' | 'review_requested' | 'amended' | 'accepted' | 'rejected' | 'commented';
+  details?: string;
+}
+
+export interface KbCandidateDetail extends KbCandidate {
+  checks: KbAutomaticCheck[];
+  all_checks_passed: boolean;
+  domain: string;
+  assigned_to?: string;
+  assigned_reviewers?: string[];
+  reviews_count?: number;
+  second_review_requested?: boolean;
+  history: KbCandidateHistoryEntry[];
+  amended_content?: string;
+}
+
+export interface KbComment {
+  id: string;
+  candidate_id: string;
+  author_handle: string;
+  author_name: string;
+  message: string;
+  created_at: string;
+}
+
+export type KbEventType =
+  | 'candidate.submitted'
+  | 'candidate.assigned'
+  | 'review.requested'
+  | 'candidate.reviewed'
+  | 'candidate.commented'
+  | 'reminder.due';
+
+export interface KbEvent {
+  id: string;
+  type: KbEventType;
+  cursor: string;
+  candidate_id?: string;
+  recipients: string[]; // Handles ex: ["@sec-lead", "@cloud-architect"]
+  payload: {
+    title?: string;
+    message?: string;
+    domain?: string;
+    actor?: string;
+    action?: string;
+    due_at?: string;
+    [key: string]: any;
+  };
+  timestamp: string;
+}
+
+export interface KbInboxResponse {
+  status: 'ok' | 'error' | 'unavailable';
+  data?: KbReviewInboxItem[];
+  error?: string;
+}
+
+export interface KbEventsResponse {
+  status: 'ok' | 'error' | 'unavailable';
+  data?: {
+    events: KbEvent[];
+    next_cursor: string;
+  };
+  error?: string;
+}
+
 
 

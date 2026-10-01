@@ -16,6 +16,7 @@
   import LogOut from 'lucide-svelte/icons/log-out';
   import FolderPlus from 'lucide-svelte/icons/folder-plus';
   import Network from 'lucide-svelte/icons/network';
+  import Inbox from 'lucide-svelte/icons/inbox';
 
   import { Button } from '$lib/components/ui/button';
   import * as Sheet from '$lib/components/ui/sheet';
@@ -199,6 +200,10 @@
             <DropdownMenu.Item onclick={() => goto('/kb/me')} class="cursor-pointer">
               <Shield class="mr-2 h-4 w-4 text-primary" />
               Profil Expert KB
+            </DropdownMenu.Item>
+            <DropdownMenu.Item onclick={() => goto('/kb/reviews')} class="cursor-pointer">
+              <Inbox class="mr-2 h-4 w-4 text-primary" />
+              Boîte de Revue KB
             </DropdownMenu.Item>
             <DropdownMenu.Item onclick={handleLogout} class="text-destructive focus:text-destructive cursor-pointer">
               <LogOut class="mr-2 h-4 w-4" />

@@ -100,10 +100,44 @@ Archinex permet de gérer la communauté des experts doctrbraux intervenant sur 
 
 ---
 
-## 5. Dépannage Fréquent
+## 5. Boîte de Réception et Examen Expert des Candidats KB (`/kb/reviews`) — Porte G5
+
+Les experts disposant du rôle `kb:review` participent à la collégialité doctrinale du Knowledge Hub.
+
+### 5.1 Boîte de Réception (`/kb/reviews`)
+- **Accès direct** : Via le menu utilisateur en haut à droite > **Boîte de Revue KB**.
+- **Alertes de Retard (&ge; 5 jours ouvrés)** : Les candidats dont l'échéance `due_at` est dépassée sont mis en évidence par un bandeau d'alerte et un badge rouge animé.
+- **Filtres** : Filtrez par domaine de compétence (`security`, `cloud`, etc.), par nature d'actif (`principle`, `new_asset`, `amendment`, `rex`), ou isolez uniquement les retards critiques.
+- **Centre de Notifications** : La cloche en haut à droite affiche les alertes instantanées de gouvernance (assignations, demandes d'avis, rappels) avec acquittement de lecture.
+
+### 5.2 Espace d'Examen (`/kb/reviews/[id]`)
+En cliquant sur **Examiner** sur un candidat, l'expert accède à son espace de décision :
+1. **Les 7 Contrôles Automatiques LLMOps (Gate G5)** :
+   - `schema_validity` : Validité structurelle de la clause.
+   - `clarity_score` : Indice de clarté sémantique et assertivité (score / 100).
+   - `testability` : Testabilité des prédicats sous forme d'assertions formelles.
+   - `non_duplication` : Détection de chevauchement ou doublon avec le référentiel existant.
+   - `sovereign_compliance` : Contrôle de conformité souveraine et air-gap (interdiction d'exfiltration).
+   - `domain_alignment` : Alignement avec le périmètre de gouvernance.
+   - `architectural_impact` : Analyse d'impact et de cascade de révisabilité.
+2. **Décision d'Examen Opposable** :
+   - **Accepter** : Valide le candidat. *Règle constitutionnelle* : si le candidat est de type `principle`, un 2nd avis collégial est automatiquement déclenché et notifié à un pair avant validation finale.
+   - **Amender** : Permet de reformuler directement le texte de la clause avec consignation du motif.
+   - **Rejeter** : Exige impérativement un motif explicite circonstancié (le rejet sans motif est bloqué).
+   - **Contrôle d'habilitation domaine** : Si vous ne possédez pas le domaine du candidat, toute action terminale renvoie un refus d'autorisation (403 Forbidden).
+3. **Collégialité & Délégation** :
+   - **Assigner à un pair** : Transférer l'examen à un autre expert identifié par son handle (ex: `@cloud-architect`).
+   - **Solliciter un 2nd avis ou un conseil** : Ouvrir une demande de revue complémentaire datée.
+   - **Fil de discussion** : Échanger des remarques et clarifications en direct sur la clause.
+
+---
+
+## 6. Dépannage Fréquent
 
 - **"Arbitrage refusé (blocages actifs)"** : Vérifiez que toutes les options sont évaluées, qu'aucune objection n'est ouverte et que la couverture des référentiels projet est complète.
 - **"403 Habilitation insuffisante"** : Seul le Lead Architect ou un expert affecté au domaine du sujet (ex: `infrastructure`) peut enregistrer la décision.
+- **"403 Interdit : domaine non possédé"** : Lors de l'examen d'un candidat KB, vous devez être explicitement propriétaire du domaine concerné (`ownedDomains`).
+- **"409 Conflit d'état"** : Le candidat a déjà été accepté ou rejeté définitivement.
 - **"Mode Hors-Ligne (Offline)"** : En l'absence de serveur LLMOps joignable sur le réseau local, Archinex bascule sur l'instantané scellé sans interruption de service.
 - **"Jeton d'invitation expiré"** : Les invitations d'experts sont valables strictement 7 jours. Demandez à un administrateur d'émettre une nouvelle invitation.
 

@@ -24,6 +24,7 @@ model User {
   attributes    String    @default("{}") 
   
   kbProfile     KbProfile?
+  notifications KbNotification[]
 
   createdAt     DateTime  @default(now())
   updatedAt     DateTime  @updatedAt
@@ -49,6 +50,33 @@ model KbProfile {
   updatedAt           DateTime  @updatedAt
 
   @@map("kb_profiles")
+}
+
+// ── Notifications et Événements KB (Lot A7) ──────────────────────────────────
+
+model KbNotification {
+  id              String   @id @default(cuid())
+  userId          String
+  user            User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  recipientHandle String
+  eventType       String   // candidate.submitted, candidate.assigned, review.requested, candidate.reviewed, candidate.commented, reminder.due
+  candidateId     String?
+  title           String
+  message         String
+  read            Boolean  @default(false)
+  metadata        String   @default("{}") // JSON
+  createdAt       DateTime @default(now())
+
+  @@index([userId, read])
+  @@map("kb_notifications")
+}
+
+model KbEventCursor {
+  id           String   @id // e.g. "llmops_events_cursor"
+  cursor       String
+  lastPolledAt DateTime @default(now())
+
+  @@map("kb_event_cursors")
 }
 
 

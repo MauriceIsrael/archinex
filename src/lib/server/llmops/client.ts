@@ -26,7 +26,13 @@ import type {
   KbOwner,
   KbOwnersRegistry,
   KbUserProfile,
-  KbMeResponse
+  KbMeResponse,
+  KbReviewInboxItem,
+  KbCandidateDetail,
+  KbComment,
+  KbEvent,
+  KbInboxResponse,
+  KbEventsResponse
 } from './types';
 
 export interface LLMOpsClientConfig {
@@ -49,6 +55,10 @@ export class LLMOpsClient {
     this.authToken = config.authToken || process.env.LLMOPS_AUTH_TOKEN || 'demo-local-sovereign-2026';
     this.defaultEngagement = config.defaultEngagement || process.env.LLMOPS_ENGAGEMENT || 'default-project';
     this.timeoutMs = config.timeoutMs || 1500;
+  }
+
+  setBaseUrl(url: string) {
+    this.baseUrl = url.replace(/\/+$/, '');
   }
 
   /**
@@ -819,6 +829,361 @@ export class LLMOpsClient {
       updated_count: 0,
       offline: true
     };
+  }
+
+  // ─────────────────────────────────────────────────────────────────────────────
+  // BOÎTE DE REVUE EXPERTE & CANDIDATS KB (Lot A7 - Porte G5)
+  // ─────────────────────────────────────────────────────────────────────────────
+
+  /**
+   * Récupère la boîte de réception des revues en attente pour un expert.
+   * Propage l'en-tête X-Actor-Email.
+   */
+  async getReviewInbox(
+    actorEmail: string,
+    filters?: { domain?: string; kind?: string }
+  ): Promise<KbInboxResponse> {
+    if (!this.isLocalNetworkUrl(this.baseUrl)) {
+      return { status: 'unavailable', error: 'Enclave locale non configurée' };
+    }
+
+    try {
+      const url = new URL(`${this.baseUrl}/api/knowledge/reviews/inbox`);
+      if (filters?.domain) url.searchParams.set('domain', filters.domain);
+      if (filters?.kind) url.searchParams.set('kind', filters.kind);
+
+      const res = await fetch(url.toString(), {
+        headers: this.getHeaders(undefined, actorEmail),
+        signal: AbortSignal.timeout(this.timeoutMs)
+      });
+
+      if (res.status === 503) {
+        return { status: 'unavailable', error: 'Service de gouvernance KB indisponible (503)' };
+      }
+
+      if (res.ok) {
+        const body = await res.json();
+        return {
+          status: 'ok',
+          data: body.data || body
+        };
+      }
+
+      return {
+        status: 'error',
+        error: `Erreur HTTP ${res.status} lors de la récupération de la boîte de revue`
+      };
+    } catch {
+      return {
+        status: 'unavailable',
+        error: 'Mode hors-ligne : boîte de revue indisponible sans serveur de gouvernance'
+      };
+    }
+  }
+
+  /**
+   * Récupère le détail d'un candidat à la KB (avec les 7 vérifications automatiques, historique, etc.)
+   */
+  async getCandidate(
+    candidateId: string,
+    actorEmail?: string
+  ): Promise<{ status: 'ok' | 'error' | 'unavailable'; data?: KbCandidateDetail; error?: string }> {
+    if (!this.isLocalNetworkUrl(this.baseUrl)) {
+      return { status: 'unavailable', error: 'Enclave locale non configurée' };
+    }
+
+    try {
+      const res = await fetch(`${this.baseUrl}/api/knowledge/candidates/${candidateId}`, {
+        headers: this.getHeaders(undefined, actorEmail),
+        signal: AbortSignal.timeout(this.timeoutMs)
+      });
+
+      if (res.status === 503) {
+        return { status: 'unavailable', error: 'Service de gouvernance KB indisponible (503)' };
+      }
+
+      if (res.ok) {
+        const body = await res.json();
+        return {
+          status: 'ok',
+          data: body.data || body
+        };
+      }
+
+      return {
+        status: 'error',
+        error: `Candidat introuvable ou erreur HTTP ${res.status}`
+      };
+    } catch {
+      return {
+        status: 'unavailable',
+        error: 'Service de gouvernance KB indisponible'
+      };
+    }
+  }
+
+  /**
+   * Action d'examen d'un candidat (accept, amend, reject).
+   * Propage STRICTEMENT l'en-tête X-Actor-Email et JAMAIS de champ reviewer dans le corps (règle Issue #2).
+   */
+  async reviewCandidate(
+    candidateId: string,
+    action: 'accept' | 'amend' | 'reject',
+    payload: { reason?: string; amended_content?: string },
+    actorEmail: string
+  ): Promise<{
+    status: 'ok' | 'error' | 'conflict' | 'forbidden' | 'unavailable';
+    data?: KbCandidateDetail;
+    error?: string;
+  }> {
+    if (!this.isLocalNetworkUrl(this.baseUrl)) {
+      return { status: 'unavailable', error: 'Enclave locale non configurée' };
+    }
+
+    try {
+      const bodyToSend: { action: string; reason?: string; amended_content?: string } = {
+        action,
+        reason: payload.reason,
+        amended_content: payload.amended_content
+      };
+
+      const res = await fetch(`${this.baseUrl}/api/knowledge/candidates/${candidateId}`, {
+        method: 'PATCH',
+        headers: {
+          ...this.getHeaders(undefined, actorEmail),
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify(bodyToSend),
+        signal: AbortSignal.timeout(this.timeoutMs)
+      });
+
+      if (res.status === 403) {
+        const errJson = await res.json().catch(() => ({}));
+        return {
+          status: 'forbidden',
+          error:
+            errJson.error ||
+            `Action refusée (403) : vous ne possédez pas les droits de domaine requis pour statuer sur ce candidat.`
+        };
+      }
+
+      if (res.status === 409) {
+        const errJson = await res.json().catch(() => ({}));
+        return {
+          status: 'conflict',
+          error:
+            errJson.error ||
+            `Conflit d'état (409) : ce candidat a déjà fait l'objet d'une décision terminale.`
+        };
+      }
+
+      if (res.status === 503) {
+        return { status: 'unavailable', error: 'Service de gouvernance KB indisponible (503)' };
+      }
+
+      if (res.ok) {
+        const body = await res.json();
+        return {
+          status: 'ok',
+          data: body.data || body
+        };
+      }
+
+      const errJson = await res.json().catch(() => ({}));
+      return {
+        status: 'error',
+        error: errJson.error || `Erreur HTTP ${res.status} lors de l'examen du candidat`
+      };
+    } catch {
+      return {
+        status: 'unavailable',
+        error: 'Mode hors-ligne : action d’examen impossible sans connexion à LLMOps'
+      };
+    }
+  }
+
+  /**
+   * Assigne ou réassigne un candidat à un autre expert.
+   */
+  async assignCandidate(
+    candidateId: string,
+    assignee: string,
+    reason: string,
+    actorEmail: string
+  ): Promise<{ status: 'ok' | 'error' | 'unavailable'; data?: KbCandidateDetail; error?: string }> {
+    if (!this.isLocalNetworkUrl(this.baseUrl)) {
+      return { status: 'unavailable', error: 'Enclave locale non configurée' };
+    }
+
+    try {
+      const res = await fetch(`${this.baseUrl}/api/knowledge/candidates/${candidateId}/assign`, {
+        method: 'POST',
+        headers: {
+          ...this.getHeaders(undefined, actorEmail),
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ assignee, reason }),
+        signal: AbortSignal.timeout(this.timeoutMs)
+      });
+
+      if (res.status === 503) {
+        return { status: 'unavailable', error: 'Service de gouvernance KB indisponible (503)' };
+      }
+
+      if (res.ok) {
+        const body = await res.json();
+        return { status: 'ok', data: body.data || body };
+      }
+
+      return { status: 'error', error: `Erreur HTTP ${res.status} lors de l'assignation` };
+    } catch {
+      return { status: 'unavailable', error: 'Service indisponible' };
+    }
+  }
+
+  /**
+   * Sollicite un second avis ou une expertise complémentaire sur un candidat.
+   */
+  async requestReview(
+    candidateId: string,
+    req: { kind: 'second_review' | 'advice'; recipient: string; message: string; due_at?: string },
+    actorEmail: string
+  ): Promise<{ status: 'ok' | 'error' | 'unavailable'; success?: boolean; error?: string }> {
+    if (!this.isLocalNetworkUrl(this.baseUrl)) {
+      return { status: 'unavailable', error: 'Enclave locale non configurée' };
+    }
+
+    try {
+      const res = await fetch(
+        `${this.baseUrl}/api/knowledge/candidates/${candidateId}/request-review`,
+        {
+          method: 'POST',
+          headers: {
+            ...this.getHeaders(undefined, actorEmail),
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify(req),
+          signal: AbortSignal.timeout(this.timeoutMs)
+        }
+      );
+
+      if (res.status === 503) {
+        return { status: 'unavailable', error: 'Service de gouvernance KB indisponible (503)' };
+      }
+
+      if (res.ok) {
+        return { status: 'ok', success: true };
+      }
+
+      return { status: 'error', error: `Erreur HTTP ${res.status} lors de la sollicitation de revue` };
+    } catch {
+      return { status: 'unavailable', error: 'Service indisponible' };
+    }
+  }
+
+  /**
+   * Récupère le fil de discussion associé à un candidat.
+   */
+  async getComments(
+    candidateId: string,
+    actorEmail?: string
+  ): Promise<{ status: 'ok' | 'error' | 'unavailable'; data?: KbComment[]; error?: string }> {
+    if (!this.isLocalNetworkUrl(this.baseUrl)) {
+      return { status: 'unavailable', error: 'Enclave locale non configurée' };
+    }
+
+    try {
+      const res = await fetch(`${this.baseUrl}/api/knowledge/candidates/${candidateId}/comments`, {
+        headers: this.getHeaders(undefined, actorEmail),
+        signal: AbortSignal.timeout(this.timeoutMs)
+      });
+
+      if (res.status === 503) {
+        return { status: 'unavailable', error: 'Service de gouvernance KB indisponible (503)' };
+      }
+
+      if (res.ok) {
+        const body = await res.json();
+        return { status: 'ok', data: body.data?.comments || body.comments || [] };
+      }
+
+      return { status: 'error', error: `Erreur HTTP ${res.status} lors du chargement des commentaires` };
+    } catch {
+      return { status: 'unavailable', error: 'Service indisponible' };
+    }
+  }
+
+  /**
+   * Ajoute un commentaire sur un candidat.
+   */
+  async addComment(
+    candidateId: string,
+    message: string,
+    actorEmail: string
+  ): Promise<{ status: 'ok' | 'error' | 'unavailable'; data?: KbComment; error?: string }> {
+    if (!this.isLocalNetworkUrl(this.baseUrl)) {
+      return { status: 'unavailable', error: 'Enclave locale non configurée' };
+    }
+
+    try {
+      const res = await fetch(`${this.baseUrl}/api/knowledge/candidates/${candidateId}/comments`, {
+        method: 'POST',
+        headers: {
+          ...this.getHeaders(undefined, actorEmail),
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({ message }),
+        signal: AbortSignal.timeout(this.timeoutMs)
+      });
+
+      if (res.status === 503) {
+        return { status: 'unavailable', error: 'Service de gouvernance KB indisponible (503)' };
+      }
+
+      if (res.ok) {
+        const body = await res.json();
+        return { status: 'ok', data: body.data || body };
+      }
+
+      return { status: 'error', error: `Erreur HTTP ${res.status} lors de l'ajout du commentaire` };
+    } catch {
+      return { status: 'unavailable', error: 'Service indisponible' };
+    }
+  }
+
+  /**
+   * Scrute les événements de gouvernance KB depuis un curseur.
+   */
+  async pollEvents(sinceCursor?: string): Promise<KbEventsResponse> {
+    if (!this.isLocalNetworkUrl(this.baseUrl)) {
+      return { status: 'unavailable', error: 'Enclave locale non configurée' };
+    }
+
+    try {
+      const url = new URL(`${this.baseUrl}/api/knowledge/events`);
+      if (sinceCursor) url.searchParams.set('since', sinceCursor);
+
+      const res = await fetch(url.toString(), {
+        headers: this.getHeaders(),
+        signal: AbortSignal.timeout(this.timeoutMs)
+      });
+
+      if (res.status === 503) {
+        return { status: 'unavailable', error: 'Service de gouvernance KB indisponible (503)' };
+      }
+
+      if (res.ok) {
+        const body = await res.json();
+        return {
+          status: 'ok',
+          data: body.data || body
+        };
+      }
+
+      return { status: 'error', error: `Erreur HTTP ${res.status} lors du polling d'événements` };
+    } catch {
+      return { status: 'unavailable', error: 'Service indisponible' };
+    }
   }
 
   /**

@@ -183,3 +183,48 @@ sequenceDiagram
 ### Propagation d'Identité Souveraine (`X-Actor-Email`)
 Tout appel expert émis vers LLMOps (`/api/knowledge/me`, `/api/knowledge/owners`, `/api/knowledge/candidates`...) propage l'entête HTTP `X-Actor-Email: <user_email>`. Aucun secret de service (`LLMOPS_AUTH_TOKEN`) n'est jamais exposé au navigateur client.
 
+---
+
+## 6. Boîte de Revue Experte, Actions d'Examen et Notifications (Lot A7 - Porte G5)
+
+Archinex implémente la boîte de réception des revues et l'espace de décision expert pour statuer sur les candidats de doctrine soumis par les projets ou les architectes.
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Expert as Expert Relecteur
+    participant Archinex as Archinex (/kb/reviews)
+    participant Engine as Notification & Polling Engine
+    participant DB as Base Prisma (dev.db)
+    participant LLMOps as Knowledge Hub LLMOps
+
+    Engine->>LLMOps: GET /api/knowledge/events?since=<cursor>
+    LLMOps-->>Engine: 200 OK { events, next_cursor }
+    Engine->>DB: Upsert KbEventCursor & crée KbNotification (dédoublonnées)
+    
+    Expert->>Archinex: GET /kb/reviews
+    Archinex->>LLMOps: GET /api/knowledge/reviews/inbox [X-Actor-Email]
+    LLMOps-->>Archinex: 200 OK (Candidats filtrés, is_overdue recalculé)
+    Archinex-->>Expert: Boîte de revue avec alertes retards (≥ 5 jours)
+
+    Expert->>Archinex: PATCH /api/knowledge/candidates/{id} (action: accept/amend/reject)
+    Note over Archinex: Vérifie habilitation domaine (403 si non possédé)<br/>Vérifie état non terminal (409 si déjà finalisé)
+    Archinex->>LLMOps: PATCH /api/knowledge/candidates/{id} [X-Actor-Email, sans champ reviewer]
+    alt Candidat de type principle
+        LLMOps->>LLMOps: Enregistre avis 1 + Déclenche automatiquement second avis collégial
+    else Actif standard
+        LLMOps->>LLMOps: Valide et intègre dans la doctrine
+    end
+    LLMOps-->>Archinex: 200 OK (Candidat mis à jour)
+    Archinex->>DB: Log append-only DomainEvent
+    Archinex-->>Expert: Feedback visuel immédiat
+```
+
+### Invariants & Règles de Gouvernance Clés (Porte G5)
+1. **Les 7 Contrôles Automatiques LLMOps** : Chaque candidat reçu affiche les résultats de 7 contrôles préalables formels (`schema_validity`, `clarity_score`, `testability`, `non_duplication`, `sovereign_compliance`, `domain_alignment`, `architectural_impact`).
+2. **Double-Avis Obligatoire pour les Principes** : Tout candidat de type `principle` accepté par un expert déclenche automatiquement une tâche de second avis collégial auprès d'un pair avant intégration définitive.
+3. **Contrôle d'Autorisation par Domaine (403 Forbidden)** : Un expert ne peut statuer que sur les candidats appartenant à ses domaines déclarés (`ownedDomains`). Tout écart est refusé avec une notification explicite.
+4. **Interdiction du Rejet Sans Motif** : Rejeter un candidat exige un motif obligatoire circonstancié (règle constitutionnelle IV).
+5. **Idempotence Absolue du Moteur d'Événements** : Le curseur persistant `KbEventCursor` et le suivi des identifiants d'événements garantissent zéro doublon de notification, même en cas de pollings multiples concurrents.
+6. **Résilience et Dégradation Gracieuse** : En cas de code 503 du service de gouvernance LLMOps, l'interface bascule en lecture dégradée sans planter.
+

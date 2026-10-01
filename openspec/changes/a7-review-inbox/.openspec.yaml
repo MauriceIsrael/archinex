@@ -1,0 +1,12 @@
+name: a7-review-inbox
+schema_version: 1
+status: in_progress
+created_at: 2026-10-01T10:37:00Z
+summary: Boîte de réception de revue des experts, actions d'examen (accept, amend, reject), sollicitation croisée, 7 contrôles automatiques et notifications par polling souverain (Porte G5).
+tags:
+  - review-inbox
+  - gate-g5
+  - expert-actions
+  - candidate-checks
+  - event-polling
+  - notifications

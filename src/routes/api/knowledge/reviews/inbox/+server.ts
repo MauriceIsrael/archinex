@@ -4,7 +4,7 @@ import type { RequestHandler } from './$types';
 
 export const GET: RequestHandler = async ({ request, locals, url }) => {
   const actorEmail =
-    request.headers.get('x-actor-email') || locals.session?.user?.email;
+    locals.session?.user?.email;
 
   if (!actorEmail) {
     return json({ status: 'error', error: 'Non authentifié (email manquant)' }, { status: 401 });

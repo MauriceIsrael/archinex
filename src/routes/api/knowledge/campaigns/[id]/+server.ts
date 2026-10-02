@@ -4,7 +4,7 @@ import type { RequestHandler } from './$types';
 
 export const PATCH: RequestHandler = async ({ params, request, locals }) => {
   const actorEmail =
-    request.headers.get('x-actor-email') || locals.session?.user?.email || undefined;
+    locals.session?.user?.email || undefined;
 
   const body = await request.json().catch(() => ({}));
   const result = await llmopsClient.updateKbCampaign(params.id, body, actorEmail);

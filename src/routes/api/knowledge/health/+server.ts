@@ -4,7 +4,7 @@ import type { RequestHandler } from './$types';
 
 export const GET: RequestHandler = async ({ request, locals }) => {
   const actorEmail =
-    request.headers.get('x-actor-email') || locals.session?.user?.email || undefined;
+    locals.session?.user?.email || undefined;
 
   const result = await llmopsClient.getKbHealth(actorEmail);
 

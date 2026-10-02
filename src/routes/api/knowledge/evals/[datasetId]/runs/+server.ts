@@ -4,7 +4,7 @@ import type { RequestHandler } from './$types';
 
 export const POST: RequestHandler = async ({ params, request, locals }) => {
   const actorEmail =
-    request.headers.get('x-actor-email') || locals.session?.user?.email || undefined;
+    locals.session?.user?.email || undefined;
 
   const datasetId = (!params.datasetId || params.datasetId === 'undefined') ? 'check_option_v1' : params.datasetId;
   const result = await llmopsClient.runEvalBenchmark(datasetId, actorEmail);

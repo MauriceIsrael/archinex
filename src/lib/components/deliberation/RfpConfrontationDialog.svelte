@@ -45,7 +45,7 @@
 		actorEmail?: string;
 	}
 
-	let { open = $bindable(false), onclose, onImported, actorEmail = 'lead@archinex.local' }: Props = $props();
+	let { open = $bindable(false), onclose, onImported, actorEmail = '' }: Props = $props();
 
 	// Recherche de similarité sémantique & Réutilisation validée (Contrats 1.9 & 1.10 - A12/A13/A15)
 	let similarAssetsByClause = $state<Record<string, { item: SimilarKnowledgeItem; fingerprint: string }>>({});
@@ -297,8 +297,7 @@
 						const res = await fetch('/api/knowledge/similar', {
 							method: 'POST',
 							headers: {
-								'Content-Type': 'application/json',
-								'x-actor-email': actorEmail
+								'Content-Type': 'application/json'
 							},
 							body: JSON.stringify({
 								query_text: `${conf.title}. ${conf.text}`,

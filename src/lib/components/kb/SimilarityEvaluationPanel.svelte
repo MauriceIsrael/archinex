@@ -20,10 +20,8 @@
   import { toast } from '$lib/toast/index.svelte';
 
   let {
-    actorEmail = 'eva@example.org',
     datasetId = 'similarity_v1'
   }: {
-    actorEmail?: string;
     datasetId?: string;
   } = $props();
 
@@ -39,7 +37,7 @@
     isLoading = true;
     try {
       const res = await fetch(`/api/knowledge/similarity-evals/${datasetId}`, {
-        headers: { 'X-Actor-Email': actorEmail }
+        headers: {}
       });
       const body = await res.json();
       if (res.ok && body.data) {
@@ -58,8 +56,7 @@
       const res = await fetch(`/api/knowledge/similarity-evals/${datasetId}/cases/${caseId}`, {
         method: 'PATCH',
         headers: {
-          'Content-Type': 'application/json',
-          'X-Actor-Email': actorEmail
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({ annotation_status: 'validated' })
       });
@@ -85,8 +82,7 @@
       const res = await fetch(`/api/knowledge/similarity-evals/${datasetId}`, {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'X-Actor-Email': actorEmail
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify({ model: 'toy-bow' })
       });

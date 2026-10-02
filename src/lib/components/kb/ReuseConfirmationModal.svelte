@@ -24,7 +24,7 @@
     subjectLabel = '',
     subjectFingerprint = '',
     asset,
-    actorEmail = 'architect@archinex.local',
+    actorEmail = '',
     onConfirm,
     onClose
   }: {
@@ -102,8 +102,7 @@
       const res = await fetch('/api/knowledge/reuse-confirmations', {
         method: 'POST',
         headers: {
-          'Content-Type': 'application/json',
-          'X-Actor-Email': actorEmail
+          'Content-Type': 'application/json'
         },
         body: JSON.stringify(payload)
       });
@@ -354,7 +353,7 @@
       <!-- Footer Actions -->
       <div class="p-4 border-t border-border flex items-center justify-between bg-muted/20">
         <div class="text-xs text-muted-foreground">
-          Attribué à : <span class="font-medium text-foreground">{actorEmail}</span>
+          Attribué à : <span class="font-medium text-foreground">{actorEmail || 'votre compte connecté (identité de session)'}</span>
         </div>
         <div class="flex items-center gap-2">
           <button

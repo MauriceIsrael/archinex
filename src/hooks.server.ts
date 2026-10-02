@@ -14,6 +14,12 @@ getEnforcer().catch((err) =>
   console.warn('[Casbin Warm-up] Initialisation échouée :', err)
 );
 
+const SESSION_REQUIRED_PREFIXES = ['/api/knowledge/', '/api/frameworks/'];
+
+export function requiresSession(pathname: string): boolean {
+  return SESSION_REQUIRED_PREFIXES.some((p) => pathname.startsWith(p));
+}
+
 export const handle: Handle = async ({ event, resolve }) => {
   const accessToken = event.cookies.get('accessToken');
   let session: Session | null = null;
@@ -48,6 +54,15 @@ export const handle: Handle = async ({ event, resolve }) => {
   }
 
   event.locals.session = session;
+
+  // Les routes qui parlent à LLMOps au nom d'un expert exigent une session : l'identité envoyée à LLMOps
+  // (X-Actor-Email) vient de cette session et d'elle seule, jamais d'un en-tête fourni par le navigateur.
+  if (!session && requiresSession(event.url.pathname)) {
+    return new Response(
+      JSON.stringify({ status: 'error', error: 'Non authentifié : session requise' }),
+      { status: 401, headers: { 'Content-Type': 'application/json' } }
+    );
+  }
 
   const response = await resolve(event);
   return response;

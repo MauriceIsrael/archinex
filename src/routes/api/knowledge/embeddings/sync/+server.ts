@@ -5,7 +5,10 @@ import type { RequestHandler } from './$types';
 
 export const POST: RequestHandler = async ({ request, locals }) => {
   const actorEmail =
-    request.headers.get('x-actor-email') || locals?.session?.user?.email || 'architect@archinex.local';
+    locals?.session?.user?.email;
+  if (!actorEmail) {
+    return json({ status: 'error', error: 'Non authentifié : session requise' }, { status: 401 });
+  }
 
   let body: any = {};
   try {

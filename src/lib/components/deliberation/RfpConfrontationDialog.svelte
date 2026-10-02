@@ -841,6 +841,7 @@
 									{#each confrontationResult.confrontations as conf}
 										{@const similar = similarAssetsByClause[conf.id]}
 										{@const confirmation = clauseReuseConfirmations[conf.id]}
+										{@const reused = confirmation?.outcome === 'reused' || confirmation?.outcome === 'reused_with_exception'}
 										<div
 											class="p-3 rounded-xl border space-y-1.5 transition-colors {conf.status === 'compliant'
 												? 'bg-emerald-500/5 border-emerald-500/30'
@@ -857,7 +858,7 @@
 													{#if conf.status === 'compliant'}
 														<span class="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20 px-2 py-0.5 text-[10px] font-bold">
 															<CheckCircle2 class="h-3 w-3" />
-															{confirmation ? 'Conforme (Réutilisé)' : 'Conforme'}
+															{reused ? 'Conforme (Réutilisé)' : 'Conforme'}
 														</span>
 													{:else if conf.status === 'conflict'}
 														<span class="inline-flex items-center gap-1 rounded-full bg-destructive/10 text-destructive border border-destructive/20 px-2 py-0.5 text-[10px] font-bold">
@@ -912,7 +913,20 @@
 														</span>
 													</div>
 
-													{#if confirmation}
+													{#if confirmation && !reused}
+														<div
+															data-testid={`reuse-refused-notice-${conf.id}`}
+															class="p-2 rounded bg-amber-500/10 border border-amber-500/30 text-amber-800 dark:text-amber-200 text-[11px]"
+														>
+															<strong>
+																{confirmation.outcome === 'deferred'
+																	? 'Réutilisation reportée'
+																	: 'Réutilisation refusée'} : la question reste ouverte
+															</strong>
+															({confirmation.outcome}){confirmation.comment ? ` — « ${confirmation.comment} »` : ''}
+														</div>
+													{/if}
+													{#if reused}
 														<div
 															data-testid={`reuse-confirmed-badge-${conf.id}`}
 															class="p-2 rounded bg-emerald-500/10 border border-emerald-500/30 text-emerald-800 dark:text-emerald-200 flex items-center justify-between text-[11px]"

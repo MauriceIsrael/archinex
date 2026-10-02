@@ -167,6 +167,9 @@ Ce mapping permettra à terme d'alimenter Archinex depuis le graphe LLMOps (impo
 | `LLMOPS_LIVE_TOKEN` | `contract-service-token` | Jeton de service portant les scopes `kb:review,kb:delegate` |
 | `USE_FAKE_LLMOPS` | `0` | Définir à `1` pour forcer l'utilisation du serveur mock en mémoire `fakeLlmops` lors des tests E2E Playwright |
 | `ALLOW_OFFLINE_MOCK` | `0` | Définir à `1` pour autoriser le mode démo hors-ligne simulé localement en cas d'absence de serveur |
+| `EMBEDDING_MODEL` | `toy-bow` | Modèle d'embeddings (calculé par Archinex, jamais par LLMOps) ; `toy-bow` est un encodeur de test sans valeur sémantique |
+| `EMBEDDING_OLLAMA_URL` | non défini | Serveur Ollama qui calcule les vecteurs pour tout modèle autre que `toy-bow` (ex. `http://raptor-nino:11434`) |
+| `ALLOW_TOY_EMBEDDINGS` | `0` | `1` pour autoriser `toy-bow` en production (démonstration uniquement) |
 
 ---
 
@@ -190,6 +193,38 @@ Les tests de parcours navigateur (`tests/e2e/browser/`) supportent 3 modes d'ex�
 
 
 ---
+
+## 7 bis. Embeddings sémantiques (Ollama) — A12
+
+Archinex calcule les vecteurs ; LLMOps les stocke et mesure le cosinus (décision D6, contrat 1.9). Règles :
+
+- **Un modèle = un espace de vecteurs.** Le nom envoyé à LLMOps est celui de l'encodeur qui a réellement calculé le vecteur ; un modèle inconnu ou non configuré est **refusé** (503 « unavailable »), jamais remplacé en silence (`src/lib/server/similarity/encoder.ts`). La version déposée est l'**empreinte des poids** (`digest`) avec l'API native Ollama ; avec l'API compatible OpenAI le serveur n'expose que l'identifiant et la date de création, donc un changement de poids sous le même nom n'est pas détectable. Dans tous les cas, changer de modèle ou de version impose de tout recalculer.
+- `toy-bow` (sac de mots déterministe) sert aux tests ; en production il est refusé sauf `ALLOW_TOY_EMBEDDINGS=1`.
+- Aucun texte d'engagement non anonymisé n'est encodé pour la recherche (`anonymizeSubjectText`).
+
+### Choisir le modèle installé sur le serveur Ollama
+
+```bash
+OLLAMA_URL=http://raptor-nino:11434 node scripts/ollama-models.mjs
+```
+
+Le script accepte l'API native Ollama (`/api/tags`) **ou** l'API compatible OpenAI (`/v1/models`, `/v1/embeddings`), avec ou sans `/v1` dans l'URL. Il liste les modèles (nom, taille, empreinte), indique ceux qui produisent des embeddings et fait un test de bon sens FR/EN (une traduction doit être plus proche qu'un sujet voisin). Candidats multilingues : `bge-m3`, `multilingual-e5-large` ; `nomic-embed-text` est surtout anglophone. Le choix définitif se fait sur **mesure** avec le jeu annoté (`/kb/evals`, A14), jamais d'après ce seul test. Puis :
+
+```bash
+EMBEDDING_OLLAMA_URL=http://raptor-nino:11434 EMBEDDING_MODEL=bge-m3
+```
+
+## 7 ter. Tests de tolérance zéro (réutilisation, D8)
+
+| Niveau | Fichier | Ce qui est prouvé |
+|---|---|---|
+| Navigateur, serveur LLMOps **réel** | `tests/e2e/browser/second-rfp-zero-tolerance.spec.ts` | rien de présélectionné ; issues de réutilisation indisponibles tant que chaque hypothèse n'est pas jugée ; hypothèse fausse = question réouverte (jamais affichée comme validée) ; inconnue = exception motivée seulement ; actif sans hypothèses ou remplacé non réutilisable ; rejet mémorisé avec sa raison ; contournement par l'API refusé sans rien enregistrer ; 401 sans session |
+| Contrat, serveur LLMOps **réel** | `tests/contract/llmops-live-reuse-negative.test.ts` | refus du serveur (hypothèse fausse/inconnue/incomplète/différente, actif sans hypothèses, commentaire manquant, acteur absent) et journal inchangé |
+| Contrat | `tests/contract/embedding-encoder.test.ts`, `actor-from-session.test.ts` | un modèle ne usurpe pas un autre ; l'acteur vient de la session |
+
+Les cas « actif sans hypothèses » et « actif remplacé » façonnent la réponse de `/api/knowledge/similar` dans le navigateur (aucun actif de la KB de contrat ne se trouve dans ces situations) ; le refus correspondant du serveur est, lui, vérifié sur le vrai LLMOps.
+
+**Limite connue** : l'acte 6 de l'E2E (boucle fermée) montre que le motif capitalisé entre dans le jugement avec le verdict `unassessed`, car il ne porte pas d'assertion formelle ; prouver qu'il *change* un verdict exige une règle avec assertion (atelier A8).
 
 ## 8. Gouvernance de la Base de Connaissances (API v1)
 

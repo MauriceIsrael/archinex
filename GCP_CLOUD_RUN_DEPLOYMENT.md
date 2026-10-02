@@ -101,3 +101,11 @@ Une fois sur l'URL Cloud Run, connectez-vous avec :
 gcloud run deploy archinex --source . --region europe-west1
 ```
 Le déploiement est sans interruption de service (rolling update automatique).
+
+
+## Modèle d'embeddings (similarité sémantique)
+
+Archinex calcule les vecteurs (LLMOps n'embarque aucun modèle). En production, `toy-bow` est refusé : définir
+`EMBEDDING_MODEL` et `EMBEDDING_OLLAMA_URL` (serveur Ollama joignable depuis Cloud Run, par exemple via un
+connecteur VPC) ; `LLMOPS_ALLOWED_HOSTS` ne concerne que LLMOps. Inventaire des modèles :
+`OLLAMA_URL=… node scripts/ollama-models.mjs`. Détails : `docs/llmops-integration.md` §7 bis.

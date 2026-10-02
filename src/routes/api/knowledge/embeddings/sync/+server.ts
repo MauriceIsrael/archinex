@@ -17,8 +17,10 @@ export const POST: RequestHandler = async ({ request, locals }) => {
     // empty body is fine
   }
 
-  const model = body.model || 'toy-bow';
-  const result = await syncEmbeddingsWithLLMOps(llmopsClient, { model, actorEmail });
+  const result = await syncEmbeddingsWithLLMOps(llmopsClient, {
+    model: typeof body.model === 'string' ? body.model : undefined,
+    actorEmail
+  });
 
   if (result.status === 'unavailable') {
     return json({ status: 'unavailable', error: result.error }, { status: 503 });

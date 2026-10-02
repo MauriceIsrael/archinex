@@ -650,6 +650,13 @@ export interface KbHealthMetrics {
     sha256?: string;
     changelog?: string;
   };
+  embeddings?: Array<{
+    model_id: string;
+    missing: number;
+    stale: number;
+    vectors: number;
+    active_assets: number;
+  }>;
 }
 
 export interface KbPublication {
@@ -684,6 +691,201 @@ export interface KbCampaign {
     target: number;
   };
 }
+
+/* ============================================================================
+ * CONTRATS 1.9, 1.10 & 1.11 : SIMILARITÉ SÉMANTIQUE, RÉUTILISATION, ÉVALUATION
+ * ============================================================================ */
+
+/* ---- Contract 1.9: semantic similarity (vectors computed by the client) ----- */
+
+export type SimilarityZone = 'strong' | 'possible' | 'weak' | 'superseded';
+
+export interface EmbeddingPendingItem {
+  ref: string;
+  type: 'principle' | 'pattern' | 'decision' | 'control';
+  title: string;
+  text: string;
+  text_sha256: string;
+  reason: 'missing' | 'stale';
+}
+
+export interface EmbeddingDepositItem {
+  ref: string;
+  text_sha256: string;
+  vector: number[];
+  language?: 'fr' | 'en';
+}
+
+export interface EmbeddingDeposit {
+  model: string;
+  model_version: string;
+  items: EmbeddingDepositItem[];
+}
+
+export interface SimilarKnowledgeRequest {
+  model: string;
+  vector: number[];
+  query_text?: string;
+  types?: string[];
+  domains?: string[];
+  top_k?: number;
+  subject_fingerprint?: string;
+}
+
+export interface SimilarityConfig {
+  status: 'uncalibrated' | 'calibrated';
+  thresholds?: {
+    strong?: number;
+    possible?: number;
+    weak?: number;
+  };
+  boosts?: Record<string, number>;
+}
+
+/** A proposal, never a decision: requires_confirmation is always true, whatever the score. */
+export interface SimilarKnowledgeItem {
+  ref: string;
+  type: string;
+  title: string;
+  score: number;
+  scores: Record<string, number>;
+  zone: SimilarityZone;
+  requires_confirmation: true;
+  stale: boolean;
+  status: string;
+  domain: string[];
+  last_reviewed: string | null;
+  review_by: string | null;
+  validated_by: string[];
+  validated_at: string | null;
+  superseded_by: string | null;
+  assumptions: string[];
+  assumptions_documented: boolean;
+  judgements?: PastJudgement[];
+  previous_confirmation_outdated?: boolean;
+  reuse_summary?: Record<string, number>;
+}
+
+export interface SimilarKnowledgeResponse {
+  results: SimilarKnowledgeItem[];
+  config: SimilarityConfig;
+}
+
+/* ---- Contract 1.10: reuse of validated knowledge ----------------------------- */
+
+export type AssumptionStatus = 'holds' | 'does_not_hold' | 'unknown';
+export type ReuseOutcome =
+  | 'reused'
+  | 'reused_with_exception'
+  | 'rejected_not_same'
+  | 'rejected_assumption_fails'
+  | 'deferred';
+
+export interface AssumptionJudgement {
+  text: string;
+  status: AssumptionStatus;
+  note?: string | null;
+}
+
+/** assumptions must be exactly the asset's current ones; reused needs all of them to hold. */
+export interface ReuseConfirmationRequest {
+  subject_fingerprint: string; // SHA-256 (64 hex) of the normalised subject
+  subject_label: string; // short and anonymised
+  matched_ref: string;
+  model?: string;
+  scores?: Record<string, number>;
+  outcome: ReuseOutcome;
+  assumptions: AssumptionJudgement[];
+  comment?: string; // required for reused_with_exception and rejected_not_same
+}
+
+export interface ReuseConfirmation extends ReuseConfirmationRequest {
+  id: number;
+  at: string;
+  actor: string;
+  assumptions_digest: string;
+}
+
+export interface PastJudgement {
+  id: number;
+  at: string;
+  actor: string;
+  outcome: ReuseOutcome;
+  comment: string | null;
+  assumptions_changed_since: boolean;
+}
+
+/* ---- Contract 1.11: similarity evaluation (FR/EN dataset) -------------------- */
+
+export type SimilarityFamily =
+  | 'cross_lingual'
+  | 'same_words_different_subject'
+  | 'same_topic_different_assumptions'
+  | 'out_of_base';
+
+export type SimilarityRelation =
+  | 'same_subject'
+  | 'related_not_same'
+  | 'same_topic_different_assumptions'
+  | 'unrelated';
+
+export interface SimilarityCaseExpected {
+  ref: string;
+  relation: SimilarityRelation;
+}
+
+export interface SimilarityCase {
+  id: string;
+  family: SimilarityFamily;
+  language: 'fr' | 'en';
+  query_text: string;
+  expected: SimilarityCaseExpected[];
+  annotation_status: 'proposed' | 'validated' | 'rejected';
+  annotated_by: string | null;
+  annotated_at: string | null;
+}
+
+export interface SimilarityRunBucket {
+  cases: number;
+  same_subject_expected: number;
+  recall_at_3: number | null;
+  false_strong: number;
+  reuse_trap_strong: number;
+  missed_strong: number;
+}
+
+export interface SimilarityRunSweepItem {
+  threshold: number;
+  false_strong: number;
+  recall: number | null;
+}
+
+export interface SimilarityRunCaseDetail {
+  case_id: string;
+  family: string;
+  language: string;
+  false_strong: string[];
+  reuse_trap_strong: string[];
+  missed_strong: string[];
+  top: Array<{ ref: string; score: number; zone: SimilarityZone }>;
+}
+
+/** false_strong is the number that matters: a wrong strong proposal is the failure the design exists to prevent. */
+export interface SimilarityRun extends SimilarityRunBucket {
+  id: number;
+  dataset: string;
+  at: string;
+  run_by: string;
+  model: string;
+  validated_cases: number;
+  by_family: Record<SimilarityFamily, SimilarityRunBucket>;
+  by_language: Record<'fr' | 'en', SimilarityRunBucket>;
+  sweep: SimilarityRunSweepItem[];
+  recommended_strong_threshold: number | null;
+  recommendation_note: string;
+  per_case: SimilarityRunCaseDetail[];
+}
+
 
 
 

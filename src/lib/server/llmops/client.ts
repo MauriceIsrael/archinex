@@ -51,7 +51,16 @@ import type {
   VerdictFeedbackItem,
   KbHealthMetrics,
   KbPublication,
-  KbCampaign
+  KbCampaign,
+  EmbeddingPendingItem,
+  EmbeddingDeposit,
+  SimilarKnowledgeRequest,
+  SimilarKnowledgeResponse,
+  SimilarKnowledgeItem,
+  ReuseConfirmationRequest,
+  ReuseConfirmation,
+  SimilarityCase,
+  SimilarityRun
 } from './types';
 
 export interface LLMOpsClientConfig {
@@ -81,6 +90,10 @@ const OPERATION_TIMEOUTS: Array<{ method?: string; pattern: RegExp; ms: number }
   { method: 'POST', pattern: /\/api\/knowledge\/evals\/[^/]+\/runs$/, ms: 60_000 },
   { method: 'POST', pattern: /\/api\/knowledge\/candidates$/, ms: 30_000 },
   { method: 'PATCH', pattern: /\/api\/knowledge\/candidates\/[^/]+$/, ms: 30_000 },
+  { method: 'POST', pattern: /\/api\/knowledge\/similar$/, ms: 30_000 },
+  { method: 'PUT', pattern: /\/api\/knowledge\/embeddings$/, ms: 60_000 },
+  { method: 'POST', pattern: /\/api\/knowledge\/reuse-confirmations$/, ms: 15_000 },
+  { method: 'POST', pattern: /\/api\/knowledge\/similarity-evals\/[^/]+\/runs$/, ms: 60_000 },
   { pattern: /\/api\/knowledge\/health$/, ms: 30_000 },
   { pattern: /\/api\/(knowledge|frameworks)(\/|$)/, ms: LLMOPS_GOVERNANCE_TIMEOUT_MS }
 ];
@@ -2776,6 +2789,334 @@ export class LLMOpsClient {
       status: 'ok',
       data: camp
     };
+  }
+
+  /* ==========================================================================
+   * CONTRAT 1.9 : SIMILARITÉ SÉMANTIQUE & EMBEDDINGS (CALCULÉS PAR LE CLIENT)
+   * ========================================================================== */
+
+  /**
+   * Récupère la liste des actifs en attente d'embedding pour un modèle donné (Contrat 1.9).
+   */
+  async getEmbeddingsPending(
+    model: string = 'toy-bow',
+    actorEmail?: string
+  ): Promise<{ status: 'ok' | 'error' | 'unavailable'; pending: EmbeddingPendingItem[]; error?: string }> {
+    try {
+      const url = `${this.baseUrl}/api/knowledge/embeddings/pending?model=${encodeURIComponent(model)}`;
+      const res = await this.fetchWithTimeout(url, {
+        method: 'GET',
+        headers: this.getHeaders(undefined, actorEmail)
+      });
+      if (res.ok) {
+        const body = await res.json();
+        return {
+          status: 'ok',
+          pending: body.data?.pending || []
+        };
+      }
+      const err = await res.json().catch(() => ({}));
+      return {
+        status: 'error',
+        pending: [],
+        error: err.error || `Erreur HTTP ${res.status}`
+      };
+    } catch (e: any) {
+      return {
+        status: 'unavailable',
+        pending: [],
+        error: e.message || 'Serveur LLMOps inaccessible'
+      };
+    }
+  }
+
+  /**
+   * Dépose un lot d'embeddings calculés localement par Archinex (Contrat 1.9).
+   */
+  async depositEmbeddings(
+    deposit: EmbeddingDeposit,
+    actorEmail?: string
+  ): Promise<{ status: 'ok' | 'error' | 'unavailable'; dim?: number; count?: number; error?: string }> {
+    try {
+      const url = `${this.baseUrl}/api/knowledge/embeddings`;
+      const res = await this.fetchWithTimeout(url, {
+        method: 'PUT',
+        headers: this.getHeaders(undefined, actorEmail),
+        body: JSON.stringify(deposit)
+      });
+      if (res.ok) {
+        const body = await res.json();
+        return {
+          status: 'ok',
+          dim: body.data?.dim,
+          count: body.data?.count ?? deposit.items.length
+        };
+      }
+      const err = await res.json().catch(() => ({}));
+      return {
+        status: 'error',
+        error: err.error || `Erreur HTTP ${res.status}`
+      };
+    } catch (e: any) {
+      return {
+        status: 'unavailable',
+        error: e.message || 'Serveur LLMOps inaccessible'
+      };
+    }
+  }
+
+  /**
+   * Recherche sémantique de connaissances similaires (Contrat 1.9).
+   * Note : requires_confirmation est toujours vrai dans les résultats.
+   */
+  async searchSimilarKnowledge(
+    request: SimilarKnowledgeRequest,
+    actorEmail?: string
+  ): Promise<{ status: 'ok' | 'error' | 'unavailable'; data?: SimilarKnowledgeResponse; error?: string }> {
+    try {
+      const url = `${this.baseUrl}/api/knowledge/similar`;
+      const res = await this.fetchWithTimeout(url, {
+        method: 'POST',
+        headers: this.getHeaders(undefined, actorEmail),
+        body: JSON.stringify(request)
+      });
+      if (res.ok) {
+        const body = await res.json();
+        return {
+          status: 'ok',
+          data: body.data
+        };
+      }
+      const err = await res.json().catch(() => ({}));
+      return {
+        status: 'error',
+        error: err.error || `Erreur HTTP ${res.status}`
+      };
+    } catch (e: any) {
+      return {
+        status: 'unavailable',
+        error: e.message || 'Serveur LLMOps inaccessible'
+      };
+    }
+  }
+
+  /* ==========================================================================
+   * CONTRAT 1.10 : RÉUTILISATION DES CONNAISSANCES VALIDÉES
+   * ========================================================================== */
+
+  /**
+   * Enregistre le jugement d'un architecte sur la réutilisation d'un actif validé (Contrat 1.10).
+   * Toutes les hypothèses documentées doivent être examinées.
+   */
+  async postReuseConfirmation(
+    confirmation: ReuseConfirmationRequest,
+    actorEmail: string
+  ): Promise<{ status: 'ok' | 'error' | 'unavailable'; data?: ReuseConfirmation; error?: string }> {
+    try {
+      const url = `${this.baseUrl}/api/knowledge/reuse-confirmations`;
+      const res = await this.fetchWithTimeout(url, {
+        method: 'POST',
+        headers: this.getHeaders(undefined, actorEmail),
+        body: JSON.stringify(confirmation)
+      });
+      if (res.status === 201 || res.ok) {
+        const body = await res.json();
+        return {
+          status: 'ok',
+          data: body.data
+        };
+      }
+      const err = await res.json().catch(() => ({}));
+      return {
+        status: 'error',
+        error: err.error || `Erreur HTTP ${res.status}`
+      };
+    } catch (e: any) {
+      return {
+        status: 'unavailable',
+        error: e.message || 'Serveur LLMOps inaccessible'
+      };
+    }
+  }
+
+  /**
+   * Récupère l'historique des confirmations de réutilisation (Contrat 1.10).
+   */
+  async getReuseConfirmations(
+    params?: { subject_fingerprint?: string; matched_ref?: string },
+    actorEmail?: string
+  ): Promise<{ status: 'ok' | 'error' | 'unavailable'; data: ReuseConfirmation[]; error?: string }> {
+    try {
+      const query = new URLSearchParams();
+      if (params?.subject_fingerprint) query.set('subject_fingerprint', params.subject_fingerprint);
+      if (params?.matched_ref) query.set('matched_ref', params.matched_ref);
+      const url = `${this.baseUrl}/api/knowledge/reuse-confirmations${query.toString() ? `?${query.toString()}` : ''}`;
+      const res = await this.fetchWithTimeout(url, {
+        method: 'GET',
+        headers: this.getHeaders(undefined, actorEmail)
+      });
+      if (res.ok) {
+        const body = await res.json();
+        return {
+          status: 'ok',
+          data: body.data?.confirmations || body.data || []
+        };
+      }
+      const err = await res.json().catch(() => ({}));
+      return {
+        status: 'error',
+        data: [],
+        error: err.error || `Erreur HTTP ${res.status}`
+      };
+    } catch (e: any) {
+      return {
+        status: 'unavailable',
+        data: [],
+        error: e.message || 'Serveur LLMOps inaccessible'
+      };
+    }
+  }
+
+  /* ==========================================================================
+   * CONTRAT 1.11 : ÉVALUATION DE SIMILARITÉ FR/EN & CALIBRATION DES SEUILS
+   * ========================================================================== */
+
+  /**
+   * Récupère les cas d'évaluation de similarité d'un jeu de données FR/EN (Contrat 1.11).
+   */
+  async getSimilarityDataset(
+    datasetName: string = 'similarity_v1',
+    actorEmail?: string
+  ): Promise<{ status: 'ok' | 'error' | 'unavailable'; data?: { cases: SimilarityCase[]; validated: number }; error?: string }> {
+    try {
+      const url = `${this.baseUrl}/api/knowledge/similarity-evals/${encodeURIComponent(datasetName)}`;
+      const res = await this.fetchWithTimeout(url, {
+        method: 'GET',
+        headers: this.getHeaders(undefined, actorEmail)
+      });
+      if (res.ok) {
+        const body = await res.json();
+        return {
+          status: 'ok',
+          data: body.data
+        };
+      }
+      const err = await res.json().catch(() => ({}));
+      return {
+        status: 'error',
+        error: err.error || `Erreur HTTP ${res.status}`
+      };
+    } catch (e: any) {
+      return {
+        status: 'unavailable',
+        error: e.message || 'Serveur LLMOps inaccessible'
+      };
+    }
+  }
+
+  /**
+   * Met à jour ou valide l'annotation d'un cas de test de similarité (Contrat 1.11).
+   */
+  async patchSimilarityCase(
+    datasetName: string,
+    caseId: string,
+    update: { annotation_status?: 'proposed' | 'validated' | 'rejected'; expected?: any[] },
+    actorEmail: string
+  ): Promise<{ status: 'ok' | 'error' | 'unavailable'; data?: SimilarityCase; error?: string }> {
+    try {
+      const url = `${this.baseUrl}/api/knowledge/similarity-evals/${encodeURIComponent(datasetName)}/cases/${encodeURIComponent(caseId)}`;
+      const res = await this.fetchWithTimeout(url, {
+        method: 'PATCH',
+        headers: this.getHeaders(undefined, actorEmail),
+        body: JSON.stringify(update)
+      });
+      if (res.ok) {
+        const body = await res.json();
+        return {
+          status: 'ok',
+          data: body.data
+        };
+      }
+      const err = await res.json().catch(() => ({}));
+      return {
+        status: 'error',
+        error: err.error || `Erreur HTTP ${res.status}`
+      };
+    } catch (e: any) {
+      return {
+        status: 'unavailable',
+        error: e.message || 'Serveur LLMOps inaccessible'
+      };
+    }
+  }
+
+  /**
+   * Exécute un benchmark de similarité avec les vecteurs calculés par le client (Contrat 1.11).
+   */
+  async runSimilarityEvaluation(
+    datasetName: string,
+    req: { model: string; vectors: Record<string, number[]>; validated_only?: boolean },
+    actorEmail: string
+  ): Promise<{ status: 'ok' | 'error' | 'unavailable'; data?: SimilarityRun; error?: string }> {
+    try {
+      const url = `${this.baseUrl}/api/knowledge/similarity-evals/${encodeURIComponent(datasetName)}/runs`;
+      const res = await this.fetchWithTimeout(url, {
+        method: 'POST',
+        headers: this.getHeaders(undefined, actorEmail),
+        body: JSON.stringify(req)
+      });
+      if (res.status === 201 || res.ok) {
+        const body = await res.json();
+        return {
+          status: 'ok',
+          data: body.data
+        };
+      }
+      const err = await res.json().catch(() => ({}));
+      return {
+        status: 'error',
+        error: err.error || `Erreur HTTP ${res.status}`
+      };
+    } catch (e: any) {
+      return {
+        status: 'unavailable',
+        error: e.message || 'Serveur LLMOps inaccessible'
+      };
+    }
+  }
+
+  /**
+   * Récupère le résultat d'un run d'évaluation de similarité (Contrat 1.11).
+   */
+  async getSimilarityRun(
+    datasetName: string,
+    runId: number,
+    actorEmail?: string
+  ): Promise<{ status: 'ok' | 'error' | 'unavailable'; data?: SimilarityRun; error?: string }> {
+    try {
+      const url = `${this.baseUrl}/api/knowledge/similarity-evals/${encodeURIComponent(datasetName)}/runs/${runId}`;
+      const res = await this.fetchWithTimeout(url, {
+        method: 'GET',
+        headers: this.getHeaders(undefined, actorEmail)
+      });
+      if (res.ok) {
+        const body = await res.json();
+        return {
+          status: 'ok',
+          data: body.data
+        };
+      }
+      const err = await res.json().catch(() => ({}));
+      return {
+        status: 'error',
+        error: err.error || `Erreur HTTP ${res.status}`
+      };
+    } catch (e: any) {
+      return {
+        status: 'unavailable',
+        error: e.message || 'Serveur LLMOps inaccessible'
+      };
+    }
   }
 
   /**

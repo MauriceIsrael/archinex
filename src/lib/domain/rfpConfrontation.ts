@@ -85,6 +85,19 @@ L'ensemble des équipements de bord et d'infrastructure au sol doit être strict
 
 Clause 3.1 - Isolation Matérielle des Réseaux d'Exploitation et Voyageurs
 Les réseaux de sécurité des circulations et les services de connectivité voyageurs doivent être séparés physiquement ou par cloisonnement cryptographique inviolable avec étanchéité démontrable lors des audits de sécurité.`
+	},
+	{
+		id: 'rfp-second-loop',
+		name: 'Deuxième RFP · Restauration Réseau & Résilience Automatisée',
+		description: 'Second appel d\'offres réutilisant les décisions capitalisées (GitOps, validation humaine, secours hors-bande).',
+		text: `Clause 1.1 - Déploiement et Restauration Automatisée des Équipements Réseau
+La configuration du réseau doit être versionnée dans Git et déployée uniquement par pipeline. Restoration of network configuration after an outage.
+
+Clause 2.1 - Contrôle Opérateur et Remédiation
+Les remédiations automatiques du réseau doivent être approuvées par un humain avant leur exécution. Un exploitant qualifié valide chaque action critique.
+
+Clause 3.1 - Accès d'Urgence Indépendant
+Un accès de secours indépendant hors-bande doit permettre de restaurer le service même si la plateforme principale est en panne.`
 	}
 ];
 

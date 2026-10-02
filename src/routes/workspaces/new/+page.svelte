@@ -32,6 +32,7 @@
 		BrainCircuit
 	} from 'lucide-svelte';
 
+	let { data } = $props();
 	let isInviteOpen = $state(false);
 	let isRfpImporterOpen = $state(false);
 
@@ -603,6 +604,7 @@
 						<div class="flex items-center gap-2">
 							<button
 								type="button"
+								data-testid="btn-open-rfp-confrontation"
 								onclick={() => (isRfpImporterOpen = true)}
 								class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/20 font-bold transition-colors cursor-pointer"
 							>
@@ -885,6 +887,7 @@
 
 <RfpConfrontationDialog
 	bind:open={isRfpImporterOpen}
+	actorEmail={data?.session?.user?.email || 'lead@archinex.local'}
 	onclose={() => (isRfpImporterOpen = false)}
 	onImported={handleRfpImported}
 />

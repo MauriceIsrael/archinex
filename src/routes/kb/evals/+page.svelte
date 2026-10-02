@@ -2,11 +2,13 @@
   import CheckCircle from 'lucide-svelte/icons/check-circle';
   import AlertTriangle from 'lucide-svelte/icons/alert-triangle';
   import ShieldCheck from 'lucide-svelte/icons/shield-check';
+  import Sparkles from 'lucide-svelte/icons/sparkles';
+  import Sliders from 'lucide-svelte/icons/sliders';
   import Play from 'lucide-svelte/icons/play';
   import RefreshCw from 'lucide-svelte/icons/refresh-cw';
   import Edit from 'lucide-svelte/icons/edit';
-  import Sparkles from 'lucide-svelte/icons/sparkles';
   import MessagesSquare from 'lucide-svelte/icons/messages-square';
+  import SimilarityEvaluationPanel from '$lib/components/kb/SimilarityEvaluationPanel.svelte';
   import type {
     EvalDataset,
     EvalTestCase,
@@ -27,6 +29,7 @@
 
   let { data }: Props = $props();
 
+  let activeTab = $state<'options' | 'similarity' | 'feedback'>('options');
   let dataset = $state<EvalDataset | undefined>(data.dataset);
   let feedbacks = $state<VerdictFeedbackItem[]>(data.feedbacks || []);
 
@@ -152,18 +155,46 @@
     </div>
   {/if}
 
-  <!-- Bloc de Déclenchement du Benchmark -->
-  <div class="bg-surface-50 border border-surface-200 rounded-xl p-6 shadow-sm">
-    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-      <div>
-        <h2 class="text-lg font-bold text-surface-900 flex items-center gap-2">
-          <Sparkles class="w-5 h-5 text-primary-600" />
-          <span>Exécution du Benchmark (Porte G6)</span>
-        </h2>
-        <p class="text-xs text-surface-600 mt-1 max-w-xl">
-          Évalue les moteurs de vérification d'options contre les cas de test. Le taux de rappel officiel est calculé strictement sur les annotations humaines pour garantir l'opposabilité.
-        </p>
-      </div>
+  <!-- Onglets de Gouvernance des Évaluations -->
+  <div class="flex items-center gap-2 border-b border-surface-200 pb-3">
+    <button
+      onclick={() => (activeTab = 'options')}
+      class="px-4 py-2 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1.5 {activeTab === 'options' ? 'bg-primary-600 text-white shadow-sm' : 'bg-surface-100 hover:bg-surface-200 text-surface-700'}"
+    >
+      <ShieldCheck class="w-4 h-4" />
+      <span>Vérification d'Options (Porte G6)</span>
+    </button>
+    <button
+      onclick={() => (activeTab = 'similarity')}
+      class="px-4 py-2 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1.5 {activeTab === 'similarity' ? 'bg-primary-600 text-white shadow-sm' : 'bg-surface-100 hover:bg-surface-200 text-surface-700'}"
+    >
+      <Sliders class="w-4 h-4" />
+      <span>Similarité FR/EN & Calibration (Contrat 1.11)</span>
+    </button>
+    <button
+      onclick={() => (activeTab = 'feedback')}
+      class="px-4 py-2 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1.5 {activeTab === 'feedback' ? 'bg-primary-600 text-white shadow-sm' : 'bg-surface-100 hover:bg-surface-200 text-surface-700'}"
+    >
+      <MessagesSquare class="w-4 h-4" />
+      <span>Boucle de Rétroaction ({feedbacks.length})</span>
+    </button>
+  </div>
+
+  {#if activeTab === 'similarity'}
+    <SimilarityEvaluationPanel actorEmail={data.user.email} />
+  {:else if activeTab === 'options'}
+    <!-- Bloc de Déclenchement du Benchmark -->
+    <div class="bg-surface-50 border border-surface-200 rounded-xl p-6 shadow-sm">
+      <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
+        <div>
+          <h2 class="text-lg font-bold text-surface-900 flex items-center gap-2">
+            <Sparkles class="w-5 h-5 text-primary-600" />
+            <span>Exécution du Benchmark (Porte G6)</span>
+          </h2>
+          <p class="text-xs text-surface-600 mt-1 max-w-xl">
+            Évalue les moteurs de vérification d'options contre les cas de test. Le taux de rappel officiel est calculé strictement sur les annotations humaines pour garantir l'opposabilité.
+          </p>
+        </div>
 
       <button
         onclick={handleRunBenchmark}
@@ -330,7 +361,7 @@
       </div>
     {/if}
   </div>
-
+  {:else if activeTab === 'feedback'}
   <!-- Section 2 : Boucle de Retours Terrain depuis les Débats -->
   <div class="space-y-4 pt-6 border-t border-surface-200">
     <div class="flex items-center justify-between">
@@ -387,6 +418,7 @@
       </div>
     {/if}
   </div>
+  {/if}
 
   <!-- Modale d'Annotation d'un Cas -->
   {#if annotatingCase}

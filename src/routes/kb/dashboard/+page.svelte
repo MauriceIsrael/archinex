@@ -49,6 +49,33 @@
     health?.storage?.mode === 'demo' || (health?.storage && !health.storage.persistent)
   );
 
+  let isSyncingEmbeddings = $state(false);
+  const embeddingsInfo = $derived(
+    health?.embeddings?.[0] || { model_id: 'toy-bow', vectors: 0, missing: 0, stale: 0, active_assets: 0 }
+  );
+
+  async function handleSyncEmbeddings() {
+    isSyncingEmbeddings = true;
+    try {
+      const res = await fetch('/api/knowledge/embeddings/sync', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ model: 'toy-bow' })
+      });
+      const body = await res.json();
+      if (res.ok) {
+        toast(`Synchronisation terminée : ${body.count ?? 0} actif(s) vectorisé(s) avec succès !`, { variant: 'success' });
+        await refreshHealth();
+      } else {
+        toast(body.error || 'Erreur lors de la synchronisation des vecteurs', { variant: 'error' });
+      }
+    } catch (e: any) {
+      toast(e.message || 'Erreur réseau', { variant: 'error' });
+    } finally {
+      isSyncingEmbeddings = false;
+    }
+  }
+
   async function refreshHealth() {
     try {
       const res = await fetch('/api/knowledge/health');
@@ -304,6 +331,59 @@
       </div>
     </div>
   {/if}
+
+  <!-- Section Vecteurs Sémantiques & Indexation Locale (Contrat 1.9 / Issue #14) -->
+  <div class="rounded-xl border bg-card p-6 space-y-4 shadow-sm">
+    <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b">
+      <div>
+        <div class="flex items-center gap-2">
+          <h2 class="text-lg font-bold">Indexation Vectorielle & Similarité Sémantique</h2>
+          <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-primary/10 text-primary border border-primary/20">
+            Contrat 1.9 (A12)
+          </span>
+        </div>
+        <p class="text-xs text-muted-foreground mt-1">
+          Les vecteurs sémantiques sont calculés localement par Archinex (aucun envoi de texte brut au moteur distant) et déposés dans LLMOps pour le calcul déterministe de distance cosinus.
+        </p>
+      </div>
+
+      <button
+        onclick={handleSyncEmbeddings}
+        disabled={isSyncingEmbeddings}
+        class="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors shadow-sm disabled:opacity-50"
+      >
+        <RefreshCw class="h-3.5 w-3.5 {isSyncingEmbeddings ? 'animate-spin' : ''}" />
+        {#if isSyncingEmbeddings}
+          Calcul & Dépôt en cours...
+        {:else}
+          Synchroniser les Vecteurs
+        {/if}
+      </button>
+    </div>
+
+    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
+      <div class="p-3.5 rounded-lg bg-muted/20 border border-border">
+        <span class="text-muted-foreground font-medium">Modèle d'Encodage</span>
+        <div class="text-base font-bold text-foreground mt-1">{embeddingsInfo.model_id}</div>
+        <div class="text-[11px] text-muted-foreground mt-0.5">Encodage déterministe (128d)</div>
+      </div>
+      <div class="p-3.5 rounded-lg bg-muted/20 border border-border">
+        <span class="text-muted-foreground font-medium">Actifs Vectorisés</span>
+        <div class="text-base font-bold text-emerald-600 dark:text-emerald-400 mt-1">{embeddingsInfo.vectors}</div>
+        <div class="text-[11px] text-muted-foreground mt-0.5">Disponibles pour recherche</div>
+      </div>
+      <div class="p-3.5 rounded-lg bg-muted/20 border border-border">
+        <span class="text-muted-foreground font-medium">En Attente de Dépôt</span>
+        <div class="text-base font-bold {embeddingsInfo.missing > 0 ? 'text-amber-500' : 'text-foreground'} mt-1">{embeddingsInfo.missing}</div>
+        <div class="text-[11px] text-muted-foreground mt-0.5">Manquants dans l'index</div>
+      </div>
+      <div class="p-3.5 rounded-lg bg-muted/20 border border-border">
+        <span class="text-muted-foreground font-medium">Vecteurs Obsolètes (Stale)</span>
+        <div class="text-base font-bold {embeddingsInfo.stale > 0 ? 'text-rose-500' : 'text-foreground'} mt-1">{embeddingsInfo.stale}</div>
+        <div class="text-[11px] text-muted-foreground mt-0.5">Texte modifié depuis dépôt</div>
+      </div>
+    </div>
+  </div>
 
   <!-- Section 1 : Porte G7 — Publication Scellée & Changelog -->
   <div class="rounded-xl border bg-card p-6 space-y-6">

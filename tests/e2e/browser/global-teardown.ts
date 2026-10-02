@@ -30,5 +30,15 @@ export default async function globalTeardown() {
     }
   }
 
+  const fakeServer = (globalThis as any).__FAKE_SERVER__;
+  if (fakeServer) {
+    console.log('[Playwright Global Teardown] Arrêt du serveur mock LLMOps...');
+    try {
+      await fakeServer.close();
+    } catch (e: any) {
+      console.warn('[Playwright Global Teardown] Erreur lors de l’arrêt du mock LLMOps :', e.message);
+    }
+  }
+
   console.log('[Playwright Global Teardown] Nettoyage terminé.\n');
 }

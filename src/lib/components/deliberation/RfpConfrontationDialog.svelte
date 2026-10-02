@@ -10,6 +10,8 @@
 	import type { UpstreamDocInput, InitialSubjectInput } from '$lib/domain/engagements';
 	import type { LocalLlmModel, RfpFactorizationResponse } from '$lib/domain/factorization';
 	import RfpFactorizationReview from './RfpFactorizationReview.svelte';
+	import ReuseConfirmationModal from '$lib/components/kb/ReuseConfirmationModal.svelte';
+	import type { SimilarKnowledgeItem, ReuseConfirmation } from '$lib/types/llmops';
 	import {
 		X,
 		Sparkles,
@@ -40,9 +42,21 @@
 			document: UpstreamDocInput;
 			initialSubjects: InitialSubjectInput[];
 		}) => void;
+		actorEmail?: string;
 	}
 
-	let { open = $bindable(false), onclose, onImported }: Props = $props();
+	let { open = $bindable(false), onclose, onImported, actorEmail = 'lead@archinex.local' }: Props = $props();
+
+	// Recherche de similarité sémantique & Réutilisation validée (Contrats 1.9 & 1.10 - A12/A13/A15)
+	let similarAssetsByClause = $state<Record<string, { item: SimilarKnowledgeItem; fingerprint: string }>>({});
+	let clauseReuseConfirmations = $state<Record<string, ReuseConfirmation>>({});
+	let isCheckingSimilarity = $state<boolean>(false);
+
+	// Modale d'examen des hypothèses
+	let isReuseModalOpen = $state<boolean>(false);
+	let selectedClauseForReuse = $state<ClauseConfrontation | null>(null);
+	let selectedSimilarAsset = $state<SimilarKnowledgeItem | null>(null);
+	let selectedFingerprint = $state<string>('');
 
 	type InputMode = 'templates' | 'paste' | 'url' | 'file';
 	let inputMode = $state<InputMode>('templates');
@@ -113,6 +127,8 @@
 		fileParseError = null;
 		confrontationResult = null;
 		factorizationResponse = null;
+		similarAssetsByClause = {};
+		clauseReuseConfirmations = {};
 	}
 
 	async function handleFetchUrl() {
@@ -255,6 +271,8 @@
 		if (!rfpText.trim()) return;
 		isAnalyzing = true;
 		factorizationResponse = null;
+		similarAssetsByClause = {};
+		clauseReuseConfirmations = {};
 
 		try {
 			const extractedClauses = shredRfpTextToClauses(rfpText);
@@ -270,9 +288,85 @@
 			result.document.version = documentVersion || 'v1.0';
 
 			confrontationResult = result;
+
+			// Interrogation sémantique pour chaque clause auprès de LLMOps
+			isCheckingSimilarity = true;
+			try {
+				const queryPromises = result.confrontations.map(async (conf) => {
+					try {
+						const res = await fetch('/api/knowledge/similar', {
+							method: 'POST',
+							headers: {
+								'Content-Type': 'application/json',
+								'x-actor-email': actorEmail
+							},
+							body: JSON.stringify({
+								query_text: `${conf.title}. ${conf.text}`,
+								top_k: 3
+							})
+						});
+						if (!res.ok) return null;
+						const jsonRes = await res.json();
+						const top = jsonRes.data?.results?.[0];
+						if (top && (top.zone === 'strong' || top.zone === 'possible')) {
+							return {
+								confId: conf.id,
+								item: top,
+								fingerprint: jsonRes.subject_fingerprint || ''
+							};
+						}
+					} catch {
+						return null;
+					}
+					return null;
+				});
+
+				const matches = await Promise.all(queryPromises);
+				const updatedSimilar: Record<string, { item: SimilarKnowledgeItem; fingerprint: string }> = {};
+				for (const m of matches) {
+					if (m) {
+						updatedSimilar[m.confId] = {
+							item: m.item,
+							fingerprint: m.fingerprint
+						};
+					}
+				}
+				similarAssetsByClause = updatedSimilar;
+			} finally {
+				isCheckingSimilarity = false;
+			}
 		} finally {
 			isAnalyzing = false;
 		}
+	}
+
+	function openReuseModal(conf: ClauseConfrontation, similar: { item: SimilarKnowledgeItem; fingerprint: string }) {
+		selectedClauseForReuse = conf;
+		selectedSimilarAsset = similar.item;
+		selectedFingerprint = similar.fingerprint;
+		isReuseModalOpen = true;
+	}
+
+	function handleReuseConfirmed(confirmation: ReuseConfirmation) {
+		if (selectedClauseForReuse) {
+			clauseReuseConfirmations[selectedClauseForReuse.id] = confirmation;
+			if (confirmation.outcome === 'reused' || confirmation.outcome === 'reused_with_exception') {
+				selectedClauseForReuse.status = 'compliant';
+				selectedClauseForReuse.rationale = `Conforme par réutilisation validée de ${confirmation.matched_ref} (${confirmation.outcome}).`;
+				if (confrontationResult) {
+					const compliantCount = confrontationResult.confrontations.filter((c) => c.status === 'compliant').length;
+					const conflictCount = confrontationResult.confrontations.filter((c) => c.status === 'conflict').length;
+					const gapCount = confrontationResult.confrontations.filter((c) => c.status === 'gap').length;
+					confrontationResult.stats.compliantCount = compliantCount;
+					confrontationResult.stats.conflictCount = conflictCount;
+					confrontationResult.stats.gapCount = gapCount;
+					confrontationResult.stats.complianceRate = Math.round(
+						(compliantCount / confrontationResult.stats.totalClauses) * 100
+					);
+				}
+			}
+		}
+		isReuseModalOpen = false;
 	}
 
 	function handleConfirmImportClauseByClause() {
@@ -406,11 +500,12 @@
 
 							<!-- Option 1 : Modèles Pré-intégrés -->
 							{#if inputMode === 'templates'}
-								<div class="grid grid-cols-1 sm:grid-cols-3 gap-2">
+								<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
 									{#each SAMPLE_RFP_TEMPLATES as tmpl}
 										{@const isSelected = selectedTemplateId === tmpl.id}
 										<button
 											type="button"
+											data-testid={`template-btn-${tmpl.id}`}
 											onclick={() => selectTemplate(tmpl)}
 											class="p-3 rounded-xl border text-left transition-all space-y-1 {isSelected
 												? 'bg-primary/10 border-primary text-foreground ring-1 ring-primary/30'
@@ -672,6 +767,7 @@
 							<!-- 2. Bouton Secondaire : Dépouillement Brut Clause-par-Clause -->
 							<button
 								type="button"
+								data-testid="btn-run-shred-and-confront"
 								onclick={runShredAndConfront}
 								disabled={isAnalyzing || isParsingFile || !rfpText.trim()}
 								class="w-full py-2 rounded-xl border bg-muted/20 text-muted-foreground hover:text-foreground hover:bg-muted/40 font-semibold text-xs flex items-center justify-center gap-2 transition-all cursor-pointer"
@@ -736,6 +832,8 @@
 								<h4 class="font-bold text-foreground">Matrice des Exigences & Alignement Doctrinal</h4>
 								<div class="space-y-2 max-h-64 overflow-y-auto pr-1">
 									{#each confrontationResult.confrontations as conf}
+										{@const similar = similarAssetsByClause[conf.id]}
+										{@const confirmation = clauseReuseConfirmations[conf.id]}
 										<div
 											class="p-3 rounded-xl border space-y-1.5 transition-colors {conf.status === 'compliant'
 												? 'bg-emerald-500/5 border-emerald-500/30'
@@ -752,7 +850,7 @@
 													{#if conf.status === 'compliant'}
 														<span class="inline-flex items-center gap-1 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20 px-2 py-0.5 text-[10px] font-bold">
 															<CheckCircle2 class="h-3 w-3" />
-															Conforme
+															{confirmation ? 'Conforme (Réutilisé)' : 'Conforme'}
 														</span>
 													{:else if conf.status === 'conflict'}
 														<span class="inline-flex items-center gap-1 rounded-full bg-destructive/10 text-destructive border border-destructive/20 px-2 py-0.5 text-[10px] font-bold">
@@ -783,6 +881,62 @@
 													{/if}
 												</div>
 											</div>
+
+											{#if similar}
+												<div
+													data-testid={`similarity-badge-${conf.id}`}
+													class="p-2.5 rounded-lg border bg-blue-500/5 border-blue-500/25 text-xs space-y-2 mt-2"
+												>
+													<div class="flex items-center justify-between gap-2 flex-wrap">
+														<div class="flex items-center gap-1.5 font-semibold text-foreground">
+															<BrainCircuit class="h-4 w-4 text-blue-500 shrink-0" />
+															<span>Actif proche détecté :</span>
+															<span class="font-mono font-bold text-primary bg-primary/10 px-1.5 py-0.5 rounded">
+																{similar.item.ref}
+															</span>
+															<span class="text-muted-foreground font-normal">({similar.item.title})</span>
+														</div>
+														<span
+															class="px-2 py-0.5 rounded text-[10px] font-bold uppercase {similar.item.zone === 'strong'
+																? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30'
+																: 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/30'}"
+														>
+															Zone : {similar.item.zone === 'strong' ? 'Forte' : 'Possible'} ({(similar.item.score * 100).toFixed(0)}%)
+														</span>
+													</div>
+
+													{#if confirmation}
+														<div
+															data-testid={`reuse-confirmed-badge-${conf.id}`}
+															class="p-2 rounded bg-emerald-500/10 border border-emerald-500/30 text-emerald-800 dark:text-emerald-200 flex items-center justify-between text-[11px]"
+														>
+															<div class="flex items-center gap-1.5 font-semibold">
+																<CheckCircle2 class="h-3.5 w-3.5 text-emerald-600 shrink-0" />
+																<span>✓ Validé par {confirmation.actor} ({confirmation.outcome})</span>
+															</div>
+															<span class="text-[10px] text-muted-foreground font-mono">
+																{confirmation.assumptions.length} hypothèse{confirmation.assumptions.length > 1 ? 's' : ''} vérifiée{confirmation.assumptions.length > 1 ? 's' : ''}
+															</span>
+														</div>
+													{:else}
+														<div class="flex items-center justify-between gap-2 pt-0.5 flex-wrap">
+															<div class="text-[11px] text-amber-700 dark:text-amber-300 flex items-center gap-1.5">
+																<ShieldCheck class="h-3.5 w-3.5 shrink-0" />
+																<span><strong>Confirmation obligatoire (D8) :</strong> jamais de réutilisation silencieuse</span>
+															</div>
+															<button
+																type="button"
+																data-testid={`btn-review-hypotheses-${conf.id}`}
+																onclick={() => openReuseModal(conf, similar)}
+																class="px-3 py-1 rounded-lg bg-primary hover:bg-primary/90 text-primary-foreground text-xs font-semibold shadow-xs flex items-center gap-1.5 transition-colors cursor-pointer"
+															>
+																<span>Examiner les hypothèses</span>
+																<ArrowRight class="h-3 w-3" />
+															</button>
+														</div>
+													{/if}
+												</div>
+											{/if}
 										</div>
 									{/each}
 								</div>
@@ -836,4 +990,16 @@
 			{/if}
 		</div>
 	</div>
+{/if}
+
+{#if isReuseModalOpen && selectedSimilarAsset}
+	<ReuseConfirmationModal
+		isOpen={isReuseModalOpen}
+		subjectLabel={selectedClauseForReuse?.title || ''}
+		subjectFingerprint={selectedFingerprint}
+		asset={selectedSimilarAsset}
+		actorEmail={actorEmail}
+		onConfirm={handleReuseConfirmed}
+		onClose={() => (isReuseModalOpen = false)}
+	/>
 {/if}

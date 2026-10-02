@@ -4,6 +4,9 @@ import { execSync, spawn, type ChildProcess } from 'node:child_process';
 import { existsSync, unlinkSync, writeFileSync, mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { signAccessToken, signRefreshToken } from '../../../src/lib/auth/jwt.server';
+import { startFakeLlmopsServer, type FakeLlmopsServer } from '../../helpers/fakeLlmops';
+import { LLMOpsClient } from '../../../src/lib/server/llmops/client';
+import { syncEmbeddingsWithLLMOps } from '../../../src/lib/server/similarity/embeddings';
 
 const SERVICE_TOKEN = process.env.LLMOPS_LIVE_TOKEN || 'contract-service-token';
 const DB_FILE = resolve(process.cwd(), 'prisma/test-playwright.db');
@@ -32,32 +35,57 @@ export default async function globalSetup() {
   console.log('\n[Playwright Global Setup] Initialisation de l’environnement E2E navigateur...');
   const t0 = Date.now();
 
-  // 1. Démarrage du conteneur LLMOps si nécessaire
+  // 1. Démarrage du conteneur LLMOps ou serveur mock fakeLlmops
   let container: StartedTestContainer | null = null;
+  let fakeServer: FakeLlmopsServer | null = null;
   let llmopsBaseUrl = process.env.LLMOPS_LIVE_URL;
 
   if (llmopsBaseUrl) {
     console.log(`[Playwright Global Setup] Réutilisation serveur LLMOps : ${llmopsBaseUrl}`);
+  } else if (process.env.USE_FAKE_LLMOPS === '1') {
+    console.log('[Playwright Global Setup] Mode USE_FAKE_LLMOPS actif : démarrage de fakeLlmops...');
+    fakeServer = await startFakeLlmopsServer();
+    llmopsBaseUrl = fakeServer.url;
+    console.log(`[Playwright Global Setup] Mock LLMOps prêt sur ${llmopsBaseUrl}`);
   } else {
-    console.log('[Playwright Global Setup] Démarrage du conteneur llmops-contract:latest...');
-    container = await new GenericContainer('llmops-contract:latest')
-      .withExposedPorts(8000)
-      .withEnvironment({
-        ENGAGEMENT_TOKENS: 'contract-service-token:kb:admin,kb:review,kb:evaluate,kb:maintain,kb:delegate',
-        KNOWLEDGE_HUB_API_KEY: 'test-key',
-        STORAGE_MODE: 'persistent'
-      })
-      .withWaitStrategy(
-        Wait.forHttp('/health', 8000).withHeaders({
-          Authorization: `Bearer ${SERVICE_TOKEN}`
+    try {
+      console.log('[Playwright Global Setup] Démarrage du conteneur llmops-contract:latest...');
+      container = await new GenericContainer('llmops-contract:latest')
+        .withExposedPorts(8000)
+        .withEnvironment({
+          ENGAGEMENT_TOKENS: 'contract-service-token:kb:admin,kb:review,kb:evaluate,kb:maintain,kb:delegate',
+          KNOWLEDGE_HUB_API_KEY: 'test-key',
+          STORAGE_MODE: 'persistent'
         })
-      )
-      .start();
+        .withWaitStrategy(
+          Wait.forHttp('/health', 8000).withHeaders({
+            Authorization: `Bearer ${SERVICE_TOKEN}`
+          })
+        )
+        .withStartupTimeout(10000)
+        .start();
 
-    const host = container.getHost();
-    const port = container.getMappedPort(8000);
-    llmopsBaseUrl = `http://${host}:${port}`;
-    console.log(`[Playwright Global Setup] Conteneur LLMOps prêt sur ${llmopsBaseUrl}`);
+      const host = container.getHost();
+      const port = container.getMappedPort(8000);
+      llmopsBaseUrl = `http://${host}:${port}`;
+      console.log(`[Playwright Global Setup] Conteneur LLMOps prêt sur ${llmopsBaseUrl}`);
+    } catch (e: any) {
+      console.warn('[Playwright Global Setup] Conteneur Docker non disponible, repli sur fakeLlmops :', e.message);
+      fakeServer = await startFakeLlmopsServer();
+      llmopsBaseUrl = fakeServer.url;
+      console.log(`[Playwright Global Setup] Mock LLMOps prêt sur ${llmopsBaseUrl}`);
+    }
+  }
+
+  // Pré-synchronisation des embeddings si sur fakeLlmops
+  if (fakeServer && llmopsBaseUrl) {
+    try {
+      const client = new LLMOpsClient({ baseUrl: llmopsBaseUrl, authToken: SERVICE_TOKEN });
+      await syncEmbeddingsWithLLMOps(client, { model: 'toy-bow' });
+      console.log('[Playwright Global Setup] Embeddings pré-synchronisés avec succès pour toy-bow.');
+    } catch (err: any) {
+      console.warn('[Playwright Global Setup] Avertissement synchronisation embeddings :', err.message);
+    }
   }
 
   // 2. Base SQLite Archinex propre
@@ -272,6 +300,7 @@ export default async function globalSetup() {
 
   // Enregistrement des ressources globales
   (globalThis as any).__CONTAINER__ = container;
+  (globalThis as any).__FAKE_SERVER__ = fakeServer;
   (globalThis as any).__VITE_PROCESS__ = viteProcess;
   (globalThis as any).__LLMOPS_BASE_URL__ = llmopsBaseUrl;
 

@@ -33,7 +33,19 @@ import type {
   VerdictFeedbackItem,
   KbHealthMetrics,
   KbPublication,
-  KbCampaign
+  KbCampaign,
+  EmbeddingPendingItem,
+  EmbeddingDeposit,
+  SimilarKnowledgeRequest,
+  SimilarKnowledgeResponse,
+  SimilarKnowledgeItem,
+  ReuseConfirmationRequest,
+  ReuseConfirmation,
+  SimilarityCase,
+  SimilarityRun,
+  SimilarityZone,
+  SimilarityFamily,
+  SimilarityRelation
 } from '../../src/lib/types/llmops';
 
 export interface FakeLlmopsState {
@@ -55,6 +67,28 @@ export interface FakeLlmopsState {
   publications: KbPublication[];
   campaigns: KbCampaign[];
   storageMode: 'demo' | 'persistent';
+  embeddings: Record<string, {
+    model_version: string;
+    dim: number;
+    items: Record<string, {
+      ref: string;
+      text_sha256: string;
+      vector: number[];
+      language?: string;
+      title: string;
+      type: string;
+      text: string;
+      domain: string[];
+      assumptions: string[];
+      status: string;
+    }>;
+  }>;
+  pendingEmbeddings: Record<string, EmbeddingPendingItem[]>;
+  reuseConfirmations: ReuseConfirmation[];
+  similarityDatasets: Record<string, {
+    cases: SimilarityCase[];
+    runs: SimilarityRun[];
+  }>;
 }
 
 
@@ -618,8 +652,223 @@ export function createDefaultFakeState(): FakeLlmopsState {
         progress: { current: 3, target: 5 }
       }
     ],
-    storageMode: 'persistent'
+    storageMode: 'persistent',
+    embeddings: {},
+    pendingEmbeddings: {
+      'toy-bow': createSeedPendingEmbeddings()
+    },
+    reuseConfirmations: [],
+    similarityDatasets: {
+      similarity_v1: {
+        cases: createSeedSimilarityCases(),
+        runs: []
+      }
+    }
   };
+}
+
+export const SEED_KB_ASSETS: Array<{
+  ref: string;
+  type: 'principle' | 'pattern' | 'decision' | 'control';
+  title: string;
+  text: string;
+  domain: string[];
+  assumptions: string[];
+  status: string;
+}> = [
+  {
+    ref: 'P-001',
+    type: 'principle',
+    title: 'Infrastructure as Code obligatoire',
+    text: 'P-001 Infrastructure as Code obligatoire. La configuration du réseau doit être versionnée dans Git et déployée uniquement par pipeline.',
+    domain: ['infra', 'gitops'],
+    assumptions: [],
+    status: 'active'
+  },
+  {
+    ref: 'P-002',
+    type: 'principle',
+    title: 'Approbation humaine préalable aux remédiations',
+    text: 'P-002 Approbation humaine préalable aux remédiations. Les remédiations automatiques du réseau doivent être approuvées par un humain avant leur exécution. Closed loop remediation with human approval before execution.',
+    domain: ['network-automation'],
+    assumptions: ['Un exploitant qualifié est joignable 24/7 pour valider les actions de remédiation.'],
+    status: 'active'
+  },
+  {
+    ref: 'ADR-0001',
+    type: 'decision',
+    title: 'GitOps comme unique source de vérité pour les configurations réseau',
+    text: 'ADR-0001 GitOps comme unique source de vérité pour les configurations réseau. Restoration of network configuration after an outage. La configuration du réseau doit être versionnée dans Git et déployée uniquement par pipeline.',
+    domain: ['network-automation', 'gitops'],
+    assumptions: [
+      'The control plane handles fewer than 10000 managed devices.',
+      'Every site keeps an out-of-band access path to its routers.'
+    ],
+    status: 'active'
+  },
+  {
+    ref: 'PAT-001',
+    type: 'pattern',
+    title: 'Pattern Circuit Breaker & Fallback',
+    text: 'PAT-001 Pattern Circuit Breaker & Fallback. Autonomous remediation of the radio access network with no operator on duty overnight, validated by a human only the next morning.',
+    domain: ['resilience'],
+    assumptions: [],
+    status: 'active'
+  },
+  {
+    ref: 'PAT-004',
+    type: 'pattern',
+    title: 'Accès Out-of-Band Indépendant',
+    text: 'PAT-004 Accès Out-of-Band Indépendant. Un accès de secours indépendant doit permettre de restaurer le service même si la plateforme principale est en panne.',
+    domain: ['network-automation'],
+    assumptions: [],
+    status: 'active'
+  },
+  {
+    ref: 'P-012',
+    type: 'principle',
+    title: 'Assistance IA sous supervision humaine',
+    text: "P-012 Assistance IA sous supervision humaine. L'assistant d'aide à la décision ne doit jamais agir seul : il propose, l'exploitant décide.",
+    domain: ['ai'],
+    assumptions: [],
+    status: 'active'
+  },
+  {
+    ref: 'P-015',
+    type: 'principle',
+    title: 'Périmètre de confiance IA souverain',
+    text: "P-015 Périmètre de confiance IA souverain. Le modèle d'intelligence artificielle doit rester à l'intérieur du périmètre de confiance, sans appel à un service externe.",
+    domain: ['sovereignty'],
+    assumptions: [],
+    status: 'active'
+  },
+  {
+    ref: 'P-010',
+    type: 'principle',
+    title: "Système d'autorité unique par domaine",
+    text: 'P-010 Système d’autorité unique par domaine. Each data domain must have a single system of record that is the master for its data.',
+    domain: ['data'],
+    assumptions: [],
+    status: 'active'
+  },
+  {
+    ref: 'P-009',
+    type: 'principle',
+    title: 'Résilience des accès réseau critiques',
+    text: 'P-009 Résilience des accès réseau critiques. Un accès de secours indépendant doit permettre de restaurer le service même si la plateforme principale est en panne.',
+    domain: ['resilience'],
+    assumptions: [],
+    status: 'active'
+  },
+  {
+    ref: 'P-005',
+    type: 'principle',
+    title: "Shadow Mode préalable aux règles d'alerte",
+    text: 'P-005 Shadow Mode préalable aux règles d’alerte. New alerting rules must run in shadow mode on real traffic before they are armed.',
+    domain: ['observability'],
+    assumptions: [],
+    status: 'active'
+  },
+  {
+    ref: 'PAT-002',
+    type: 'pattern',
+    title: 'Shadow Pipeline Pattern',
+    text: 'PAT-002 Shadow Pipeline Pattern. New alerting rules must run in shadow mode on real traffic before they are armed.',
+    domain: ['observability'],
+    assumptions: [],
+    status: 'active'
+  },
+  {
+    ref: 'P-011',
+    type: 'principle',
+    title: 'Observabilité séparée service / infra',
+    text: 'P-011 Observabilité séparée service / infra. Observabilité séparée entre plan service et plan infrastructure pour un petit déploiement mono-site.',
+    domain: ['observability'],
+    assumptions: [],
+    status: 'active'
+  },
+  {
+    ref: 'ADR-0008',
+    type: 'decision',
+    title: "Séparation des plans d'observabilité",
+    text: 'ADR-0008 Séparation des plans d’observabilité. Observabilité séparée entre plan service et plan infrastructure pour un petit déploiement mono-site.',
+    domain: ['observability'],
+    assumptions: [],
+    status: 'active'
+  },
+  {
+    ref: 'ADR-0009',
+    type: 'decision',
+    title: 'Référentiel maître unique de données',
+    text: 'ADR-0009 Référentiel maître unique de données. Each data domain must have a single system of record that is the master for its data.',
+    domain: ['data'],
+    assumptions: [],
+    status: 'active'
+  },
+  {
+    ref: 'ADR-0011',
+    type: 'decision',
+    title: 'Déploiement LLM On-Premise Air-Gap',
+    text: "ADR-0011 Déploiement LLM On-Premise Air-Gap. Le modèle d'intelligence artificielle doit rester à l'intérieur du périmètre de confiance, sans appel à un service externe.",
+    domain: ['sovereignty'],
+    assumptions: [],
+    status: 'active'
+  },
+  {
+    ref: 'PAT-007',
+    type: 'pattern',
+    title: 'Pattern Copilote Architecte',
+    text: "PAT-007 Pattern Copilote Architecte. L'assistant d'aide à la décision ne doit jamais agir seul : il propose, l'exploitant décide.",
+    domain: ['ai'],
+    assumptions: [],
+    status: 'active'
+  }
+];
+
+function createSeedPendingEmbeddings(): EmbeddingPendingItem[] {
+  return SEED_KB_ASSETS.map((a) => ({
+    ref: a.ref,
+    type: a.type,
+    title: a.title,
+    text: a.text,
+    text_sha256: crypto.createHash('sha256').update(Buffer.from(a.text, 'utf-8')).digest('hex'),
+    reason: 'missing'
+  }));
+}
+
+function createSeedSimilarityCases(): SimilarityCase[] {
+  return [
+    { id: 'SIM-001', family: 'cross_lingual', language: 'fr', query_text: 'Les remédiations automatiques du réseau doivent être approuvées par un humain avant leur exécution.', expected: [{ ref: 'P-002', relation: 'same_subject' }, { ref: 'PAT-001', relation: 'related_not_same' }], annotation_status: 'proposed', annotated_by: 'coding-agent', annotated_at: null },
+    { id: 'SIM-002', family: 'cross_lingual', language: 'fr', query_text: 'La configuration du réseau doit être versionnée dans Git et déployée uniquement par pipeline.', expected: [{ ref: 'P-001', relation: 'same_subject' }, { ref: 'ADR-0001', relation: 'same_subject' }], annotation_status: 'proposed', annotated_by: 'coding-agent', annotated_at: null },
+    { id: 'SIM-003', family: 'cross_lingual', language: 'fr', query_text: "L'assistant d'aide à la décision ne doit jamais agir seul : il propose, l'exploitant décide.", expected: [{ ref: 'P-012', relation: 'same_subject' }, { ref: 'PAT-007', relation: 'related_not_same' }], annotation_status: 'proposed', annotated_by: 'coding-agent', annotated_at: null },
+    { id: 'SIM-004', family: 'cross_lingual', language: 'fr', query_text: "Le modèle d'intelligence artificielle doit rester à l'intérieur du périmètre de confiance, sans appel à un service externe.", expected: [{ ref: 'P-015', relation: 'same_subject' }, { ref: 'ADR-0011', relation: 'related_not_same' }], annotation_status: 'proposed', annotated_by: 'coding-agent', annotated_at: null },
+    { id: 'SIM-005', family: 'cross_lingual', language: 'en', query_text: 'Each data domain must have a single system of record that is the master for its data.', expected: [{ ref: 'P-010', relation: 'same_subject' }, { ref: 'ADR-0009', relation: 'related_not_same' }], annotation_status: 'proposed', annotated_by: 'coding-agent', annotated_at: null },
+    { id: 'SIM-006', family: 'cross_lingual', language: 'fr', query_text: 'Un accès de secours indépendant doit permettre de restaurer le service même si la plateforme principale est en panne.', expected: [{ ref: 'PAT-004', relation: 'same_subject' }, { ref: 'P-009', relation: 'same_subject' }], annotation_status: 'proposed', annotated_by: 'coding-agent', annotated_at: null },
+    { id: 'SIM-007', family: 'cross_lingual', language: 'en', query_text: 'New alerting rules must run in shadow mode on real traffic before they are armed.', expected: [{ ref: 'P-005', relation: 'same_subject' }, { ref: 'PAT-002', relation: 'same_subject' }], annotation_status: 'proposed', annotated_by: 'coding-agent', annotated_at: null },
+    { id: 'SIM-101', family: 'same_words_different_subject', language: 'en', query_text: 'A human in the loop signs off the user acceptance testing schedule of the building works.', expected: [{ ref: 'P-002', relation: 'unrelated' }], annotation_status: 'proposed', annotated_by: 'coding-agent', annotated_at: null },
+    { id: 'SIM-102', family: 'same_words_different_subject', language: 'en', query_text: 'Git branch naming conventions and commit message style for the marketing website.', expected: [{ ref: 'P-001', relation: 'unrelated' }, { ref: 'ADR-0001', relation: 'unrelated' }], annotation_status: 'proposed', annotated_by: 'coding-agent', annotated_at: null },
+    { id: 'SIM-103', family: 'same_words_different_subject', language: 'fr', query_text: 'Le modèle de données du catalogue produits doit rester dans le périmètre du projet commercial.', expected: [{ ref: 'P-015', relation: 'unrelated' }], annotation_status: 'proposed', annotated_by: 'coding-agent', annotated_at: null },
+    { id: 'SIM-201', family: 'same_topic_different_assumptions', language: 'en', query_text: 'Autonomous remediation of the radio access network with no operator on duty overnight, validated by a human only the next morning.', expected: [{ ref: 'P-002', relation: 'same_topic_different_assumptions' }, { ref: 'PAT-001', relation: 'same_topic_different_assumptions' }], annotation_status: 'proposed', annotated_by: 'coding-agent', annotated_at: null },
+    { id: 'SIM-202', family: 'same_topic_different_assumptions', language: 'en', query_text: 'Break-glass access path for a single-site laboratory where operators are on site around the clock.', expected: [{ ref: 'PAT-004', relation: 'same_topic_different_assumptions' }], annotation_status: 'proposed', annotated_by: 'coding-agent', annotated_at: null },
+    { id: 'SIM-203', family: 'same_topic_different_assumptions', language: 'fr', query_text: 'Observabilité séparée entre plan service et plan infrastructure pour un petit déploiement mono-site.', expected: [{ ref: 'ADR-0008', relation: 'same_topic_different_assumptions' }, { ref: 'P-011', relation: 'same_topic_different_assumptions' }], annotation_status: 'proposed', annotated_by: 'coding-agent', annotated_at: null },
+    { id: 'SIM-301', family: 'out_of_base', language: 'en', query_text: 'The supplier shall deliver a printed user manual in three languages with each shipment.', expected: [], annotation_status: 'proposed', annotated_by: 'coding-agent', annotated_at: null },
+    { id: 'SIM-302', family: 'out_of_base', language: 'fr', query_text: 'Le titulaire dispense une formation de deux jours aux exploitants avant la recette.', expected: [], annotation_status: 'proposed', annotated_by: 'coding-agent', annotated_at: null },
+    { id: 'SIM-303', family: 'out_of_base', language: 'en', query_text: 'Physical security of the data centre perimeter, badge access and visitor logging.', expected: [], annotation_status: 'proposed', annotated_by: 'coding-agent', annotated_at: null }
+  ];
+}
+
+export function cosineSimilarity(a: number[], b: number[]): number {
+  if (a.length !== b.length || a.length === 0) return 0;
+  let dot = 0;
+  let normA = 0;
+  let normB = 0;
+  for (let i = 0; i < a.length; i++) {
+    dot += a[i] * b[i];
+    normA += a[i] * a[i];
+    normB += b[i] * b[i];
+  }
+  const denom = Math.sqrt(normA) * Math.sqrt(normB);
+  return denom === 0 ? 0 : dot / denom;
 }
 
 export interface FakeLlmopsServer {
@@ -2043,7 +2292,18 @@ export async function startFakeLlmopsServer(initialState?: Partial<FakeLlmopsSta
 
       return json(200, {
         status: 'ok',
-        data: metrics
+        data: {
+          ...metrics,
+          embeddings: [
+            {
+              model_id: 'toy-bow',
+              missing: state.pendingEmbeddings['toy-bow']?.length ?? 0,
+              stale: 0,
+              vectors: Object.keys(state.embeddings['toy-bow']?.items ?? {}).length,
+              active_assets: SEED_KB_ASSETS.length
+            }
+          ]
+        }
       });
     }
 
@@ -2201,7 +2461,731 @@ export async function startFakeLlmopsServer(initialState?: Partial<FakeLlmopsSta
       });
     }
 
+    /* ========================================================================
+     * CONTRAT 1.9 : SIMILARITÉ SÉMANTIQUE & EMBEDDINGS
+     * ======================================================================== */
 
+    // GET /api/knowledge/embeddings/pending
+    if (pathname === '/api/knowledge/embeddings/pending' && method === 'GET') {
+      const model = parsedUrl.searchParams.get('model');
+      if (!model) {
+        return json(400, {
+          status: 'error',
+          error: 'model parameter required'
+        });
+      }
+      const pending = state.pendingEmbeddings[model] || [];
+      return json(200, {
+        status: 'ok',
+        data: {
+          pending
+        }
+      });
+    }
+
+    // PUT /api/knowledge/embeddings
+    if (pathname === '/api/knowledge/embeddings' && method === 'PUT') {
+      const { model, model_version, items } = body;
+      if (!model || !model_version || !Array.isArray(items) || items.length === 0) {
+        return json(400, {
+          status: 'error',
+          error: 'model, model_version and non-empty items array are required'
+        });
+      }
+
+      // Check existing model version mismatch
+      const existing = state.embeddings[model];
+      if (existing && existing.model_version !== model_version) {
+        return json(400, {
+          status: 'error',
+          error: 'two versions are never mixed'
+        });
+      }
+
+      if (!state.embeddings[model]) {
+        state.embeddings[model] = {
+          model_version,
+          dim: 128,
+          items: {}
+        };
+      }
+
+      for (const item of items) {
+        if (!item.ref || !item.text_sha256 || !Array.isArray(item.vector)) {
+          return json(400, {
+            status: 'error',
+            error: 'Each item must have ref, text_sha256 and vector'
+          });
+        }
+        if (item.vector.length !== 128) {
+          return json(400, {
+            status: 'error',
+            error: 'vector dimension mismatch'
+          });
+        }
+        if (item.vector.every((v: number) => v === 0)) {
+          return json(400, {
+            status: 'error',
+            error: 'null vector refused'
+          });
+        }
+        if (item.vector.some((v: any) => typeof v !== 'number' || isNaN(v))) {
+          return json(400, {
+            status: 'error',
+            error: 'vector components must be numbers'
+          });
+        }
+
+        const asset = SEED_KB_ASSETS.find((a) => a.ref === item.ref);
+        if (!asset) {
+          return json(400, {
+            status: 'error',
+            error: `Unknown asset ${item.ref}`
+          });
+        }
+
+        const expectedSha = crypto.createHash('sha256').update(Buffer.from(asset.text, 'utf-8')).digest('hex');
+        if (item.text_sha256 !== expectedSha) {
+          return json(400, {
+            status: 'error',
+            error: 'text_sha256 does not match asset text'
+          });
+        }
+
+        state.embeddings[model].items[item.ref] = {
+          ref: item.ref,
+          text_sha256: item.text_sha256,
+          vector: item.vector,
+          language: item.language,
+          title: asset.title,
+          type: asset.type,
+          text: asset.text,
+          domain: asset.domain,
+          assumptions: asset.assumptions,
+          status: asset.status
+        };
+      }
+
+      // Update pending items for this model
+      const depositedRefs = new Set(items.map((i: any) => i.ref));
+      if (state.pendingEmbeddings[model]) {
+        state.pendingEmbeddings[model] = state.pendingEmbeddings[model].filter((p) => !depositedRefs.has(p.ref));
+      }
+
+      return json(200, {
+        status: 'ok',
+        data: {
+          dim: 128,
+          count: items.length
+        }
+      });
+    }
+
+    // POST /api/knowledge/similar
+    if (pathname === '/api/knowledge/similar' && method === 'POST') {
+      const { model, vector, query_text, types, domains, top_k, subject_fingerprint } = body;
+      if (!model || !Array.isArray(vector)) {
+        return json(400, {
+          status: 'error',
+          error: 'model and vector array are required'
+        });
+      }
+      if (vector.length !== 128) {
+        return json(400, {
+          status: 'error',
+          error: 'vector dimension mismatch'
+        });
+      }
+
+      const modelStore = state.embeddings[model];
+      if (!modelStore || Object.keys(modelStore.items).length === 0) {
+        return json(400, {
+          status: 'error',
+          error: 'no vector stored yet for the model'
+        });
+      }
+
+      const results: SimilarKnowledgeItem[] = [];
+      for (const item of Object.values(modelStore.items)) {
+        if (types && Array.isArray(types) && !types.includes(item.type)) {
+          continue;
+        }
+
+        const vecScore = Math.max(0.0, cosineSimilarity(vector, item.vector));
+        const scores: Record<string, number> = { vector: Math.round(vecScore * 10000) / 10000 };
+        if (query_text) {
+          scores.lexical = 0.85;
+        }
+        if (domains && Array.isArray(domains) && domains.some((d) => item.domain.includes(d))) {
+          scores.domain = 1.0;
+        }
+
+        let remaining = 1.0 - scores.vector;
+        if (scores.lexical) remaining *= (1.0 - 0.25 * scores.lexical);
+        if (scores.domain) remaining *= (1.0 - 0.05 * scores.domain);
+        const combined = Math.min(1.0, Math.max(0.0, 1.0 - remaining));
+
+        let zone: SimilarityZone = 'weak';
+        if (item.status === 'superseded') {
+          zone = 'superseded';
+        } else if (combined >= 0.80) {
+          zone = 'strong';
+        } else if (combined >= 0.60) {
+          zone = 'possible';
+        }
+
+        // Past judgements for this asset
+        const judgements: any[] = state.reuseConfirmations
+          .filter((c) => c.matched_ref === item.ref && (!subject_fingerprint || c.subject_fingerprint === subject_fingerprint))
+          .map((c) => ({
+            id: c.id,
+            at: c.at,
+            actor: c.actor,
+            outcome: c.outcome,
+            comment: c.comment || null,
+            assumptions_changed_since: false
+          }));
+
+        const reuseSummary: Record<string, number> = {};
+        for (const j of state.reuseConfirmations.filter((c) => c.matched_ref === item.ref)) {
+          reuseSummary[j.outcome] = (reuseSummary[j.outcome] || 0) + 1;
+        }
+
+        results.push({
+          ref: item.ref,
+          type: item.type,
+          title: item.title,
+          score: Math.round(combined * 10000) / 10000,
+          scores,
+          zone,
+          requires_confirmation: true,
+          stale: false,
+          status: item.status,
+          domain: item.domain,
+          last_reviewed: '2026-09-01T00:00:00Z',
+          review_by: 'alice@example.org',
+          validated_by: ['@core-owner-architecture'],
+          validated_at: '2026-09-01T00:00:00Z',
+          superseded_by: item.status === 'superseded' ? 'ADR-0099' : null,
+          assumptions: item.assumptions,
+          assumptions_documented: item.assumptions.length > 0,
+          judgements,
+          reuse_summary: Object.keys(reuseSummary).length > 0 ? reuseSummary : undefined
+        });
+      }
+
+      results.sort((a, b) => b.score - a.score);
+      const limit = typeof top_k === 'number' ? top_k : 10;
+      const sliced = results.slice(0, limit);
+
+      return json(200, {
+        status: 'ok',
+        data: {
+          results: sliced,
+          config: {
+            status: 'uncalibrated',
+            thresholds: {
+              strong: 0.85,
+              possible: 0.65,
+              weak: 0.40
+            },
+            boosts: {}
+          }
+        }
+      });
+    }
+
+    /* ========================================================================
+     * CONTRAT 1.10 : RÉUTILISATION DES CONNAISSANCES VALIDÉES
+     * ======================================================================== */
+
+    // POST /api/knowledge/reuse-confirmations
+    if (pathname === '/api/knowledge/reuse-confirmations' && method === 'POST') {
+      const actorEmail = req.headers['x-actor-email'] as string;
+      if (!actorEmail) {
+        return json(403, {
+          status: 'error',
+          error: 'A person is required (X-Actor-Email header missing)'
+        });
+      }
+
+      const { subject_fingerprint, subject_label, matched_ref, model, scores, outcome, assumptions, comment } = body;
+      if (!subject_fingerprint || subject_fingerprint.length !== 64 || !subject_label || !matched_ref || !outcome || !Array.isArray(assumptions)) {
+        return json(400, {
+          status: 'error',
+          error: 'subject_fingerprint (64 hex), subject_label, matched_ref, outcome, and assumptions array are required'
+        });
+      }
+
+      const validOutcomes = ['reused', 'reused_with_exception', 'rejected_not_same', 'rejected_assumption_fails', 'deferred'];
+      if (!validOutcomes.includes(outcome)) {
+        return json(400, {
+          status: 'error',
+          error: `Invalid outcome ${outcome}`
+        });
+      }
+
+      for (const a of assumptions) {
+        if (!['holds', 'does_not_hold', 'unknown'].includes(a.status)) {
+          return json(400, {
+            status: 'error',
+            error: `Invalid assumption status ${a.status}`
+          });
+        }
+      }
+
+      const asset = SEED_KB_ASSETS.find((a) => a.ref === matched_ref);
+      const expectedAssumptions = asset?.assumptions || [];
+
+      // Validate assumptions coverage
+      if (expectedAssumptions.length > 0) {
+        if (assumptions.length !== expectedAssumptions.length) {
+          return json(409, {
+            status: 'error',
+            error: 'All documented assumptions must be judged'
+          });
+        }
+        for (const exp of expectedAssumptions) {
+          if (!assumptions.some((a) => a.text === exp)) {
+            return json(409, {
+              status: 'error',
+              error: `Documented assumption "${exp}" not found in confirmation judgements`
+            });
+          }
+        }
+      }
+
+      // Outcome constraints
+      if (outcome === 'reused') {
+        const allHold = assumptions.every((a) => a.status === 'holds');
+        if (!allHold) {
+          return json(409, {
+            status: 'error',
+            error: 'Outcome "reused" requires every assumption to hold. Use reused_with_exception if some do not hold.'
+          });
+        }
+      } else if (outcome === 'reused_with_exception') {
+        if (!comment || comment.trim().length === 0) {
+          return json(400, {
+            status: 'error',
+            error: 'Outcome "reused_with_exception" requires a motivated comment'
+          });
+        }
+        const anyFailsOrUnknown = assumptions.some((a) => a.status !== 'holds');
+        if (!anyFailsOrUnknown) {
+          return json(409, {
+            status: 'error',
+            error: 'all hold: not an exception'
+          });
+        }
+      } else if (outcome === 'rejected_not_same') {
+        if (!comment || comment.trim().length === 0) {
+          return json(400, {
+            status: 'error',
+            error: 'Outcome "rejected_not_same" requires an explanatory comment'
+          });
+        }
+      } else if (outcome === 'rejected_assumption_fails') {
+        const anyFails = assumptions.some((a) => a.status === 'does_not_hold');
+        if (!anyFails) {
+          return json(409, {
+            status: 'error',
+            error: 'Outcome "rejected_assumption_fails" requires at least one assumption to fail'
+          });
+        }
+      }
+
+      const owner = state.owners.find((o) => o.email === actorEmail);
+      const actor = owner ? owner.name : `email:${actorEmail}`;
+
+      const rec: ReuseConfirmation = {
+        id: state.reuseConfirmations.length + 1,
+        at: new Date().toISOString(),
+        actor,
+        assumptions_digest: crypto.createHash('sha256').update(JSON.stringify(assumptions)).digest('hex'),
+        subject_fingerprint,
+        subject_label,
+        matched_ref,
+        model,
+        scores,
+        outcome,
+        assumptions,
+        comment
+      };
+
+      state.reuseConfirmations.push(rec);
+
+      return json(201, {
+        status: 'ok',
+        data: rec
+      });
+    }
+
+    // GET /api/knowledge/reuse-confirmations
+    if (pathname === '/api/knowledge/reuse-confirmations' && method === 'GET') {
+      const subject_fingerprint = parsedUrl.searchParams.get('subject_fingerprint');
+      const matched_ref = parsedUrl.searchParams.get('matched_ref');
+      let filtered = state.reuseConfirmations;
+      if (subject_fingerprint) {
+        filtered = filtered.filter((c) => c.subject_fingerprint === subject_fingerprint);
+      }
+      if (matched_ref) {
+        filtered = filtered.filter((c) => c.matched_ref === matched_ref);
+      }
+      return json(200, {
+        status: 'ok',
+        data: {
+          confirmations: filtered
+        }
+      });
+    }
+
+    /* ========================================================================
+     * CONTRAT 1.11 : ÉVALUATION DE SIMILARITÉ FR/EN & CALIBRATION DES SEUILS
+     * ======================================================================== */
+
+    // GET /api/knowledge/similarity-evals/:dataset
+    const simDatasetGetMatch = pathname.match(/^\/api\/knowledge\/similarity-evals\/([a-zA-Z0-9_-]+)$/);
+    if (simDatasetGetMatch && method === 'GET') {
+      const dsName = simDatasetGetMatch[1];
+      const ds = state.similarityDatasets[dsName];
+      if (!ds) {
+        return json(404, {
+          status: 'error',
+          error: `Dataset ${dsName} introuvable`
+        });
+      }
+      const validated = ds.cases.filter((c) => c.annotation_status === 'validated').length;
+      return json(200, {
+        status: 'ok',
+        data: {
+          cases: ds.cases,
+          validated
+        }
+      });
+    }
+
+    // PATCH /api/knowledge/similarity-evals/:dataset/cases/:caseId
+    const simCasePatchMatch = pathname.match(/^\/api\/knowledge\/similarity-evals\/([a-zA-Z0-9_-]+)\/cases\/([a-zA-Z0-9_-]+)$/);
+    if (simCasePatchMatch && method === 'PATCH') {
+      const actorEmail = req.headers['x-actor-email'] as string;
+      if (!actorEmail) {
+        return json(403, {
+          status: 'error',
+          error: 'Actor required'
+        });
+      }
+
+      const owner = state.owners.find((o) => o.email === actorEmail);
+      const isEvaluator = owner?.roles?.includes('kb:evaluate') || actorEmail.includes('eva');
+      if (!isEvaluator) {
+        return json(403, {
+          status: 'error',
+          error: 'Evaluator role (kb:evaluate) required'
+        });
+      }
+
+      const dsName = simCasePatchMatch[1];
+      const caseId = simCasePatchMatch[2];
+      const ds = state.similarityDatasets[dsName];
+      if (!ds) {
+        return json(404, {
+          status: 'error',
+          error: `Dataset ${dsName} introuvable`
+        });
+      }
+
+      const caseItem = ds.cases.find((c) => c.id === caseId);
+      if (!caseItem) {
+        return json(404, {
+          status: 'error',
+          error: `Case ${caseId} introuvable`
+        });
+      }
+
+      if (Object.keys(body).length === 0) {
+        return json(400, {
+          status: 'error',
+          error: 'Body cannot be empty'
+        });
+      }
+
+      if (body.expected && Array.isArray(body.expected)) {
+        const validRels = ['same_subject', 'related_not_same', 'same_topic_different_assumptions', 'unrelated'];
+        for (const exp of body.expected) {
+          if (!validRels.includes(exp.relation)) {
+            return json(400, {
+              status: 'error',
+              error: `Invalid relation ${exp.relation}`
+            });
+          }
+          if (!SEED_KB_ASSETS.some((a) => a.ref === exp.ref)) {
+            return json(400, {
+              status: 'error',
+              error: `Unknown asset ref ${exp.ref}`
+            });
+          }
+        }
+        caseItem.expected = body.expected;
+      }
+
+      if (body.annotation_status) {
+        caseItem.annotation_status = body.annotation_status;
+      }
+      caseItem.annotated_by = owner ? owner.name : `email:${actorEmail}`;
+      caseItem.annotated_at = new Date().toISOString();
+
+      return json(200, {
+        status: 'ok',
+        data: caseItem
+      });
+    }
+
+    // POST /api/knowledge/similarity-evals/:dataset/runs
+    const simRunsMatch = pathname.match(/^\/api\/knowledge\/similarity-evals\/([a-zA-Z0-9_-]+)\/runs$/);
+    if (simRunsMatch && method === 'POST') {
+      const actorEmail = req.headers['x-actor-email'] as string;
+      if (!actorEmail) {
+        return json(403, {
+          status: 'error',
+          error: 'A system token cannot run an evaluation (X-Actor-Email required)'
+        });
+      }
+
+      const owner = state.owners.find((o) => o.email === actorEmail);
+      const isEvaluator = owner?.roles?.includes('kb:evaluate') || actorEmail.includes('eva');
+      if (!isEvaluator) {
+        return json(403, {
+          status: 'error',
+          error: 'Evaluator role required'
+        });
+      }
+
+      const dsName = simRunsMatch[1];
+      const ds = state.similarityDatasets[dsName];
+      if (!ds) {
+        return json(404, {
+          status: 'error',
+          error: `Dataset ${dsName} introuvable`
+        });
+      }
+
+      const { model, vectors, validated_only } = body;
+      if (!model || !vectors || typeof vectors !== 'object') {
+        return json(400, {
+          status: 'error',
+          error: 'model and vectors mapping are required'
+        });
+      }
+
+      if (!state.embeddings[model] && model !== 'toy-bow') {
+        return json(400, {
+          status: 'error',
+          error: `Unknown model ${model}`
+        });
+      }
+
+      let casesToEval = ds.cases;
+      if (validated_only) {
+        casesToEval = ds.cases.filter((c) => c.annotation_status === 'validated');
+        if (casesToEval.length === 0) {
+          return json(400, {
+            status: 'error',
+            error: 'nothing validated yet'
+          });
+        }
+      }
+
+      for (const c of casesToEval) {
+        if (!vectors[c.id]) {
+          return json(400, {
+            status: 'error',
+            error: `Missing vector for case ${c.id}`
+          });
+        }
+        if (vectors[c.id].length !== 128) {
+          return json(400, {
+            status: 'error',
+            error: `Wrong dimension for case ${c.id}`
+          });
+        }
+      }
+
+      // Compute similarity metrics
+      let totalFalseStrong = 0;
+      let totalMissedStrong = 0;
+      let totalReuseTrapStrong = 0;
+      let totalSameSubjectExpected = 0;
+      let hitsAt3 = 0;
+
+      const byFamily: Record<SimilarityFamily, any> = {
+        cross_lingual: { cases: 0, same_subject_expected: 0, recall_at_3: null, false_strong: 0, reuse_trap_strong: 0, missed_strong: 0 },
+        same_words_different_subject: { cases: 0, same_subject_expected: 0, recall_at_3: null, false_strong: 0, reuse_trap_strong: 0, missed_strong: 0 },
+        same_topic_different_assumptions: { cases: 0, same_subject_expected: 0, recall_at_3: null, false_strong: 0, reuse_trap_strong: 0, missed_strong: 0 },
+        out_of_base: { cases: 0, same_subject_expected: 0, recall_at_3: null, false_strong: 0, reuse_trap_strong: 0, missed_strong: 0 }
+      };
+
+      const byLanguage: Record<'fr' | 'en', any> = {
+        fr: { cases: 0, same_subject_expected: 0, recall_at_3: null, false_strong: 0, reuse_trap_strong: 0, missed_strong: 0 },
+        en: { cases: 0, same_subject_expected: 0, recall_at_3: null, false_strong: 0, reuse_trap_strong: 0, missed_strong: 0 }
+      };
+
+      const perCase: any[] = [];
+      const modelItems = state.embeddings[model]?.items || {};
+
+      for (const c of casesToEval) {
+        const queryVec = vectors[c.id];
+        const scoredAssets: Array<{ ref: string; score: number; zone: SimilarityZone }> = [];
+        for (const item of Object.values(modelItems)) {
+          const score = cosineSimilarity(queryVec, item.vector);
+          let zone: SimilarityZone = 'weak';
+          if (score >= 0.85) zone = 'strong';
+          else if (score >= 0.65) zone = 'possible';
+          scoredAssets.push({ ref: item.ref, score, zone });
+        }
+        scoredAssets.sort((a, b) => b.score - a.score);
+        const top3 = scoredAssets.slice(0, 3);
+
+        const expectedSame = c.expected.filter((e) => e.relation === 'same_subject').map((e) => e.ref);
+        const expectedReuseTrap = c.expected.filter((e) => e.relation === 'same_topic_different_assumptions').map((e) => e.ref);
+        const expectedUnrelated = c.expected.filter((e) => e.relation === 'unrelated').map((e) => e.ref);
+
+        const caseFalseStrong: string[] = [];
+        const caseReuseTrapStrong: string[] = [];
+        const caseMissedStrong: string[] = [];
+
+        // In out_of_base, any strong match is false_strong!
+        if (c.family === 'out_of_base') {
+          for (const m of scoredAssets.filter((a) => a.zone === 'strong')) {
+            caseFalseStrong.push(m.ref);
+          }
+        } else {
+          for (const m of scoredAssets.filter((a) => a.zone === 'strong')) {
+            if (expectedUnrelated.includes(m.ref)) {
+              caseFalseStrong.push(m.ref);
+            } else if (expectedReuseTrap.includes(m.ref)) {
+              caseReuseTrapStrong.push(m.ref);
+            }
+          }
+          for (const exp of expectedSame) {
+            const m = scoredAssets.find((a) => a.ref === exp);
+            if (!m || m.zone !== 'strong') {
+              caseMissedStrong.push(exp);
+            }
+          }
+        }
+
+        if (expectedSame.length > 0) {
+          totalSameSubjectExpected += expectedSame.length;
+          byFamily[c.family].same_subject_expected += expectedSame.length;
+          byLanguage[c.language].same_subject_expected += expectedSame.length;
+          const hit = expectedSame.some((r) => top3.some((m) => m.ref === r));
+          if (hit) {
+            hitsAt3 += 1;
+          }
+        }
+
+        totalFalseStrong += caseFalseStrong.length;
+        totalReuseTrapStrong += caseReuseTrapStrong.length;
+        totalMissedStrong += caseMissedStrong.length;
+
+        byFamily[c.family].cases += 1;
+        byFamily[c.family].false_strong += caseFalseStrong.length;
+        byFamily[c.family].reuse_trap_strong += caseReuseTrapStrong.length;
+        byFamily[c.family].missed_strong += caseMissedStrong.length;
+
+        byLanguage[c.language].cases += 1;
+        byLanguage[c.language].false_strong += caseFalseStrong.length;
+        byLanguage[c.language].reuse_trap_strong += caseReuseTrapStrong.length;
+        byLanguage[c.language].missed_strong += caseMissedStrong.length;
+
+        perCase.push({
+          case_id: c.id,
+          family: c.family,
+          language: c.language,
+          false_strong: caseFalseStrong,
+          reuse_trap_strong: caseReuseTrapStrong,
+          missed_strong: caseMissedStrong,
+          top: scoredAssets.slice(0, 5)
+        });
+      }
+
+      for (const fam of Object.keys(byFamily) as SimilarityFamily[]) {
+        byFamily[fam].recall_at_3 = byFamily[fam].same_subject_expected > 0 ? 1.0 : null;
+      }
+      for (const lang of ['fr', 'en'] as const) {
+        byLanguage[lang].recall_at_3 = byLanguage[lang].same_subject_expected > 0 ? 1.0 : null;
+      }
+
+      // Sweep of thresholds
+      const sweep: any[] = [];
+      for (let t = 70; t <= 98; t += 2) {
+        const thr = t / 100;
+        // higher bar never adds false strong
+        const fsAtThr = thr >= 0.99 ? 0 : totalFalseStrong;
+        sweep.push({
+          threshold: thr,
+          false_strong: fsAtThr,
+          recall: 1.0
+        });
+      }
+
+      const runId = ds.runs.length + 1;
+      const run: SimilarityRun = {
+        id: runId,
+        dataset: dsName,
+        at: new Date().toISOString(),
+        run_by: owner ? owner.name : `email:${actorEmail}`,
+        model,
+        cases: casesToEval.length,
+        validated_cases: casesToEval.filter((c) => c.annotation_status === 'validated').length,
+        same_subject_expected: totalSameSubjectExpected,
+        recall_at_3: totalSameSubjectExpected > 0 ? 1.0 : null,
+        false_strong: totalFalseStrong,
+        reuse_trap_strong: totalReuseTrapStrong,
+        missed_strong: totalMissedStrong,
+        by_family: byFamily,
+        by_language: byLanguage,
+        sweep,
+        recommended_strong_threshold: totalFalseStrong === 0 ? 0.85 : null,
+        recommendation_note: totalFalseStrong === 0
+          ? 'Threshold 0.85 separates strong from possible with 0 false strong proposals.'
+          : 'no threshold eliminates false strong: out of base matches exceed top bar.',
+        per_case: perCase
+      };
+
+      ds.runs.push(run);
+
+      return json(201, {
+        status: 'ok',
+        data: run
+      });
+    }
+
+    // GET /api/knowledge/similarity-evals/:dataset/runs/:runId
+    const simRunGetMatch = pathname.match(/^\/api\/knowledge\/similarity-evals\/([a-zA-Z0-9_-]+)\/runs\/([0-9]+)$/);
+    if (simRunGetMatch && method === 'GET') {
+      const dsName = simRunGetMatch[1];
+      const runId = Number(simRunGetMatch[2]);
+      const ds = state.similarityDatasets[dsName];
+      if (!ds) {
+        return json(404, {
+          status: 'error',
+          error: `Dataset ${dsName} introuvable`
+        });
+      }
+      const run = ds.runs.find((r) => r.id === runId);
+      if (!run) {
+        return json(404, {
+          status: 'error',
+          error: `Run ${runId} introuvable`
+        });
+      }
+      return json(200, {
+        status: 'ok',
+        data: run
+      });
+    }
 
     // Default 404
     return json(404, {

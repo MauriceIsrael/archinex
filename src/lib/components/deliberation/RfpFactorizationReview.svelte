@@ -206,8 +206,18 @@
 				<div>
 					<h3 class="font-bold text-sm text-foreground flex items-center gap-2">
 						<span>Factorisation Sémantique d'Architecture</span>
-						<span class="text-[10px] px-2 py-0.5 rounded-full font-mono font-bold {engine === 'local-llm' ? 'bg-primary/15 text-primary' : 'bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30'}">
-							{engine === 'local-llm' ? 'Moteur Souverain Local' : 'Moteur de Secours Déterministe'}
+						<span class="text-[10px] px-2 py-0.5 rounded-full font-mono font-bold {
+							engine === 'map-reduce-llm'
+								? 'bg-purple-500/15 text-purple-700 dark:text-purple-300 border border-purple-500/30'
+								: engine === 'local-llm'
+									? 'bg-primary/15 text-primary'
+									: 'bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30'
+						}">
+							{engine === 'map-reduce-llm'
+								? 'Moteur Hiérarchique Map-Reduce (100% Verbatim)'
+								: engine === 'local-llm'
+									? 'Moteur Souverain Local'
+									: 'Moteur de Secours Déterministe'}
 						</span>
 					</h3>
 					<p class="text-[11px] text-muted-foreground">
@@ -226,7 +236,7 @@
 			</div>
 		</div>
 
-		{#if warning || engine !== 'local-llm'}
+		{#if warning || (engine !== 'local-llm' && engine !== 'map-reduce-llm')}
 			<div class="p-3.5 rounded-xl border border-amber-500/40 bg-amber-500/10 text-amber-900 dark:text-amber-200 space-y-1.5">
 				<div class="flex items-start gap-2.5">
 					<AlertTriangle class="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
@@ -246,6 +256,13 @@
 						{/if}
 					</div>
 				</div>
+			</div>
+		{:else if engine === 'map-reduce-llm'}
+			<div class="p-2.5 rounded-lg border border-purple-500/30 bg-purple-500/10 text-purple-900 dark:text-purple-200 flex items-center gap-2 text-xs">
+				<Sparkles class="h-4 w-4 text-purple-600 dark:text-purple-400 shrink-0" />
+				<span>
+					<strong>Analyse Exhaustive Map-Reduce active :</strong> 100% du texte intégral des exigences a été instruit par blocs découpés puis consolidé en méta-sujets d'architecture, sans aucun troncage ni angle mort.
+				</span>
 			</div>
 		{:else if wasCondensed}
 			<div class="p-2.5 rounded-lg border border-blue-500/30 bg-blue-500/10 text-blue-900 dark:text-blue-200 flex items-center gap-2 text-xs">

@@ -196,6 +196,339 @@ ${clausesText}
 Procède à la factorisation en ${targetDesc} sujets d'architecture majeurs en veillant à couvrir l'ensemble des clauses ci-dessus.`;
 }
 
+export interface MicroArchitecturalSubject {
+	id: string;
+	title: string;
+	lotId: string;
+	coveredClauseRefs: string[];
+	criticalPoints: string[];
+	keyDilemmaOrHypothesis: string;
+}
+
+/**
+ * Découpe les clauses en blocs pour la passe MAP (30 à 40 clauses par bloc pour analyse exhaustive verbatim)
+ */
+export function partitionClausesIntoMapChunks(clauses: ExtractedClause[], maxChunkSize: number = 35): ExtractedClause[][] {
+	if (clauses.length <= maxChunkSize) {
+		return [clauses];
+	}
+
+	const sections: Record<string, ExtractedClause[]> = {};
+	for (const c of clauses) {
+		const prefixMatch = c.clauseRef.match(/^(?:§|art(?:icle)?\.?\s*)(\d+)/i);
+		const secKey = prefixMatch ? `sec_${prefixMatch[1]}` : 'sec_general';
+		if (!sections[secKey]) sections[secKey] = [];
+		sections[secKey].push(c);
+	}
+
+	const chunks: ExtractedClause[][] = [];
+	let currentChunk: ExtractedClause[] = [];
+
+	for (const secClauses of Object.values(sections)) {
+		if (currentChunk.length + secClauses.length <= maxChunkSize) {
+			currentChunk.push(...secClauses);
+		} else {
+			if (currentChunk.length > 0) {
+				chunks.push(currentChunk);
+				currentChunk = [];
+			}
+			if (secClauses.length > maxChunkSize) {
+				for (let i = 0; i < secClauses.length; i += maxChunkSize) {
+					chunks.push(secClauses.slice(i, i + maxChunkSize));
+				}
+			} else {
+				currentChunk.push(...secClauses);
+			}
+		}
+	}
+
+	if (currentChunk.length > 0) {
+		chunks.push(currentChunk);
+	}
+
+	return chunks.length > 0 ? chunks : [clauses];
+}
+
+/**
+ * Construit le prompt pour la passe MAP (Bloc individuel à analyser verbatim)
+ */
+export function buildMapPrompt(chunk: ExtractedClause[], chunkIndex: number, totalChunks: number): { system: string; user: string } {
+	const system = `Tu es un Expert Architecte Système.
+Ta mission est d'analyser ce lot d'exigences (Bloc ${chunkIndex + 1}/${totalChunks}) et d'en extraire TOUS les micro-sujets d'architecture distincts sans en oublier aucun.
+
+CONSIGNES STRICTES :
+1. Passe sur CHAQUE exigence du bloc. Rapproche les exigences fortement couplées en micro-sujets (1 à 4 exigences par micro-sujet).
+2. Ne laisse aucune clause de côté : chaque référence de clause du bloc doit figurer dans "coveredClauseRefs" d'un micro-sujet.
+3. Consigne chaque contrainte bloquante ou spécifique (ex: synchro GNSS, chiffrement, SecNumCloud, autonomie, latence...).
+
+FORMAT DE SORTIE JSON STRICT :
+{
+  "microSubjects": [
+    {
+      "id": "MICRO-01",
+      "title": "Nom technique précis du micro-sujet",
+      "lotId": "LOT-01-SOUV" | "LOT-02-INFRA" | "LOT-03-TELCO" | "LOT-04-SECOPS" | "LOT-05-RESIL" | "LOT-06-OBS",
+      "coveredClauseRefs": ["§1.1", "§1.2"],
+      "criticalPoints": ["Exigence bloquante sur le holdover"],
+      "keyDilemmaOrHypothesis": "Hypothèse de solution architecturale"
+    }
+  ]
+}`;
+
+	const clausesVerbatim = chunk
+		.map((c) => {
+			const crit = c.criticality && c.criticality !== 'standard' ? ` [CRITICITÉ: ${c.criticality}]` : '';
+			return `[${c.clauseRef}] ${c.title}${crit}\n${c.text || ''}`;
+		})
+		.join('\n\n');
+
+	const user = `EXIGENCES DU BLOC ${chunkIndex + 1}/${totalChunks} (À ANALYSER EXHAUSTIVEMENT) :
+${clausesVerbatim}
+
+Extrais tous les micro-sujets d'architecture pour ce bloc au format JSON spécifié.`;
+
+	return { system, user };
+}
+
+/**
+ * Construit le prompt pour la passe REDUCE (Consolidation des micro-sujets en méta-sujets structurants)
+ */
+export function buildReducePrompt(
+	allMicroSubjects: MicroArchitecturalSubject[],
+	kbStandards: KbItemSummary[],
+	targetDesc: string,
+	customDirectives?: string
+): { system: string; user: string } {
+	let system = `Tu es un Lead Solutions Architect et Ingénieur des Systèmes Critiques.
+Ta mission est de CONSOLIDER l'ensemble des ${allMicroSubjects.length} micro-sujets d'architecture détectés sur l'intégralité du cahier des charges pour les structurer en ${targetDesc} MÉTA-SUJETS D'ARCHITECTURE majeurs (Lots structurants).
+
+RÈGLES D'OR DE LA CONSOLIDATION :
+1. FUSION ET DÉDUPLICATION : Regroupe les micro-sujets connexes par grand domaine d'ingénierie (Lots : LOT-01-SOUV, LOT-02-INFRA, LOT-03-TELCO, LOT-04-SECOPS, LOT-05-RESIL, etc.).
+2. TRAÇABILITÉ INTÉGRALE : Chaque méta-sujet doit combiner l'ensemble des "coveredClauseRefs" de ses micro-sujets constitutifs.
+3. ANCRAGE SUR LE PATRIMOINE COMMUN (KB) :
+   - standard_established (L2_decomposed ou L3_retained) si résolu par nos standards existants.
+   - conflict_detected ou novel_requirement (L1_dilemma) en cas d'écart ou d'inédit.
+4. Rôles responsables : lead_architect, infra_expert_architect, telco_expert_architect, secops_expert_architect, data_ai_expert_architect, qa_governance_architect.
+5. Graines télégraphiques : initialRetenu, initialHypothesis, initialConflict, initialQuestion.`;
+
+	if (customDirectives && customDirectives.trim()) {
+		system += `\n\nDIRECTIVES DE L'ARCHITECTE :\n${customDirectives.trim()}`;
+	}
+
+	system += `\n\nFORMAT DE SORTIE JSON STRICT :
+{
+  "summary": "Synthèse exécutive globale du CCTP",
+  "subjects": [
+    {
+      "id": "SUBJ-01",
+      "lotId": "LOT-01-SOUV",
+      "name": "Nom clair et structurant du Méta-Sujet d'Architecture",
+      "sectionRef": "§1.0",
+      "coveredClauseRefs": ["§1.1", "§1.2", "§1.3"],
+      "matchedKbItemIds": ["STD-SOUV-01"],
+      "knowledgeAlignment": "standard_established" | "conflict_detected" | "novel_requirement",
+      "alignmentRationale": "Explication courte du rapprochement avec les règles existantes",
+      "initialLevel": "L1_dilemma" | "L2_decomposed" | "L3_retained",
+      "waitingForRole": "lead_architect" | "infra_expert_architect" | "telco_expert_architect" | "secops_expert_architect",
+      "effort": "S" | "M" | "L" | "XL",
+      "seed": {
+        "initialRetenu": ["Acquis ou standard applicable"],
+        "initialHypothesis": "Hypothèse de solution",
+        "initialConflict": "Conflit éventuel",
+        "initialQuestion": "Question d'amorce pour la délibération"
+      }
+    }
+  ]
+}`;
+
+	const kbText = kbStandards
+		.slice(0, 20)
+		.map((k) => `[${k.id}] (${k.category}) ${k.title} : ${k.ruleOrStatement}`)
+		.join('\n');
+
+	const microText = allMicroSubjects
+		.map(
+			(m, idx) =>
+				`[MICRO-${idx + 1}] (${m.lotId || 'LOT-INCONNU'}) ${m.title}\n` +
+				`  Clauses couvertes : ${m.coveredClauseRefs.join(', ')}\n` +
+				(m.criticalPoints && m.criticalPoints.length ? `  Points critiques : ${m.criticalPoints.join(' ; ')}\n` : '') +
+				`  Hypothèse : ${m.keyDilemmaOrHypothesis}`
+		)
+		.join('\n\n');
+
+	const user = `PATRIMOINE COMMUN (STANDARDS EN LECTURE SEULE) :
+${kbText}
+
+---
+
+INVENTAIRE DE TOUS LES MICRO-SUJETS DÉTECTÉS SUR LE CCTP :
+${microText}
+
+Consolide l'intégralité de ces micro-sujets en ${targetDesc} méta-sujets d'architecture majeurs au format JSON demandé.`;
+
+	return { system, user };
+}
+
+/**
+ * Exécute la factorisation hiérarchique Map-Reduce en 2 passes (Proposition C)
+ */
+export async function factorizeRfpMapReduce(
+	request: RfpFactorizationRequest,
+	kbStandards: KbItemSummary[] = []
+): Promise<RfpFactorizationResponse> {
+	const clauses = request.clauses || [];
+	const model = request.model || 'ministral:latest';
+	const totalClauses = clauses.length;
+	const chunks = partitionClausesIntoMapChunks(clauses, 35);
+	const targetDesc = inferTargetSubjectsCount(totalClauses);
+
+	console.log(`🔄 [Map-Reduce] Début de la passe MAP : ${totalClauses} clauses découpées en ${chunks.length} blocs.`);
+
+	const allMicroSubjects: MicroArchitecturalSubject[] = [];
+
+	// ─── PASSE 1 : MAP (Détection exhaustive des micro-sujets) ─────────────────
+	for (let i = 0; i < chunks.length; i++) {
+		const chunk = chunks[i];
+		const mapPrompt = buildMapPrompt(chunk, i, chunks.length);
+
+		try {
+			const rawContent = await localLlmClient.chat({
+				model,
+				messages: [
+					{ role: 'system', content: mapPrompt.system },
+					{ role: 'user', content: mapPrompt.user }
+				],
+				format: 'json',
+				temperature: 0.15
+			});
+
+			const cleaned = cleanJsonString(rawContent);
+			const parsed = JSON.parse(cleaned);
+
+			if (parsed && Array.isArray(parsed.microSubjects) && parsed.microSubjects.length > 0) {
+				for (const m of parsed.microSubjects) {
+					allMicroSubjects.push({
+						id: m.id || `MICRO-${allMicroSubjects.length + 1}`,
+						title: m.title || `Micro-sujet ${allMicroSubjects.length + 1}`,
+						lotId: m.lotId || inferLotFromRef(m.title),
+						coveredClauseRefs: Array.isArray(m.coveredClauseRefs) && m.coveredClauseRefs.length > 0
+							? m.coveredClauseRefs
+							: chunk.map((c) => c.clauseRef),
+						criticalPoints: Array.isArray(m.criticalPoints) ? m.criticalPoints : [],
+						keyDilemmaOrHypothesis: m.keyDilemmaOrHypothesis || 'Hypothèse technique à instruire'
+					});
+				}
+			} else {
+				allMicroSubjects.push({
+					id: `MICRO-${allMicroSubjects.length + 1}`,
+					title: `Bloc ${i + 1} : ${chunk[0]?.title || 'Exigences'}`,
+					lotId: inferLotFromRef(chunk[0]?.clauseRef || ''),
+					coveredClauseRefs: chunk.map((c) => c.clauseRef),
+					criticalPoints: chunk.filter((c) => c.criticality === 'bloquant').map((c) => c.title),
+					keyDilemmaOrHypothesis: 'Analyse préliminaire du lot'
+				});
+			}
+		} catch (chunkErr) {
+			console.warn(`⚠️ [Map-Reduce] Erreur sur le bloc ${i + 1}, conservation des clauses :`, chunkErr);
+			allMicroSubjects.push({
+				id: `MICRO-${allMicroSubjects.length + 1}`,
+				title: `Bloc ${i + 1} (${chunk.length} exigences)`,
+				lotId: inferLotFromRef(chunk[0]?.clauseRef || ''),
+				coveredClauseRefs: chunk.map((c) => c.clauseRef),
+				criticalPoints: chunk.filter((c) => c.criticality === 'bloquant').map((c) => c.title),
+				keyDilemmaOrHypothesis: 'Instruction spécifique requise'
+			});
+		}
+	}
+
+	console.log(`🔄 [Map-Reduce] Fin de la passe MAP : ${allMicroSubjects.length} micro-sujets extraits. Démarrage de la passe REDUCE...`);
+
+	// ─── PASSE 2 : REDUCE (Consolidation en Méta-Sujets d'Architecture) ────────
+	const reducePrompt = buildReducePrompt(
+		allMicroSubjects,
+		kbStandards,
+		targetDesc,
+		request.customPromptDirectives
+	);
+
+	const rawReduce = await localLlmClient.chat({
+		model,
+		messages: [
+			{ role: 'system', content: reducePrompt.system },
+			{ role: 'user', content: reducePrompt.user }
+		],
+		format: 'json',
+		temperature: 0.15
+	});
+
+	const cleanedReduce = cleanJsonString(rawReduce);
+	const parsedReduce = JSON.parse(cleanedReduce);
+
+	if (!parsedReduce || !Array.isArray(parsedReduce.subjects)) {
+		throw new Error('Réponse de consolidation Reduce invalide : propriété "subjects" manquante');
+	}
+
+	const subjects: FactorizedArchitecturalSubject[] = parsedReduce.subjects.map(
+		(s: any, idx: number) => ({
+			id: s.id || `SUBJ-${String(idx + 1).padStart(2, '0')}`,
+			lotId: s.lotId || inferLotFromRef(s.sectionRef || s.name),
+			name: s.name || `Sujet d'Architecture ${idx + 1}`,
+			sectionRef: s.sectionRef || `§${idx + 1}.0`,
+			coveredClauseRefs: Array.isArray(s.coveredClauseRefs) ? s.coveredClauseRefs : [],
+			matchedKbItemIds: Array.isArray(s.matchedKbItemIds) ? s.matchedKbItemIds : [],
+			knowledgeAlignment: normalizeAlignment(s.knowledgeAlignment),
+			alignmentRationale: s.alignmentRationale || 'Consolidation issue de l’analyse exhaustive Map-Reduce',
+			initialLevel: normalizeLevel(s.initialLevel),
+			waitingForRole: normalizeRole(s.waitingForRole),
+			effort: s.effort === 'XL' || s.effort === 'L' || s.effort === 'S' ? s.effort : 'M',
+			seed: {
+				initialRetenu: Array.isArray(s.seed?.initialRetenu) ? s.seed.initialRetenu : [],
+				initialHypothesis: s.seed?.initialHypothesis || `Conception architecturale pour ${s.name}`,
+				initialConflict: s.seed?.initialConflict || undefined,
+				initialQuestion: s.seed?.initialQuestion || `Comment concilier les exigences pour ${s.name} ?`
+			}
+		})
+	);
+
+	// Traçabilité et calcul de couverture
+	const coveredSet = new Set<string>();
+	for (const s of subjects) {
+		for (const ref of s.coveredClauseRefs) {
+			coveredSet.add(ref);
+		}
+	}
+
+	// Rattrapage de traçabilité : toute clause issue des micro-sujets non citée est rattachée à son lot
+	const unassignedClauses = clauses.filter((c) => !coveredSet.has(c.clauseRef));
+	if (unassignedClauses.length > 0 && subjects.length > 0) {
+		for (const orphan of unassignedClauses) {
+			const orphanLot = inferLotFromRef(orphan.clauseRef || orphan.title);
+			const matchingSubject = subjects.find((s) => s.lotId === orphanLot) || subjects[0];
+			matchingSubject.coveredClauseRefs.push(orphan.clauseRef);
+			coveredSet.add(orphan.clauseRef);
+		}
+	}
+
+	const finalUnassigned = clauses.filter((c) => !coveredSet.has(c.clauseRef));
+	const coveredClausesCount = totalClauses - finalUnassigned.length;
+	const coverageRate = Math.round((coveredClausesCount / totalClauses) * 100);
+
+	console.log(`✅ [Map-Reduce] Factorisation terminée : ${subjects.length} méta-sujets générés avec ${coverageRate}% de couverture.`);
+
+	return {
+		status: 'ok',
+		engine: 'map-reduce-llm',
+		modelUsed: model,
+		summary: parsedReduce.summary || `Factorisation hiérarchique Map-Reduce (100% Verbatim) : ${totalClauses} exigences analysées en ${chunks.length} blocs, ${allMicroSubjects.length} micro-sujets consolidés en ${subjects.length} méta-sujets structurants.`,
+		totalClauses,
+		coveredClausesCount,
+		coverageRate,
+		subjects,
+		unassignedClauses: finalUnassigned,
+		wasCondensed: false
+	};
+}
+
 /**
  * Exécute la factorisation par LLM local souverain
  */
@@ -219,6 +552,22 @@ export async function factorizeRfpWithLocalLlm(
 			subjects: [],
 			unassignedClauses: []
 		};
+	}
+
+	// Pour les corpus volumineux (> 40 exigences), exécute la passe Map-Reduce hiérarchique exhaustive
+	if (totalClauses > 40) {
+		try {
+			return await factorizeRfpMapReduce(request, kbStandards);
+		} catch (err: unknown) {
+			const rawErr = err instanceof Error ? err.message : String(err);
+			console.warn('⚠️ Échec de la factorisation Map-Reduce, bascule vers moteur heuristique déterministe :', err);
+			const fallback = fallbackDeterministicFactorization(clauses, kbStandards, `Échec Map-Reduce : ${rawErr.slice(0, 160)}`);
+			return {
+				...fallback,
+				errorDetail: rawErr,
+				wasCondensed: false
+			};
+		}
 	}
 
 	const isCondensed = shouldCondenseClauses(clauses);

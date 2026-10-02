@@ -8,6 +8,10 @@ import {
 	fallbackDeterministicFactorization,
 	promoteClauseToSubject,
 	factorizeRfpWithLocalLlm,
+	partitionClausesIntoMapChunks,
+	buildMapPrompt,
+	buildReducePrompt,
+	factorizeRfpMapReduce,
 	type KbItemSummary
 } from '../../src/lib/server/llm/rfpFactorizer';
 import type { ExtractedClause } from '../../src/lib/domain/corpus';
@@ -228,6 +232,169 @@ describe('Local LLM Souverain & Factorisation de RFP', () => {
 			expect(result.subjects.length).toBe(2);
 			expect(result.subjects[0].name).toBe('Socle Souverain & Chiffrement ANSSI');
 			expect(result.subjects[1].waitingForRole).toBe('domain_architect');
+
+			chatSpy.mockRestore();
+		});
+	});
+
+	describe('4. Pipeline Hiérarchique Map-Reduce (Proposition C)', () => {
+		const generateLotsOfClauses = (count: number): ExtractedClause[] => {
+			const clauses: ExtractedClause[] = [];
+			for (let i = 1; i <= count; i++) {
+				const section = Math.ceil(i / 15);
+				clauses.push({
+					id: `c-${i}`,
+					clauseRef: `§${section}.${i}`,
+					title: `Exigence technique §${section}.${i}`,
+					text: `Texte intégral et complet pour l'exigence §${section}.${i} avec contraintes fortes.`,
+					criticality: i % 5 === 0 ? 'bloquant' : 'standard',
+					impactSummary: `Impact ${section}`
+				});
+			}
+			return clauses;
+		};
+
+		it('découpe un volume de clauses en blocs de taille maîtrisée (partitionClausesIntoMapChunks)', () => {
+			const clauses = generateLotsOfClauses(95);
+			const chunks = partitionClausesIntoMapChunks(clauses, 35);
+
+			expect(chunks.length).toBeGreaterThanOrEqual(3);
+			const totalInChunks = chunks.reduce((acc, ch) => acc + ch.length, 0);
+			expect(totalInChunks).toBe(95);
+
+			for (const ch of chunks) {
+				expect(ch.length).toBeLessThanOrEqual(35);
+			}
+		});
+
+		it('construit un prompt Map contenant 100% du texte intégral des exigences du bloc', () => {
+			const chunk = sampleClauses;
+			const prompt = buildMapPrompt(chunk, 0, 1);
+
+			expect(prompt.system).toContain('FORMAT DE SORTIE JSON STRICT');
+			expect(prompt.system).toContain('microSubjects');
+			expect(prompt.user).toContain('EXIGENCES DU BLOC 1/1');
+			expect(prompt.user).toContain('§1.1');
+			expect(prompt.user).toContain('L infrastructure doit être qualifiée SecNumCloud');
+			expect(prompt.user).toContain('[CRITICITÉ: bloquant]');
+		});
+
+		it('construit un prompt Reduce qui consolide tous les micro-sujets avec ancrage KB', () => {
+			const mockMicro = [
+				{
+					id: 'MICRO-01',
+					title: 'Hébergement Souverain',
+					lotId: 'LOT-01-SOUV',
+					coveredClauseRefs: ['§1.1'],
+					criticalPoints: ['SecNumCloud 3.2'],
+					keyDilemmaOrHypothesis: 'Opérateur qualifié'
+				},
+				{
+					id: 'MICRO-02',
+					title: 'Synchronisation PTP',
+					lotId: 'LOT-03-TELCO',
+					coveredClauseRefs: ['§2.1'],
+					criticalPoints: ['1.5 µs'],
+					keyDilemmaOrHypothesis: 'Rubidium holdover'
+				}
+			];
+
+			const reducePrompt = buildReducePrompt(mockMicro, testKbStandards, '6 à 10', 'Priorité souveraineté');
+
+			expect(reducePrompt.system).toContain('Tu es un Lead Solutions Architect');
+			expect(reducePrompt.system).toContain('CONSOLIDER');
+			expect(reducePrompt.system).toContain('DIRECTIVES DE L\'ARCHITECTE');
+			expect(reducePrompt.system).toContain('Priorité souveraineté');
+			expect(reducePrompt.user).toContain('[MICRO-1]');
+			expect(reducePrompt.user).toContain('STD-SOUV-01');
+		});
+
+		it('exécute avec succès le pipeline Map-Reduce complet avec traçabilité et couverture intégrale', async () => {
+			const clauses = generateLotsOfClauses(50); // > 40 clauses déclenche Map-Reduce
+
+			const mockMapResponse = JSON.stringify({
+				microSubjects: [
+					{
+						id: 'MICRO-01',
+						title: 'Micro-sujet Infrastructure et Souveraineté',
+						lotId: 'LOT-01-SOUV',
+						coveredClauseRefs: clauses.slice(0, 20).map((c) => c.clauseRef),
+						criticalPoints: ['SecNumCloud impératif'],
+						keyDilemmaOrHypothesis: 'Choix de la région souveraine'
+					},
+					{
+						id: 'MICRO-02',
+						title: 'Micro-sujet Réseau et Télécoms',
+						lotId: 'LOT-03-TELCO',
+						coveredClauseRefs: clauses.slice(20, 50).map((c) => c.clauseRef),
+						criticalPoints: ['Précision PTP'],
+						keyDilemmaOrHypothesis: 'Architecture UPF distribuée'
+					}
+				]
+			});
+
+			const mockReduceResponse = JSON.stringify({
+				summary: 'Consolidation complète des exigences souveraines et télécoms.',
+				subjects: [
+					{
+						id: 'SUBJ-01',
+						lotId: 'LOT-01-SOUV',
+						name: 'Socle Hébergement & Souveraineté Juridique',
+						sectionRef: '§1.0',
+						coveredClauseRefs: clauses.slice(0, 20).map((c) => c.clauseRef),
+						matchedKbItemIds: ['STD-SOUV-01'],
+						knowledgeAlignment: 'standard_established',
+						alignmentRationale: 'Conforme au standard souverain existant.',
+						initialLevel: 'L2_decomposed',
+						waitingForRole: 'infra_expert_architect',
+						effort: 'L',
+						seed: {
+							initialRetenu: ['Région souveraine qualifiée'],
+							initialHypothesis: 'Isolation matérielle stricte',
+							initialQuestion: 'Quelle homologation retenir ?'
+						}
+					},
+					{
+						id: 'SUBJ-02',
+						lotId: 'LOT-03-TELCO',
+						name: 'Réseau Coeur & Synchronisation Horlogère',
+						sectionRef: '§2.0',
+						coveredClauseRefs: clauses.slice(20, 50).map((c) => c.clauseRef),
+						matchedKbItemIds: ['STD-TELCO-01'],
+						knowledgeAlignment: 'conflict_detected',
+						alignmentRationale: 'Exigences temps réel critiques.',
+						initialLevel: 'L1_dilemma',
+						waitingForRole: 'telco_expert_architect',
+						effort: 'XL',
+						seed: {
+							initialRetenu: ['Grandmaster PTP'],
+							initialHypothesis: 'Holdover rubidium 30 jours',
+							initialQuestion: 'Comment concilier coût et maintien sans GNSS ?'
+						}
+					}
+				]
+			});
+
+			// Le mock renvoie Map pour les blocs, puis Reduce pour la synthèse
+			const chatSpy = vi.spyOn(localLlmClient, 'chat')
+				.mockResolvedValueOnce(mockMapResponse) // Chunk 1 Map
+				.mockResolvedValueOnce(mockMapResponse) // Chunk 2 Map
+				.mockResolvedValueOnce(mockReduceResponse); // Reduce
+
+			const result = await factorizeRfpWithLocalLlm({
+				clauses,
+				model: 'ministral:latest'
+			}, testKbStandards);
+
+			expect(chatSpy).toHaveBeenCalled();
+			expect(result.status).toBe('ok');
+			expect(result.engine).toBe('map-reduce-llm');
+			expect(result.coverageRate).toBe(100);
+			expect(result.coveredClausesCount).toBe(50);
+			expect(result.unassignedClauses.length).toBe(0);
+			expect(result.subjects.length).toBe(2);
+			expect(result.subjects[0].lotId).toBe('LOT-01-SOUV');
+			expect(result.subjects[1].lotId).toBe('LOT-03-TELCO');
 
 			chatSpy.mockRestore();
 		});

@@ -302,16 +302,24 @@
 							},
 							body: JSON.stringify({
 								query_text: `${conf.title}. ${conf.text}`,
-								top_k: 3
+								top_k: 5
 							})
 						});
 						if (!res.ok) return null;
 						const jsonRes = await res.json();
-						const top = jsonRes.data?.results?.[0];
-						if (top && (top.zone === 'strong' || top.zone === 'possible')) {
+						const results: SimilarKnowledgeItem[] = jsonRes.data?.results || [];
+						// Priorité aux actifs avec hypothèses documentées (arbitrage D8), sinon meilleur actif qualifié
+						const withAssumptions = results.find(
+							(r) => r.assumptions_documented && r.zone !== 'superseded'
+						);
+						const best =
+							withAssumptions ||
+							results.find((r) => r.zone === 'strong' || r.zone === 'possible') ||
+							results[0];
+						if (best && (best.zone === 'strong' || best.zone === 'possible' || best.score >= 0.25)) {
 							return {
 								confId: conf.id,
-								item: top,
+								item: best,
 								fingerprint: jsonRes.subject_fingerprint || ''
 							};
 						}

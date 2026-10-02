@@ -484,6 +484,7 @@ export interface FrameworkIngestion {
   created_at: string;
   status: 'processing' | 'ready' | 'failed';
   total_requirements: number;
+  total?: number;
   reviewed_requirements: number;
   requirements: FrameworkRequirement[];
 }

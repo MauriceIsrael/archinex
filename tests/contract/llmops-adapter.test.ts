@@ -1,9 +1,17 @@
-import { describe, it, expect } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { LLMOpsClient } from '$lib/server/llmops/client';
 import { deliberationStore } from '$lib/stores/deliberationStore.svelte';
 
 describe('LLMOps Client Adapter & Dual-Mode Contract', () => {
   const client = new LLMOpsClient();
+
+  beforeAll(() => {
+    process.env.ALLOW_OFFLINE_MOCK = '1';
+  });
+
+  afterAll(() => {
+    delete process.env.ALLOW_OFFLINE_MOCK;
+  });
 
   it('1. getHealth retourne un schéma valide conforme au CONTRAT-KH-API-V1', async () => {
     const res = await client.getHealth();

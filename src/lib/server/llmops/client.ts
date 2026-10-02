@@ -170,6 +170,7 @@ function normalizeFrameworkIngestion(item: any): FrameworkIngestion {
     created_at: item.created_at || new Date().toISOString(),
     status: item.status || 'ready',
     total_requirements: total,
+    total,
     reviewed_requirements: reviewed,
     requirements: reqs
   };
@@ -529,39 +530,49 @@ export class LLMOpsClient {
       if (res.ok) {
         return (await res.json()) as LLMOpsRfpShredResponse;
       }
-    } catch {
-      // Fallback
-    }
+      const errBody = await res.json().catch(() => ({}));
+      throw new Error(errBody.error || errBody.detail || `Erreur HTTP ${res.status} lors du dépouillement RFP`);
+    } catch (e: any) {
+      if (e.message && (e.message.startsWith('Erreur HTTP') || e.message.includes('Air-Gap Security'))) {
+        throw e;
+      }
+      if (e?.name === 'AbortError' || e?.name === 'TimeoutError') {
+        throw new Error('Erreur HTTP : Délai dépassé lors du dépouillement RFP');
+      }
 
-    // Simulation locale intelligente si offline
-    const sentences = rfpText
-      .split(/(?<=[.!?])\s+/)
-      .map((s) => s.trim())
-      .filter((s) => s.length > 20);
+      // Mode démo hors-ligne explicite uniquement
+      if (process.env.ALLOW_OFFLINE_MOCK === '1' || process.env.USE_FAKE_LLMOPS === '1') {
+        const sentences = rfpText
+          .split(/(?<=[.!?])\s+/)
+          .map((s) => s.trim())
+          .filter((s) => s.length > 20);
 
-    return {
-      status: 'ok',
-      documentId,
-      documentVersion,
-      count: sentences.length,
-      candidates: sentences.map((sentence, idx) => ({
-        id: `cand-LOCAL-${idx + 1}`,
-        sourceFragment: {
-          id: `frag-LOCAL-${idx + 1}`,
+        return {
+          status: 'ok',
           documentId,
           documentVersion,
-          sectionPath: [`${idx + 1}.0`],
-          originalText: sentence,
-          hash: `sha256:local-${idx + 1}`
-        },
-        originalText: sentence,
-        normalizedText: sentence,
-        candidateKind: sentence.toLowerCase().includes('doit') ? 'governance-obligation' : 'technical-specification',
-        suggestedDestination: 'knowledge-hub-reference',
-        routingConfidence: 0.9,
-        verificationModes: ['manual-inspection']
-      }))
-    };
+          count: sentences.length,
+          candidates: sentences.map((sentence, idx) => ({
+            id: `cand-LOCAL-${idx + 1}`,
+            sourceFragment: {
+              id: `frag-LOCAL-${idx + 1}`,
+              documentId,
+              documentVersion,
+              sectionPath: [`${idx + 1}.0`],
+              originalText: sentence,
+              hash: `sha256:local-${idx + 1}`
+            },
+            originalText: sentence,
+            normalizedText: sentence,
+            candidateKind: sentence.toLowerCase().includes('doit') ? 'governance-obligation' : 'technical-specification',
+            suggestedDestination: 'knowledge-hub-reference',
+            routingConfidence: 0.9,
+            verificationModes: ['manual-inspection']
+          }))
+        };
+      }
+      throw new Error(`Serveur LLMOps inaccessible pour le dépouillement RFP : ${e.message}`);
+    }
   }
 
   /**
@@ -602,16 +613,19 @@ export class LLMOpsClient {
           message: payload.message || `Règle doctrinale transmise au Knowledge Hub avec l'ID ${payload.suggestion_id}.`
         };
       }
-    } catch {
-      // Live inaccessible -> fallback local
+      const errBody = await res.json().catch(() => ({}));
+      throw new Error(errBody.error || errBody.detail || `Erreur HTTP ${res.status} lors de la suggestion`);
+    } catch (e: any) {
+      if (process.env.ALLOW_OFFLINE_MOCK === '1' || process.env.USE_FAKE_LLMOPS === '1') {
+        const fallbackId = `SUG-LOCAL-${Date.now().toString(36).toUpperCase()}`;
+        return {
+          status: 'ok',
+          suggestionId: fallbackId,
+          message: `Règle doctrinale enregistrée en mémoire locale souveraine (ID ${fallbackId}).`
+        };
+      }
+      throw e;
     }
-
-    const fallbackId = `SUG-LOCAL-${Date.now().toString(36).toUpperCase()}`;
-    return {
-      status: 'ok',
-      suggestionId: fallbackId,
-      message: `Règle doctrinale enregistrée en mémoire locale souveraine (ID ${fallbackId}).`
-    };
   }
 
   /**
@@ -2477,42 +2491,48 @@ export class LLMOpsClient {
         status: 'error',
         error: body.error || `Erreur HTTP ${res.status} lors de la récupération de la santé KB`
       };
-    } catch {
+    } catch (e: any) {
+      if (process.env.ALLOW_OFFLINE_MOCK === '1' || process.env.USE_FAKE_LLMOPS === '1') {
+        return {
+          status: 'ok',
+          data: {
+            doctrine_health: {
+              total_assets: 60,
+              principles_count: 12,
+              patterns_count: 24,
+              decisions_count: 14,
+              controls_count: 10,
+              glossary_count: 17
+            },
+            reviews_summary: {
+              pending_count: 0,
+              overdue_count: 0,
+              avg_review_duration_days: 0
+            },
+            regulatory_coverage: {
+              total_frameworks: 1,
+              total_requirements: 20,
+              covered_requirements: 20,
+              coverage_percentage: 100
+            },
+            evals_summary: {
+              latest_recall: 0.85,
+              gate_g6_passed: true,
+              last_benchmark_at: new Date().toISOString()
+            },
+            storage: {
+              mode: 'persistent',
+              persistent: true,
+              provider: 'Offline Sealed Snapshot'
+            },
+            gate_g7_eligible: true,
+            gate_g7_blockers: []
+          }
+        };
+      }
       return {
-        status: 'ok',
-        data: {
-          doctrine_health: {
-            total_assets: 60,
-            principles_count: 12,
-            patterns_count: 24,
-            decisions_count: 14,
-            controls_count: 10,
-            glossary_count: 17
-          },
-          reviews_summary: {
-            pending_count: 0,
-            overdue_count: 0,
-            avg_review_duration_days: 0
-          },
-          regulatory_coverage: {
-            total_frameworks: 1,
-            total_requirements: 20,
-            covered_requirements: 20,
-            coverage_percentage: 100
-          },
-          evals_summary: {
-            latest_recall: 0.85,
-            gate_g6_passed: true,
-            last_benchmark_at: new Date().toISOString()
-          },
-          storage: {
-            mode: 'persistent',
-            persistent: true,
-            provider: 'Offline Sealed Snapshot'
-          },
-          gate_g7_eligible: true,
-          gate_g7_blockers: []
-        }
+        status: 'unavailable',
+        error: e?.message || 'Serveur LLMOps inaccessible pour la santé KB'
       };
     }
   }

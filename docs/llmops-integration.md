@@ -165,6 +165,29 @@ Ce mapping permettra à terme d'alimenter Archinex depuis le graphe LLMOps (impo
 | `LLMOPS_ENGAGEMENT` | `nordwave-mcx-2027` | Tester un autre engagement |
 | `LLMOPS_LIVE_URL` | Non défini (optionnel) | URL du serveur de contrat local LLMOps pour tests de contrat vivants |
 | `LLMOPS_LIVE_TOKEN` | `contract-service-token` | Jeton de service portant les scopes `kb:review,kb:delegate` |
+| `USE_FAKE_LLMOPS` | `0` | Définir à `1` pour forcer l'utilisation du serveur mock en mémoire `fakeLlmops` lors des tests E2E Playwright |
+| `ALLOW_OFFLINE_MOCK` | `0` | Définir à `1` pour autoriser le mode démo hors-ligne simulé localement en cas d'absence de serveur |
+
+---
+
+### Modes d'exécution des tests E2E Navigateur (Playwright)
+
+Les tests de parcours navigateur (`tests/e2e/browser/`) supportent 3 modes d'exécution stricts (sans repli silencieux) :
+
+1. **Mode Conteneur Docker (Défaut)** :
+   - Démarré automatiquement via `testcontainers` avec l'image `llmops-contract:latest`.
+   - Nécessite Docker actif. En cas d'indisponibilité de Docker, le setup échoue immédiatement avec un message clair et les instructions de démarrage.
+
+2. **Mode Serveur Live Externe (`LLMOPS_LIVE_URL`)** :
+   - Cible une instance Python déjà en cours d'exécution (ex: `python scripts/contract_server.py --port 8099` dans le dépôt LLMOps).
+   - Configuration : `$env:LLMOPS_LIVE_URL="http://127.0.0.1:8099"`.
+   - Les embeddings vectoriels sont pré-synchronisés automatiquement au démarrage du test.
+
+3. **Mode Mock en Mémoire Déclaré (`USE_FAKE_LLMOPS=1`)** :
+   - Utilise le mock local in-memory `fakeLlmops` sans dépendance Docker ni Python.
+   - Doit être **explicitement consenti** : `$env:USE_FAKE_LLMOPS="1"`.
+   - Affiche une bannière d'avertissement très visible dans la console pour signaler que le vrai serveur LLMOps n'est pas sollicité.
+
 
 ---
 

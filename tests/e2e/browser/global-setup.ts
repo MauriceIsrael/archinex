@@ -43,7 +43,10 @@ export default async function globalSetup() {
   if (llmopsBaseUrl) {
     console.log(`[Playwright Global Setup] Réutilisation serveur LLMOps : ${llmopsBaseUrl}`);
   } else if (process.env.USE_FAKE_LLMOPS === '1') {
-    console.log('[Playwright Global Setup] Mode USE_FAKE_LLMOPS actif : démarrage de fakeLlmops...');
+    console.warn('\n╔══════════════════════════════════════════════════════════════════════════════╗');
+    console.warn('║ ⚠️  ATTENTION : EXÉCUTION SUR MOCK IN-MEMORY (fakeLlmops)                     ║');
+    console.warn('║ USE_FAKE_LLMOPS=1 est actif. Ce test ne valide PAS le vrai serveur LLMOps.   ║');
+    console.warn('╚══════════════════════════════════════════════════════════════════════════════╝\n');
     fakeServer = await startFakeLlmopsServer();
     llmopsBaseUrl = fakeServer.url;
     console.log(`[Playwright Global Setup] Mock LLMOps prêt sur ${llmopsBaseUrl}`);
@@ -70,15 +73,22 @@ export default async function globalSetup() {
       llmopsBaseUrl = `http://${host}:${port}`;
       console.log(`[Playwright Global Setup] Conteneur LLMOps prêt sur ${llmopsBaseUrl}`);
     } catch (e: any) {
-      console.warn('[Playwright Global Setup] Conteneur Docker non disponible, repli sur fakeLlmops :', e.message);
-      fakeServer = await startFakeLlmopsServer();
-      llmopsBaseUrl = fakeServer.url;
-      console.log(`[Playwright Global Setup] Mock LLMOps prêt sur ${llmopsBaseUrl}`);
+      const errorMsg =
+        '\n[Playwright Global Setup] ÉCHEC : Aucun serveur LLMOps disponible !\n' +
+        `Raison : Le conteneur Docker n’a pas pu démarrer (${e.message}).\n\n` +
+        'Options pour exécuter les tests navigateur :\n' +
+        '  1. Démarrer Docker Desktop pour exécuter le conteneur llmops-contract:latest\n' +
+        '  2. Démarrer le serveur contractuel Python :\n' +
+        '     cd ../LLMOps && python scripts/contract_server.py --port 8099\n' +
+        '     puis définir la variable d’environnement : LLMOPS_LIVE_URL="http://127.0.0.1:8099"\n' +
+        '  3. Pour utiliser explicitement le mock en mémoire local de test :\n' +
+        '     définir la variable d’environnement : USE_FAKE_LLMOPS="1"\n';
+      throw new Error(errorMsg);
     }
   }
 
-  // Pré-synchronisation des embeddings si sur fakeLlmops
-  if (fakeServer && llmopsBaseUrl) {
+  // Pré-synchronisation des embeddings (sur live ou fakeLlmops)
+  if (llmopsBaseUrl) {
     try {
       const client = new LLMOpsClient({ baseUrl: llmopsBaseUrl, authToken: SERVICE_TOKEN });
       await syncEmbeddingsWithLLMOps(client, { model: 'toy-bow' });

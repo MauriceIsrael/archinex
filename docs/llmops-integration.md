@@ -202,6 +202,15 @@ Les lots de gouvernance étendent l'intégration au-delà du protocole MCP en ap
 | **A8** | Atelier de doctrine : templates d'actifs, assertions formelles et simulateur d'impact | Validé | Closes #3 |
 | **A10** | Ingestion multi-format (.pdf, .md, .txt), revue ligne par ligne et déclaration de couverture | Validé | Closes #5 |
 
+### Identité de l'acteur : la session, rien d'autre
+
+Le jeton de service d'Archinex porte `kb:delegate` : LLMOps accepte alors `X-Actor-Email` et agit **au nom de cette personne**. Cette identité doit donc venir exclusivement de la **session authentifiée** du navigateur (`locals.session.user.email`, posée par `src/hooks.server.ts`).
+
+- Les routes `/api/knowledge/*` et `/api/frameworks/*` répondent **401** sans session (garde dans `hooks.server.ts`).
+- Aucune route ne lit l'en-tête `X-Actor-Email` envoyé par le navigateur et aucune n'a d'identité de repli (`architect@…`, `eva@…`) : un test statique (`tests/contract/actor-from-session.test.ts`) l'impose.
+- Les appels « système » (synchronisation d'embeddings, polling) n'envoient pas d'acteur ; ils sont déclenchés par un utilisateur connecté ou une tâche serveur, jamais par un appelant anonyme.
+- Les rôles et domaines restent vérifiés par LLMOps (`403` si l'e-mail est inconnu ou sans droit).
+
 ---
 
 ## 9. Test E2E API — Réglementation → RFP → Délibération → Décision → Capitalisation (Issue #12)

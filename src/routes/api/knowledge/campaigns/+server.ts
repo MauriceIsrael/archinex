@@ -4,7 +4,7 @@ import type { RequestHandler } from './$types';
 
 export const GET: RequestHandler = async ({ request, locals }) => {
   const actorEmail =
-    request.headers.get('x-actor-email') || locals.session?.user?.email || undefined;
+    locals.session?.user?.email || undefined;
 
   const result = await llmopsClient.listKbCampaigns(actorEmail);
 
@@ -24,7 +24,7 @@ export const GET: RequestHandler = async ({ request, locals }) => {
 
 export const POST: RequestHandler = async ({ request, locals }) => {
   const actorEmail =
-    request.headers.get('x-actor-email') || locals.session?.user?.email || undefined;
+    locals.session?.user?.email || undefined;
 
   const body = await request.json().catch(() => ({}));
   const result = await llmopsClient.createKbCampaign(body, actorEmail);

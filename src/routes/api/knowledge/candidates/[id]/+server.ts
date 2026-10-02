@@ -4,7 +4,7 @@ import type { RequestHandler } from './$types';
 
 export const GET: RequestHandler = async ({ params, request, locals }) => {
   const actorEmail =
-    request.headers.get('x-actor-email') || locals.session?.user?.email;
+    locals.session?.user?.email;
 
   const result = await llmopsClient.getCandidate(params.id, actorEmail || undefined);
 
@@ -24,7 +24,7 @@ export const GET: RequestHandler = async ({ params, request, locals }) => {
 
 export const PATCH: RequestHandler = async ({ params, request, locals }) => {
   const actorEmail =
-    request.headers.get('x-actor-email') || locals.session?.user?.email;
+    locals.session?.user?.email;
 
   if (!actorEmail) {
     return json({ status: 'error', error: 'Non authentifié (en-tête X-Actor-Email manquant)' }, { status: 401 });

@@ -5,7 +5,7 @@ import type { RequestHandler } from './$types';
 
 export const GET: RequestHandler = async ({ params, request, locals }) => {
   const actorEmail =
-    request.headers.get('x-actor-email') || locals?.session?.user?.email || undefined;
+    locals?.session?.user?.email || undefined;
   const datasetId = params.datasetId;
 
   const result = await llmopsClient.getSimilarityDataset(datasetId, actorEmail);
@@ -26,7 +26,10 @@ export const GET: RequestHandler = async ({ params, request, locals }) => {
 
 export const POST: RequestHandler = async ({ params, request, locals }) => {
   const actorEmail =
-    request.headers.get('x-actor-email') || locals?.session?.user?.email || 'eva@example.org';
+    locals?.session?.user?.email;
+  if (!actorEmail) {
+    return json({ status: 'error', error: 'Non authentifié : session requise' }, { status: 401 });
+  }
   const datasetId = params.datasetId;
 
   let body: any = {};

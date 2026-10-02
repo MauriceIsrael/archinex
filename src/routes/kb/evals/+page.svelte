@@ -181,7 +181,7 @@
   </div>
 
   {#if activeTab === 'similarity'}
-    <SimilarityEvaluationPanel actorEmail={data.user.email} />
+    <SimilarityEvaluationPanel />
   {:else if activeTab === 'options'}
     <!-- Bloc de Déclenchement du Benchmark -->
     <div class="bg-surface-50 border border-surface-200 rounded-xl p-6 shadow-sm">

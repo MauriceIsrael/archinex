@@ -4,7 +4,7 @@ import type { RequestHandler } from './$types';
 
 export const GET: RequestHandler = async ({ request, locals, url }) => {
   const actorEmail =
-    request.headers.get('x-actor-email') || locals.session?.user?.email || undefined;
+    locals.session?.user?.email || undefined;
 
   const engagement = url.searchParams.get('engagement') || undefined;
   const source = url.searchParams.get('source') || undefined;
@@ -19,7 +19,7 @@ export const GET: RequestHandler = async ({ request, locals, url }) => {
 
 export const POST: RequestHandler = async ({ request, locals }) => {
   const actorEmail =
-    request.headers.get('x-actor-email') || locals.session?.user?.email || undefined;
+    locals.session?.user?.email || undefined;
 
   let body: any;
   try {

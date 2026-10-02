@@ -125,6 +125,24 @@ describe('Local LLM Souverain & Factorisation de RFP', () => {
 			expect(msg.length).toBeLessThan(1000); // Très compressé
 		});
 
+		it('gère un corpus massif de 500 exigences sans jamais dépasser la fenêtre de contexte', () => {
+			const hugeClauses: ExtractedClause[] = [];
+			for (let i = 1; i <= 500; i++) {
+				const sec = Math.ceil(i / 25);
+				hugeClauses.push({
+					clauseRef: `§${sec}.${i}`,
+					title: `Exigence technique détaillée numéro ${i}`,
+					text: `Ceci est le texte complet de l'article ${i} qui contient beaucoup de détails contractuels et juridiques.`
+				});
+			}
+
+			const msg = buildUserMessage(hugeClauses, testKbStandards);
+			expect(msg).toContain('Synthèse hiérarchique');
+			expect(msg).toContain('500 exigences');
+			// Le message ne doit JAMAIS dépasser le budget de sécurité (28 000 caractères, ~7 000 tokens)
+			expect(msg.length).toBeLessThan(28000);
+		});
+
 		it('assure une factorisation déterministe de repli avec avertissement explicite (tolérance zéro au silence)', () => {
 			const res = fallbackDeterministicFactorization(sampleClauses, testKbStandards, 'Dépassement de contexte (152053 tokens > 16384 tokens)');
 			expect(res.status).toBe('fallback');

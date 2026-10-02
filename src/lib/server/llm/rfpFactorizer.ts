@@ -33,12 +33,55 @@ export function inferTargetSubjectsCount(clauseCount: number): string {
 	return '15 à 25';
 }
 
+export const MAX_CLAUSES_BUDGET_CHARS = 24000;
+
 /**
  * Détecte si le volume de texte brut des clauses risque de saturer la fenêtre de contexte du LLM local
  */
-export function shouldCondenseClauses(clauses: ExtractedClause[], maxChars: number = 28000): boolean {
+export function shouldCondenseClauses(clauses: ExtractedClause[], maxChars: number = MAX_CLAUSES_BUDGET_CHARS): boolean {
 	const totalChars = clauses.reduce((acc, c) => acc + (c.text?.length || 0) + (c.title?.length || 0), 0);
-	return totalChars > maxChars;
+	return totalChars > maxChars || clauses.length > 80;
+}
+
+/**
+ * Regroupe les clauses volumineuses par macro-section (§1, §2, etc.)
+ * lorsque le nombre d'exigences dépasse ce qu'une liste exhaustive peut contenir sans saturer le contexte.
+ */
+export function clusterClausesBySection(clauses: ExtractedClause[], maxTotalChars: number = MAX_CLAUSES_BUDGET_CHARS): string {
+	const sections: Record<string, { title: string; clauses: ExtractedClause[]; criticalCount: number }> = {};
+
+	for (const c of clauses) {
+		const prefixMatch = c.clauseRef.match(/^(?:§|art(?:icle)?\.?\s*)(\d+)/i);
+		const secKey = prefixMatch ? `Section §${prefixMatch[1]}` : 'Exigences Générales';
+
+		if (!sections[secKey]) {
+			sections[secKey] = {
+				title: c.title.slice(0, 70),
+				clauses: [],
+				criticalCount: 0
+			};
+		}
+		sections[secKey].clauses.push(c);
+		if (c.criticality === 'bloquant' || c.criticality === 'majeur') {
+			sections[secKey].criticalCount++;
+		}
+	}
+
+	const secEntries = Object.entries(sections);
+	return secEntries
+		.map(([secName, sec]) => {
+			const count = sec.clauses.length;
+			const firstRef = sec.clauses[0].clauseRef;
+			const lastRef = sec.clauses[sec.clauses.length - 1].clauseRef;
+			const critNotice = sec.criticalCount > 0 ? ` [dont ${sec.criticalCount} critiques/bloquantes]` : '';
+
+			const criticalClauses = sec.clauses.filter((c) => c.criticality === 'bloquant' || c.criticality === 'majeur');
+			const rep = Array.from(new Set([...criticalClauses.slice(0, 3), ...sec.clauses.slice(0, 3)])).slice(0, 4);
+			const repList = rep.map((c) => `  - [${c.clauseRef}] ${c.title.slice(0, 80)}`).join('\n');
+
+			return `[${secName}] ${sec.title} (${count} exigences de ${firstRef} à ${lastRef})${critNotice} :\n${repList}`;
+		})
+		.join('\n\n');
 }
 
 /**
@@ -106,30 +149,41 @@ RÈGLES D'OR DE FACTORISATION ARCHITECTURALE :
 export function buildUserMessage(
 	clauses: ExtractedClause[],
 	kbStandards: KbItemSummary[] = [],
-	options: { condense?: boolean; targetCountDesc?: string } = {}
+	options: { condense?: boolean; targetCountDesc?: string; maxTotalChars?: number } = {}
 ): string {
+	const maxBudget = options.maxTotalChars ?? MAX_CLAUSES_BUDGET_CHARS;
 	const kbText = kbStandards
+		.slice(0, 20)
 		.map((k) => `[${k.id}] (${k.category}) ${k.title} : ${k.ruleOrStatement}`)
 		.join('\n');
 
 	const targetDesc = options.targetCountDesc || inferTargetSubjectsCount(clauses.length);
-	const shouldCondense = options.condense ?? shouldCondenseClauses(clauses);
+	const shouldCondense = options.condense ?? shouldCondenseClauses(clauses, maxBudget);
 
-	const clausesText = clauses
-		.map((c) => {
-			if (!shouldCondense) {
-				return `[${c.clauseRef}] ${c.title}\n${c.text}`;
-			}
-			const cleanText = (c.text || '').replace(/\s+/g, ' ').trim();
-			const snippet = cleanText.length > 180 ? cleanText.slice(0, 180).trim() + '...' : cleanText;
-			const crit = c.criticality && c.criticality !== 'standard' ? ` (criticité: ${c.criticality})` : '';
-			return `[${c.clauseRef}] ${c.title}${crit}${snippet ? `\nExtrait : ${snippet}` : ''}`;
-		})
-		.join('\n\n');
+	let clausesText = '';
+	let condensationNotice = '';
 
-	const condensationNotice = shouldCondense
-		? '\n(NOTE : Synthèse structurée des clauses pour respecter la fenêtre de contexte maximale du modèle local)\n'
-		: '';
+	if (clauses.length > 200 || (shouldCondense && clauses.length > 120)) {
+		// Document massif (des centaines à des milliers d'exigences) : Synthèse hiérarchique par section
+		clausesText = clusterClausesBySection(clauses, maxBudget);
+		condensationNotice = `\n(NOTE : Synthèse hiérarchique par macro-sections couvrant l'ensemble des ${clauses.length} exigences pour respecter la fenêtre de contexte maximale)\n`;
+	} else if (shouldCondense) {
+		// Document moyen-grand : calcul d'un budget individuel par clause
+		const budgetPerClause = Math.max(60, Math.floor(maxBudget / Math.max(1, clauses.length)));
+		clausesText = clauses
+			.map((c) => {
+				const cleanText = (c.text || '').replace(/\s+/g, ' ').trim();
+				const snippetLen = Math.min(250, Math.max(30, budgetPerClause - 60));
+				const snippet = cleanText.length > snippetLen ? cleanText.slice(0, snippetLen).trim() + '...' : cleanText;
+				const crit = c.criticality && c.criticality !== 'standard' ? ` (criticité: ${c.criticality})` : '';
+				return `[${c.clauseRef}] ${c.title}${crit}${snippet && snippet !== c.title ? `\nExtrait : ${snippet}` : ''}`;
+			})
+			.join('\n\n');
+		condensationNotice = '\n(NOTE : Synthèse structurée des clauses pour respecter la fenêtre de contexte maximale du modèle local)\n';
+	} else {
+		// Petit document : texte brut intégral
+		clausesText = clauses.map((c) => `[${c.clauseRef}] ${c.title}\n${c.text}`).join('\n\n');
+	}
 
 	return `RÉFÉRENTIEL DU PATRIMOINE COMMUN (STANDARDS EXISTANTS EN LECTURE SEULE) :
 ${kbText}

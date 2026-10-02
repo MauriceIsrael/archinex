@@ -267,6 +267,16 @@ describe('Local LLM Souverain & Factorisation de RFP', () => {
 			}
 		});
 
+		it('borne le nombre de blocs Map à 6-7 maximum pour un corpus géant de 1600 exigences', () => {
+			const clauses = generateLotsOfClauses(1594);
+			const chunks = partitionClausesIntoMapChunks(clauses);
+
+			expect(chunks.length).toBeLessThanOrEqual(7);
+			expect(chunks.length).toBeGreaterThanOrEqual(4);
+			const totalInChunks = chunks.reduce((acc, ch) => acc + ch.length, 0);
+			expect(totalInChunks).toBe(1594);
+		});
+
 		it('construit un prompt Map contenant 100% du texte intégral des exigences du bloc', () => {
 			const chunk = sampleClauses;
 			const prompt = buildMapPrompt(chunk, 0, 1);

@@ -21,7 +21,7 @@ export class LocalLlmClient {
 		).replace(/\/+$/, '');
 
 		this.defaultModel = config.defaultModel || process.env.LLM_LOCAL_MODEL || 'ministral:latest';
-		this.timeoutMs = config.timeoutMs || 90000; // 90s pour gros contexte / modèles 14B
+		this.timeoutMs = config.timeoutMs || parseInt(process.env.LLM_LOCAL_TIMEOUT_MS || '180000', 10); // 180s (3 min) pour gros prompts
 		this.temperature = config.temperature ?? 0.2;
 	}
 
@@ -224,6 +224,11 @@ export class LocalLlmClient {
 			return data.message?.content || data.response || '';
 		} catch (err: unknown) {
 			clearTimeout(timer);
+			if (controller.signal.aborted) {
+				throw new Error(
+					`Délai d'inférence LLM local dépassé (${Math.round(timeout / 1000)}s sur ${this.endpoint}). Le modèle local n'a pas répondu à temps.`
+				);
+			}
 			throw err;
 		}
 	}

@@ -11,5 +11,6 @@ export interface ChatOptions {
 	format?: 'json';
 	temperature?: number;
 	maxTokens?: number;
+	numCtx?: number;
 	timeoutMs?: number;
 }

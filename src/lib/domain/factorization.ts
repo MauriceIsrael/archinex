@@ -58,4 +58,6 @@ export interface RfpFactorizationResponse {
 	subjects: FactorizedArchitecturalSubject[];
 	unassignedClauses: ExtractedClause[];
 	warning?: string;
+	wasCondensed?: boolean;
+	errorDetail?: string;
 }

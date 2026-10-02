@@ -3,6 +3,8 @@ import { LocalLlmClient, localLlmClient } from '../../src/lib/server/llm/localLl
 import {
 	buildSystemPrompt,
 	buildUserMessage,
+	inferTargetSubjectsCount,
+	shouldCondenseClauses,
 	fallbackDeterministicFactorization,
 	promoteClauseToSubject,
 	factorizeRfpWithLocalLlm,
@@ -97,9 +99,36 @@ describe('Local LLM Souverain & Factorisation de RFP', () => {
 			expect(userMsg).toContain('§2.1');
 		});
 
-		it('assure une factorisation déterministe de repli avec 100% de couverture', () => {
-			const res = fallbackDeterministicFactorization(sampleClauses, testKbStandards);
+		it('calcule le nombre cible de sujets adaptatif selon le volume d exigences', () => {
+			expect(inferTargetSubjectsCount(5)).toBe('3 à 6');
+			expect(inferTargetSubjectsCount(25)).toBe('6 à 10');
+			expect(inferTargetSubjectsCount(60)).toBe('8 à 12');
+			expect(inferTargetSubjectsCount(150)).toBe('12 à 18');
+			expect(inferTargetSubjectsCount(400)).toBe('15 à 25');
+		});
+
+		it('active la condensation automatique pour les documents massifs sans perte de référence', () => {
+			// Crée une clause avec un texte très long
+			const massiveClause: ExtractedClause = {
+				clauseRef: '§9.9',
+				title: 'Exigence ultra-volumineuse avec volumétrie contractuelle',
+				text: 'A'.repeat(30000),
+				criticality: 'bloquant',
+				suggestedSubjectName: 'Gros Sujet'
+			};
+			expect(shouldCondenseClauses([massiveClause])).toBe(true);
+
+			const msg = buildUserMessage([massiveClause], testKbStandards, { condense: true });
+			expect(msg).toContain('Synthèse structurée');
+			expect(msg).toContain('§9.9');
+			expect(msg).toContain('Extrait :');
+			expect(msg.length).toBeLessThan(1000); // Très compressé
+		});
+
+		it('assure une factorisation déterministe de repli avec avertissement explicite (tolérance zéro au silence)', () => {
+			const res = fallbackDeterministicFactorization(sampleClauses, testKbStandards, 'Dépassement de contexte (152053 tokens > 16384 tokens)');
 			expect(res.status).toBe('fallback');
+			expect(res.warning).toContain('152053 tokens');
 			expect(res.totalClauses).toBe(4);
 			expect(res.coverageRate).toBe(100);
 			expect(res.subjects.length).toBeGreaterThanOrEqual(2);

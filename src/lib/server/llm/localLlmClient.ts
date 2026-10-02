@@ -194,6 +194,13 @@ export class LocalLlmClient {
 				payload.options.num_predict = options.maxTokens;
 			}
 
+			if (options.numCtx || process.env.LLM_LOCAL_NUM_CTX) {
+				const numCtx = options.numCtx || parseInt(process.env.LLM_LOCAL_NUM_CTX || '0', 10);
+				if (numCtx > 0) {
+					payload.options.num_ctx = numCtx;
+				}
+			}
+
 			const res = await fetch(`${this.endpoint}/api/chat`, {
 				method: 'POST',
 				headers: {

@@ -22,11 +22,31 @@ export interface KbItemSummary {
 }
 
 /**
+ * Détermine le nombre cible de sujets d'architecture recommandé selon la complexité
+ * et le volume d'exigences du document
+ */
+export function inferTargetSubjectsCount(clauseCount: number): string {
+	if (clauseCount <= 10) return '3 à 6';
+	if (clauseCount <= 30) return '6 à 10';
+	if (clauseCount <= 80) return '8 à 12';
+	if (clauseCount <= 200) return '12 à 18';
+	return '15 à 25';
+}
+
+/**
+ * Détecte si le volume de texte brut des clauses risque de saturer la fenêtre de contexte du LLM local
+ */
+export function shouldCondenseClauses(clauses: ExtractedClause[], maxChars: number = 28000): boolean {
+	const totalChars = clauses.reduce((acc, c) => acc + (c.text?.length || 0) + (c.title?.length || 0), 0);
+	return totalChars > maxChars;
+}
+
+/**
  * Construit le prompt système pour le LLM local
  */
-export function buildSystemPrompt(customDirectives?: string): string {
+export function buildSystemPrompt(customDirectives?: string, targetCountDesc: string = '8 à 12'): string {
 	let prompt = `Tu es un Lead Solutions Architect et Ingénieur des Systèmes Critiques expérimenté.
-Ta mission est de procéder à la FACTORISATION SÉMANTIQUE d'un ensemble d'exigences (RFP / CCTP) pour en extraire 8 à 12 SUJETS D'ARCHITECTURE structurants.
+Ta mission est de procéder à la FACTORISATION SÉMANTIQUE d'un ensemble d'exigences (RFP / CCTP) pour en extraire ${targetCountDesc} SUJETS D'ARCHITECTURE structurants.
 
 RÈGLES D'OR DE FACTORISATION ARCHITECTURALE :
 1. NE PAS CRÉER UN SUJET PAR EXIGENCE ! Il est formellement interdit de dupliquer chaque clause. Chaque sujet d'architecture doit regrouper et synthétiser 2 à 10 clauses connexes.
@@ -85,25 +105,41 @@ RÈGLES D'OR DE FACTORISATION ARCHITECTURALE :
  */
 export function buildUserMessage(
 	clauses: ExtractedClause[],
-	kbStandards: KbItemSummary[] = []
+	kbStandards: KbItemSummary[] = [],
+	options: { condense?: boolean; targetCountDesc?: string } = {}
 ): string {
 	const kbText = kbStandards
 		.map((k) => `[${k.id}] (${k.category}) ${k.title} : ${k.ruleOrStatement}`)
 		.join('\n');
 
+	const targetDesc = options.targetCountDesc || inferTargetSubjectsCount(clauses.length);
+	const shouldCondense = options.condense ?? shouldCondenseClauses(clauses);
+
 	const clausesText = clauses
-		.map((c) => `[${c.clauseRef}] ${c.title}\n${c.text}`)
+		.map((c) => {
+			if (!shouldCondense) {
+				return `[${c.clauseRef}] ${c.title}\n${c.text}`;
+			}
+			const cleanText = (c.text || '').replace(/\s+/g, ' ').trim();
+			const snippet = cleanText.length > 180 ? cleanText.slice(0, 180).trim() + '...' : cleanText;
+			const crit = c.criticality && c.criticality !== 'standard' ? ` (criticité: ${c.criticality})` : '';
+			return `[${c.clauseRef}] ${c.title}${crit}${snippet ? `\nExtrait : ${snippet}` : ''}`;
+		})
 		.join('\n\n');
+
+	const condensationNotice = shouldCondense
+		? '\n(NOTE : Synthèse structurée des clauses pour respecter la fenêtre de contexte maximale du modèle local)\n'
+		: '';
 
 	return `RÉFÉRENTIEL DU PATRIMOINE COMMUN (STANDARDS EXISTANTS EN LECTURE SEULE) :
 ${kbText}
 
 ---
 
-EXIGENCES BRUTES DU CAHIER DES CHARGES (À FACTORISER) :
+EXIGENCES BRUTES DU CAHIER DES CHARGES (À FACTORISER)${condensationNotice} :
 ${clausesText}
 
-Procède à la factorisation en 8 à 12 sujets d'architecture majeurs en veillant à couvrir l'ensemble des clauses ci-dessus.`;
+Procède à la factorisation en ${targetDesc} sujets d'architecture majeurs en veillant à couvrir l'ensemble des clauses ci-dessus.`;
 }
 
 /**
@@ -131,9 +167,15 @@ export async function factorizeRfpWithLocalLlm(
 		};
 	}
 
+	const isCondensed = shouldCondenseClauses(clauses);
+	const targetDesc = inferTargetSubjectsCount(clauses.length);
+
 	try {
-		const systemPrompt = buildSystemPrompt(request.customPromptDirectives);
-		const userMessage = buildUserMessage(clauses, kbStandards);
+		const systemPrompt = buildSystemPrompt(request.customPromptDirectives, targetDesc);
+		const userMessage = buildUserMessage(clauses, kbStandards, {
+			condense: isCondensed,
+			targetCountDesc: targetDesc
+		});
 
 		const rawContent = await localLlmClient.chat({
 			model,
@@ -196,11 +238,28 @@ export async function factorizeRfpWithLocalLlm(
 			coveredClausesCount,
 			coverageRate,
 			subjects,
-			unassignedClauses
+			unassignedClauses,
+			wasCondensed: isCondensed
 		};
 	} catch (err: unknown) {
+		const rawErr = err instanceof Error ? err.message : String(err);
+		let cleanWarning = 'Serveur LLM local non disponible, factorisation déterministe appliquée.';
+		if (rawErr.includes('exceeds the available context size') || rawErr.includes('exceed_context_size_error')) {
+			cleanWarning = `Le volume du document dépasse la fenêtre de contexte maximale du modèle (${rawErr.slice(0, 180)}).`;
+		} else if (rawErr.includes('400 Bad Request')) {
+			cleanWarning = `Erreur de requête LLM local (400 Bad Request) : ${rawErr.slice(0, 180)}.`;
+		} else if (rawErr.includes('Injoignable') || rawErr.includes('ECONNREFUSED')) {
+			cleanWarning = `Serveur LLM local (${model}) injoignable sur ${process.env.LLM_LOCAL_ENDPOINT || 'http://localhost:11434'}.`;
+		} else {
+			cleanWarning = `Échec LLM : ${rawErr.slice(0, 140)}.`;
+		}
 		console.warn('⚠️ Échec de factorisation par LLM local souverain, bascule vers moteur heuristique déterministe :', err);
-		return fallbackDeterministicFactorization(clauses, kbStandards, err instanceof Error ? err.message : String(err));
+		const fallback = fallbackDeterministicFactorization(clauses, kbStandards, cleanWarning);
+		return {
+			...fallback,
+			errorDetail: rawErr,
+			wasCondensed: isCondensed
+		};
 	}
 }
 

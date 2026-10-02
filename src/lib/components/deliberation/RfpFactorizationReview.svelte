@@ -27,6 +27,9 @@
 		engine: string;
 		summary: string;
 		coverageRate: number;
+		warning?: string;
+		errorDetail?: string;
+		wasCondensed?: boolean;
 		onConfirm: (initialSubjects: InitialSubjectInput[]) => void;
 		onCancel: () => void;
 	}
@@ -38,6 +41,9 @@
 		engine,
 		summary,
 		coverageRate,
+		warning,
+		errorDetail,
+		wasCondensed,
 		onConfirm,
 		onCancel
 	}: Props = $props();
@@ -200,8 +206,8 @@
 				<div>
 					<h3 class="font-bold text-sm text-foreground flex items-center gap-2">
 						<span>Factorisation Sémantique d'Architecture</span>
-						<span class="text-[10px] px-2 py-0.5 rounded-full bg-primary/15 text-primary font-mono font-bold">
-							{engine === 'local-llm' ? 'Moteur Souverain Local' : 'Moteur de Secours'}
+						<span class="text-[10px] px-2 py-0.5 rounded-full font-mono font-bold {engine === 'local-llm' ? 'bg-primary/15 text-primary' : 'bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30'}">
+							{engine === 'local-llm' ? 'Moteur Souverain Local' : 'Moteur de Secours Déterministe'}
 						</span>
 					</h3>
 					<p class="text-[11px] text-muted-foreground">
@@ -219,6 +225,36 @@
 				<span class="text-[11px] text-muted-foreground">({clauses.length} exigences analysées)</span>
 			</div>
 		</div>
+
+		{#if warning || engine !== 'local-llm'}
+			<div class="p-3.5 rounded-xl border border-amber-500/40 bg-amber-500/10 text-amber-900 dark:text-amber-200 space-y-1.5">
+				<div class="flex items-start gap-2.5">
+					<AlertTriangle class="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
+					<div class="space-y-1">
+						<div class="font-bold text-xs uppercase tracking-wider text-amber-700 dark:text-amber-300 flex items-center gap-2">
+							<span>Repli sur le moteur heuristique de secours</span>
+							<span class="text-[10px] lowercase font-mono font-normal opacity-75">(tolérance zéro au silence)</span>
+						</div>
+						<p class="text-xs leading-relaxed">
+							{warning || 'Le modèle LLM local n\'a pas pu procéder à la factorisation directe. Des règles heuristiques déterministes ont été appliquées pour ne pas bloquer l\'importation.'}
+						</p>
+						{#if errorDetail}
+							<details class="text-[11px] opacity-80 pt-1">
+								<summary class="cursor-pointer hover:underline font-mono">Détail technique de l'erreur</summary>
+								<pre class="mt-1 p-2 rounded bg-black/10 dark:bg-black/40 font-mono text-[10px] whitespace-pre-wrap">{errorDetail}</pre>
+							</details>
+						{/if}
+					</div>
+				</div>
+			</div>
+		{:else if wasCondensed}
+			<div class="p-2.5 rounded-lg border border-blue-500/30 bg-blue-500/10 text-blue-900 dark:text-blue-200 flex items-center gap-2 text-xs">
+				<Info class="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0" />
+				<span>
+					<strong>Mode condensé actif :</strong> Le document massif a été synthétisé par références et extraits pour respecter la fenêtre de contexte maximale du modèle local souverain.
+				</span>
+			</div>
+		{/if}
 
 		{#if summary}
 			<p class="text-xs text-muted-foreground bg-muted/20 p-2.5 rounded-lg border leading-relaxed italic">

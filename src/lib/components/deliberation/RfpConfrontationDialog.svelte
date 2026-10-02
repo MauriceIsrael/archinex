@@ -439,6 +439,9 @@
 						engine={factorizationResponse.engine}
 						summary={factorizationResponse.summary}
 						coverageRate={factorizationResponse.coverageRate}
+						warning={factorizationResponse.warning}
+						errorDetail={factorizationResponse.errorDetail}
+						wasCondensed={factorizationResponse.wasCondensed}
 						onConfirm={(finalSubjects) => {
 							onImported({
 								document: {

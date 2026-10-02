@@ -70,9 +70,14 @@ test.describe('E2E Navigateur : « Deuxième RFP » — reconnaissance de sujets
     // Capture d'écran : Modale d'examen des hypothèses
     await page.screenshot({ path: 'tests/e2e/screenshots/second-rfp-hypotheses-modal.png' });
 
-    // 12. Soumission de l'arbitrage (les 2 hypothèses tiennent "holds", outcome "reused")
-    const confirmBtn = page.locator('[data-testid="btn-submit-reuse-confirmation"], button:has-text("Confirmer l\'Arbitrage")');
-    await expect(confirmBtn).toBeVisible();
+    // 12. D8 : rien n'est présélectionné ; la confirmation reste impossible tant que chaque hypothèse n'est pas jugée
+    const confirmBtn = page.locator('[data-testid="btn-submit-reuse-confirmation"]');
+    await expect(confirmBtn).toBeDisabled();
+    await expect(page.locator('[data-testid="outcome-reused"]')).toBeDisabled();
+    await page.locator('[data-testid="hyp-0-holds"]').check();
+    await expect(confirmBtn).toBeDisabled();
+    await page.locator('[data-testid="hyp-1-holds"]').check();
+    await page.locator('[data-testid="outcome-reused"]').check();
     await expect(confirmBtn).toBeEnabled();
     await confirmBtn.click();
 

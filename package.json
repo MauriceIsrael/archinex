@@ -22,7 +22,8 @@
     "test:integration:closed-loop": "vitest run tests/integration/closed-loop-deliberation.test.ts",
     "test:integration:retraction": "vitest run tests/integration/causal-retraction-cascade.test.ts",
     "test:integration:debate": "vitest run tests/integration/expert-debate-maturation.test.ts",
-    "verify": "node scripts/verify.mjs"
+    "verify": "node scripts/verify.mjs",
+    "ollama:models": "node scripts/ollama-models.mjs"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.13.0",

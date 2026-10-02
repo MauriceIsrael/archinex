@@ -5,6 +5,9 @@ import type {
   EmbeddingPendingItem
 } from '$lib/types/llmops';
 
+import type { Encoder } from './encoder';
+import { resolveEncoder } from './encoder';
+
 export const TOY_BOW_DIM = 128;
 export const DEFAULT_SIMILARITY_MODEL = 'toy-bow';
 export const DEFAULT_SIMILARITY_MODEL_VERSION = '1';
@@ -30,13 +33,6 @@ export function encodeToyBow(text: string, dim: number = TOY_BOW_DIM): number[] 
   }
   const norm = Math.sqrt(sumSq) || 1.0;
   return vec.map((x) => x / norm);
-}
-
-/**
- * Encodeur vectoriel universel (par défaut : toy-bow déterministe).
- */
-export function encodeText(text: string, model: string = DEFAULT_SIMILARITY_MODEL): number[] {
-  return encodeToyBow(text);
 }
 
 /**
@@ -80,29 +76,24 @@ export function detectLanguage(text: string): 'fr' | 'en' {
 }
 
 /**
- * Prépare un lot de dépôt d'embeddings pour LLMOps à partir des items en attente.
+ * Prépare un lot de dépôt d'embeddings pour LLMOps à partir des items en attente, avec l'encodeur du modèle
+ * demandé (jamais un autre modèle sous le même nom).
  */
-export function prepareEmbeddingDeposit(
+export async function prepareEmbeddingDeposit(
   pendingItems: EmbeddingPendingItem[],
-  model: string = DEFAULT_SIMILARITY_MODEL,
-  modelVersion: string = DEFAULT_SIMILARITY_MODEL_VERSION
-): EmbeddingDeposit {
-  const items: EmbeddingDepositItem[] = pendingItems.map((p) => {
-    // Calcul de l'empreinte verbatim pour s'assurer qu'elle correspond
-    const sha = computeTextSha256(p.text);
-    return {
+  encoder: Encoder
+): Promise<EmbeddingDeposit> {
+  const items: EmbeddingDepositItem[] = [];
+  for (const p of pendingItems) {
+    items.push({
       ref: p.ref,
-      text_sha256: sha,
-      vector: encodeText(p.text, model),
+      // Empreinte du texte verbatim fourni par LLMOps : elle doit correspondre.
+      text_sha256: computeTextSha256(p.text),
+      vector: await encoder.encode(p.text),
       language: detectLanguage(p.text)
-    };
-  });
-
-  return {
-    model,
-    model_version: modelVersion,
-    items
-  };
+    });
+  }
+  return { model: encoder.model, model_version: await encoder.version(), items };
 }
 
 /**
@@ -124,9 +115,15 @@ export interface LLMOpsEmbeddingClient {
  */
 export async function syncEmbeddingsWithLLMOps(
   client: LLMOpsEmbeddingClient,
-  options?: { model?: string; actorEmail?: string }
+  options?: { model?: string; actorEmail?: string; encoder?: Encoder }
 ): Promise<{ status: string; count: number; error?: string }> {
-  const model = options?.model || DEFAULT_SIMILARITY_MODEL;
+  let encoder: Encoder;
+  try {
+    encoder = options?.encoder ?? resolveEncoder(options?.model);
+  } catch (e: any) {
+    return { status: 'unavailable', count: 0, error: e?.message ?? String(e) };
+  }
+  const model = encoder.model;
   const pendingRes = await client.getEmbeddingsPending(model, options?.actorEmail);
   if (pendingRes.status !== 'ok') {
     return { status: pendingRes.status, count: 0, error: pendingRes.error };
@@ -135,7 +132,12 @@ export async function syncEmbeddingsWithLLMOps(
     return { status: 'ok', count: 0 };
   }
 
-  const deposit = prepareEmbeddingDeposit(pendingRes.pending, model);
+  let deposit: EmbeddingDeposit;
+  try {
+    deposit = await prepareEmbeddingDeposit(pendingRes.pending, encoder);
+  } catch (e: any) {
+    return { status: 'unavailable', count: 0, error: e?.message ?? String(e) };
+  }
   const depositRes = await client.depositEmbeddings(deposit, options?.actorEmail);
   if (depositRes.status !== 'ok') {
     return { status: depositRes.status, count: 0, error: depositRes.error };

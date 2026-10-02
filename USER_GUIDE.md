@@ -132,6 +132,17 @@ En cliquant sur **Examiner** sur un candidat, l'expert accède à son espace de 
 
 ---
 
+### 5.3 Réutiliser une décision déjà validée (« deuxième RFP »)
+
+Quand un sujet du RFP ressemble à une décision déjà validée, Archinex la **propose** ; il ne la réutilise jamais de lui-même, quel que soit le score (tolérance zéro).
+
+1. Cliquez sur **Examiner les hypothèses**. La fenêtre liste les hypothèses de la décision (volumes, contraintes, état de l'existant) : **aucune n'est présumée valide**.
+2. Jugez **chacune** : *Valide*, *Invalide* ou *Inconnue* (note facultative). Tant que ce n'est pas fait, les issues de réutilisation restent grisées.
+3. Choisissez l'issue : *Réutiliser tel quel* (toutes valides), *Réutiliser avec exception* (commentaire obligatoire), *Rejeter, hypothèse rompue* (la question est **réouverte**), *Rejeter, pas le même sujet* (raison obligatoire, **réaffichée** la fois suivante) ou *Reporter*.
+4. Une décision **sans hypothèses documentées**, ou **remplacée**, ne peut pas être réutilisée : documentez d'abord ses hypothèses par un amendement dans la boîte de revue.
+
+Seules les issues de réutilisation marquent la clause « Conforme (Réutilisé) », avec qui l'a validée et sur quelles hypothèses. Un rejet ou un report laisse la question ouverte et le dit.
+
 ## 6. Atelier de Doctrine & Simulation de Clauses (`/kb/workshop`) — Lot A8
 
 L'Atelier de Doctrine permet aux experts (`kb:maintain`, `kb:review`, `kb:admin`) de formuler de nouvelles clauses de doctrine, de définir des prédicats formels vérifiables par machine, de simuler l'impact sur un banc de test et de détecter d'éventuelles régressions de rappel avant soumission.

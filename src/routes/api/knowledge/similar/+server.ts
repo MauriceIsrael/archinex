@@ -2,9 +2,9 @@ import { json } from '@sveltejs/kit';
 import { llmopsClient } from '$lib/server/llmops/client';
 import {
   anonymizeSubjectText,
-  computeSubjectFingerprint,
-  encodeToyBow
+  computeSubjectFingerprint
 } from '$lib/server/similarity/embeddings';
+import { resolveEncoder } from '$lib/server/similarity/encoder';
 import type { RequestHandler } from './$types';
 
 export const POST: RequestHandler = async ({ request, locals }) => {
@@ -21,14 +21,23 @@ export const POST: RequestHandler = async ({ request, locals }) => {
     return json({ status: 'error', error: 'Corps JSON invalide' }, { status: 400 });
   }
 
-  const { query_text, model = 'toy-bow', types, domains, top_k } = body;
+  const { query_text, types, domains, top_k } = body;
   if (!query_text || typeof query_text !== 'string' || query_text.trim().length === 0) {
     return json({ status: 'error', error: 'Le champ query_text est obligatoire' }, { status: 400 });
   }
 
   // Anonymisation stricte avant traitement sémantique
   const cleanText = anonymizeSubjectText(query_text.trim());
-  const vector = encodeToyBow(cleanText);
+  let encoder;
+  let vector: number[];
+  try {
+    encoder = resolveEncoder(typeof body.model === 'string' ? body.model : undefined);
+    vector = await encoder.encode(cleanText);
+  } catch (e: any) {
+    // Jamais de repli sur un autre modèle : une recherche sur un espace de vecteurs différent n'aurait aucun sens.
+    return json({ status: 'unavailable', error: e?.message ?? String(e) }, { status: 503 });
+  }
+  const model = encoder.model;
   const fp = computeSubjectFingerprint(cleanText);
 
   const searchRes = await llmopsClient.searchSimilarKnowledge(

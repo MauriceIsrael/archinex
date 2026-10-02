@@ -1,6 +1,6 @@
 import { json } from '@sveltejs/kit';
 import { llmopsClient } from '$lib/server/llmops/client';
-import { encodeToyBow } from '$lib/server/similarity/embeddings';
+import { resolveEncoder } from '$lib/server/similarity/encoder';
 import type { RequestHandler } from './$types';
 
 export const GET: RequestHandler = async ({ params, request, locals }) => {
@@ -47,14 +47,21 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 
   // Calcul local des vecteurs pour chaque cas
   const vectors: Record<string, number[]> = {};
-  for (const c of dsRes.data.cases) {
-    vectors[c.id] = encodeToyBow(c.query_text);
+  let model: string;
+  try {
+    const encoder = resolveEncoder(typeof body.model === 'string' ? body.model : undefined);
+    model = encoder.model;
+    for (const c of dsRes.data.cases) {
+      vectors[c.id] = await encoder.encode(c.query_text);
+    }
+  } catch (e: any) {
+    return json({ status: 'unavailable', error: e?.message ?? String(e) }, { status: 503 });
   }
 
   const runRes = await llmopsClient.runSimilarityEvaluation(
     datasetId,
     {
-      model: body.model || 'toy-bow',
+      model,
       vectors,
       validated_only: body.validated_only
     },

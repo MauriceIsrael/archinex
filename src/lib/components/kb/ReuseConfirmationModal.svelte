@@ -37,8 +37,9 @@
     onClose: () => void;
   } = $props();
 
-  let assumptionsJudgements = $state<Array<{ text: string; status: AssumptionStatus; note: string }>>([]);
-  let outcome = $state<ReuseOutcome>('reused');
+  // Aucune valeur par défaut (D8) : une hypothèse non jugée est `null`, et aucune issue n'est présélectionnée.
+  let assumptionsJudgements = $state<Array<{ text: string; status: AssumptionStatus | null; note: string }>>([]);
+  let outcome = $state<ReuseOutcome | null>(null);
   let comment = $state('');
   let isSubmitting = $state(false);
 
@@ -46,38 +47,42 @@
     if (asset) {
       assumptionsJudgements = (asset.assumptions || []).map((text) => ({
         text,
-        status: 'holds' as AssumptionStatus,
+        status: null as AssumptionStatus | null,
         note: ''
       }));
-      outcome = 'reused';
+      outcome = null;
       comment = '';
     }
   });
 
-  const allHold = $derived(
-    assumptionsJudgements.length === 0 || assumptionsJudgements.every((a) => a.status === 'holds')
-  );
-  const anyFails = $derived(assumptionsJudgements.some((a) => a.status === 'does_not_hold'));
-  const anyUnknownOrFails = $derived(assumptionsJudgements.some((a) => a.status !== 'holds'));
+  const documented = $derived(assumptionsJudgements.length > 0);
+  const superseded = $derived(!!asset && (asset.zone === 'superseded' || !!asset.superseded_by));
+  const allJudged = $derived(documented && assumptionsJudgements.every((a) => a.status !== null));
+  const allHold = $derived(allJudged && assumptionsJudgements.every((a) => a.status === 'holds'));
+  const anyFails = $derived(allJudged && assumptionsJudgements.some((a) => a.status === 'does_not_hold'));
+  const anyNotHolds = $derived(allJudged && assumptionsJudgements.some((a) => a.status !== 'holds'));
+
+  // Une issue n'est offerte que si les hypothèses ont toutes été jugées (jamais de réutilisation sans examen).
+  const canReuse = $derived(allHold && !superseded);
+  const canReuseWithException = $derived(anyNotHolds && !superseded);
+  const canRejectAssumption = $derived(anyFails);
+  const available = $derived<Record<ReuseOutcome, boolean>>({
+    reused: canReuse,
+    reused_with_exception: canReuseWithException,
+    rejected_assumption_fails: canRejectAssumption,
+    rejected_not_same: true,
+    deferred: true
+  });
+
+  $effect(() => {
+    // Un jugement modifié peut rendre l'issue choisie indisponible : on la retire plutôt que de la laisser en place.
+    if (outcome && !available[outcome]) outcome = null;
+  });
 
   const isFormValid = $derived.by(() => {
-    if (!asset) return false;
-    if (outcome === 'reused') {
-      return allHold;
-    }
-    if (outcome === 'reused_with_exception') {
-      return anyUnknownOrFails && comment.trim().length > 0;
-    }
-    if (outcome === 'rejected_assumption_fails') {
-      return anyFails;
-    }
-    if (outcome === 'rejected_not_same') {
-      return comment.trim().length > 0;
-    }
-    if (outcome === 'deferred') {
-      return true;
-    }
-    return false;
+    if (!asset || !outcome || !available[outcome]) return false;
+    if (outcome === 'reused_with_exception' || outcome === 'rejected_not_same') return comment.trim().length > 0;
+    return true;
   });
 
   async function submitConfirmation() {
@@ -90,7 +95,9 @@
         subject_label: subjectLabel,
         matched_ref: asset.ref,
         outcome,
-        assumptions: assumptionsJudgements.map((a) => ({
+        assumptions: assumptionsJudgements
+          .filter((a) => a.status !== null)
+          .map((a) => ({
           text: a.text,
           status: a.status,
           note: a.note ? a.note.trim() : null
@@ -184,14 +191,26 @@
             1. Examen des Hypothèses Documentées ({assumptionsJudgements.length})
           </h3>
 
+          {#if superseded}
+            <div data-testid="superseded-notice" class="mb-3 p-3 rounded-lg bg-rose-500/10 border border-rose-500/30 text-rose-800 dark:text-rose-300 text-xs">
+              <strong>Actif remplacé</strong>{asset.superseded_by ? ` par ${asset.superseded_by}` : ''} : il n’est plus proposé comme valide et ne peut pas être réutilisé.
+            </div>
+          {/if}
+          {#if documented && !allJudged}
+            <p data-testid="judge-all-hint" class="mb-3 text-[11px] text-muted-foreground">
+              Jugez chaque hypothèse (aucune n’est présumée valide) : les issues de réutilisation restent indisponibles tant que ce n’est pas fait.
+            </p>
+          {/if}
           {#if assumptionsJudgements.length === 0}
-            <div class="p-4 rounded-lg bg-muted/40 border border-border text-muted-foreground text-xs italic">
-              Cet actif ne comporte pas d’hypothèses documentées dans son en-tête. La réutilisation porte sur la portée générale.
+            <div data-testid="no-assumptions-notice" class="p-4 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-800 dark:text-amber-300 text-xs">
+              <strong>Hypothèses non documentées</strong> : cette décision ne peut pas être réutilisée telle quelle, car personne ne peut dire si ses hypothèses tiennent ici.
+              Documentez-les d’abord (amendement avec <code>assumptions</code> dans la boîte de revue). Vous pouvez seulement
+              rejeter la proposition (pas le même sujet) ou la reporter.
             </div>
           {:else}
             <div class="space-y-3">
               {#each assumptionsJudgements as item, i}
-                <div class="p-3.5 rounded-lg border border-border bg-muted/20 space-y-2">
+                <div data-testid={`hyp-row-${i}`} class="p-3.5 rounded-lg border border-border bg-muted/20 space-y-2">
                   <div class="font-medium text-xs text-foreground">
                     « {item.text} »
                   </div>
@@ -201,6 +220,7 @@
                         type="radio"
                         name={`hyp-${i}`}
                         value="holds"
+                        data-testid={`hyp-${i}-holds`}
                         bind:group={item.status}
                         class="accent-emerald-600"
                       />
@@ -212,6 +232,7 @@
                         type="radio"
                         name={`hyp-${i}`}
                         value="does_not_hold"
+                        data-testid={`hyp-${i}-does_not_hold`}
                         bind:group={item.status}
                         class="accent-rose-600"
                       />
@@ -223,6 +244,7 @@
                         type="radio"
                         name={`hyp-${i}`}
                         value="unknown"
+                        data-testid={`hyp-${i}-unknown`}
                         bind:group={item.status}
                         class="accent-amber-600"
                       />
@@ -244,7 +266,7 @@
 
           <div class="grid grid-cols-1 md:grid-cols-2 gap-2.5">
             <!-- Reused -->
-            <label class="p-3 rounded-lg border text-left cursor-pointer transition-all flex flex-col justify-between {outcome === 'reused' ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'border-border hover:bg-muted/40'} {!allHold ? 'opacity-50 cursor-not-allowed' : ''}">
+            <label class="p-3 rounded-lg border text-left cursor-pointer transition-all flex flex-col justify-between {outcome === 'reused' ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'border-border hover:bg-muted/40'} {!available.reused ? 'opacity-50 cursor-not-allowed' : ''}">
               <div class="flex items-center justify-between mb-1">
                 <span class="font-semibold text-xs text-foreground">Réutiliser tel quel</span>
                 <input
@@ -252,7 +274,8 @@
                   name="outcome"
                   value="reused"
                   bind:group={outcome}
-                  disabled={!allHold}
+                  data-testid="outcome-reused"
+                  disabled={!available.reused}
                   class="accent-primary"
                 />
               </div>
@@ -260,7 +283,7 @@
             </label>
 
             <!-- Reused with exception -->
-            <label class="p-3 rounded-lg border text-left cursor-pointer transition-all flex flex-col justify-between {outcome === 'reused_with_exception' ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'border-border hover:bg-muted/40'}">
+            <label class="p-3 rounded-lg border text-left cursor-pointer transition-all flex flex-col justify-between {outcome === 'reused_with_exception' ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'border-border hover:bg-muted/40'} {!available.reused_with_exception ? 'opacity-50 cursor-not-allowed' : ''}">
               <div class="flex items-center justify-between mb-1">
                 <span class="font-semibold text-xs text-foreground">Réutiliser avec exception</span>
                 <input
@@ -268,6 +291,8 @@
                   name="outcome"
                   value="reused_with_exception"
                   bind:group={outcome}
+                  data-testid="outcome-reused_with_exception"
+                  disabled={!available.reused_with_exception}
                   class="accent-primary"
                 />
               </div>
@@ -275,7 +300,7 @@
             </label>
 
             <!-- Rejected assumption fails -->
-            <label class="p-3 rounded-lg border text-left cursor-pointer transition-all flex flex-col justify-between {outcome === 'rejected_assumption_fails' ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'border-border hover:bg-muted/40'} {!anyFails ? 'opacity-50 cursor-not-allowed' : ''}">
+            <label class="p-3 rounded-lg border text-left cursor-pointer transition-all flex flex-col justify-between {outcome === 'rejected_assumption_fails' ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'border-border hover:bg-muted/40'} {!available.rejected_assumption_fails ? 'opacity-50 cursor-not-allowed' : ''}">
               <div class="flex items-center justify-between mb-1">
                 <span class="font-semibold text-xs text-foreground">Rejeter (hypothèse rompue)</span>
                 <input
@@ -283,7 +308,8 @@
                   name="outcome"
                   value="rejected_assumption_fails"
                   bind:group={outcome}
-                  disabled={!anyFails}
+                  data-testid="outcome-rejected_assumption_fails"
+                  disabled={!available.rejected_assumption_fails}
                   class="accent-primary"
                 />
               </div>
@@ -299,6 +325,8 @@
                   name="outcome"
                   value="rejected_not_same"
                   bind:group={outcome}
+                  data-testid="outcome-rejected_not_same"
+                  disabled={!available.rejected_not_same}
                   class="accent-primary"
                 />
               </div>

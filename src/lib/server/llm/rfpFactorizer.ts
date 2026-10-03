@@ -205,66 +205,47 @@ export interface MicroArchitecturalSubject {
 	keyDilemmaOrHypothesis: string;
 }
 
+export const MAX_MAP_CHUNK_CHARS = 13500; // ~3 200 tokens max par bloc pour respecter rigoureusement 8192 context
+
 /**
- * Découpe les clauses en macro-blocs pour la passe MAP
- * Si param <= 16, représente maxChunks (défaut: 10 blocs pour respecter la fenêtre de 8192 tokens et la VRAM GPU).
- * Si param > 16, représente maxChunkSize (compatibilité tests).
+ * Découpe les clauses en blocs pour la passe MAP
+ * Garantit de façon stricte qu'aucun bloc ne dépasse MAX_MAP_CHUNK_CHARS (13 500 caractères)
+ * ni maxChunkSize (35 clauses par défaut).
  */
-export function partitionClausesIntoMapChunks(clauses: ExtractedClause[], maxChunksOrSize: number = 10): ExtractedClause[][] {
-	if (clauses.length <= 40) {
-		return [clauses];
+export function partitionClausesIntoMapChunks(clauses: ExtractedClause[], maxChunkSize: number = 35): ExtractedClause[][] {
+	if (!clauses || clauses.length === 0) return [];
+	if (clauses.length <= 15) {
+		const totalChars = clauses.reduce((acc, c) => acc + (c.text?.length || 0) + (c.title?.length || 0), 0);
+		if (totalChars <= MAX_MAP_CHUNK_CHARS) return [clauses];
 	}
 
-	const targetChunkSize = maxChunksOrSize <= 16
-		? Math.max(40, Math.ceil(clauses.length / maxChunksOrSize))
-		: maxChunksOrSize;
-
-	// ~22 000 caractères max par bloc (~5 000 tokens) pour garantir une exécution 100% en VRAM GPU sans spill CPU
-	const maxCharsPerChunk = 22000;
-
-	const sections: Record<string, ExtractedClause[]> = {};
-	for (const c of clauses) {
-		const prefixMatch = c.clauseRef.match(/^(?:§|art(?:icle)?\.?\s*)(\d+)/i);
-		const secKey = prefixMatch ? `sec_${prefixMatch[1]}` : 'sec_general';
-		if (!sections[secKey]) sections[secKey] = [];
-		sections[secKey].push(c);
-	}
-
+	const maxClauses = maxChunkSize > 0 ? maxChunkSize : 35;
 	const chunks: ExtractedClause[][] = [];
 	let currentChunk: ExtractedClause[] = [];
 	let currentChars = 0;
 
-	for (const secClauses of Object.values(sections)) {
-		const secChars = secClauses.reduce((acc, c) => acc + (c.text?.length || 0) + (c.title?.length || 0), 0);
+	for (const clause of clauses) {
+		const clauseLength = (clause.title?.length || 0) + (clause.text?.length || 0) + 50;
 
+		// Si l'ajout de cette clause dépasse le plafond strict de caractères (13 500) OU de nombre (35 clauses)
 		if (
-			currentChunk.length + secClauses.length <= targetChunkSize &&
-			currentChars + secChars <= maxCharsPerChunk
+			currentChunk.length > 0 &&
+			(currentChars + clauseLength > MAX_MAP_CHUNK_CHARS || currentChunk.length >= maxClauses)
 		) {
-			currentChunk.push(...secClauses);
-			currentChars += secChars;
-		} else {
-			if (currentChunk.length > 0) {
-				chunks.push(currentChunk);
-				currentChunk = [];
-				currentChars = 0;
-			}
-			if (secClauses.length > targetChunkSize || secChars > maxCharsPerChunk) {
-				for (let i = 0; i < secClauses.length; i += targetChunkSize) {
-					chunks.push(secClauses.slice(i, i + targetChunkSize));
-				}
-			} else {
-				currentChunk.push(...secClauses);
-				currentChars += secChars;
-			}
+			chunks.push(currentChunk);
+			currentChunk = [];
+			currentChars = 0;
 		}
+
+		currentChunk.push(clause);
+		currentChars += clauseLength;
 	}
 
 	if (currentChunk.length > 0) {
 		chunks.push(currentChunk);
 	}
 
-	return chunks.length > 0 ? chunks : [clauses];
+	return chunks;
 }
 
 /**
@@ -367,11 +348,17 @@ RÈGLES D'OR DE LA CONSOLIDATION :
 
 	const microText = allMicroSubjects
 		.map(
-			(m, idx) =>
-				`[MICRO-${idx + 1}] (${m.lotId || 'LOT-INCONNU'}) ${m.title}\n` +
-				`  Clauses couvertes : ${m.coveredClauseRefs.join(', ')}\n` +
-				(m.criticalPoints && m.criticalPoints.length ? `  Points critiques : ${m.criticalPoints.join(' ; ')}\n` : '') +
-				`  Hypothèse : ${m.keyDilemmaOrHypothesis}`
+			(m, idx) => {
+				const refs = m.coveredClauseRefs.length > 5
+					? `${m.coveredClauseRefs.slice(0, 5).join(', ')} (+${m.coveredClauseRefs.length - 5} autres)`
+					: m.coveredClauseRefs.join(', ');
+				return (
+					`[MICRO-${idx + 1}] (${m.lotId || 'LOT-INCONNU'}) ${m.title}\n` +
+					`  Clauses : ${refs}\n` +
+					(m.criticalPoints && m.criticalPoints.length ? `  Points critiques : ${m.criticalPoints.slice(0, 3).join(' ; ')}\n` : '') +
+					`  Hypothèse : ${m.keyDilemmaOrHypothesis}`
+				);
+			}
 		)
 		.join('\n\n');
 
@@ -401,7 +388,7 @@ export async function factorizeRfpMapReduce(
 	const chunks = partitionClausesIntoMapChunks(clauses);
 	const targetDesc = inferTargetSubjectsCount(totalClauses);
 
-	console.log(`🔄 [Map-Reduce] Début de la passe MAP : ${totalClauses} clauses découpées en ${chunks.length} macro-blocs structurants.`);
+	console.log(`🔄 [Map-Reduce] Début de la passe MAP : ${totalClauses} clauses découpées en ${chunks.length} blocs (chacun <= ${MAX_MAP_CHUNK_CHARS} caractères).`);
 
 	const allMicroSubjects: MicroArchitecturalSubject[] = [];
 
@@ -420,11 +407,10 @@ export async function factorizeRfpMapReduce(
 				format: 'json',
 				temperature: 0.15,
 				timeoutMs: 180000,
-				maxTokens: 700
+				maxTokens: 2048
 			});
 
-			const cleaned = cleanJsonString(rawContent);
-			const parsed = JSON.parse(cleaned);
+			const parsed = safeParseJson(rawContent);
 
 			if (parsed && Array.isArray(parsed.microSubjects) && parsed.microSubjects.length > 0) {
 				for (const m of parsed.microSubjects) {
@@ -482,11 +468,10 @@ export async function factorizeRfpMapReduce(
 		format: 'json',
 		temperature: 0.15,
 		timeoutMs: 180000,
-		maxTokens: 1500
+		maxTokens: 2048
 	});
 
-	const cleanedReduce = cleanJsonString(rawReduce);
-	const parsedReduce = JSON.parse(cleanedReduce);
+	const parsedReduce = safeParseJson(rawReduce);
 
 	if (!parsedReduce || !Array.isArray(parsedReduce.subjects)) {
 		throw new Error('Réponse de consolidation Reduce invalide : propriété "subjects" manquante');
@@ -614,9 +599,8 @@ export async function factorizeRfpWithLocalLlm(
 			temperature: 0.15
 		});
 
-		// Nettoyage et parsing JSON résilient
-		const cleaned = cleanJsonString(rawContent);
-		const parsed = JSON.parse(cleaned);
+		// Nettoyage et parsing JSON résilient avec réparation de troncature
+		const parsed = safeParseJson(rawContent);
 
 		if (!parsed || !Array.isArray(parsed.subjects)) {
 			throw new Error('Réponse LLM invalide : propriété "subjects" manquante ou non-tableau');
@@ -872,14 +856,96 @@ export function promoteClauseToSubject(
 }
 
 // Helpers internes
-function cleanJsonString(str: string): string {
+export function cleanJsonString(str: string): string {
 	let cleaned = str.trim();
-	// Supprime les balises markdown ```json ... ```
-	const jsonBlockMatch = cleaned.match(/```(?:json)?\s*([\s\S]*?)\s*```/);
-	if (jsonBlockMatch && jsonBlockMatch[1]) {
-		cleaned = jsonBlockMatch[1].trim();
-	}
+	// Supprime les balises markdown ```json ... ``` complètes ou ouvertes
+	cleaned = cleaned.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
 	return cleaned;
+}
+
+/**
+ * Répare un JSON tronqué en fermant les guillemets et les délimiteurs { et [ dans l'ordre inverse
+ */
+export function repairTruncatedJson(str: string): string {
+	let repaired = str;
+	// Compte les guillemets non échappés
+	const unescapedQuotes = (repaired.match(/(?<!\\)"/g) || []).length;
+	if (unescapedQuotes % 2 !== 0) {
+		repaired += '"';
+	}
+
+	const stack: ('{' | '[')[] = [];
+	let inString = false;
+	let isEscaped = false;
+
+	for (let i = 0; i < repaired.length; i++) {
+		const char = repaired[i];
+		if (isEscaped) {
+			isEscaped = false;
+			continue;
+		}
+		if (char === '\\') {
+			isEscaped = true;
+			continue;
+		}
+		if (char === '"') {
+			inString = !inString;
+			continue;
+		}
+		if (!inString) {
+			if (char === '{' || char === '[') {
+				stack.push(char);
+			} else if (char === '}') {
+				if (stack.length > 0 && stack[stack.length - 1] === '{') {
+					stack.pop();
+				}
+			} else if (char === ']') {
+				if (stack.length > 0 && stack[stack.length - 1] === '[') {
+					stack.pop();
+				}
+			}
+		}
+	}
+
+	// Ferme dans l'ordre inverse exact de la pile d'ouverture
+	while (stack.length > 0) {
+		const expected = stack.pop();
+		repaired += expected === '{' ? '}' : ']';
+	}
+
+	return repaired;
+}
+
+/**
+ * Tente un parsing JSON standard, puis applique des réparations heuristiques en cas de troncature
+ */
+export function safeParseJson(raw: string): any {
+	const cleaned = cleanJsonString(raw);
+	try {
+		return JSON.parse(cleaned);
+	} catch {
+		// Tentative 1 : réparation via la pile de délimiteurs
+		try {
+			const repaired = repairTruncatedJson(cleaned);
+			return JSON.parse(repaired);
+		} catch {
+			// Tentative 2 : extraction par regex des objets JSON valides si troncature sévère
+			const microMatches = [...cleaned.matchAll(/\{\s*"id"\s*:\s*"([^"]+)"[\s\S]*?"title"\s*:\s*"([^"]+)"/g)];
+			if (microMatches.length > 0) {
+				return {
+					microSubjects: microMatches.map((m) => ({
+						id: m[1],
+						title: m[2],
+						lotId: inferLotFromRef(m[2]),
+						coveredClauseRefs: [],
+						criticalPoints: [],
+						keyDilemmaOrHypothesis: 'Extraction réparée suite à troncature'
+					}))
+				};
+			}
+			throw new Error(`Réponse JSON invalide du modèle local : ${raw.slice(0, 160)}`);
+		}
+	}
 }
 
 function inferLotFromRef(str: string): string {

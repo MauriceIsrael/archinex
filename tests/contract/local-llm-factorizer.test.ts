@@ -12,6 +12,8 @@ import {
 	buildMapPrompt,
 	buildReducePrompt,
 	factorizeRfpMapReduce,
+	safeParseJson,
+	MAX_MAP_CHUNK_CHARS,
 	type KbItemSummary
 } from '../../src/lib/server/llm/rfpFactorizer';
 import type { ExtractedClause } from '../../src/lib/domain/corpus';
@@ -267,14 +269,35 @@ describe('Local LLM Souverain & Factorisation de RFP', () => {
 			}
 		});
 
-		it('borne le nombre de blocs Map à 10-12 maximum pour un corpus géant de 1600 exigences', () => {
+		it('découpe un corpus géant de 1600 exigences en blocs strictement bornés sous MAX_MAP_CHUNK_CHARS', () => {
 			const clauses = generateLotsOfClauses(1594);
 			const chunks = partitionClausesIntoMapChunks(clauses);
 
-			expect(chunks.length).toBeLessThanOrEqual(12);
-			expect(chunks.length).toBeGreaterThanOrEqual(6);
 			const totalInChunks = chunks.reduce((acc, ch) => acc + ch.length, 0);
 			expect(totalInChunks).toBe(1594);
+			expect(chunks.length).toBeGreaterThanOrEqual(15);
+			for (const ch of chunks) {
+				expect(ch.length).toBeLessThanOrEqual(35);
+				const chars = ch.reduce((acc, c) => acc + (c.text?.length || 0) + (c.title?.length || 0), 0);
+				expect(chars).toBeLessThanOrEqual(MAX_MAP_CHUNK_CHARS);
+			}
+		});
+
+		it('safeParseJson répare avec succès les JSON tronqués et les chaînes non terminées', () => {
+			// Cas 1 : Markdown fence standard
+			const json1 = '```json\n{"microSubjects": [{"id": "MICRO-01", "title": "Sujet 1"}]}\n```';
+			expect(safeParseJson(json1).microSubjects.length).toBe(1);
+
+			// Cas 2 : Markdown fence non fermée
+			const json2 = '```json\n{"microSubjects": [{"id": "MICRO-01", "title": "Sujet 1"}]}';
+			expect(safeParseJson(json2).microSubjects.length).toBe(1);
+
+			// Cas 3 : Chaîne et objet tronqués en cours de génération (ex: Unterminated string)
+			const truncatedJson = '{"microSubjects": [{"id": "MICRO-01", "title": "Architecture de haute dispo';
+			const repaired = safeParseJson(truncatedJson);
+			expect(repaired).toBeDefined();
+			expect(repaired.microSubjects.length).toBeGreaterThanOrEqual(1);
+			expect(repaired.microSubjects[0].id).toBe('MICRO-01');
 		});
 
 		it('construit un prompt Map contenant 100% du texte intégral des exigences du bloc', () => {

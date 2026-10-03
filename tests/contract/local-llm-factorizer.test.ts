@@ -267,12 +267,12 @@ describe('Local LLM Souverain & Factorisation de RFP', () => {
 			}
 		});
 
-		it('borne le nombre de blocs Map à 6-7 maximum pour un corpus géant de 1600 exigences', () => {
+		it('borne le nombre de blocs Map à 10-12 maximum pour un corpus géant de 1600 exigences', () => {
 			const clauses = generateLotsOfClauses(1594);
 			const chunks = partitionClausesIntoMapChunks(clauses);
 
-			expect(chunks.length).toBeLessThanOrEqual(7);
-			expect(chunks.length).toBeGreaterThanOrEqual(4);
+			expect(chunks.length).toBeLessThanOrEqual(12);
+			expect(chunks.length).toBeGreaterThanOrEqual(6);
 			const totalInChunks = chunks.reduce((acc, ch) => acc + ch.length, 0);
 			expect(totalInChunks).toBe(1594);
 		});

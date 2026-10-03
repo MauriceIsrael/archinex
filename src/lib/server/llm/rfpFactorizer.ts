@@ -207,19 +207,20 @@ export interface MicroArchitecturalSubject {
 
 /**
  * Découpe les clauses en macro-blocs pour la passe MAP
- * Si param <= 12, représente maxChunks (défaut: 6 blocs max pour garantir un temps d'exécution sous les 2-3 minutes).
- * Si param > 12, représente maxChunkSize (compatibilité tests).
+ * Si param <= 16, représente maxChunks (défaut: 10 blocs pour respecter la fenêtre de 8192 tokens et la VRAM GPU).
+ * Si param > 16, représente maxChunkSize (compatibilité tests).
  */
-export function partitionClausesIntoMapChunks(clauses: ExtractedClause[], maxChunksOrSize: number = 6): ExtractedClause[][] {
+export function partitionClausesIntoMapChunks(clauses: ExtractedClause[], maxChunksOrSize: number = 10): ExtractedClause[][] {
 	if (clauses.length <= 40) {
 		return [clauses];
 	}
 
-	const targetChunkSize = maxChunksOrSize <= 12
+	const targetChunkSize = maxChunksOrSize <= 16
 		? Math.max(40, Math.ceil(clauses.length / maxChunksOrSize))
 		: maxChunksOrSize;
 
-	const maxCharsPerChunk = 50000; // ~12 000 tokens maximum par bloc pour ne jamais saturer 32k ctx
+	// ~22 000 caractères max par bloc (~5 000 tokens) pour garantir une exécution 100% en VRAM GPU sans spill CPU
+	const maxCharsPerChunk = 22000;
 
 	const sections: Record<string, ExtractedClause[]> = {};
 	for (const c of clauses) {
@@ -274,9 +275,10 @@ export function buildMapPrompt(chunk: ExtractedClause[], chunkIndex: number, tot
 Ta mission est d'analyser ce lot d'exigences (Bloc ${chunkIndex + 1}/${totalChunks}) et d'en extraire les micro-sujets d'architecture distincts sans en oublier aucun.
 
 CONSIGNES STRICTES :
-1. Rapproche les exigences connexes en 3 à 6 micro-sujets majeurs pour ce bloc.
-2. Pour "coveredClauseRefs", indique les 3 à 6 exigences clés ou la plage représentative (ex: ["§1.1", "§1.2", "§1.10"]). Ne répète pas mécaniquement des centaines de références.
+1. Rapproche les exigences connexes en 3 à 5 micro-sujets majeurs pour ce bloc.
+2. Pour "coveredClauseRefs", indique les 3 à 5 exigences clés ou la plage représentative (ex: ["§1.1", "§1.2", "§1.10"]). Ne répète pas mécaniquement des centaines de références.
 3. Consigne chaque contrainte bloquante ou spécifique (ex: synchro GNSS, chiffrement, SecNumCloud, autonomie, latence...).
+4. Sois concis et télégraphique dans l'hypothèse et les points critiques pour accélérer la génération.
 
 FORMAT DE SORTIE JSON STRICT :
 {
@@ -417,7 +419,8 @@ export async function factorizeRfpMapReduce(
 				],
 				format: 'json',
 				temperature: 0.15,
-				timeoutMs: 180000
+				timeoutMs: 180000,
+				maxTokens: 700
 			});
 
 			const cleaned = cleanJsonString(rawContent);
@@ -478,7 +481,8 @@ export async function factorizeRfpMapReduce(
 		],
 		format: 'json',
 		temperature: 0.15,
-		timeoutMs: 180000
+		timeoutMs: 180000,
+		maxTokens: 1500
 	});
 
 	const cleanedReduce = cleanJsonString(rawReduce);

@@ -2,6 +2,7 @@ import type { Statement, ArchitectRole } from '$lib/types/epistemic';
 import type { MaturitySubject } from '$lib/domain/maturityBoard';
 import type { TelegraphicDraft } from '$lib/domain/telegraphic';
 import { universalSha256 } from '$lib/validation/epistemicEnvelope';
+import { canonicalJson } from '$lib/domain/canonicalJson';
 import {
 	generateMermaidDiagram,
 	generateStructurizrDSL,
@@ -9,9 +10,17 @@ import {
 	generateConfigJSON
 } from '$lib/domain/artifactProjections';
 
+/**
+ * Référence vers la base de connaissance, au motif `{type}:{slug}` de la suite (ex. `knowledge-hub:adr-0014`).
+ * `version` est celle que l'auteur a ÉCRITE (`KH:ADR-0014@v1.2`), jamais une version inventée : le Hub ne publie pas encore de
+ * coordonnée de version par élément. Tant que ce n'est pas le cas, `citable` reste faux : une référence sans version
+ * résolue n'est pas citable dans un document figé (ADR-KH-01 D3).
+ */
 export interface ExternalRef {
 	raw: string;
-	canonical: string; // ex: "KH:ADR-0014@v1.2"
+	canonical: string; // ex: "knowledge-hub:adr-0014"
+	version: string | null; // déclarée par l'auteur, non vérifiée auprès du Hub
+	citable: boolean;
 	sha256Seal: string;
 }
 
@@ -26,6 +35,8 @@ export interface SealedSnapshot {
 		role: ArchitectRole;
 	};
 	sealSha256: string;
+	/** Profil de sérialisation du sceau ; absent sur les anciens snapshots (sceau couvrant seulement les identifiants). */
+	sealProfile?: 'canonical-json-v1';
 	externalRefs: ExternalRef[];
 	statements: Statement[];
 	projections: {
@@ -109,19 +120,18 @@ export function canFreezeSection(
  */
 export function convertRefsToImmutable(references: string[]): ExternalRef[] {
 	return references.map((ref) => {
-		const trimmed = ref.trim();
-		let canonical = trimmed;
-
-		// Si pas de version explicite, fige une version d'homologation @v1.0
-		if (!canonical.includes('@')) {
-			canonical = `${canonical}@v1.0`;
-		}
-
-		const sha256Seal = universalSha256(canonical);
+		const raw = ref.trim();
+		const [identity, ...rest] = raw.split('@');
+		const declared = rest.join('@').trim();
+		const bare = identity.replace(/^(kh|knowledge-hub):/i, '').trim();
+		// Jamais de version fabriquée : sans `@version` écrite par l'auteur, la référence reste sans version (non citable).
+		const canonical = `knowledge-hub:${bare.toLowerCase()}`;
 		return {
-			raw: trimmed,
+			raw,
 			canonical,
-			sha256Seal
+			version: declared || null,
+			citable: false,
+			sha256Seal: universalSha256(canonicalJson({ canonical, version: declared || null }))
 		};
 	});
 }
@@ -135,6 +145,8 @@ export function freezeSectionAndGenerateSnapshot(params: {
 	statements: Statement[];
 	authorName: string;
 	authorRole: ArchitectRole;
+	/** Horodatage du scellement (injectable pour les tests) ; par défaut l'instant courant. */
+	now?: Date;
 }): SealedSnapshot {
 	const externalRefs = convertRefsToImmutable(params.draft.retenu || []);
 
@@ -142,22 +154,25 @@ export function freezeSectionAndGenerateSnapshot(params: {
 		(s) => s.section === params.subject.section_ref || s.triplet.subject === params.subject.id
 	);
 
+	const sealedAt = (params.now ?? new Date()).toISOString();
+
 	const projections = {
 		mermaid: generateMermaidDiagram(params.subject, params.draft, sectionStatements),
 		structurizrDSL: generateStructurizrDSL(params.subject, params.draft, sectionStatements),
 		sysmlV2: generateSysMLv2(params.subject, params.draft, sectionStatements),
-		configJSON: generateConfigJSON(params.subject, params.draft, sectionStatements)
+		configJSON: generateConfigJSON(params.subject, params.draft, sectionStatements, sealedAt)
 	};
 
-	const sealedAt = new Date().toISOString();
 
 	// Calcul du condensat cryptographique d'homologation scellant l'ensemble du livrable
-	const canonicalPayload = JSON.stringify({
+	// Le sceau couvre le CONTENU : chaque énoncé y entre par l'empreinte de sa forme canonique, pas seulement par son
+	// identifiant (un énoncé modifié sous le même identifiant doit changer le sceau). Sérialisation au profil de la suite.
+	const canonicalPayload = canonicalJson({
 		section: params.subject.section_ref,
 		subject: params.subject.id,
 		sealedAt,
-		externalRefs: externalRefs.map((r) => r.canonical),
-		statementsSha: sectionStatements.map((s) => s.id),
+		externalRefs: externalRefs.map((r) => ({ canonical: r.canonical, version: r.version })),
+		statements: sectionStatements.map((st) => ({ id: st.id, sha256: universalSha256(canonicalJson(st)) })),
 		projectionsHash: {
 			mermaid: universalSha256(projections.mermaid),
 			structurizr: universalSha256(projections.structurizrDSL),
@@ -179,6 +194,7 @@ export function freezeSectionAndGenerateSnapshot(params: {
 			role: params.authorRole
 		},
 		sealSha256,
+		sealProfile: 'canonical-json-v1',
 		externalRefs,
 		statements: sectionStatements,
 		projections

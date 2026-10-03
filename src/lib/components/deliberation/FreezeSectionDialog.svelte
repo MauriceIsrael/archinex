@@ -113,6 +113,7 @@
 								{#each existingSnapshot.externalRefs as ref}
 									<div class="flex items-center justify-between text-xs font-mono rounded bg-background p-2 border">
 										<span class="font-bold text-primary">{ref.canonical}</span>
+									{#if ref.version}<span class="text-muted-foreground"> @{ref.version} (déclarée, non vérifiée)</span>{:else}<span class="text-amber-600"> version non publiée : référence non citable</span>{/if}
 										<span class="text-[10px] text-muted-foreground">{ref.sha256Seal.substring(0, 16)}...</span>
 									</div>
 								{/each}

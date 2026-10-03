@@ -67,8 +67,10 @@ describe('Freeze & Export Contract Tests (Lot 6 - freeze-export)', () => {
 		expect(snapshot.sealSha256).toHaveLength(64); // SHA-256 standard
 		expect(snapshot.sectionRef).toBe('§4.2');
 		expect(snapshot.externalRefs.length).toBe(2);
-		expect(snapshot.externalRefs[0].canonical).toBe('KH:ADR-0014@v1.2');
-		expect(snapshot.externalRefs[1].canonical).toBe('KH:STD-0089@v1.0');
+		// Motif de la suite `{type}:{slug}` ; la version est celle que l'auteur a écrite, jamais une version inventée.
+		expect(snapshot.externalRefs[0]).toMatchObject({ canonical: 'knowledge-hub:adr-0014', version: 'v1.2', citable: false });
+		expect(snapshot.externalRefs[1]).toMatchObject({ canonical: 'knowledge-hub:std-0089', version: null, citable: false });
+		expect(snapshot.sealProfile).toBe('canonical-json-v1');
 
 		// Vérification des projections déterministes (No Doc Drift)
 		expect(snapshot.projections.mermaid).toContain('flowchart TD');
@@ -123,5 +125,31 @@ describe('Freeze & Export Contract Tests (Lot 6 - freeze-export)', () => {
 		const gateCheck = canFreezeSection(validMatureSubject, validCleanDraft, statementsWithAssumed, 'lead_architect');
 		expect(gateCheck.allowed).toBe(false);
 		expect(gateCheck.code).toBe('UNPROVEN_HYPOTHESIS_PRESENT');
+	});
+
+	it('Scenario: le sceau couvre le CONTENU des énoncés, pas seulement leurs identifiants', () => {
+		const now = new Date('2026-10-03T10:00:00Z');
+		const freeze = (statements: Statement[]) =>
+			freezeSectionAndGenerateSnapshot({
+				subject: validMatureSubject,
+				draft: validCleanDraft,
+				statements,
+				authorName: 'M. Israel',
+				authorRole: 'lead_architect',
+				now
+			});
+		const base = freeze(validStatements);
+		expect(freeze(validStatements).sealSha256).toBe(base.sealSha256); // déterministe à horodatage égal
+
+		// Même identifiant, valeur modifiée : le sceau DOIT changer.
+		const altered = [{ ...validStatements[0], triplet: { ...validStatements[0].triplet, value: '3 j' } }];
+		expect(freeze(altered).sealSha256).not.toBe(base.sealSha256);
+	});
+
+	it('Scenario: aucune version n est inventée pour une référence sans version', () => {
+		const [withVersion, without] = convertRefsToImmutable(['KH:ADR-0014@v1.2', 'ADR-0099']);
+		expect(withVersion.version).toBe('v1.2');
+		expect(without).toMatchObject({ canonical: 'knowledge-hub:adr-0099', version: null, citable: false });
+		expect(JSON.stringify(without)).not.toContain('v1.0');
 	});
 });

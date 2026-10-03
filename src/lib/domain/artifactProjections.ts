@@ -116,7 +116,9 @@ ${parts.join('\n')}
 export function generateConfigJSON(
 	subject: MaturitySubject,
 	draft: TelegraphicDraft,
-	statements: Statement[]
+	statements: Statement[],
+	/** Horodatage de génération : à fournir pour une projection reproductible (le gel y passe l'instant du scellement). */
+	generatedAt: string = new Date().toISOString()
 ): string {
 	const holdoverStmt = statements.find((s) => s.triplet.predicate.includes('holdover'));
 	const powerStmt = statements.find((s) => s.triplet.predicate.includes('power'));
@@ -135,7 +137,7 @@ export function generateConfigJSON(
 		},
 		provenance: {
 			sealedEngine: 'Archinex Deliberation Workbench',
-			generatedAt: new Date().toISOString(),
+			generatedAt,
 			enforcedTruth: true
 		}
 	};

@@ -14,9 +14,12 @@ getEnforcer().catch((err) =>
   console.warn('[Casbin Warm-up] Initialisation échouée :', err)
 );
 
-const SESSION_REQUIRED_PREFIXES = ['/api/knowledge/', '/api/frameworks/'];
+const SESSION_REQUIRED_PREFIXES = ['/api/knowledge/', '/api/frameworks/', '/api/engagements/'];
 
 export function requiresSession(pathname: string): boolean {
+  if (pathname.includes('/bundle-export') || pathname.includes('/export-bundle')) {
+    return true;
+  }
   return SESSION_REQUIRED_PREFIXES.some((p) => pathname.startsWith(p));
 }
 

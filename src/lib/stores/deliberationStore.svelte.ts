@@ -1080,13 +1080,14 @@ class DeliberationStore {
 			(s) => s.section === subject.section_ref || s.triplet.subject === subject.id
 		);
 
+		const sealedAt = this.frozenSnapshots[subjectId]?.sealedAt;
 		return {
 			mermaid: generateMermaidDiagram(subject, draft, sectionStatements),
 			structurizrDSL: generateStructurizrDSL(subject, draft, sectionStatements),
 			structurizrVisual: generateStructurizrVisualMermaid(subject, draft, sectionStatements),
 			sysmlV2: generateSysMLv2(subject, draft, sectionStatements),
 			sysmlVisual: generateSysMLVisualMermaid(subject, draft, sectionStatements),
-			configJSON: generateConfigJSON(subject, draft, sectionStatements)
+			configJSON: generateConfigJSON(subject, draft, sectionStatements, sealedAt)
 		};
 	}
 

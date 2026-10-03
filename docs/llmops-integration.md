@@ -269,5 +269,41 @@ LLMOPS_LIVE_URL=http://127.0.0.1:8099 npx vitest run tests/e2e/regulatory-to-cap
 6. **Acte 5 — Capitalisation** : préparation de candidats anonymisés, revue par pairs (double revue sur principes), promotion, scellement de snapshot et distribution des notifications de gouvernance.
 7. **Acte 6 — Boucle fermée** : réévaluation par le juge d'options prouvant la prise en compte immédiate de la règle capitalisée (`PAT-099`).
 
+---
 
+## 10. Dossiers d'Engagement Scellés et Alignement Suite (Lots A16 à A21)
 
+Archinex produit le **Dossier d'Engagement Scellé** (`EngagementBundle`), consommé par les moteurs de rendu (Document Engine, Document Studio) sans réinterprétation du statut épistémique des affirmations.
+
+### Principes et Dérivations Déterministes (A16)
+- **Profil canonical-json v1** : Le sceau cryptographique SHA-256 (`checksum`) est calculé sur le payload `data` au profil canonique partagé avec la suite.
+- **Dérivation des niveaux d'affirmation (`assertion_level`)** :
+  - `validated` / `reused_confirmed` $\rightarrow$ `asserted` (exige une personne humaine identifiée par son handle et une base humaine).
+  - `ai_proposed` $\rightarrow$ `proposed` (ne devient jamais `asserted` sans validation humaine).
+  - `assumption` $\rightarrow$ `assumption` (hypothèses non prouvées).
+  - `contested` $\rightarrow$ `open`.
+- **Réutilisation prouvée** : Toute décision issue de la base renvoie obligatoirement à une confirmation du journal de réutilisation (`reuse_log`) dont chaque hypothèse est jugée.
+- **Deux étages épistémiques** : Le dossier entier porte `is_provisional: true` tant qu'un sujet est sous `L3_decided` ou qu'un conflit est ouvert.
+- **Vie privée** : Strictement aucune adresse e-mail dans les exports ; seuls des handles (`@lead-architect`).
+
+### Publication & Interface Utilisateur (A17)
+- Dialogue d'homologation unifié (`FreezeSectionDialog.svelte`) intégrant l'onglet **Dossier d'Engagement (Bundle)**.
+- Affichage obligatoire du **Bandeau Dossier Provisoire** avec justification (`unripe_subjects`, `open_conflicts`).
+- Affichage des **écarts bloquants** et stylage différencié des éléments proposés (non affirmés).
+- Sélecteur obligatoire du niveau de confidentialité (`public`, `internal`, `confidential`, `secret`).
+- Téléchargement du fichier `engagement-bundle-<snapshotId>.json` et copie de la référence `SnapshotRef` `{ sourceSystem, snapshotId, checksum, producedAt }`.
+- Route API `/api/projects/[id]/bundle-export` protégée par session (401 si non authentifié, en-têtes d'e-mail clients ignorés).
+
+### E2E Acte 7 (A18)
+- Vérification du cycle complet jusqu'à la publication du dossier scellé.
+- Épinglage des référentiels et versions d'instantanés (`pins.kb`, `kb_references`).
+- Validation par le vérificateur TypeScript strict (`verifyEngagementBundle`).
+
+### Export OSCAL, Différentiel & Capitalisation (A19)
+- **Export OSCAL NIST SSP** : La matrice `compliance` est projetée au format standard NIST OSCAL SSP v1.0.0. **Règle absolue** : Seul ce qui est `asserted` est qualifié de `implemented` (`state: satisfied`) ; toute proposition IA ou hypothèse reste en `planned` / `under-review`.
+- **Différentiel déterministe (`diffEngagementBundles`)** : Compare deux dossiers pour identifier ajouts, suppressions, modifications et alerte spécifiquement sur les régressions épistémiques (`asserted` $\rightarrow$ `proposed`).
+- **Retour vers la capitalisation (`extractBundleKbCandidates`)** : Les décisions affirmées natives d'un dossier sont transformées en candidats de capitalisation arrivant obligatoirement dans la boîte de revue avec le statut `in_review` (jamais promues automatiquement).
+
+### Alignement sur l'Enveloppe de la Suite (A21)
+- L'export figé par section (`SealedSnapshot`) s'encapsule dans `SuiteSnapshotEnvelope` avec `SnapshotRef` associé.
+- Projection de la maturité : Le niveau `L5_archived` est projeté vers `L4_specified` pour conformité avec le vocabulaire reconnu de la suite.

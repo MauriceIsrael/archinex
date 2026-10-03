@@ -277,6 +277,29 @@ Pour combler les lacunes doctrinales identifiées par les architectes ou auditeu
 - **"Mode Hors-Ligne (Offline)"** : En l'absence de serveur LLMOps joignable sur le réseau local, Archinex bascule sur l'instantané scellé sans interruption de service.
 - **"Jeton d'invitation expiré"** : Les invitations d'experts sont valables strictement 7 jours. Demandez à un administrateur d'émettre une nouvelle invitation.
 
+---
 
+## 11. Scellement et Export du Dossier d'Engagement (Lots A16 à A21)
 
+La publication finale d'un projet d'architecture s'appuie sur le format standardisé **Dossier d'Engagement Scellé** (`EngagementBundle`), directement consommable par Document Engine et Document Studio.
 
+### 11.1 Scellement et Dérivations Déterministes (A16 & A21)
+- **Sceau canonique SHA-256** : Calculé selon le profil partagé `canonical-json-v1`, assurant un résultat identique indépendamment de l'ordre des clés ou de l'environnement d'exécution.
+- **Règle d'or épistémique** : Seul ce qui a été expressément validé par une personne humaine habilitée (ou confirmé dans le journal de réutilisation avec validation des hypothèses) est exporté au niveau `asserted`. Les propositions IA restent au niveau `proposed`.
+- **Enveloppe Suite & SnapshotRef** : L'instantané scellé est encapsulé dans `SuiteSnapshotEnvelope` et produit une référence détachable `SnapshotRef` `{ sourceSystem, snapshotId, checksum, producedAt }` voyageant séparément pour vérification d'intégrité par les consommateurs.
+- **Projection de maturité** : Pour conformité avec la suite (`L0_named` à `L4_specified`), le statut local `L5_archived` est projeté en `L4_specified`.
+
+### 11.2 Boîte de Dialogue d'Export & Bandeau Provisoire (A17)
+Accessible depuis le dialogue d'homologation (`FreezeSectionDialog`) :
+- **Sélection obligatoire de la confidentialité** : `internal`, `confidential`, `secret` ou `public`. L'export est refusé si non renseigné.
+- **Bandeau "Dossier Provisoire"** : Affiché en jaune/ambre avec la liste précise des blocages tant que le dossier comporte des sujets non mûrs (`< L3_decided`) ou des conflits d'architecture ouverts.
+- **Écarts bloquants & Éléments proposés** : Mise en évidence visuelle immédiate des points nécessitant une revue.
+- **Historique immuable** : Consultation de la liste des dossiers scellés avec horodatage, auteur et condensat SHA-256.
+
+### 11.3 Export OSCAL NIST SSP (A19)
+- Projection de la matrice de conformité réglementaire (ex: NIS2, ISO 27001) au standard international NIST OSCAL System Security Plan v1.0.0.
+- **Garantie d'intégrité** : Seules les exigences associées à des contrôles `asserted` portent l'état `implemented` (`satisfied`). Les propositions IA portent l'état `planned` avec un avertissement explicite.
+
+### 11.4 Différentiel entre Dossiers & Rétroaction Doctrinale (A19)
+- **Comparateur de dossiers (`diffEngagementBundles`)** : Détecte les ajouts, suppressions et modifications entre deux versions scellées, et signale toute **régression épistémique** (`asserted` $\rightarrow$ `proposed`).
+- **Retour vers la capitalisation (`extractBundleKbCandidates`)** : Les décisions validées natives créées au cours du projet sont automatiquement extraites comme candidats pour la base de connaissances et déposées dans la boîte de revue d'experts au statut `in_review`.

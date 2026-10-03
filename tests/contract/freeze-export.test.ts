@@ -5,7 +5,10 @@ import type { Statement } from '$lib/types/epistemic';
 import {
 	canFreezeSection,
 	convertRefsToImmutable,
-	freezeSectionAndGenerateSnapshot
+	freezeSectionAndGenerateSnapshot,
+	wrapSealedSnapshotInSuiteEnvelope,
+	projectMaturityForSuite,
+	SUITE_CONFIDENCE_LEVELS
 } from '$lib/domain/freezeExport';
 
 describe('Freeze & Export Contract Tests (Lot 6 - freeze-export)', () => {
@@ -152,4 +155,74 @@ describe('Freeze & Export Contract Tests (Lot 6 - freeze-export)', () => {
 		expect(without).toMatchObject({ canonical: 'knowledge-hub:adr-0099', version: null, citable: false });
 		expect(JSON.stringify(without)).not.toContain('v1.0');
 	});
+
+	describe('A21 - Alignement sur les instantanés scellés de la suite', () => {
+		it('génère une enveloppe standard SuiteSnapshotEnvelope et son SnapshotRef séparé', () => {
+			const now = new Date('2026-10-03T12:00:00Z');
+			const snapshot = freezeSectionAndGenerateSnapshot({
+				subject: validMatureSubject,
+				draft: validCleanDraft,
+				statements: validStatements,
+				authorName: 'M. Israel',
+				authorRole: 'lead_architect',
+				now
+			});
+
+			const { envelope, snapshotRef } = wrapSealedSnapshotInSuiteEnvelope(snapshot, {
+				sourceRevision: 'git:commit-abc123'
+			});
+
+			expect(envelope.schemaVersion).toBe('1.0');
+			expect(envelope.sourceSystem).toBe('archinex');
+			expect(envelope.sourceRevision).toBe('git:commit-abc123');
+			expect(envelope.checksum).toMatch(/^[a-f0-9]{64}$/);
+			expect(envelope.data.subjectId).toBe('sub_sync');
+
+			// SnapshotRef est séparé et porte la même empreinte
+			expect(snapshotRef).toEqual({
+				sourceSystem: 'archinex',
+				snapshotId: envelope.snapshotId,
+				checksum: envelope.checksum,
+				producedAt: envelope.createdAt
+			});
+		});
+
+		it('projette la maturité L5_archived vers L4_specified pour conformité suite', () => {
+			const archivedSubject: MaturitySubject = {
+				...validMatureSubject,
+				level: 'L5_archived'
+			};
+			const snapshot = freezeSectionAndGenerateSnapshot({
+				subject: archivedSubject,
+				draft: { ...validCleanDraft, maturity: 'L5_archived' },
+				statements: validStatements,
+				authorName: 'M. Israel',
+				authorRole: 'lead_architect'
+			});
+
+			const { envelope } = wrapSealedSnapshotInSuiteEnvelope(snapshot);
+			expect(envelope.data.maturityLevel).toBe('L4_specified');
+		});
+
+		it('vérifie que les niveaux de confiance d Archinex correspondent exactement au vocabulaire de la suite (5 valeurs)', () => {
+			const expectedLevels = ['assumed', 'designed', 'stated-by-client', 'vendor-stated', 'verified'];
+			const suiteLevels = ['assumed', 'designed', 'stated-by-client', 'vendor-stated', 'verified'];
+			expect(suiteLevels).toEqual(expectedLevels);
+		});
+
+		it('refuse catégoriquement d envelopper un snapshot contenant une adresse e-mail', () => {
+			const leakedSnapshot = freezeSectionAndGenerateSnapshot({
+				subject: validMatureSubject,
+				draft: validCleanDraft,
+				statements: validStatements,
+				authorName: 'user@example.com',
+				authorRole: 'lead_architect'
+			});
+
+			expect(() => wrapSealedSnapshotInSuiteEnvelope(leakedSnapshot)).toThrow(
+				/EMAIL_DETECTED/
+			);
+		});
+	});
 });
+

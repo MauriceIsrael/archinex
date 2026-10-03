@@ -200,3 +200,108 @@ export function freezeSectionAndGenerateSnapshot(params: {
 		projections
 	};
 }
+
+/**
+ * Enveloppe externe standard d'instantané scellé pour la suite (Document Studio, Knowledge Hub).
+ */
+export interface SuiteSnapshotEnvelope<T = unknown> {
+	schemaVersion: '1.0';
+	snapshotId: string;
+	sourceSystem: 'archinex';
+	createdAt: string; // ISO 8601 UTC
+	sourceRevision: string;
+	checksum: string; // sha256:...
+	data: T;
+}
+
+/**
+ * Référence transportable d'instantané scellé.
+ * Voyage séparément du contenu : le consommateur vérifie l'empreinte avant d'accepter le contenu.
+ */
+export interface SnapshotRef {
+	sourceSystem: 'archinex';
+	snapshotId: string;
+	checksum: string;
+	producedAt: string;
+}
+
+/**
+ * Vocabulaire de maturité reconnu par la suite : L0_named à L4_specified.
+ * L5_archived d'Archinex est projeté vers L4_specified pour conformité à la suite.
+ */
+export function projectMaturityForSuite(level: string): string {
+	if (level === 'L5_archived') {
+		return 'L4_specified';
+	}
+	return level;
+}
+
+/**
+ * Les 5 valeurs de confiance du vocabulaire de la suite.
+ */
+export const SUITE_CONFIDENCE_LEVELS = [
+	'assumed',
+	'designed',
+	'stated-by-client',
+	'vendor-stated',
+	'verified'
+] as const;
+
+export type SuiteConfidenceLevel = (typeof SUITE_CONFIDENCE_LEVELS)[number];
+
+/**
+ * Enveloppe un SealedSnapshot dans le format standard d'instantané scellé de la suite (A21).
+ */
+export function wrapSealedSnapshotInSuiteEnvelope(
+	snapshot: SealedSnapshot,
+	options: {
+		sourceRevision?: string;
+		snapshotId?: string;
+		createdAt?: string;
+	} = {}
+): {
+	envelope: SuiteSnapshotEnvelope<SealedSnapshot>;
+	snapshotRef: SnapshotRef;
+} {
+	// Vérifier l'absence totale d'adresses e-mail (au moins 2 lettres de TLD)
+	const emailRegex = /\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b/;
+	const serialized = JSON.stringify(snapshot);
+	if (emailRegex.test(serialized)) {
+		throw new Error('EMAIL_DETECTED: Aucune adresse e-mail ne doit figurer dans un instantané scellé.');
+	}
+
+	const createdAt = options.createdAt ?? snapshot.sealedAt;
+	const cleanSection = snapshot.sectionRef.replace(/[^a-zA-Z0-9_-]/g, '_');
+	const snapshotId =
+		options.snapshotId ??
+		`snapshot-${cleanSection}-${snapshot.subjectId}-${createdAt.replace(/[:.]/g, '')}`;
+	const sourceRevision = options.sourceRevision ?? 'main';
+
+	// Projection de la maturité pour la suite (L5_archived -> L4_specified)
+	const projectedSnapshot: SealedSnapshot = {
+		...snapshot,
+		maturityLevel: projectMaturityForSuite(snapshot.maturityLevel)
+	};
+
+	const checksum = universalSha256(canonicalJson(projectedSnapshot));
+
+	const envelope: SuiteSnapshotEnvelope<SealedSnapshot> = {
+		schemaVersion: '1.0',
+		snapshotId,
+		sourceSystem: 'archinex',
+		createdAt,
+		sourceRevision,
+		checksum,
+		data: projectedSnapshot
+	};
+
+	const snapshotRef: SnapshotRef = {
+		sourceSystem: 'archinex',
+		snapshotId,
+		checksum,
+		producedAt: createdAt
+	};
+
+	return { envelope, snapshotRef };
+}
+

@@ -175,7 +175,7 @@ export function buildUserMessage(
 				const cleanText = (c.text || '').replace(/\s+/g, ' ').trim();
 				const snippetLen = Math.min(250, Math.max(30, budgetPerClause - 60));
 				const snippet = cleanText.length > snippetLen ? cleanText.slice(0, snippetLen).trim() + '...' : cleanText;
-				const crit = c.criticality && c.criticality !== 'standard' ? ` (criticité: ${c.criticality})` : '';
+				const crit = c.criticality && c.criticality !== 'info' ? ` (criticité: ${c.criticality})` : '';
 				return `[${c.clauseRef}] ${c.title}${crit}${snippet && snippet !== c.title ? `\nExtrait : ${snippet}` : ''}`;
 			})
 			.join('\n\n');
@@ -277,7 +277,7 @@ FORMAT DE SORTIE JSON STRICT :
 
 	const clausesVerbatim = chunk
 		.map((c) => {
-			const crit = c.criticality && c.criticality !== 'standard' ? ` [CRITICITÉ: ${c.criticality}]` : '';
+			const crit = c.criticality && c.criticality !== 'info' ? ` [CRITICITÉ: ${c.criticality}]` : '';
 			return `[${c.clauseRef}] ${c.title}${crit}\n${c.text || ''}`;
 		})
 		.join('\n\n');

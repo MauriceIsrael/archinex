@@ -505,6 +505,7 @@
 						<span>{isExportingBundle ? 'Export en cours...' : 'Exporter le dossier scellé (SHA-256)'}</span>
 					</button>
 				{/if}
+			</div>
 		</div>
 	</div>
 {/if}

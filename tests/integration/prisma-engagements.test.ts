@@ -4,6 +4,7 @@ import {
 	getEngagementByIdFromDb,
 	saveEngagementToDb,
 	updateEngagementInDb,
+	deleteEngagementFromDb,
 	getAllCorpusDocumentsFromDb
 } from '$lib/server/engagementsDb';
 import { seedProject } from '../../scripts/seed';
@@ -85,6 +86,12 @@ describe('Prisma Engagements & Knowledge Base Persistence Integration', () => {
 		expect(retrieved?.title).toBe('Projet Test Centralisé Prisma');
 		expect(retrieved?.strategy?.objectives[0]).toBe('Objectif test 1');
 		expect(retrieved?.subjects[0].name).toBe('Cadrage Test');
+
+		// Nettoyage et validation de la suppression en base
+		const deleted = await deleteEngagementFromDb(testId);
+		expect(deleted).toBe(true);
+		const afterDelete = await getEngagementByIdFromDb(testId);
+		expect(afterDelete).toBeNull();
 	});
 
 	it('3. Récupère le patrimoine commun de documents depuis Prisma', async () => {

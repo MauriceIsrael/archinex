@@ -406,12 +406,6 @@
 							<h2 class="text-base sm:text-lg font-bold">
 								Dépouillement RFP & Factorisation en Sujets d'Architecture
 							</h2>
-							<span
-								class="inline-flex items-center gap-1 rounded bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/25 px-2 py-0.5 text-[10px] font-semibold"
-							>
-								<ShieldCheck class="h-3 w-3" />
-								Air-Gap Souverain ({serverEndpoint})
-							</span>
 						</div>
 						<p class="text-xs text-muted-foreground mt-0.5">
 							Condensez les exigences en 8 à 12 Sujets d'Architecture majeurs ancrés dans votre Patrimoine Commun (LLMOps) via inférence locale.

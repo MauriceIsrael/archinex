@@ -13,7 +13,30 @@
 		Sparkles
 	} from 'lucide-svelte';
 
-	let { summary }: { summary: GlobalOverviewSummary } = $props();
+	let { summary }: { summary?: Partial<GlobalOverviewSummary> } = $props();
+
+	const safeSummary = $derived({
+		totalEngagements: summary?.totalEngagements ?? 0,
+		engagementsByType: summary?.engagementsByType ?? {
+			generic_blueprint: 0,
+			project_rfp: 0,
+			audit_resilience: 0,
+			poc_migration: 0
+		},
+		totalSubjects: summary?.totalSubjects ?? 0,
+		totalEffortScore: summary?.totalEffortScore ?? 0,
+		totalStatements: summary?.totalStatements ?? 0,
+		averageCompletionPct: summary?.averageCompletionPct ?? 0,
+		totalBudgetString: summary?.totalBudgetString ?? '0 k€',
+		totalClauses: summary?.totalClauses ?? 0,
+		totalKnowledgeDocuments: summary?.totalKnowledgeDocuments ?? 0,
+		crossProjectReusePct: summary?.crossProjectReusePct ?? 0,
+		activeArchitectsCount: summary?.activeArchitectsCount ?? 0,
+		stalledSectionsCount: summary?.stalledSectionsCount ?? 0,
+		openConflictsCount: summary?.openConflictsCount ?? 0,
+		totalFinancialOverrunsKiloEuros: summary?.totalFinancialOverrunsKiloEuros ?? 0,
+		teams: Array.isArray(summary?.teams) ? summary.teams : []
+	});
 </script>
 
 <div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
@@ -31,7 +54,7 @@
 		<div class="mt-3">
 			<div class="flex items-baseline gap-2">
 				<span class="text-3xl font-black tracking-tight text-foreground">
-					{summary.totalEngagements}
+					{safeSummary.totalEngagements}
 				</span>
 				<span class="text-xs font-medium text-muted-foreground">
 					espaces actifs
@@ -39,19 +62,19 @@
 			</div>
 
 			<div class="mt-2 flex flex-wrap gap-1.5">
-				{#if summary.engagementsByType.project_rfp > 0}
+				{#if (safeSummary.engagementsByType?.project_rfp || 0) > 0}
 					<span class="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/20">
-						{summary.engagementsByType.project_rfp} RFP Client
+						{safeSummary.engagementsByType.project_rfp} RFP Client
 					</span>
 				{/if}
-				{#if summary.engagementsByType.generic_blueprint > 0}
+				{#if (safeSummary.engagementsByType?.generic_blueprint || 0) > 0}
 					<span class="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-blue-500/15 text-blue-700 dark:text-blue-300 border border-blue-500/20">
-						{summary.engagementsByType.generic_blueprint} Blueprint
+						{safeSummary.engagementsByType.generic_blueprint} Blueprint
 					</span>
 				{/if}
-				{#if summary.engagementsByType.audit_resilience > 0}
+				{#if (safeSummary.engagementsByType?.audit_resilience || 0) > 0}
 					<span class="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/20">
-						{summary.engagementsByType.audit_resilience} Audit
+						{safeSummary.engagementsByType.audit_resilience} Audit
 					</span>
 				{/if}
 			</div>
@@ -63,7 +86,7 @@
 				Enveloppe globale :
 			</span>
 			<strong class="font-mono font-bold text-foreground">
-				{summary.totalBudgetString}
+				{safeSummary.totalBudgetString}
 			</strong>
 		</div>
 	</div>
@@ -82,7 +105,7 @@
 		<div class="mt-3">
 			<div class="flex items-baseline gap-2">
 				<span class="text-3xl font-black tracking-tight text-foreground">
-					{summary.totalSubjects}
+					{safeSummary.totalSubjects}
 				</span>
 				<span class="text-xs font-medium text-muted-foreground">
 					sections (§) instruites
@@ -91,11 +114,11 @@
 
 			<div class="mt-2 flex items-center gap-3 text-xs">
 				<span class="font-mono text-muted-foreground">
-					Score effort : <strong class="text-foreground">{summary.totalEffortScore} pts</strong>
+					Score effort : <strong class="text-foreground">{safeSummary.totalEffortScore} pts</strong>
 				</span>
 				<span class="text-muted-foreground">·</span>
 				<span class="font-mono text-muted-foreground">
-					Énoncés : <strong class="text-foreground">{summary.totalStatements} SPO</strong>
+					Énoncés : <strong class="text-foreground">{safeSummary.totalStatements} SPO</strong>
 				</span>
 			</div>
 		</div>
@@ -103,8 +126,8 @@
 		<div class="mt-4 pt-3 border-t flex items-center justify-between text-xs">
 			<span class="text-muted-foreground">Maturité moyenne :</span>
 			<div class="flex items-center gap-1.5 font-bold">
-				<span class="{summary.averageCompletionPct >= 50 ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}">
-					{summary.averageCompletionPct}% décidé
+				<span class="{safeSummary.averageCompletionPct >= 50 ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'}">
+					{safeSummary.averageCompletionPct}% décidé
 				</span>
 			</div>
 		</div>
@@ -124,7 +147,7 @@
 		<div class="mt-3">
 			<div class="flex items-baseline gap-2">
 				<span class="text-3xl font-black tracking-tight text-foreground">
-					{summary.activeArchitectsCount}
+					{safeSummary.activeArchitectsCount}
 				</span>
 				<span class="text-xs font-medium text-muted-foreground">
 					experts affectés
@@ -132,19 +155,19 @@
 			</div>
 
 			<p class="mt-2 text-xs text-muted-foreground line-clamp-1">
-				{#each summary.teams.filter((t) => t.assignedSubjectsCount > 0).slice(0, 2) as team, i}
-					<span>{team.shortRole} ({team.assignedSubjectsCount}§)</span>{#if i === 0} · {/if}
+				{#each safeSummary.teams.filter((t) => (t.assignedSubjectsCount || 0) > 0).slice(0, 2) as team, i}
+					<span>{team.shortRole || team.role} ({team.assignedSubjectsCount}§)</span>{#if i === 0} · {/if}
 				{/each}
 			</p>
 		</div>
 
 		<div class="mt-4 pt-3 border-t flex items-center justify-between text-xs text-muted-foreground">
 			<span>Charge dominante :</span>
-			{#if summary.teams.length > 0}
-				{@const dominantTeam = [...summary.teams].sort((a, b) => b.effortPoints - a.effortPoints)[0]}
+			{#if safeSummary.teams.length > 0}
+				{@const dominantTeam = [...safeSummary.teams].sort((a, b) => (b.effortPoints || 0) - (a.effortPoints || 0))[0]}
 				<span class="font-bold text-foreground inline-flex items-center gap-1">
-					<span class="h-2 w-2 rounded-full" style="background-color: {dominantTeam?.color}"></span>
-					{dominantTeam?.shortRole} ({dominantTeam?.workloadSharePct}%)
+					<span class="h-2 w-2 rounded-full" style="background-color: {dominantTeam?.color || '#94a3b8'}"></span>
+					{dominantTeam?.shortRole || dominantTeam?.role} ({dominantTeam?.workloadSharePct || 0}%)
 				</span>
 			{/if}
 		</div>
@@ -164,7 +187,7 @@
 		<div class="mt-3">
 			<div class="flex items-baseline gap-2">
 				<span class="text-3xl font-black tracking-tight text-foreground">
-					{summary.totalKnowledgeDocuments}
+					{safeSummary.totalKnowledgeDocuments}
 				</span>
 				<span class="text-xs font-medium text-muted-foreground">
 					documents au socle
@@ -173,7 +196,7 @@
 
 			<div class="mt-2 flex items-center gap-2 text-xs text-muted-foreground">
 				<span class="font-mono">
-					<strong class="text-emerald-600 dark:text-emerald-400 font-bold">{summary.totalClauses}</strong> clauses indexées
+					<strong class="text-emerald-600 dark:text-emerald-400 font-bold">{safeSummary.totalClauses}</strong> clauses indexées
 				</span>
 			</div>
 		</div>
@@ -184,7 +207,7 @@
 				Réutilisation transverse :
 			</span>
 			<strong class="font-mono font-bold text-emerald-600 dark:text-emerald-400">
-				{summary.crossProjectReusePct}% mutualisé
+				{safeSummary.crossProjectReusePct}% mutualisé
 			</strong>
 		</div>
 	</div>

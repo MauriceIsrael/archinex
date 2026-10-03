@@ -61,7 +61,6 @@ export function diffEngagementBundles(
 		epistemic_status?: string;
 		maturity?: string;
 		status?: string;
-		[key: string]: unknown;
 	};
 
 	function compareCollections(

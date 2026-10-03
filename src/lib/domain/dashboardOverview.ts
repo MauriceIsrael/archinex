@@ -164,6 +164,9 @@ export function computeGlobalOverview(
 	engagements: EngagementProfile[],
 	knowledgeBase: CorpusDocument[]
 ): GlobalOverviewSummary {
+	const safeEngagements = Array.isArray(engagements) ? engagements : [];
+	const safeKnowledgeBase = Array.isArray(knowledgeBase) ? knowledgeBase : [];
+
 	const engagementsByType: Record<EngagementType, number> = {
 		generic_blueprint: 0,
 		project_rfp: 0,
@@ -203,8 +206,9 @@ export function computeGlobalOverview(
 	};
 
 	// 1. Analyse détaillée par engagement
-	const engagementMetrics: EngagementSizeMetric[] = engagements.map((eng) => {
-		engagementsByType[eng.type] = (engagementsByType[eng.type] || 0) + 1;
+	const engagementMetrics: EngagementSizeMetric[] = safeEngagements.map((eng) => {
+		const engType = (eng?.type && eng.type in engagementsByType) ? eng.type : 'generic_blueprint';
+		engagementsByType[engType] = (engagementsByType[engType] || 0) + 1;
 
 		const maturityCounts: Record<MaturityLevel, number> = {
 			L0_named: 0,
@@ -221,33 +225,47 @@ export function computeGlobalOverview(
 		let engFinancialCost = 0;
 		let engConflicts = 0;
 
-		eng.subjects.forEach((subj) => {
+		const subjects = Array.isArray(eng?.subjects) ? eng.subjects : [];
+		const drafts = (eng && typeof eng.drafts === 'object' && eng.drafts) ? eng.drafts : {};
+		const statements = Array.isArray(eng?.statements) ? eng.statements : [];
+		const corpusDocuments = Array.isArray(eng?.corpusDocuments) ? eng.corpusDocuments : [];
+		const participants = Array.isArray(eng?.participants) ? eng.participants : [];
+		const title = eng?.title || 'Espace de Travail';
+		const shortName = eng?.shortName || title;
+		const badge = eng?.badge || 'PROJET';
+
+		subjects.forEach((subj) => {
+			if (!subj) return;
 			totalSubjects++;
-			maturityCounts[subj.level] = (maturityCounts[subj.level] || 0) + 1;
+			if (subj.level in maturityCounts) {
+				maturityCounts[subj.level] = (maturityCounts[subj.level] || 0) + 1;
+			} else {
+				maturityCounts.L0_named = (maturityCounts.L0_named || 0) + 1;
+			}
 
 			const effortWeight = EFFORT_WEIGHTS[subj.relative_effort] || 2;
 			engEffort += effortWeight;
 			totalEffortScore += effortWeight;
 
-			if (subj.is_stalled || subj.stall_days > 14) {
+			if (subj.is_stalled || (subj.stall_days && subj.stall_days > 14)) {
 				engStalled++;
 				stalledSectionsCount++;
 				epistemicAlerts.push({
-					id: `alert-stalled-${eng.id}-${subj.id}`,
-					engagementId: eng.id,
-					engagementShortName: eng.shortName,
-					subjectName: subj.name,
-					sectionRef: subj.section_ref,
+					id: `alert-stalled-${eng?.id || 'eng'}-${subj.id}`,
+					engagementId: eng?.id || 'eng',
+					engagementShortName: shortName,
+					subjectName: subj.name || 'Sujet sans titre',
+					sectionRef: subj.section_ref || '§1.1',
 					type: 'stalled',
-					severity: subj.stall_days > 20 ? 'critical' : 'warning',
-					title: `Stagnation : ${subj.stall_days} jours sans transition`,
-					description: `La section ${subj.section_ref} est bloquée au stade ${subj.level}. Arbitrage requis de la part de l'expert.`,
-					assignedRole: subj.waiting_for_role,
-					extraBadge: `Stagnation ${subj.stall_days}j`
+					severity: (subj.stall_days && subj.stall_days > 20) ? 'critical' : 'warning',
+					title: `Stagnation : ${subj.stall_days || 15} jours sans transition`,
+					description: `La section ${subj.section_ref || '§'} est bloquée au stade ${subj.level || 'L0'}. Arbitrage requis de la part de l'expert.`,
+					assignedRole: subj.waiting_for_role || 'lead_architect',
+					extraBadge: `Stagnation ${subj.stall_days || 15}j`
 				});
 			}
 
-			if (subj.blocking_count > 0) {
+			if (subj.blocking_count && subj.blocking_count > 0) {
 				engBlocking += subj.blocking_count;
 			}
 
@@ -256,38 +274,50 @@ export function computeGlobalOverview(
 			if (rStats) {
 				rStats.assignedSubjectsCount++;
 				rStats.effortPoints += effortWeight;
-				rStats.engagementsInvolved.add(eng.id);
-				if (subj.blocking_count > 0) rStats.blockingSubjectsCount += subj.blocking_count;
-				if (subj.is_stalled || subj.stall_days > 14) rStats.stalledSubjectsCount++;
+				if (eng?.id) rStats.engagementsInvolved.add(eng.id);
+				if (subj.blocking_count && subj.blocking_count > 0) rStats.blockingSubjectsCount += subj.blocking_count;
+				if (subj.is_stalled || (subj.stall_days && subj.stall_days > 14)) rStats.stalledSubjectsCount++;
 			}
 
 			// Analyse des drafts télégraphiques pour détecter surcoûts et conflits
-			const draft = eng.drafts[subj.id];
+			const draft = drafts[subj.id];
 			if (draft) {
-				if (draft.conflit && draft.conflit.length > 0) {
+				if (Array.isArray(draft.conflit) && draft.conflit.length > 0) {
 					engConflicts += draft.conflit.length;
 					openConflictsCount += draft.conflit.length;
-					draft.conflit.forEach((c, idx) => {
+					draft.conflit.forEach((c: any, idx: number) => {
+						if (!c) return;
+						const text = typeof c === 'string' ? c : (c.text || 'Conflit non spécifié');
+						const opposingRef = typeof c === 'string' ? 'En séance' : (c.opposing_reference || 'En séance');
 						epistemicAlerts.push({
-							id: `alert-conflict-${eng.id}-${subj.id}-${idx}`,
-							engagementId: eng.id,
-							engagementShortName: eng.shortName,
-							subjectName: subj.name,
-							sectionRef: subj.section_ref,
+							id: `alert-conflict-${eng?.id || 'eng'}-${subj.id}-${idx}`,
+							engagementId: eng?.id || 'eng',
+							engagementShortName: shortName,
+							subjectName: subj.name || 'Sujet sans titre',
+							sectionRef: subj.section_ref || '§1.1',
 							type: 'conflict',
 							severity: 'critical',
-							title: `Conflit Ouvert : ${c.text.slice(0, 45)}…`,
-							description: `${c.text} (Réf : ${c.opposing_reference || 'En séance'})`,
-							assignedRole: subj.waiting_for_role,
+							title: `Conflit Ouvert : ${text.slice(0, 45)}…`,
+							description: `${text} (Réf : ${opposingRef})`,
+							assignedRole: subj.waiting_for_role || 'lead_architect',
 							extraBadge: 'Arbitrage Requis'
 						});
+
+						const match = text.match(/\+?(\d+)\s*k€/i);
+						if (match) {
+							const cost = parseInt(match[1], 10);
+							engFinancialCost += cost;
+							totalFinancialOverrunsKiloEuros += cost;
+						}
 					});
 				}
 
-				if (draft.suppose) {
-					draft.suppose.forEach((sup) => {
-						if (sup.cost_hint) {
-							const match = sup.cost_hint.match(/\+?(\d+)\s*k€/i);
+				if (Array.isArray(draft.suppose)) {
+					draft.suppose.forEach((sup: any) => {
+						if (!sup) return;
+						const costHint = typeof sup === 'string' ? '' : (sup.cost_hint || '');
+						if (costHint) {
+							const match = costHint.match(/\+?(\d+)\s*k€/i);
 							if (match) {
 								const cost = parseInt(match[1], 10);
 								engFinancialCost += cost;
@@ -296,22 +326,11 @@ export function computeGlobalOverview(
 						}
 					});
 				}
-
-				if (draft.conflit) {
-					draft.conflit.forEach((c) => {
-						const match = c.text.match(/\+?(\d+)\s*k€/i);
-						if (match) {
-							const cost = parseInt(match[1], 10);
-							engFinancialCost += cost;
-							totalFinancialOverrunsKiloEuros += cost;
-						}
-					});
-				}
 			}
 		});
 
 		// Parsing du budget de l'engagement (ex: '2.4 M€' -> 2400 k€)
-		if (eng.strategy?.budget) {
+		if (eng?.strategy?.budget) {
 			const bMatch = eng.strategy.budget.match(/([\d.]+)\s*M€/i);
 			if (bMatch) {
 				totalBudgetKiloEuros += parseFloat(bMatch[1]) * 1000;
@@ -322,19 +341,19 @@ export function computeGlobalOverview(
 		}
 
 		// Participants
-		const participants = eng.participants || [];
 		participants.forEach((p) => {
+			if (!p) return;
 			allParticipantsMap.set(p.id, p);
 			if (roleWorkloadMap[p.role]) {
-				roleWorkloadMap[p.role].activeParticipants.add(p.name);
-				roleWorkloadMap[p.role].engagementsInvolved.add(eng.id);
+				roleWorkloadMap[p.role].activeParticipants.add(p.name || 'Expert');
+				if (eng?.id) roleWorkloadMap[p.role].engagementsInvolved.add(eng.id);
 			}
 		});
 
 		// Énoncés et clauses
-		totalStatements += eng.statements.length;
-		const engClauses = eng.corpusDocuments.reduce(
-			(acc, d) => acc + (d.extractedClausesCount || d.keyClauses?.length || 0),
+		totalStatements += statements.length;
+		const engClauses = corpusDocuments.reduce(
+			(acc, d) => acc + (d?.extractedClausesCount || d?.keyClauses?.length || 0),
 			0
 		);
 		totalClauses += engClauses;
@@ -343,28 +362,28 @@ export function computeGlobalOverview(
 		const decidedCount =
 			maturityCounts.L3_decided + maturityCounts.L4_specified + maturityCounts.L5_archived;
 		const completionPct =
-			eng.subjects.length > 0 ? Math.round((decidedCount / eng.subjects.length) * 100) : 0;
+			subjects.length > 0 ? Math.round((decidedCount / subjects.length) * 100) : 0;
 
 		return {
-			id: eng.id,
-			title: eng.title,
-			shortName: eng.shortName,
-			badge: eng.badge,
-			type: eng.type,
-			typeLabel: ENGAGEMENT_TYPE_LABELS[eng.type] || eng.type,
-			subjectsCount: eng.subjects.length,
+			id: eng?.id || 'eng',
+			title,
+			shortName,
+			badge,
+			type: engType,
+			typeLabel: ENGAGEMENT_TYPE_LABELS[engType] || engType,
+			subjectsCount: subjects.length,
 			effortScore: engEffort,
-			statementsCount: eng.statements.length,
+			statementsCount: statements.length,
 			clausesCount: engClauses,
-			documentsCount: eng.corpusDocuments.length,
-			budget: eng.strategy?.budget,
+			documentsCount: corpusDocuments.length,
+			budget: eng?.strategy?.budget,
 			completionPct,
 			stalledCount: engStalled,
 			blockingCount: engBlocking,
 			participantsCount: participants.length,
 			participants,
 			maturityCounts,
-			targetDate: eng.strategy?.targetDate,
+			targetDate: eng?.strategy?.targetDate,
 			financialImpactTotal: engFinancialCost,
 			openConflictsCount: engConflicts
 		};
@@ -407,12 +426,15 @@ export function computeGlobalOverview(
 	// 3. Grossissement et dynamiques de la base de connaissance commune
 	// Consolidation unique des documents du socle commun
 	const uniqueDocsMap = new Map<string, CorpusDocument>();
-	knowledgeBase.forEach((doc) => {
-		uniqueDocsMap.set(doc.id, doc);
+	safeKnowledgeBase.forEach((doc) => {
+		if (doc && doc.id) {
+			uniqueDocsMap.set(doc.id, doc);
+		}
 	});
-	engagements.forEach((eng) => {
-		eng.corpusDocuments.forEach((doc) => {
-			if (!uniqueDocsMap.has(doc.id)) {
+	safeEngagements.forEach((eng) => {
+		const cDocs = Array.isArray(eng?.corpusDocuments) ? eng.corpusDocuments : [];
+		cDocs.forEach((doc) => {
+			if (doc && doc.id && !uniqueDocsMap.has(doc.id)) {
 				uniqueDocsMap.set(doc.id, doc);
 			}
 		});
@@ -422,8 +444,8 @@ export function computeGlobalOverview(
 
 	// Tri par date d'ajout pour reconstruire l'historique de grossissement
 	const sortedDocs = [...uniqueDocs].sort((a, b) => {
-		const dateA = a.addedDate || '2026-08-01';
-		const dateB = b.addedDate || '2026-08-01';
+		const dateA = a?.addedDate || '2026-08-01';
+		const dateB = b?.addedDate || '2026-08-01';
 		return dateA.localeCompare(dateB);
 	});
 
@@ -432,21 +454,24 @@ export function computeGlobalOverview(
 	const knowledgeGrowth: KnowledgeGrowthPoint[] = [];
 
 	sortedDocs.forEach((doc) => {
+		if (!doc) return;
 		runningDocsCount += 1;
 		const clauses = doc.extractedClausesCount || doc.keyClauses?.length || 0;
 		runningClausesCount += clauses;
 
 		const d = doc.addedDate ? new Date(doc.addedDate) : new Date('2026-09-01');
-		const formattedDate = d.toLocaleDateString('fr-FR', {
-			day: '2-digit',
-			month: 'short'
-		});
+		const formattedDate = !isNaN(d.getTime())
+			? d.toLocaleDateString('fr-FR', {
+					day: '2-digit',
+					month: 'short'
+			  })
+			: 'N/A';
 
 		knowledgeGrowth.push({
 			date: doc.addedDate || '2026-09-01',
 			formattedDate,
-			documentTitle: doc.title,
-			category: doc.categoryLabel || doc.category,
+			documentTitle: doc.title || 'Document sans titre',
+			category: doc.categoryLabel || doc.category || 'other',
 			totalDocuments: runningDocsCount,
 			totalClauses: runningClausesCount,
 			deltaClauses: clauses
@@ -456,6 +481,7 @@ export function computeGlobalOverview(
 	// Répartition par catégorie
 	const categoryCountMap = new Map<string, { count: number; clauses: number }>();
 	uniqueDocs.forEach((doc) => {
+		if (!doc) return;
 		const cat = doc.category || 'other';
 		const cur = categoryCountMap.get(cat) || { count: 0, clauses: 0 };
 		const clauses = doc.extractedClausesCount || doc.keyClauses?.length || 0;

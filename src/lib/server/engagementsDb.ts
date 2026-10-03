@@ -168,6 +168,28 @@ export async function updateEngagementInDb(
 }
 
 /**
+ * Supprime un engagement de la base Prisma (ou le marque deleted)
+ */
+export async function deleteEngagementFromDb(id: string): Promise<boolean> {
+	try {
+		await prisma.engagement.delete({ where: { id } });
+		return true;
+	} catch (err) {
+		console.warn(`[engagementsDb] Échec suppression dure engagement ${id}, tentative soft-delete:`, err);
+		try {
+			await prisma.engagement.update({
+				where: { id },
+				data: { status: 'deleted' }
+			});
+			return true;
+		} catch {
+			return false;
+		}
+	}
+}
+
+
+/**
  * Récupère tous les documents du patrimoine de connaissances depuis Prisma
  */
 export async function getAllCorpusDocumentsFromDb(): Promise<CorpusDocument[]> {

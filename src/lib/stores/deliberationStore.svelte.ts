@@ -1,3 +1,4 @@
+import { untrack } from 'svelte';
 import type { MaturityLevel, ArchitectRole, Statement } from '$lib/types/epistemic';
 import type { TelegraphicDraft } from '$lib/domain/telegraphic';
 import {
@@ -246,11 +247,11 @@ class DeliberationStore {
 		// 2. Enregistrer l'engagement dans la liste des projets
 		this.engagements.push(engagement);
 
-		// 3. Sauvegarder dans le stockage persistant local
-		this.persistCustomState();
-
-		// 4. Basculer immédiatement sur ce nouvel espace de travail
+		// 3. Basculer immédiatement sur ce nouvel espace de travail
 		this.switchEngagement(engagement.id);
+
+		// 4. Sauvegarder dans le stockage persistant local
+		this.persistCustomState();
 
 		this.logNotification(
 			`Nouvel espace de travail initialisé : "${engagement.title}" (${newUpstreamDocuments.length} doc(s) amont(s) versés au patrimoine commun)`,
@@ -264,28 +265,36 @@ class DeliberationStore {
 	 * Initialise le store avec les données réelles persistées dans Prisma SQLite
 	 */
 	initFromDb(engagements: EngagementProfile[], commonDocs: CorpusDocument[]) {
-		if (engagements && engagements.length > 0) {
-			this.engagements = engagements;
-			if (!this.engagements.some((e) => e.id === this.activeEngagementId)) {
-				this.activeEngagementId = this.engagements[0].id;
+		untrack(() => {
+			if (engagements && engagements.length > 0) {
+				// Préserver les engagements en mémoire s'ils n'existent pas encore dans la DB (ex: nouvel espace créé)
+				const existingIds = new Set(engagements.map((e) => e.id));
+				const localOnly = this.engagements.filter((e) => !existingIds.has(e.id));
+				this.engagements = [...engagements, ...localOnly];
+
+				if (!this.engagements.some((e) => e.id === this.activeEngagementId)) {
+					this.activeEngagementId = this.engagements[0].id;
+				}
 			}
-		}
 
-		if (commonDocs && commonDocs.length > 0) {
-			this.commonKnowledgeBase = commonDocs;
-		}
+			if (commonDocs && commonDocs.length > 0) {
+				const existingDocIds = new Set(this.commonKnowledgeBase.map((d) => d.id));
+				const newDocs = commonDocs.filter((d) => !existingDocIds.has(d.id));
+				this.commonKnowledgeBase = [...this.commonKnowledgeBase, ...newDocs];
+			}
 
-		// Met à jour l'engagement actif
-		const current = this.activeEngagement;
-		if (current) {
-			this.subjects = current.subjects;
-			this.drafts = current.drafts;
-			this.statements = current.statements;
-			this.corpusDocuments = current.corpusDocuments;
-			this.activeSubjectId = current.defaultSubjectId || current.subjects[0]?.id || '';
-			this.activeDocumentId = current.defaultDocId || current.corpusDocuments[0]?.id || '';
-			this.dialogueMessages = current.dialogueMessages || [];
-		}
+			// Met à jour l'engagement actif
+			const current = this.activeEngagement;
+			if (current) {
+				this.subjects = current.subjects || [];
+				this.drafts = current.drafts || {};
+				this.statements = current.statements || [];
+				this.corpusDocuments = current.corpusDocuments || [];
+				this.activeSubjectId = current.defaultSubjectId || current.subjects[0]?.id || '';
+				this.activeDocumentId = current.defaultDocId || current.corpusDocuments[0]?.id || '';
+				this.dialogueMessages = current.dialogueMessages || [];
+			}
+		});
 	}
 	subjectVersions = $state<Record<string, number>>({});
 
@@ -376,6 +385,15 @@ class DeliberationStore {
 		eng.archivedAt = new Date().toISOString();
 
 		this.persistCustomState();
+		if (typeof window !== 'undefined') {
+			fetch(`/api/engagements/${targetId}`, {
+				method: 'PATCH',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ status: 'archived' })
+			}).catch((err) => {
+				console.warn(`[Archinex] Erreur archivage serveur engagement ${targetId}:`, err);
+			});
+		}
 		this.logNotification(`Espace de travail archivé : "${eng.title}"`, 'info');
 		return true;
 	}
@@ -391,6 +409,15 @@ class DeliberationStore {
 		eng.archivedAt = undefined;
 
 		this.persistCustomState();
+		if (typeof window !== 'undefined') {
+			fetch(`/api/engagements/${targetId}`, {
+				method: 'PATCH',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ status: 'active' })
+			}).catch((err) => {
+				console.warn(`[Archinex] Erreur réactivation serveur engagement ${targetId}:`, err);
+			});
+		}
 		this.logNotification(`Espace de travail réactivé : "${eng.title}"`, 'success');
 		return true;
 	}
@@ -423,6 +450,13 @@ class DeliberationStore {
 		delete this.engagementCache[targetId];
 
 		this.persistCustomState();
+
+		if (typeof window !== 'undefined') {
+			fetch(`/api/engagements/${targetId}`, { method: 'DELETE' }).catch((err) => {
+				console.warn(`[Archinex] Erreur suppression serveur engagement ${targetId}:`, err);
+			});
+		}
+
 		this.logNotification(`Espace de travail supprimé définitivement : "${deletedTitle}"`, 'info');
 		return true;
 	}
@@ -1503,6 +1537,84 @@ class DeliberationStore {
 		} finally {
 			this.isSyncingLLMOps = false;
 		}
+	}
+
+	/**
+	 * Acter directement une réponse factuelle, de gouvernance ou organisationnelle (Fast-track)
+	 * Idéal pour les questions de processus ou de gouvernance ne nécessitant pas de débat contradictoire.
+	 */
+	actDirectDecision(subjectId: string, answerText: string, gapIdToClose?: string) {
+		const target = this.subjects.find((s) => s.id === subjectId);
+		if (!target || !answerText.trim()) return { success: false, message: 'Texte requis' };
+
+		const cleanText = answerText.trim();
+		const draft = this.drafts[subjectId];
+		if (draft) {
+			// 1. Ajouter la réponse aux acquis (RETENU)
+			if (!draft.retenu.includes(cleanText)) {
+				draft.retenu = [cleanText, ...draft.retenu];
+			}
+
+			// 2. Si une sous-question spécifique était ciblée, la fermer
+			if (gapIdToClose && draft.manque) {
+				draft.manque = draft.manque.filter((m) => m.id !== gapIdToClose);
+			}
+
+			// 3. Clôture des contradictions si existantes
+			draft.conflit = [];
+			draft.maturity = 'L3_decided';
+			draft.is_provisional = false;
+
+			// 4. Mettre à jour le sujet vers L3_decided
+			target.level = 'L3_decided';
+			target.last_transition_date = new Date().toISOString();
+			target.is_stalled = false;
+			target.stall_days = 0;
+		}
+
+		// 5. Injecter un énoncé formel d'architecture (Statement)
+		const stmtId = `STMT-${Date.now().toString(36).toUpperCase()}`;
+		this.statements = [
+			{
+				id: stmtId,
+				section: target.section_ref,
+				triplet: {
+					subject: target.id,
+					predicate: 'governance_decision',
+					value: cleanText
+				},
+				justification: { basedOn: [] },
+				authority: {
+					author: 'Lead Architect',
+					role: this.currentRole,
+					productionMode: 'human-authored'
+				},
+				maturity: { subjectLevel: 'L3_decided', confidence: 'designed' },
+				revisability: { antecedents: [] },
+				status: 'active',
+				createdAt: new Date().toISOString(),
+				updatedAt: new Date().toISOString()
+			},
+			...this.statements
+		];
+
+		// 6. Historiser dans le dialogue dialectique
+		this.sendSubjectMessage(
+			`📌 **[Décision Actée Directe - ${this.currentRole}]** : ${cleanText}`,
+			subjectId
+		);
+
+		this.persistCustomState();
+		const msg = `Décision validée et actée pour "${target.name}". Versée aux acquis (RETENU) au niveau L3.`;
+		this.logNotification(msg, 'success');
+		return { success: true, message: msg };
+	}
+
+	/**
+	 * Répondre à une sous-question ouverte (MANQUE) et la verser aux acquis.
+	 */
+	answerOpenQuestion(subjectId: string, gapId: string, answerText: string) {
+		return this.actDirectDecision(subjectId, answerText, gapId);
 	}
 
 	/**

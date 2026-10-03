@@ -2,6 +2,9 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { exportEngagementBundle } from '$lib/server/bundleExportService';
 import type { ConfidentialityLevel } from '$lib/domain/engagementBundle';
+import { prisma } from '$lib/server/prisma';
+import { llmopsClient } from '$lib/server/llmops/client';
+import { isProjectCutOverToHub } from '$lib/server/projects/hubMigrationService';
 
 export const POST: RequestHandler = async (event) => {
 	// 1. Authentification stricte par session (jamais par en-tête)
@@ -38,6 +41,24 @@ export const POST: RequestHandler = async (event) => {
 			);
 		}
 
+		// 2. Vérification de la bascule du système d'enregistrement (SoR: Hub vs Local)
+		const project = await prisma.project.findUnique({
+			where: { id: event.params.projectId }
+		});
+
+		if (project && isProjectCutOverToHub(project)) {
+			const strategy = typeof project.strategy === 'string' ? JSON.parse(project.strategy || '{}') : (project.strategy || {});
+			const engagementId = strategy.hubEngagementId || project.shortName || project.id;
+			const hubExport = await llmopsClient.exportEngagementSnapshot(engagementId, session.user.email);
+			return json({
+				status: 'ok',
+				snapshotRef: hubExport.snapshotRef,
+				created: hubExport.created,
+				is_provisional: hubExport.is_provisional,
+				systemOfRecord: 'hub'
+			});
+		}
+
 		const result = await exportEngagementBundle({
 			projectId: event.params.projectId,
 			confidentiality,
@@ -47,7 +68,8 @@ export const POST: RequestHandler = async (event) => {
 		return json({
 			status: 'ok',
 			bundle: result.bundle,
-			snapshotRef: result.snapshotRef
+			snapshotRef: result.snapshotRef,
+			systemOfRecord: 'local'
 		});
 	} catch (err: unknown) {
 		const message = err instanceof Error ? err.message : String(err);

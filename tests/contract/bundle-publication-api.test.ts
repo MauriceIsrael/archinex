@@ -18,7 +18,7 @@ describe('Bundle Publication & Endpoint Contract Tests (A17 - bundle-publication
 			url: new URL('http://localhost/api/projects/project-mcx/bundle-export')
 		} as unknown as RequestEvent;
 
-		const response = await exportProjectBundle(mockEventNoSession);
+		const response = await exportProjectBundle(mockEventNoSession as any);
 		expect(response.status).toBe(401);
 		const json = await response.json();
 		expect(json.error).toContain('Non authentifié');
@@ -27,14 +27,14 @@ describe('Bundle Publication & Endpoint Contract Tests (A17 - bundle-publication
 	it('ignore catégoriquement tout en-tête X-Actor-Email envoyé par le client', async () => {
 		// Session authentifiée valide pour l'utilisateur @m-israel
 		const mockEvent = {
-			params: { projectId: 'test-eng-1791040817233' },
+			params: { projectId: 'cctp-mcx-nordwave' },
 			locals: {
 				session: {
 					user: { id: 'u1', name: 'Lead Architect M. Israel', email: 'legit@archinex.local', role: 'admin' },
 					expires: '2026-10-31T00:00:00Z'
 				}
 			},
-			request: new Request('http://localhost/api/projects/test-eng-1791040817233/bundle-export', {
+			request: new Request('http://localhost/api/projects/cctp-mcx-nordwave/bundle-export', {
 				method: 'POST',
 				headers: {
 					'Content-Type': 'application/json',
@@ -43,10 +43,10 @@ describe('Bundle Publication & Endpoint Contract Tests (A17 - bundle-publication
 				},
 				body: JSON.stringify({ confidentiality: 'internal' })
 			}),
-			url: new URL('http://localhost/api/projects/test-eng-1791040817233/bundle-export')
+			url: new URL('http://localhost/api/projects/cctp-mcx-nordwave/bundle-export')
 		} as unknown as RequestEvent;
 
-		const response = await exportProjectBundle(mockEvent);
+		const response = await exportProjectBundle(mockEvent as any);
 		expect(response.status).toBe(200);
 		const body = await response.json();
 
@@ -63,22 +63,22 @@ describe('Bundle Publication & Endpoint Contract Tests (A17 - bundle-publication
 
 	it('exige obligatoirement le niveau de confidentialité et refuse l export sinon (400)', async () => {
 		const mockEvent = {
-			params: { projectId: 'test-eng-1791040817233' },
+			params: { projectId: 'cctp-mcx-nordwave' },
 			locals: {
 				session: {
 					user: { id: 'u1', name: 'Lead Architect', email: 'lead@local', role: 'admin' },
 					expires: '2026-10-31T00:00:00Z'
 				}
 			},
-			request: new Request('http://localhost/api/projects/test-eng-1791040817233/bundle-export', {
+			request: new Request('http://localhost/api/projects/cctp-mcx-nordwave/bundle-export', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({}) // confidentiality absent
 			}),
-			url: new URL('http://localhost/api/projects/test-eng-1791040817233/bundle-export')
+			url: new URL('http://localhost/api/projects/cctp-mcx-nordwave/bundle-export')
 		} as unknown as RequestEvent;
 
-		const response = await exportProjectBundle(mockEvent);
+		const response = await exportProjectBundle(mockEvent as any);
 		expect(response.status).toBe(400);
 		const json = await response.json();
 		expect(json.error).toContain('CONFIDENTIALITY_REQUIRED');
@@ -86,7 +86,7 @@ describe('Bundle Publication & Endpoint Contract Tests (A17 - bundle-publication
 
 	it('produit un bundle valide passant à 100% le vérificateur A16 et un SnapshotRef séparé', async () => {
 		const result = await exportEngagementBundle({
-			projectId: 'test-eng-1791040817233',
+			projectId: 'cctp-mcx-nordwave',
 			confidentiality: 'confidential',
 			actorHandle: 'lead-architect',
 			now: new Date('2026-10-03T14:00:00Z')
@@ -105,22 +105,22 @@ describe('Bundle Publication & Endpoint Contract Tests (A17 - bundle-publication
 
 	it('fonctionne également sur l endpoint alias /api/engagements/[id]/export-bundle', async () => {
 		const mockEvent = {
-			params: { id: 'test-eng-1791040817233' },
+			params: { id: 'cctp-mcx-nordwave' },
 			locals: {
 				session: {
 					user: { id: 'u1', name: 'Lead Architect', email: 'lead@local', role: 'admin' },
 					expires: '2026-10-31T00:00:00Z'
 				}
 			},
-			request: new Request('http://localhost/api/engagements/test-eng-1791040817233/export-bundle', {
+			request: new Request('http://localhost/api/engagements/cctp-mcx-nordwave/export-bundle', {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({ confidentiality: 'secret' })
 			}),
-			url: new URL('http://localhost/api/engagements/test-eng-1791040817233/export-bundle')
+			url: new URL('http://localhost/api/engagements/cctp-mcx-nordwave/export-bundle')
 		} as unknown as RequestEvent;
 
-		const response = await exportEngagementBundleEndpoint(mockEvent);
+		const response = await exportEngagementBundleEndpoint(mockEvent as any);
 		expect(response.status).toBe(200);
 		const json = await response.json();
 		expect(json.status).toBe('ok');

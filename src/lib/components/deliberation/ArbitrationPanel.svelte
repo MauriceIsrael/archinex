@@ -47,19 +47,28 @@
 	let errorMessage = $state('');
 	let successMessage = $state('');
 
+	// Normalisation défensive des options (tableau direct ou enveloppé { options: [...] })
+	const safeOptions = $derived<Option[]>(
+		Array.isArray(options)
+			? options
+			: Array.isArray((options as any)?.options)
+				? (options as any).options
+				: []
+	);
+
 	// Initialisation de la sélection par défaut
 	$effect(() => {
 		if (decision) {
 			selectedOptionId = decision.retainedOptionId;
 			rationale = decision.rationale;
 			reversibility = decision.reversibility;
-		} else if (options.length > 0 && !selectedOptionId) {
-			selectedOptionId = options[0].id;
+		} else if (safeOptions.length > 0 && !selectedOptionId) {
+			selectedOptionId = safeOptions[0].id;
 		}
 	});
 
-	const retainedOption = $derived(options.find((o: Option) => o.id === selectedOptionId));
-	const otherOptions = $derived(options.filter((o: Option) => o.id !== selectedOptionId));
+	const retainedOption = $derived(safeOptions.find((o: Option) => o.id === selectedOptionId));
+	const otherOptions = $derived(safeOptions.filter((o: Option) => o.id !== selectedOptionId));
 
 	async function submitArbitration() {
 		if (!selectedOptionId) {
@@ -183,10 +192,10 @@
 				<div class="p-3 rounded-lg bg-background/80 border border-border/60 space-y-1">
 					<span class="text-muted-foreground block text-[11px] font-medium uppercase tracking-wider">Option Retenue</span>
 					<strong class="text-foreground text-sm font-semibold block">
-						{options.find((o: Option) => o.id === decision?.retainedOptionId)?.title || decision.retainedOptionId}
+						{safeOptions.find((o: Option) => o.id === decision?.retainedOptionId)?.title || decision.retainedOptionId}
 					</strong>
 					<p class="text-muted-foreground text-xs mt-1">
-						{options.find((o: Option) => o.id === decision?.retainedOptionId)?.summary || ''}
+						{safeOptions.find((o: Option) => o.id === decision?.retainedOptionId)?.summary || ''}
 					</p>
 				</div>
 
@@ -211,7 +220,7 @@
 							<div class="p-2.5 rounded-lg bg-background/60 border border-border/40 flex items-start gap-2">
 								<ChevronRight class="w-3.5 h-3.5 text-muted-foreground shrink-0 mt-0.5" />
 								<div>
-									<strong class="text-foreground">{options.find((o: Option) => o.id === rej.optionId)?.title || rej.optionId} :</strong>
+									<strong class="text-foreground">{safeOptions.find((o: Option) => o.id === rej.optionId)?.title || rej.optionId} :</strong>
 									<span class="text-muted-foreground ml-1">{rej.reason}</span>
 								</div>
 							</div>
@@ -222,7 +231,7 @@
 		</div>
 
 		<!-- Capitalisation vers LLMOps KB (Porte G4) -->
-		<CapitalizationPanel {projectId} {subjectId} {decision} {options} />
+		<CapitalizationPanel {projectId} {subjectId} {decision} options={safeOptions} />
 
 	<!-- Formulaire d'Arbitrage (actif si prêt ou pour préparation) -->
 	{:else}
@@ -238,7 +247,7 @@
 					1. Option d'architecture retenue
 				</div>
 				<div class="grid grid-cols-1 gap-2.5">
-					{#each options as opt}
+					{#each safeOptions as opt}
 						<label
 							class="flex items-start gap-3 p-3 rounded-lg border cursor-pointer transition-colors {selectedOptionId === opt.id ? 'border-primary bg-primary/5 ring-1 ring-primary' : 'border-border/60 bg-muted/10 hover:bg-muted/20'}"
 						>

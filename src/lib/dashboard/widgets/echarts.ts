@@ -12,37 +12,64 @@ import type { EChartsOption } from './echarts-custom';
  */
 export function chart(node: HTMLElement, options: EChartsOption) {
   let chartInstance: import('echarts/core').ECharts | undefined;
+  let isDestroyed = false;
+  let currentOptions = options;
 
   async function init() {
-    // Import dynamique du module custom (tree-shaken)
-    const { echarts } = await import('./echarts-custom');
-    chartInstance = echarts.init(node);
-    chartInstance.setOption(options);
+    try {
+      const { echarts } = await import('./echarts-custom');
+      if (isDestroyed || !node) return;
+      chartInstance = echarts.init(node);
+      if (currentOptions) {
+        chartInstance.setOption(currentOptions, true);
+      }
+    } catch (err) {
+      console.warn('[ECharts] Init or setOption failed:', err);
+    }
   }
 
-  // Lance l'init sans bloquer — le ResizeObserver est déjà actif
+  // Lance l'init sans bloquer
   init();
 
-  // ResizeObserver to handle gridstack resizes automatically
+  // ResizeObserver to handle container resizes automatically
   const resizeObserver = new ResizeObserver(() => {
-    if (chartInstance) {
-      chartInstance.resize();
+    try {
+      if (chartInstance && !isDestroyed) {
+        chartInstance.resize();
+      }
+    } catch (err) {
+      console.warn('[ECharts] Resize failed:', err);
     }
   });
-  
-  resizeObserver.observe(node);
+
+  try {
+    resizeObserver.observe(node);
+  } catch (err) {
+    console.warn('[ECharts] ResizeObserver observe failed:', err);
+  }
 
   return {
     update(newOptions: EChartsOption) {
-      if (chartInstance) {
-        chartInstance.setOption(newOptions, true);
+      currentOptions = newOptions;
+      try {
+        if (chartInstance && !isDestroyed && newOptions) {
+          chartInstance.setOption(newOptions, true);
+        }
+      } catch (err) {
+        console.warn('[ECharts] Update setOption failed:', err);
       }
     },
     destroy() {
-      resizeObserver.disconnect();
-      if (chartInstance) {
-        chartInstance.dispose();
-      }
+      isDestroyed = true;
+      try {
+        resizeObserver.disconnect();
+      } catch {}
+      try {
+        if (chartInstance) {
+          chartInstance.dispose();
+          chartInstance = undefined;
+        }
+      } catch {}
     }
   };
 }

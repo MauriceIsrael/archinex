@@ -12,23 +12,28 @@
 	} from 'lucide-svelte';
 
 	let {
-		teams
+		teams = []
 	}: {
-		teams: TeamMonopolizationMetric[];
+		teams?: TeamMonopolizationMetric[];
 	} = $props();
 
 	// Trie par effort pour mettre en évidence l'équipe la plus sollicitée
-	const sortedTeams = $derived([...teams].sort((a, b) => b.effortPoints - a.effortPoints));
+	const safeTeams = $derived(Array.isArray(teams) ? teams : []);
+	const sortedTeams = $derived([...safeTeams].sort((a, b) => (b.effortPoints || 0) - (a.effortPoints || 0)));
 
 	// Options ECharts Radar pour le profil multi-disciplinaire
 	const radarOptions = $derived.by((): any => {
-		const indicator = teams.map((t) => ({
-			name: t.shortRole,
-			max: Math.max(...teams.map((x) => x.effortPoints), 10) * 1.2
+		// Calcule un maximum arrondi au multiple de 4 pour garantir des graduations entières nettes (splitNumber: 4)
+		const rawMax = Math.max(...safeTeams.map((x) => x.effortPoints || 0), 10) * 1.25;
+		const maxEffort = Math.max(8, Math.ceil(rawMax / 4) * 4);
+		const indicator = safeTeams.map((t) => ({
+			name: t.shortRole || t.role,
+			min: 0,
+			max: maxEffort
 		}));
 
-		const effortValues = teams.map((t) => t.effortPoints);
-		const subjectsValues = teams.map((t) => t.assignedSubjectsCount);
+		const effortValues = safeTeams.map((t) => t.effortPoints || 0);
+		const subjectsValues = safeTeams.map((t) => t.assignedSubjectsCount || 0);
 
 		return {
 			tooltip: { trigger: 'item' },
@@ -101,14 +106,18 @@
 		</div>
 
 		<span class="text-xs font-mono font-semibold px-2 py-0.5 rounded-md bg-background border text-muted-foreground">
-			5 Rôles Formels
+			{safeTeams.length} Rôles Formels
 		</span>
 	</div>
 
 	<div class="p-5 grid grid-cols-1 lg:grid-cols-12 gap-6 flex-1 items-center">
 		<!-- Graphe Radar (Visualisation multi-axiale) -->
 		<div class="lg:col-span-6 h-[280px] w-full flex items-center justify-center">
-			<ChartWidget options={radarOptions} />
+			{#if radarOptions}
+				<ChartWidget options={radarOptions} />
+			{:else}
+				<div class="text-xs text-muted-foreground italic">Aucune donnée disponible</div>
+			{/if}
 		</div>
 
 		<!-- Liste détaillée par discipline -->
@@ -165,7 +174,7 @@
 						</div>
 
 						<div class="text-[10px] text-muted-foreground truncate max-w-[150px]">
-							{team.activeParticipants.length > 0 ? team.activeParticipants.join(', ') : 'Non assigné'}
+							{(team.activeParticipants && team.activeParticipants.length > 0) ? team.activeParticipants.join(', ') : 'Non assigné'}
 						</div>
 					</div>
 				</div>

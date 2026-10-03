@@ -116,11 +116,11 @@ describe('Local LLM Souverain & Factorisation de RFP', () => {
 		it('active la condensation automatique pour les documents massifs sans perte de référence', () => {
 			// Crée une clause avec un texte très long
 			const massiveClause: ExtractedClause = {
+				id: 'massive-1',
 				clauseRef: '§9.9',
 				title: 'Exigence ultra-volumineuse avec volumétrie contractuelle',
 				text: 'A'.repeat(30000),
-				criticality: 'bloquant',
-				suggestedSubjectName: 'Gros Sujet'
+				criticality: 'bloquant'
 			};
 			expect(shouldCondenseClauses([massiveClause])).toBe(true);
 
@@ -136,9 +136,11 @@ describe('Local LLM Souverain & Factorisation de RFP', () => {
 			for (let i = 1; i <= 500; i++) {
 				const sec = Math.ceil(i / 25);
 				hugeClauses.push({
+					id: `huge-${i}`,
 					clauseRef: `§${sec}.${i}`,
 					title: `Exigence technique détaillée numéro ${i}`,
-					text: `Ceci est le texte complet de l'article ${i} qui contient beaucoup de détails contractuels et juridiques.`
+					text: `Ceci est le texte complet de l'article ${i} qui contient beaucoup de détails contractuels et juridiques.`,
+					criticality: 'info'
 				});
 			}
 
@@ -249,7 +251,7 @@ describe('Local LLM Souverain & Factorisation de RFP', () => {
 					clauseRef: `§${section}.${i}`,
 					title: `Exigence technique §${section}.${i}`,
 					text: `Texte intégral et complet pour l'exigence §${section}.${i} avec contraintes fortes.`,
-					criticality: i % 5 === 0 ? 'bloquant' : 'standard',
+					criticality: i % 5 === 0 ? 'bloquant' : 'info',
 					impactSummary: `Impact ${section}`
 				});
 			}

@@ -887,10 +887,257 @@ export interface SimilarityRun extends SimilarityRunBucket {
   per_case: SimilarityRunCaseDetail[];
 }
 
+/* ---- Contract 1.16: managed engagements (K14) -------------------------------- */
 
+export type HubEngagementRole = 'reader' | 'contributor' | 'decider' | 'admin';
+export type HubConfidentiality = 'public' | 'internal' | 'confidential';
 
+export interface HubMember {
+  email: string;
+  handle: string;
+  role: HubEngagementRole;
+}
 
+export interface HubPublicMember {
+  handle: string;
+  role: HubEngagementRole;
+}
 
+export interface HubEngagementMe {
+  engagement: string;
+  managed: boolean;
+  handle: string | null;
+  role: HubEngagementRole | null;
+  actions: Array<'read' | 'contribute' | 'decide' | 'export' | 'members'>;
+  confidentiality: HubConfidentiality | null;
+}
 
+export interface HubAuditEvent {
+  id: number;
+  at: string;
+  actor: string;
+  action: string;
+  verdict: 'allowed' | 'refused';
+  detail: Record<string, unknown>;
+}
 
+/* ---- Contract 1.17: managed engagement writes (K15) -------------------------- */
 
+export interface HubSubjectInput {
+  name: string;
+  definition?: string;
+}
+
+export interface HubSubjectResult {
+  created: boolean;
+  subject: string;
+}
+
+export interface HubMaturityInput {
+  level: 'L0_named' | 'L1_framed' | 'L2_decomposed' | 'L3_decided' | 'L4_specified';
+}
+
+export interface HubMaturityResult {
+  subject: string;
+  level: string;
+}
+
+export type HubConfidence = 'verified' | 'designed' | 'vendor-stated' | 'stated-by-client' | 'assumed';
+export type HubOrigin = 'human' | 'llm-derived';
+export type HubStatementStatus = 'proposed' | 'active' | 'withdrawn';
+
+export interface HubStatementInput {
+  subject: string;
+  value: string;
+  confidence: HubConfidence;
+  section?: string;
+  predicate?: string;
+  role?: string;
+  verbatim?: string;
+  based_on?: Array<{ id: string; resolved?: boolean }>;
+  origin?: HubOrigin;
+  idempotency_key?: string;
+}
+
+export interface HubStatementResult {
+  id: string;
+  subject: string;
+  section: string;
+  predicate: string;
+  value: string;
+  author: string;
+  role: string;
+  confidence: HubConfidence;
+  status: HubStatementStatus;
+  origin: HubOrigin;
+  validated_by: string | null;
+  validated_at: string | null;
+}
+
+export interface HubAddStatementResponse {
+  created: boolean;
+  statement: HubStatementResult;
+}
+
+export interface HubAssertStatementResponse {
+  statement: HubStatementResult;
+  conflicts_opened: string[];
+}
+
+export interface HubWithdrawStatementResponse {
+  statement: HubStatementResult;
+}
+
+export interface HubQuestionInput {
+  question: string;
+  why_it_matters?: string;
+  subject?: string;
+  section?: string;
+  gap_type?: string;
+  expected_shape?: string;
+  routed_to?: string;
+  idempotency_key?: string;
+}
+
+export interface HubQuestionResult {
+  id: string;
+  engagement: string;
+  question: string;
+  why_it_matters?: string;
+  subject?: string;
+  section: string;
+  gap_type: string;
+  expected_shape: string;
+  routed_to: string;
+  status: 'open' | 'answered' | 'declined' | 'rerouted';
+}
+
+export interface HubAddQuestionResponse {
+  created: boolean;
+  question: HubQuestionResult;
+}
+
+export interface HubAnswerInput {
+  value: string;
+  confidence: HubConfidence;
+  subject?: string;
+  section?: string;
+  predicate?: string;
+  role?: string;
+  verbatim?: string;
+  based_on?: Array<{ id: string; resolved?: boolean }>;
+  origin?: HubOrigin;
+  idempotency_key?: string;
+}
+
+export interface HubRequirementItem {
+  id: string;
+  text: string;
+  section?: string;
+  category?: string;
+  criticality?: string;
+}
+
+export interface HubRequirementsInput {
+  requirements: HubRequirementItem[];
+  origin?: HubOrigin;
+}
+
+export interface HubRequirementsResult {
+  created: string[];
+  unchanged: string[];
+  origin: HubOrigin;
+}
+
+export interface HubArbitrateConflictInput {
+  keep_statement_id: string;
+  reason: string;
+}
+
+export interface HubConflictDetail {
+  id: string;
+  status: 'open' | 'resolved' | 'waived' | 'arbitrated';
+  statement_ids?: string[];
+  keep_statement_id?: string;
+  resolution_reason?: string;
+  arbitrated_by?: string;
+  arbitrated_at?: string;
+  [key: string]: unknown;
+}
+
+export interface HubConflictResult {
+  conflict: HubConflictDetail;
+}
+
+/* ---- Contract 1.18: sealed engagement snapshot (K11) ------------------------- */
+
+export interface HubSnapshotRef {
+  sourceSystem: string; // 'knowledge-hub'
+  snapshotId: string; // 'eng-<engagement>-<12hex>'
+  checksum: string; // 'sha256:<64hex>'
+  producedAt: string;
+}
+
+export interface HubExportIssueResult {
+  snapshotRef: HubSnapshotRef;
+  created: boolean;
+  is_provisional: boolean;
+}
+
+export interface HubExportListingItem {
+  snapshot_id: string;
+  checksum: string;
+  created_at: string;
+  actor: string;
+  is_provisional: boolean;
+}
+
+export interface HubExportEnvelope {
+  schemaVersion: string;
+  snapshotId: string;
+  sourceSystem: string;
+  emitter: string;
+  createdAt: string;
+  sourceRevision: string;
+  checksum: string;
+  data: {
+    engagement: {
+      id: string;
+      confidentiality: HubConfidentiality;
+    };
+    pins: {
+      contract_version: string;
+      kb_snapshot_id: string;
+    };
+    is_provisional: boolean;
+    provisional_reasons: {
+      unripe_subjects: number;
+      open_conflicts: number;
+    };
+    requirements: Array<Record<string, unknown>>;
+    subjects: Array<Record<string, unknown>>;
+    statements: Array<Record<string, unknown>>;
+    conflicts: Array<Record<string, unknown>>;
+    gaps: Array<Record<string, unknown>>;
+    kb_references: Array<Record<string, unknown>>;
+    unresolved_references: Array<Record<string, unknown>>;
+  };
+}
+
+export class HubApiError extends Error {
+  status: number;
+  code: string;
+  reason?: string;
+  argument?: string;
+  problems?: Array<{ code: string; path?: string; message?: string }>;
+
+  constructor(status: number, code: string, reason?: string, details?: any) {
+    super(reason || code);
+    this.name = 'HubApiError';
+    this.status = status;
+    this.code = code;
+    this.reason = reason;
+    this.argument = details?.argument;
+    this.problems = details?.problems;
+  }
+}

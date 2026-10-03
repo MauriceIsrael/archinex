@@ -60,8 +60,42 @@ import type {
   ReuseConfirmationRequest,
   ReuseConfirmation,
   SimilarityCase,
-  SimilarityRun
+  SimilarityRun,
+  HubEngagementRole,
+  HubConfidentiality,
+  HubMember,
+  HubPublicMember,
+  HubEngagementMe,
+  HubAuditEvent,
+  HubSubjectInput,
+  HubSubjectResult,
+  HubMaturityInput,
+  HubMaturityResult,
+  HubConfidence,
+  HubOrigin,
+  HubStatementStatus,
+  HubStatementInput,
+  HubStatementResult,
+  HubAddStatementResponse,
+  HubAssertStatementResponse,
+  HubWithdrawStatementResponse,
+  HubQuestionInput,
+  HubQuestionResult,
+  HubAddQuestionResponse,
+  HubAnswerInput,
+  HubRequirementItem,
+  HubRequirementsInput,
+  HubRequirementsResult,
+  HubArbitrateConflictInput,
+  HubConflictResult,
+  HubSnapshotRef,
+  HubExportIssueResult,
+  HubExportListingItem,
+  HubExportEnvelope
 } from './types';
+
+import { HubApiError } from '$lib/types/llmops';
+export { HubApiError };
 
 export interface LLMOpsClientConfig {
   baseUrl?: string;
@@ -94,8 +128,9 @@ const OPERATION_TIMEOUTS: Array<{ method?: string; pattern: RegExp; ms: number }
   { method: 'PUT', pattern: /\/api\/knowledge\/embeddings$/, ms: 60_000 },
   { method: 'POST', pattern: /\/api\/knowledge\/reuse-confirmations$/, ms: 15_000 },
   { method: 'POST', pattern: /\/api\/knowledge\/similarity-evals\/[^/]+\/runs$/, ms: 60_000 },
+  { method: 'POST', pattern: /\/api\/engagements\/[^/]+\/exports$/, ms: 60_000 },
   { pattern: /\/api\/knowledge\/health$/, ms: 30_000 },
-  { pattern: /\/api\/(knowledge|frameworks)(\/|$)/, ms: LLMOPS_GOVERNANCE_TIMEOUT_MS }
+  { pattern: /\/api\/(knowledge|frameworks|engagements)(\/|$)/, ms: LLMOPS_GOVERNANCE_TIMEOUT_MS }
 ];
 
 /** Vrai si `host` correspond à une entrée de liste (nom exact, ou `*.suffixe` pour tout sous-domaine). */
@@ -262,7 +297,7 @@ export class LLMOpsClient {
     return engagement || this.defaultEngagement;
   }
 
-  private getHeaders(engagement?: string, actorEmail?: string): Record<string, string> {
+  private getHeaders(engagement?: string, actorEmail?: string, idempotencyKey?: string): Record<string, string> {
     const eng = this.resolveRemoteEngagement(engagement || this.defaultEngagement);
     const headers: Record<string, string> = {
       'Accept': 'application/json',
@@ -273,7 +308,21 @@ export class LLMOpsClient {
     if (actorEmail) {
       headers['X-Actor-Email'] = actorEmail;
     }
+    if (idempotencyKey) {
+      headers['Idempotency-Key'] = idempotencyKey;
+    }
     return headers;
+  }
+
+  private async parseOrThrow<T>(res: Response): Promise<T> {
+    if (res.ok) {
+      const body = await res.json().catch(() => ({}));
+      return (body && typeof body === 'object' && 'data' in body && body.data !== undefined ? body.data : body) as T;
+    }
+    const errBody = await res.json().catch(() => ({}));
+    const code = errBody.error || errBody.status || `HTTP_${res.status}`;
+    const reason = errBody.reason || errBody.message || `Erreur HTTP ${res.status}`;
+    throw new HubApiError(res.status, code, reason, errBody);
   }
 
   private async fetchWithTimeout(url: string, options: RequestInit = {}): Promise<Response> {
@@ -3137,6 +3186,228 @@ export class LLMOpsClient {
         error: e.message || 'Serveur LLMOps inaccessible'
       };
     }
+  }
+
+  // --- K14: Managed Engagements (Contract 1.16) --------------------------------
+
+  async createManagedEngagement(
+    params: { engagement: string; confidentiality: HubConfidentiality; admin_email: string; admin_handle: string },
+    actorEmail?: string
+  ): Promise<{ engagement: string; confidentiality: HubConfidentiality; members: HubPublicMember[] }> {
+    const url = `${this.baseUrl}/api/engagements`;
+    const res = await this.fetchWithTimeout(url, {
+      method: 'POST',
+      headers: this.getHeaders(params.engagement, actorEmail),
+      body: JSON.stringify(params)
+    });
+    return this.parseOrThrow(res);
+  }
+
+  async getEngagementMembers(engagementId: string, actorEmail?: string): Promise<HubMember[] | HubPublicMember[]> {
+    const url = `${this.baseUrl}/api/engagements/${encodeURIComponent(engagementId)}/members`;
+    const res = await this.fetchWithTimeout(url, {
+      method: 'GET',
+      headers: this.getHeaders(engagementId, actorEmail)
+    });
+    const data = await this.parseOrThrow<{ engagement: string; members: HubMember[] }>(res);
+    return data.members || [];
+  }
+
+  async setEngagementMembers(engagementId: string, members: HubMember[], actorEmail?: string): Promise<HubMember[]> {
+    const url = `${this.baseUrl}/api/engagements/${encodeURIComponent(engagementId)}/members`;
+    const res = await this.fetchWithTimeout(url, {
+      method: 'PUT',
+      headers: this.getHeaders(engagementId, actorEmail),
+      body: JSON.stringify({ members })
+    });
+    const data = await this.parseOrThrow<{ engagement: string; members: HubMember[] }>(res);
+    return data.members || [];
+  }
+
+  async getEngagementMe(engagementId: string, actorEmail?: string): Promise<HubEngagementMe> {
+    const url = `${this.baseUrl}/api/engagements/${encodeURIComponent(engagementId)}/me`;
+    const res = await this.fetchWithTimeout(url, {
+      method: 'GET',
+      headers: this.getHeaders(engagementId, actorEmail)
+    });
+    return this.parseOrThrow<HubEngagementMe>(res);
+  }
+
+  async getEngagementAudit(engagementId: string, limit = 100, actorEmail?: string): Promise<HubAuditEvent[]> {
+    const url = `${this.baseUrl}/api/engagements/${encodeURIComponent(engagementId)}/audit?limit=${limit}`;
+    const res = await this.fetchWithTimeout(url, {
+      method: 'GET',
+      headers: this.getHeaders(engagementId, actorEmail)
+    });
+    const data = await this.parseOrThrow<{ engagement: string; events: HubAuditEvent[] }>(res);
+    return data.events || [];
+  }
+
+  // --- K15: Managed Engagement Writes (Contract 1.17) --------------------------
+
+  async addSubject(engagementId: string, input: HubSubjectInput, actorEmail?: string): Promise<HubSubjectResult> {
+    const url = `${this.baseUrl}/api/engagements/${encodeURIComponent(engagementId)}/subjects`;
+    const res = await this.fetchWithTimeout(url, {
+      method: 'POST',
+      headers: this.getHeaders(engagementId, actorEmail),
+      body: JSON.stringify(input)
+    });
+    return this.parseOrThrow<HubSubjectResult>(res);
+  }
+
+  async advanceSubjectMaturity(
+    engagementId: string,
+    subjectName: string,
+    level: HubMaturityInput['level'],
+    actorEmail?: string
+  ): Promise<HubMaturityResult> {
+    const url = `${this.baseUrl}/api/engagements/${encodeURIComponent(engagementId)}/subjects/${encodeURIComponent(subjectName)}/maturity`;
+    const res = await this.fetchWithTimeout(url, {
+      method: 'POST',
+      headers: this.getHeaders(engagementId, actorEmail),
+      body: JSON.stringify({ level })
+    });
+    return this.parseOrThrow<HubMaturityResult>(res);
+  }
+
+  async addStatement(
+    engagementId: string,
+    input: HubStatementInput,
+    actorEmail?: string,
+    idempotencyKey?: string
+  ): Promise<HubAddStatementResponse> {
+    const key = idempotencyKey || input.idempotency_key;
+    const url = `${this.baseUrl}/api/engagements/${encodeURIComponent(engagementId)}/statements`;
+    const res = await this.fetchWithTimeout(url, {
+      method: 'POST',
+      headers: this.getHeaders(engagementId, actorEmail, key),
+      body: JSON.stringify(input)
+    });
+    return this.parseOrThrow<HubAddStatementResponse>(res);
+  }
+
+  async assertStatement(
+    engagementId: string,
+    statementId: string,
+    actorEmail?: string
+  ): Promise<HubAssertStatementResponse> {
+    const url = `${this.baseUrl}/api/engagements/${encodeURIComponent(engagementId)}/statements/${encodeURIComponent(statementId)}/assert`;
+    const res = await this.fetchWithTimeout(url, {
+      method: 'POST',
+      headers: this.getHeaders(engagementId, actorEmail)
+    });
+    return this.parseOrThrow<HubAssertStatementResponse>(res);
+  }
+
+  async withdrawStatement(
+    engagementId: string,
+    statementId: string,
+    actorEmail?: string
+  ): Promise<HubWithdrawStatementResponse> {
+    const url = `${this.baseUrl}/api/engagements/${encodeURIComponent(engagementId)}/statements/${encodeURIComponent(statementId)}/withdraw`;
+    const res = await this.fetchWithTimeout(url, {
+      method: 'POST',
+      headers: this.getHeaders(engagementId, actorEmail)
+    });
+    return this.parseOrThrow<HubWithdrawStatementResponse>(res);
+  }
+
+  async addQuestion(
+    engagementId: string,
+    input: HubQuestionInput,
+    actorEmail?: string,
+    idempotencyKey?: string
+  ): Promise<HubAddQuestionResponse> {
+    const key = idempotencyKey || input.idempotency_key;
+    const url = `${this.baseUrl}/api/engagements/${encodeURIComponent(engagementId)}/questions`;
+    const res = await this.fetchWithTimeout(url, {
+      method: 'POST',
+      headers: this.getHeaders(engagementId, actorEmail, key),
+      body: JSON.stringify(input)
+    });
+    return this.parseOrThrow<HubAddQuestionResponse>(res);
+  }
+
+  async answerQuestion(
+    engagementId: string,
+    questionId: string,
+    input: HubAnswerInput,
+    actorEmail?: string,
+    idempotencyKey?: string
+  ): Promise<HubAddStatementResponse> {
+    const key = idempotencyKey || input.idempotency_key;
+    const url = `${this.baseUrl}/api/engagements/${encodeURIComponent(engagementId)}/questions/${encodeURIComponent(questionId)}/answers`;
+    const res = await this.fetchWithTimeout(url, {
+      method: 'POST',
+      headers: this.getHeaders(engagementId, actorEmail, key),
+      body: JSON.stringify(input)
+    });
+    return this.parseOrThrow<HubAddStatementResponse>(res);
+  }
+
+  async addRequirements(
+    engagementId: string,
+    input: HubRequirementsInput,
+    actorEmail?: string
+  ): Promise<HubRequirementsResult> {
+    const url = `${this.baseUrl}/api/engagements/${encodeURIComponent(engagementId)}/requirements`;
+    const res = await this.fetchWithTimeout(url, {
+      method: 'POST',
+      headers: this.getHeaders(engagementId, actorEmail),
+      body: JSON.stringify(input)
+    });
+    return this.parseOrThrow<HubRequirementsResult>(res);
+  }
+
+  async arbitrateConflict(
+    engagementId: string,
+    conflictId: string,
+    input: HubArbitrateConflictInput,
+    actorEmail?: string
+  ): Promise<HubConflictResult> {
+    const url = `${this.baseUrl}/api/engagements/${encodeURIComponent(engagementId)}/conflicts/${encodeURIComponent(conflictId)}/arbitrate`;
+    const res = await this.fetchWithTimeout(url, {
+      method: 'POST',
+      headers: this.getHeaders(engagementId, actorEmail),
+      body: JSON.stringify(input)
+    });
+    return this.parseOrThrow<HubConflictResult>(res);
+  }
+
+  // --- K11: Sealed Engagement Snapshot (Contract 1.18) -----------------------
+
+  async exportEngagementSnapshot(engagementId: string, actorEmail?: string): Promise<HubExportIssueResult> {
+    const url = `${this.baseUrl}/api/engagements/${encodeURIComponent(engagementId)}/exports`;
+    const res = await this.fetchWithTimeout(url, {
+      method: 'POST',
+      headers: this.getHeaders(engagementId, actorEmail)
+    });
+    return this.parseOrThrow<HubExportIssueResult>(res);
+  }
+
+  async listEngagementExports(engagementId: string, actorEmail?: string): Promise<HubExportListingItem[]> {
+    const url = `${this.baseUrl}/api/engagements/${encodeURIComponent(engagementId)}/exports`;
+    const res = await this.fetchWithTimeout(url, {
+      method: 'GET',
+      headers: this.getHeaders(engagementId, actorEmail)
+    });
+    const data = await this.parseOrThrow<{ engagement: string; exports: HubExportListingItem[] }>(res);
+    return data.exports || [];
+  }
+
+  async getEngagementExport(engagementId: string, snapshotId: string, actorEmail?: string): Promise<HubExportEnvelope> {
+    const url = `${this.baseUrl}/api/engagements/${encodeURIComponent(engagementId)}/exports/${encodeURIComponent(snapshotId)}`;
+    const res = await this.fetchWithTimeout(url, {
+      method: 'GET',
+      headers: this.getHeaders(engagementId, actorEmail)
+    });
+    if (!res.ok) {
+      const errBody = await res.json().catch(() => ({}));
+      const code = errBody.error || errBody.status || `HTTP_${res.status}`;
+      const reason = errBody.reason || errBody.message || `Erreur HTTP ${res.status}`;
+      throw new HubApiError(res.status, code, reason, errBody);
+    }
+    return (await res.json()) as HubExportEnvelope;
   }
 
   /**

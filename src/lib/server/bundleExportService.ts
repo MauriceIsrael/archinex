@@ -120,7 +120,7 @@ export async function exportEngagementBundle(
 
 		// Décision
 		const isHumanAsserted = isDecided;
-		const decisionText = sub.decision?.statement || `Décision validée pour le sujet ${sub.name}`;
+		const decisionText = sub.decision?.rationale || `Décision validée pour le sujet ${sub.name}`;
 		decisions.push({
 			id: decId,
 			subject_id: subjId,
@@ -128,7 +128,7 @@ export async function exportEngagementBundle(
 			epistemic_status: isHumanAsserted ? 'validated' : 'ai_proposed',
 			assertion_level: isHumanAsserted ? 'asserted' : 'proposed',
 			decision: decisionText,
-			justification: sub.decision?.justification || 'Délibération et consensus atteints.',
+			justification: sub.decision?.rationale || 'Délibération et consensus atteints.',
 			provenance: {
 				basis: isHumanAsserted ? 'human_validation' : 'ai_proposal',
 				by: [actorHandle],

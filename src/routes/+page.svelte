@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import type { PageData } from './$types';
 	import { deliberationStore } from '$lib/stores/deliberationStore.svelte';
 	import { computeGlobalOverview, type EngagementSizeMetric } from '$lib/domain/dashboardOverview';
@@ -23,10 +24,20 @@
 
 	let { data }: { data: PageData } = $props();
 
+	let lastInitializedKey = '';
+
 	// Synchronise deliberationStore avec les données réelles persistées dans Prisma
 	$effect(() => {
-		if (data?.engagements && data.engagements.length > 0) {
-			deliberationStore.initFromDb(data.engagements, data.corpusDocuments || []);
+		const engagements = data?.engagements;
+		const corpusDocs = data?.corpusDocuments;
+		if (engagements && engagements.length > 0) {
+			const dataKey = engagements.map((e) => e.id).join(',');
+			if (dataKey !== lastInitializedKey) {
+				lastInitializedKey = dataKey;
+				untrack(() => {
+					deliberationStore.initFromDb(engagements, corpusDocs || []);
+				});
+			}
 		}
 	});
 

@@ -22,7 +22,16 @@ export const GET: RequestHandler = async ({ params }) => {
 			arguments: ctx.arguments
 		});
 	} catch (err: any) {
-		return json({ error: err.message || 'Erreur lors de la récupération du contexte d’arbitrage.' }, { status: 404 });
+		// Sujet non encore migré en table relationnelle (workspace local ou nouveau projet)
+		// On renvoie un contexte neutre vide sans polluer la console avec une 404
+		return json({
+			maturityResult: null,
+			decision: null,
+			criteria: [],
+			options: [],
+			evaluations: [],
+			arguments: []
+		});
 	}
 };
 

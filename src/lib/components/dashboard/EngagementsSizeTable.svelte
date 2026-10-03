@@ -16,16 +16,17 @@
 	} from 'lucide-svelte';
 
 	let {
-		engagements,
+		engagements = [],
 		selectedType = 'all'
 	}: {
-		engagements: EngagementSizeMetric[];
+		engagements?: EngagementSizeMetric[];
 		selectedType?: string;
 	} = $props();
 
+	const safeEngagements = $derived(Array.isArray(engagements) ? engagements : []);
 	const filteredEngagements = $derived.by(() => {
-		if (selectedType === 'all') return engagements;
-		return engagements.filter((e) => e.type === selectedType);
+		if (selectedType === 'all') return safeEngagements;
+		return safeEngagements.filter((e) => e.type === selectedType);
 	});
 
 	function openEngagementWorkbench(id: string) {
@@ -129,49 +130,51 @@
 						<td class="py-3.5 px-3">
 							<div class="w-36 mx-auto space-y-1.5">
 								<div class="flex items-center justify-between text-[11px]">
-									<span class="font-semibold {eng.completionPct >= 50 ? 'text-emerald-600 dark:text-emerald-400' : 'text-foreground'}">
-										{eng.completionPct}% décidé
+									<span class="font-semibold {(eng.completionPct || 0) >= 50 ? 'text-emerald-600 dark:text-emerald-400' : 'text-foreground'}">
+										{eng.completionPct || 0}% décidé
 									</span>
 									<span class="text-muted-foreground text-[10px]">
-										{eng.maturityCounts.L3_decided + eng.maturityCounts.L4_specified} / {eng.subjectsCount}
+										{(eng.maturityCounts?.L3_decided || 0) + (eng.maturityCounts?.L4_specified || 0)} / {eng.subjectsCount || 0}
 									</span>
 								</div>
 								<!-- Jauge segmentée -->
 								<div class="h-2 w-full bg-muted rounded-full overflow-hidden flex">
-									{#if eng.maturityCounts.L4_specified > 0}
-										<div
-											class="bg-emerald-600 dark:bg-emerald-500 h-full"
-											style="width: {(eng.maturityCounts.L4_specified / eng.subjectsCount) * 100}%"
-											title="L4 Spécifié : {eng.maturityCounts.L4_specified}"
-										></div>
-									{/if}
-									{#if eng.maturityCounts.L3_decided > 0}
-										<div
-											class="bg-emerald-400 dark:bg-emerald-400 h-full"
-											style="width: {(eng.maturityCounts.L3_decided / eng.subjectsCount) * 100}%"
-											title="L3 Décidé : {eng.maturityCounts.L3_decided}"
-										></div>
-									{/if}
-									{#if eng.maturityCounts.L2_decomposed > 0}
-										<div
-											class="bg-blue-400 h-full"
-											style="width: {(eng.maturityCounts.L2_decomposed / eng.subjectsCount) * 100}%"
-											title="L2 Décomposé : {eng.maturityCounts.L2_decomposed}"
-										></div>
-									{/if}
-									{#if eng.maturityCounts.L1_framed > 0}
-										<div
-											class="bg-amber-400 h-full"
-											style="width: {(eng.maturityCounts.L1_framed / eng.subjectsCount) * 100}%"
-											title="L1 Cadré : {eng.maturityCounts.L1_framed}"
-										></div>
-									{/if}
-									{#if eng.maturityCounts.L0_named > 0}
-										<div
-											class="bg-muted-foreground/30 h-full"
-											style="width: {(eng.maturityCounts.L0_named / eng.subjectsCount) * 100}%"
-											title="L0 Nommé : {eng.maturityCounts.L0_named}"
-										></div>
+									{#if (eng.subjectsCount || 0) > 0 && eng.maturityCounts}
+										{#if (eng.maturityCounts.L4_specified || 0) > 0}
+											<div
+												class="bg-emerald-600 dark:bg-emerald-500 h-full"
+												style="width: {Math.min(100, ((eng.maturityCounts.L4_specified || 0) / eng.subjectsCount) * 100)}%"
+												title="L4 Spécifié : {eng.maturityCounts.L4_specified}"
+											></div>
+										{/if}
+										{#if (eng.maturityCounts.L3_decided || 0) > 0}
+											<div
+												class="bg-emerald-400 dark:bg-emerald-400 h-full"
+												style="width: {Math.min(100, ((eng.maturityCounts.L3_decided || 0) / eng.subjectsCount) * 100)}%"
+												title="L3 Décidé : {eng.maturityCounts.L3_decided}"
+											></div>
+										{/if}
+										{#if (eng.maturityCounts.L2_decomposed || 0) > 0}
+											<div
+												class="bg-blue-400 h-full"
+												style="width: {Math.min(100, ((eng.maturityCounts.L2_decomposed || 0) / eng.subjectsCount) * 100)}%"
+												title="L2 Décomposé : {eng.maturityCounts.L2_decomposed}"
+											></div>
+										{/if}
+										{#if (eng.maturityCounts.L1_framed || 0) > 0}
+											<div
+												class="bg-amber-400 h-full"
+												style="width: {Math.min(100, ((eng.maturityCounts.L1_framed || 0) / eng.subjectsCount) * 100)}%"
+												title="L1 Cadré : {eng.maturityCounts.L1_framed}"
+											></div>
+										{/if}
+										{#if (eng.maturityCounts.L0_named || 0) > 0}
+											<div
+												class="bg-muted-foreground/30 h-full"
+												style="width: {Math.min(100, ((eng.maturityCounts.L0_named || 0) / eng.subjectsCount) * 100)}%"
+												title="L0 Nommé : {eng.maturityCounts.L0_named}"
+											></div>
+										{/if}
 									{/if}
 								</div>
 							</div>
@@ -190,7 +193,7 @@
 										<span>{eng.targetDate}</span>
 									</div>
 								{/if}
-								{#if eng.financialImpactTotal > 0}
+								{#if (eng.financialImpactTotal || 0) > 0}
 									<div class="text-[10px] font-semibold text-destructive">
 										+{eng.financialImpactTotal} k€ surcoût détecté
 									</div>
@@ -204,12 +207,12 @@
 								<div class="flex items-center gap-1">
 									<Users class="h-3.5 w-3.5 text-muted-foreground" />
 									<span class="font-semibold text-foreground">
-										{eng.participantsCount > 0 ? `${eng.participantsCount} experts` : 'Équipe par défaut'}
+										{(eng.participantsCount || 0) > 0 ? `${eng.participantsCount} experts` : 'Équipe par défaut'}
 									</span>
 								</div>
 								{#if eng.participants && eng.participants.length > 0}
 									<p class="text-[10px] text-muted-foreground line-clamp-1 max-w-[140px]">
-										{eng.participants.map((p) => p.name).join(', ')}
+										{eng.participants.map((p) => p?.name || 'Expert').join(', ')}
 									</p>
 								{/if}
 							</div>

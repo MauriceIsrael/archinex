@@ -14,24 +14,27 @@
 	} from 'lucide-svelte';
 
 	let {
-		growthPoints,
-		categories,
-		crossProjectReusePct,
-		totalDocuments,
-		totalClauses
+		growthPoints = [],
+		categories = [],
+		crossProjectReusePct = 0,
+		totalDocuments = 0,
+		totalClauses = 0
 	}: {
-		growthPoints: KnowledgeGrowthPoint[];
-		categories: KnowledgeCategoryDistribution[];
-		crossProjectReusePct: number;
-		totalDocuments: number;
-		totalClauses: number;
+		growthPoints?: KnowledgeGrowthPoint[];
+		categories?: KnowledgeCategoryDistribution[];
+		crossProjectReusePct?: number;
+		totalDocuments?: number;
+		totalClauses?: number;
 	} = $props();
+
+	const safeGrowthPoints = $derived(Array.isArray(growthPoints) ? growthPoints : []);
+	const safeCategories = $derived(Array.isArray(categories) ? categories : []);
 
 	// Graphique 1 : Courbe d'évolution temporelle (Documents & Clauses cumulées)
 	const growthChartOptions = $derived.by((): any => {
-		const dates = growthPoints.map((p) => p.formattedDate);
-		const docsData = growthPoints.map((p) => p.totalDocuments);
-		const clausesData = growthPoints.map((p) => p.totalClauses);
+		const dates = safeGrowthPoints.map((p) => p.formattedDate);
+		const docsData = safeGrowthPoints.map((p) => p.totalDocuments);
+		const clausesData = safeGrowthPoints.map((p) => p.totalClauses);
 
 		return {
 			tooltip: {
@@ -107,10 +110,10 @@
 
 	// Graphique 2 : Répartition par Catégorie (Camembert / Donut)
 	const categoryPieOptions = $derived.by((): any => {
-		const data = categories.map((c) => ({
-			value: c.count,
-			name: c.label,
-			itemStyle: { color: c.color }
+		const data = safeCategories.map((c) => ({
+			value: c.count || 0,
+			name: c.label || c.category,
+			itemStyle: { color: c.color || '#94a3b8' }
 		}));
 
 		return {
@@ -198,7 +201,13 @@
 				</div>
 			</div>
 			<div class="h-[280px] w-full">
-				<ChartWidget options={growthChartOptions} />
+				{#if safeGrowthPoints.length > 0}
+					<ChartWidget options={growthChartOptions} />
+				{:else}
+					<div class="h-full flex items-center justify-center text-xs text-muted-foreground italic border rounded-xl bg-muted/20">
+						Aucun historique d'acquisition pour le moment
+					</div>
+				{/if}
 			</div>
 		</div>
 
@@ -206,7 +215,13 @@
 		<div class="lg:col-span-4 flex flex-col border-t lg:border-t-0 lg:border-l pt-4 lg:pt-0 lg:pl-6">
 			<span class="text-xs font-bold text-foreground mb-2">Répartition par Typologie</span>
 			<div class="h-[280px] w-full flex items-center justify-center">
-				<ChartWidget options={categoryPieOptions} />
+				{#if safeCategories.length > 0}
+					<ChartWidget options={categoryPieOptions} />
+				{:else}
+					<div class="h-full w-full flex items-center justify-center text-xs text-muted-foreground italic border rounded-xl bg-muted/20">
+						Aucune typologie disponible
+					</div>
+				{/if}
 			</div>
 		</div>
 	</div>

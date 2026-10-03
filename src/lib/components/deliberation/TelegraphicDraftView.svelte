@@ -24,7 +24,9 @@
 		Compass,
 		Database,
 		RefreshCw,
-		Gavel
+		Gavel,
+		PenLine,
+		X
 	} from 'lucide-svelte';
 	import OptionsMatrix from './OptionsMatrix.svelte';
 	import DebateThreadView from './DebateThreadView.svelte';
@@ -78,21 +80,96 @@
 				fetch(`/api/projects/${projectId}/subjects/${subjectId}/arguments`)
 			]);
 
-			if (cRes.ok) matrixCriteria = await cRes.json();
-			if (oRes.ok) matrixOptions = await oRes.json();
-			if (eRes.ok) matrixEvaluations = await eRes.json();
-			if (tRes.ok) matrixTradeOffs = await tRes.json();
+			if (cRes.ok) {
+				const cData = await cRes.json();
+				matrixCriteria = Array.isArray(cData) ? cData : (cData.criteria || []);
+			} else {
+				matrixCriteria = [];
+			}
+
+			if (oRes.ok) {
+				const oData = await oRes.json();
+				matrixOptions = Array.isArray(oData) ? oData : (oData.options || []);
+			} else {
+				matrixOptions = [];
+			}
+
+			if (eRes.ok) {
+				const eData = await eRes.json();
+				matrixEvaluations = Array.isArray(eData) ? eData : (eData.evaluations || []);
+			} else {
+				matrixEvaluations = [];
+			}
+
+			if (tRes.ok) {
+				const tData = await tRes.json();
+				matrixTradeOffs = Array.isArray(tData) ? tData : (tData.tradeOffs || []);
+			} else {
+				matrixTradeOffs = [];
+			}
+
 			if (dRes.ok) {
 				const dData = await dRes.json();
 				matrixDecision = dData.decision || null;
 				subjectMaturityResult = dData.maturityResult || null;
+			} else {
+				matrixDecision = null;
+				subjectMaturityResult = null;
 			}
-			if (aRes.ok) debateArguments = await aRes.json();
+
+			if (aRes.ok) {
+				const aData = await aRes.json();
+				debateArguments = Array.isArray(aData) ? aData : (aData.arguments || []);
+			} else {
+				debateArguments = [];
+			}
 		} catch (err) {
 			console.warn('Erreur chargement matrice options:', err);
 		} finally {
 			isLoadingMatrix = false;
 		}
+	}
+
+	// Question d'architecture directrice pour le sujet actif
+	const subjectMainQuestion = $derived.by(() => {
+		if (!draft) return '';
+		if (draft.manque && draft.manque.length > 0 && draft.manque[0]?.question) {
+			return draft.manque[0].question;
+		}
+		return `Quelle architecture cible pour ${draft.subject} concilie les contraintes opérationnelles, de résilience et de souveraineté ?`;
+	});
+
+	// États de saisie des réponses directes (Fast-track)
+	let isAnsweringMainQuestion = $state(false);
+	let mainQuestionAnswer = $state('');
+	let answeringGapId = $state<string | null>(null);
+	let gapAnswerText = $state('');
+	let isAddingCustomRetenu = $state(false);
+	let customRetenuText = $state('');
+
+	function submitMainQuestionAnswer() {
+		if (!mainQuestionAnswer.trim() || !activeSubject) return;
+		deliberationStore.actDirectDecision(activeSubject.id, mainQuestionAnswer.trim());
+		mainQuestionAnswer = '';
+		isAnsweringMainQuestion = false;
+	}
+
+	function submitGapAnswer(gapId: string) {
+		if (!gapAnswerText.trim() || !activeSubject) return;
+		deliberationStore.answerOpenQuestion(activeSubject.id, gapId, gapAnswerText.trim());
+		gapAnswerText = '';
+		answeringGapId = null;
+	}
+
+	function submitCustomRetenu() {
+		if (!customRetenuText.trim() || !draft) return;
+		if (!draft.retenu.includes(customRetenuText.trim())) {
+			draft.retenu = [customRetenuText.trim(), ...draft.retenu];
+			deliberationStore.persistCustomState();
+			deliberationStore.logNotification('Décision/acquis ajouté avec succès.', 'success');
+		}
+		customRetenuText = '';
+		isAddingCustomRetenu = false;
 	}
 
 	$effect(() => {
@@ -311,6 +388,74 @@
 			<h3 class="text-base font-bold tracking-tight text-foreground">
 				{draft?.subject || 'Aucun sujet sélectionné'}
 			</h3>
+
+			{#if draft}
+				<div class="mt-2 p-2.5 rounded-lg bg-blue-500/10 border border-blue-500/25 text-xs space-y-2">
+					<div class="flex items-start gap-2">
+						<HelpCircle class="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
+						<div class="space-y-0.5 flex-1">
+							<div class="flex items-center justify-between gap-2 flex-wrap">
+								<span class="font-bold text-blue-900 dark:text-blue-300 uppercase text-[10px] tracking-wider">
+									Question d'Architecture posée
+								</span>
+								<div class="flex items-center gap-1.5">
+									{#if activeSubject?.waiting_for_role}
+										<span class="text-[10px] font-mono px-1.5 py-0.2 rounded bg-background/80 text-muted-foreground border">
+											Expert attendu : {activeSubject.waiting_for_role}
+										</span>
+									{/if}
+									<button
+										type="button"
+										onclick={() => (isAnsweringMainQuestion = !isAnsweringMainQuestion)}
+										class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md font-semibold text-[11px] transition-colors {isAnsweringMainQuestion ? 'bg-muted text-foreground' : 'bg-primary text-primary-foreground hover:bg-primary/90'}"
+									>
+										<PenLine class="h-3 w-3" />
+										<span>{isAnsweringMainQuestion ? 'Fermer' : 'Répondre / Acter'}</span>
+									</button>
+								</div>
+							</div>
+							<p class="text-xs font-semibold text-foreground leading-relaxed italic">
+								« {subjectMainQuestion} »
+							</p>
+						</div>
+					</div>
+
+					{#if isAnsweringMainQuestion}
+						<div class="pt-2 border-t border-blue-500/20 space-y-2">
+							<div class="flex items-center justify-between">
+								<span class="text-[11px] font-semibold text-blue-950 dark:text-blue-200">
+									Saisir la réponse factuelle ou décision de gouvernance :
+								</span>
+								<span class="text-[10px] text-muted-foreground">Versé directement aux acquis (RETENU) sans matrice de controverse</span>
+							</div>
+							<textarea
+								bind:value={mainQuestionAnswer}
+								placeholder="Ex : Jalons CoDir : J1 Cadrage budgétaire fin S1, J2 Revue d'architecture HLD fin S4, J3 Homologation sécurité et Go déploiement S8..."
+								rows="3"
+								class="w-full text-xs p-2.5 rounded-lg border bg-background placeholder:text-muted-foreground focus:outline-hidden focus:ring-1 focus:ring-primary leading-relaxed"
+							></textarea>
+							<div class="flex items-center justify-end gap-2">
+								<button
+									type="button"
+									onclick={() => (isAnsweringMainQuestion = false)}
+									class="px-2.5 py-1 rounded-md text-xs font-medium text-muted-foreground hover:bg-muted"
+								>
+									Annuler
+								</button>
+								<button
+									type="button"
+									onclick={submitMainQuestionAnswer}
+									disabled={!mainQuestionAnswer.trim()}
+									class="inline-flex items-center gap-1.5 px-3 py-1 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-2xs transition-colors disabled:opacity-50"
+								>
+									<CheckCircle2 class="h-3.5 w-3.5" />
+									<span>Valider & Acter la Décision (L3)</span>
+								</button>
+							</div>
+						</div>
+					{/if}
+				</div>
+			{/if}
 		</div>
 
 		<!-- Actions Rapides -->
@@ -422,12 +567,148 @@
 			<!-- VUE 1 : LE PROBLÈME À TRANCHER ET LES ALTERNATIVES EN CONFRONTATION-->
 			<!-- ═════════════════════════════════════════════════════════════════ -->
 			{#if activeTab === 'decision'}
-				<!-- 1. LE PROBLÈME À TRANCHER (CLAIREMENT IDENTIFIÉ) -->
+				<!-- 1. QUESTION D'ARCHITECTURE DU SUJET & SOUS-QUESTIONS EXPERTS -->
+				<div class="rounded-xl border border-blue-500/30 bg-blue-500/[0.04] p-3.5 space-y-3">
+					<div class="flex items-center justify-between">
+						<span class="text-xs font-bold uppercase tracking-wider text-blue-800 dark:text-blue-400 flex items-center gap-1.5">
+							<HelpCircle class="h-4 w-4 text-blue-600 dark:text-blue-400" />
+							<span>1. Question d'Architecture & Cadrage du Sujet</span>
+						</span>
+						<span class="text-[10px] font-mono px-2 py-0.5 rounded bg-blue-500/10 text-blue-700 dark:text-blue-300 font-semibold border border-blue-500/20">
+							Section {draft.section_id}
+						</span>
+					</div>
+
+					<div class="bg-background rounded-lg p-3 border border-blue-500/20 shadow-2xs space-y-2">
+						<div class="flex items-start justify-between gap-3">
+							<div class="space-y-1 flex-1">
+								<div class="text-xs font-bold text-foreground leading-relaxed">
+									« {subjectMainQuestion} »
+								</div>
+								<p class="text-[11px] text-muted-foreground">
+									Question directrice structurant la gouvernance, les critères et les arbitrages de ce sujet.
+								</p>
+							</div>
+							<button
+								type="button"
+								onclick={() => (isAnsweringMainQuestion = !isAnsweringMainQuestion)}
+								class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 text-xs font-bold shrink-0 transition-colors shadow-2xs"
+							>
+								<PenLine class="h-3.5 w-3.5" />
+								<span>{isAnsweringMainQuestion ? 'Fermer' : 'Répondre / Acter'}</span>
+							</button>
+						</div>
+
+						{#if isAnsweringMainQuestion}
+							<div class="pt-2 border-t space-y-2">
+								<textarea
+									bind:value={mainQuestionAnswer}
+									placeholder="Saisissez la réponse factuelle ou décision de gouvernance (ex: Jalons CoDir, contrainte validée, etc.)..."
+									rows="3"
+									class="w-full text-xs p-2 rounded-lg border bg-background placeholder:text-muted-foreground focus:outline-hidden focus:ring-1 focus:ring-primary"
+								></textarea>
+								<div class="flex items-center justify-end gap-2">
+									<button
+										type="button"
+										onclick={() => (isAnsweringMainQuestion = false)}
+										class="px-2.5 py-1 rounded-md text-xs font-medium text-muted-foreground hover:bg-muted"
+									>
+										Annuler
+									</button>
+									<button
+										type="button"
+										onclick={submitMainQuestionAnswer}
+										disabled={!mainQuestionAnswer.trim()}
+										class="inline-flex items-center gap-1.5 px-3 py-1 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-2xs transition-colors disabled:opacity-50"
+									>
+										<CheckCircle2 class="h-3.5 w-3.5" />
+										<span>Acter directement (L3)</span>
+									</button>
+								</div>
+							</div>
+						{/if}
+					</div>
+
+					<!-- Sous-questions / MANQUE (Questions ouvertes aux experts) -->
+					{#if draft.manque && draft.manque.length > 0}
+						<div class="space-y-2 pt-2 border-t border-blue-500/20">
+							<div class="flex items-center justify-between">
+								<span class="text-[11px] font-bold text-blue-900 dark:text-blue-300 flex items-center gap-1">
+									<span>Sous-questions ouvertes aux experts ({draft.manque.length}) :</span>
+								</span>
+							</div>
+							<div class="grid grid-cols-1 gap-2">
+								{#each draft.manque as m}
+									<div class="bg-background rounded-lg p-2.5 border border-border/70 space-y-2 shadow-2xs">
+										<div class="flex items-start justify-between gap-2 text-xs">
+											<div class="flex items-start gap-1.5 flex-1">
+												<span class="font-mono font-bold text-blue-600 dark:text-blue-400 shrink-0">[{m.id}]</span>
+												<span class="text-foreground font-medium">{m.question}</span>
+											</div>
+											<div class="flex items-center gap-1.5 shrink-0">
+												<span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-muted text-muted-foreground border whitespace-nowrap">
+													{m.assigned_role}
+												</span>
+												<button
+													type="button"
+													onclick={() => {
+														if (answeringGapId === m.id) {
+															answeringGapId = null;
+															gapAnswerText = '';
+														} else {
+															answeringGapId = m.id;
+															gapAnswerText = '';
+														}
+													}}
+													class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md text-[11px] font-semibold border transition-colors {answeringGapId === m.id ? 'bg-muted text-foreground' : 'bg-primary/10 hover:bg-primary/20 text-primary border-primary/20'}"
+												>
+													<PenLine class="h-3 w-3" />
+													<span>{answeringGapId === m.id ? 'Fermer' : 'Répondre'}</span>
+												</button>
+											</div>
+										</div>
+
+										{#if answeringGapId === m.id}
+											<div class="pt-2 border-t space-y-2 bg-muted/10 p-2 rounded-md">
+												<textarea
+													bind:value={gapAnswerText}
+													placeholder="Réponse factuelle ou consigne d'expert pour clôturer ce point..."
+													rows="2"
+													class="w-full text-xs p-2 rounded-md border bg-background placeholder:text-muted-foreground focus:outline-hidden focus:ring-1 focus:ring-primary"
+												></textarea>
+												<div class="flex items-center justify-end gap-2">
+													<button
+														type="button"
+														onclick={() => (answeringGapId = null)}
+														class="px-2 py-0.5 rounded text-xs text-muted-foreground hover:bg-muted"
+													>
+														Annuler
+													</button>
+													<button
+														type="button"
+														onclick={() => submitGapAnswer(m.id)}
+														disabled={!gapAnswerText.trim()}
+														class="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold disabled:opacity-50"
+													>
+														<CheckCircle2 class="h-3 w-3" />
+														<span>Valider & Clôturer ce point</span>
+													</button>
+												</div>
+											</div>
+										{/if}
+									</div>
+								{/each}
+							</div>
+						</div>
+					{/if}
+				</div>
+
+				<!-- 2. LE PROBLÈME À TRANCHER (DILEMME & CONTRADICTIONS) -->
 				<div class="rounded-xl border-2 border-amber-500/30 bg-amber-500/[0.04] p-3.5 space-y-2.5">
 					<div class="flex items-center justify-between">
 						<span class="text-xs font-bold uppercase tracking-wider text-amber-800 dark:text-amber-400 flex items-center gap-1.5">
 							<AlertTriangle class="h-4 w-4 text-amber-600" />
-							<span>Le Problème à Trancher (Dilemme d'Architecture)</span>
+							<span>2. Dilemme & Contradictions à Arbitrer</span>
 						</span>
 						{#if draft.conflit.length > 0}
 							<span class="font-mono text-[10px] px-2 py-0.5 rounded font-bold uppercase bg-rose-500/10 text-rose-700 dark:text-rose-400 border border-rose-500/20">
@@ -474,7 +755,7 @@
 					{/if}
 				</div>
 
-				<!-- 2. MATRICE MULTI-CRITÈRES & ALTERNATIVES (LOT A2) -->
+				<!-- 3. MATRICE MULTI-CRITÈRES & ALTERNATIVES (LOT A2) -->
 				<div class="space-y-3">
 					{#if matrixOptions.length > 0 || matrixCriteria.length > 0}
 						<OptionsMatrix
@@ -590,10 +871,50 @@
 			<!-- ═════════════════════════════════════════════════════════════════ -->
 			{:else if activeTab === 'draft'}
 				<!-- 1. RETENU -->
-				<div class="rounded-lg bg-muted/30 p-3 border space-y-1.5">
-					<span class="text-[11px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400 block">
-						Décisions Actées & Retenues
-					</span>
+				<div class="rounded-lg bg-muted/30 p-3 border space-y-2">
+					<div class="flex items-center justify-between">
+						<span class="text-[11px] font-bold uppercase tracking-wider text-emerald-700 dark:text-emerald-400 block">
+							Décisions Actées & Retenues (RETENU)
+						</span>
+						<button
+							type="button"
+							onclick={() => (isAddingCustomRetenu = !isAddingCustomRetenu)}
+							class="inline-flex items-center gap-1 text-[11px] font-semibold text-emerald-700 dark:text-emerald-400 hover:underline cursor-pointer"
+						>
+							<Plus class="h-3 w-3" />
+							<span>{isAddingCustomRetenu ? 'Fermer' : 'Ajouter un point acté'}</span>
+						</button>
+					</div>
+
+					{#if isAddingCustomRetenu}
+						<div class="p-2.5 rounded-lg border bg-background space-y-2">
+							<input
+								type="text"
+								bind:value={customRetenuText}
+								placeholder="Décision factuelle actée (ex: jalons CoDir S4, contrainte validée...)"
+								class="w-full text-xs p-1.5 rounded border bg-background"
+							/>
+							<div class="flex items-center justify-end gap-2">
+								<button
+									type="button"
+									onclick={() => (isAddingCustomRetenu = false)}
+									class="text-[11px] px-2 py-0.5 rounded text-muted-foreground hover:bg-muted"
+								>
+									Annuler
+								</button>
+								<button
+									type="button"
+									onclick={submitCustomRetenu}
+									disabled={!customRetenuText.trim()}
+									class="inline-flex items-center gap-1 text-[11px] px-2.5 py-1 rounded bg-emerald-600 text-white font-bold disabled:opacity-50"
+								>
+									<Check class="h-3 w-3" />
+									<span>Acter ce point</span>
+								</button>
+							</div>
+						</div>
+					{/if}
+
 					{#if draft.retenu.length === 0}
 						<p class="text-xs italic text-muted-foreground">Aucune décision actée pour le moment.</p>
 					{:else}

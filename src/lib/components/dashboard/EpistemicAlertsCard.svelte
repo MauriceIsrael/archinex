@@ -14,12 +14,14 @@
 	} from 'lucide-svelte';
 
 	let {
-		alerts,
+		alerts = [],
 		totalOverrunsKiloEuros = 0
 	}: {
-		alerts: EpistemicAlert[];
+		alerts?: EpistemicAlert[];
 		totalOverrunsKiloEuros?: number;
 	} = $props();
+
+	const safeAlerts = $derived(Array.isArray(alerts) ? alerts : []);
 
 	function jumpToArbitration(engagementId: string) {
 		deliberationStore.switchEngagement(engagementId);
@@ -52,7 +54,7 @@
 	</div>
 
 	<div class="p-5 flex-1 flex flex-col justify-between">
-		{#if alerts.length === 0}
+		{#if safeAlerts.length === 0}
 			<div class="py-12 flex flex-col items-center justify-center text-center text-muted-foreground">
 				<CheckCircle2 class="h-10 w-10 text-emerald-500 mb-2" />
 				<p class="font-bold text-sm text-foreground">Aucun blocage ou conflit ouvert</p>
@@ -60,7 +62,7 @@
 			</div>
 		{:else}
 			<div class="space-y-3">
-				{#each alerts.slice(0, 5) as alert (alert.id)}
+				{#each safeAlerts.slice(0, 5) as alert (alert.id)}
 					<div class="p-3.5 rounded-xl border bg-background/80 hover:bg-muted/40 transition-all flex flex-col sm:flex-row sm:items-center justify-between gap-3 group">
 						<div class="flex items-start gap-3">
 							<div class="mt-0.5 shrink-0">

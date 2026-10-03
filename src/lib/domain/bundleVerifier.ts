@@ -201,7 +201,7 @@ export function verifyEngagementBundle(bundle: EngagementBundle): BundleProblem[
 	}
 
 	const arch = data.architecture || { elements: [], relations: [] };
-	const collections: Record<string, Array<{ id?: string; [key: string]: unknown }>> = {
+	const collections: Record<string, Array<any>> = {
 		source_documents: data.source_documents || [],
 		requirements: data.requirements || [],
 		subjects: data.subjects || [],

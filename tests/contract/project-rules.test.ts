@@ -128,7 +128,7 @@ describe('Lot A30 Contract Tests: Règles du projet, désactivation justifiée, 
 			})
 		} as unknown as RequestEvent;
 
-		const response = await disableEndpoint(mockEvent);
+		const response = await disableEndpoint(mockEvent as any);
 		expect(response.status).toBe(400);
 		const data = await response.json();
 		expect(data.error).toContain('justification explicite');
@@ -144,7 +144,7 @@ describe('Lot A30 Contract Tests: Règles du projet, désactivation justifiée, 
 			})
 		} as unknown as RequestEvent;
 
-		const response = await disableEndpoint(mockEvent);
+		const response = await disableEndpoint(mockEvent as any);
 		expect(response.status).toBe(403);
 	});
 
@@ -164,7 +164,7 @@ describe('Lot A30 Contract Tests: Règles du projet, désactivation justifiée, 
 			})
 		} as unknown as RequestEvent;
 
-		const response = await disableEndpoint(mockEvent);
+		const response = await disableEndpoint(mockEvent as any);
 		expect(response.status).toBe(200);
 
 		// Vérifier l'état dans la base
@@ -216,7 +216,7 @@ describe('Lot A30 Contract Tests: Règles du projet, désactivation justifiée, 
 			})
 		} as unknown as RequestEvent;
 
-		const response = await localRuleEndpoint(mockEvent);
+		const response = await localRuleEndpoint(mockEvent as any);
 		expect(response.status).toBe(400);
 		const data = await response.json();
 		expect(data.error).toContain('Vocabulaire invalide');
@@ -292,7 +292,7 @@ describe('Lot A30 Contract Tests: Règles du projet, désactivation justifiée, 
 			})
 		} as unknown as RequestEvent;
 
-		const response = await affirmEndpoint(mockSelfAffirmEvent);
+		const response = await affirmEndpoint(mockSelfAffirmEvent as any);
 		expect(response.status).toBe(409);
 		const data = await response.json();
 		expect(data.error).toContain('Invariant K16 violé');
@@ -317,7 +317,7 @@ describe('Lot A30 Contract Tests: Règles du projet, désactivation justifiée, 
 			})
 		} as unknown as RequestEvent;
 
-		const response = await affirmEndpoint(mockDistinctAffirmEvent);
+		const response = await affirmEndpoint(mockDistinctAffirmEvent as any);
 		expect(response.status).toBe(200);
 		const data = await response.json();
 		expect(data.rule.status).toBe('affirmed');
@@ -361,7 +361,7 @@ describe('Lot A30 Contract Tests: Règles du projet, désactivation justifiée, 
 			})
 		} as unknown as RequestEvent;
 
-		const response = await proposeKbEndpoint(mockKbEvent);
+		const response = await proposeKbEndpoint(mockKbEvent as any);
 		expect(response.status).toBe(201);
 		const data = await response.json();
 

@@ -13,7 +13,9 @@
 		Sparkles,
 		AtSign,
 		Hash,
-		Layers
+		Layers,
+		CornerDownRight,
+		X
 	} from 'lucide-svelte';
 
 	let {
@@ -21,6 +23,8 @@
 		projectId = '',
 		options = [],
 		allowedKbRefs = [],
+		replyingTo = null,
+		onCancelReply = () => {},
 		onArgumentCreated = (created: Argument, triggeredArgs?: Argument[]) => {},
 		onError = (msg: string) => {}
 	}: {
@@ -28,6 +32,8 @@
 		projectId: string;
 		options?: Option[];
 		allowedKbRefs?: string[];
+		replyingTo?: Argument | null;
+		onCancelReply?: () => void;
 		onArgumentCreated?: (created: Argument, triggeredArgs?: Argument[]) => void;
 		onError?: (msg: string) => void;
 	} = $props();
@@ -151,7 +157,8 @@
 					claim: claim.trim(),
 					grounds: grounds.trim(),
 					confidence: 'designed',
-					kbRefs: extracted.kbRefs
+					kbRefs: extracted.kbRefs,
+					targetArgumentId: replyingTo?.id || null
 				})
 			});
 
@@ -170,6 +177,9 @@
 			claim = '';
 			grounds = '';
 			activeMentionType = null;
+			if (replyingTo) {
+				onCancelReply();
+			}
 		} catch (err: any) {
 			onError(err.message);
 		} finally {
@@ -179,76 +189,157 @@
 </script>
 
 <div class="rounded-xl border bg-card p-4 space-y-3.5 shadow-2xs relative">
-	<!-- 1. SÉLECTEUR DE POSTURE : Puces cliquables -->
-	<div class="flex items-center justify-between gap-2 flex-wrap">
-		<div class="flex items-center gap-1.5 flex-wrap">
-			<span class="text-xs font-bold text-foreground mr-1">Posture :</span>
-
+	<!-- BANNIÈRE DE CITATION / RÉPONSE EN COURS -->
+	{#if replyingTo}
+		<div class="rounded-lg border border-primary/30 bg-primary/5 p-2.5 flex items-start justify-between gap-3 text-xs">
+			<div class="space-y-0.5 min-w-0">
+				<div class="flex items-center gap-1.5 font-semibold text-primary text-[11px]">
+					<CornerDownRight class="h-3.5 w-3.5 shrink-0" />
+					<span>En réponse à {replyingTo.author} ({formatStanceLabel(replyingTo.stance)}) :</span>
+				</div>
+				<p class="text-foreground text-xs italic truncate">
+					« {replyingTo.claim} »
+				</p>
+			</div>
 			<button
 				type="button"
-				onclick={() => (stance = 'support')}
-				class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer {stance ===
-				'support'
-					? 'bg-emerald-600 text-white shadow-xs'
-					: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/20 border border-emerald-500/30'}"
+				onclick={onCancelReply}
+				class="p-1 rounded text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors cursor-pointer shrink-0"
+				title="Annuler la réponse ciblée"
 			>
-				<CheckCircle2 class="h-3.5 w-3.5" />
-				<span>Soutenir</span>
-			</button>
-
-			<button
-				type="button"
-				onclick={() => (stance = 'objection')}
-				class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer {stance ===
-				'objection'
-					? 'bg-rose-600 text-white shadow-xs'
-					: 'bg-rose-500/10 text-rose-700 dark:text-rose-300 hover:bg-rose-500/20 border border-rose-500/30'}"
-			>
-				<AlertCircle class="h-3.5 w-3.5" />
-				<span>Objecter</span>
-			</button>
-
-			<button
-				type="button"
-				onclick={() => (stance = 'question')}
-				class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer {stance ===
-				'question'
-					? 'bg-amber-600 text-white shadow-xs'
-					: 'bg-amber-500/10 text-amber-700 dark:text-amber-300 hover:bg-amber-500/20 border border-amber-500/30'}"
-			>
-				<HelpCircle class="h-3.5 w-3.5" />
-				<span>Questionner</span>
-			</button>
-
-			<button
-				type="button"
-				onclick={() => (stance = 'verification')}
-				class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer {stance ===
-				'verification'
-					? 'bg-cyan-600 text-white shadow-xs'
-					: 'bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 hover:bg-cyan-500/20 border border-cyan-500/30'}"
-			>
-				<BookOpen class="h-3.5 w-3.5" />
-				<span>Vérifier</span>
+				<X class="h-3.5 w-3.5" />
 			</button>
 		</div>
+	{/if}
 
-		<!-- Ciblage d'option (Transverse ou spécifique) -->
-		{#if options.length > 0}
-			<div class="flex items-center gap-1.5 text-xs">
-				<label for="compose-option" class="text-muted-foreground font-medium">Option :</label>
-				<select
-					id="compose-option"
-					bind:value={selectedOptionId}
-					class="px-2 py-1 text-xs rounded-md border bg-background text-foreground"
+	<!-- 1. SÉLECTEUR DE POSTURE & QUICK AGENT CHIPS -->
+	<div class="space-y-2">
+		<div class="flex items-center justify-between gap-2 flex-wrap">
+			<div class="flex items-center gap-1.5 flex-wrap">
+				<span class="text-xs font-bold text-foreground mr-1">Posture :</span>
+
+				<button
+					type="button"
+					onclick={() => (stance = 'support')}
+					class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer {stance ===
+					'support'
+						? 'bg-emerald-600 text-white shadow-xs'
+						: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/20 border border-emerald-500/30'}"
 				>
-					<option value="">Transverse (toutes options)</option>
-					{#each options as opt}
-						<option value={opt.id}>{opt.title}</option>
-					{/each}
-				</select>
+					<CheckCircle2 class="h-3.5 w-3.5" />
+					<span>Soutenir</span>
+				</button>
+
+				<button
+					type="button"
+					onclick={() => (stance = 'objection')}
+					class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer {stance ===
+					'objection'
+						? 'bg-rose-600 text-white shadow-xs'
+						: 'bg-rose-500/10 text-rose-700 dark:text-rose-300 hover:bg-rose-500/20 border border-rose-500/30'}"
+				>
+					<AlertCircle class="h-3.5 w-3.5" />
+					<span>Objecter</span>
+				</button>
+
+				<button
+					type="button"
+					onclick={() => (stance = 'question')}
+					class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer {stance ===
+					'question'
+						? 'bg-amber-600 text-white shadow-xs'
+						: 'bg-amber-500/10 text-amber-700 dark:text-amber-300 hover:bg-amber-500/20 border border-amber-500/30'}"
+				>
+					<HelpCircle class="h-3.5 w-3.5" />
+					<span>Questionner</span>
+				</button>
+
+				<button
+					type="button"
+					onclick={() => (stance = 'verification')}
+					class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer {stance ===
+					'verification'
+						? 'bg-cyan-600 text-white shadow-xs'
+						: 'bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 hover:bg-cyan-500/20 border border-cyan-500/30'}"
+				>
+					<BookOpen class="h-3.5 w-3.5" />
+					<span>Vérifier</span>
+				</button>
 			</div>
-		{/if}
+
+			<!-- Ciblage d'option (Transverse ou spécifique) -->
+			{#if options.length > 0}
+				<div class="flex items-center gap-1.5 text-xs">
+					<label for="compose-option" class="text-muted-foreground font-medium">Option :</label>
+					<select
+						id="compose-option"
+						bind:value={selectedOptionId}
+						class="px-2 py-1 text-xs rounded-md border bg-background text-foreground"
+					>
+						<option value="">Transverse (toutes options)</option>
+						{#each options as opt}
+							<option value={opt.id}>{opt.title}</option>
+						{/each}
+					</select>
+				</div>
+			{/if}
+		</div>
+
+		<!-- Puces d'assistance rapide des Agents LLM -->
+		<div class="flex items-center gap-1.5 flex-wrap pt-0.5">
+			<span class="text-[11px] font-semibold text-muted-foreground flex items-center gap-1">
+				<Sparkles class="h-3 w-3 text-purple-600" />
+				<span>Solliciter un agent :</span>
+			</span>
+
+			<button
+				type="button"
+				onclick={() => {
+					grounds = grounds.includes('@challenger') ? grounds : `${grounds.trim()} @challenger `.trimStart();
+				}}
+				class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono font-medium border border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-300 hover:bg-rose-500/20 cursor-pointer transition-colors"
+				title="Insère @challenger pour demander à l'agent de trouver les failles"
+			>
+				<span>@challenger</span>
+				<span class="text-muted-foreground font-sans">Attaquer</span>
+			</button>
+
+			<button
+				type="button"
+				onclick={() => {
+					grounds = grounds.includes('@proposer') ? grounds : `${grounds.trim()} @proposer `.trimStart();
+				}}
+				class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono font-medium border border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-300 hover:bg-blue-500/20 cursor-pointer transition-colors"
+				title="Insère @proposer pour suggérer une nouvelle option"
+			>
+				<span>@proposer</span>
+				<span class="text-muted-foreground font-sans">Proposer</span>
+			</button>
+
+			<button
+				type="button"
+				onclick={() => {
+					grounds = grounds.includes('@verifier') ? grounds : `${grounds.trim()} @verifier `.trimStart();
+				}}
+				class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono font-medium border border-cyan-500/30 bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 hover:bg-cyan-500/20 cursor-pointer transition-colors"
+				title="Insère @verifier pour contrôler la conformité doctrine"
+			>
+				<span>@verifier</span>
+				<span class="text-muted-foreground font-sans">Vérifier</span>
+			</button>
+
+			<button
+				type="button"
+				onclick={() => {
+					grounds = grounds.includes('@synthesizer') ? grounds : `${grounds.trim()} @synthesizer `.trimStart();
+				}}
+				class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono font-medium border border-purple-500/30 bg-purple-500/10 text-purple-700 dark:text-purple-300 hover:bg-purple-500/20 cursor-pointer transition-colors"
+				title="Insère @synthesizer pour résumer et proposer un compromis"
+			>
+				<span>@synthesizer</span>
+				<span class="text-muted-foreground font-sans">Synthétiser</span>
+			</button>
+		</div>
 	</div>
 
 	<!-- 2. CHAMP AFFIRMATION (claim) -->

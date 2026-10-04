@@ -47,9 +47,11 @@
 	<!-- PHASE 2 : DÉLIBÉRATION ARCHITECTURALE                                      -->
 	<!-- ═════════════════════════════════════════════════════════════════════════ -->
 	{:else if deliberationStore.activePosture === 'deliberation'}
-		<div class="space-y-4 animate-in fade-in duration-150">
-			<!-- Tableau de bord opérationnel & KPIs de Délibération -->
-			<DeliberationDashboardKpis />
+		<div class="space-y-3 animate-in fade-in duration-150">
+			<!-- Tableau de bord opérationnel & KPIs de Délibération (affiché en vue Board) -->
+			{#if deliberationStore.deliberationViewMode === 'board'}
+				<DeliberationDashboardKpis />
+			{/if}
 
 			<!-- Règle doctrinale candidate (si détectée lors des échanges) -->
 			<RuleApprovalBanner />

@@ -66,6 +66,8 @@
 	let contestationReason = $state<string | undefined>(undefined);
 	let isLoadingArguments = $state(false);
 	let isDebating = $state(false);
+	let invokingAgentRole = $state<string | null>(null);
+	let replyingTo = $state<Argument | null>(null);
 
 	// Navigation et modes d'affichage du fil
 	type ViewMode = 'thread' | 'synthesis';
@@ -363,12 +365,57 @@
 		}
 	}
 
+	async function handleInvokeAgent(role: 'challenger' | 'proposer' | 'verifier' | 'synthesizer') {
+		if (invokingAgentRole || isDebating || !projectId || !subjectId) return;
+		invokingAgentRole = role;
+		try {
+			const res = await fetch(`/api/projects/${projectId}/subjects/${subjectId}/debate`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ agentRole: role })
+			});
+
+			if (!res.ok) {
+				const err = await res.json().catch(() => ({}));
+				throw new Error(err.message || `Erreur lors de la sollicitation de l'agent @${role}`);
+			}
+
+			const data = await res.json();
+			await loadArgumentsAndContext();
+			deliberationStore.logNotification(
+				data.message || `L'agent @${role} est intervenu avec succès.`,
+				'success'
+			);
+		} catch (err: any) {
+			deliberationStore.logNotification(err.message || 'Erreur agent', 'warning');
+		} finally {
+			invokingAgentRole = null;
+		}
+	}
+
 	function scrollToNextUnresolvedObjection() {
-		const elem = document.querySelector('[data-stance="objection"]');
-		if (elem) {
-			elem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+		// Chercher les éléments d'objection ouverte
+		const openObjections = document.querySelectorAll('[data-stance="objection"]');
+		// Trouver le premier qui contient "Objection ouverte"
+		let targetElem: HTMLElement | null = null;
+		for (const el of openObjections) {
+			if (el.textContent?.includes('Objection ouverte')) {
+				targetElem = el as HTMLElement;
+				break;
+			}
+		}
+		if (!targetElem && openObjections.length > 0) {
+			targetElem = openObjections[0] as HTMLElement;
+		}
+
+		if (targetElem) {
+			targetElem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+			targetElem.classList.add('ring-2', 'ring-rose-500', 'transition-all');
+			setTimeout(() => {
+				targetElem?.classList.remove('ring-2', 'ring-rose-500');
+			}, 2000);
 		} else {
-			deliberationStore.logNotification("Aucune objection non résolue dans le fil.", 'info');
+			deliberationStore.logNotification("Aucune objection ouverte trouvée dans le fil.", 'info');
 		}
 	}
 
@@ -422,21 +469,61 @@
 				</div>
 			</div>
 
-			<div class="flex items-center gap-2">
-				<!-- Lancer le débat multi-agents -->
+			<div class="flex items-center gap-1.5 flex-wrap">
+				<!-- Menu ou boutons d'appel direct d'un agent -->
+				<div class="inline-flex items-center rounded-lg border bg-background p-0.5 text-xs shadow-2xs">
+					<button
+						type="button"
+						disabled={isDebating || invokingAgentRole !== null}
+						onclick={() => handleInvokeAgent('challenger')}
+						class="px-2 py-1 rounded-md text-[11px] font-semibold text-rose-700 dark:text-rose-400 hover:bg-rose-500/10 disabled:opacity-40 transition-colors cursor-pointer"
+						title="Appeler @challenger pour trouver les failles et formuler des objections"
+					>
+						{invokingAgentRole === 'challenger' ? 'Challenger...' : '⚔️ Challenger'}
+					</button>
+					<button
+						type="button"
+						disabled={isDebating || invokingAgentRole !== null}
+						onclick={() => handleInvokeAgent('proposer')}
+						class="px-2 py-1 rounded-md text-[11px] font-semibold text-blue-700 dark:text-blue-400 hover:bg-blue-500/10 disabled:opacity-40 transition-colors cursor-pointer"
+						title="Appeler @proposer pour suggérer une nouvelle option"
+					>
+						{invokingAgentRole === 'proposer' ? 'Proposer...' : '💡 Proposer'}
+					</button>
+					<button
+						type="button"
+						disabled={isDebating || invokingAgentRole !== null}
+						onclick={() => handleInvokeAgent('verifier')}
+						class="px-2 py-1 rounded-md text-[11px] font-semibold text-cyan-700 dark:text-cyan-400 hover:bg-cyan-500/10 disabled:opacity-40 transition-colors cursor-pointer"
+						title="Appeler @verifier pour contrôler la conformité à la doctrine"
+					>
+						{invokingAgentRole === 'verifier' ? 'Vérifier...' : '🛡️ Vérifier'}
+					</button>
+					<button
+						type="button"
+						disabled={isDebating || invokingAgentRole !== null}
+						onclick={() => handleInvokeAgent('synthesizer')}
+						class="px-2 py-1 rounded-md text-[11px] font-semibold text-purple-700 dark:text-purple-400 hover:bg-purple-500/10 disabled:opacity-40 transition-colors cursor-pointer"
+						title="Appeler @synthesizer pour résumer et proposer un arbitrage"
+					>
+						{invokingAgentRole === 'synthesizer' ? 'Synthèse...' : '⚖️ Synthèse'}
+					</button>
+				</div>
+
+				<!-- Lancer le débat contradictoire complet multi-agents -->
 				<button
 					type="button"
-					disabled={isDebating}
+					disabled={isDebating || invokingAgentRole !== null}
 					onclick={handleLaunchDebate}
 					class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
-					title="Déclencher les agents Proposer, Challenger et Synthesizer"
+					title="Déclencher un débat contradictoire complet (Proposer + Challenger + Synthesizer)"
 				>
 					{#if isDebating}
 						<RotateCcw class="h-3.5 w-3.5 animate-spin" />
 						<span>Débat...</span>
 					{:else}
 						<Sparkles class="h-3.5 w-3.5" />
-						<span>Débat IA</span>
+						<span>Débat complet</span>
 					{/if}
 				</button>
 
@@ -638,12 +725,48 @@
 			<div class="p-8 text-center text-xs text-muted-foreground animate-pulse">
 				Chargement de la conversation...
 			</div>
+		{:else if argumentsList.length === 0}
+			<!-- Empty state spécifique quand le sujet a 0 message (nouveau sujet) -->
+			<div class="p-8 text-center border-2 border-dashed rounded-xl space-y-4 bg-muted/5 max-w-lg mx-auto my-6">
+				<div class="p-3 rounded-full bg-primary/10 text-primary w-fit mx-auto">
+					<Sparkles class="h-6 w-6" />
+				</div>
+				<div class="space-y-1.5">
+					<h4 class="text-sm font-bold text-foreground">Délibération ouverte</h4>
+					<p class="text-xs text-muted-foreground leading-relaxed">
+						Ce sujet est prêt pour l'analyse d'architecture. Vous pouvez initier le débat en formulant une question ou une proposition ci-dessous, ou solliciter directement l'un de nos agents spécialisés.
+					</p>
+				</div>
+
+				<div class="grid grid-cols-2 gap-2 text-left pt-2">
+					<button
+						type="button"
+						onclick={() => handleInvokeAgent('proposer')}
+						disabled={invokingAgentRole !== null}
+						class="p-2.5 rounded-lg border bg-card hover:bg-muted/50 transition-colors text-xs space-y-0.5 cursor-pointer"
+					>
+						<span class="font-bold text-blue-600 dark:text-blue-400 block">💡 @proposer</span>
+						<span class="text-[11px] text-muted-foreground">Formuler les premières options techniques</span>
+					</button>
+
+					<button
+						type="button"
+						onclick={() => handleInvokeAgent('verifier')}
+						disabled={invokingAgentRole !== null}
+						class="p-2.5 rounded-lg border bg-card hover:bg-muted/50 transition-colors text-xs space-y-0.5 cursor-pointer"
+					>
+						<span class="font-bold text-cyan-600 dark:text-cyan-400 block">🛡️ @verifier</span>
+						<span class="text-[11px] text-muted-foreground">Vérifier les contraintes de doctrine</span>
+					</button>
+				</div>
+			</div>
 		{:else if displayedArguments.length === 0}
+			<!-- Empty state quand un filtre masque tous les messages existants -->
 			<div class="p-8 text-center border-2 border-dashed rounded-xl space-y-2 bg-muted/10">
 				<Bot class="h-8 w-8 text-muted-foreground/60 mx-auto" />
 				<h4 class="text-xs font-bold text-foreground">Aucun argument affiché pour ce filtre</h4>
 				<p class="text-xs text-muted-foreground max-w-sm mx-auto">
-					Basculez sur « Fil complet » ou utilisez le composeur ci-dessous pour poster votre analyse.
+					Basculez sur « Tous » ou « Fil complet » pour afficher l'ensemble des échanges ({argumentsList.length} arguments existants).
 				</p>
 			</div>
 		{:else}
@@ -658,6 +781,12 @@
 					{userRole}
 					{isHumanUser}
 					onResolve={handleResolveArgument}
+					onReply={(target) => {
+						replyingTo = target;
+						// Scroll composer into view
+						const composerElem = document.getElementById('compose-claim');
+						composerElem?.focus();
+					}}
 				/>
 			{/each}
 		{/if}
@@ -672,6 +801,8 @@
 			{projectId}
 			options={subjectOptions}
 			{allowedKbRefs}
+			{replyingTo}
+			onCancelReply={() => (replyingTo = null)}
 			onArgumentCreated={handleArgumentCreated}
 			onError={(msg) => deliberationStore.logNotification(msg, 'warning')}
 		/>

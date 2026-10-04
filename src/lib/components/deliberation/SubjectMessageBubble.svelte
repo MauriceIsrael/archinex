@@ -15,6 +15,7 @@
 		ShieldAlert,
 		ExternalLink,
 		CornerDownRight,
+		CornerDownLeft,
 		Check,
 		AlertTriangle
 	} from 'lucide-svelte';
@@ -24,13 +25,15 @@
 		targetArgument = null,
 		userRole = 'lead_architect',
 		isHumanUser = true,
-		onResolve = (arg: Argument, resolution: ArgumentResolution) => {}
+		onResolve = (arg: Argument, resolution: ArgumentResolution) => {},
+		onReply = (arg: Argument) => {}
 	}: {
 		argument: Argument;
 		targetArgument?: Argument | null;
 		userRole?: string;
 		isHumanUser?: boolean;
 		onResolve?: (arg: Argument, resolution: ArgumentResolution) => void;
+		onReply?: (arg: Argument) => void;
 	} = $props();
 
 	const isAgent = $derived(argument.authorKind.startsWith('agent:'));
@@ -112,22 +115,36 @@
 			</div>
 		</details>
 
-		<!-- Puces kbRefs cliquables -->
-		{#if argument.kbRefs && argument.kbRefs.length > 0}
-			<div class="flex items-center gap-1.5 flex-wrap pt-1 text-[11px]">
-				<span class="text-muted-foreground font-semibold">Doctrines :</span>
-				{#each argument.kbRefs as ref}
-					<a
-						href={`/knowledge?rule=${encodeURIComponent(ref)}`}
-						class="inline-flex items-center gap-1 font-mono text-[10px] px-2 py-0.5 rounded-full bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border border-indigo-500/30 font-bold hover:bg-indigo-500/25 transition-colors"
-						title="Consulter la fiche doctrinale dans /knowledge"
-					>
-						<span>§ {ref}</span>
-						<ExternalLink class="h-2.5 w-2.5 opacity-70" />
-					</a>
-				{/each}
-			</div>
-		{/if}
+		<!-- Puces kbRefs cliquables & Action Répondre -->
+		<div class="flex items-center justify-between gap-2 pt-1 border-t border-indigo-500/20 text-[11px] flex-wrap">
+			{#if argument.kbRefs && argument.kbRefs.length > 0}
+				<div class="flex items-center gap-1.5 flex-wrap">
+					<span class="text-muted-foreground font-semibold">Doctrines :</span>
+					{#each argument.kbRefs as ref}
+						<a
+							href={`/knowledge?rule=${encodeURIComponent(ref)}`}
+							class="inline-flex items-center gap-1 font-mono text-[10px] px-2 py-0.5 rounded-full bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border border-indigo-500/30 font-bold hover:bg-indigo-500/25 transition-colors"
+							title="Consulter la fiche doctrinale dans /knowledge"
+						>
+							<span>§ {ref}</span>
+							<ExternalLink class="h-2.5 w-2.5 opacity-70" />
+						</a>
+					{/each}
+				</div>
+			{:else}
+				<div></div>
+			{/if}
+
+			<button
+				type="button"
+				onclick={() => onReply(argument)}
+				class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold text-indigo-700 dark:text-indigo-300 hover:bg-indigo-500/15 transition-colors cursor-pointer ml-auto"
+				title="Répondre ou objecter à cette synthèse"
+			>
+				<CornerDownLeft class="h-3 w-3" />
+				<span>↩ Répondre</span>
+			</button>
+		</div>
 	</div>
 {:else}
 	<!-- ═════════════════════════════════════════════════════════════════════════ -->
@@ -216,22 +233,36 @@
 				</div>
 			</details>
 
-			<!-- Puces kbRefs cliquables -->
-			{#if argument.kbRefs && argument.kbRefs.length > 0}
-				<div class="flex items-center gap-1.5 flex-wrap pt-1 text-[11px]">
-					<span class="text-muted-foreground font-semibold text-[10px]">Doctrine :</span>
-					{#each argument.kbRefs as ref}
-						<a
-							href={`/knowledge?rule=${encodeURIComponent(ref)}`}
-							class="inline-flex items-center gap-1 font-mono text-[10px] px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-500/20 font-bold hover:bg-indigo-500/20 transition-colors"
-							title="Consulter la règle doctrinale"
-						>
-							<span>§ {ref}</span>
-							<ExternalLink class="h-2.5 w-2.5 opacity-60" />
-						</a>
-					{/each}
-				</div>
-			{/if}
+			<!-- Puces kbRefs cliquables & Bouton Répondre -->
+			<div class="flex items-center justify-between gap-2 pt-1 border-t border-border/30 text-[11px] flex-wrap">
+				{#if argument.kbRefs && argument.kbRefs.length > 0}
+					<div class="flex items-center gap-1.5 flex-wrap">
+						<span class="text-muted-foreground font-semibold text-[10px]">Doctrine :</span>
+						{#each argument.kbRefs as ref}
+							<a
+								href={`/knowledge?rule=${encodeURIComponent(ref)}`}
+								class="inline-flex items-center gap-1 font-mono text-[10px] px-2 py-0.5 rounded-full bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-500/20 font-bold hover:bg-indigo-500/20 transition-colors"
+								title="Consulter la règle doctrinale"
+							>
+								<span>§ {ref}</span>
+								<ExternalLink class="h-2.5 w-2.5 opacity-60" />
+							</a>
+						{/each}
+					</div>
+				{:else}
+					<div></div>
+				{/if}
+
+				<button
+					type="button"
+					onclick={() => onReply(argument)}
+					class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors cursor-pointer ml-auto"
+					title="Citer ce message dans le composeur"
+				>
+					<CornerDownLeft class="h-3 w-3" />
+					<span>↩ Répondre</span>
+				</button>
+			</div>
 
 			<!-- Résolution de l'objection si présente dans le message -->
 			{#if argument.stance === 'objection'}

@@ -82,7 +82,7 @@
 	<!-- ═════════════════════════════════════════════════════════════════════════ -->
 	<!-- 1. VUE MOBILE (< lg) : Affichage d'un onglet à la fois                    -->
 	<!-- ═════════════════════════════════════════════════════════════════════════ -->
-	<div class="block lg:hidden h-[750px]">
+	<div class="block lg:hidden h-[calc(100vh-210px)] min-h-[600px]">
 		{#if mobileTab === 'list'}
 			<SubjectConversationList
 				selectedSubjectId={activeSubjectId}
@@ -113,7 +113,7 @@
 	<!-- ═════════════════════════════════════════════════════════════════════════ -->
 	<!-- 2. VUE DESKTOP (>= lg) : DISPOSITION EN 3 COLONNES                        -->
 	<!-- ═════════════════════════════════════════════════════════════════════════ -->
-	<div class="hidden lg:grid grid-cols-12 gap-4 h-[780px] items-stretch">
+	<div class="hidden lg:grid grid-cols-12 gap-4 h-[calc(100vh-200px)] min-h-[650px] items-stretch">
 		<!-- Colonne 1 (Gauche) : Liste des conversations de sujets (3 cols) -->
 		<div class="col-span-3 h-full overflow-hidden">
 			<SubjectConversationList

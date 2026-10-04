@@ -128,6 +128,7 @@ class DeliberationStore {
 
 	activeSubjectId = $state<string>('');
 	activePosture = $state<DeliberationPosture>('deliberation');
+	deliberationViewMode = $state<'board' | 'conversation'>('board');
 	currentRole = $state<ArchitectRole>('lead_architect');
 	isHuman = $state<boolean>(true);
 	subjects = $state<MaturitySubject[]>([]);
@@ -577,6 +578,11 @@ class DeliberationStore {
 
 	selectSubject(id: string) {
 		this.activeSubjectId = id;
+		this.deliberationViewMode = 'conversation';
+	}
+
+	setDeliberationViewMode(mode: 'board' | 'conversation') {
+		this.deliberationViewMode = mode;
 	}
 
 	setActiveDocument(id: string) {

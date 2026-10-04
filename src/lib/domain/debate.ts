@@ -120,3 +120,110 @@ export function canCloseObjection(actorRole: string, isHuman: boolean): boolean 
 	if (!isHuman) return false;
 	return actorRole === 'lead_architect' || actorRole === 'domain_expert';
 }
+
+export interface ArgumentVisualAttributes {
+	alignment: 'left' | 'right' | 'full';
+	bubbleStyle: 'solid' | 'dashed' | 'synthesis';
+	isAgent: boolean;
+	badgeLabel: string; // 'IA' | 'Humain'
+	roleLabel: string;
+	stanceLabel: string;
+	stanceBadgeClass: string;
+	canCollapseGrounds: boolean;
+	hasTargetCitation: boolean;
+}
+
+export function formatAgentRole(authorKind: string): string {
+	switch (authorKind) {
+		case 'agent:proposer':
+			return 'Agent Proposeur';
+		case 'agent:challenger':
+			return 'Agent Challenger';
+		case 'agent:verifier':
+			return 'Agent Vérificateur';
+		case 'agent:synthesizer':
+			return 'Agent Synthétiseur';
+		default:
+			return authorKind.replace('agent:', 'Agent ');
+	}
+}
+
+export function formatStanceLabel(stance: Stance): string {
+	switch (stance) {
+		case 'support':
+			return 'Soutien';
+		case 'objection':
+			return 'Objection';
+		case 'question':
+			return 'Question';
+		case 'verification':
+			return 'Vérification';
+		case 'synthesis':
+			return 'Synthèse';
+	}
+}
+
+export function getStanceBadgeClass(stance: Stance): string {
+	switch (stance) {
+		case 'support':
+			return 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/20';
+		case 'objection':
+			return 'bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-500/20';
+		case 'question':
+			return 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/20';
+		case 'verification':
+			return 'bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 border-cyan-500/20';
+		case 'synthesis':
+			return 'bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border-indigo-500/20';
+	}
+}
+
+export function formatMaturityMilestoneSeparator(level: string): string {
+	switch (level) {
+		case 'L0_named':
+			return '── Cadrage initial L0 · Nommé ──';
+		case 'L1_framed':
+			return '── Passé à L1 · Cadré & Dilemme ──';
+		case 'L2_decomposed':
+			return '── Passé à L2 · Décomposé ──';
+		case 'L3_decided':
+			return '── Passé à L3 · Arbitré ──';
+		case 'L4_specified':
+			return '── Passé à L4 · Spécifié ──';
+		case 'L5_archived':
+			return '── Passé à L5 · Scellé ──';
+		default:
+			return `── Jalon ${level} ──`;
+	}
+}
+
+export function getArgumentVisualAttributes(arg: Argument): ArgumentVisualAttributes {
+	const isAgent = Boolean(arg.authorKind?.startsWith('agent:'));
+	const isSynthesis = arg.stance === 'synthesis';
+
+	if (isSynthesis) {
+		return {
+			alignment: 'full',
+			bubbleStyle: 'synthesis',
+			isAgent,
+			badgeLabel: isAgent ? 'IA' : 'Humain',
+			roleLabel: isAgent ? formatAgentRole(arg.authorKind) : arg.author,
+			stanceLabel: 'Synthèse',
+			stanceBadgeClass: 'bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border-indigo-500/20',
+			canCollapseGrounds: true,
+			hasTargetCitation: Boolean(arg.targetArgumentId)
+		};
+	}
+
+	return {
+		alignment: isAgent ? 'left' : 'right',
+		bubbleStyle: isAgent ? 'dashed' : 'solid',
+		isAgent,
+		badgeLabel: isAgent ? 'IA' : 'Humain',
+		roleLabel: isAgent ? formatAgentRole(arg.authorKind) : arg.author,
+		stanceLabel: formatStanceLabel(arg.stance),
+		stanceBadgeClass: getStanceBadgeClass(arg.stance),
+		canCollapseGrounds: true,
+		hasTargetCitation: Boolean(arg.targetArgumentId)
+	};
+}

@@ -17,6 +17,12 @@
 
 	type FilterType = 'all' | 'blocking' | 'todo' | 'decided';
 
+	let {
+		onOpenSubject
+	}: {
+		onOpenSubject?: (subjectId: string) => void;
+	} = $props();
+
 	let activeFilter = $state<FilterType>('all');
 	let selectedPartId = $state<string>('all');
 
@@ -82,6 +88,11 @@
 			case 'L5_archived': return 'L5 · Scellé';
 			default: return level;
 		}
+	}
+
+	function handleSelectSubject(id: string) {
+		deliberationStore.selectSubject(id);
+		onOpenSubject?.(id);
 	}
 </script>
 
@@ -211,10 +222,10 @@
 			{@const isSelected = sub.id === activeSubjectId}
 			<div
 				class="p-3.5 transition-colors cursor-pointer space-y-2.5 {isSelected ? 'bg-primary/10 border-l-4 border-primary' : 'hover:bg-muted/40'}"
-				onclick={() => deliberationStore.selectSubject(sub.id)}
+				onclick={() => handleSelectSubject(sub.id)}
 				role="button"
 				tabindex="0"
-				onkeydown={(e) => { if (e.key === 'Enter') deliberationStore.selectSubject(sub.id); }}
+				onkeydown={(e) => { if (e.key === 'Enter') handleSelectSubject(sub.id); }}
 			>
 				<div class="flex items-start justify-between gap-2">
 					<div>
@@ -307,7 +318,7 @@
 						class="transition-colors hover:bg-muted/50 cursor-pointer {isSelected
 							? 'bg-primary/10 font-medium'
 							: ''}"
-						onclick={() => deliberationStore.selectSubject(sub.id)}
+						onclick={() => handleSelectSubject(sub.id)}
 					>
 						<!-- 1. Sujet & Stagnation -->
 						<td class="py-2.5 px-4">

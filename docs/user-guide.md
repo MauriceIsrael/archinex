@@ -10,10 +10,11 @@ Le **Workbench de Délibération Archinex** permet à une équipe d'ingénierie 
 
 L'interface est structurée autour de 3 zones opérationnelles :
 1. **En-tête & Sélecteur de Posture** : Détermine le mode de travail individuel de l'architecte (Appropriation, Délibération ou Rendu).
-2. **Zone Principale Bilatérale** :
-   - À gauche : **Board de Maturité** (priorisation stricte par le nombre de sujets débloqués en aval).
-   - À droite : **Brouillon-Appât Télégraphique** (lignes concises, surcoûts chiffrés en k€, détection automatique de modifications textuelles).
-3. **Zone Inférieure Dialectique** : Fil de discussion multi-canaux (interne et Discord) avec détection proactive des décisions antérieures (ADR) et inspecteur de dépendances.
+2. **Tableau de Maturité (Vue d'ensemble)** : Priorisation stricte par le nombre de sujets débloqués en aval et état d'avancement L0→L5.
+3. **Workbench de Délibération (Un sujet = Une conversation)** : Disposition sur 3 colonnes :
+   - À gauche : **Liste des Sujets**, navigation fluide de type messagerie/conversations.
+   - Au centre : **Fil du Sujet**, fil dialectique structuré distinguant sans ambiguïté les agents IA (à gauche, bordure pointillée, badge IA) des humains (à droite, bulle pleine, rôle), avec objections ouvertes épinglées en tête.
+   - À droite : **Dossier de Consultation (repliable)**, accès en lecture seule au brouillon télégraphique, à la matrice d'options multi-critères et aux références doctrinales.
 
 ---
 
@@ -36,25 +37,25 @@ L'interface est structurée autour de 3 zones opérationnelles :
 - **Action** : Prenez connaissance des exigences clés puis cliquez sur **« Passer en Délibération »** dès que le périmètre est clair.
 
 ### Posture 2 : Délibération & Cristallisation (Cœur Dialectique)
-- **Explorer le Board de Maturité** :
-  - Les sujets en haut du tableau sont ceux qui possèdent le plus fort effet multiplicateur (`Débloque`). Concentrez l'effort en priorité sur ces lignes.
-  - Repérez les pastilles orange de **stagnation (> 14 jours)** nécessitant une relance.
-- **Rectifier une hypothèse en place (Capteur par le Diff)** :
-  - Sur le panneau de droite, cliquez sur le bouton **« Rectifier »** à côté d'une hypothèse chiffrée.
-  - Modifiez directement la valeur (ex: remplacer `holdover ≥ 30 j` par `holdover ≥ 15 j`).
-  - Cliquez sur **« Valider la rectification »** : un énoncé auditable `human-authored` est automatiquement consigné.
-- **Trancher un conflit d'architecture** :
-  - Si un conflit ouvert est signalé en rouge, le Lead Architect clique sur **« Trancher (L3) »** après confrontation des options.
-  - La maturité passe instantanément à L3 et l'effet domino débloque les sections dépendantes.
-- **Rejeter une variante divergente** :
-  - Pour exclure une variante B non retenue, cliquez sur **« Rejeter cette variante »**, saisissez le motif d'exclusion opposable et validez.
-- **Inspecteur « Pourquoi ? » & Rétractation Causale** :
-  - En bas de chaque énoncé dans le panneau dialectique, cliquez sur **« Pourquoi ? »**.
-  - L'inspecteur affiche les 5 facettes de l'énoncé, son chemin de justification et calcule son rayon d'impact (*blast radius*).
-  - Cliquez sur **« Contester et Rétracter »** si l'hypothèse sous-jacente est compromise : le moteur DAG rétrograde automatiquement tous ses dépendants en cascade.
+- **Explorer le Board de Maturité & Ouvrir un Sujet** :
+  - Les sujets en haut du tableau sont ceux qui possèdent le plus fort effet multiplicateur (`Débloque`).
+  - Un simple clic sur une ligne du tableau ouvre directement le **Fil de Délibération du sujet** dans le Workbench 3 colonnes sans changer d'écran.
+- **Workbench de Délibération (3 colonnes)** :
+  - **Colonne de gauche (Liste des sujets)** : navigation instantanée entre toutes les conversations de sujets avec filtres rapides (Bloquants, À faire, Actés).
+  - **Colonne centrale (Fil du sujet)** :
+    - *Objections ouvertes épinglées* : restent en haut tant qu'elles ne sont pas résolues, avec actions formelles *Répondre*, *Accepter le risque* ou *Retirer* (habilitées selon `canCloseObjection`).
+    - *Grammaire visuelle* : les agents IA sont alignés à gauche (bordure pointillée, badge `IA` `llm-derived`), les humains à droite (bulle pleine, avatar et rôle).
+    - *Fondement* : lien dépliable « Pourquoi ? » révélant les bases factuelles de chaque affirmation.
+    - *Doctrines* : puces de référence cliquables (§ règle) menant à la fiche dans `/knowledge`.
+    - *Synthèse* : cartes pleine largeur posant les compromis de délibération.
+  - **Colonne de droite (Dossier repliable)** :
+    - Mode lecture seule regroupant le brouillon télégraphique, la matrice d'options multi-critères et le registre des doctrines mobilisées.
+    - Se replie/déplie d'un clic pour laisser un espace de lecture maximal au fil de délibération.
+- **Trancher un conflit d'architecture & Clore les objections** :
+  - Le Lead Architect traite les objections ouvertes et tranche le passage à L3 après épuisement des contradictions.
 - **Validation Tour 8 SmartMemory** :
   - Dès qu'une récurrence de décision est détectée, le bandeau supérieur propose la règle candidate.
-  - Le Lead Architect inspecte la requête SPARQL 1.1 et valide ou rejette l'inscription de la doctrine.
+  - Le Lead Architect inspecte la règle et valide ou rejette son inscription au référentiel.
 
 ### Posture 3 : Rendu & Homologation
 - **Vérifier la barrière de certification** :

@@ -23,7 +23,13 @@ export interface ActorContext {
 export interface TransitionResult {
 	allowed: boolean;
 	reason?: string;
-	code?: 'SUCCESS' | 'HUMAN_GATE_REQUIRED' | 'LEAD_ARCHITECT_ROLE_REQUIRED' | 'INVALID_LEVEL_TRANSITION';
+	code?:
+		| 'SUCCESS'
+		| 'HUMAN_GATE_REQUIRED'
+		| 'LEAD_ARCHITECT_ROLE_REQUIRED'
+		| 'INVALID_LEVEL_TRANSITION'
+		| 'CRITERIA_UNMET';
+	missingCriteria?: string[];
 }
 
 export type VisualGapType =
@@ -85,15 +91,19 @@ const MATURITY_HIERARCHY: MaturityLevel[] = [
 	'L5_archived'
 ];
 
+import { computeMaturityCriteria, type MaturityCriteriaInput } from './maturityCriteria';
+
 /**
  * Vérifie l'éligibilité d'une transition de maturité en appliquant les deux gates humains stricts :
  * - Gate Tour 8 (L3) : Interdiction formelle aux agents IA de promouvoir à L3 sans arbitrage humain.
  * - Gate Tour 11 (L4/L5) : Réservé exclusivement au Lead Architect humain.
+ * - Critères de passage calculés (optionnel si criteriaInput fourni).
  */
 export function canTransitionMaturity(
 	currentLevel: MaturityLevel,
 	targetLevel: MaturityLevel,
-	actor: ActorContext
+	actor: ActorContext,
+	criteriaInput?: MaturityCriteriaInput
 ): TransitionResult {
 	const currentIndex = MATURITY_HIERARCHY.indexOf(currentLevel);
 	const targetIndex = MATURITY_HIERARCHY.indexOf(targetLevel);
@@ -129,6 +139,20 @@ export function canTransitionMaturity(
 				allowed: false,
 				code: 'LEAD_ARCHITECT_ROLE_REQUIRED',
 				reason: 'Seul le Lead Architect peut homologuer (L4) ou archiver (L5) une décision architecturale.'
+			};
+		}
+	}
+
+	// Vérification approfondie des critères de passage si contexte fourni
+	if (criteriaInput) {
+		const report = computeMaturityCriteria(criteriaInput);
+		const targetTransition = report.transitions[targetLevel];
+		if (targetTransition && !targetTransition.allowed) {
+			return {
+				allowed: false,
+				code: 'CRITERIA_UNMET',
+				reason: `Critères de passage non remplis : ${targetTransition.missingReasons.join(' ; ')}. ${targetTransition.unblockHint || ''}`.trim(),
+				missingCriteria: targetTransition.missingReasons
 			};
 		}
 	}

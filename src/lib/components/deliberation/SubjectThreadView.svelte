@@ -11,6 +11,13 @@
 	import SubjectMessageBubble from './SubjectMessageBubble.svelte';
 	import PinnedObjections from './PinnedObjections.svelte';
 	import StructuredComposer from './StructuredComposer.svelte';
+	import MaturityStepper from './MaturityStepper.svelte';
+	import {
+		computeMaturityCriteria,
+		type MaturityTransitionsReport,
+		type MaturityCriterion
+	} from '$lib/domain/maturityCriteria';
+	import type { MaturityLevel } from '$lib/types/epistemic';
 	import {
 		Bot,
 		FolderLock,
@@ -49,6 +56,7 @@
 	let argumentsList = $state<Argument[]>([]);
 	let subjectOptions = $state<Option[]>([]);
 	let allowedKbRefs = $state<string[]>([]);
+	let criteriaReport = $state<MaturityTransitionsReport | null>(null);
 	let isLoadingArguments = $state(false);
 	let isDebating = $state(false);
 
@@ -62,6 +70,32 @@
 	let lastVisitedTimestamp = $state<number>(Date.now() - 90_000_000); // Ex: simulé > 24h par défaut ou stocké
 
 	const activeSubject = $derived(deliberationStore.activeSubject);
+
+	// Calcul d'un rapport de maturité de secours / réactif
+	const computedReport = $derived.by<MaturityTransitionsReport | null>(() => {
+		if (!activeSubject) return null;
+		return computeMaturityCriteria({
+			subject: {
+				id: activeSubject.id,
+				name: activeSubject.name,
+				problemStatement: null,
+				sectionRef: activeSubject.section_ref,
+				level: activeSubject.level,
+				hubLevel: activeSubject.level,
+				is_stalled: activeSubject.is_stalled,
+				stall_days: activeSubject.stall_days
+			},
+			options: subjectOptions.map((o) => ({ id: o.id, title: o.title })),
+			arguments: argumentsList,
+			actor: {
+				userId: 'current-user',
+				role: userRole,
+				isHuman: isHumanUser
+			}
+		});
+	});
+
+	const effectiveReport = $derived(criteriaReport || computedReport);
 
 	// Objections ouvertes (épinglées en haut)
 	const openObjections = $derived(
@@ -110,10 +144,11 @@
 		if (!projectId || !subjectId) return;
 		isLoadingArguments = true;
 		try {
-			const [argsRes, optsRes, docRes] = await Promise.all([
+			const [argsRes, optsRes, docRes, critRes] = await Promise.all([
 				fetch(`/api/projects/${projectId}/subjects/${subjectId}/arguments`),
 				fetch(`/api/projects/${projectId}/subjects/${subjectId}/options`),
-				fetch(`/api/projects/${projectId}/subjects/${subjectId}/doctrine-context`)
+				fetch(`/api/projects/${projectId}/subjects/${subjectId}/doctrine-context`),
+				fetch(`/api/projects/${projectId}/subjects/${subjectId}/maturity-criteria`).catch(() => null)
 			]);
 
 			if (argsRes.ok) {
@@ -136,10 +171,108 @@
 			} else {
 				allowedKbRefs = [];
 			}
+
+			if (critRes && critRes.ok) {
+				const critData = await critRes.json();
+				criteriaReport = critData.report || null;
+			}
 		} catch (err) {
 			console.warn('[Fil Sujet] Erreur chargement contexte:', err);
 		} finally {
 			isLoadingArguments = false;
+		}
+	}
+
+	async function handleTransitionMaturity(targetLevel: MaturityLevel) {
+		if (!projectId || !subjectId) return;
+		try {
+			const res = await fetch(`/api/projects/${projectId}/subjects/${subjectId}`, {
+				method: 'PATCH',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					maturityLevel: targetLevel,
+					expectedVersion: 1
+				})
+			});
+
+			if (!res.ok) {
+				const err = await res.json().catch(() => ({}));
+				throw new Error(err.message || 'Échec de la transition de maturité');
+			}
+
+			await loadArgumentsAndContext();
+			deliberationStore.logNotification(`Jalon ${targetLevel} validé avec succès !`, 'success');
+		} catch (err: any) {
+			deliberationStore.logNotification(err.message, 'warning');
+		}
+	}
+
+	async function handleDecomposeSubject() {
+		if (!projectId || !subjectId) return;
+		try {
+			const res = await fetch(`/api/projects/${projectId}/subjects/${subjectId}/arguments`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					stance: 'question',
+					claim: 'Proposition de découpage du sujet pour lever la stagnation',
+					grounds:
+						'Ce sujet stagne depuis plus de 14 jours. Il est recommandé de le découper en 2 sous-sujets distincts : 1) Spécification du cœur fonctionnel, 2) Interfaces et adaptateurs techniques.',
+					kbRefs: []
+				})
+			});
+
+			if (res.ok) {
+				const created = await res.json();
+				handleArgumentCreated(created);
+				deliberationStore.logNotification(
+					'Relance postée par l’agent : proposition de découpage.',
+					'info'
+				);
+			}
+		} catch (err: any) {
+			deliberationStore.logNotification(err.message, 'warning');
+		}
+	}
+
+	function handleCriterionAction(crit: MaturityCriterion) {
+		switch (crit.actionType) {
+			case 'resolve_objection':
+				scrollToNextUnresolvedObjection();
+				break;
+			case 'run_verifier':
+				handleLaunchDebate();
+				break;
+			case 'derive_subjects':
+				handleDecomposeSubject();
+				break;
+			case 'edit_problem':
+			case 'edit_scope':
+			case 'write_spec':
+			case 'add_option':
+			case 'define_criteria':
+				if (!isDossierOpen) onToggleDossier();
+				break;
+			case 'add_doctrine_ref':
+				deliberationStore.logNotification(
+					'Utilisez le composeur avec #base pour rattacher une règle doctrinale.',
+					'info'
+				);
+				break;
+			case 'hub_affirmation':
+				deliberationStore.logNotification(
+					'Validation K16 : Une décision requiert une affirmation dans le Hub par un valideur distinct de son auteur.',
+					'info'
+				);
+				break;
+			case 'lead_gate':
+				deliberationStore.logNotification(
+					'Réservé exclusivement au Lead Architect humain.',
+					'warning'
+				);
+				break;
+			default:
+				break;
 		}
 	}
 
@@ -300,6 +433,15 @@
 				</button>
 			</div>
 		</div>
+
+		<!-- STEPPER DE MATURATION (A26) : L0->L5, Verrous, Convergence, Stagnation -->
+		<MaturityStepper
+			report={effectiveReport}
+			{userRole}
+			{isHumanUser}
+			onAction={handleCriterionAction}
+			onTransition={handleTransitionMaturity}
+		/>
 
 		<!-- BARRE DE NAVIGATION DANS LE FIL : Bascule Fil / Synthèse, filtres & scroll objection -->
 		<div class="flex items-center justify-between gap-2 pt-1 border-t border-border/40 flex-wrap text-xs">

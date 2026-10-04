@@ -170,8 +170,11 @@
 						<div class="flex items-center gap-1.5">
 							<!-- Anneau de maturité circulaire -->
 							<div
-								class="relative w-5 h-5 flex items-center justify-center shrink-0"
-								title={`Niveau : ${sub.level} (${pct}%)`}
+								class="relative w-5 h-5 flex items-center justify-center shrink-0 rounded-full transition-all {sub.is_stalled
+									? 'animate-pulse ring-2 ring-amber-500/80 bg-amber-500/10'
+									: ''}"
+								title={`Niveau : ${sub.level} (${pct}%)${sub.is_stalled ? ' · Stagnation (découpage recommandé)' : ''}`}
+								data-testid={sub.is_stalled ? 'stalled-ring-pulse' : undefined}
 							>
 								<svg class="w-5 h-5 -rotate-90" viewBox="0 0 24 24">
 									<circle
@@ -191,12 +194,12 @@
 										stroke-width="2.5"
 										stroke-dasharray="56.5"
 										stroke-dashoffset={56.5 - (56.5 * pct) / 100}
-										class="text-primary transition-all duration-300"
+										class="{sub.is_stalled ? 'text-amber-500' : 'text-primary'} transition-all duration-300"
 										fill="none"
 										stroke-linecap="round"
 									/>
 								</svg>
-								<span class="absolute text-[8px] font-mono font-bold text-foreground">
+								<span class="absolute text-[8px] font-mono font-bold {sub.is_stalled ? 'text-amber-600 dark:text-amber-400' : 'text-foreground'}">
 									{sub.level.slice(1, 2)}
 								</span>
 							</div>

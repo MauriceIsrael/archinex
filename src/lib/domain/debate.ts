@@ -197,6 +197,14 @@ export function formatMaturityMilestoneSeparator(level: string): string {
 	}
 }
 
+/**
+ * Jalon spécifique affiché dans le fil lorsqu'une décision et ses faits sont affirmés (A27).
+ * Format contractuel : ── Décision affirmée par X · L3 ──
+ */
+export function formatDecisionAffirmedMilestone(affirmer: string, level = 'L3'): string {
+	return `── Décision affirmée par ${affirmer} · ${level} ──`;
+}
+
 export function getArgumentVisualAttributes(arg: Argument): ArgumentVisualAttributes {
 	const isAgent = Boolean(arg.authorKind?.startsWith('agent:'));
 	const isSynthesis = arg.stance === 'synthesis';

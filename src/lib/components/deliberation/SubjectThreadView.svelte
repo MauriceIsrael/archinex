@@ -12,6 +12,7 @@
 	import PinnedObjections from './PinnedObjections.svelte';
 	import StructuredComposer from './StructuredComposer.svelte';
 	import MaturityStepper from './MaturityStepper.svelte';
+	import DecisionSurveyCard from './DecisionSurveyCard.svelte';
 	import {
 		computeMaturityCriteria,
 		type MaturityTransitionsReport,
@@ -57,6 +58,7 @@
 	let subjectOptions = $state<Option[]>([]);
 	let allowedKbRefs = $state<string[]>([]);
 	let criteriaReport = $state<MaturityTransitionsReport | null>(null);
+	let subjectDecision = $state<any>(null);
 	let isLoadingArguments = $state(false);
 	let isDebating = $state(false);
 
@@ -144,11 +146,12 @@
 		if (!projectId || !subjectId) return;
 		isLoadingArguments = true;
 		try {
-			const [argsRes, optsRes, docRes, critRes] = await Promise.all([
+			const [argsRes, optsRes, docRes, critRes, decRes] = await Promise.all([
 				fetch(`/api/projects/${projectId}/subjects/${subjectId}/arguments`),
 				fetch(`/api/projects/${projectId}/subjects/${subjectId}/options`),
 				fetch(`/api/projects/${projectId}/subjects/${subjectId}/doctrine-context`),
-				fetch(`/api/projects/${projectId}/subjects/${subjectId}/maturity-criteria`).catch(() => null)
+				fetch(`/api/projects/${projectId}/subjects/${subjectId}/maturity-criteria`).catch(() => null),
+				fetch(`/api/projects/${projectId}/subjects/${subjectId}/decision`).catch(() => null)
 			]);
 
 			if (argsRes.ok) {
@@ -175,6 +178,11 @@
 			if (critRes && critRes.ok) {
 				const critData = await critRes.json();
 				criteriaReport = critData.report || null;
+			}
+
+			if (decRes && decRes.ok) {
+				const decData = await decRes.json();
+				subjectDecision = decData.decision || null;
 			}
 		} catch (err) {
 			console.warn('[Fil Sujet] Erreur chargement contexte:', err);
@@ -560,6 +568,22 @@
 					{formatMaturityMilestoneSeparator(activeSubject.level)}
 				</span>
 			</div>
+		{/if}
+
+		<!-- CARTE DE DÉCISION ET FAITS AFFIRMÉS (A27) : Sondage, faits K18, affirmation K16 -->
+		{#if viewMode === 'synthesis' || subjectDecision}
+			<DecisionSurveyCard
+				{projectId}
+				{subjectId}
+				decision={subjectDecision}
+				options={subjectOptions}
+				sessionUser={{ id: 'session-user', email: 'session-user@domain.com', role: userRole }}
+				isHubCutover={effectiveReport?.sourceOfRecord === 'hub'}
+				onAffirmed={async () => {
+					await loadArgumentsAndContext();
+					deliberationStore.logNotification('Décision d’architecture et faits machine-lisibles affirmés !', 'success');
+				}}
+			/>
 		{/if}
 
 		<!-- Liste des messages de délibération -->

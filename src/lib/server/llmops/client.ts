@@ -91,7 +91,10 @@ import type {
   HubSnapshotRef,
   HubExportIssueResult,
   HubExportListingItem,
-  HubExportEnvelope
+  HubExportEnvelope,
+  HubDecisionInput,
+  HubDecisionResult,
+  HubDecisionFactInput
 } from './types';
 
 import { HubApiError } from '$lib/types/llmops';
@@ -3372,6 +3375,38 @@ export class LLMOpsClient {
       body: JSON.stringify(input)
     });
     return this.parseOrThrow<HubConflictResult>(res);
+  }
+
+  // --- Decisions & Machine-Readable Facts (K16 & K18) -----------------------
+
+  async addDecision(
+    engagementId: string,
+    input: HubDecisionInput,
+    actorEmail?: string,
+    idempotencyKey?: string
+  ): Promise<HubDecisionResult> {
+    const key = idempotencyKey || input.idempotency_key;
+    const url = `${this.baseUrl}/api/engagements/${encodeURIComponent(engagementId)}/decisions`;
+    const res = await this.fetchWithTimeout(url, {
+      method: 'POST',
+      headers: this.getHeaders(engagementId, actorEmail, key),
+      body: JSON.stringify(input)
+    });
+    return this.parseOrThrow<HubDecisionResult>(res);
+  }
+
+  async assertDecision(
+    engagementId: string,
+    decisionId: string,
+    actorEmail?: string,
+    idempotencyKey?: string
+  ): Promise<HubDecisionResult> {
+    const url = `${this.baseUrl}/api/engagements/${encodeURIComponent(engagementId)}/decisions/${encodeURIComponent(decisionId)}/assert`;
+    const res = await this.fetchWithTimeout(url, {
+      method: 'POST',
+      headers: this.getHeaders(engagementId, actorEmail, idempotencyKey)
+    });
+    return this.parseOrThrow<HubDecisionResult>(res);
   }
 
   // --- K11: Sealed Engagement Snapshot (Contract 1.18) -----------------------

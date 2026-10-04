@@ -1141,3 +1141,38 @@ export class HubApiError extends Error {
     this.problems = details?.problems;
   }
 }
+
+/* ---- Contract: Decisions and Machine-Readable Facts (K16 & K18) ------------- */
+
+export interface HubDecisionFactInput {
+  key: string;
+  value: string;
+  source_excerpt?: string;
+}
+
+export interface HubDecisionInput {
+  id?: string;
+  subject: string;
+  retained_option: string;
+  rejected_options?: Array<{ option: string; reason: string }>;
+  rationale: string;
+  reversibility: 'reversible' | 'costly' | 'irreversible';
+  consequences?: string[];
+  accepted_violations?: Array<{ typed_id: string; justification: string }>;
+  facts: HubDecisionFactInput[];
+  author?: string;
+  idempotency_key?: string;
+}
+
+export interface HubDecisionResult {
+  decision: {
+    id: string;
+    subject: string;
+    retained_option: string;
+    status: 'proposed' | 'active' | 'asserted';
+    facts: HubDecisionFactInput[];
+    author?: string;
+    validated_by?: string;
+    asserted_at?: string;
+  };
+}

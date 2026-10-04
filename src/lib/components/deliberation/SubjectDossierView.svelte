@@ -15,9 +15,11 @@
 		ShieldAlert,
 		Sparkles,
 		Layers,
-		GitFork
+		GitFork,
+		Sliders
 	} from 'lucide-svelte';
 	import KnowledgeTreeChart from '$lib/components/knowledge/KnowledgeTreeChart.svelte';
+	import ProjectRulesPanel from './ProjectRulesPanel.svelte';
 
 	let {
 		subjectId = '',
@@ -33,7 +35,7 @@
 		onClose?: () => void;
 	} = $props();
 
-	type DossierTab = 'draft' | 'matrix' | 'kb' | 'tree';
+	type DossierTab = 'draft' | 'matrix' | 'kb' | 'tree' | 'rules';
 	let activeTab = $state<DossierTab>('draft');
 
 	const activeSubject = $derived(deliberationStore.activeSubject);
@@ -243,6 +245,18 @@
 					<GitFork class="h-3 w-3" />
 					<span>Arbre</span>
 				</button>
+
+				<button
+					type="button"
+					onclick={() => (activeTab = 'rules')}
+					class="flex-1 inline-flex items-center justify-center gap-1 py-1 px-2 rounded-md font-medium text-[11px] transition-all whitespace-nowrap cursor-pointer {activeTab ===
+					'rules'
+						? 'bg-background text-foreground font-semibold shadow-2xs'
+						: 'text-muted-foreground hover:text-foreground'}"
+				>
+					<Sliders class="h-3 w-3" />
+					<span>Règles</span>
+				</button>
 			</div>
 		</div>
 
@@ -340,6 +354,17 @@
 							Aucune cascade de décision générée pour ce sujet.
 						</div>
 					{/if}
+				</div>
+			{:else if activeTab === 'rules'}
+				<!-- 5. Règles du projet et déclencheurs de cascade (Lot A30) -->
+				<div class="space-y-3" data-testid="dossier-project-rules">
+					<ProjectRulesPanel
+						{projectId}
+						{subjectId}
+						onRuleChanged={() => {
+							loadTreeData();
+						}}
+					/>
 				</div>
 			{/if}
 		</div>

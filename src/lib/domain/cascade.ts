@@ -126,8 +126,37 @@ export function buildDiscoveryTreeData(params: {
 		level?: string;
 		foundationContested?: boolean;
 	}>;
+	disabledRules?: Array<{
+		ruleId: string;
+		ruleName?: string;
+		justification: string;
+		disabledBy?: string;
+		mandatory?: boolean;
+	}>;
 }): any {
 	const childrenNodes: any[] = [];
+
+	for (const dr of params.disabledRules || []) {
+		childrenNodes.push({
+			name: `🚫 ${dr.ruleId} (${dr.ruleName || 'Règle désactivée'})`,
+			category: dr.mandatory ? 'Règle Impérative Désactivée ⚠️' : 'Règle Désactivée',
+			typeLabel: 'Désactivation justifiée',
+			value: 'Désactivée',
+			itemStyle: {
+				color: dr.mandatory ? '#e11d48' : '#64748b',
+				borderColor: dr.mandatory ? '#f43f5e' : '#94a3b8'
+			},
+			match: {
+				isMatched: false,
+				score: 0,
+				reasons: [
+					`Justification : ${dr.justification}`,
+					dr.disabledBy ? `Désactivée par : ${dr.disabledBy}` : 'Désactivée par le projet'
+				]
+			}
+		});
+	}
+
 
 	for (const child of params.childSubjects) {
 		childrenNodes.push({

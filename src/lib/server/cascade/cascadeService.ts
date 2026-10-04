@@ -85,8 +85,14 @@ export async function getOrCreateCascadeForDecision(params: {
 	const resilienceModeFact =
 		affirmedFacts.find((f) => f.key === 'resilience_mode')?.value || 'actif/actif';
 
+	// 1. Lire les règles et désactivations du projet (Lot A30)
+	const { getProjectRules } = await import('$lib/server/rules/projectRulesService');
+	const { evaluateRuleConditions } = await import('$lib/domain/projectRules');
+	const projectRulesState = await getProjectRules(projectId);
+	const disabledMap = new Map(projectRulesState.disabledOverrides.map((o) => [o.ruleId, o]));
+
 	// Génération des questions déterministes de la cascade
-	const questions: CascadeQuestion[] = [
+	const candidateQuestions: CascadeQuestion[] = [
 		{
 			id: `q-casc-${subjectId}-replication`,
 			text: 'Quelle stratégie de réplication synchrone et quel RPO cible garantissent le maintien des transactions ?',
@@ -155,6 +161,41 @@ export async function getOrCreateCascadeForDecision(params: {
 			initialLevel: 'L0_named'
 		}
 	];
+
+	// Évaluation des règles locales affirmées (K21/A30)
+	for (const localRule of projectRulesState.localRules) {
+		if (localRule.status === 'affirmed') {
+			if (evaluateRuleConditions(localRule.conditions, affirmedFacts)) {
+				candidateQuestions.push({
+					id: `q-casc-${subjectId}-${localRule.id}`,
+					text: localRule.action.question,
+					subjectName: localRule.action.subjectName,
+					subjectSectionRef: `${parentSubject.sectionRef || '§4'}.${candidateQuestions.length + 1}`,
+					sourceType: 'local_rule',
+					mandatory: localRule.action.mandatory,
+					status: 'open',
+					childSubjectId: `sub-child-${subjectId}-${localRule.id}`,
+					lineage: {
+						ruleRef: localRule.id,
+						ruleName: localRule.name,
+						triggeringFacts: localRule.conditions.map((c) => ({
+							key: c.key,
+							value: affirmedFacts.find((f) => f.key === c.key)?.value || String(c.value)
+						})),
+						parentDecisionId: decisionId,
+						parentSubjectId: subjectId,
+						parentSubjectName: parentSubject.name
+					},
+					initialLevel: localRule.action.initialLevel || 'L1_framed'
+				});
+			}
+		}
+	}
+
+	// Évaluation : règles épinglées - désactivations + règles locales affirmées (K20/K21)
+	const questions: CascadeQuestion[] = candidateQuestions.filter(
+		(q) => !q.lineage.ruleRef || !disabledMap.has(q.lineage.ruleRef)
+	);
 
 	// Persistance des sujets enfants déterministes dans la base relationnelle
 	for (const q of questions) {

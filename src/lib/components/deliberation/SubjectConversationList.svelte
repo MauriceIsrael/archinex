@@ -158,11 +158,14 @@
 				{@const isSelected = sub.id === selectedSubjectId}
 				{@const pct = calculateMaturityPercent(sub.level)}
 				{@const isMyTurn = sessionRole && sub.waiting_for_role === sessionRole}
+				{@const isChild = sub.section_ref.includes('.') || !!sub.parent_subject_id}
 
 				<button
 					type="button"
 					onclick={() => onSelectSubject(sub.id)}
-					class="w-full text-left p-3 transition-colors cursor-pointer space-y-1.5 block {isSelected
+					class="w-full text-left p-3 transition-colors cursor-pointer space-y-1.5 block {isChild
+						? 'pl-6 border-l-2 border-indigo-400/40 bg-indigo-50/20 dark:bg-indigo-950/10'
+						: ''} {isSelected
 						? 'bg-primary/10 border-l-3 border-primary'
 						: 'hover:bg-muted/40'}"
 				>
@@ -210,6 +213,17 @@
 						</div>
 
 						<div class="flex items-center gap-1">
+							<!-- Badge Fondement remis en cause -->
+							{#if sub.foundation_contested}
+								<span
+									class="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[10px] font-bold bg-rose-500/15 text-rose-700 dark:text-rose-300 border border-rose-500/30"
+									title="Le fondement de ce sujet est contesté suite au changement de la décision parente"
+									data-testid="badge-foundation-contested"
+								>
+									⚠️ Contesté
+								</span>
+							{/if}
+
 							<!-- Pastille « À vous » basée sur le rôle de la session -->
 							{#if isMyTurn}
 								<span
@@ -236,6 +250,13 @@
 					<h4 class="text-xs font-semibold text-foreground line-clamp-2 leading-snug">
 						{sub.name}
 					</h4>
+
+					{#if isChild}
+						<div class="text-[10px] text-indigo-600 dark:text-indigo-400 flex items-center gap-1 font-medium">
+							<span>↳ né de :</span>
+							<span class="truncate">{sub.parent_subject_name || 'Décision parente'}</span>
+						</div>
+					{/if}
 
 					<div class="flex items-center justify-between text-[10px] text-muted-foreground">
 						<span>Attente : <strong class="text-foreground">{sub.waiting_for_role}</strong></span>

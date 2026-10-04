@@ -13,6 +13,9 @@ export interface MaturitySubject {
 	stall_days: number;
 	is_stalled: boolean;
 	dependent_subject_ids: string[];
+	parent_subject_id?: string;
+	parent_subject_name?: string;
+	foundation_contested?: boolean;
 }
 
 export interface ActorContext {

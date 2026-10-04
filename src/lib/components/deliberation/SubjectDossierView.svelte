@@ -14,8 +14,10 @@
 		ExternalLink,
 		ShieldAlert,
 		Sparkles,
-		Layers
+		Layers,
+		GitFork
 	} from 'lucide-svelte';
+	import KnowledgeTreeChart from '$lib/components/knowledge/KnowledgeTreeChart.svelte';
 
 	let {
 		subjectId = '',
@@ -31,7 +33,7 @@
 		onClose?: () => void;
 	} = $props();
 
-	type DossierTab = 'draft' | 'matrix' | 'kb';
+	type DossierTab = 'draft' | 'matrix' | 'kb' | 'tree';
 	let activeTab = $state<DossierTab>('draft');
 
 	const activeSubject = $derived(deliberationStore.activeSubject);
@@ -103,6 +105,31 @@
 			console.warn('[Dossier] Erreur chargement matrice:', err);
 		} finally {
 			isLoadingMatrix = false;
+		}
+	}
+
+	let treeSeries = $state<any[]>([]);
+	let isLoadingTree = $state(false);
+
+	$effect(() => {
+		if (subjectId && projectId && activeTab === 'tree') {
+			loadTreeData();
+		}
+	});
+
+	async function loadTreeData() {
+		if (!projectId || !subjectId) return;
+		isLoadingTree = true;
+		try {
+			const res = await fetch(`/api/projects/${projectId}/subjects/${subjectId}/cascade`);
+			if (res.ok) {
+				const data = await res.json();
+				treeSeries = data.treeSeries || [];
+			}
+		} catch (err) {
+			console.warn('[Dossier] Erreur chargement arbre cascade:', err);
+		} finally {
+			isLoadingTree = false;
 		}
 	}
 </script>
@@ -201,6 +228,21 @@
 					<BookOpen class="h-3 w-3" />
 					<span>Doctrines</span>
 				</button>
+
+				<button
+					type="button"
+					onclick={() => {
+						activeTab = 'tree';
+						loadTreeData();
+					}}
+					class="flex-1 inline-flex items-center justify-center gap-1 py-1 px-2 rounded-md font-medium text-[11px] transition-all whitespace-nowrap cursor-pointer {activeTab ===
+					'tree'
+						? 'bg-background text-foreground font-semibold shadow-2xs'
+						: 'text-muted-foreground hover:text-foreground'}"
+				>
+					<GitFork class="h-3 w-3" />
+					<span>Arbre</span>
+				</button>
 			</div>
 		</div>
 
@@ -272,6 +314,30 @@
 									</a>
 								</div>
 							{/each}
+						</div>
+					{/if}
+				</div>
+			{:else if activeTab === 'tree'}
+				<!-- 4. Arbre de découverte (Généalogie cascade) -->
+				<div class="space-y-3" data-testid="dossier-discovery-tree">
+					<div class="flex items-center justify-between text-xs pb-1 border-b text-muted-foreground font-semibold">
+						<span class="flex items-center gap-1">
+							<GitFork class="h-3.5 w-3.5 text-primary" />
+							Arbre de découverte
+						</span>
+						<span class="text-[10px] font-mono">Parents → Décisions → Enfants</span>
+					</div>
+					{#if isLoadingTree}
+						<div class="p-8 text-center text-xs text-muted-foreground animate-pulse">
+							Génération de l'arbre généalogique...
+						</div>
+					{:else if treeSeries && treeSeries.length > 0}
+						<div class="rounded-xl border bg-card p-2 min-h-[420px]">
+							<KnowledgeTreeChart series={treeSeries} height="420px" />
+						</div>
+					{:else}
+						<div class="p-8 text-center text-xs text-muted-foreground border-2 border-dashed rounded-xl">
+							Aucune cascade de décision générée pour ce sujet.
 						</div>
 					{/if}
 				</div>

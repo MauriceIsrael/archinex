@@ -13,6 +13,8 @@
 	import StructuredComposer from './StructuredComposer.svelte';
 	import MaturityStepper from './MaturityStepper.svelte';
 	import DecisionSurveyCard from './DecisionSurveyCard.svelte';
+	import CascadeQuestionsCard from './CascadeQuestionsCard.svelte';
+	import type { CascadeResult } from '$lib/domain/cascade';
 	import {
 		computeMaturityCriteria,
 		type MaturityTransitionsReport,
@@ -59,6 +61,9 @@
 	let allowedKbRefs = $state<string[]>([]);
 	let criteriaReport = $state<MaturityTransitionsReport | null>(null);
 	let subjectDecision = $state<any>(null);
+	let cascadeResult = $state<CascadeResult | null>(null);
+	let foundationContested = $state(false);
+	let contestationReason = $state<string | undefined>(undefined);
 	let isLoadingArguments = $state(false);
 	let isDebating = $state(false);
 
@@ -146,12 +151,13 @@
 		if (!projectId || !subjectId) return;
 		isLoadingArguments = true;
 		try {
-			const [argsRes, optsRes, docRes, critRes, decRes] = await Promise.all([
+			const [argsRes, optsRes, docRes, critRes, decRes, cascadeRes] = await Promise.all([
 				fetch(`/api/projects/${projectId}/subjects/${subjectId}/arguments`),
 				fetch(`/api/projects/${projectId}/subjects/${subjectId}/options`),
 				fetch(`/api/projects/${projectId}/subjects/${subjectId}/doctrine-context`),
 				fetch(`/api/projects/${projectId}/subjects/${subjectId}/maturity-criteria`).catch(() => null),
-				fetch(`/api/projects/${projectId}/subjects/${subjectId}/decision`).catch(() => null)
+				fetch(`/api/projects/${projectId}/subjects/${subjectId}/decision`).catch(() => null),
+				fetch(`/api/projects/${projectId}/subjects/${subjectId}/cascade`).catch(() => null)
 			]);
 
 			if (argsRes.ok) {
@@ -183,6 +189,13 @@
 			if (decRes && decRes.ok) {
 				const decData = await decRes.json();
 				subjectDecision = decData.decision || null;
+			}
+
+			if (cascadeRes && cascadeRes.ok) {
+				const cascData = await cascadeRes.json();
+				cascadeResult = cascData.cascade || null;
+				foundationContested = cascData.foundationContested || false;
+				contestationReason = cascData.contestationReason;
 			}
 		} catch (err) {
 			console.warn('[Fil Sujet] Erreur chargement contexte:', err);
@@ -551,6 +564,25 @@
 			</div>
 		{/if}
 
+		<!-- Bannière Fondement remis en cause (A28) -->
+		{#if foundationContested}
+			<div
+				class="rounded-xl border border-rose-500/40 bg-rose-500/10 p-3.5 flex items-start gap-3 text-xs shadow-2xs"
+				data-testid="foundation-contested-banner"
+			>
+				<AlertTriangle class="h-5 w-5 text-rose-600 shrink-0 mt-0.5" />
+				<div class="space-y-1">
+					<h4 class="font-bold text-rose-900 dark:text-rose-200 flex items-center gap-1.5">
+						<span>⚠️ Fondement du sujet remis en cause</span>
+					</h4>
+					<p class="text-rose-800 dark:text-rose-300 leading-relaxed">
+						{contestationReason ||
+							'La décision parente ayant engendré ce sujet a été modifiée ou remplacée. Le périmètre de cette délibération doit être réévalué.'}
+					</p>
+				</div>
+			</div>
+		{/if}
+
 		<!-- Objections ouvertes épinglées en haut du fil -->
 		{#if openObjections.length > 0}
 			<PinnedObjections
@@ -582,6 +614,21 @@
 				onAffirmed={async () => {
 					await loadArgumentsAndContext();
 					deliberationStore.logNotification('Décision d’architecture et faits machine-lisibles affirmés !', 'success');
+				}}
+			/>
+		{/if}
+
+		<!-- CARTE DE CASCADE DE QUESTIONS (A28) : Découverte automatique post-affirmation -->
+		{#if cascadeResult && cascadeResult.questions && cascadeResult.questions.length > 0}
+			<CascadeQuestionsCard
+				{projectId}
+				{subjectId}
+				cascade={cascadeResult}
+				onNavigateToChild={(childId) => {
+					deliberationStore.selectSubject(childId);
+				}}
+				onQuestionUpdated={async () => {
+					await loadArgumentsAndContext();
 				}}
 			/>
 		{/if}

@@ -14,7 +14,7 @@ import { runVerifierAgent } from './verifier';
 import { runSynthesizerAgent } from './synthesizer';
 import { doctrineService } from '../doctrine/doctrineService';
 import type { ActorInfo } from '../projects/projectsDb';
-import type { DebateRun } from '$lib/domain/debate';
+import type { DebateRun, Argument } from '$lib/domain/debate';
 
 export interface OrchestrationResult {
 	run: DebateRun;
@@ -229,4 +229,126 @@ export async function orchestrateDebate(
 		});
 		throw err;
 	}
+}
+
+/**
+ * Invoque un agent spécifique ciblé par @mention (A25 / Issue #36)
+ * Respecte strictement l'isolation par engagement et par sujet.
+ */
+export async function invokeSpecificAgent(
+	subjectId: string,
+	agentRole: 'proposer' | 'challenger' | 'verifier' | 'synthesizer',
+	contextPrompt?: string,
+	actor?: ActorInfo
+): Promise<Argument[]> {
+	const subject = await prisma.subject.findUnique({
+		where: { id: subjectId },
+		include: { project: true }
+	});
+	if (!subject) throw new Error(`Subject ${subjectId} introuvable`);
+
+	const [opts, crits, existingArgs] = await Promise.all([
+		listOptions(subjectId),
+		listCriteria(subjectId),
+		listArguments(subjectId)
+	]);
+
+	// Récupération de la doctrine autorisée pour ce sujet
+	let allowedKbRefs: string[] = [];
+	try {
+		const docCtx = await doctrineService.getDoctrineContext({
+			topics: [subject.name],
+			domains: subject.domain ? [subject.domain] : []
+		});
+		if (docCtx && docCtx.items) {
+			allowedKbRefs = docCtx.items.map((r) => r.id);
+		}
+	} catch (err) {
+		console.warn('[Orchestrator] Doctrine indisponible :', (err as any).message);
+	}
+
+	const createdArgs: Argument[] = [];
+	const currentRound = existingArgs.length > 0 ? Math.max(...existingArgs.map((a) => a.round)) : 1;
+
+	switch (agentRole) {
+		case 'challenger': {
+			const challengerArgs = await runChallengerAgent({
+				subject: { id: subject.id, name: subject.name, sectionRef: subject.sectionRef },
+				options: opts,
+				criteria: crits,
+				existingArguments: existingArgs,
+				allowedKbRefs,
+				round: currentRound
+			});
+			for (const arg of challengerArgs) {
+				const created = await createArgument(
+					subjectId,
+					arg,
+					{ userId: 'agent:challenger', role: 'architect_agent', productionMode: 'llm-derived' },
+					allowedKbRefs
+				);
+				createdArgs.push(created);
+			}
+			break;
+		}
+		case 'proposer': {
+			const proposerArgs = await runProposerAgent({
+				subject: { id: subject.id, name: subject.name, sectionRef: subject.sectionRef },
+				options: opts,
+				criteria: crits,
+				allowedKbRefs,
+				round: currentRound
+			});
+			for (const arg of proposerArgs) {
+				const created = await createArgument(
+					subjectId,
+					arg,
+					{ userId: 'agent:proposer', role: 'architect_agent', productionMode: 'llm-derived' },
+					allowedKbRefs
+				);
+				createdArgs.push(created);
+			}
+			break;
+		}
+		case 'verifier': {
+			const verifierArgs = await runVerifierAgent({
+				subject: { id: subject.id, name: subject.name, sectionRef: subject.sectionRef },
+				options: opts,
+				allowedKbRefs,
+				round: currentRound
+			});
+			for (const arg of verifierArgs) {
+				const created = await createArgument(
+					subjectId,
+					arg,
+					{ userId: 'agent:verifier', role: 'compliance_agent', productionMode: 'llm-derived' },
+					allowedKbRefs
+				);
+				createdArgs.push(created);
+			}
+			break;
+		}
+		case 'synthesizer': {
+			const synthResult = await runSynthesizerAgent({
+				subject: { id: subject.id, name: subject.name, sectionRef: subject.sectionRef },
+				options: opts,
+				criteria: crits,
+				existingArguments: existingArgs,
+				allowedKbRefs,
+				round: currentRound
+			});
+			for (const arg of synthResult.arguments) {
+				const created = await createArgument(
+					subjectId,
+					arg,
+					{ userId: 'agent:synthesizer', role: 'moderator_agent', productionMode: 'llm-derived' },
+					allowedKbRefs
+				);
+				createdArgs.push(created);
+			}
+			break;
+		}
+	}
+
+	return createdArgs;
 }

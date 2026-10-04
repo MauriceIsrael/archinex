@@ -227,3 +227,99 @@ export function getArgumentVisualAttributes(arg: Argument): ArgumentVisualAttrib
 		hasTargetCitation: Boolean(arg.targetArgumentId)
 	};
 }
+
+export interface ExtractedMentions {
+	kbRefs: string[];
+	agentMentions: ('proposer' | 'challenger' | 'verifier' | 'synthesizer')[];
+	userMentions: string[];
+}
+
+export function extractMentions(text: string): ExtractedMentions {
+	const kbRefs: string[] = [];
+	const agentMentions: ('proposer' | 'challenger' | 'verifier' | 'synthesizer')[] = [];
+	const userMentions: string[] = [];
+
+	if (!text) return { kbRefs, agentMentions, userMentions };
+
+	// Extract #ref (e.g. #RULE-SEC-01, #sec-anssi-01)
+	const hashMatches = text.matchAll(/#([a-zA-Z0-9_-]+)/g);
+	for (const m of hashMatches) {
+		if (m[1] && !kbRefs.includes(m[1])) {
+			kbRefs.push(m[1]);
+		}
+	}
+
+	// Extract @mention (e.g. @challenger, @alice)
+	const atMatches = text.matchAll(/@([a-zA-Z0-9_-]+)/g);
+	for (const m of atMatches) {
+		const handle = m[1].toLowerCase();
+		if (handle === 'challenger' || handle === 'proposer' || handle === 'verifier' || handle === 'synthesizer') {
+			if (!agentMentions.includes(handle)) {
+				agentMentions.push(handle);
+			}
+		} else {
+			if (!userMentions.includes(m[1])) {
+				userMentions.push(m[1]);
+			}
+		}
+	}
+
+	return { kbRefs, agentMentions, userMentions };
+}
+
+export function calculateMaturityPercent(level: string): number {
+	switch (level) {
+		case 'L0_named': return 10;
+		case 'L1_framed': return 25;
+		case 'L2_decomposed': return 50;
+		case 'L3_decided': return 75;
+		case 'L4_specified': return 90;
+		case 'L5_archived': return 100;
+		default: return 0;
+	}
+}
+
+export interface ResumeSummary {
+	hasRecentAbsence: boolean;
+	newMessagesCount: number;
+	resolvedObjectionsCount: number;
+	maturityTransition?: string;
+	summaryText: string;
+}
+
+export function computeResumeSummary(
+	args: Argument[],
+	lastVisitedTimestamp?: string | number,
+	currentLevel?: string,
+	previousLevel?: string
+): ResumeSummary | null {
+	if (!lastVisitedTimestamp) return null;
+	const cutoff = typeof lastVisitedTimestamp === 'string' ? new Date(lastVisitedTimestamp).getTime() : lastVisitedTimestamp;
+	const now = Date.now();
+	// Check if absence is more than 24 hours (86_400_000 ms)
+	const isMoreThan24h = (now - cutoff) >= 86_400_000;
+	if (!isMoreThan24h) return null;
+
+	const newArgs = args.filter((a) => a.createdAt && new Date(a.createdAt).getTime() > cutoff);
+	const resolvedObjs = args.filter(
+		(a) => a.stance === 'objection' && a.resolution !== 'open' && a.resolvedAt && new Date(a.resolvedAt).getTime() > cutoff
+	);
+
+	let transitionText = '';
+	if (previousLevel && currentLevel && previousLevel !== currentLevel) {
+		const cleanPrev = previousLevel.split('_')[0];
+		const cleanCurr = currentLevel.split('_')[0];
+		transitionText = `${cleanPrev}→${cleanCurr}`;
+	}
+
+	const transitionPart = transitionText ? `, ${transitionText}` : '';
+	const summaryText = `Depuis votre dernière visite : ${newArgs.length} message(s), ${resolvedObjs.length} objection(s) levée(s)${transitionPart}`;
+
+	return {
+		hasRecentAbsence: true,
+		newMessagesCount: newArgs.length,
+		resolvedObjectionsCount: resolvedObjs.length,
+		maturityTransition: transitionText || undefined,
+		summaryText
+	};
+}

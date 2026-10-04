@@ -7,8 +7,10 @@
 	import type { Argument } from '$lib/domain/debate';
 
 	let {
+		sessionRole = 'lead_architect',
 		onBackToBoard = () => {}
 	}: {
+		sessionRole?: string;
 		onBackToBoard?: () => void;
 	} = $props();
 
@@ -84,6 +86,7 @@
 		{#if mobileTab === 'list'}
 			<SubjectConversationList
 				selectedSubjectId={activeSubjectId}
+				{sessionRole}
 				onSelectSubject={handleSelectSubject}
 				{onBackToBoard}
 			/>
@@ -91,7 +94,7 @@
 			<SubjectThreadView
 				subjectId={activeSubjectId}
 				{projectId}
-				userRole={deliberationStore.currentRole}
+				userRole={sessionRole || deliberationStore.currentRole}
 				isHumanUser={deliberationStore.isHuman}
 				isDossierOpen={true}
 				onToggleDossier={() => (mobileTab = 'dossier')}
@@ -115,6 +118,7 @@
 		<div class="col-span-3 h-full overflow-hidden">
 			<SubjectConversationList
 				selectedSubjectId={activeSubjectId}
+				{sessionRole}
 				onSelectSubject={handleSelectSubject}
 				{onBackToBoard}
 			/>
@@ -125,7 +129,7 @@
 			<SubjectThreadView
 				subjectId={activeSubjectId}
 				{projectId}
-				userRole={deliberationStore.currentRole}
+				userRole={sessionRole || deliberationStore.currentRole}
 				isHumanUser={deliberationStore.isHuman}
 				{isDossierOpen}
 				onToggleDossier={() => (isDossierOpen = !isDossierOpen)}

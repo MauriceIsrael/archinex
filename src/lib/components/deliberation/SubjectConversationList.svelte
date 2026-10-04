@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { deliberationStore } from '$lib/stores/deliberationStore.svelte';
 	import type { MaturitySubject } from '$lib/domain/maturityBoard';
+	import { calculateMaturityPercent } from '$lib/domain/debate';
 	import {
 		MessagesSquare,
 		Search,
@@ -8,15 +9,18 @@
 		ArrowLeft,
 		Filter,
 		CheckCircle2,
-		Layers
+		Layers,
+		UserCheck
 	} from 'lucide-svelte';
 
 	let {
 		selectedSubjectId = '',
+		sessionRole = 'lead_architect',
 		onSelectSubject = (id: string) => {},
 		onBackToBoard = () => {}
 	}: {
 		selectedSubjectId?: string;
+		sessionRole?: string;
 		onSelectSubject?: (id: string) => void;
 		onBackToBoard?: () => void;
 	} = $props();
@@ -25,6 +29,7 @@
 	let searchQuery = $state('');
 	let activeFilter = $state<FilterType>('all');
 
+	// Tri par déblocages (multiplicateur) strictement conservé
 	const allSubjects = $derived(deliberationStore.sortedSubjects);
 
 	const filteredSubjects = $derived.by(() => {
@@ -63,18 +68,6 @@
 				return 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20';
 			default:
 				return 'bg-muted text-muted-foreground';
-		}
-	}
-
-	function formatMaturityShort(level: string) {
-		switch (level) {
-			case 'L0_named': return 'L0';
-			case 'L1_framed': return 'L1';
-			case 'L2_decomposed': return 'L2';
-			case 'L3_decided': return 'L3';
-			case 'L4_specified': return 'L4';
-			case 'L5_archived': return 'L5';
-			default: return level;
 		}
 	}
 </script>
@@ -163,6 +156,9 @@
 		{:else}
 			{#each filteredSubjects as sub (sub.id)}
 				{@const isSelected = sub.id === selectedSubjectId}
+				{@const pct = calculateMaturityPercent(sub.level)}
+				{@const isMyTurn = sessionRole && sub.waiting_for_role === sessionRole}
+
 				<button
 					type="button"
 					onclick={() => onSelectSubject(sub.id)}
@@ -171,17 +167,58 @@
 						: 'hover:bg-muted/40'}"
 				>
 					<div class="flex items-center justify-between gap-1.5">
-						<span class="font-mono text-[11px] font-bold text-muted-foreground">
-							{sub.section_ref}
-						</span>
-						<div class="flex items-center gap-1">
-							<span
-								class="inline-flex items-center rounded px-1.5 py-0.2 font-mono text-[10px] font-semibold border {getLevelBadgeClass(
-									sub.level
-								)}"
+						<div class="flex items-center gap-1.5">
+							<!-- Anneau de maturité circulaire -->
+							<div
+								class="relative w-5 h-5 flex items-center justify-center shrink-0"
+								title={`Niveau : ${sub.level} (${pct}%)`}
 							>
-								{formatMaturityShort(sub.level)}
+								<svg class="w-5 h-5 -rotate-90" viewBox="0 0 24 24">
+									<circle
+										cx="12"
+										cy="12"
+										r="9"
+										stroke="currentColor"
+										stroke-width="2.5"
+										class="text-muted/30"
+										fill="none"
+									/>
+									<circle
+										cx="12"
+										cy="12"
+										r="9"
+										stroke="currentColor"
+										stroke-width="2.5"
+										stroke-dasharray="56.5"
+										stroke-dashoffset={56.5 - (56.5 * pct) / 100}
+										class="text-primary transition-all duration-300"
+										fill="none"
+										stroke-linecap="round"
+									/>
+								</svg>
+								<span class="absolute text-[8px] font-mono font-bold text-foreground">
+									{sub.level.slice(1, 2)}
+								</span>
+							</div>
+
+							<span class="font-mono text-[11px] font-bold text-muted-foreground">
+								{sub.section_ref}
 							</span>
+						</div>
+
+						<div class="flex items-center gap-1">
+							<!-- Pastille « À vous » basée sur le rôle de la session -->
+							{#if isMyTurn}
+								<span
+									class="inline-flex items-center gap-0.5 px-1.5 py-0.2 rounded text-[10px] font-bold bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border border-indigo-500/30"
+									title="Ce sujet attend une action de votre rôle"
+									data-testid="badge-a-vous"
+								>
+									À vous
+								</span>
+							{/if}
+
+							<!-- Badge d'objections bloquantes -->
 							{#if sub.blocking_count > 0}
 								<span
 									class="inline-flex items-center justify-center font-mono font-bold text-[10px] text-destructive bg-destructive/15 rounded-full px-1.5 py-0.2"

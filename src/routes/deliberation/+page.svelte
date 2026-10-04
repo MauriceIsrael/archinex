@@ -13,6 +13,7 @@
 	import { deliberationStore } from '$lib/stores/deliberationStore.svelte';
 	import { Layers, MessagesSquare } from 'lucide-svelte';
 
+	let { data } = $props();
 	let isDecisionGuideOpen = $state<boolean>(false);
 
 	onMount(() => {
@@ -98,6 +99,7 @@
 			{:else}
 				<div class="space-y-4">
 					<DeliberationWorkbench
+						sessionRole={data?.sessionRole}
 						onBackToBoard={() => deliberationStore.setDeliberationViewMode('board')}
 					/>
 				</div>

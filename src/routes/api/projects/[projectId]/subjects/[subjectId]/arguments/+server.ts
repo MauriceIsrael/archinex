@@ -4,6 +4,8 @@ import { listArguments, createArgument } from '$lib/server/projects/debateDb';
 import { CreateArgumentSchema } from '$lib/schemas/debateApiSchemas';
 import { getActorInfo } from '$lib/server/projects/actorHelper';
 import { doctrineService } from '$lib/server/doctrine/doctrineService';
+import { extractMentions } from '$lib/domain/debate';
+import { invokeSpecificAgent } from '$lib/server/agents/debateOrchestrator';
 
 export const GET: RequestHandler = async ({ params, url }) => {
 	const { subjectId } = params;
@@ -39,6 +41,10 @@ export const POST: RequestHandler = async ({ params, request }) => {
 		// Pas bloquant si doctrine inaccessible
 	}
 
+	// Extraire les mentions (#base et @agent)
+	const mentions = extractMentions(`${parsed.data.claim} ${parsed.data.grounds}`);
+	const combinedKbRefs = Array.from(new Set([...(parsed.data.kbRefs || []), ...mentions.kbRefs]));
+
 	try {
 		const argId = `arg-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`;
 		const created = await createArgument(
@@ -46,12 +52,31 @@ export const POST: RequestHandler = async ({ params, request }) => {
 			{
 				id: argId,
 				...parsed.data,
+				kbRefs: combinedKbRefs,
 				authorKind: 'human'
 			},
 			actor,
 			allowedKbRefs
 		);
-		return json(created, { status: 201 });
+
+		// Si un ou plusieurs agents sont mentionnés (@challenger, @proposer, @verifier, @synthesizer),
+		// déclencher l'agent visé dans le fil du sujet courant
+		const triggeredAgentArguments: any[] = [];
+		for (const agentRole of mentions.agentMentions) {
+			try {
+				const agentResults = await invokeSpecificAgent(
+					subjectId,
+					agentRole,
+					`${parsed.data.claim} - ${parsed.data.grounds}`,
+					actor
+				);
+				triggeredAgentArguments.push(...agentResults);
+			} catch (agentErr) {
+				console.warn(`[Agent Trigger] Échec invocation @${agentRole}:`, agentErr);
+			}
+		}
+
+		return json({ ...created, triggeredAgentArguments }, { status: 201 });
 	} catch (err: any) {
 		return json({ message: err.message }, { status: 400 });
 	}

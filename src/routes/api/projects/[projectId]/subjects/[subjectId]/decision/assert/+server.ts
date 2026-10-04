@@ -6,6 +6,7 @@ import { isProjectCutOverToHub } from '$lib/server/projects/hubMigrationService'
 import { getActorFromEvent } from '$lib/server/projects/actorHelper';
 import { DEFAULT_ARCHINEX_VOCABULARY } from '$lib/server/agents/factExtractor';
 import { formatDecisionAffirmedMilestone } from '$lib/domain/debate';
+import { proposeAndPersistComplementaryQuestions } from '$lib/server/cascade/cascadeService';
 
 export const POST: RequestHandler = async (event) => {
 	const { params } = event;
@@ -258,6 +259,11 @@ export const POST: RequestHandler = async (event) => {
 				})
 			}
 		});
+	});
+
+	// Déclenchement asynchrone et non-bloquant de l'agent proposeur (A29)
+	proposeAndPersistComplementaryQuestions({ projectId, subjectId }).catch((err) => {
+		console.warn('[CascadeProposer] Erreur asynchrone post-affirmation ignorée :', err?.message || err);
 	});
 
 	return json({

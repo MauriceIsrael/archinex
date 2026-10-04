@@ -32,12 +32,35 @@
 	let closeJustification = $state('');
 	let closeError = $state('');
 	let isClosing = $state(false);
+	let isProposing = $state(false);
+	let capitalizeMessage = $state('');
 
 	$effect(() => {
 		if (cascade && cascade.questions) {
 			questions = [...cascade.questions];
 		}
 	});
+
+	async function handleProposeComplementaryQuestions() {
+		isProposing = true;
+		try {
+			const res = await fetch(
+				`/api/projects/${projectId}/subjects/${subjectId}/cascade/propose`,
+				{ method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }
+			);
+			if (res.ok) {
+				const data = await res.json();
+				if (data.questions && data.questions.length > 0) {
+					questions = [...questions, ...data.questions];
+					onQuestionUpdated();
+				}
+			}
+		} catch (err) {
+			console.warn('[Cascade] Erreur agent proposeur :', err);
+		} finally {
+			isProposing = false;
+		}
+	}
 
 	async function handleCloseQuestion() {
 		if (!selectedQuestionForClose) return;
@@ -112,6 +135,64 @@
 			console.warn('[Cascade] Erreur assignation :', err);
 		}
 	}
+
+	async function handleMergeQuestion(q: CascadeQuestion, targetSubjectId?: string) {
+		const mergedWithSubjectId = targetSubjectId || prompt('ID du sujet existant avec lequel fusionner :');
+		if (!mergedWithSubjectId) return;
+
+		try {
+			const res = await fetch(
+				`/api/projects/${projectId}/subjects/${subjectId}/cascade/actions`,
+				{
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({
+						action: 'merge',
+						question: q,
+						mergedWithSubjectId
+					})
+				}
+			);
+
+			if (res.ok) {
+				const data = await res.json();
+				const idx = questions.findIndex((item) => item.id === q.id);
+				if (idx !== -1) questions[idx] = data.question;
+				onQuestionUpdated();
+			}
+		} catch (err) {
+			console.warn('[Cascade] Erreur fusion :', err);
+		}
+	}
+
+	async function handleCapitalizeQuestion(q: CascadeQuestion) {
+		try {
+			const res = await fetch(
+				`/api/projects/${projectId}/subjects/${subjectId}/cascade/actions`,
+				{
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({
+						action: 'capitalize',
+						question: q,
+						candidateTitle: `Règle candidate issue de la question : ${q.subjectName}`,
+						candidateSummary: q.text,
+						candidateRationale: q.grounds || 'Suggestion de l\'agent proposeur remontée au référentiel.'
+					})
+				}
+			);
+
+			if (res.ok) {
+				const data = await res.json();
+				capitalizeMessage = `Candidature K22 enregistrée (${data.candidateId}) !`;
+				setTimeout(() => {
+					capitalizeMessage = '';
+				}, 4000);
+			}
+		} catch (err) {
+			console.warn('[Cascade] Erreur capitalisation :', err);
+		}
+	}
 </script>
 
 {#if questions.length > 0}
@@ -134,7 +215,28 @@
 					</span>
 				</div>
 			</div>
+
+			<!-- Bouton Agent Proposeur : Angles morts (A29) -->
+			<button
+				type="button"
+				onclick={handleProposeComplementaryQuestions}
+				disabled={isProposing}
+				class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-purple-500/30 bg-purple-500/10 hover:bg-purple-500/20 text-purple-700 dark:text-purple-300 font-semibold text-[11px] transition-colors cursor-pointer disabled:opacity-50"
+				title="Déclencher l'agent Proposeur pour identifier des angles morts complémentaires (au plus 2, llm-derived)"
+				data-testid="btn-propose-angles-morts"
+			>
+				<Sparkles class="h-3 w-3 {isProposing ? 'animate-spin' : ''}" />
+				<span>{isProposing ? 'Analyse...' : 'Angles morts 🤖'}</span>
+			</button>
 		</div>
+
+		<!-- Notification de capitalisation K22 -->
+		{#if capitalizeMessage}
+			<div class="p-2.5 rounded-lg bg-emerald-500/10 border border-emerald-500/30 text-emerald-800 dark:text-emerald-200 text-xs flex items-center gap-2 font-medium">
+				<CheckCircle class="h-4 w-4 text-emerald-600 shrink-0" />
+				<span>{capitalizeMessage}</span>
+			</div>
+		{/if}
 
 		<!-- Liste des questions de cascade -->
 		<div class="space-y-2.5">
@@ -165,7 +267,16 @@
 								</span>
 							{/if}
 
-							<!-- Règle de rattachement -->
+							<!-- Badge llm-derived pour questions d'agent -->
+							{#if q.productionMode === 'llm-derived' || q.sourceType === 'agent'}
+								<span
+									class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono font-semibold bg-purple-500/10 text-purple-700 dark:text-purple-300 border border-purple-500/20"
+								>
+									llm-derived
+								</span>
+							{/if}
+
+							<!-- Règle de rattachement (si applicable) -->
 							{#if q.lineage.ruleRef}
 								<span class="font-mono text-[10px] text-muted-foreground">
 									§ {q.lineage.ruleRef}
@@ -181,6 +292,13 @@
 								>
 									<CheckCircle class="h-3 w-3" />
 									Clos : {q.closedReason || 'Validé'}
+								</span>
+							{:else if q.status === 'merged'}
+								<span
+									class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold bg-amber-500/15 text-amber-800 dark:text-amber-200 border border-amber-500/30"
+								>
+									<Combine class="h-3 w-3" />
+									Fusionné avec {q.mergedWithSubjectId || 'sujet'}
 								</span>
 							{:else if q.status === 'assigned'}
 								<span
@@ -203,24 +321,63 @@
 						{q.text}
 					</h4>
 
-					<!-- Pourquoi : Faits déclencheurs et règle -->
+					<!-- Signalement de doublon sémantique potentiel (A29) -->
+					{#if q.possibleDuplicate && q.status !== 'merged'}
+						<div
+							class="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/30 flex items-center justify-between gap-2 flex-wrap"
+							data-testid="badge-possible-duplicate"
+						>
+							<div class="flex items-center gap-1.5 text-amber-900 dark:text-amber-200 text-[11px]">
+								<AlertCircle class="h-4 w-4 text-amber-600 shrink-0" />
+								<div>
+									<strong>Doublon possible ?</strong>
+									<span class="ml-1">
+										Similarité {(q.possibleDuplicate.score * 100).toFixed(0)}% (seuil calibré : {(q.possibleDuplicate.threshold * 100).toFixed(0)}%) avec « {q.possibleDuplicate.sectionRef || '§'} {q.possibleDuplicate.subjectName} »
+									</span>
+								</div>
+							</div>
+
+							<button
+								type="button"
+								onclick={() => handleMergeQuestion(q, q.possibleDuplicate?.subjectId)}
+								class="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-amber-600 hover:bg-amber-700 text-white font-bold text-[10px] transition-colors cursor-pointer shrink-0 shadow-2xs"
+								title="Fusionner cette question directement avec le sujet existant"
+								data-testid="btn-merge-duplicate"
+							>
+								<Combine class="h-3 w-3" />
+								<span>Fusionner</span>
+							</button>
+						</div>
+					{/if}
+
+					<!-- Pourquoi : Faits déclencheurs ou Fondement de l'agent -->
 					<div class="p-2 rounded bg-muted/30 border border-border/40 text-[11px] space-y-1">
-						<div class="flex items-center gap-1 text-muted-foreground">
-							<strong class="text-foreground">Pourquoi :</strong>
-							<span>{q.lineage.ruleName || q.lineage.ruleRef || 'Cascade de décision'}</span>
-						</div>
-						<div class="flex items-center gap-1 text-[10px] text-muted-foreground font-mono flex-wrap">
-							<span>Faits déclencheurs :</span>
-							{#each q.lineage.triggeringFacts as tf}
-								<span class="px-1 py-0.2 rounded bg-muted text-foreground border">
-									{tf.key} = {tf.value}
-								</span>
-							{/each}
-						</div>
+						{#if q.grounds}
+							<div class="text-muted-foreground">
+								<strong class="text-foreground">Fondement (grounds) :</strong>
+								<span class="ml-1">{q.grounds}</span>
+							</div>
+						{:else}
+							<div class="flex items-center gap-1 text-muted-foreground">
+								<strong class="text-foreground">Pourquoi :</strong>
+								<span>{q.lineage.ruleName || q.lineage.ruleRef || 'Cascade de décision'}</span>
+							</div>
+						{/if}
+
+						{#if q.lineage.triggeringFacts && q.lineage.triggeringFacts.length > 0}
+							<div class="flex items-center gap-1 text-[10px] text-muted-foreground font-mono flex-wrap">
+								<span>Faits déclencheurs :</span>
+								{#each q.lineage.triggeringFacts as tf}
+									<span class="px-1 py-0.2 rounded bg-muted text-foreground border">
+										{tf.key} = {tf.value}
+									</span>
+								{/each}
+							</div>
+						{/if}
 					</div>
 
 					<!-- Actions sur la question -->
-					{#if q.status !== 'closed'}
+					{#if q.status !== 'closed' && q.status !== 'merged'}
 						<div class="flex items-center justify-end gap-1.5 pt-1 border-t border-border/40 text-xs">
 							<!-- Ouvrir le fil de l'enfant -->
 							{#if q.childSubjectId}
@@ -235,6 +392,20 @@
 								</button>
 							{/if}
 
+							<!-- Capitaliser vers K22 / K7 -->
+							{#if q.sourceType === 'agent'}
+								<button
+									type="button"
+									onclick={() => handleCapitalizeQuestion(q)}
+									class="inline-flex items-center gap-1 px-2 py-1 rounded border border-purple-500/30 text-purple-700 dark:text-purple-300 hover:bg-purple-500/10 font-medium text-[11px] transition-colors cursor-pointer"
+									title="Remonter cette suggestion comme candidate à une règle de référence (K7/K22)"
+									data-testid="btn-capitalize-question"
+								>
+									<Sparkles class="h-3 w-3 text-purple-500" />
+									<span>Capitaliser (K22)</span>
+								</button>
+							{/if}
+
 							<!-- Assigner -->
 							<button
 								type="button"
@@ -245,6 +416,19 @@
 								<UserPlus class="h-3 w-3 text-muted-foreground" />
 								<span>Assigner</span>
 							</button>
+
+							<!-- Fusionner manuelle -->
+							{#if !q.possibleDuplicate}
+								<button
+									type="button"
+									onclick={() => handleMergeQuestion(q)}
+									class="inline-flex items-center gap-1 px-2 py-1 rounded border hover:bg-muted font-medium text-[11px] transition-colors cursor-pointer"
+									title="Fusionner avec un autre sujet"
+								>
+									<Combine class="h-3 w-3 text-muted-foreground" />
+									<span>Fusionner</span>
+								</button>
+							{/if}
 
 							<!-- Clore la question -->
 							<button

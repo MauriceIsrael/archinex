@@ -1,4 +1,4 @@
-export type CascadeSourceType = 'doctrine' | 'control' | 'local_rule';
+export type CascadeSourceType = 'doctrine' | 'control' | 'local_rule' | 'agent';
 
 export interface CascadeLineage {
 	ruleRef?: string;
@@ -14,6 +14,14 @@ export interface CascadePrefillFraming {
 	problemStatement?: string;
 	scope?: string;
 	kbRefs?: string[];
+}
+
+export interface CascadePossibleDuplicate {
+	subjectId: string;
+	subjectName: string;
+	sectionRef?: string;
+	score: number;
+	threshold: number;
 }
 
 export interface CascadeQuestion {
@@ -32,6 +40,9 @@ export interface CascadeQuestion {
 	lineage: CascadeLineage;
 	initialLevel?: 'L0_named' | 'L1_framed';
 	prefillFraming?: CascadePrefillFraming;
+	productionMode?: 'human-authored' | 'llm-proposed-human-approved' | 'llm-derived';
+	grounds?: string;
+	possibleDuplicate?: CascadePossibleDuplicate | null;
 }
 
 export interface CascadeResult {
@@ -91,6 +102,12 @@ export function formatSourceType(sourceType: CascadeSourceType): { icon: string;
 				icon: '🔧',
 				label: 'Règle locale',
 				badgeClass: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30'
+			};
+		case 'agent':
+			return {
+				icon: '🤖',
+				label: 'Agent IA',
+				badgeClass: 'bg-purple-500/10 text-purple-700 dark:text-purple-300 border-purple-500/30'
 			};
 	}
 }

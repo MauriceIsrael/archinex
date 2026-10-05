@@ -269,7 +269,7 @@
 						<span>Spécification télégraphique</span>
 						<span class="text-[10px] font-mono">5 colonnes</span>
 					</div>
-					<TelegraphicDraftView />
+					<TelegraphicDraftView readOnlyMode={true} />
 				</div>
 			{:else if activeTab === 'matrix'}
 				<!-- 2. Matrice d'options -->

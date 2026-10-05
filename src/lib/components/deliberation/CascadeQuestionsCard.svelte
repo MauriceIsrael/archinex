@@ -33,6 +33,7 @@
 	let closeError = $state('');
 	let isClosing = $state(false);
 	let isProposing = $state(false);
+	let isExpanded = $state(false);
 	let capitalizeMessage = $state('');
 
 	$effect(() => {
@@ -200,28 +201,36 @@
 		class="rounded-xl border border-indigo-500/30 bg-indigo-500/5 p-4 space-y-3 my-4 shadow-2xs"
 		data-testid="cascade-questions-card"
 	>
-		<!-- En-tête de la carte de cascade -->
+		<!-- En-tête de la carte de cascade (cliquable pour déplier/replier) -->
 		<div class="flex items-center justify-between gap-2 border-b border-indigo-500/20 pb-2.5">
-			<div class="flex items-center gap-2">
-				<div class="p-1.5 rounded-lg bg-indigo-500/15 text-indigo-600 dark:text-indigo-400">
+			<button
+				type="button"
+				onclick={() => (isExpanded = !isExpanded)}
+				class="flex items-center gap-2 text-left cursor-pointer group flex-1"
+				title={isExpanded ? 'Replier les questions' : 'Déplier les questions'}
+			>
+				<div class="p-1.5 rounded-lg bg-indigo-500/15 text-indigo-600 dark:text-indigo-400 group-hover:bg-indigo-500/25 transition-colors">
 					<GitFork class="h-4 w-4" />
 				</div>
 				<div>
-					<h3 class="text-xs font-bold text-foreground flex items-center gap-2">
+					<h3 class="text-xs font-bold text-foreground flex items-center gap-1.5">
 						<span>🔀 Cette décision ouvre {questions.length} questions et sous-sujets</span>
+						<span class="text-[10px] font-normal text-muted-foreground underline decoration-dotted ml-1">
+							{isExpanded ? '(replier ▲)' : '(déplier ▼)'}
+						</span>
 					</h3>
-					<span class="text-[10px] text-muted-foreground">
+					<span class="text-[10px] text-muted-foreground block">
 						Dérivé automatiquement par le moteur de cascade suite à l'affirmation des faits (K20)
 					</span>
 				</div>
-			</div>
+			</button>
 
 			<!-- Bouton Agent Proposeur : Angles morts (A29) -->
 			<button
 				type="button"
 				onclick={handleProposeComplementaryQuestions}
 				disabled={isProposing}
-				class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-purple-500/30 bg-purple-500/10 hover:bg-purple-500/20 text-purple-700 dark:text-purple-300 font-semibold text-[11px] transition-colors cursor-pointer disabled:opacity-50"
+				class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border border-purple-500/30 bg-purple-500/10 hover:bg-purple-500/20 text-purple-700 dark:text-purple-300 font-semibold text-[11px] transition-colors cursor-pointer disabled:opacity-50 shrink-0"
 				title="Déclencher l'agent Proposeur pour identifier des angles morts complémentaires (au plus 2, llm-derived)"
 				data-testid="btn-propose-angles-morts"
 			>
@@ -238,7 +247,8 @@
 			</div>
 		{/if}
 
-		<!-- Liste des questions de cascade -->
+		<!-- Liste des questions de cascade (repliée par défaut) -->
+		{#if isExpanded}
 		<div class="space-y-2.5">
 			{#each questions as q (q.id)}
 				{@const sourceInfo = formatSourceType(q.sourceType)}
@@ -512,6 +522,7 @@
 					</button>
 				</div>
 			</div>
+		{/if}
 		{/if}
 	</div>
 {/if}

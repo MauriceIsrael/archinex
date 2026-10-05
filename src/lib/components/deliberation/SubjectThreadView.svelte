@@ -35,7 +35,8 @@
 		Clock,
 		X,
 		Layers,
-		CheckCircle2
+		CheckCircle2,
+		ChevronDown
 	} from 'lucide-svelte';
 
 	let {
@@ -67,6 +68,7 @@
 	let isLoadingArguments = $state(false);
 	let isDebating = $state(false);
 	let invokingAgentRole = $state<string | null>(null);
+	let isAgentMenuOpen = $state(false);
 	let replyingTo = $state<Argument | null>(null);
 
 	// Navigation et modes d'affichage du fil
@@ -470,62 +472,112 @@
 			</div>
 
 			<div class="flex items-center gap-1.5 flex-wrap">
-				<!-- Menu ou boutons d'appel direct d'un agent -->
-				<div class="inline-flex items-center rounded-lg border bg-background p-0.5 text-xs shadow-2xs">
+				<!-- Menu compact Solliciter un agent (A31) -->
+				<div class="relative">
 					<button
 						type="button"
 						disabled={isDebating || invokingAgentRole !== null}
-						onclick={() => handleInvokeAgent('challenger')}
-						class="px-2 py-1 rounded-md text-[11px] font-semibold text-rose-700 dark:text-rose-400 hover:bg-rose-500/10 disabled:opacity-40 transition-colors cursor-pointer"
-						title="Appeler @challenger pour trouver les failles et formuler des objections"
+						onclick={() => (isAgentMenuOpen = !isAgentMenuOpen)}
+						class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border bg-background hover:bg-muted/70 disabled:opacity-50 text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
+						title="Solliciter un agent IA ou lancer un débat contradictoire"
 					>
-						{invokingAgentRole === 'challenger' ? 'Challenger...' : '⚔️ Challenger'}
+						{#if isDebating}
+							<RotateCcw class="h-3.5 w-3.5 animate-spin text-primary" />
+							<span>Débat en cours...</span>
+						{:else if invokingAgentRole}
+							<RotateCcw class="h-3.5 w-3.5 animate-spin text-purple-600" />
+							<span>@{invokingAgentRole}...</span>
+						{:else}
+							<Sparkles class="h-3.5 w-3.5 text-purple-600" />
+							<span>Solliciter un agent</span>
+							<ChevronDown class="h-3 w-3 text-muted-foreground transition-transform {isAgentMenuOpen ? 'rotate-180' : ''}" />
+						{/if}
 					</button>
-					<button
-						type="button"
-						disabled={isDebating || invokingAgentRole !== null}
-						onclick={() => handleInvokeAgent('proposer')}
-						class="px-2 py-1 rounded-md text-[11px] font-semibold text-blue-700 dark:text-blue-400 hover:bg-blue-500/10 disabled:opacity-40 transition-colors cursor-pointer"
-						title="Appeler @proposer pour suggérer une nouvelle option"
-					>
-						{invokingAgentRole === 'proposer' ? 'Proposer...' : '💡 Proposer'}
-					</button>
-					<button
-						type="button"
-						disabled={isDebating || invokingAgentRole !== null}
-						onclick={() => handleInvokeAgent('verifier')}
-						class="px-2 py-1 rounded-md text-[11px] font-semibold text-cyan-700 dark:text-cyan-400 hover:bg-cyan-500/10 disabled:opacity-40 transition-colors cursor-pointer"
-						title="Appeler @verifier pour contrôler la conformité à la doctrine"
-					>
-						{invokingAgentRole === 'verifier' ? 'Vérifier...' : '🛡️ Vérifier'}
-					</button>
-					<button
-						type="button"
-						disabled={isDebating || invokingAgentRole !== null}
-						onclick={() => handleInvokeAgent('synthesizer')}
-						class="px-2 py-1 rounded-md text-[11px] font-semibold text-purple-700 dark:text-purple-400 hover:bg-purple-500/10 disabled:opacity-40 transition-colors cursor-pointer"
-						title="Appeler @synthesizer pour résumer et proposer un arbitrage"
-					>
-						{invokingAgentRole === 'synthesizer' ? 'Synthèse...' : '⚖️ Synthèse'}
-					</button>
-				</div>
 
-				<!-- Lancer le débat contradictoire complet multi-agents -->
-				<button
-					type="button"
-					disabled={isDebating || invokingAgentRole !== null}
-					onclick={handleLaunchDebate}
-					class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
-					title="Déclencher un débat contradictoire complet (Proposer + Challenger + Synthesizer)"
-				>
-					{#if isDebating}
-						<RotateCcw class="h-3.5 w-3.5 animate-spin" />
-						<span>Débat...</span>
-					{:else}
-						<Sparkles class="h-3.5 w-3.5" />
-						<span>Débat complet</span>
+					{#if isAgentMenuOpen}
+						<div
+							class="absolute right-0 mt-1 w-56 rounded-xl border bg-popover text-popover-foreground shadow-lg z-30 p-1.5 space-y-1 text-xs"
+							role="menu"
+						>
+							<div class="px-2 py-1 text-[10px] font-bold text-muted-foreground uppercase tracking-wider border-b mb-1">
+								Interpeller un agent IA
+							</div>
+							<button
+								type="button"
+								onclick={() => {
+									isAgentMenuOpen = false;
+									handleInvokeAgent('challenger');
+								}}
+								class="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-rose-500/10 text-rose-700 dark:text-rose-400 font-semibold cursor-pointer transition-colors text-left"
+							>
+								<span>⚔️</span>
+								<div>
+									<div class="leading-none">@challenger</div>
+									<div class="text-[10px] font-normal text-muted-foreground mt-0.5">Trouver failles & objections</div>
+								</div>
+							</button>
+							<button
+								type="button"
+								onclick={() => {
+									isAgentMenuOpen = false;
+									handleInvokeAgent('proposer');
+								}}
+								class="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-blue-500/10 text-blue-700 dark:text-blue-400 font-semibold cursor-pointer transition-colors text-left"
+							>
+								<span>💡</span>
+								<div>
+									<div class="leading-none">@proposer</div>
+									<div class="text-[10px] font-normal text-muted-foreground mt-0.5">Suggérer une nouvelle option</div>
+								</div>
+							</button>
+							<button
+								type="button"
+								onclick={() => {
+									isAgentMenuOpen = false;
+									handleInvokeAgent('verifier');
+								}}
+								class="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-cyan-500/10 text-cyan-700 dark:text-cyan-400 font-semibold cursor-pointer transition-colors text-left"
+							>
+								<span>🛡️</span>
+								<div>
+									<div class="leading-none">@verifier</div>
+									<div class="text-[10px] font-normal text-muted-foreground mt-0.5">Contrôler conformité doctrine</div>
+								</div>
+							</button>
+							<button
+								type="button"
+								onclick={() => {
+									isAgentMenuOpen = false;
+									handleInvokeAgent('synthesizer');
+								}}
+								class="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-purple-500/10 text-purple-700 dark:text-purple-400 font-semibold cursor-pointer transition-colors text-left"
+							>
+								<span>⚖️</span>
+								<div>
+									<div class="leading-none">@synthesizer</div>
+									<div class="text-[10px] font-normal text-muted-foreground mt-0.5">Résumer et arbitrer</div>
+								</div>
+							</button>
+
+							<div class="border-t my-1"></div>
+
+							<button
+								type="button"
+								onclick={() => {
+									isAgentMenuOpen = false;
+									handleLaunchDebate();
+								}}
+								class="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 font-semibold cursor-pointer transition-colors text-left"
+							>
+								<span>⚡</span>
+								<div>
+									<div class="leading-none">Débat complet</div>
+									<div class="text-[10px] font-normal text-muted-foreground mt-0.5">Tour contradictoire automatisé</div>
+								</div>
+							</button>
+						</div>
 					{/if}
-				</button>
+				</div>
 
 				<!-- Toggle Dossier -->
 				<button

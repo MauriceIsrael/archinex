@@ -212,71 +212,33 @@
 		</div>
 	{/if}
 
-	<!-- 1. SÉLECTEUR DE POSTURE & QUICK AGENT CHIPS -->
-	<div class="space-y-2">
-		<div class="flex items-center justify-between gap-2 flex-wrap">
-			<div class="flex items-center gap-1.5 flex-wrap">
-				<span class="text-xs font-bold text-foreground mr-1">Posture :</span>
-
-				<button
-					type="button"
-					onclick={() => (stance = 'support')}
-					class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer {stance ===
-					'support'
-						? 'bg-emerald-600 text-white shadow-xs'
-						: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/20 border border-emerald-500/30'}"
+	<!-- LIGNE DE COMMANDE COMPACTE : Posture & Options -->
+	<div class="flex items-center justify-between gap-2 flex-wrap text-xs">
+		<div class="flex items-center gap-2">
+			<!-- Sélecteur compact de posture (A32) -->
+			<div class="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg border bg-background text-xs font-semibold shadow-2xs">
+				<span class="text-muted-foreground text-[11px]">Posture :</span>
+				<select
+					bind:value={stance}
+					class="bg-transparent font-semibold cursor-pointer focus:outline-none text-xs text-foreground"
 				>
-					<CheckCircle2 class="h-3.5 w-3.5" />
-					<span>Soutenir</span>
-				</button>
-
-				<button
-					type="button"
-					onclick={() => (stance = 'objection')}
-					class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer {stance ===
-					'objection'
-						? 'bg-rose-600 text-white shadow-xs'
-						: 'bg-rose-500/10 text-rose-700 dark:text-rose-300 hover:bg-rose-500/20 border border-rose-500/30'}"
-				>
-					<AlertCircle class="h-3.5 w-3.5" />
-					<span>Objecter</span>
-				</button>
-
-				<button
-					type="button"
-					onclick={() => (stance = 'question')}
-					class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer {stance ===
-					'question'
-						? 'bg-amber-600 text-white shadow-xs'
-						: 'bg-amber-500/10 text-amber-700 dark:text-amber-300 hover:bg-amber-500/20 border border-amber-500/30'}"
-				>
-					<HelpCircle class="h-3.5 w-3.5" />
-					<span>Questionner</span>
-				</button>
-
-				<button
-					type="button"
-					onclick={() => (stance = 'verification')}
-					class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold transition-all cursor-pointer {stance ===
-					'verification'
-						? 'bg-cyan-600 text-white shadow-xs'
-						: 'bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 hover:bg-cyan-500/20 border border-cyan-500/30'}"
-				>
-					<BookOpen class="h-3.5 w-3.5" />
-					<span>Vérifier</span>
-				</button>
+					<option value="support">🟢 Soutenir</option>
+					<option value="objection">🔴 Objecter</option>
+					<option value="question">🟡 Questionner</option>
+					<option value="verification">🔵 Vérifier</option>
+				</select>
 			</div>
 
-			<!-- Ciblage d'option (Transverse ou spécifique) -->
+			<!-- Ciblage d'option -->
 			{#if options.length > 0}
-				<div class="flex items-center gap-1.5 text-xs">
-					<label for="compose-option" class="text-muted-foreground font-medium">Option :</label>
+				<div class="inline-flex items-center gap-1 px-2 py-1 rounded-lg border bg-background text-xs shadow-2xs">
+					<label for="compose-option" class="text-muted-foreground text-[11px]">Option :</label>
 					<select
 						id="compose-option"
 						bind:value={selectedOptionId}
-						class="px-2 py-1 text-xs rounded-md border bg-background text-foreground"
+						class="bg-transparent font-medium cursor-pointer focus:outline-none text-xs text-foreground max-w-[140px] truncate"
 					>
-						<option value="">Transverse (toutes options)</option>
+						<option value="">Transverse</option>
 						{#each options as opt}
 							<option value={opt.id}>{opt.title}</option>
 						{/each}
@@ -285,87 +247,33 @@
 			{/if}
 		</div>
 
-		<!-- Puces d'assistance rapide des Agents LLM -->
-		<div class="flex items-center gap-1.5 flex-wrap pt-0.5">
-			<span class="text-[11px] font-semibold text-muted-foreground flex items-center gap-1">
-				<Sparkles class="h-3 w-3 text-purple-600" />
-				<span>Solliciter un agent :</span>
-			</span>
-
-			<button
-				type="button"
-				onclick={() => {
-					grounds = grounds.includes('@challenger') ? grounds : `${grounds.trim()} @challenger `.trimStart();
-				}}
-				class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono font-medium border border-rose-500/30 bg-rose-500/10 text-rose-700 dark:text-rose-300 hover:bg-rose-500/20 cursor-pointer transition-colors"
-				title="Insère @challenger pour demander à l'agent de trouver les failles"
-			>
-				<span>@challenger</span>
-				<span class="text-muted-foreground font-sans">Attaquer</span>
-			</button>
-
-			<button
-				type="button"
-				onclick={() => {
-					grounds = grounds.includes('@proposer') ? grounds : `${grounds.trim()} @proposer `.trimStart();
-				}}
-				class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono font-medium border border-blue-500/30 bg-blue-500/10 text-blue-700 dark:text-blue-300 hover:bg-blue-500/20 cursor-pointer transition-colors"
-				title="Insère @proposer pour suggérer une nouvelle option"
-			>
-				<span>@proposer</span>
-				<span class="text-muted-foreground font-sans">Proposer</span>
-			</button>
-
-			<button
-				type="button"
-				onclick={() => {
-					grounds = grounds.includes('@verifier') ? grounds : `${grounds.trim()} @verifier `.trimStart();
-				}}
-				class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono font-medium border border-cyan-500/30 bg-cyan-500/10 text-cyan-700 dark:text-cyan-300 hover:bg-cyan-500/20 cursor-pointer transition-colors"
-				title="Insère @verifier pour contrôler la conformité doctrine"
-			>
-				<span>@verifier</span>
-				<span class="text-muted-foreground font-sans">Vérifier</span>
-			</button>
-
-			<button
-				type="button"
-				onclick={() => {
-					grounds = grounds.includes('@synthesizer') ? grounds : `${grounds.trim()} @synthesizer `.trimStart();
-				}}
-				class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-mono font-medium border border-purple-500/30 bg-purple-500/10 text-purple-700 dark:text-purple-300 hover:bg-purple-500/20 cursor-pointer transition-colors"
-				title="Insère @synthesizer pour résumer et proposer un compromis"
-			>
-				<span>@synthesizer</span>
-				<span class="text-muted-foreground font-sans">Synthétiser</span>
-			</button>
+		<!-- Aide syntaxe discrète -->
+		<div class="text-[11px] text-muted-foreground hidden sm:block">
+			<span>Tapez <code class="font-mono bg-muted px-1 py-0.5 rounded text-[10px]">#base</code> pour citer, <code class="font-mono bg-muted px-1 py-0.5 rounded text-[10px]">@agent</code> pour interpeller</span>
 		</div>
 	</div>
 
-	<!-- 2. CHAMP AFFIRMATION (claim) -->
-	<div class="space-y-1">
-		<label for="compose-claim" class="text-xs font-bold text-foreground block">
-			Affirmation (Thèse ou constat direct) :
-		</label>
+	<!-- 2. CHAMP AFFIRMATION (claim) - Toujours visible -->
+	<div>
 		<input
 			id="compose-claim"
 			type="text"
 			value={claim}
 			onkeydown={(e) => handleInputKeyDown(e, 'claim')}
 			oninput={(e) => handleInput(e, 'claim')}
-			placeholder="Ex: Le plan de données requiert une isolation matérielle sous NIS2 (#RULE-SEC-01)..."
-			class="w-full px-3 py-2 text-xs rounded-lg border bg-background text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-primary"
+			placeholder="Formulez votre thèse ou argument (ex: Le chiffrement matériel répond à la règle #RULE-SEC-01)..."
+			class="w-full px-3 py-2 text-xs rounded-lg border bg-background text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-primary shadow-2xs"
 		/>
 	</div>
 
-	<!-- 3. CHAMP FONDEMENT OBLIGATOIRE (grounds) -->
-	<div class="space-y-1">
-		<div class="flex items-center justify-between text-xs">
-			<label for="compose-grounds" class="font-bold text-foreground flex items-center gap-1">
-				<span>Fondement technique ou factuel (Obligatoire) :</span>
-				<span class="text-rose-600 font-bold">*</span>
+	<!-- 3. CHAMP FONDEMENT OBLIGATOIRE (grounds) - Révélation fluide (A32) -->
+	<div class="space-y-1 transition-all duration-200 {claim.trim().length === 0 && grounds.trim().length === 0 ? 'hidden' : 'block'}">
+		<div class="flex items-center justify-between text-[11px]">
+			<label for="compose-grounds" class="font-semibold text-foreground flex items-center gap-1">
+				<span>Fondement technique ou factuel (Obligatoire)</span>
+				<span class="text-rose-500 font-bold">*</span>
 			</label>
-			<span class="text-[10px] text-muted-foreground">Tapez # pour citer une règle, @ pour interpeller un agent</span>
+			<span class="text-[10px] text-muted-foreground">Requis pour validation épistémique</span>
 		</div>
 		<textarea
 			id="compose-grounds"
@@ -373,14 +281,14 @@
 			value={grounds}
 			onkeydown={(e) => handleInputKeyDown(e, 'grounds')}
 			oninput={(e) => handleInput(e, 'grounds')}
-			placeholder="Démontrez la causalité, le calcul, ou citez la doctrine (@challenger attaque l'option B)..."
-			class="w-full px-3 py-2 text-xs rounded-lg border bg-background text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-primary leading-relaxed"
+			placeholder="Démontrez la causalité, le chiffrage ou le retour d'expérience sous-jacent..."
+			class="w-full px-3 py-2 text-xs rounded-lg border bg-background text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-primary leading-relaxed shadow-2xs"
 		></textarea>
 	</div>
 
 	<!-- MENU AUTOCOMPLÉTION POPUP (#base ou @agent) -->
 	{#if activeMentionType === 'hash' && filteredHashSuggestions.length > 0}
-		<div class="absolute z-20 bg-popover border rounded-lg shadow-lg p-1.5 w-72 max-h-48 overflow-y-auto bottom-16 left-4 text-xs">
+		<div class="absolute z-20 bg-popover border rounded-lg shadow-lg p-1.5 w-72 max-h-48 overflow-y-auto bottom-14 left-4 text-xs">
 			<div class="px-2 py-1 text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1 border-b mb-1">
 				<Hash class="h-3 w-3 text-primary" />
 				<span>Doctrines autorisées (#base)</span>
@@ -397,7 +305,7 @@
 			{/each}
 		</div>
 	{:else if activeMentionType === 'at' && filteredAtSuggestions.length > 0}
-		<div class="absolute z-20 bg-popover border rounded-lg shadow-lg p-1.5 w-80 max-h-48 overflow-y-auto bottom-16 left-4 text-xs">
+		<div class="absolute z-20 bg-popover border rounded-lg shadow-lg p-1.5 w-80 max-h-48 overflow-y-auto bottom-14 left-4 text-xs">
 			<div class="px-2 py-1 text-[10px] font-bold text-muted-foreground uppercase tracking-wider flex items-center gap-1 border-b mb-1">
 				<AtSign class="h-3 w-3 text-primary" />
 				<span>Agents & Membres (@)</span>
@@ -424,20 +332,20 @@
 	<!-- 4. VALIDATION INLINE & BOUTON D'ENVOI -->
 	<div class="flex items-center justify-between gap-2 pt-1 border-t border-border/50 text-xs">
 		<!-- Feedback de validation en direct -->
-		<div class="flex items-center gap-1.5 flex-1 text-[11px]">
+		<div class="flex items-center gap-1.5 flex-1 text-[11px] min-h-[20px]">
 			{#if validation.valid}
 				<span class="text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1">
 					<CheckCircle2 class="h-3.5 w-3.5" />
-					<span>Argument conforme aux exigences</span>
+					<span>Argument complet et étayé</span>
 				</span>
 				{#if extracted.agentMentions.length > 0}
 					<span class="text-purple-600 font-mono text-[10px] px-1.5 py-0.2 rounded bg-purple-500/10">
-						+ Invoquera @{extracted.agentMentions.join(', @')}
+						+ Sollicitera @{extracted.agentMentions.join(', @')}
 					</span>
 				{/if}
-			{:else}
-				<span class="text-rose-600 dark:text-rose-400 font-medium flex items-center gap-1">
-					<AlertCircle class="h-3.5 w-3.5 shrink-0" />
+			{:else if claim.trim().length > 0 || grounds.trim().length > 0}
+				<span class="text-muted-foreground font-medium flex items-center gap-1">
+					<AlertCircle class="h-3.5 w-3.5 text-amber-500 shrink-0" />
 					<span>{validation.reason}</span>
 				</span>
 			{/if}
@@ -448,11 +356,11 @@
 			type="button"
 			disabled={!validation.valid || isSubmitting}
 			onclick={handleSubmit}
-			class="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed text-xs font-semibold shadow-xs transition-colors cursor-pointer shrink-0"
+			class="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed text-xs font-semibold shadow-xs transition-colors cursor-pointer shrink-0"
 			title={validation.valid ? 'Publier cet argument' : 'Remplissez le fondement requis pour publier'}
 		>
 			<Send class="h-3.5 w-3.5" />
-			<span>{isSubmitting ? 'Publication...' : 'Partager l’argument'}</span>
+			<span>{isSubmitting ? 'Publication...' : 'Envoyer'}</span>
 		</button>
 	</div>
 </div>

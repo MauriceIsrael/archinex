@@ -248,19 +248,15 @@
 					</div>
 
 					<h4 class="text-xs font-semibold text-foreground line-clamp-2 leading-snug">
+						{#if isChild}
+							<span class="text-indigo-500 font-mono text-[11px] font-normal mr-1 select-none">└─</span>
+						{/if}
 						{sub.name}
 					</h4>
 
-					{#if isChild}
-						<div class="text-[10px] text-indigo-600 dark:text-indigo-400 flex items-center gap-1 font-medium">
-							<span>↳ né de :</span>
-							<span class="truncate">{sub.parent_subject_name || 'Décision parente'}</span>
-						</div>
-					{/if}
-
-					<div class="flex items-center justify-between text-[10px] text-muted-foreground">
-						<span>Attente : <strong class="text-foreground">{sub.waiting_for_role}</strong></span>
-						<span class="font-mono">Effort {sub.relative_effort}</span>
+					<div class="flex items-center justify-between text-[10px] text-muted-foreground pt-0.5">
+						<span class="truncate">⏳ <strong class="text-foreground">{sub.waiting_for_role}</strong></span>
+						<span class="font-mono shrink-0 ml-1">Effort {sub.relative_effort}</span>
 					</div>
 				</button>
 			{/each}

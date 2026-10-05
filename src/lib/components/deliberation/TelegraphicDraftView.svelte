@@ -36,7 +36,14 @@
 	import type { MaturityComputationResult } from '$lib/domain/maturityRules';
 
 	type ViewTab = 'decision' | 'discussion' | 'draft' | 'arbitration';
-	let activeTab = $state<ViewTab>('decision');
+
+	let {
+		readOnlyMode = false
+	}: {
+		readOnlyMode?: boolean;
+	} = $props();
+
+	let activeTab = $state<ViewTab>('draft');
 
 	const draft = $derived(deliberationStore.activeDraft);
 	const activeSubject = $derived(deliberationStore.activeSubject);
@@ -389,7 +396,7 @@
 				{draft?.subject || 'Aucun sujet sélectionné'}
 			</h3>
 
-			{#if draft}
+			{#if !readOnlyMode && draft}
 				<div class="mt-2 p-2.5 rounded-lg bg-blue-500/10 border border-blue-500/25 text-xs space-y-2">
 					<div class="flex items-start gap-2">
 						<HelpCircle class="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0 mt-0.5" />
@@ -459,55 +466,57 @@
 		</div>
 
 		<!-- Actions Rapides -->
-		<div class="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
-			{#if draft}
-				<!-- Bouton Élicitation Assistée par LLM Local Souverain -->
-				<button
-					type="button"
-					class="inline-flex items-center gap-1 rounded-lg bg-gradient-to-r from-primary to-primary/80 hover:opacity-95 text-primary-foreground px-2.5 py-1 text-xs font-semibold shadow-2xs transition-all cursor-pointer disabled:opacity-50"
-					onclick={handleElicitDetails}
-					disabled={isEliciting}
-					title="Éliciter les hypothèses (SUPPOSE), controverses (CONFLIT) et sous-questions (MANQUE) via le LLM local"
-				>
-					{#if isEliciting}
-						<RefreshCw class="h-3.5 w-3.5 animate-spin" />
-						<span>Élicitation...</span>
-					{:else}
-						<Sparkles class="h-3.5 w-3.5 text-amber-300" />
-						<span>Éliciter (LLM Local)</span>
-					{/if}
-				</button>
-
-				<!-- Bouton Récolter (Harvesting) dans LLMOps -->
-				{#if draft.retenu.length > 0}
+		{#if !readOnlyMode}
+			<div class="flex items-center gap-1.5 shrink-0 flex-wrap justify-end">
+				{#if draft}
+					<!-- Bouton Élicitation Assistée par LLM Local Souverain -->
 					<button
 						type="button"
-						class="inline-flex items-center gap-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white px-2.5 py-1 text-xs font-semibold shadow-2xs transition-colors shrink-0 cursor-pointer disabled:opacity-50"
-						onclick={handleHarvestSubject}
-						disabled={isHarvesting}
-						title="Récolter les décisions validées de ce sujet dans le Patrimoine Commun (LLMOps)"
+						class="inline-flex items-center gap-1 rounded-lg bg-gradient-to-r from-primary to-primary/80 hover:opacity-95 text-primary-foreground px-2.5 py-1 text-xs font-semibold shadow-2xs transition-all cursor-pointer disabled:opacity-50"
+						onclick={handleElicitDetails}
+						disabled={isEliciting}
+						title="Éliciter les hypothèses (SUPPOSE), controverses (CONFLIT) et sous-questions (MANQUE) via le LLM local"
 					>
-						{#if isHarvesting}
+						{#if isEliciting}
 							<RefreshCw class="h-3.5 w-3.5 animate-spin" />
-							<span>Récolte...</span>
+							<span>Élicitation...</span>
 						{:else}
-							<Database class="h-3.5 w-3.5 text-indigo-200" />
-							<span>Récolter dans LLMOps</span>
+							<Sparkles class="h-3.5 w-3.5 text-amber-300" />
+							<span>Éliciter (LLM Local)</span>
 						{/if}
 					</button>
-				{/if}
-			{/if}
 
-			<button
-				type="button"
-				class="inline-flex items-center gap-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 py-1 text-xs font-semibold shadow-2xs transition-colors shrink-0"
-				onclick={() => deliberationStore.openFreezeDialog()}
-				title="Sceller la section pour homologation (SHA-256)"
-			>
-				<ShieldCheck class="h-3.5 w-3.5" />
-				<span>Sceller</span>
-			</button>
-		</div>
+					<!-- Bouton Récolter (Harvesting) dans LLMOps -->
+					{#if draft.retenu.length > 0}
+						<button
+							type="button"
+							class="inline-flex items-center gap-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white px-2.5 py-1 text-xs font-semibold shadow-2xs transition-colors shrink-0 cursor-pointer disabled:opacity-50"
+							onclick={handleHarvestSubject}
+							disabled={isHarvesting}
+							title="Récolter les décisions validées de ce sujet dans le Patrimoine Commun (LLMOps)"
+						>
+							{#if isHarvesting}
+								<RefreshCw class="h-3.5 w-3.5 animate-spin" />
+								<span>Récolte...</span>
+							{:else}
+								<Database class="h-3.5 w-3.5 text-indigo-200" />
+								<span>Récolter dans LLMOps</span>
+							{/if}
+						</button>
+					{/if}
+				{/if}
+
+				<button
+					type="button"
+					class="inline-flex items-center gap-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-2.5 py-1 text-xs font-semibold shadow-2xs transition-colors shrink-0"
+					onclick={() => deliberationStore.openFreezeDialog()}
+					title="Sceller la section pour homologation (SHA-256)"
+				>
+					<ShieldCheck class="h-3.5 w-3.5" />
+					<span>Sceller</span>
+				</button>
+			</div>
+		{/if}
 	</div>
 
 	<!-- Onglets de Délibération du Sujet (Problème & Alternatives / Débat Experts / Fiche Télégraphique) -->

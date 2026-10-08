@@ -138,6 +138,95 @@ export async function saveEngagementToDb(profile: EngagementProfile): Promise<En
 		update: data
 	});
 
+	// Synchronisation avec les tables relationnelles (Project, ProjectMember, Subject)
+	try {
+		await prisma.project.upsert({
+			where: { id: profile.id },
+			create: {
+				id: profile.id,
+				title: profile.title,
+				shortName: profile.shortName,
+				type: profile.type,
+				badge: profile.badge,
+				description: profile.description,
+				status: 'active',
+				strategy: data.strategy,
+				version: 1
+			},
+			update: {
+				title: profile.title,
+				shortName: profile.shortName,
+				type: profile.type,
+				badge: profile.badge,
+				description: profile.description,
+				status: 'active',
+				strategy: data.strategy
+			}
+		});
+
+		if (profile.subjects && profile.subjects.length > 0) {
+			for (const s of profile.subjects) {
+				const subjectId = s.id;
+				if (!subjectId) continue;
+				await prisma.subject.upsert({
+					where: { id: subjectId },
+					create: {
+						id: subjectId,
+						projectId: profile.id,
+						sectionRef: s.section_ref || '§0.0',
+						name: s.name || 'Sujet sans titre',
+						domain: (s as any).domain || 'general',
+						problemStatement: (s as any).problem_statement || (s as any).problemStatement || '',
+						maturityLevel: s.level || 'L0_named',
+						deliberationStatus: (s as any).deliberationStatus || 'open',
+						waitingForRole: s.waiting_for_role || 'lead_architect',
+						relativeEffort: s.relative_effort || 'M',
+						blockingCount: s.blocking_count ?? 0,
+						unlocksCount: s.unlocks_count ?? 0,
+						version: 1
+					},
+					update: {
+						sectionRef: s.section_ref || '§0.0',
+						name: s.name || 'Sujet sans titre',
+						domain: (s as any).domain || 'general',
+						problemStatement: (s as any).problem_statement || (s as any).problemStatement || '',
+						maturityLevel: s.level || 'L0_named',
+						waitingForRole: s.waiting_for_role || 'lead_architect',
+						relativeEffort: s.relative_effort || 'M',
+						blockingCount: s.blocking_count ?? 0,
+						unlocksCount: s.unlocks_count ?? 0
+					}
+				});
+			}
+		}
+
+		if (profile.participants && profile.participants.length > 0) {
+			for (const p of profile.participants) {
+				const userId = p.id;
+				if (!userId) continue;
+				await prisma.projectMember.upsert({
+					where: {
+						projectId_userId: {
+							projectId: profile.id,
+							userId
+						}
+					},
+					create: {
+						projectId: profile.id,
+						userId,
+						role: p.role || 'lead_architect',
+						domains: '[]'
+					},
+					update: {
+						role: p.role || 'lead_architect'
+					}
+				});
+			}
+		}
+	} catch (syncErr) {
+		console.warn(`[engagementsDb] Échec de la synchronisation relationnelle pour ${profile.id}:`, syncErr);
+	}
+
 	// Sauvegarder également ses documents amonts s'il y en a
 	if (profile.corpusDocuments && profile.corpusDocuments.length > 0) {
 		for (const doc of profile.corpusDocuments) {

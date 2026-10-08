@@ -5,6 +5,7 @@
 		MaturityTransitionsReport,
 		TransitionCheck
 	} from '$lib/domain/maturityCriteria';
+	import { formatMaturityLevel } from '$lib/domain/debate';
 	import {
 		Check,
 		Lock,
@@ -93,20 +94,20 @@
 					class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg font-semibold text-[11px] transition-all cursor-pointer whitespace-nowrap {isCurrent
 						? 'bg-primary text-primary-foreground shadow-xs ring-2 ring-primary/30'
 						: isPast
-							? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30'
+							? 'bg-muted/80 text-foreground border border-border/80'
 							: isInspected
 								? 'bg-muted text-foreground border border-primary/40'
-								: 'bg-muted/50 text-muted-foreground hover:text-foreground'}"
+								: 'bg-muted/30 text-muted-foreground hover:text-foreground'}"
 					title={step.locked ? `Verrouillé : ${step.lockRole}` : `Étape ${step.label}`}
 				>
 					<!-- Pastille / Statut -->
 					{#if isPast}
-						<Check class="h-3 w-3 stroke-[3]" />
+						<Check class="h-3 w-3 stroke-[3] text-emerald-600 dark:text-emerald-400" />
 					{:else if step.locked}
-						<Lock class="h-3 w-3 {isCurrent ? 'text-primary-foreground' : 'text-amber-600 dark:text-amber-400'}" />
+						<Lock class="h-3 w-3 {isCurrent ? 'text-primary-foreground' : 'text-muted-foreground'}" />
 					{/if}
 
-					<span>{step.short} {step.label}</span>
+					<span>{step.short} · {step.label}</span>
 
 					{#if step.locked && !isPast}
 						<span class="text-[9px] opacity-75 font-mono">🔒</span>
@@ -131,14 +132,14 @@
 					data-testid="sor-hub-badge"
 				>
 					<Database class="h-3 w-3" />
-					<span>Hub : {report.displayedLevel}</span>
+					<span>Hub · {formatMaturityLevel(report.displayedLevel)}</span>
 				</span>
 			{:else}
 				<span
 					class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-muted text-muted-foreground border text-[10px] font-semibold"
 					title="Maturité de travail locale"
 				>
-					<span>Local : {activeLevel}</span>
+					<span>Local · {formatMaturityLevel(activeLevel)}</span>
 				</span>
 			{/if}
 

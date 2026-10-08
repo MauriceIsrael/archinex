@@ -21,7 +21,7 @@ export const GET: RequestHandler = async () => {
 			status: 'ok',
 			serverEndpoint: health.endpoint,
 			available: health.available,
-			defaultModel: 'ministral:latest',
+			defaultModel: localLlmClient.getDefaultModel(),
 			models: health.models,
 			defaultSystemPrompt: defaultPrompt,
 			kbStandardsCount: 0,
@@ -32,7 +32,7 @@ export const GET: RequestHandler = async () => {
 		return json({
 			status: 'error',
 			available: false,
-			defaultModel: 'ministral:latest',
+			defaultModel: localLlmClient.getDefaultModel(),
 			models: [
 				{ id: 'ministral:latest', name: 'ministral:latest (Raisonnement 14B)' },
 				{ id: 'qwen2.5-coder:14b', name: 'qwen2.5-coder:14b (Structure 14B)' }
@@ -77,7 +77,7 @@ export const POST: RequestHandler = async ({ request }) => {
 		const result = await factorizeRfpWithLocalLlm(
 			{
 				clauses,
-				model: body.model || 'ministral:latest',
+				model: body.model || localLlmClient.getDefaultModel(),
 				customPromptDirectives: body.customPromptDirectives,
 				engagementId: body.engagementId,
 				documentTitle: body.documentTitle

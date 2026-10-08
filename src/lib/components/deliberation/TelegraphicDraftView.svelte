@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { deliberationStore } from '$lib/stores/deliberationStore.svelte';
 	import { renderTelegraphicDraft, validateTelegraphicTone } from '$lib/domain/telegraphic';
+	import { formatMaturityLevel } from '$lib/domain/debate';
 	import {
 		AlertTriangle,
 		CheckCircle2,
@@ -357,15 +358,7 @@
 	}
 
 	function formatMaturityLabel(level?: string) {
-		switch (level) {
-			case 'L0_named': return 'L0 · En émergence';
-			case 'L1_framed': return 'L1 · Cadré (Dilemmes posés)';
-			case 'L2_decomposed': return 'L2 · En débat (Options ouvertes)';
-			case 'L3_decided': return 'L3 · Décision Validée & Arbitrée';
-			case 'L4_specified': return 'L4 · Spécifié';
-			case 'L5_archived': return 'L5 · Scellé opposable';
-			default: return level || 'L0';
-		}
+		return formatMaturityLevel(level);
 	}
 </script>
 

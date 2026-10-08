@@ -178,6 +178,68 @@ export function getStanceBadgeClass(stance: Stance): string {
 	}
 }
 
+/**
+ * Libellé complet et canonique d'un niveau de maturité en français.
+ * Ex: 'L1_framed' -> 'L1 · Cadré'
+ */
+export function formatMaturityLevel(level?: string | null): string {
+	if (!level) return 'Inconnu';
+	switch (level) {
+		case 'L0_named': return 'L0 · Nommé';
+		case 'L1_framed': return 'L1 · Cadré';
+		case 'L2_decomposed': return 'L2 · Décomposé';
+		case 'L3_decided': return 'L3 · Décidé';
+		case 'L4_specified': return 'L4 · Spécifié';
+		case 'L5_archived': return 'L5 · Archivé';
+		default: return level;
+	}
+}
+
+/**
+ * Libellé court en français pour un niveau de maturité.
+ * Ex: 'L1_framed' -> 'Cadré'
+ */
+export function formatMaturityLabel(level?: string | null): string {
+	if (!level) return 'Inconnu';
+	switch (level) {
+		case 'L0_named': return 'Nommé';
+		case 'L1_framed': return 'Cadré';
+		case 'L2_decomposed': return 'Décomposé';
+		case 'L3_decided': return 'Décidé';
+		case 'L4_specified': return 'Spécifié';
+		case 'L5_archived': return 'Archivé';
+		default: return level;
+	}
+}
+
+/**
+ * Classe CSS unifiée et sobre pour les badges de maturité.
+ * Évite la dispersion multicolore en adoptant une hiérarchie claire :
+ * - L0: Neutre / Gris
+ * - L1, L2: Bleu sobre (en instruction)
+ * - L3, L4: Vert émeraude sobre (validé/acté)
+ * - L5: Ardoise/Gris scellé (archivé)
+ */
+export function getMaturityBadgeClass(level?: string | null): string {
+	if (!level) return 'bg-muted text-muted-foreground border-border';
+	switch (level) {
+		case 'L0_named':
+			return 'bg-zinc-500/10 text-zinc-700 dark:text-zinc-300 border-zinc-500/20';
+		case 'L1_framed':
+			return 'bg-blue-500/10 text-blue-700 dark:text-blue-300 border-blue-500/20';
+		case 'L2_decomposed':
+			return 'bg-blue-500/15 text-blue-800 dark:text-blue-200 border-blue-500/30';
+		case 'L3_decided':
+			return 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30';
+		case 'L4_specified':
+			return 'bg-emerald-500/20 text-emerald-800 dark:text-emerald-200 border-emerald-500/35';
+		case 'L5_archived':
+			return 'bg-slate-500/10 text-slate-700 dark:text-slate-300 border-slate-500/20';
+		default:
+			return 'bg-muted text-muted-foreground border-border';
+	}
+}
+
 export function formatMaturityMilestoneSeparator(level: string): string {
 	switch (level) {
 		case 'L0_named':

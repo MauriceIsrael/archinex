@@ -3,6 +3,8 @@
 	import type { Argument, ArgumentResolution, Stance } from '$lib/domain/debate';
 	import {
 		formatMaturityMilestoneSeparator,
+		formatMaturityLevel,
+		getMaturityBadgeClass,
 		canCloseObjection,
 		computeResumeSummary,
 		type ResumeSummary
@@ -594,17 +596,6 @@
 		}
 	}
 
-	function getLevelBadgeClass(level: string) {
-		switch (level) {
-			case 'L0_named': return 'bg-zinc-500/10 text-zinc-600 dark:text-zinc-400 border-zinc-500/20';
-			case 'L1_framed': return 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20';
-			case 'L2_decomposed': return 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20';
-			case 'L3_decided': return 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20';
-			case 'L4_specified': return 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20';
-			case 'L5_archived': return 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20';
-			default: return 'bg-muted text-muted-foreground';
-		}
-	}
 </script>
 
 <div class="flex flex-col h-full bg-card rounded-xl border shadow-xs overflow-hidden">
@@ -633,8 +624,8 @@
 							{activeSubject?.name || 'Sujet non sélectionné'}
 						</h2>
 						{#if activeSubject}
-							<span class="inline-flex items-center rounded px-2 py-0.5 font-mono text-[10px] font-semibold border {getLevelBadgeClass(activeSubject.level)}">
-								{activeSubject.level}
+							<span class="inline-flex items-center rounded-md px-2 py-0.5 font-mono text-[10px] font-bold border {getMaturityBadgeClass(activeSubject.level)}">
+								{formatMaturityLevel(activeSubject.level)}
 							</span>
 						{/if}
 					</div>

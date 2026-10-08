@@ -896,13 +896,14 @@ export async function factorizeRfpWithLocalLlm(
 	kbStandards: KbItemSummary[] = []
 ): Promise<RfpFactorizationResponse> {
 	const clauses = request.clauses || [];
-	const model = request.model || 'ministral:latest';
+	const model = request.model || localLlmClient.getDefaultModel();
 	const totalClauses = clauses.length;
+	const engine = model.toLowerCase().startsWith('claude') ? 'anthropic-claude' : 'local-llm';
 
 	if (totalClauses === 0) {
 		return {
 			status: 'ok',
-			engine: 'local-llm',
+			engine,
 			modelUsed: model,
 			summary: 'Aucune clause à factoriser.',
 			totalClauses: 0,
@@ -992,7 +993,7 @@ export async function factorizeRfpWithLocalLlm(
 
 		return {
 			status: 'ok',
-			engine: 'local-llm',
+			engine,
 			modelUsed: model,
 			summary: parsed.summary || `Factorisation sémantique réalisée avec succès via ${model}`,
 			totalClauses,

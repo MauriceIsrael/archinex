@@ -761,10 +761,10 @@
 							>
 								{#if isFactorizing}
 									<RefreshCw class="h-4 w-4 animate-spin" />
-									<span>Factorisation en cours sur le LLM local ({selectedModel})...</span>
+									<span>Factorisation en cours ({selectedModel})...</span>
 								{:else}
 									<Sparkles class="h-4 w-4 text-amber-300" />
-									<span>Factoriser en 8-12 Sujets d'Architecture via LLM Souverain ({selectedModel})</span>
+									<span>Factoriser en 8-12 Sujets d'Architecture ({selectedModel.toLowerCase().startsWith('claude') ? 'Claude Anthropic' : 'LLM Souverain'} - {selectedModel})</span>
 								{/if}
 							</button>
 

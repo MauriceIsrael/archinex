@@ -15,6 +15,9 @@ export interface LocalLlmConfig {
 	defaultModel: string;
 	timeoutMs: number;
 	temperature: number;
+	anthropicApiKey?: string;
+	provider?: 'local' | 'anthropic' | 'auto';
+	anthropicModel?: string;
 }
 
 export type KnowledgeAlignment = 'standard_established' | 'conflict_detected' | 'novel_requirement';

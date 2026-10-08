@@ -156,6 +156,18 @@
 		isEditingHypothesis = false;
 	}
 
+	function formatOptionStatus(status?: string): string {
+		if (!status) return '';
+		switch (status.toLowerCase()) {
+			case 'proposed': return 'Proposée';
+			case 'identified': return 'À l’étude';
+			case 'retained': return 'Retenue';
+			case 'rejected': return 'Écartée';
+			case 'draft': return 'Brouillon';
+			default: return status;
+		}
+	}
+
 	function scrollToComposer() {
 		const composerElem = document.getElementById('compose-claim');
 		if (composerElem) {
@@ -419,8 +431,8 @@
 									<div class="flex items-center justify-between gap-1.5">
 										<strong class="text-foreground font-semibold truncate">{opt.title}</strong>
 										{#if opt.status}
-											<span class="px-1.5 py-0.2 rounded text-[9px] font-mono uppercase bg-muted text-muted-foreground shrink-0">
-												{opt.status}
+											<span class="px-1.5 py-0.2 rounded text-[9px] font-mono bg-muted text-muted-foreground shrink-0 border">
+												{formatOptionStatus(opt.status)}
 											</span>
 										{/if}
 									</div>

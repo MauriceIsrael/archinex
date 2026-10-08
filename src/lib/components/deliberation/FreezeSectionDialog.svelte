@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { deliberationStore } from '$lib/stores/deliberationStore.svelte';
 	import { ShieldCheck, ShieldAlert, Lock, CheckCircle2, X, Download, Copy, ExternalLink, Hash } from 'lucide-svelte';
+	import { formatMaturityLevel } from '$lib/domain/debate';
 
 	const activeSubject = $derived(deliberationStore.activeSubject);
 	const activeDraft = $derived(deliberationStore.activeDraft);
@@ -266,9 +267,9 @@
 										{:else}
 											<ShieldAlert class="h-4 w-4 text-amber-600" />
 										{/if}
-										<span>Maturité $\ge$ L3_decided</span>
+										<span>Maturité requise &ge; L3 · Décidé</span>
 									</div>
-									<span class="font-mono font-bold text-foreground">{activeSubject.level}</span>
+									<span class="font-mono font-bold text-foreground">{formatMaturityLevel(activeSubject.level)}</span>
 								</div>
 
 								<!-- 2. Zéro Conflit Ouvert -->
@@ -349,10 +350,10 @@
 								<div class="space-y-1 text-[11px] bg-background/50 p-2 rounded border border-amber-500/20">
 									{#if unripeSubjects.length > 0}
 										<div>
-											<strong>Sujets en cours d'élaboration (&lt; L3_decided) :</strong>
+											<strong>Sujets en cours d'élaboration (&lt; L3 · Décidé) :</strong>
 											<ul class="list-disc list-inside ml-2">
 												{#each unripeSubjects as sub}
-													<li>{sub.name} ({sub.level})</li>
+													<li>{sub.name} ({formatMaturityLevel(sub.level)})</li>
 												{/each}
 											</ul>
 										</div>

@@ -286,7 +286,7 @@
 			</div>
 			<div>
 				<h3 class="text-sm font-bold text-foreground flex items-center gap-2">
-					<span>Carte de Décision d'Architecture (Porte G3 / L3)</span>
+					<span>Carte de Décision d'Architecture (Jalon L3 · Décidé)</span>
 					{#if decision?.validatedBy}
 						<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
 							<ShieldCheck class="h-3 w-3" />
@@ -436,7 +436,7 @@
 					<ShieldCheck class="h-4 w-4 text-emerald-600 shrink-0" />
 					<span>Décision formellement affirmée par <strong>{decision.validatedBy}</strong></span>
 				</div>
-				<span class="font-mono text-[10px]">L3_decided</span>
+				<span class="inline-flex items-center rounded px-2 py-0.5 font-mono text-[10px] font-bold bg-emerald-500/20 text-emerald-800 dark:text-emerald-200 border border-emerald-500/30">L3 · Décidé</span>
 			</div>
 		{:else if isAuthor}
 			<!-- L'auteur voit le refus et qui peut débloquer -->

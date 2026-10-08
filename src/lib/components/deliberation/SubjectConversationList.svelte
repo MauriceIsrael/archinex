@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { deliberationStore } from '$lib/stores/deliberationStore.svelte';
 	import type { MaturitySubject } from '$lib/domain/maturityBoard';
-	import { calculateMaturityPercent } from '$lib/domain/debate';
+	import { calculateMaturityPercent, formatMaturityLevel, getMaturityBadgeClass } from '$lib/domain/debate';
 	import {
 		MessagesSquare,
 		Search,
@@ -52,24 +52,6 @@
 		}
 	});
 
-	function getLevelBadgeClass(level: string) {
-		switch (level) {
-			case 'L0_named':
-				return 'bg-zinc-500/10 text-zinc-600 dark:text-zinc-400 border-zinc-500/20';
-			case 'L1_framed':
-				return 'bg-blue-500/10 text-blue-600 dark:text-blue-400 border-blue-500/20';
-			case 'L2_decomposed':
-				return 'bg-amber-500/10 text-amber-600 dark:text-amber-400 border-amber-500/20';
-			case 'L3_decided':
-				return 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border-emerald-500/20';
-			case 'L4_specified':
-				return 'bg-indigo-500/10 text-indigo-600 dark:text-indigo-400 border-indigo-500/20';
-			case 'L5_archived':
-				return 'bg-purple-500/10 text-purple-600 dark:text-purple-400 border-purple-500/20';
-			default:
-				return 'bg-muted text-muted-foreground';
-		}
-	}
 </script>
 
 <div class="flex flex-col h-full bg-card rounded-xl border shadow-xs overflow-hidden">
@@ -170,13 +152,13 @@
 						: 'hover:bg-muted/40'}"
 				>
 					<div class="flex items-center justify-between gap-1.5">
-						<div class="flex items-center gap-1.5">
+						<div class="flex items-center gap-1.5 flex-wrap">
 							<!-- Anneau de maturité circulaire -->
 							<div
 								class="relative w-5 h-5 flex items-center justify-center shrink-0 rounded-full transition-all {sub.is_stalled
 									? 'animate-pulse ring-2 ring-amber-500/80 bg-amber-500/10'
 									: ''}"
-								title={`Niveau : ${sub.level} (${pct}%)${sub.is_stalled ? ' · Stagnation (découpage recommandé)' : ''}`}
+								title={`Niveau : ${formatMaturityLevel(sub.level)} (${pct}%)${sub.is_stalled ? ' · Stagnation' : ''}`}
 								data-testid={sub.is_stalled ? 'stalled-ring-pulse' : undefined}
 							>
 								<svg class="w-5 h-5 -rotate-90" viewBox="0 0 24 24">
@@ -209,6 +191,11 @@
 
 							<span class="font-mono text-[11px] font-bold text-muted-foreground">
 								{sub.section_ref}
+							</span>
+
+							<!-- Badge de niveau de maturité canonique en français -->
+							<span class="inline-flex items-center rounded-md px-1.5 py-0.2 font-mono text-[9px] font-bold border {getMaturityBadgeClass(sub.level)}">
+								{formatMaturityLevel(sub.level)}
 							</span>
 						</div>
 

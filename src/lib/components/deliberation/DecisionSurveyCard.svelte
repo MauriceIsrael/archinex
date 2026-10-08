@@ -88,17 +88,23 @@
 		);
 	});
 
-	// Le bouton "Affirmer" est STRICTEMENT visible pour un valideur distinct qualifié
-	const canAffirm = $derived(!isAuthor && isQualifiedDecider && !decision?.validatedBy);
+	let selectedQuickOptionId = $state<string>('');
+	let quickRationale = $state<string>('');
+	let isSubmittingQuickArbitrate = $state(false);
+
+	// Le bouton "Affirmer" est STRICTEMENT visible pour un valideur distinct qualifié et s'il existe une décision avec un ID
+	const canAffirm = $derived(
+		Boolean(decision && decision.id) && !isAuthor && isQualifiedDecider && !decision?.validatedBy
+	);
 
 	$effect(() => {
-		if (decision && facts.length === 0) {
+		if (decision && decision.id && facts.length === 0) {
 			loadOrExtractFacts();
 		}
 	});
 
 	async function loadOrExtractFacts() {
-		if (!decision || isExtractingFacts) return;
+		if (!decision || !decision.id || isExtractingFacts) return;
 		isExtractingFacts = true;
 		try {
 			const res = await fetch(
@@ -125,8 +131,46 @@
 		}
 	}
 
+	async function handleQuickArbitrate() {
+		if (!selectedQuickOptionId || !quickRationale.trim() || isSubmittingQuickArbitrate) return;
+		isSubmittingQuickArbitrate = true;
+		assertError = '';
+		try {
+			const otherOptions = options.filter((o) => o.id !== selectedQuickOptionId);
+			const rejected = otherOptions.map((o) => ({
+				optionId: o.id,
+				reason: `Écartée au profit de l'option ${selectedQuickOptionId}`
+			}));
+
+			const res = await fetch(`/api/projects/${projectId}/subjects/${subjectId}/decision`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					retainedOptionId: selectedQuickOptionId,
+					rationale: quickRationale.trim(),
+					reversibility: 'reversible',
+					rejected
+				})
+			});
+
+			if (!res.ok) {
+				const err = await res.json().catch(() => ({}));
+				throw new Error(err.message || err.error || "Erreur lors de l'enregistrement de la décision");
+			}
+
+			const data = await res.json();
+			decision = data.decision;
+			assertSuccess = 'Décision enregistrée avec succès ! Extraction des faits en cours...';
+			onAffirmed(data);
+		} catch (err: any) {
+			assertError = err.message || "Erreur lors de l'enregistrement de l'arbitrage";
+		} finally {
+			isSubmittingQuickArbitrate = false;
+		}
+	}
+
 	async function handleAssertDecision() {
-		if (!canAffirm || isSubmittingAssert) return;
+		if (!canAffirm || isSubmittingAssert || !decision || !decision.id) return;
 		isSubmittingAssert = true;
 		assertError = '';
 		assertSuccess = '';
@@ -139,7 +183,7 @@
 					headers: { 'Content-Type': 'application/json' },
 					body: JSON.stringify({
 						facts: facts.filter((f) => f.selected),
-						idempotencyKey: `assert-${decision.id}-${sessionUser.email}`
+						idempotencyKey: `assert-${decision.id}-${sessionUser?.email || 'user'}`
 					})
 				}
 			);
@@ -160,6 +204,76 @@
 	}
 </script>
 
+{#if !decision}
+	<div
+		class="rounded-xl border border-dashed border-amber-500/40 bg-amber-500/5 p-5 text-center space-y-3 shadow-xs"
+		data-testid="decision-survey-empty"
+	>
+		<div class="inline-flex p-3 rounded-full bg-amber-500/10 text-amber-600 dark:text-amber-400">
+			<Gavel class="h-5 w-5" />
+		</div>
+		<div class="space-y-1">
+			<h4 class="font-bold text-sm text-foreground">Aucune décision formalisée à affirmer</h4>
+			<p class="text-xs text-muted-foreground max-w-md mx-auto">
+				Pour affirmer une décision et ses faits d'architecture (Porte G3 / L3), un choix d'option doit d'abord être arrêté et motivé.
+			</p>
+		</div>
+
+		{#if options.length > 0}
+			<div class="max-w-md mx-auto p-3 rounded-lg border bg-background text-left space-y-2.5 shadow-2xs">
+				<span class="text-xs font-bold text-foreground block">
+					🏛️ Retenir une option d'architecture :
+				</span>
+				<div class="space-y-1.5 max-h-48 overflow-y-auto pr-1">
+					{#each options as opt}
+						<label class="flex items-start gap-2 p-2 rounded-md border text-xs cursor-pointer hover:bg-muted/40 transition-colors {selectedQuickOptionId === opt.id ? 'border-primary bg-primary/5 ring-1 ring-primary/20' : ''}">
+							<input
+								type="radio"
+								name="quickRetainedOption"
+								value={opt.id}
+								bind:group={selectedQuickOptionId}
+								class="mt-0.5 text-primary"
+							/>
+							<div class="flex-1 min-w-0">
+								<strong class="text-foreground block">{opt.title}</strong>
+								{#if opt.summary}
+									<span class="text-[10px] text-muted-foreground line-clamp-2">{opt.summary}</span>
+								{/if}
+							</div>
+						</label>
+					{/each}
+				</div>
+
+				<textarea
+					bind:value={quickRationale}
+					placeholder="Motivation de l'arbitrage (ex: conformité aux exigences et doctrine)..."
+					rows="2"
+					class="w-full text-xs px-2.5 py-1.5 rounded-md border bg-background text-foreground resize-none focus:ring-1 focus:ring-primary focus:outline-none"
+				></textarea>
+
+				<button
+					type="button"
+					onclick={handleQuickArbitrate}
+					disabled={!selectedQuickOptionId || !quickRationale.trim() || isSubmittingQuickArbitrate}
+					class="w-full inline-flex items-center justify-center gap-1.5 px-3 py-2 rounded-md bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 disabled:opacity-50 cursor-pointer shadow-2xs"
+				>
+					<Gavel class="h-3.5 w-3.5" />
+					<span>{isSubmittingQuickArbitrate ? 'Enregistrement...' : 'Enregistrer cet arbitrage'}</span>
+				</button>
+			</div>
+		{:else}
+			<div class="p-3 rounded-lg bg-background/60 border text-xs text-muted-foreground max-w-md mx-auto">
+				💡 Posez au moins une option (via le bouton <strong>Poser 2 options (@proposer)</strong> ou l'hypothèse de cadrage) avant de pouvoir enregistrer une décision.
+			</div>
+		{/if}
+
+		{#if assertError}
+			<div class="p-2.5 rounded-lg bg-destructive/10 border border-destructive/30 text-destructive text-xs max-w-md mx-auto text-left">
+				⚠️ {assertError}
+			</div>
+		{/if}
+	</div>
+{:else}
 <div
 	class="rounded-xl border border-border bg-card p-4 space-y-4 shadow-xs"
 	data-testid="decision-survey-card"
@@ -377,3 +491,4 @@
 		{/if}
 	</div>
 </div>
+{/if}

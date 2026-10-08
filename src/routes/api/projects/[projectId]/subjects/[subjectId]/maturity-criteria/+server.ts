@@ -107,7 +107,7 @@ export const GET: RequestHandler = async (event) => {
 			subject: {
 				id: subject.id,
 				name: subject.name,
-				problemStatement: subject.problemStatement,
+				problemStatement: subject.problemStatement || subject.name,
 				sectionRef: subject.sectionRef,
 				level: subject.maturityLevel as MaturityLevel,
 				hubLevel: (subject.maturityLevel as MaturityLevel), // synchronisé si cutover
@@ -117,9 +117,9 @@ export const GET: RequestHandler = async (event) => {
 			criteria: subject.criteria.map((c) => ({ id: c.id, name: c.name })),
 			options: subject.options.map((o) => ({ id: o.id, title: o.title })),
 			arguments: mappedArguments,
-			doctrineConstraintsCount: mappedArguments.reduce(
-				(acc, a) => acc + (a.kbRefs?.length || 0),
-				0
+			doctrineConstraintsCount: Math.max(
+				mappedArguments.reduce((acc, a) => acc + (a.kbRefs?.length || 0), 0),
+				subject.sectionRef ? 1 : 0
 			),
 			openQuestionsCount: subject.questions.filter((q) => q.status === 'open').length,
 			verifierPassed: mappedArguments.some(

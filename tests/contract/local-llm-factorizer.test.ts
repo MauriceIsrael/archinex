@@ -11,10 +11,15 @@ import {
 	partitionClausesIntoMapChunks,
 	buildMapPrompt,
 	buildReducePrompt,
+	partitionMicroSubjectsForReduce,
+	buildBatchReducePrompt,
+	MAX_REDUCE_BATCH_MICRO_SUBJECTS,
+	MAX_REDUCE_BATCH_CHARS,
 	factorizeRfpMapReduce,
 	safeParseJson,
 	MAX_MAP_CHUNK_CHARS,
-	type KbItemSummary
+	type KbItemSummary,
+	type MicroArchitecturalSubject
 } from '../../src/lib/server/llm/rfpFactorizer';
 import type { ExtractedClause } from '../../src/lib/domain/corpus';
 
@@ -300,6 +305,38 @@ describe('Local LLM Souverain & Factorisation de RFP', () => {
 			expect(repaired).toBeDefined();
 			expect(repaired.microSubjects.length).toBeGreaterThanOrEqual(1);
 			expect(repaired.microSubjects[0].id).toBe('MICRO-01');
+
+			// Cas 4 : Cas exact rencontré par l'utilisateur lors de la passe Reduce (troncature après une virgule sur name)
+			const userTruncatedCase1 = `{
+  "subjects": [
+    {
+      "id": "SUBJ-01",
+      "lotId": "LOT-04-SECOPS",
+      "name": "Architecture de Sécurité et Opérations Centralisées (SOC/NOC)",`;
+			const repairedUser1 = safeParseJson(userTruncatedCase1);
+			expect(repairedUser1).toBeDefined();
+			expect(repairedUser1.subjects.length).toBe(1);
+			expect(repairedUser1.subjects[0].id).toBe('SUBJ-01');
+			expect(repairedUser1.subjects[0].name).toBe('Architecture de Sécurité et Opérations Centralisées (SOC/NOC)');
+
+			// Cas 5 : Troncature au milieu d'un deuxième sujet avec premier sujet complet
+			const userTruncatedCase2 = `{
+  "subjects": [
+    {
+      "id": "SUBJ-01",
+      "lotId": "LOT-01-SOUV",
+      "name": "Socle Souveraineté & SecNumCloud",
+      "sectionRef": "§1.0",
+      "coveredMicroIds": ["MICRO-01"]
+    },
+    {
+      "id": "SUBJ-02",
+      "lotId": "LOT-01-SOUV",
+      "name": "NOC Centralisé et Gestion des Opérations Multi-Fournisseurs",`;
+			const repairedUser2 = safeParseJson(userTruncatedCase2);
+			expect(repairedUser2).toBeDefined();
+			expect(repairedUser2.subjects.length).toBeGreaterThanOrEqual(1);
+			expect(repairedUser2.subjects[0].id).toBe('SUBJ-01');
 		});
 
 		it('construit un prompt Map contenant 100% du texte intégral des exigences du bloc', () => {
@@ -430,6 +467,155 @@ describe('Local LLM Souverain & Factorisation de RFP', () => {
 			expect(result.subjects.length).toBe(2);
 			expect(result.subjects[0].lotId).toBe('LOT-01-SOUV');
 			expect(result.subjects[1].lotId).toBe('LOT-03-TELCO');
+
+			chatSpy.mockRestore();
+		});
+
+		it('partitionne 278 micro-sujets en sous-lots bornés sous MAX_REDUCE_BATCH_MICRO_SUBJECTS et MAX_REDUCE_BATCH_CHARS', () => {
+			const lots = ['LOT-01-SOUV', 'LOT-02-INFRA', 'LOT-03-TELCO', 'LOT-04-SECOPS', 'LOT-05-RESIL'];
+			const fakeMicroSubjects: MicroArchitecturalSubject[] = [];
+
+			for (let i = 1; i <= 278; i++) {
+				const assignedLot = lots[i % lots.length];
+				fakeMicroSubjects.push({
+					id: `MICRO-${i}`,
+					title: `Micro-sujet d'ingénierie ${i} sur le socle ${assignedLot}`,
+					lotId: assignedLot,
+					coveredClauseRefs: [`§${(i % 10) + 1}.${i}`, `§${(i % 10) + 1}.${i + 1}`],
+					criticalPoints: [`Point critique bloquant numéro ${i}`],
+					keyDilemmaOrHypothesis: `Hypothèse d'architecture détaillée pour le micro-sujet ${i}`
+				});
+			}
+
+			const batches = partitionMicroSubjectsForReduce(fakeMicroSubjects);
+
+			expect(batches.length).toBeGreaterThan(5); // Au moins plusieurs sous-lots
+			const totalInBatches = batches.reduce((acc, b) => acc + b.subjects.length, 0);
+			expect(totalInBatches).toBe(278);
+
+			for (const batch of batches) {
+				expect(batch.subjects.length).toBeLessThanOrEqual(MAX_REDUCE_BATCH_MICRO_SUBJECTS);
+				const batchChars = batch.subjects.reduce(
+					(acc, s) => acc + (s.title?.length || 0) + (s.keyDilemmaOrHypothesis?.length || 0) + 120,
+					0
+				);
+				expect(batchChars).toBeLessThanOrEqual(MAX_REDUCE_BATCH_CHARS + 500);
+			}
+		});
+
+		it('construit un prompt Reduce de lot compact sans risque de dépassement de 8192 tokens', () => {
+			const batchMicros: MicroArchitecturalSubject[] = [
+				{
+					id: 'MICRO-01',
+					title: 'Hébergement SecNumCloud',
+					lotId: 'LOT-01-SOUV',
+					coveredClauseRefs: ['§1.1', '§1.2'],
+					criticalPoints: ['Immunité Cloud Act'],
+					keyDilemmaOrHypothesis: 'Opérateur qualifié français'
+				},
+				{
+					id: 'MICRO-02',
+					title: 'Chiffrement souverain HSM',
+					lotId: 'LOT-01-SOUV',
+					coveredClauseRefs: ['§1.5'],
+					criticalPoints: ['Certification ANSSI'],
+					keyDilemmaOrHypothesis: 'Clés hébergées localement'
+				}
+			];
+
+			const prompt = buildBatchReducePrompt(batchMicros, testKbStandards, 'LOT-01-SOUV', '1 à 2');
+
+			expect(prompt.system).toContain('LOT-01-SOUV');
+			expect(prompt.system).toContain('coveredMicroIds');
+			expect(prompt.user).toContain('MICRO-01');
+			expect(prompt.user).toContain('MICRO-02');
+			expect(prompt.user.length).toBeLessThan(4000); // Reste ultra compact
+		});
+
+		it('exécute la réduction hiérarchique avec succès lorsque le nombre de micro-sujets dépasse MAX_REDUCE_BATCH_MICRO_SUBJECTS', async () => {
+			const clauses = generateLotsOfClauses(60);
+
+			// Génère 24 micro-sujets (dépasse MAX_REDUCE_BATCH_MICRO_SUBJECTS = 20)
+			const mockManyMicros = Array.from({ length: 24 }, (_, idx) => ({
+				id: `MICRO-${idx + 1}`,
+				title: `Micro-sujet ${idx + 1}`,
+				lotId: idx < 12 ? 'LOT-01-SOUV' : 'LOT-02-INFRA',
+				coveredClauseRefs: [clauses[idx * 2]?.clauseRef || `§1.${idx}`, clauses[idx * 2 + 1]?.clauseRef || `§1.${idx + 1}`],
+				criticalPoints: ['Point critique'],
+				keyDilemmaOrHypothesis: 'Hypothèse'
+			}));
+
+			const mockMapResponse = JSON.stringify({
+				microSubjects: mockManyMicros
+			});
+
+			const mockBatchReduceResponse1 = JSON.stringify({
+				subjects: [
+					{
+						id: 'SUBJ-01',
+						lotId: 'LOT-01-SOUV',
+						name: 'Sujet Consolidé Souveraineté',
+						sectionRef: '§1.0',
+						coveredMicroIds: mockManyMicros.slice(0, 12).map((m) => m.id),
+						coveredClauseRefs: [],
+						matchedKbItemIds: ['STD-SOUV-01'],
+						knowledgeAlignment: 'standard_established',
+						alignmentRationale: 'Consolidation souveraineté',
+						initialLevel: 'L2_decomposed',
+						waitingForRole: 'lead_architect',
+						effort: 'L',
+						seed: {
+							initialRetenu: ['Souveraineté validée'],
+							initialHypothesis: 'Isolation',
+							initialQuestion: 'Comment qualifier le socle ?'
+						}
+					}
+				]
+			});
+
+			const mockBatchReduceResponse2 = JSON.stringify({
+				subjects: [
+					{
+						id: 'SUBJ-02',
+						lotId: 'LOT-02-INFRA',
+						name: 'Sujet Consolidé Infrastructure',
+						sectionRef: '§2.0',
+						coveredMicroIds: mockManyMicros.slice(12, 24).map((m) => m.id),
+						coveredClauseRefs: [],
+						matchedKbItemIds: [],
+						knowledgeAlignment: 'standard_established',
+						alignmentRationale: 'Consolidation infra',
+						initialLevel: 'L2_decomposed',
+						waitingForRole: 'infra_expert_architect',
+						effort: 'M',
+						seed: {
+							initialRetenu: ['Infra validée'],
+							initialHypothesis: 'Virtualisation',
+							initialQuestion: 'Quel dimensionnement ?'
+						}
+					}
+				]
+			});
+
+			const chatSpy = vi.spyOn(localLlmClient, 'chat').mockImplementation(async (opts) => {
+				const isMap = opts.messages.some((m) => m.content.includes('EXIGENCES DU BLOC') || m.content.includes('microSubjects'));
+				if (isMap) {
+					return mockMapResponse;
+				}
+				return mockBatchReduceResponse1;
+			});
+
+			const result = await factorizeRfpWithLocalLlm({
+				clauses,
+				model: 'ministral:latest'
+			}, testKbStandards);
+
+			expect(result.status).toBe('ok');
+			expect(result.engine).toBe('map-reduce-llm');
+			expect(result.subjects.length).toBeGreaterThanOrEqual(1);
+			expect(result.coverageRate).toBe(100);
+			// Vérifie l'héritage des clauses depuis coveredMicroIds
+			expect(result.subjects[0].coveredClauseRefs.length).toBeGreaterThan(0);
 
 			chatSpy.mockRestore();
 		});

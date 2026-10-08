@@ -243,15 +243,28 @@
 					<button
 						type="button"
 						onclick={() => targetStep && onTransition(targetStep.level)}
-						class="inline-flex items-center gap-1 px-3 py-1 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition-colors cursor-pointer"
+						class="inline-flex items-center gap-1 px-3 py-1 rounded-md bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs transition-colors cursor-pointer shadow-xs"
 					>
 						<span>Franchir le jalon {targetStep?.short}</span>
 						<ArrowRight class="h-3 w-3" />
 					</button>
 				{:else}
-					<span class="text-[11px] text-destructive font-semibold">
-						{targetTransition.missingReasons.length} critère(s) non satisfait(s)
-					</span>
+					<div class="flex items-center gap-2 flex-wrap">
+						<span class="text-[11px] text-destructive font-semibold">
+							{targetTransition.missingReasons.length} critère(s) non satisfait(s)
+						</span>
+						{#if isHumanUser}
+							<button
+								type="button"
+								onclick={() => targetStep && onTransition(targetStep.level)}
+								class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs transition-colors cursor-pointer shadow-2xs"
+								title="L'architecte humain valide le passage au jalon supérieur par autorité d'arbitrage souverain"
+							>
+								<span>Franchir le jalon {targetStep?.short} (Arbitrage humain)</span>
+								<ArrowRight class="h-3 w-3" />
+							</button>
+						{/if}
+					</div>
 				{/if}
 			</div>
 
@@ -286,15 +299,28 @@
 						</div>
 
 						{#if !crit.satisfied}
-							<button
-								type="button"
-								onclick={() => onAction(crit)}
-								class="inline-flex items-center gap-1 px-2 py-1 rounded bg-primary/10 hover:bg-primary/20 text-primary text-[11px] font-semibold transition-colors shrink-0 cursor-pointer"
-								title={`Action : ${crit.actionLabel}`}
-							>
-								<span>{crit.actionLabel}</span>
-								<ArrowRight class="h-3 w-3" />
-							</button>
+							<div class="flex items-center gap-1.5 shrink-0">
+								{#if isHumanUser}
+									<button
+										type="button"
+										onclick={() => (crit.satisfied = true)}
+										class="inline-flex items-center gap-1 px-2 py-1 rounded border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-[10px] font-semibold transition-colors cursor-pointer"
+										title="Considérer ce critère comme déjà satisfait par décision d'architecte"
+									>
+										<Check class="h-3 w-3" />
+										<span>Valider</span>
+									</button>
+								{/if}
+								<button
+									type="button"
+									onclick={() => onAction(crit)}
+									class="inline-flex items-center gap-1 px-2 py-1 rounded bg-primary/10 hover:bg-primary/20 text-primary text-[11px] font-semibold transition-colors cursor-pointer"
+									title={`Action : ${crit.actionLabel}`}
+								>
+									<span>{crit.actionLabel}</span>
+									<ArrowRight class="h-3 w-3" />
+								</button>
+							</div>
 						{/if}
 					</div>
 				{/each}

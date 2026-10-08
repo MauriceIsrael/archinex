@@ -131,7 +131,7 @@ RÈGLES D'OR DE FACTORISATION ARCHITECTURALE :
       "waitingForRole": "lead_architect" | "infra_expert_architect" | "telco_expert_architect" | "secops_expert_architect",
       "effort": "S" | "M" | "L" | "XL",
       "seed": {
-        "initialRetenu": ["Acquis ou standard applicable"],
+        "initialRetenu": ["Exigences ou clauses concrètes imposées par le client (ex: [§4.2] Latence critique < 50ms)"],
         "initialHypothesis": "Hypothèse de solution",
         "initialConflict": "Conflit éventuel",
         "initialQuestion": "Question d'amorce pour la délibération"
@@ -249,6 +249,42 @@ export function partitionClausesIntoMapChunks(clauses: ExtractedClause[], maxChu
 }
 
 /**
+ * Résout les vraies exigences du client à partir des clauses du RFP et sépare les ADRs / standards
+ */
+export function resolveClientClausesForSubject(
+	coveredRefs: string[],
+	allClauses: ExtractedClause[],
+	llmRetenu: string[] = []
+): { clientClauses: string[]; adrDecisions: string[] } {
+	const adrDecisions: string[] = [];
+	const rawClientClauses: string[] = [];
+
+	for (const item of llmRetenu) {
+		if (/ADR-\d+/i.test(item) || /STD-/i.test(item)) {
+			adrDecisions.push(item);
+		} else if (item && !item.toLowerCase().includes('acquis ou standard') && !item.toLowerCase().includes('consolidation de')) {
+			rawClientClauses.push(item);
+		}
+	}
+
+	const resolvedFromRfp = (coveredRefs || [])
+		.map((ref) => {
+			const found = allClauses.find((c) => c.clauseRef === ref);
+			if (!found) return null;
+			const cleanText = (found.text || '').replace(/\s+/g, ' ').trim();
+			const snippet = cleanText.length > 140 ? cleanText.slice(0, 137) + '...' : cleanText;
+			return `[${found.clauseRef}] ${found.title}${snippet ? ` : ${snippet}` : ''}`;
+		})
+		.filter(Boolean) as string[];
+
+	const clientClauses = resolvedFromRfp.length > 0
+		? Array.from(new Set([...resolvedFromRfp.slice(0, 6), ...rawClientClauses]))
+		: rawClientClauses;
+
+	return { clientClauses, adrDecisions };
+}
+
+/**
  * Construit le prompt pour la passe MAP (Bloc individuel à analyser verbatim)
  */
 export function buildMapPrompt(chunk: ExtractedClause[], chunkIndex: number, totalChunks: number): { system: string; user: string } {
@@ -290,8 +326,154 @@ Extrais tous les micro-sujets d'architecture pour ce bloc au format JSON spécif
 	return { system, user };
 }
 
+export const MAX_REDUCE_BATCH_MICRO_SUBJECTS = 20;
+export const MAX_REDUCE_BATCH_CHARS = 8000;
+
 /**
- * Construit le prompt pour la passe REDUCE (Consolidation des micro-sujets en méta-sujets structurants)
+ * Découpe les micro-sujets extraits par grand domaine technique (lotId)
+ * et en sous-tranches bornées en volume (< 8 000 caractères, <= 20 micro-sujets)
+ * pour garantir que chaque prompt de réduction respecte rigoureusement la fenêtre de contexte (8192 tokens).
+ */
+export function partitionMicroSubjectsForReduce(
+	microSubjects: MicroArchitecturalSubject[],
+	maxBatchSize: number = MAX_REDUCE_BATCH_MICRO_SUBJECTS,
+	maxBatchChars: number = MAX_REDUCE_BATCH_CHARS
+): { lotId: string; batchIndex: number; totalBatchesForLot: number; subjects: MicroArchitecturalSubject[] }[] {
+	if (!microSubjects || microSubjects.length === 0) return [];
+
+	// Regroupement par lotId pour préserver l'affinité architecturale
+	const byLot = new Map<string, MicroArchitecturalSubject[]>();
+	for (const m of microSubjects) {
+		const lot = m.lotId || inferLotFromRef(m.title);
+		if (!byLot.has(lot)) {
+			byLot.set(lot, []);
+		}
+		byLot.get(lot)!.push(m);
+	}
+
+	const batches: { lotId: string; batchIndex: number; totalBatchesForLot: number; subjects: MicroArchitecturalSubject[] }[] = [];
+
+	for (const [lotId, list] of byLot.entries()) {
+		const lotChunks: MicroArchitecturalSubject[][] = [];
+		let currentChunk: MicroArchitecturalSubject[] = [];
+		let currentChars = 0;
+
+		for (const item of list) {
+			const itemChars = (item.title?.length || 0) + (item.keyDilemmaOrHypothesis?.length || 0) + 120;
+			if (
+				currentChunk.length > 0 &&
+				(currentChunk.length >= maxBatchSize || currentChars + itemChars > maxBatchChars)
+			) {
+				lotChunks.push(currentChunk);
+				currentChunk = [];
+				currentChars = 0;
+			}
+			currentChunk.push(item);
+			currentChars += itemChars;
+		}
+
+		if (currentChunk.length > 0) {
+			lotChunks.push(currentChunk);
+		}
+
+		for (let i = 0; i < lotChunks.length; i++) {
+			batches.push({
+				lotId,
+				batchIndex: i,
+				totalBatchesForLot: lotChunks.length,
+				subjects: lotChunks[i]
+			});
+		}
+	}
+
+	return batches;
+}
+
+/**
+ * Construit un prompt de réduction ciblé pour un lot ou un sous-bloc spécifique de micro-sujets
+ */
+export function buildBatchReducePrompt(
+	microBatch: MicroArchitecturalSubject[],
+	kbStandards: KbItemSummary[],
+	lotId: string,
+	targetDesc: string = '2 à 3',
+	customDirectives?: string
+): { system: string; user: string } {
+	let system = `Tu es un Lead Solutions Architect et Ingénieur des Systèmes Critiques.
+Ta mission est de CONSOLIDER ce groupe de ${microBatch.length} micro-sujets du domaine technique "${lotId}" en ${targetDesc} MÉTA-SUJETS D'ARCHITECTURE majeurs structurants.
+
+RÈGLES D'OR DE LA CONSOLIDATION :
+1. FUSION SÉMANTIQUE : Regroupe les micro-sujets connexes de ce domaine en méta-sujets structurants cohérents.
+2. TRAÇABILITÉ : Renseigne dans "coveredMicroIds" la liste des identifiants des micro-sujets inclus (ex: ["${microBatch[0]?.id || 'MICRO-01'}", "${microBatch[1]?.id || 'MICRO-02'}"]).
+3. ANCRAGE SUR LE PATRIMOINE COMMUN (KB) :
+   - standard_established si résolu par nos standards existants.
+   - conflict_detected ou novel_requirement en cas d'écart ou d'inédit.
+4. Rôles responsables : lead_architect, infra_expert_architect, telco_expert_architect, secops_expert_architect, data_ai_expert_architect, qa_governance_architect.
+5. Graines d'architecture : initialRetenu, initialHypothesis, initialConflict, initialQuestion.
+6. CONCISION ET SYNTHÈSE : Reste télégraphique et synthétique (1 à 2 phrases max par champ) pour garantir une réponse JSON compacte, complète et sans coupure.`;
+
+	if (customDirectives && customDirectives.trim()) {
+		system += `\n\nDIRECTIVES DE L'ARCHITECTE :\n${customDirectives.trim()}`;
+	}
+
+	system += `\n\nFORMAT DE SORTIE JSON STRICT :
+{
+  "subjects": [
+    {
+      "id": "SUBJ-01",
+      "lotId": "${lotId}",
+      "name": "Nom clair et structurant du Méta-Sujet d'Architecture",
+      "sectionRef": "§1.0",
+      "coveredMicroIds": ["${microBatch[0]?.id || 'MICRO-01'}"],
+      "coveredClauseRefs": ["§1.1"],
+      "matchedKbItemIds": ["STD-01"],
+      "knowledgeAlignment": "standard_established" | "conflict_detected" | "novel_requirement",
+      "alignmentRationale": "Explication courte du rapprochement avec les règles existantes",
+      "initialLevel": "L1_dilemma" | "L2_decomposed" | "L3_retained",
+      "waitingForRole": "lead_architect" | "infra_expert_architect" | "telco_expert_architect" | "secops_expert_architect",
+      "effort": "S" | "M" | "L" | "XL",
+      "seed": {
+        "initialRetenu": ["Exigences ou clauses concrètes imposées par le client (ex: [§4.2] Latence critique < 50ms)"],
+        "initialHypothesis": "Hypothèse de solution",
+        "initialConflict": "Conflit éventuel",
+        "initialQuestion": "Question d'amorce pour la délibération"
+      }
+    }
+  ]
+}`;
+
+	const kbText = kbStandards
+		.slice(0, 10)
+		.map((k) => `[${k.id}] (${k.category}) ${k.title} : ${k.ruleOrStatement}`)
+		.join('\n');
+
+	const microText = microBatch
+		.map((m) => {
+			const refs = m.coveredClauseRefs.length > 5
+				? `${m.coveredClauseRefs.slice(0, 5).join(', ')} (+${m.coveredClauseRefs.length - 5} autres)`
+				: m.coveredClauseRefs.join(', ');
+			const crit = m.criticalPoints && m.criticalPoints.length
+				? `\n  Points critiques : ${m.criticalPoints.slice(0, 2).join(' ; ')}`
+				: '';
+			return `[${m.id}] (${m.lotId}) ${m.title}\n  Clauses : ${refs}${crit}\n  Hypothèse : ${m.keyDilemmaOrHypothesis.slice(0, 180)}`;
+		})
+		.join('\n\n');
+
+	const user = `PATRIMOINE COMMUN (STANDARDS APPLICABLES) :
+${kbText || '(Aucun standard particulier)'}
+
+---
+
+MICRO-SUJETS DU DOMAINE "${lotId}" (À CONSOLIDER) :
+${microText}
+
+Consolide ces ${microBatch.length} micro-sujets en ${targetDesc} méta-sujets structurants au format JSON demandé.`;
+
+	return { system, user };
+}
+
+/**
+ * Construit le prompt pour la passe REDUCE globale (Consolidation des micro-sujets en méta-sujets structurants)
  */
 export function buildReducePrompt(
 	allMicroSubjects: MicroArchitecturalSubject[],
@@ -332,7 +514,7 @@ RÈGLES D'OR DE LA CONSOLIDATION :
       "waitingForRole": "lead_architect" | "infra_expert_architect" | "telco_expert_architect" | "secops_expert_architect",
       "effort": "S" | "M" | "L" | "XL",
       "seed": {
-        "initialRetenu": ["Acquis ou standard applicable"],
+        "initialRetenu": ["Exigences ou clauses concrètes imposées par le client (ex: [§4.2] Latence critique < 50ms)"],
         "initialHypothesis": "Hypothèse de solution",
         "initialConflict": "Conflit éventuel",
         "initialQuestion": "Question d'amorce pour la délibération"
@@ -346,7 +528,13 @@ RÈGLES D'OR DE LA CONSOLIDATION :
 		.map((k) => `[${k.id}] (${k.category}) ${k.title} : ${k.ruleOrStatement}`)
 		.join('\n');
 
-	const microText = allMicroSubjects
+	// Protection de sécurité : si appelé avec plus de 30 micro-sujets, on borne l'échantillon
+	const visibleMicros = allMicroSubjects.slice(0, 30);
+	const truncationNotice = allMicroSubjects.length > 30
+		? `\n\n(NOTE : Échantillon représentatif de 30 micro-sujets sur ${allMicroSubjects.length} pour respecter la fenêtre de contexte maximale)`
+		: '';
+
+	const microText = visibleMicros
 		.map(
 			(m, idx) => {
 				const refs = m.coveredClauseRefs.length > 5
@@ -356,7 +544,7 @@ RÈGLES D'OR DE LA CONSOLIDATION :
 					`[MICRO-${idx + 1}] (${m.lotId || 'LOT-INCONNU'}) ${m.title}\n` +
 					`  Clauses : ${refs}\n` +
 					(m.criticalPoints && m.criticalPoints.length ? `  Points critiques : ${m.criticalPoints.slice(0, 3).join(' ; ')}\n` : '') +
-					`  Hypothèse : ${m.keyDilemmaOrHypothesis}`
+					`  Hypothèse : ${m.keyDilemmaOrHypothesis.slice(0, 180)}`
 				);
 			}
 		)
@@ -367,10 +555,10 @@ ${kbText}
 
 ---
 
-INVENTAIRE DE TOUS LES MICRO-SUJETS DÉTECTÉS SUR LE CCTP :
-${microText}
+INVENTAIRE DES MICRO-SUJETS DÉTECTÉS SUR LE CCTP :
+${microText}${truncationNotice}
 
-Consolide l'intégralité de ces micro-sujets en ${targetDesc} méta-sujets d'architecture majeurs au format JSON demandé.`;
+Consolide ces micro-sujets en ${targetDesc} méta-sujets d'architecture majeurs au format JSON demandé.`;
 
 	return { system, user };
 }
@@ -452,52 +640,214 @@ export async function factorizeRfpMapReduce(
 	console.log(`🔄 [Map-Reduce] Fin de la passe MAP : ${allMicroSubjects.length} micro-sujets extraits. Démarrage de la passe REDUCE...`);
 
 	// ─── PASSE 2 : REDUCE (Consolidation en Méta-Sujets d'Architecture) ────────
-	const reducePrompt = buildReducePrompt(
-		allMicroSubjects,
-		kbStandards,
-		targetDesc,
-		request.customPromptDirectives
-	);
+	let subjects: FactorizedArchitecturalSubject[] = [];
+	let reduceSummary = '';
 
-	const rawReduce = await localLlmClient.chat({
-		model,
-		messages: [
-			{ role: 'system', content: reducePrompt.system },
-			{ role: 'user', content: reducePrompt.user }
-		],
-		format: 'json',
-		temperature: 0.15,
-		timeoutMs: 180000,
-		maxTokens: 2048
-	});
+	if (allMicroSubjects.length <= MAX_REDUCE_BATCH_MICRO_SUBJECTS) {
+		// Petit corpus de micro-sujets (<= 20) : réduction directe en une seule passe
+		const reducePrompt = buildReducePrompt(
+			allMicroSubjects,
+			kbStandards,
+			targetDesc,
+			request.customPromptDirectives
+		);
 
-	const parsedReduce = safeParseJson(rawReduce);
+		const rawReduce = await localLlmClient.chat({
+			model,
+			messages: [
+				{ role: 'system', content: reducePrompt.system },
+				{ role: 'user', content: reducePrompt.user }
+			],
+			format: 'json',
+			temperature: 0.15,
+			timeoutMs: 180000,
+			maxTokens: 2048
+		});
 
-	if (!parsedReduce || !Array.isArray(parsedReduce.subjects)) {
-		throw new Error('Réponse de consolidation Reduce invalide : propriété "subjects" manquante');
-	}
+		const parsedReduce = safeParseJson(rawReduce);
 
-	const subjects: FactorizedArchitecturalSubject[] = parsedReduce.subjects.map(
-		(s: any, idx: number) => ({
-			id: s.id || `SUBJ-${String(idx + 1).padStart(2, '0')}`,
-			lotId: s.lotId || inferLotFromRef(s.sectionRef || s.name),
-			name: s.name || `Sujet d'Architecture ${idx + 1}`,
-			sectionRef: s.sectionRef || `§${idx + 1}.0`,
-			coveredClauseRefs: Array.isArray(s.coveredClauseRefs) ? s.coveredClauseRefs : [],
-			matchedKbItemIds: Array.isArray(s.matchedKbItemIds) ? s.matchedKbItemIds : [],
-			knowledgeAlignment: normalizeAlignment(s.knowledgeAlignment),
-			alignmentRationale: s.alignmentRationale || 'Consolidation issue de l’analyse exhaustive Map-Reduce',
-			initialLevel: normalizeLevel(s.initialLevel),
-			waitingForRole: normalizeRole(s.waitingForRole),
-			effort: s.effort === 'XL' || s.effort === 'L' || s.effort === 'S' ? s.effort : 'M',
-			seed: {
-				initialRetenu: Array.isArray(s.seed?.initialRetenu) ? s.seed.initialRetenu : [],
-				initialHypothesis: s.seed?.initialHypothesis || `Conception architecturale pour ${s.name}`,
-				initialConflict: s.seed?.initialConflict || undefined,
-				initialQuestion: s.seed?.initialQuestion || `Comment concilier les exigences pour ${s.name} ?`
+		if (!parsedReduce || !Array.isArray(parsedReduce.subjects)) {
+			throw new Error('Réponse de consolidation Reduce invalide : propriété "subjects" manquante');
+		}
+
+		reduceSummary = parsedReduce.summary || '';
+		subjects = parsedReduce.subjects.map((s: any, idx: number) => {
+			const coveredRefs = Array.isArray(s.coveredClauseRefs) ? s.coveredClauseRefs : [];
+			const resolved = resolveClientClausesForSubject(
+				coveredRefs,
+				clauses,
+				Array.isArray(s.seed?.initialRetenu) ? s.seed.initialRetenu : []
+			);
+			const matchedKb = Array.isArray(s.matchedKbItemIds) ? [...s.matchedKbItemIds] : [];
+			for (const adr of resolved.adrDecisions) {
+				if (!matchedKb.includes(adr)) matchedKb.push(adr);
 			}
-		})
-	);
+
+			return {
+				id: s.id || `SUBJ-${String(idx + 1).padStart(2, '0')}`,
+				lotId: s.lotId || inferLotFromRef(s.sectionRef || s.name),
+				name: s.name || `Sujet d'Architecture ${idx + 1}`,
+				sectionRef: s.sectionRef || `§${idx + 1}.0`,
+				coveredClauseRefs: coveredRefs,
+				matchedKbItemIds: matchedKb,
+				knowledgeAlignment: normalizeAlignment(s.knowledgeAlignment),
+				alignmentRationale: s.alignmentRationale || 'Consolidation issue de l’analyse exhaustive Map-Reduce',
+				initialLevel: normalizeLevel(s.initialLevel),
+				waitingForRole: normalizeRole(s.waitingForRole),
+				effort: s.effort === 'XL' || s.effort === 'L' || s.effort === 'S' ? s.effort : 'M',
+				seed: {
+					initialRetenu: resolved.clientClauses,
+					initialHypothesis: s.seed?.initialHypothesis || `Conception architecturale pour ${s.name}`,
+					initialConflict: s.seed?.initialConflict || undefined,
+					initialQuestion: s.seed?.initialQuestion || `Comment concilier les exigences pour ${s.name} ?`
+				}
+			};
+		});
+	} else {
+		// Corpus massif (> 20 micro-sujets, typiquement plusieurs centaines) :
+		// Réduction hiérarchique partitionnée par lot pour respecter rigoureusement la fenêtre de contexte de 8192 tokens
+		console.log(
+			`🔄 [Map-Reduce] Consolidation hiérarchique : ${allMicroSubjects.length} micro-sujets découpés par lots techniques et sous-tranches bornées (<= ${MAX_REDUCE_BATCH_MICRO_SUBJECTS} micro-sujets).`
+		);
+
+		const reduceBatches = partitionMicroSubjectsForReduce(allMicroSubjects);
+		console.log(`🔄 [Map-Reduce] ${reduceBatches.length} sous-lots de réduction à traiter.`);
+
+		for (let bIdx = 0; bIdx < reduceBatches.length; bIdx++) {
+			const batchInfo = reduceBatches[bIdx];
+			const targetCountForBatch = batchInfo.subjects.length <= 8 ? '1 à 2' : '2 à 3';
+			const batchPrompt = buildBatchReducePrompt(
+				batchInfo.subjects,
+				kbStandards,
+				batchInfo.lotId,
+				targetCountForBatch,
+				request.customPromptDirectives
+			);
+
+			// Map des micro-sujets du batch pour héritage automatique des clauses
+			const batchMicroMap = new Map<string, MicroArchitecturalSubject>();
+			for (const m of batchInfo.subjects) {
+				batchMicroMap.set(m.id, m);
+			}
+			const handledMicroIds = new Set<string>();
+
+			try {
+				const rawBatch = await localLlmClient.chat({
+					model,
+					messages: [
+						{ role: 'system', content: batchPrompt.system },
+						{ role: 'user', content: batchPrompt.user }
+					],
+					format: 'json',
+					temperature: 0.15,
+					timeoutMs: 180000,
+					maxTokens: 4096
+				});
+
+				const parsedBatch = safeParseJson(rawBatch);
+				const batchSubjectsList: any[] = Array.isArray(parsedBatch?.subjects) ? parsedBatch.subjects : [];
+
+				if (batchSubjectsList.length > 0) {
+					for (let sIdx = 0; sIdx < batchSubjectsList.length; sIdx++) {
+						const s = batchSubjectsList[sIdx];
+						const subClauses = new Set<string>(Array.isArray(s.coveredClauseRefs) ? s.coveredClauseRefs : []);
+
+						// Résolution des clauses via coveredMicroIds
+						const coveredMicros = Array.isArray(s.coveredMicroIds) ? s.coveredMicroIds : [];
+						for (const mid of coveredMicros) {
+							const foundMicro = batchMicroMap.get(mid);
+							if (foundMicro) {
+								handledMicroIds.add(mid);
+								for (const cr of foundMicro.coveredClauseRefs) {
+									subClauses.add(cr);
+								}
+							}
+						}
+
+						const subjectName = s.name || s.title || `Sujet ${batchInfo.lotId} - ${sIdx + 1}`;
+						const coveredRefs = Array.from(subClauses);
+						const resolved = resolveClientClausesForSubject(
+							coveredRefs,
+							clauses,
+							Array.isArray(s.seed?.initialRetenu) ? s.seed.initialRetenu : []
+						);
+						const matchedKb = Array.isArray(s.matchedKbItemIds) ? [...s.matchedKbItemIds] : [];
+						for (const adr of resolved.adrDecisions) {
+							if (!matchedKb.includes(adr)) matchedKb.push(adr);
+						}
+
+						subjects.push({
+							id: `SUBJ-${String(subjects.length + 1).padStart(2, '0')}`,
+							lotId: s.lotId || batchInfo.lotId,
+							name: subjectName,
+							sectionRef: s.sectionRef || `§${subjects.length + 1}.0`,
+							coveredClauseRefs: coveredRefs,
+							matchedKbItemIds: matchedKb,
+							knowledgeAlignment: normalizeAlignment(s.knowledgeAlignment),
+							alignmentRationale: s.alignmentRationale || `Consolidation issue du lot ${batchInfo.lotId}`,
+							initialLevel: normalizeLevel(s.initialLevel),
+							waitingForRole: normalizeRole(s.waitingForRole),
+							effort: s.effort === 'XL' || s.effort === 'L' || s.effort === 'S' ? s.effort : 'M',
+							seed: {
+								initialRetenu: resolved.clientClauses,
+								initialHypothesis: s.seed?.initialHypothesis || `Conception architecturale pour ${subjectName}`,
+								initialConflict: s.seed?.initialConflict || undefined,
+								initialQuestion: s.seed?.initialQuestion || `Comment concilier les exigences pour ${batchInfo.lotId} ?`
+							}
+						});
+					}
+
+					// Rattrapage des micro-sujets non cités du batch vers le premier sujet généré du lot
+					const unhandledMicros = batchInfo.subjects.filter((m) => !handledMicroIds.has(m.id));
+					if (unhandledMicros.length > 0 && subjects.length > 0) {
+						const targetSubject = subjects[subjects.length - batchSubjectsList.length];
+						if (targetSubject) {
+							for (const uh of unhandledMicros) {
+								for (const cr of uh.coveredClauseRefs) {
+									if (!targetSubject.coveredClauseRefs.includes(cr)) {
+										targetSubject.coveredClauseRefs.push(cr);
+									}
+								}
+							}
+						}
+					}
+				} else {
+					throw new Error(`Aucun sujet retourné par le LLM pour le sous-lot ${batchInfo.lotId}`);
+				}
+			} catch (batchErr) {
+				const errMsg = batchErr instanceof Error ? batchErr.message : String(batchErr);
+				console.warn(`⚠️ [Reduce] Erreur sur le sous-lot ${bIdx + 1}/${reduceBatches.length} (${batchInfo.lotId}), repli local :`, errMsg);
+				// Synthèse de secours pour ce sous-lot particulier sans faire échouer les autres lots
+				const fallbackClauses = Array.from(new Set(batchInfo.subjects.flatMap((m) => m.coveredClauseRefs)));
+				subjects.push({
+					id: `SUBJ-${String(subjects.length + 1).padStart(2, '0')}`,
+					lotId: batchInfo.lotId,
+					name: `Socle ${batchInfo.lotId} : ${batchInfo.subjects[0]?.title || 'Exigences consolidées'}`,
+					sectionRef: `§${subjects.length + 1}.0`,
+					coveredClauseRefs: fallbackClauses,
+					matchedKbItemIds: [],
+					knowledgeAlignment: 'standard_established',
+					alignmentRationale: `Consolidation de repli pour ${batchInfo.subjects.length} micro-sujets (${batchInfo.lotId})`,
+					initialLevel: 'L2_decomposed',
+					waitingForRole: 'infra_expert_architect',
+					effort: 'M',
+					seed: {
+						initialRetenu: [`Consolidation de ${batchInfo.subjects.length} micro-sujets`],
+						initialHypothesis: batchInfo.subjects[0]?.keyDilemmaOrHypothesis || `Hypothèse pour ${batchInfo.lotId}`,
+						initialQuestion: `Quels arbitrages pour le lot ${batchInfo.lotId} ?`
+					}
+				});
+			}
+		}
+
+		// Réindexation séquentielle propre des sujets finaux
+		subjects.forEach((s, idx) => {
+			s.id = `SUBJ-${String(idx + 1).padStart(2, '0')}`;
+			s.sectionRef = `§${idx + 1}.0`;
+		});
+
+		reduceSummary = `Factorisation hiérarchique Map-Reduce : ${totalClauses} exigences analysées en ${chunks.length} blocs, ${allMicroSubjects.length} micro-sujets consolidés en ${subjects.length} méta-sujets structurants.`;
+	}
 
 	// Traçabilité et calcul de couverture
 	const coveredSet = new Set<string>();
@@ -528,7 +878,7 @@ export async function factorizeRfpMapReduce(
 		status: 'ok',
 		engine: 'map-reduce-llm',
 		modelUsed: model,
-		summary: parsedReduce.summary || `Factorisation hiérarchique Map-Reduce (100% Verbatim) : ${totalClauses} exigences analysées en ${chunks.length} blocs, ${allMicroSubjects.length} micro-sujets consolidés en ${subjects.length} méta-sujets structurants.`,
+		summary: reduceSummary || `Factorisation hiérarchique Map-Reduce (100% Verbatim) : ${totalClauses} exigences analysées en ${chunks.length} blocs, ${allMicroSubjects.length} micro-sujets consolidés en ${subjects.length} méta-sujets structurants.`,
 		totalClauses,
 		coveredClausesCount,
 		coverageRate,
@@ -857,29 +1207,118 @@ export function promoteClauseToSubject(
 
 // Helpers internes
 export function cleanJsonString(str: string): string {
-	let cleaned = str.trim();
+	let cleaned = (str || '').trim();
+
 	// Supprime les balises markdown ```json ... ``` complètes ou ouvertes
-	cleaned = cleaned.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
+	const fencedMatch = cleaned.match(/```(?:json)?\s*([\s\S]*?)(?:```|$)/i);
+	if (fencedMatch && fencedMatch[1]) {
+		cleaned = fencedMatch[1].trim();
+	} else {
+		cleaned = cleaned.replace(/^```(?:json)?\s*/i, '').replace(/\s*```$/i, '').trim();
+	}
+
+	// Élimine le texte préfixe éventuel avant le premier '{' ou '['
+	const firstBrace = cleaned.indexOf('{');
+	const firstBracket = cleaned.indexOf('[');
+	const startIdx = firstBrace >= 0 && firstBracket >= 0
+		? Math.min(firstBrace, firstBracket)
+		: firstBrace >= 0
+			? firstBrace
+			: firstBracket;
+
+	if (startIdx > 0) {
+		cleaned = cleaned.slice(startIdx).trim();
+	}
+
 	return cleaned;
 }
 
 /**
- * Répare un JSON tronqué en fermant les guillemets et les délimiteurs { et [ dans l'ordre inverse
+ * Répare un JSON tronqué en nettoyant chirurgicalement la fin (virgules, clés pendantes)
+ * et en fermant les délimiteurs { et [ dans l'ordre inverse
  */
 export function repairTruncatedJson(str: string): string {
-	let repaired = str;
-	// Compte les guillemets non échappés
-	const unescapedQuotes = (repaired.match(/(?<!\\)"/g) || []).length;
-	if (unescapedQuotes % 2 !== 0) {
-		repaired += '"';
-	}
+	let trimmed = str.trim();
 
-	const stack: ('{' | '[')[] = [];
+	// 1. Détermine si on termine à l'intérieur d'une string non fermée
 	let inString = false;
 	let isEscaped = false;
+	let lastQuoteIdx = -1;
+	let lastColonIdx = -1;
 
-	for (let i = 0; i < repaired.length; i++) {
-		const char = repaired[i];
+	for (let i = 0; i < trimmed.length; i++) {
+		const char = trimmed[i];
+		if (isEscaped) {
+			isEscaped = false;
+			continue;
+		}
+		if (char === '\\') {
+			isEscaped = true;
+			continue;
+		}
+		if (char === '"') {
+			inString = !inString;
+			lastQuoteIdx = i;
+			continue;
+		}
+		if (!inString && char === ':') {
+			lastColonIdx = i;
+		}
+	}
+
+	// Si on est resté dans une string non fermée
+	if (inString) {
+		// Est-ce que cette string était une valeur (après un deux-points ':') ?
+		if (lastColonIdx > -1 && lastQuoteIdx > lastColonIdx) {
+			trimmed += '"';
+		} else {
+			// Clé non terminée sans deux-points : couper avant cette clé et la virgule précédente
+			const beforeQuote = trimmed.slice(0, lastQuoteIdx).trimEnd();
+			if (beforeQuote.endsWith(',')) {
+				trimmed = beforeQuote.slice(0, -1).trimEnd();
+			} else {
+				trimmed = beforeQuote;
+			}
+		}
+	}
+
+	// 2. Nettoyage de la fin de chaîne (enlever virgules traînantes, clés pendantes, deux-points orphelins)
+	let cleaned = trimmed;
+	let changed = true;
+	while (changed) {
+		changed = false;
+		cleaned = cleaned.trimEnd();
+
+		// Enlève toute virgule traînante
+		if (cleaned.endsWith(',')) {
+			cleaned = cleaned.slice(0, -1);
+			changed = true;
+			continue;
+		}
+
+		// Enlève une clé pendante "cle":
+		const trailingKeyColon = cleaned.match(/,\s*"[^"]*"\s*:\s*$/);
+		if (trailingKeyColon) {
+			cleaned = cleaned.slice(0, -trailingKeyColon[0].length);
+			changed = true;
+			continue;
+		}
+
+		// Enlève un deux-points seul
+		if (cleaned.endsWith(':')) {
+			cleaned = cleaned.slice(0, -1).trimEnd();
+			changed = true;
+			continue;
+		}
+	}
+
+	// 3. Calcul de la pile des délimiteurs ouverts
+	const stack: ('{' | '[')[] = [];
+	inString = false;
+	isEscaped = false;
+
+	for (let i = 0; i < cleaned.length; i++) {
+		const char = cleaned[i];
 		if (isEscaped) {
 			isEscaped = false;
 			continue;
@@ -907,13 +1346,64 @@ export function repairTruncatedJson(str: string): string {
 		}
 	}
 
-	// Ferme dans l'ordre inverse exact de la pile d'ouverture
+	// 4. Ferme dans l'ordre inverse exact de la pile d'ouverture
+	let repaired = cleaned;
 	while (stack.length > 0) {
 		const expected = stack.pop();
 		repaired += expected === '{' ? '}' : ']';
 	}
 
 	return repaired;
+}
+
+/**
+ * Scanne et extrait tous les objets individuels complets et valides (avec id et nom/titre)
+ */
+export function extractCompleteObjects(str: string): any[] {
+	const objects: any[] = [];
+	let depth = 0;
+	let startIdx = -1;
+	let inString = false;
+	let isEscaped = false;
+
+	for (let i = 0; i < str.length; i++) {
+		const char = str[i];
+		if (isEscaped) {
+			isEscaped = false;
+			continue;
+		}
+		if (char === '\\') {
+			isEscaped = true;
+			continue;
+		}
+		if (char === '"') {
+			inString = !inString;
+			continue;
+		}
+		if (!inString) {
+			if (char === '{') {
+				depth++;
+				if (depth === 2 || depth === 1) {
+					startIdx = i;
+				}
+			} else if (char === '}') {
+				if (startIdx >= 0 && (depth === 2 || depth === 1)) {
+					const candidate = str.slice(startIdx, i + 1);
+					try {
+						const parsed = JSON.parse(candidate);
+						if (parsed && typeof parsed === 'object' && parsed.id && (parsed.name || parsed.title)) {
+							objects.push(parsed);
+						}
+					} catch {
+						// Ignorer les blocs invalides
+					}
+					startIdx = -1;
+				}
+				depth--;
+			}
+		}
+	}
+	return objects;
 }
 
 /**
@@ -924,25 +1414,58 @@ export function safeParseJson(raw: string): any {
 	try {
 		return JSON.parse(cleaned);
 	} catch {
-		// Tentative 1 : réparation via la pile de délimiteurs
+		// Tentative 1 : réparation via la pile de délimiteurs et nettoyage des fins de chaîne
 		try {
 			const repaired = repairTruncatedJson(cleaned);
 			return JSON.parse(repaired);
 		} catch {
-			// Tentative 2 : extraction par regex des objets JSON valides si troncature sévère
-			const microMatches = [...cleaned.matchAll(/\{\s*"id"\s*:\s*"([^"]+)"[\s\S]*?"title"\s*:\s*"([^"]+)"/g)];
-			if (microMatches.length > 0) {
-				return {
-					microSubjects: microMatches.map((m) => ({
-						id: m[1],
-						title: m[2],
-						lotId: inferLotFromRef(m[2]),
-						coveredClauseRefs: [],
-						criticalPoints: [],
-						keyDilemmaOrHypothesis: 'Extraction réparée suite à troncature'
-					}))
-				};
+			// Tentative 2 : extraction des objets JSON individuels complets
+			const extracted = extractCompleteObjects(cleaned);
+			if (extracted.length > 0) {
+				const hasName = extracted.some((item) => item.name);
+				if (hasName) {
+					return { subjects: extracted };
+				}
+				return { microSubjects: extracted };
 			}
+
+			// Tentative 3 : extraction par regex des paires { "id": "...", "name"|"title": "..." }
+			const idNameMatches = [...cleaned.matchAll(/\{\s*"id"\s*:\s*"([^"]+)"[\s\S]*?(?:"name"|"title")\s*:\s*"([^"]+)"/g)];
+			if (idNameMatches.length > 0) {
+				const isSubjectPass = cleaned.includes('"subjects"');
+				if (isSubjectPass) {
+					return {
+						subjects: idNameMatches.map((m) => ({
+							id: m[1],
+							name: m[2],
+							lotId: inferLotFromRef(m[2]),
+							coveredClauseRefs: [],
+							matchedKbItemIds: [],
+							knowledgeAlignment: 'standard_established',
+							initialLevel: 'L2_decomposed',
+							waitingForRole: 'infra_expert_architect',
+							effort: 'M',
+							seed: {
+								initialRetenu: [],
+								initialHypothesis: m[2],
+								initialQuestion: `Comment concevoir la réponse pour ${m[2]} ?`
+							}
+						}))
+					};
+				} else {
+					return {
+						microSubjects: idNameMatches.map((m) => ({
+							id: m[1],
+							title: m[2],
+							lotId: inferLotFromRef(m[2]),
+							coveredClauseRefs: [],
+							criticalPoints: [],
+							keyDilemmaOrHypothesis: 'Extraction réparée suite à troncature'
+						}))
+					};
+				}
+			}
+
 			throw new Error(`Réponse JSON invalide du modèle local : ${raw.slice(0, 160)}`);
 		}
 	}

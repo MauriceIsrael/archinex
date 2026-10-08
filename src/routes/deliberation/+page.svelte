@@ -33,7 +33,9 @@
 	<!-- ═════════════════════════════════════════════════════════════════════════ -->
 	<!-- EN-TÊTE SUPÉRIEUR : SÉLECTEUR DE PROJET & 3 GRANDS ONGLETS DE PHASE       -->
 	<!-- ═════════════════════════════════════════════════════════════════════════ -->
-	<ProjectEngagementHeader onOpenGuide={() => (isDecisionGuideOpen = true)} />
+	{#if deliberationStore.deliberationViewMode === 'board' || deliberationStore.activePosture !== 'deliberation'}
+		<ProjectEngagementHeader onOpenGuide={() => (isDecisionGuideOpen = true)} />
+	{/if}
 
 	<!-- ═════════════════════════════════════════════════════════════════════════ -->
 	<!-- PHASE 1 : APPROPRIATION DOCUMENTAIRE                                       -->
@@ -51,12 +53,10 @@
 			<!-- Tableau de bord opérationnel & KPIs de Délibération (affiché en vue Board) -->
 			{#if deliberationStore.deliberationViewMode === 'board'}
 				<DeliberationDashboardKpis />
+				<RuleApprovalBanner />
 			{/if}
 
-			<!-- Règle doctrinale candidate (si détectée lors des échanges) -->
-			<RuleApprovalBanner />
-
-			<!-- Sélecteur de mode Délibération : Vue d'ensemble (Tableau) vs Délibération par sujet (Workbench 3 cols) -->
+			<!-- Sélecteur de mode Délibération : Vue d'ensemble (Tableau) vs Délibération par sujet (Workbench) -->
 			<div class="flex items-center justify-between gap-3 bg-muted/30 p-1.5 rounded-xl border">
 				<div class="flex items-center gap-1.5">
 					<button

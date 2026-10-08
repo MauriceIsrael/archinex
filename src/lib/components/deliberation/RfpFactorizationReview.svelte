@@ -180,16 +180,38 @@
 		// Convertit les sujets sélectionnés en InitialSubjectInput pour Archinex
 		const finalSubjects: InitialSubjectInput[] = editableSubjects
 			.filter((s) => selectedSubjectIds.has(s.id))
-			.map((s) => ({
-				sectionRef: s.sectionRef,
-				name: s.name,
-				waitingForRole: s.waitingForRole,
-				effort: s.effort,
-				initialRetenu: s.seed.initialRetenu,
-				initialHypothesis: s.seed.initialHypothesis,
-				initialConflict: s.seed.initialConflict,
-				initialQuestion: s.seed.initialQuestion
-			}));
+			.map((s) => {
+				// Résoudre les vraies clauses du RFP pour initialRetenu
+				const resolvedClauses = (s.coveredClauseRefs || [])
+					.map((ref) => {
+						const found = clauses.find((c) => c.clauseRef === ref);
+						if (!found) return null;
+						const cleanText = (found.text || '').replace(/\s+/g, ' ').trim();
+						const snippet = cleanText.length > 130 ? cleanText.slice(0, 127) + '...' : cleanText;
+						return `[${found.clauseRef}] ${found.title}${snippet && snippet !== found.title ? ` : ${snippet}` : ''}`;
+					})
+					.filter(Boolean) as string[];
+
+				// Conserver uniquement ce qui n'est pas un ADR dans initialRetenu existant
+				const rawNonAdr = (s.seed.initialRetenu || []).filter(
+					(r) => !/^\s*(?:ADR|STD)-\d+/i.test(r)
+				);
+
+				const initialRetenu = resolvedClauses.length > 0
+					? Array.from(new Set([...resolvedClauses.slice(0, 6), ...rawNonAdr]))
+					: (rawNonAdr.length > 0 ? rawNonAdr : s.seed.initialRetenu);
+
+				return {
+					sectionRef: s.sectionRef,
+					name: s.name,
+					waitingForRole: s.waitingForRole,
+					effort: s.effort,
+					initialRetenu,
+					initialHypothesis: s.seed.initialHypothesis,
+					initialConflict: s.seed.initialConflict,
+					initialQuestion: s.seed.initialQuestion
+				};
+			});
 
 		onConfirm(finalSubjects);
 	}

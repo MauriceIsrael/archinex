@@ -635,6 +635,8 @@ class DeliberationStore {
 		initialHypothesis?: string;
 		initialConflict?: string;
 		initialQuestion?: string;
+		parentSubjectId?: string;
+		parentSubjectName?: string;
 	}): MaturitySubject {
 		const newId = `sub_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
 		const sectionRef = input.sectionRef || `§${this.subjects.length + 1}.0`;
@@ -652,10 +654,19 @@ class DeliberationStore {
 			last_transition_date: new Date().toISOString(),
 			stall_days: 0,
 			is_stalled: false,
-			dependent_subject_ids: []
+			dependent_subject_ids: [],
+			parent_subject_id: input.parentSubjectId,
+			parent_subject_name: input.parentSubjectName
 		};
 
 		this.subjects.push(newSubject);
+
+		if (input.parentSubjectId) {
+			const parent = this.subjects.find((s) => s.id === input.parentSubjectId);
+			if (parent && !parent.dependent_subject_ids.includes(newId)) {
+				parent.dependent_subject_ids.push(newId);
+			}
+		}
 
 		// Initialiser le brouillon télégraphique associé
 		this.drafts[newId] = {
@@ -700,6 +711,111 @@ class DeliberationStore {
 
 		this.logNotification(`Nouveau sujet ajouté au tableau de maturité : "${input.name}" (${sectionRef})`, 'success');
 		return newSubject;
+	}
+
+	/**
+	 * Scinde un macro-sujet en 2 sous-problèmes d'architecture distincts (A32 / Élicitation)
+	 * Fait progresser le parent à L2_decomposed et crée les deux sujets enfants reliés.
+	 */
+	splitSubject(
+		parentId: string,
+		subA: { name: string; question: string; role?: ArchitectRole; effort?: 'S' | 'M' | 'L' | 'XL' },
+		subB: { name: string; question: string; role?: ArchitectRole; effort?: 'S' | 'M' | 'L' | 'XL' }
+	): { subA: MaturitySubject; subB: MaturitySubject } | null {
+		const parent = this.subjects.find((s) => s.id === parentId);
+		if (!parent) return null;
+
+		const parentDraft = this.drafts[parentId];
+
+		// Calcul des références de section enfants (ex: §1.1 et §1.2 si parent est §1.0)
+		const baseSection = parent.section_ref.replace(/\.0$/, '');
+		const refA = `${baseSection}.1`;
+		const refB = `${baseSection}.2`;
+
+		const childA = this.addMaturitySubject({
+			name: subA.name,
+			sectionRef: refA,
+			waitingForRole: subA.role || parent.waiting_for_role,
+			effort: subA.effort || 'M',
+			initialQuestion: subA.question,
+			initialHypothesis: parentDraft?.suppose?.[0]?.text,
+			initialRetenu: parentDraft?.retenu,
+			parentSubjectId: parent.id,
+			parentSubjectName: parent.name
+		});
+
+		const childB = this.addMaturitySubject({
+			name: subB.name,
+			sectionRef: refB,
+			waitingForRole: subB.role || parent.waiting_for_role,
+			effort: subB.effort || 'M',
+			initialQuestion: subB.question,
+			initialHypothesis: parentDraft?.suppose?.[0]?.text,
+			initialRetenu: parentDraft?.retenu,
+			parentSubjectId: parent.id,
+			parentSubjectName: parent.name
+		});
+
+		// Faire évoluer le sujet parent à L2_decomposed
+		parent.level = 'L2_decomposed';
+		parent.last_transition_date = new Date().toISOString();
+		if (this.drafts[parentId]) {
+			this.drafts[parentId].maturity = 'L2_decomposed';
+		}
+
+		// Enregistrer et persister
+		this.activeEngagement.subjects = $state.snapshot(this.subjects);
+		this.activeEngagement.drafts = $state.snapshot(this.drafts);
+		this.persistCustomState();
+
+		this.logNotification(
+			`✂️ Macro-sujet "${parent.name}" scindé en 2 sous-problèmes : "${childA.name}" (${refA}) et "${childB.name}" (${refB})`,
+			'success'
+		);
+
+		return { subA: childA, subB: childB };
+	}
+
+	/**
+	 * Met à jour la question principale d'architecture du brouillon télégraphique
+	 */
+	updateDraftQuestion(subjectId: string, question: string) {
+		const draft = this.drafts[subjectId];
+		if (!draft) return;
+		if (!draft.manque || draft.manque.length === 0) {
+			draft.manque = [
+				{
+					id: `Q-${subjectId}`,
+					question,
+					assigned_role: this.activeSubject?.waiting_for_role || 'lead_architect'
+				}
+			];
+		} else {
+			draft.manque[0].question = question;
+		}
+		this.activeEngagement.drafts = $state.snapshot(this.drafts);
+		this.persistCustomState();
+	}
+
+	/**
+	 * Met à jour l'hypothèse principale d'architecture du brouillon télégraphique
+	 */
+	updateDraftHypothesis(subjectId: string, hypothesis: string) {
+		const draft = this.drafts[subjectId];
+		if (!draft) return;
+		if (!draft.suppose || draft.suppose.length === 0) {
+			draft.suppose = [
+				{
+					text: hypothesis,
+					consequence: 'Instruction et arbitrage requis',
+					cost_hint: 'Effort M'
+				}
+			];
+		} else {
+			draft.suppose[0].text = hypothesis;
+		}
+		this.activeEngagement.drafts = $state.snapshot(this.drafts);
+		this.persistCustomState();
 	}
 
 	linkDocumentToSubject(docId: string, subjectId: string) {

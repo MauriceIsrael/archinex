@@ -17,7 +17,9 @@
 		CornerDownRight,
 		CornerDownLeft,
 		Check,
-		AlertTriangle
+		AlertTriangle,
+		Gavel,
+		Shield
 	} from 'lucide-svelte';
 
 	let {
@@ -26,7 +28,9 @@
 		userRole = 'lead_architect',
 		isHumanUser = true,
 		onResolve = (arg: Argument, resolution: ArgumentResolution) => {},
-		onReply = (arg: Argument) => {}
+		onReply = (arg: Argument) => {},
+		onChallenge = (_arg: Argument) => {},
+		onArbitrateOption = (_optId: string) => {}
 	}: {
 		argument: Argument;
 		targetArgument?: Argument | null;
@@ -34,10 +38,20 @@
 		isHumanUser?: boolean;
 		onResolve?: (arg: Argument, resolution: ArgumentResolution) => void;
 		onReply?: (arg: Argument) => void;
+		onChallenge?: (arg: Argument) => void;
+		onArbitrateOption?: (optId: string) => void;
 	} = $props();
 
 	const isAgent = $derived(argument.authorKind.startsWith('agent:'));
 	const isSynthesis = $derived(argument.stance === 'synthesis');
+	const isProposal = $derived(
+		argument.authorKind === 'agent:proposer' ||
+		(isAgent && argument.stance === 'support' && (
+			Boolean(argument.optionId) ||
+			argument.claim.toLowerCase().includes('proposition') ||
+			argument.claim.toLowerCase().includes('option')
+		))
+	);
 	const attrs = $derived(getArgumentVisualAttributes(argument));
 	const isObjectionOpen = $derived(argument.stance === 'objection' && argument.resolution === 'open');
 	const userCanClose = $derived(canCloseObjection(userRole, isHumanUser));
@@ -144,6 +158,133 @@
 				<CornerDownLeft class="h-3 w-3" />
 				<span>↩ Répondre</span>
 			</button>
+		</div>
+	</div>
+{:else if isProposal}
+	<!-- ═════════════════════════════════════════════════════════════════════════ -->
+	<!-- CARTE DE PROPOSITION D'ARCHITECTURE (stance: support / agent:proposer)   -->
+	<!-- ═════════════════════════════════════════════════════════════════════════ -->
+	<div
+		class="w-full my-3.5 rounded-xl border-2 border-amber-500/35 bg-gradient-to-r from-amber-500/10 via-card to-amber-500/5 p-4 shadow-2xs space-y-3"
+		data-author-kind={argument.authorKind}
+		data-is-agent={isAgent}
+		data-stance={argument.stance}
+		data-is-proposal="true"
+	>
+		<div class="flex items-center justify-between gap-2 flex-wrap">
+			<div class="flex items-center gap-2">
+				<div class="p-1.5 rounded-lg bg-amber-500/20 text-amber-700 dark:text-amber-300">
+					<Sparkles class="h-4 w-4" />
+				</div>
+				<div>
+					<div class="flex items-center gap-1.5">
+						<span class="text-xs font-bold text-foreground">💡 Proposition d'Orientation Technique</span>
+						{#if isAgent}
+							<span
+								class="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[10px] font-mono font-bold bg-purple-500/15 text-purple-700 dark:text-purple-300 border border-purple-500/30"
+								title="Généré par agent IA @proposer (llm-derived)"
+							>
+								<Bot class="h-3 w-3" />
+								<span>IA @proposer</span>
+							</span>
+						{:else}
+							<span
+								class="inline-flex items-center gap-1 px-1.5 py-0.2 rounded text-[10px] font-mono font-bold bg-emerald-500/15 text-emerald-700 dark:text-emerald-300"
+							>
+								<UserCheck class="h-3 w-3" />
+								<span>Humain</span>
+							</span>
+						{/if}
+					</div>
+					<div class="text-[11px] text-muted-foreground">
+						Formulée par <strong class="text-foreground">{argument.author}</strong>
+						{#if argument.confidence}
+							· Confiance : <span class="font-mono">{argument.confidence}</span>
+						{/if}
+					</div>
+				</div>
+			</div>
+
+			<span class="text-[10px] font-mono px-2 py-0.5 rounded-md font-bold border bg-amber-500/10 text-amber-800 dark:text-amber-300 border-amber-500/30">
+				Option / Orientation
+			</span>
+		</div>
+
+		<!-- Citation du message ciblé s'il y a un targetArgumentId -->
+		{#if targetArgument}
+			<blockquote class="text-xs italic border-l-2 border-amber-400 pl-3 py-1 bg-background/50 rounded-r text-muted-foreground">
+				<div class="font-semibold text-[10px] not-italic text-foreground">
+					En réponse à {targetArgument.author} :
+				</div>
+				<div class="line-clamp-2">« {targetArgument.claim} »</div>
+			</blockquote>
+		{/if}
+
+		<!-- Titre / Claim de la proposition -->
+		<div class="text-xs font-bold text-foreground leading-snug">
+			{argument.claim}
+		</div>
+
+		<!-- Justification technique & options (pleinement visible pour l'architecte) -->
+		<div class="p-3 rounded-lg bg-background/80 border border-amber-500/20 text-xs text-foreground/90 leading-relaxed whitespace-pre-line space-y-1">
+			<span class="text-[10px] font-bold uppercase tracking-wider text-amber-800 dark:text-amber-300 block mb-0.5">
+				Justification & Spécifications de la proposition :
+			</span>
+			{argument.grounds}
+		</div>
+
+		<!-- Doctrines & Actions rapides intégrées au chat -->
+		<div class="flex items-center justify-between gap-2 pt-1 border-t border-amber-500/20 text-[11px] flex-wrap">
+			{#if argument.kbRefs && argument.kbRefs.length > 0}
+				<div class="flex items-center gap-1.5 flex-wrap">
+					<span class="text-muted-foreground font-semibold">Doctrines :</span>
+					{#each argument.kbRefs as ref}
+						<a
+							href={`/knowledge?rule=${encodeURIComponent(ref)}`}
+							class="inline-flex items-center gap-1 font-mono text-[10px] px-2 py-0.5 rounded-full bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border border-indigo-500/30 font-bold hover:bg-indigo-500/25 transition-colors"
+						>
+							<span>§ {ref}</span>
+							<ExternalLink class="h-2.5 w-2.5 opacity-70" />
+						</a>
+					{/each}
+				</div>
+			{:else}
+				<div></div>
+			{/if}
+
+			<div class="flex items-center gap-1.5 ml-auto">
+				<button
+					type="button"
+					onclick={() => onReply(argument)}
+					class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors cursor-pointer"
+					title="Répondre ou enrichir cette proposition"
+				>
+					<CornerDownLeft class="h-3 w-3" />
+					<span>↩ Répondre</span>
+				</button>
+
+				<button
+					type="button"
+					onclick={() => onChallenge(argument)}
+					class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold text-rose-700 dark:text-rose-300 bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/25 transition-colors cursor-pointer"
+					title="Soumettre cette proposition à l'agent @challenger pour tester les failles"
+				>
+					<Shield class="h-3 w-3" />
+					<span>Objecter (@challenger)</span>
+				</button>
+
+				{#if argument.optionId}
+					<button
+						type="button"
+						onclick={() => onArbitrateOption(argument.optionId!)}
+						class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold text-primary bg-primary/10 hover:bg-primary/20 border border-primary/25 transition-colors cursor-pointer"
+						title="Arbitrer ou retenir cette option"
+					>
+						<Gavel class="h-3 w-3" />
+						<span>Arbitrer</span>
+					</button>
+				{/if}
+			</div>
 		</div>
 	</div>
 {:else}

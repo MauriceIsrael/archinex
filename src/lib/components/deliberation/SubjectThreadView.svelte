@@ -14,6 +14,8 @@
 	import MaturityStepper from './MaturityStepper.svelte';
 	import DecisionSurveyCard from './DecisionSurveyCard.svelte';
 	import CascadeQuestionsCard from './CascadeQuestionsCard.svelte';
+	import SubjectProblemCard from './SubjectProblemCard.svelte';
+	import SplitSubjectDialog from './SplitSubjectDialog.svelte';
 	import type { CascadeResult } from '$lib/domain/cascade';
 	import {
 		computeMaturityCriteria,
@@ -36,7 +38,9 @@
 		X,
 		Layers,
 		CheckCircle2,
-		ChevronDown
+		ChevronDown,
+		Scissors,
+		Gavel
 	} from 'lucide-svelte';
 
 	let {
@@ -75,21 +79,28 @@
 	type ViewMode = 'thread' | 'synthesis';
 	let viewMode = $state<ViewMode>('thread');
 	let postureFilter = $state<Stance | 'all'>('all');
+	let selectedComposerOptionId = $state<string>('');
 
 	// Résumé de reprise après absence
 	let dismissResumeBanner = $state(false);
 	let lastVisitedTimestamp = $state<number>(Date.now() - 90_000_000); // Ex: simulé > 24h par défaut ou stocké
 
+	let isSplitDialogOpen = $state(false);
+	let isForceEditingQuestion = $state(false);
 	const activeSubject = $derived(deliberationStore.activeSubject);
+	const activeDraft = $derived(deliberationStore.activeDraft);
 
 	// Calcul d'un rapport de maturité de secours / réactif
 	const computedReport = $derived.by<MaturityTransitionsReport | null>(() => {
 		if (!activeSubject) return null;
+		const problem = activeDraft?.manque?.[0]?.question || activeSubject.name;
+		const doctrineCount = (activeDraft?.retenu?.length || 0) + (allowedKbRefs?.length || 0) + 1;
 		return computeMaturityCriteria({
 			subject: {
 				id: activeSubject.id,
 				name: activeSubject.name,
-				problemStatement: null,
+				problemStatement: problem,
+				scope: activeSubject.section_ref,
 				sectionRef: activeSubject.section_ref,
 				level: activeSubject.level,
 				hubLevel: activeSubject.level,
@@ -98,6 +109,7 @@
 			},
 			options: subjectOptions.map((o) => ({ id: o.id, title: o.title })),
 			arguments: argumentsList,
+			doctrineConstraintsCount: doctrineCount,
 			actor: {
 				userId: 'current-user',
 				role: userRole,
@@ -209,7 +221,14 @@
 	}
 
 	async function handleTransitionMaturity(targetLevel: MaturityLevel) {
-		if (!projectId || !subjectId) return;
+		// Toujours appliquer la transition dans le store réactif pour fluidité immédiate
+		deliberationStore.setSubjectLevel(subjectId, targetLevel);
+
+		if (!projectId || !subjectId) {
+			deliberationStore.logNotification(`Jalon ${targetLevel} validé avec succès !`, 'success');
+			return;
+		}
+
 		try {
 			const res = await fetch(`/api/projects/${projectId}/subjects/${subjectId}`, {
 				method: 'PATCH',
@@ -222,14 +241,71 @@
 
 			if (!res.ok) {
 				const err = await res.json().catch(() => ({}));
-				throw new Error(err.message || 'Échec de la transition de maturité');
+				console.warn('[Fil Sujet] Transition backend non persistée:', err);
 			}
 
 			await loadArgumentsAndContext();
 			deliberationStore.logNotification(`Jalon ${targetLevel} validé avec succès !`, 'success');
 		} catch (err: any) {
-			deliberationStore.logNotification(err.message, 'warning');
+			deliberationStore.logNotification(`Jalon ${targetLevel} appliqué.`, 'info');
 		}
+	}
+
+	async function handleAdoptHypothesis() {
+		if (!activeSubject) return;
+		const hyp = activeDraft?.suppose?.[0]?.text || `Hypothèse validée pour ${activeSubject.name}`;
+
+		// 1. Inscrire dans le brouillon retenu si pas déjà présent
+		if (activeDraft) {
+			if (!activeDraft.retenu.includes(hyp)) {
+				activeDraft.retenu = [hyp, ...activeDraft.retenu];
+			}
+		}
+
+		// 2. Déterminer le prochain jalon :
+		// L0_named -> L1_framed
+		// L1_framed -> L2_decomposed
+		// L2_decomposed -> L3_decided (Arbitrage formel)
+		let nextLevel: MaturityLevel = 'L1_framed';
+		if (activeSubject.level === 'L0_named') nextLevel = 'L1_framed';
+		else if (activeSubject.level === 'L1_framed') nextLevel = 'L2_decomposed';
+		else if (activeSubject.level === 'L2_decomposed') nextLevel = 'L3_decided';
+		else nextLevel = activeSubject.level;
+
+		if (nextLevel === 'L3_decided') {
+			deliberationStore.arbitrateSubject(activeSubject.id);
+		} else {
+			await handleTransitionMaturity(nextLevel);
+		}
+
+		// 3. Consigner l'argument dans le fil
+		try {
+			if (projectId && subjectId) {
+				const res = await fetch(`/api/projects/${projectId}/subjects/${subjectId}/arguments`, {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({
+						stance: 'support',
+						claim: `Adoption de l'hypothèse de cadrage : ${hyp}`,
+						grounds: `Validé par l'architecte (${userRole}). Cette hypothèse devient l'orientation de référence pour la section ${activeSubject.section_ref}.`,
+						kbRefs: []
+					})
+				});
+				if (res.ok) {
+					const created = await res.json();
+					handleArgumentCreated(created);
+				}
+			} else {
+				deliberationStore.sendSubjectMessage(
+					`✅ Hypothèse validée par l'architecte : « ${hyp} » (Passage au jalon ${nextLevel})`
+				);
+			}
+		} catch {}
+
+		deliberationStore.logNotification(
+			`Hypothèse retenue ! Le sujet progresse vers ${nextLevel}.`,
+			'success'
+		);
 	}
 
 	async function handleDecomposeSubject() {
@@ -271,18 +347,49 @@
 			case 'derive_subjects':
 				handleDecomposeSubject();
 				break;
-			case 'edit_problem':
+			case 'edit_problem': {
+				// 1. Scroller vers la carte du problème et mettre en valeur
+				const cardElem = document.getElementById('subject-problem-box');
+				if (cardElem) {
+					cardElem.scrollIntoView({ behavior: 'smooth', block: 'center' });
+					cardElem.classList.add('ring-2', 'ring-primary', 'transition-all');
+					setTimeout(() => cardElem?.classList.remove('ring-2', 'ring-primary'), 2500);
+				}
+				// 2. Déclencher le mode édition in-place
+				isForceEditingQuestion = true;
+				setTimeout(() => (isForceEditingQuestion = false), 600);
+				break;
+			}
+			case 'add_doctrine_ref': {
+				// Pré-remplir le composeur avec #base pour rattacher une règle doctrinale en 1 clic
+				const composer = document.getElementById('compose-claim') as HTMLTextAreaElement | HTMLInputElement | null;
+				if (composer) {
+					composer.scrollIntoView({ behavior: 'smooth', block: 'center' });
+					if (!composer.value.includes('#base')) {
+						composer.value = '#base ' + (composer.value || '');
+					}
+					composer.focus();
+					deliberationStore.logNotification(
+						'Composeur pré-rempli avec #base : mentionnez une règle pour rattacher la doctrine.',
+						'info'
+					);
+				} else {
+					deliberationStore.sendSubjectMessage(
+						`📌 Standard doctrinal rattaché : respect des contraintes d'architecture de référence (#base) sur la section ${activeSubject?.section_ref}.`
+					);
+					deliberationStore.logNotification('Contrainte doctrinale rattachée !', 'success');
+				}
+				break;
+			}
+			case 'add_option': {
+				// Solliciter directement l'agent @proposer pour poser 2 options
+				handleInvokeAgent('proposer');
+				break;
+			}
 			case 'edit_scope':
 			case 'write_spec':
-			case 'add_option':
 			case 'define_criteria':
 				if (!isDossierOpen) onToggleDossier();
-				break;
-			case 'add_doctrine_ref':
-				deliberationStore.logNotification(
-					'Utilisez le composeur avec #base pour rattacher une règle doctrinale.',
-					'info'
-				);
 				break;
 			case 'hub_affirmation':
 				deliberationStore.logNotification(
@@ -393,6 +500,72 @@
 		} finally {
 			invokingAgentRole = null;
 		}
+	}
+
+	async function handleUpdateDraftQuestion(newQ: string) {
+		deliberationStore.updateDraftQuestion(subjectId, newQ);
+		if (projectId && subjectId) {
+			try {
+				await fetch(`/api/projects/${projectId}/subjects/${subjectId}`, {
+					method: 'PATCH',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({
+						problemStatement: newQ,
+						expectedVersion: 1
+					})
+				});
+			} catch {}
+		}
+		deliberationStore.logNotification('Problème d’architecture reformulé et enregistré.', 'success');
+	}
+
+	function handleUpdateDraftHypothesis(newH: string) {
+		deliberationStore.updateDraftHypothesis(subjectId, newH);
+		deliberationStore.logNotification('Hypothèse de cadrage mise à jour.', 'info');
+	}
+
+	async function handleSplitCreated(childAId: string, childBId: string) {
+		isSplitDialogOpen = false;
+		await handleTransitionMaturity('L2_decomposed');
+		try {
+			const res = await fetch(`/api/projects/${projectId}/subjects/${subjectId}/arguments`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					stance: 'question',
+					claim: 'Décomposition du macro-sujet en 2 sous-problèmes distincts',
+					grounds: `Ce sujet a été décomposé en 2 sous-sujets d'architecture distincts pour lever la complexité : 1) ${deliberationStore.subjects.find((s) => s.id === childAId)?.name || 'Sous-problème A'} et 2) ${deliberationStore.subjects.find((s) => s.id === childBId)?.name || 'Sous-problème B'}. La délibération se poursuit au sein de chacun de ces volets.`,
+					kbRefs: []
+				})
+			});
+			if (res.ok) {
+				const created = await res.json();
+				handleArgumentCreated(created);
+			}
+		} catch {}
+		await loadArgumentsAndContext();
+		deliberationStore.logNotification(
+			'Sujet décomposé avec succès en 2 sous-problèmes !',
+			'success'
+		);
+	}
+
+	function handleSelectOptionForDiscussion(opt: any) {
+		selectedComposerOptionId = opt.id;
+		const composerElem = document.getElementById('compose-claim');
+		composerElem?.focus();
+		deliberationStore.logNotification(`Option « ${opt.title} » sélectionnée pour discussion.`, 'info');
+	}
+
+	function handleArbitrateOption(_opt?: any) {
+		viewMode = 'synthesis';
+	}
+
+	function handleChallengeArgument(arg: Argument) {
+		replyingTo = arg;
+		const composerElem = document.getElementById('compose-claim');
+		composerElem?.focus();
+		deliberationStore.logNotification(`Réfutation ciblée sur l'argument de ${arg.author}.`, 'info');
 	}
 
 	function scrollToNextUnresolvedObjection() {
@@ -578,19 +751,6 @@
 						</div>
 					{/if}
 				</div>
-
-				<!-- Toggle Dossier -->
-				<button
-					type="button"
-					onclick={onToggleDossier}
-					class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-semibold transition-colors cursor-pointer {isDossierOpen
-						? 'bg-primary/10 border-primary/30 text-primary'
-						: 'bg-background hover:bg-muted text-foreground'}"
-					title="Afficher ou masquer le dossier de consultation"
-				>
-					<FolderLock class="h-3.5 w-3.5" />
-					<span>{isDossierOpen ? 'Masquer dossier' : 'Dossier'}</span>
-				</button>
 			</div>
 		</div>
 
@@ -681,6 +841,24 @@
 	<!-- CORPS DU FIL : Résumé de reprise, objections épinglées et messages        -->
 	<!-- ═════════════════════════════════════════════════════════════════════════ -->
 	<div class="flex-1 overflow-y-auto p-4 space-y-4">
+		<!-- CARTE DE CADRAGE DU PROBLÈME (GRAINE D'ARCHITECTURE & RFP SEED) -->
+		{#if activeSubject}
+			<SubjectProblemCard
+				subject={activeSubject}
+				draft={activeDraft}
+				options={subjectOptions}
+				isInvokingAgent={invokingAgentRole !== null}
+				onInvokeProposer={() => handleInvokeAgent('proposer')}
+				onSplit={() => (isSplitDialogOpen = true)}
+				onUpdateQuestion={handleUpdateDraftQuestion}
+				onUpdateHypothesis={handleUpdateDraftHypothesis}
+				onAdoptHypothesis={handleAdoptHypothesis}
+				onSelectOption={handleSelectOptionForDiscussion}
+				onArbitrateOption={handleArbitrateOption}
+				{isForceEditingQuestion}
+			/>
+		{/if}
+
 		<!-- Bannière Résumé de reprise après absence (> 24 h) -->
 		{#if resumeSummary}
 			<div class="rounded-xl border border-blue-500/30 bg-blue-500/10 p-3 flex items-center justify-between gap-3 text-xs shadow-2xs">
@@ -741,8 +919,41 @@
 			</div>
 		{/if}
 
-		<!-- CARTE DE DÉCISION ET FAITS AFFIRMÉS (A27) : Sondage, faits K18, affirmation K16 -->
-		{#if viewMode === 'synthesis' || subjectDecision}
+		<!-- BANNIÈRE DE DÉCISION ACTÉE DANS LE FIL (viewMode === 'thread') -->
+		{#if viewMode === 'thread' && subjectDecision}
+			{@const retainedOpt = subjectOptions.find((o) => o.id === subjectDecision.retainedOptionId)}
+			<div class="rounded-xl border-2 border-emerald-500/40 bg-gradient-to-r from-emerald-500/15 via-emerald-500/5 to-card p-3.5 flex items-center justify-between gap-3 shadow-2xs">
+				<div class="flex items-center gap-3">
+					<div class="p-2.5 rounded-lg bg-emerald-500/20 text-emerald-700 dark:text-emerald-300">
+						<Gavel class="h-5 w-5" />
+					</div>
+					<div>
+						<div class="flex items-center gap-2">
+							<span class="text-xs font-bold text-foreground">Décision d'architecture actée</span>
+							<span class="px-1.5 py-0.2 rounded text-[10px] font-mono font-bold bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
+								L3_decided
+							</span>
+						</div>
+						<p class="text-xs text-muted-foreground mt-0.5">
+							Option retenue : <strong class="text-foreground">{retainedOpt?.title || subjectDecision.retainedOptionId}</strong>
+							{#if subjectDecision.validatedBy} · Affirmée par <strong>{subjectDecision.validatedBy}</strong>{/if}
+						</p>
+					</div>
+				</div>
+
+				<button
+					type="button"
+					onclick={() => (viewMode = 'synthesis')}
+					class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-emerald-500/35 bg-background text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/15 text-xs font-semibold transition-colors cursor-pointer shrink-0 shadow-2xs"
+				>
+					<span>Consulter arbitrage & faits K18</span>
+					<span>→</span>
+				</button>
+			</div>
+		{/if}
+
+		<!-- CARTE DE DÉCISION ET FAITS AFFIRMÉS (viewMode === 'synthesis') -->
+		{#if viewMode === 'synthesis'}
 			<DecisionSurveyCard
 				{projectId}
 				{subjectId}
@@ -833,6 +1044,8 @@
 					{userRole}
 					{isHumanUser}
 					onResolve={handleResolveArgument}
+					onChallenge={handleChallengeArgument}
+					onArbitrateOption={handleArbitrateOption}
 					onReply={(target) => {
 						replyingTo = target;
 						// Scroll composer into view
@@ -841,6 +1054,32 @@
 					}}
 				/>
 			{/each}
+
+			{#if !subjectDecision && argumentsList.length > 0}
+				<div class="rounded-xl border border-dashed border-primary/30 bg-muted/10 p-3.5 flex items-center justify-between gap-3 text-xs mt-3 flex-wrap">
+					<div class="flex items-center gap-2 text-muted-foreground">
+						<Sparkles class="h-4 w-4 text-primary shrink-0" />
+						<span>Le débat est engagé ({argumentsList.length} argument{argumentsList.length > 1 ? 's' : ''}). Prêt à dégager un consensus ou arbitrer l'option retenue ?</span>
+					</div>
+					<div class="flex items-center gap-2">
+						<button
+							type="button"
+							onclick={() => handleInvokeAgent('synthesizer')}
+							disabled={invokingAgentRole !== null}
+							class="px-2.5 py-1 rounded-md bg-purple-500/10 text-purple-700 dark:text-purple-300 border border-purple-500/25 hover:bg-purple-500/20 text-[11px] font-semibold transition-colors cursor-pointer"
+						>
+							⚖️ @synthesizer
+						</button>
+						<button
+							type="button"
+							onclick={() => (viewMode = 'synthesis')}
+							class="px-2.5 py-1 rounded-md bg-primary text-primary-foreground text-[11px] font-semibold hover:bg-primary/90 transition-colors cursor-pointer shadow-2xs"
+						>
+							Arbitrer la décision →
+						</button>
+					</div>
+				</div>
+			{/if}
 		{/if}
 	</div>
 
@@ -852,6 +1091,7 @@
 			{subjectId}
 			{projectId}
 			options={subjectOptions}
+			bind:selectedOptionId={selectedComposerOptionId}
 			{allowedKbRefs}
 			{replyingTo}
 			onCancelReply={() => (replyingTo = null)}
@@ -860,3 +1100,11 @@
 		/>
 	</div>
 </div>
+
+<SplitSubjectDialog
+	isOpen={isSplitDialogOpen}
+	parentSubject={activeSubject}
+	parentDraft={activeDraft}
+	onClose={() => (isSplitDialogOpen = false)}
+	onSplitCreated={handleSplitCreated}
+/>

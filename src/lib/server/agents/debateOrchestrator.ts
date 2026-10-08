@@ -297,7 +297,8 @@ export async function invokeSpecificAgent(
 				options: opts,
 				criteria: crits,
 				allowedKbRefs,
-				round: currentRound
+				round: currentRound,
+				contextPrompt
 			});
 			for (const arg of proposerArgs) {
 				const created = await createArgument(

@@ -24,6 +24,7 @@
 		options = [],
 		allowedKbRefs = [],
 		replyingTo = null,
+		selectedOptionId = $bindable(''),
 		onCancelReply = () => {},
 		onArgumentCreated = (created: Argument, triggeredArgs?: Argument[]) => {},
 		onError = (msg: string) => {}
@@ -33,6 +34,7 @@
 		options?: Option[];
 		allowedKbRefs?: string[];
 		replyingTo?: Argument | null;
+		selectedOptionId?: string;
 		onCancelReply?: () => void;
 		onArgumentCreated?: (created: Argument, triggeredArgs?: Argument[]) => void;
 		onError?: (msg: string) => void;
@@ -40,7 +42,6 @@
 
 	// 1. Posture initiale
 	let stance = $state<Stance>('support');
-	let selectedOptionId = $state<string>('');
 	let claim = $state<string>('');
 	let grounds = $state<string>('');
 	let isSubmitting = $state<boolean>(false);
@@ -222,7 +223,7 @@
 					bind:value={stance}
 					class="bg-transparent font-semibold cursor-pointer focus:outline-none text-xs text-foreground"
 				>
-					<option value="support">🟢 Soutenir</option>
+					<option value="support">🟢 Soutenir / Proposer</option>
 					<option value="objection">🔴 Objecter</option>
 					<option value="question">🟡 Questionner</option>
 					<option value="verification">🔵 Vérifier</option>

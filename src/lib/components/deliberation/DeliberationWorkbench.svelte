@@ -2,8 +2,7 @@
 	import { deliberationStore } from '$lib/stores/deliberationStore.svelte';
 	import SubjectConversationList from './SubjectConversationList.svelte';
 	import SubjectThreadView from './SubjectThreadView.svelte';
-	import SubjectDossierView from './SubjectDossierView.svelte';
-	import { MessagesSquare, FolderLock, ListFilter, ArrowLeft } from 'lucide-svelte';
+	import { MessagesSquare, ListFilter, ArrowLeft } from 'lucide-svelte';
 	import type { Argument } from '$lib/domain/debate';
 
 	let {
@@ -14,9 +13,8 @@
 		onBackToBoard?: () => void;
 	} = $props();
 
-	type MobileWorkbenchTab = 'list' | 'thread' | 'dossier';
+	type MobileWorkbenchTab = 'list' | 'thread';
 	let mobileTab = $state<MobileWorkbenchTab>('thread');
-	let isDossierOpen = $state(true);
 
 	const activeSubject = $derived(deliberationStore.activeSubject);
 	const activeSubjectId = $derived(deliberationStore.activeSubjectId);
@@ -64,18 +62,6 @@
 				<MessagesSquare class="h-3.5 w-3.5" />
 				<span>Fil</span>
 			</button>
-
-			<button
-				type="button"
-				onclick={() => (mobileTab = 'dossier')}
-				class="inline-flex items-center gap-1 py-1.5 px-2.5 rounded-md font-semibold transition-all cursor-pointer {mobileTab ===
-				'dossier'
-					? 'bg-background text-foreground shadow-2xs'
-					: 'text-muted-foreground hover:text-foreground'}"
-			>
-				<FolderLock class="h-3.5 w-3.5" />
-				<span>Dossier</span>
-			</button>
 		</div>
 	</div>
 
@@ -90,32 +76,23 @@
 				onSelectSubject={handleSelectSubject}
 				{onBackToBoard}
 			/>
-		{:else if mobileTab === 'thread'}
+		{:else}
 			<SubjectThreadView
 				subjectId={activeSubjectId}
 				{projectId}
 				userRole={sessionRole || deliberationStore.currentRole}
 				isHumanUser={deliberationStore.isHuman}
-				isDossierOpen={true}
-				onToggleDossier={() => (mobileTab = 'dossier')}
 				{onBackToBoard}
-			/>
-		{:else if mobileTab === 'dossier'}
-			<SubjectDossierView
-				subjectId={activeSubjectId}
-				{projectId}
-				isOpen={true}
-				onClose={() => (mobileTab = 'thread')}
 			/>
 		{/if}
 	</div>
 
 	<!-- ═════════════════════════════════════════════════════════════════════════ -->
-	<!-- 2. VUE DESKTOP (>= lg) : DISPOSITION EN 3 COLONNES                        -->
+	<!-- 2. VUE DESKTOP (>= lg) : DISPOSITION EN 2 COLONNES (SUJETS + FIL PUR)       -->
 	<!-- ═════════════════════════════════════════════════════════════════════════ -->
-	<div class="hidden lg:grid grid-cols-12 gap-4 h-[calc(100vh-200px)] min-h-[650px] items-stretch">
-		<!-- Colonne 1 (Gauche) : Liste des conversations de sujets (3 cols) -->
-		<div class="col-span-3 h-full overflow-hidden">
+	<div class="hidden lg:grid grid-cols-12 gap-4 h-[calc(100vh-120px)] min-h-[700px] items-stretch">
+		<!-- Colonne 1 (Gauche) : Liste des conversations de sujets (3.5 cols) -->
+		<div class="col-span-4 xl:col-span-3 h-full overflow-hidden">
 			<SubjectConversationList
 				selectedSubjectId={activeSubjectId}
 				{sessionRole}
@@ -124,29 +101,15 @@
 			/>
 		</div>
 
-		<!-- Colonne 2 (Centre) : Fil de délibération du sujet (si dossier ouvert: 5 ou 6 cols, sinon 9 cols) -->
-		<div class="{isDossierOpen ? 'col-span-5 xl:col-span-5' : 'col-span-9'} h-full overflow-hidden transition-all duration-200">
+		<!-- Colonne 2 (Centre & Droite) : Fil de délibération intégral (8.5 cols) -->
+		<div class="col-span-8 xl:col-span-9 h-full overflow-hidden transition-all duration-200">
 			<SubjectThreadView
 				subjectId={activeSubjectId}
 				{projectId}
 				userRole={sessionRole || deliberationStore.currentRole}
 				isHumanUser={deliberationStore.isHuman}
-				{isDossierOpen}
-				onToggleDossier={() => (isDossierOpen = !isDossierOpen)}
 				{onBackToBoard}
 			/>
 		</div>
-
-		<!-- Colonne 3 (Droite) : Dossier de consultation repliable (4 cols) -->
-		{#if isDossierOpen}
-			<div class="col-span-4 xl:col-span-4 h-full overflow-hidden animate-in fade-in slide-in-from-right-4 duration-150">
-				<SubjectDossierView
-					subjectId={activeSubjectId}
-					{projectId}
-					isOpen={true}
-					onClose={() => (isDossierOpen = false)}
-				/>
-			</div>
-		{/if}
 	</div>
 </div>

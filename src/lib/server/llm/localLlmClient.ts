@@ -29,7 +29,7 @@ export class LocalLlmClient {
 		// Clé et configuration Anthropic Claude
 		this.anthropicApiKey = (config.anthropicApiKey || process.env.ANTHROPIC_API_KEY || '').trim();
 		this.provider = (config.provider || (process.env.LLM_PROVIDER as any) || 'auto') as 'local' | 'anthropic' | 'auto';
-		this.anthropicModel = config.anthropicModel || process.env.ANTHROPIC_MODEL || 'claude-3-5-sonnet-20241022';
+		this.anthropicModel = config.anthropicModel || process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-5-20250929';
 
 		const hasAnthropic = Boolean(this.anthropicApiKey) && this.provider !== 'local';
 		const localDefault = process.env.LLM_LOCAL_MODEL || 'ministral:latest';
@@ -159,26 +159,59 @@ export class LocalLlmClient {
 
 		// 1. Modèles Claude Anthropic si la clé est présente
 		if (this.hasAnthropicConfigured() && this.provider !== 'local') {
-			models.push(
-				{
-					id: 'claude-3-7-sonnet-20250219',
-					name: 'Claude 3.7 Sonnet (Anthropic - Raisonnement étendu, 200k tokens)',
-					family: 'claude',
-					contextLength: 200000
-				},
-				{
-					id: 'claude-3-5-sonnet-20241022',
-					name: 'Claude 3.5 Sonnet (Anthropic - Haute fidélité, 200k tokens)',
-					family: 'claude',
-					contextLength: 200000
-				},
-				{
-					id: 'claude-3-5-haiku-20241022',
-					name: 'Claude 3.5 Haiku (Anthropic - Ultra-rapide, 200k tokens)',
-					family: 'claude',
-					contextLength: 200000
+			try {
+				const controller = new AbortController();
+				const timer = setTimeout(() => controller.abort(), 4000);
+				const res = await fetch('https://api.anthropic.com/v1/models', {
+					headers: {
+						'x-api-key': this.anthropicApiKey,
+						'anthropic-version': '2023-06-01'
+					},
+					signal: controller.signal
+				});
+				clearTimeout(timer);
+
+				if (res.ok) {
+					const data = await res.json();
+					if (Array.isArray(data.data) && data.data.length > 0) {
+						for (const m of data.data) {
+							const tokenLabel = m.max_input_tokens >= 1000000 ? '1M tokens' : `${Math.round(m.max_input_tokens / 1000)}k tokens`;
+							models.push({
+								id: m.id,
+								name: `${m.display_name || m.id} (Anthropic - ${tokenLabel})`,
+								family: m.line || 'claude',
+								contextLength: m.max_input_tokens || 200000
+							});
+						}
+					}
 				}
-			);
+			} catch {
+				// Fallback si l'appel API direct est indisponible
+			}
+
+			// Fallback statique garanti si la découverte dynamique n'a rien renvoyé
+			if (models.length === 0) {
+				models.push(
+					{
+						id: 'claude-sonnet-4-5-20250929',
+						name: 'Claude Sonnet 4.5 (Anthropic - Haute fidélité, 200k tokens)',
+						family: 'claude',
+						contextLength: 200000
+					},
+					{
+						id: 'claude-haiku-4-5-20251001',
+						name: 'Claude Haiku 4.5 (Anthropic - Ultra-rapide, 200k tokens)',
+						family: 'claude',
+						contextLength: 200000
+					},
+					{
+						id: 'claude-opus-4-5-20251101',
+						name: 'Claude Opus 4.5 (Anthropic - Raisonnement profond, 200k tokens)',
+						family: 'claude',
+						contextLength: 200000
+					}
+				);
+			}
 		}
 
 		// Si forcé strictement en mode cloud Anthropic, on s'arrête là
@@ -275,10 +308,10 @@ export class LocalLlmClient {
 		try {
 			// Résolution d'alias de modèle éventuel
 			let resolvedModel = model;
-			if (resolvedModel === 'claude-3-7-sonnet') resolvedModel = 'claude-3-7-sonnet-20250219';
-			else if (resolvedModel === 'claude-3-5-sonnet') resolvedModel = 'claude-3-5-sonnet-20241022';
-			else if (resolvedModel === 'claude-3-5-haiku') resolvedModel = 'claude-3-5-haiku-20241022';
-			else if (!resolvedModel.toLowerCase().startsWith('claude-')) resolvedModel = this.anthropicModel;
+			if (resolvedModel === 'claude-3-7-sonnet' || resolvedModel === 'claude-3-7-sonnet-20250219') resolvedModel = 'claude-sonnet-4-5-20250929';
+			else if (resolvedModel === 'claude-3-5-sonnet' || resolvedModel === 'claude-3-5-sonnet-20241022') resolvedModel = 'claude-sonnet-4-5-20250929';
+			else if (resolvedModel === 'claude-3-5-haiku' || resolvedModel === 'claude-3-5-haiku-20241022' || resolvedModel === 'claude-3-haiku-20240307') resolvedModel = 'claude-haiku-4-5-20251001';
+			else if (!resolvedModel.toLowerCase().startsWith('claude')) resolvedModel = this.anthropicModel;
 
 			// Extraction du prompt système
 			const systemParts = options.messages

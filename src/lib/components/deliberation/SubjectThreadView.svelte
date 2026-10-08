@@ -922,7 +922,7 @@
 						<div class="flex items-center gap-2">
 							<span class="text-xs font-bold text-foreground">Décision d'architecture actée</span>
 							<span class="px-1.5 py-0.2 rounded text-[10px] font-mono font-bold bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
-								L3_decided
+								L3 · Décidé
 							</span>
 						</div>
 						<p class="text-xs text-muted-foreground mt-0.5">
@@ -1037,6 +1037,7 @@
 					onResolve={handleResolveArgument}
 					onChallenge={handleChallengeArgument}
 					onArbitrateOption={handleArbitrateOption}
+					onSplit={() => (isSplitDialogOpen = true)}
 					onReply={(target) => {
 						replyingTo = target;
 						// Scroll composer into view

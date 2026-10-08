@@ -10,8 +10,10 @@
 		Filter,
 		CheckCircle2,
 		Layers,
-		UserCheck
+		UserCheck,
+		Plus
 	} from 'lucide-svelte';
+	import CreateSubjectDialog from './CreateSubjectDialog.svelte';
 
 	let {
 		selectedSubjectId = '',
@@ -28,6 +30,7 @@
 	type FilterType = 'all' | 'blocking' | 'todo' | 'decided';
 	let searchQuery = $state('');
 	let activeFilter = $state<FilterType>('all');
+	let isCreateDialogOpen = $state(false);
 
 	// Tri par déblocages (multiplicateur) strictement conservé
 	const allSubjects = $derived(deliberationStore.sortedSubjects);
@@ -68,12 +71,23 @@
 				<span>Tableau</span>
 			</button>
 
-			<div class="flex items-center gap-1.5 font-bold text-xs text-foreground">
-				<MessagesSquare class="h-3.5 w-3.5 text-primary" />
-				<span>Conversations</span>
-				<span class="rounded bg-primary/10 text-primary px-1.5 py-0.2 text-[10px] font-mono font-bold">
-					{allSubjects.length}
-				</span>
+			<div class="flex items-center gap-2">
+				<div class="flex items-center gap-1.5 font-bold text-xs text-foreground">
+					<MessagesSquare class="h-3.5 w-3.5 text-primary" />
+					<span>Conversations</span>
+					<span class="rounded bg-primary/10 text-primary px-1.5 py-0.2 text-[10px] font-mono font-bold">
+						{allSubjects.length}
+					</span>
+				</div>
+				<button
+					type="button"
+					onclick={() => (isCreateDialogOpen = true)}
+					class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 text-[11px] font-semibold cursor-pointer shadow-2xs transition-colors"
+					title="Créer un nouveau sujet d'architecture"
+				>
+					<Plus class="h-3.5 w-3.5" />
+					<span>Nouveau</span>
+				</button>
 			</div>
 		</div>
 
@@ -250,3 +264,9 @@
 		{/if}
 	</div>
 </div>
+
+<CreateSubjectDialog
+	isOpen={isCreateDialogOpen}
+	onClose={() => (isCreateDialogOpen = false)}
+	onSubjectCreated={(newSub) => onSelectSubject(newSub.id)}
+/>

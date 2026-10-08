@@ -13,8 +13,10 @@
 		Zap,
 		Filter,
 		FolderKanban,
-		BookmarkCheck
+		BookmarkCheck,
+		Plus
 	} from 'lucide-svelte';
+	import CreateSubjectDialog from './CreateSubjectDialog.svelte';
 
 	type FilterType = 'all' | 'blocking' | 'todo' | 'decided';
 
@@ -26,6 +28,7 @@
 
 	let activeFilter = $state<FilterType>('all');
 	let selectedPartId = $state<string>('all');
+	let isCreateDialogOpen = $state(false);
 
 	const allSubjects = $derived(deliberationStore.sortedSubjects);
 	const activeSubjectId = $derived(deliberationStore.activeSubjectId);
@@ -133,16 +136,28 @@
 
 	<!-- ─── 2. Barre de Titre et Filtres rapides ───────────────────────────── -->
 	<div class="p-3.5 border-b bg-muted/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-		<div class="flex items-center gap-2">
-			<div class="p-1 rounded-md bg-primary/10 text-primary">
-				<Layers class="h-4 w-4" />
+		<div class="flex items-center justify-between sm:justify-start gap-3 w-full sm:w-auto">
+			<div class="flex items-center gap-2">
+				<div class="p-1 rounded-md bg-primary/10 text-primary">
+					<Layers class="h-4 w-4" />
+				</div>
+				<h3 class="font-bold text-sm tracking-tight text-foreground">
+					Matrice d'Effort {selectedPart ? `· ${selectedPart.code}` : ''}
+				</h3>
+				<span class="rounded bg-primary/10 text-primary px-1.5 py-0.5 text-[11px] font-mono font-bold">
+					{filteredSubjects.length}
+				</span>
 			</div>
-			<h3 class="font-bold text-sm tracking-tight text-foreground">
-				Matrice d'Effort {selectedPart ? `· ${selectedPart.code}` : ''}
-			</h3>
-			<span class="rounded bg-primary/10 text-primary px-1.5 py-0.5 text-[11px] font-mono font-bold">
-				{filteredSubjects.length}
-			</span>
+
+			<button
+				type="button"
+				onclick={() => (isCreateDialogOpen = true)}
+				class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 text-xs font-semibold cursor-pointer shadow-2xs transition-colors shrink-0"
+				title="Créer un nouveau sujet d'architecture"
+			>
+				<Plus class="h-3.5 w-3.5" />
+				<span>Nouveau sujet</span>
+			</button>
 		</div>
 
 		<!-- Filtres rapides -->
@@ -385,3 +400,9 @@
 		</table>
 	</div>
 </div>
+
+<CreateSubjectDialog
+	isOpen={isCreateDialogOpen}
+	onClose={() => (isCreateDialogOpen = false)}
+	onSubjectCreated={(newSub) => handleSelectSubject(newSub.id)}
+/>

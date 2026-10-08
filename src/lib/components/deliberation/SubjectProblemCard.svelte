@@ -357,25 +357,49 @@
 
 				<!-- Bloc Dilemme ou Conflit Doctrinal -->
 				<div class="rounded-xl border {currentConflict ? 'border-amber-500/30 bg-amber-500/5' : 'bg-background/60'} p-3 space-y-1.5 flex flex-col">
-					<div class="flex items-center gap-1 text-[11px] font-bold {currentConflict ? 'text-amber-700 dark:text-amber-300' : 'text-muted-foreground'}">
-						<AlertTriangle class="h-3.5 w-3.5" />
-						<span>Dilemme & Arbitrage</span>
+					<div class="flex items-center justify-between gap-1">
+						<div class="flex items-center gap-1 text-[11px] font-bold {currentConflict ? 'text-amber-700 dark:text-amber-300' : 'text-muted-foreground'}">
+							<AlertTriangle class="h-3.5 w-3.5" />
+							<span>Dilemme & Arbitrage</span>
+						</div>
 					</div>
 
 					{#if currentConflict}
 						<p class="text-xs text-amber-900 dark:text-amber-200 leading-relaxed flex-1">
 							{currentConflict}
 						</p>
-						<span class="inline-flex items-center gap-1 text-[10px] font-bold text-amber-700 dark:text-amber-300 border-t border-amber-500/20 pt-1 mt-1">
-							⚠️ Nécessite arbitrage formel
-						</span>
+						<div class="pt-1.5 flex items-center justify-between gap-1 border-t border-amber-500/20 mt-1 flex-wrap">
+							<span class="inline-flex items-center gap-1 text-[10px] font-bold text-amber-700 dark:text-amber-300">
+								⚠️ Nécessite arbitrage formel
+							</span>
+							<button
+								type="button"
+								onclick={onSplit}
+								class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-amber-600 hover:bg-amber-700 text-white text-[10px] font-semibold transition-colors cursor-pointer shadow-2xs shrink-0"
+								title="Découper ce sujet trop vaste ou conflictuel en 2 sous-sujets distincts"
+							>
+								<Scissors class="h-3 w-3" />
+								<span>Scinder en 2</span>
+							</button>
+						</div>
 					{:else}
 						<p class="text-xs text-muted-foreground leading-relaxed flex-1">
 							Aucun conflit doctrinal bloquant identifié pour l'instant. Le débat permettra de tester la conformité.
 						</p>
-						<span class="text-[10px] text-muted-foreground border-t pt-1 mt-1">
-							Standard : Règles de doctrine appliquées
-						</span>
+						<div class="pt-1.5 flex items-center justify-between gap-1 border-t border-border/40 mt-1 flex-wrap">
+							<span class="text-[10px] text-muted-foreground">
+								Standard : Règles appliquées
+							</span>
+							<button
+								type="button"
+								onclick={onSplit}
+								class="inline-flex items-center gap-1 px-2 py-0.5 rounded border border-border/80 hover:bg-muted text-[10px] font-medium text-muted-foreground hover:text-foreground transition-colors cursor-pointer shrink-0"
+								title="Découper ce sujet en 2 sous-sujets distincts"
+							>
+								<Scissors class="h-3 w-3" />
+								<span>Scinder le sujet</span>
+							</button>
+						</div>
 					{/if}
 				</div>
 

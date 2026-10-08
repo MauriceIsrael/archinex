@@ -153,7 +153,7 @@
 								Scinder le sujet en 2 sous-problèmes d'architecture
 							</h2>
 							<span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-amber-500/15 text-amber-700 dark:text-amber-300">
-								L2_decomposed
+								L2 · Décomposé
 							</span>
 						</div>
 						<p class="text-xs text-muted-foreground mt-0.5">

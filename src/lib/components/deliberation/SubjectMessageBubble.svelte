@@ -19,7 +19,8 @@
 		Check,
 		AlertTriangle,
 		Gavel,
-		Shield
+		Shield,
+		Scissors
 	} from 'lucide-svelte';
 
 	let {
@@ -30,7 +31,8 @@
 		onResolve = (arg: Argument, resolution: ArgumentResolution) => {},
 		onReply = (arg: Argument) => {},
 		onChallenge = (_arg: Argument) => {},
-		onArbitrateOption = (_optId: string) => {}
+		onArbitrateOption = (_optId: string) => {},
+		onSplit = () => {}
 	}: {
 		argument: Argument;
 		targetArgument?: Argument | null;
@@ -40,6 +42,7 @@
 		onReply?: (arg: Argument) => void;
 		onChallenge?: (arg: Argument) => void;
 		onArbitrateOption?: (optId: string) => void;
+		onSplit?: () => void;
 	} = $props();
 
 	const isAgent = $derived(argument.authorKind.startsWith('agent:'));
@@ -55,6 +58,15 @@
 	const attrs = $derived(getArgumentVisualAttributes(argument));
 	const isObjectionOpen = $derived(argument.stance === 'objection' && argument.resolution === 'open');
 	const userCanClose = $derived(canCloseObjection(userRole, isHumanUser));
+	const mentionsSplit = $derived(
+		argument.claim.toLowerCase().includes('scind') ||
+		argument.claim.toLowerCase().includes('décompos') ||
+		argument.claim.toLowerCase().includes('sous-sujet') ||
+		argument.claim.toLowerCase().includes('2 sous-problème') ||
+		argument.grounds.toLowerCase().includes('scind') ||
+		argument.grounds.toLowerCase().includes('décompos') ||
+		argument.grounds.toLowerCase().includes('sous-sujet')
+	);
 </script>
 
 {#if isSynthesis}
@@ -252,7 +264,19 @@
 				<div></div>
 			{/if}
 
-			<div class="flex items-center gap-1.5 ml-auto">
+			<div class="flex items-center gap-1.5 ml-auto flex-wrap">
+				{#if mentionsSplit}
+					<button
+						type="button"
+						onclick={onSplit}
+						class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded text-[11px] font-semibold text-amber-900 dark:text-amber-200 bg-amber-500/25 hover:bg-amber-500/40 border border-amber-500/50 transition-colors cursor-pointer shadow-2xs"
+						title="Appliquer la recommandation : scinder ce sujet en 2 sous-sujets"
+					>
+						<Scissors class="h-3 w-3 text-amber-700 dark:text-amber-300" />
+						<span>✂️ Scinder en 2 sous-sujets</span>
+					</button>
+				{/if}
+
 				<button
 					type="button"
 					onclick={() => onReply(argument)}
@@ -394,15 +418,29 @@
 					<div></div>
 				{/if}
 
-				<button
-					type="button"
-					onclick={() => onReply(argument)}
-					class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors cursor-pointer ml-auto"
-					title="Citer ce message dans le composeur"
-				>
-					<CornerDownLeft class="h-3 w-3" />
-					<span>↩ Répondre</span>
-				</button>
+				<div class="flex items-center gap-1.5 ml-auto flex-wrap">
+					{#if mentionsSplit}
+						<button
+							type="button"
+							onclick={onSplit}
+							class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold text-amber-800 dark:text-amber-200 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 transition-colors cursor-pointer shadow-2xs"
+							title="Appliquer la recommandation : scinder ce sujet en 2 sous-sujets"
+						>
+							<Scissors class="h-3 w-3" />
+							<span>✂️ Scinder en 2</span>
+						</button>
+					{/if}
+
+					<button
+						type="button"
+						onclick={() => onReply(argument)}
+						class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors cursor-pointer"
+						title="Citer ce message dans le composeur"
+					>
+						<CornerDownLeft class="h-3 w-3" />
+						<span>↩ Répondre</span>
+					</button>
+				</div>
 			</div>
 
 			<!-- Résolution de l'objection si présente dans le message -->

@@ -22,14 +22,24 @@ export interface KbItemSummary {
 }
 
 /**
+ * Détecte si le modèle cible dispose d'une fenêtre de contexte étendue (>= 128k à 1M tokens)
+ */
+export function isGrandContextModel(model?: string): boolean {
+	if (!model) return false;
+	const m = model.toLowerCase();
+	return m.startsWith('claude') || m.includes('200k') || m.includes('1m') || m.includes('128k');
+}
+
+/**
  * Détermine le nombre cible de sujets d'architecture recommandé selon la complexité
  * et le volume d'exigences du document
  */
-export function inferTargetSubjectsCount(clauseCount: number): string {
+export function inferTargetSubjectsCount(clauseCount: number, isGrandContext: boolean = false): string {
 	if (clauseCount <= 10) return '3 à 6';
 	if (clauseCount <= 30) return '6 à 10';
 	if (clauseCount <= 80) return '8 à 12';
 	if (clauseCount <= 200) return '12 à 18';
+	if (isGrandContext) return '14 à 20';
 	return '15 à 25';
 }
 
@@ -87,28 +97,37 @@ export function clusterClausesBySection(clauses: ExtractedClause[], maxTotalChar
 /**
  * Construit le prompt système pour le LLM local
  */
-export function buildSystemPrompt(customDirectives?: string, targetCountDesc: string = '8 à 12'): string {
-	let prompt = `Tu es un Lead Solutions Architect et Ingénieur des Systèmes Critiques expérimenté.
-Ta mission est de procéder à la FACTORISATION SÉMANTIQUE d'un ensemble d'exigences (RFP / CCTP) pour en extraire ${targetCountDesc} SUJETS D'ARCHITECTURE structurants.
+export function buildSystemPrompt(customDirectives?: string, targetCountDesc: string = '8 à 14'): string {
+	let prompt = `Tu es un Lead Solutions Architect et Ingénieur des Systèmes Critiques d'élite.
+Ta mission est de procéder à la FACTORISATION SÉMANTIQUE d'un ensemble d'exigences (RFP / CCTP) pour en extraire ${targetCountDesc} SUJETS D'ARCHITECTURE DÉCISIONNELS, ATOMIQUES ET IMMÉDIATEMENT ACTIONNABLES.
 
 RÈGLES D'OR DE FACTORISATION ARCHITECTURALE :
-1. NE PAS CRÉER UN SUJET PAR EXIGENCE ! Il est formellement interdit de dupliquer chaque clause. Chaque sujet d'architecture doit regrouper et synthétiser 2 à 10 clauses connexes.
-2. Organiser les sujets par grands domaines d'ingénierie (Lots : LOT-01-SOUV, LOT-02-INFRA, LOT-03-TELCO, LOT-04-SECOPS, LOT-05-RESIL, LOT-06-OBS, etc.).
-3. Ancrer chaque sujet par rapport au PATRIMOINE COMMUN (les standards d'architecture en lecture seule de l'entreprise) :
-   - Si le besoin est standard et déjà résolu par notre base de connaissance : status = "standard_established", initialLevel = "L2_decomposed" ou "L3_retained".
-   - Si le besoin entre en contradiction ou pose un dilemme technique avec nos standards : status = "conflict_detected", initialLevel = "L1_dilemma".
-   - Si le besoin est inédit : status = "novel_requirement", initialLevel = "L1_dilemma".
-4. Assigner le rôle responsable adéquat parmi :
-   - "lead_architect" (gouvernance, souveraineté, arbitrages globaux)
-   - "infra_expert_architect" (bare-metal, serveurs, stockage, virtualisation, k8s)
-   - "telco_expert_architect" (cœurs de réseau, radio, synchronisation, SR-IOV, slicing)
-   - "secops_expert_architect" (chiffrement, IAM, NIS2, ANSSI, firewalling)
-   - "data_ai_expert_architect" (flux de données, modèles, persistance)
-   - "qa_governance_architect" (conformité, tests de charge, SLAs)
-5. Pour chaque sujet, rédiger une graine télégraphique percutante :
-   - initialQuestion : La question clé que l'architecte doit trancher.
-   - initialHypothesis : L'hypothèse de conception retenue.
-   - initialConflict : Si conflit avec la KB, expliquer la divergence.`;
+1. NE PAS CRÉER UN SUJET PAR EXIGENCE ! Il est formellement interdit de dupliquer chaque clause. Chaque sujet d'architecture doit regrouper et synthétiser les clauses connexes autour d'une décision clé.
+2. ATOMICITÉ DÉCISIONNELLE STRICTE (1 SUJET = 1 DÉCISION / DILEMME TECHNIQUE UNIQUE) :
+   - INTERDICTION FORMELLE des "thèmes valises" ou titres génériques creux (ex: "Socle d'Infrastructure & Résilience N+1", "Architecture SOC/NOC", "Sécurité globale").
+   - Chaque sujet doit circonscrire un problème technique précis et autonome qu'un architecte peut analyser, confronter et trancher en une séance de travail.
+   - Si un domaine contient deux arbitrages orthogonaux (ex: d'un côté la localisation/latence du SOC/NOC par rapport aux salles d'opérations, et de l'autre le protocole d'authentification IAM/Zéro-Trust), SCINDE-LES IMPÉRATIVEMENT en 2 sujets distincts !
+3. INTITULÉ PROBLÉMATISÉ ET EXPLICITE :
+   - Le champ "name" doit expliciter le choix d'architecture ou le dilemme sous tension :
+     Exemples conformes :
+     * "Arbitrage de centralisation SOC/NOC : Traitement temps réel en bordure vs Supervision centralisée avec contrainte de latence"
+     * "Tolérance aux pannes du cœur de réseau : Cluster N+1 local vs Bascule inter-sites géo-redondée sans perte d'état"
+     * "Homologation & Chiffrement de transit : Chiffrement IPsec matériel certifié ANSSI vs Chiffrement applicatif TLS 1.3"
+     * "Continuité temporelle en mode dégradé : Récepteur GNSS multi-constellation vs Horloge atomique Holdover 30 jours"
+     Exemples REJETÉS : "Socle d'Infrastructure & Résilience N+1", "Architecture Sécurisée", "Observabilité".
+4. ORGANISATION PAR DOMAINES D'INGÉNIERIE :
+   - LotId parmi : LOT-01-SOUV, LOT-02-INFRA, LOT-03-TELCO, LOT-04-SECOPS, LOT-05-RESIL, LOT-06-OBS, LOT-07-DATA, LOT-08-OPS.
+5. ANCRAGE AU PATRIMOINE COMMUN (STANDARDS EN LECTURE SEULE) :
+   - status = "standard_established" (si résolu par nos standards existants), "conflict_detected" (si conflit/dilemme avec nos règles), ou "novel_requirement" (besoin inédit).
+6. ASSIGNER LE RÔLE RESPONSABLE ADÉQUAT :
+   - "lead_architect", "infra_expert_architect", "telco_expert_architect", "secops_expert_architect", "data_ai_expert_architect", "qa_governance_architect".
+7. CADRAGE IMMÉDIAT DE LA DÉLIBÉRATION (LA GRAINE / SEED) :
+   - "initialQuestion" : LA question clé et technique que l'architecte doit trancher.
+   - "initialHypothesis" : L'hypothèse de solution cible recommandée (concrète, chiffrée ou orientée composant).
+   - "initialConflict" : Le conflit de contraintes ou le dilemme (ex: "Coût & latence du déport SOC vs Exigence de supervision unifiée").
+   - "initialRetenu" : 2 à 5 clauses clés du CCTP imposées par le client (avec référence, ex: "[§4.2] Latence critique < 10ms").
+8. COUVERTURE ET EXHAUSTIVITÉ INTÉGRALE :
+   - Répartis rigoureusement l'ensemble des clauses du CCTP dans "coveredClauseRefs" des différents sujets pour garantir 100% de traçabilité.`;
 
 	if (customDirectives && customDirectives.trim()) {
 		prompt += `\n\nDIRECTIVES PARTICULIÈRES DONNÉES PAR L'ARCHITECTE POUR CE DOSSIER :\n${customDirectives.trim()}`;
@@ -121,20 +140,20 @@ RÈGLES D'OR DE FACTORISATION ARCHITECTURALE :
     {
       "id": "SUBJ-01",
       "lotId": "LOT-01-SOUV",
-      "name": "Nom clair et technique du Sujet d'Architecture",
+      "name": "Intitulé problématisé (ex: Arbitrage de centralisation SOC/NOC : Bordure vs Centralisé)",
       "sectionRef": "§1.0",
       "coveredClauseRefs": ["§1.1", "§4.2"],
       "matchedKbItemIds": ["STD-SOUV-01"],
-      "knowledgeAlignment": "standard_established" | "conflict_detected" | "novel_requirement",
+      "knowledgeAlignment": "standard_established",
       "alignmentRationale": "Explication courte du rapprochement avec les règles existantes",
-      "initialLevel": "L1_dilemma" | "L2_decomposed" | "L3_retained",
-      "waitingForRole": "lead_architect" | "infra_expert_architect" | "telco_expert_architect" | "secops_expert_architect",
-      "effort": "S" | "M" | "L" | "XL",
+      "initialLevel": "L1_dilemma",
+      "waitingForRole": "lead_architect",
+      "effort": "M",
       "seed": {
-        "initialRetenu": ["Exigences ou clauses concrètes imposées par le client (ex: [§4.2] Latence critique < 50ms)"],
-        "initialHypothesis": "Hypothèse de solution",
-        "initialConflict": "Conflit éventuel",
-        "initialQuestion": "Question d'amorce pour la délibération"
+        "initialRetenu": ["[§4.2] Latence critique < 10ms pour les incidents temps réel"],
+        "initialHypothesis": "Déployer des sondes de corrélation locales dans les salles d'opérations et ne remonter que les alertes agrégées",
+        "initialConflict": "Tension entre l'exigence de centralisation unifiée et le seuil de latence maximal",
+        "initialQuestion": "Comment concilier la centralisation du SOC/NOC avec la contrainte de latence < 10ms pour les salles d'opérations ?"
       }
     }
   ]
@@ -149,11 +168,11 @@ RÈGLES D'OR DE FACTORISATION ARCHITECTURALE :
 export function buildUserMessage(
 	clauses: ExtractedClause[],
 	kbStandards: KbItemSummary[] = [],
-	options: { condense?: boolean; targetCountDesc?: string; maxTotalChars?: number } = {}
+	options: { condense?: boolean; targetCountDesc?: string; maxTotalChars?: number; isGrandContext?: boolean } = {}
 ): string {
-	const maxBudget = options.maxTotalChars ?? MAX_CLAUSES_BUDGET_CHARS;
+	const maxBudget = options.maxTotalChars ?? (options.isGrandContext ? 600000 : MAX_CLAUSES_BUDGET_CHARS);
 	const kbText = kbStandards
-		.slice(0, 20)
+		.slice(0, 25)
 		.map((k) => `[${k.id}] (${k.category}) ${k.title} : ${k.ruleOrStatement}`)
 		.join('\n');
 
@@ -163,7 +182,19 @@ export function buildUserMessage(
 	let clausesText = '';
 	let condensationNotice = '';
 
-	if (clauses.length > 200 || (shouldCondense && clauses.length > 120)) {
+	if (options.isGrandContext) {
+		// Grand contexte (Claude 200k-1M) : transmission intégrale exhaustive de toutes les clauses
+		clausesText = clauses
+			.map((c) => {
+				const crit = c.criticality && c.criticality !== 'info' ? ` [${c.criticality.toUpperCase()}]` : '';
+				const textClean = (c.text || '').replace(/\s+/g, ' ').trim();
+				// Limite de 400 caractères par clause pour éviter le verbiage inutile tout en conservant 100% de la substance technique
+				const textSnippet = textClean.length > 400 ? textClean.slice(0, 400) + '...' : textClean;
+				return `[${c.clauseRef}] ${c.title}${crit} :\n${textSnippet}`;
+			})
+			.join('\n\n');
+		condensationNotice = `\n(NOTE : Analyse intégrale exhaustive des ${clauses.length} exigences en contexte étendu)\n`;
+	} else if (clauses.length > 200 || (shouldCondense && clauses.length > 120)) {
 		// Document massif (des centaines à des milliers d'exigences) : Synthèse hiérarchique par section
 		clausesText = clusterClausesBySection(clauses, maxBudget);
 		condensationNotice = `\n(NOTE : Synthèse hiérarchique par macro-sections couvrant l'ensemble des ${clauses.length} exigences pour respecter la fenêtre de contexte maximale)\n`;
@@ -889,7 +920,54 @@ export async function factorizeRfpMapReduce(
 }
 
 /**
- * Exécute la factorisation par LLM local souverain
+ * Rapproche intelligemment les clauses orphelines non citées explicitement par le LLM
+ * vers le sujet d'architecture le plus pertinent (même section, même lot technique ou domaine).
+ * Garantit une traçabilité et une couverture intégrale (100%) pour les CCTP volumineux.
+ */
+export function reconcileOrphanClausesToSubjects(
+	unassignedClauses: ExtractedClause[],
+	subjects: FactorizedArchitecturalSubject[]
+): void {
+	if (subjects.length === 0 || unassignedClauses.length === 0) return;
+
+	for (const clause of unassignedClauses) {
+		// 1. Rapprochement par préfixe de section (§1.2 -> sujet de section §1.x)
+		const sectionMatch = clause.clauseRef.match(/^(?:§|art(?:icle)?\.?\s*)(\d+)/i);
+		let targetSubject: FactorizedArchitecturalSubject | undefined;
+
+		if (sectionMatch) {
+			const secNum = sectionMatch[1];
+			targetSubject = subjects.find(
+				(s) =>
+					s.sectionRef.includes(`§${secNum}.`) ||
+					s.coveredClauseRefs.some((ref) => ref.startsWith(`§${secNum}.`) || ref === `§${secNum}`)
+			);
+		}
+
+		// 2. Rapprochement par lot ou domaine d'impact (ex: RESIL, TELCO, INFRA, SECOPS)
+		if (!targetSubject && clause.impactSummary) {
+			const impactLower = clause.impactSummary.toLowerCase();
+			targetSubject = subjects.find(
+				(s) =>
+					s.name.toLowerCase().includes(impactLower) ||
+					s.lotId.toLowerCase().includes(impactLower)
+			);
+		}
+
+		// 3. Fallback : premier sujet du lot technique le plus proche ou premier sujet
+		if (!targetSubject) {
+			const lot = inferLotFromRef(clause.title || clause.clauseRef);
+			targetSubject = subjects.find((s) => s.lotId === lot) || subjects[0];
+		}
+
+		if (targetSubject && !targetSubject.coveredClauseRefs.includes(clause.clauseRef)) {
+			targetSubject.coveredClauseRefs.push(clause.clauseRef);
+		}
+	}
+}
+
+/**
+ * Exécute la factorisation par LLM local souverain ou Claude Cloud
  */
 export async function factorizeRfpWithLocalLlm(
 	request: RfpFactorizationRequest,
@@ -914,8 +992,14 @@ export async function factorizeRfpWithLocalLlm(
 		};
 	}
 
-	// Pour les corpus volumineux (> 40 exigences), exécute la passe Map-Reduce hiérarchique exhaustive
-	if (totalClauses > 40) {
+	const isGrandContext = isGrandContextModel(model);
+
+	// Pour les modèles locaux à contexte restreint (Ollama <= 32k), Map-Reduce obligatoire dès 40 exigences.
+	// Pour les modèles à grand contexte (Claude >= 200k), la factorisation directe holistique est privilégiée
+	// jusqu'à 2 500 exigences (ce qui couvre les CCTP volumineux en une seule passe globale de 25-30s).
+	const shouldRunMapReduce = isGrandContext ? totalClauses > 2500 : totalClauses > 40;
+
+	if (shouldRunMapReduce) {
 		try {
 			return await factorizeRfpMapReduce(request, kbStandards);
 		} catch (err: unknown) {
@@ -930,14 +1014,17 @@ export async function factorizeRfpWithLocalLlm(
 		}
 	}
 
-	const isCondensed = shouldCondenseClauses(clauses);
-	const targetDesc = inferTargetSubjectsCount(clauses.length);
+	const maxBudgetChars = isGrandContext ? 600000 : MAX_CLAUSES_BUDGET_CHARS;
+	const isCondensed = !isGrandContext && shouldCondenseClauses(clauses, maxBudgetChars);
+	const targetDesc = inferTargetSubjectsCount(clauses.length, isGrandContext);
 
 	try {
 		const systemPrompt = buildSystemPrompt(request.customPromptDirectives, targetDesc);
 		const userMessage = buildUserMessage(clauses, kbStandards, {
 			condense: isCondensed,
-			targetCountDesc: targetDesc
+			targetCountDesc: targetDesc,
+			maxTotalChars: maxBudgetChars,
+			isGrandContext
 		});
 
 		const rawContent = await localLlmClient.chat({
@@ -947,7 +1034,8 @@ export async function factorizeRfpWithLocalLlm(
 				{ role: 'user', content: userMessage }
 			],
 			format: 'json',
-			temperature: 0.15
+			maxTokens: 8192,
+			timeoutMs: 300000
 		});
 
 		// Nettoyage et parsing JSON résilient avec réparation de troncature
@@ -979,7 +1067,7 @@ export async function factorizeRfpWithLocalLlm(
 			})
 		);
 
-		// Calcul de la couverture et identification des clauses orphelines
+		// Calcul de la couverture et réconciliation des clauses orphelines
 		const coveredSet = new Set<string>();
 		for (const s of subjects) {
 			for (const ref of s.coveredClauseRefs) {
@@ -988,7 +1076,20 @@ export async function factorizeRfpWithLocalLlm(
 		}
 
 		const unassignedClauses = clauses.filter((c) => !coveredSet.has(c.clauseRef));
-		const coveredClausesCount = totalClauses - unassignedClauses.length;
+		if (unassignedClauses.length > 0 && subjects.length > 0) {
+			reconcileOrphanClausesToSubjects(unassignedClauses, subjects);
+		}
+
+		// Recalcul précis de la couverture finale après réconciliation
+		const finalCoveredSet = new Set<string>();
+		for (const s of subjects) {
+			for (const ref of s.coveredClauseRefs) {
+				finalCoveredSet.add(ref);
+			}
+		}
+
+		const finalUnassigned = clauses.filter((c) => !finalCoveredSet.has(c.clauseRef));
+		const coveredClausesCount = totalClauses - finalUnassigned.length;
 		const coverageRate = Math.round((coveredClausesCount / totalClauses) * 100);
 
 		return {

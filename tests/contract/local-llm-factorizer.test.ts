@@ -18,6 +18,8 @@ import {
 	factorizeRfpMapReduce,
 	safeParseJson,
 	MAX_MAP_CHUNK_CHARS,
+	isGrandContextModel,
+	reconcileOrphanClausesToSubjects,
 	type KbItemSummary,
 	type MicroArchitecturalSubject
 } from '../../src/lib/server/llm/rfpFactorizer';
@@ -741,6 +743,135 @@ describe('Local LLM Souverain & Factorisation de RFP', () => {
 
 			chatSpy.mockRestore();
 		});
+
+		it('identifie les modèles grand contexte (Claude) vs modèles locaux', () => {
+			expect(isGrandContextModel('claude-sonnet-4-5-20250929')).toBe(true);
+			expect(isGrandContextModel('claude-haiku-5-5')).toBe(true);
+			expect(isGrandContextModel('claude-3-5-sonnet-20241022')).toBe(true);
+			expect(isGrandContextModel('ministral:latest')).toBe(false);
+			expect(isGrandContextModel('qwen2.5-coder:14b')).toBe(false);
+		});
+
+		it('rattache automatiquement les clauses orphelines par section pour garantir 100% de traçabilité', () => {
+			const unassigned: ExtractedClause[] = [
+				{
+					id: 'c-orphan-1',
+					clauseRef: '§1.9',
+					title: 'Audit de souveraineté périodique',
+					text: 'Audit SecNumCloud tous les ans',
+					criticality: 'bloquant'
+				},
+				{
+					id: 'c-orphan-2',
+					clauseRef: '§2.8',
+					title: 'Monitoring de dérive PTP',
+					text: 'Alerte si phase > 1 µs',
+					criticality: 'majeur'
+				}
+			];
+
+			const mockSubjects = [
+				{
+					id: 'SUBJ-01',
+					lotId: 'LOT-01-SOUV',
+					name: 'Souveraineté des données',
+					sectionRef: '§1.0',
+					coveredClauseRefs: ['§1.1'],
+					matchedKbItemIds: [],
+					knowledgeAlignment: 'standard_established' as const,
+					alignmentRationale: '',
+					initialLevel: 'L2_decomposed' as const,
+					waitingForRole: 'lead_architect' as const,
+					effort: 'M' as const,
+					seed: {
+						initialRetenu: [],
+						initialHypothesis: '',
+						initialQuestion: ''
+					}
+				},
+				{
+					id: 'SUBJ-02',
+					lotId: 'LOT-03-TELCO',
+					name: 'Synchronisation temporelle',
+					sectionRef: '§2.0',
+					coveredClauseRefs: ['§2.1'],
+					matchedKbItemIds: [],
+					knowledgeAlignment: 'standard_established' as const,
+					alignmentRationale: '',
+					initialLevel: 'L2_decomposed' as const,
+					waitingForRole: 'infra_expert_architect' as const,
+					effort: 'M' as const,
+					seed: {
+						initialRetenu: [],
+						initialHypothesis: '',
+						initialQuestion: ''
+					}
+				}
+			];
+
+			reconcileOrphanClausesToSubjects(unassigned, mockSubjects);
+
+			expect(mockSubjects[0].coveredClauseRefs).toContain('§1.9');
+			expect(mockSubjects[1].coveredClauseRefs).toContain('§2.8');
+		});
+
+		it('exécute une factorisation holistique directe en 1 seule passe pour Claude même au-delà de 40 exigences', async () => {
+			// Création d'un jeu de 60 clauses
+			const largeClauses: ExtractedClause[] = Array.from({ length: 60 }, (_, i) => ({
+				id: `c-${i + 1}`,
+				clauseRef: `§${Math.floor(i / 10) + 1}.${(i % 10) + 1}`,
+				title: `Exigence technique #${i + 1}`,
+				text: `Détail technique pour l exigence #${i + 1}`,
+				criticality: i % 5 === 0 ? 'bloquant' : 'info'
+			}));
+
+			const mockClaudeDirectJson = JSON.stringify({
+				summary: 'Synthèse globale holistique en une passe',
+				subjects: [
+					{
+						id: 'SUBJ-01',
+						name: 'Arbitrage de centralisation SOC/NOC : Bordure vs Centralisé',
+						lotId: 'LOT-04-SECOPS',
+						sectionRef: '§1.0',
+						coveredClauseRefs: ['§1.1', '§1.2'],
+						matchedKbItemIds: [],
+						knowledgeAlignment: 'standard_established',
+						initialLevel: 'L1_dilemma',
+						waitingForRole: 'secops_expert_architect',
+						effort: 'M',
+						seed: {
+							initialRetenu: ['[§1.1] Latence < 10ms'],
+							initialHypothesis: 'Collecteurs de bordure',
+							initialQuestion: 'Comment concilier centralisation et latence ?'
+						}
+					}
+				]
+			});
+
+			let chatCallCount = 0;
+			const chatSpy = vi.spyOn(localLlmClient, 'chat').mockImplementation(async () => {
+				chatCallCount++;
+				return mockClaudeDirectJson;
+			});
+
+			const result = await factorizeRfpWithLocalLlm(
+				{
+					clauses: largeClauses,
+					model: 'claude-sonnet-4-5-20250929'
+				},
+				testKbStandards
+			);
+
+			// Pour Claude, il n'y a eu qu'UN SEUL appel de chat (passe directe), PAS 60 appels Map-Reduce !
+			expect(chatCallCount).toBe(1);
+			expect(result.status).toBe('ok');
+			expect(result.engine).toBe('anthropic-claude');
+			// Couverture à 100% garantie par la réconciliation
+			expect(result.coverageRate).toBe(100);
+
+			chatSpy.mockRestore();
+		});
 	});
 });
+
 

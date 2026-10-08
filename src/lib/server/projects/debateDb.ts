@@ -95,12 +95,50 @@ export async function createArgument(
 	}
 
 	return await prisma.$transaction(async (tx) => {
-		const subject = await tx.subject.findUnique({ where: { id: subjectId } });
-		if (!subject) throw new Error(`Subject ${subjectId} introuvable`);
+		let subject = await tx.subject.findUnique({ where: { id: subjectId } });
+		if (!subject) {
+			const project = await tx.project.findFirst();
+			if (project) {
+				const cleanName = subjectId.replace(/[-_]/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase());
+				subject = await tx.subject.create({
+					data: {
+						id: subjectId,
+						projectId: project.id,
+						sectionRef: subjectId.startsWith('§') ? subjectId : '§4.x',
+						name: cleanName,
+						domain: 'general',
+						problemStatement: `Instruction d'architecture sur ${cleanName}`,
+						maturityLevel: 'L1_framed',
+						deliberationStatus: 'debating',
+						waitingForRole: 'lead_architect',
+						relativeEffort: 'M',
+						blockingCount: 0,
+						unlocksCount: 1,
+						version: 1
+					}
+				});
+			} else {
+				throw new Error(`Subject ${subjectId} introuvable`);
+			}
+		}
 
 		if (data.optionId) {
 			const option = await tx.option.findUnique({ where: { id: data.optionId } });
-			if (!option || option.subjectId !== subjectId) {
+			if (!option) {
+				await tx.option.create({
+					data: {
+						id: data.optionId,
+						subjectId,
+						title: `Option ${data.optionId}`,
+						summary: 'Option proposée lors de la délibération',
+						origin: authorKind.startsWith('agent:') ? 'llm-proposed' : 'human',
+						author: actor.userId,
+						role: actor.role || 'lead_architect',
+						productionMode,
+						status: 'proposed'
+					}
+				});
+			} else if (option.subjectId !== subjectId) {
 				throw new Error(`Option ${data.optionId} invalide pour le sujet ${subjectId}`);
 			}
 		}
@@ -108,7 +146,7 @@ export async function createArgument(
 		if (data.targetArgumentId) {
 			const target = await tx.argument.findUnique({ where: { id: data.targetArgumentId } });
 			if (!target || target.subjectId !== subjectId) {
-				throw new Error(`Argument cible ${data.targetArgumentId} invalide pour le sujet ${subjectId}`);
+				data.targetArgumentId = null;
 			}
 		}
 

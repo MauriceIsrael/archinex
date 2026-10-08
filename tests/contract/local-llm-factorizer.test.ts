@@ -629,16 +629,14 @@ describe('Local LLM Souverain & Factorisation de RFP', () => {
 			});
 
 			expect(claudeClient.hasAnthropicConfigured()).toBe(true);
-			expect(claudeClient.getDefaultModel()).toBe('claude-3-5-sonnet-20241022');
+			expect(claudeClient.getDefaultModel()).toBe('claude-sonnet-4-5-20250929');
 
 			const models = await claudeClient.getAvailableModels();
 			const modelIds = models.map((m) => m.id);
 
-			expect(modelIds).toContain('claude-3-7-sonnet-20250219');
-			expect(modelIds).toContain('claude-3-5-sonnet-20241022');
-			expect(modelIds).toContain('claude-3-5-haiku-20241022');
+			expect(modelIds).toContain('claude-sonnet-4-5-20250929');
 
-			const sonnet = models.find((m) => m.id === 'claude-3-5-sonnet-20241022');
+			const sonnet = models.find((m) => m.id === 'claude-sonnet-4-5-20250929');
 			expect(sonnet?.contextLength).toBe(200000);
 		});
 
@@ -691,7 +689,7 @@ describe('Local LLM Souverain & Factorisation de RFP', () => {
 				expect(capturedUrl).toBe('https://api.anthropic.com/v1/messages');
 				expect(capturedHeaders['x-api-key']).toBe('sk-ant-live-dummy-key');
 				expect(capturedHeaders['anthropic-version']).toBe('2023-06-01');
-				expect(capturedBody.model).toBe('claude-3-5-sonnet-20241022');
+				expect(capturedBody.model).toBe('claude-sonnet-4-5-20250929');
 				expect(capturedBody.system).toContain('Tu es un architecte expert.');
 				expect(capturedBody.system).toContain('INSTRUCTION STRICTE');
 				expect(capturedBody.messages).toEqual([

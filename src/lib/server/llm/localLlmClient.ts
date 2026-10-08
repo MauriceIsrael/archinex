@@ -352,15 +352,20 @@ export class LocalLlmClient {
 			const payload: any = {
 				model: resolvedModel,
 				messages: formattedMessages,
-				max_tokens: options.maxTokens || 4096,
-				temperature: options.temperature ?? this.temperature
+				max_tokens: options.maxTokens || 4096
 			};
+
+			// Ne pas inclure temperature pour les modèles qui l'ont dépréciée (Claude 5.x, 4.7+, etc.)
+			const isTempDeprecated = /claude-(?:(?:haiku|sonnet|opus|fable)-5|opus-4-[78])/i.test(resolvedModel);
+			if (!isTempDeprecated && (options.temperature !== undefined || this.temperature !== undefined)) {
+				payload.temperature = options.temperature ?? this.temperature;
+			}
 
 			if (systemPrompt.trim().length > 0) {
 				payload.system = systemPrompt;
 			}
 
-			const res = await fetch('https://api.anthropic.com/v1/messages', {
+			let res = await fetch('https://api.anthropic.com/v1/messages', {
 				method: 'POST',
 				headers: {
 					'Content-Type': 'application/json',
@@ -371,6 +376,25 @@ export class LocalLlmClient {
 				body: JSON.stringify(payload),
 				signal: controller.signal
 			});
+
+			// Si le modèle rejette temperature (400 Bad Request), relance immédiatement sans le paramètre
+			if (!res.ok && payload.temperature !== undefined) {
+				const errCopy = await res.clone().text().catch(() => '');
+				if (errCopy.includes('temperature') && errCopy.includes('deprecated')) {
+					delete payload.temperature;
+					res = await fetch('https://api.anthropic.com/v1/messages', {
+						method: 'POST',
+						headers: {
+							'Content-Type': 'application/json',
+							Accept: 'application/json',
+							'x-api-key': this.anthropicApiKey,
+							'anthropic-version': '2023-06-01'
+						},
+						body: JSON.stringify(payload),
+						signal: controller.signal
+					});
+				}
+			}
 
 			clearTimeout(timer);
 

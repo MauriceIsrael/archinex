@@ -620,4 +620,129 @@ describe('Local LLM Souverain & Factorisation de RFP', () => {
 			chatSpy.mockRestore();
 		});
 	});
+
+	describe('10. Multi-Provider & Intégration Anthropic Claude Cloud', () => {
+		it('détecte la clé API Claude et expose les modèles Claude avec contexte 200k', async () => {
+			const claudeClient = new LocalLlmClient({
+				anthropicApiKey: 'sk-ant-test-key-12345',
+				endpoint: 'http://localhost:11434'
+			});
+
+			expect(claudeClient.hasAnthropicConfigured()).toBe(true);
+			expect(claudeClient.getDefaultModel()).toBe('claude-3-5-sonnet-20241022');
+
+			const models = await claudeClient.getAvailableModels();
+			const modelIds = models.map((m) => m.id);
+
+			expect(modelIds).toContain('claude-3-7-sonnet-20250219');
+			expect(modelIds).toContain('claude-3-5-sonnet-20241022');
+			expect(modelIds).toContain('claude-3-5-haiku-20241022');
+
+			const sonnet = models.find((m) => m.id === 'claude-3-5-sonnet-20241022');
+			expect(sonnet?.contextLength).toBe(200000);
+		});
+
+		it('route vers l API Anthropic Messages avec extraction du prompt system et entêtes corrects', async () => {
+			const claudeClient = new LocalLlmClient({
+				anthropicApiKey: 'sk-ant-live-dummy-key',
+				endpoint: 'http://localhost:11434'
+			});
+
+			let capturedUrl = '';
+			let capturedHeaders: Record<string, string> = {};
+			let capturedBody: any = null;
+
+			const originalFetch = global.fetch;
+			global.fetch = vi.fn().mockImplementation(async (url, init) => {
+				capturedUrl = String(url);
+				capturedHeaders = (init?.headers as Record<string, string>) || {};
+				capturedBody = JSON.parse(init?.body as string);
+
+				return {
+					ok: true,
+					json: async () => ({
+						id: 'msg_123',
+						type: 'message',
+						role: 'assistant',
+						content: [
+							{
+								type: 'text',
+								text: JSON.stringify({
+									summary: 'Factorisation via Claude 3.5 Sonnet',
+									subjects: []
+								})
+							}
+						]
+					})
+				};
+			}) as any;
+
+			try {
+				const response = await claudeClient.chat({
+					model: 'claude-3-5-sonnet',
+					messages: [
+						{ role: 'system', content: 'Tu es un architecte expert.' },
+						{ role: 'user', content: 'Analyse les exigences §1.1 et §1.2.' }
+					],
+					format: 'json',
+					temperature: 0.1
+				});
+
+				expect(capturedUrl).toBe('https://api.anthropic.com/v1/messages');
+				expect(capturedHeaders['x-api-key']).toBe('sk-ant-live-dummy-key');
+				expect(capturedHeaders['anthropic-version']).toBe('2023-06-01');
+				expect(capturedBody.model).toBe('claude-3-5-sonnet-20241022');
+				expect(capturedBody.system).toContain('Tu es un architecte expert.');
+				expect(capturedBody.system).toContain('INSTRUCTION STRICTE');
+				expect(capturedBody.messages).toEqual([
+					{ role: 'user', content: 'Analyse les exigences §1.1 et §1.2.' }
+				]);
+				expect(response).toContain('Factorisation via Claude 3.5 Sonnet');
+			} finally {
+				global.fetch = originalFetch;
+			}
+		});
+
+		it('utilise engine anthropic-claude lors de la factorisation avec un modèle Claude', async () => {
+			const mockClaudeJson = JSON.stringify({
+				summary: 'Synthèse haute-fidélité via Claude',
+				subjects: [
+					{
+						id: 'SUBJ-01',
+						name: 'Souveraineté des Données et SecNumCloud',
+						sectionRef: '§1.0',
+						coveredClauseRefs: ['§1.1'],
+						matchedKbItemIds: ['STD-SOUV-01'],
+						knowledgeAlignment: 'standard_established',
+						initialLevel: 'L3_retained',
+						waitingForRole: 'lead_architect',
+						effort: 'M',
+						seed: {
+							initialRetenu: ['Hébergement SecNumCloud qualifié'],
+							initialHypothesis: 'SecNumCloud 3.2',
+							initialQuestion: 'Quel niveau de qualification ?'
+						}
+					}
+				]
+			});
+
+			const chatSpy = vi.spyOn(localLlmClient, 'chat').mockResolvedValueOnce(mockClaudeJson);
+
+			const result = await factorizeRfpWithLocalLlm(
+				{
+					clauses: [sampleClauses[0]],
+					model: 'claude-3-5-sonnet-20241022'
+				},
+				testKbStandards
+			);
+
+			expect(result.status).toBe('ok');
+			expect(result.engine).toBe('anthropic-claude');
+			expect(result.modelUsed).toBe('claude-3-5-sonnet-20241022');
+			expect(result.subjects.length).toBe(1);
+
+			chatSpy.mockRestore();
+		});
+	});
 });
+

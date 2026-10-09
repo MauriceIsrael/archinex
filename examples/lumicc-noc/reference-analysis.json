@@ -1,5 +1,5 @@
 {
-  "_description": "Analyse de référence rédigée à la main par un architecte pour la section 4 du RFP LUMICC (rfp-section4-noc.md). Sert uniquement de jeu d'évaluation du pipeline (npm run eval:requirements) : ne jamais l'importer depuis src/.",
+  "_description": "Analyse de référence du RFP LUMICC (rfp-section4-noc.md), reprise telle quelle de l'ancien audit câblé dans le code. Son auteur n'est pas établi : elle ne peut servir de juge pour le jalon J0 qu'après relecture et validation par un architecte qui ne l'a pas produite. Sert à l'évaluation du pipeline (npm run eval:requirements) : ne jamais l'importer depuis src/.",
   "source": "examples/lumicc-noc/rfp-section4-noc.md",
   "hardPoints": [
     {

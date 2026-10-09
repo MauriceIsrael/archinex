@@ -159,6 +159,7 @@ model Project {
   statements  Statement[]
   events      DomainEvent[]
   frameworks  ProjectFramework[]
+  requirementSources RequirementSource[]
   
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
@@ -192,6 +193,7 @@ model Subject {
   maturityLevel      String   @default("L0_named") // L0_named, L1_framed, L2_decomposed, L3_decided, L4_specified, L5_archived
   deliberationStatus String   @default("open")     // open, debating, ready_for_arbitration, arbitrated
   waitingForRole     String?  @default("lead_architect")
+  requirementRefs    String   @default("[]")          // JSON array d'identifiants d'exigences du dossier (SRC-xxxx:clause)
   relativeEffort     String?  @default("M")
   blockingCount      Int      @default(0)
   unlocksCount       Int      @default(0)
@@ -528,4 +530,64 @@ model Invitation {
   @@index([token])
   @@index([email])
   @@map("invitations")
+}
+
+// ── Exigences d'un RFP et audit (jalon J0, dossier scellé) ─────────────────
+// Une source = un texte de RFP identifié par l'empreinte SHA-256 de son contenu.
+// Une exigence garde SÉPARÉES la proposition du modèle et la décision humaine : le dossier scellé ne
+// déclare « affirmé » que ce qu'une personne identifiée a décidé.
+
+model RequirementSource {
+  id          String   @id            // `${projectId}:SRC-${sha8}`
+  projectId   String
+  kind        String   @default("rfp")
+  title       String
+  language    String   @default("fr")
+  version     String   @default("v1.0")
+  sha256      String                  // empreinte du texte source intégral
+  auditModel  String?                 // modèle qui a produit l'audit
+  auditedAt   DateTime?
+
+  project      Project       @relation(fields: [projectId], references: [id], onDelete: Cascade)
+  requirements Requirement[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([projectId, sha256])
+  @@index([projectId])
+  @@map("requirement_sources")
+}
+
+model Requirement {
+  id                    String   @id @default(cuid())
+  sourceId              String
+  position              Int                       // ordre dans le document source
+  clauseRef             String
+  title                 String
+  text                  String
+  criticality           String                    // bloquant | majeur | info
+  category              String?
+
+  // Proposition du modèle (jamais écrasée par une décision humaine)
+  proposedDisposition   String                    // deliberated | evacuated | clarification_needed | to_qualify
+  proposedReason        String?
+  clarificationQuestion String?
+  proposedBy            String                    // ex. model:claude-sonnet-5-5
+  proposedAt            DateTime
+
+  // Décision humaine (null tant que personne n'a tranché)
+  decidedDisposition    String?
+  decidedReason         String?
+  decidedBy             String?                   // handle (@...), jamais une adresse e-mail
+  decidedAt             DateTime?
+
+  source                RequirementSource @relation(fields: [sourceId], references: [id], onDelete: Cascade)
+
+  createdAt             DateTime @default(now())
+  updatedAt             DateTime @updatedAt
+
+  @@unique([sourceId, clauseRef])
+  @@index([sourceId, position])
+  @@map("requirements")
 }

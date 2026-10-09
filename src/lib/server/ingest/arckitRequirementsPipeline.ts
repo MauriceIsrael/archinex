@@ -22,13 +22,14 @@ import type { ArchitectRole } from '$lib/types/epistemic';
 import { localLlmClient } from '$lib/server/llm/localLlmClient';
 import { cleanJsonString, inferTargetSubjectsCount, type KbItemSummary } from '$lib/server/llm/rfpFactorizer';
 import type { ChatOptions } from '$lib/server/llm/types';
+import type { RequirementDisposition } from '$lib/domain/requirementAudit';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
 export type ArcKitRequirementCategory = 'FR' | 'NFR' | 'INT' | 'FAC' | 'BR' | 'DR';
 
 /** `to_qualify` : le pipeline n'a pas pu (ou pas osé) trancher ; un humain doit qualifier la clause. */
-export type RequirementDisposition = 'deliberated' | 'evacuated' | 'clarification_needed' | 'to_qualify';
+export type { RequirementDisposition };
 
 export interface AuditedRequirement {
 	id: string;

@@ -327,6 +327,17 @@ Archinex produit le **Dossier d'Engagement Scellé** (`EngagementBundle`), conso
 - **Deux étages épistémiques** : Le dossier entier porte `is_provisional: true` tant qu'un sujet est sous `L3_decided` ou qu'un conflit est ouvert.
 - **Vie privée** : Strictement aucune adresse e-mail dans les exports ; seuls des handles (`@lead-architect`).
 
+### Exigences du RFP et assemblage déterministe
+Le dossier contient les exigences du RFP auditées (`source_documents[]` + `requirements[]`), pour qu'un générateur produise par exemple une matrice de traçabilité sans interroger Archinex.
+- **Identifiants** : source `SRC-<8 hex>` = début de l'empreinte SHA-256 du texte intégral du RFP ; exigence `SRC-<8 hex>:<clause>`.
+- **Champs ajoutés (optionnels, `schemaVersion` inchangé)** sur chaque exigence : `title`, `criticality`, `category`, `disposition` (`deliberated`/`evacuated`/`clarification_needed`/`to_qualify`), `disposition_reason`, `clarification_question`, `assertion_level`, `provenance`. Un dossier sans ces champs reste valide. **À valider contre le schéma et le vérificateur de la suite avant toute publication vers le Hub.**
+- **Niveau d'assertion** : `asserted` uniquement si une personne identifiée a décidé (base `human_validation`, handle, date de sa décision) ; `proposed` pour une proposition du modèle (`ai_proposal`, `model:<id>`) ; `open` pour une clause à qualifier.
+- **Déterminisme** : `bundleAssembly.ts` est une fonction pure de l'état stocké. L'heure d'export, `createdAt` et `snapshotId`, restent hors de `data` et donc hors du sceau ; les tris sont stables (source par empreinte, exigence par rang dans le document, sujet par section puis identifiant, énoncé et lacune par identifiant) ; les dates sont celles des décisions et des énoncés.
+- **Rien de fabriqué** : pas de sujet par défaut ni de décision inventée ; un sujet n'est `decided` que s'il existe une décision enregistrée ; un sujet de niveau L3+ sans décision, un énoncé sans sujet, une clause à qualifier ou à clarifier deviennent des lacunes (`gaps`), bloquantes si la clause est bloquante.
+- **Contrôles du vérificateur** : `REQ_DISPOSITION`, `REQ_UNJUSTIFIED` (évacuation sans motif), `REQ_BLOCKING_EVACUATED`, `REQ_UNCOVERED` (clause à délibérer sans sujet), `REQ_NOT_DELIBERATED`, `REQ_NO_GAP`. L'export est refusé si l'un d'eux échoue.
+- **Générateur de référence** : `renderTraceabilityMatrix(bundle)` (`bundleRtm.ts`) vérifie le dossier puis rend le Markdown ; même sceau, même texte.
+- **Limite** : le chemin d'export délégué au Hub (projet basculé) n'inclut pas encore ces champs.
+
 ### Publication & Interface Utilisateur (A17)
 - Dialogue d'homologation unifié (`FreezeSectionDialog.svelte`) intégrant l'onglet **Dossier d'Engagement (Bundle)**.
 - Affichage obligatoire du **Bandeau Dossier Provisoire** avec justification (`unripe_subjects`, `open_conflicts`).

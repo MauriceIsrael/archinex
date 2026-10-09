@@ -70,6 +70,18 @@ export interface BundleRequirement {
 	clause_ref: string;
 	text: string;
 	language: string;
+	// ── Extension « audit des exigences » (champs optionnels : un dossier sans audit reste valide) ──
+	title?: string;
+	criticality?: 'bloquant' | 'majeur' | 'info';
+	category?: string;
+	/** État retenu : la décision humaine si elle existe, sinon la proposition du modèle. */
+	disposition?: 'deliberated' | 'evacuated' | 'clarification_needed' | 'to_qualify';
+	/** Motif de l'évacuation, tension à délibérer ou raison de l'indécision. */
+	disposition_reason?: string;
+	clarification_question?: string;
+	/** `asserted` : décidé par un humain. `proposed` : proposé par le modèle. `open` : non qualifié. */
+	assertion_level?: AssertionLevel;
+	provenance?: ProvenanceInfo;
 }
 
 export interface OpenQuestion {

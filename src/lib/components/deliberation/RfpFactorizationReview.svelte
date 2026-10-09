@@ -3,6 +3,7 @@
 	import type { FactorizedArchitecturalSubject } from '$lib/domain/factorization';
 	import type { InitialSubjectInput } from '$lib/domain/engagements';
 	import type { ArchitectRole } from '$lib/types/epistemic';
+	import { buildAuditReportMarkdown } from '$lib/domain/requirementsAuditReport';
 	import {
 		BrainCircuit,
 		CheckCircle2,
@@ -17,7 +18,8 @@
 		Info,
 		ListFilter,
 		Tag,
-		ExternalLink
+		ExternalLink,
+		Download
 	} from 'lucide-svelte';
 
 	interface Props {
@@ -190,6 +192,26 @@
 		return 'LOT-02-INFRA';
 	}
 
+	// Le rapport conserve la trace des décisions sur les clauses qui ne deviennent pas des sujets
+	// (évacuées, à qualifier, à clarifier) : l'écran ne les garde pas une fois l'import confirmé.
+	function downloadAuditReport() {
+		const md = buildAuditReportMarkdown({
+			title: 'RFP importé',
+			model: modelUsed,
+			status: 'ok',
+			generatedAt: new Date().toISOString(),
+			requirements: allAuditedRequirements ?? [],
+			subjects: editableSubjects,
+			warnings: warning ? [warning] : []
+		});
+		const url = URL.createObjectURL(new Blob([md], { type: 'text/markdown;charset=utf-8' }));
+		const a = document.createElement('a');
+		a.href = url;
+		a.download = 'audit-exigences.md';
+		a.click();
+		URL.revokeObjectURL(url);
+	}
+
 	function handleValidate() {
 		// Convertit les sujets sélectionnés en InitialSubjectInput pour Archinex
 		const finalSubjects: InitialSubjectInput[] = editableSubjects
@@ -216,6 +238,7 @@
 					: (rawNonAdr.length > 0 ? rawNonAdr : s.seed.initialRetenu);
 
 				return {
+					coveredClauseRefs: [...(s.coveredClauseRefs || [])],
 					sectionRef: s.sectionRef,
 					name: s.name,
 					waitingForRole: s.waitingForRole,
@@ -293,6 +316,17 @@
 						</p>
 						{#if warning}
 							<p class="text-[11px] leading-relaxed text-amber-800 dark:text-amber-200">⚠ {warning}</p>
+						{/if}
+						{#if allAuditedRequirements && allAuditedRequirements.length > 0}
+							<button
+								type="button"
+								onclick={downloadAuditReport}
+								class="mt-1 inline-flex items-center gap-1.5 rounded-lg border border-emerald-600/40 bg-background px-2.5 py-1 text-[11px] font-semibold text-emerald-800 dark:text-emerald-200 hover:bg-emerald-500/10 transition-colors cursor-pointer"
+								title="Télécharger la liste de toutes les clauses avec leur état et leur motif. À garder : l'import ne conserve que les sujets."
+							>
+								<Download class="h-3 w-3" />
+								<span>Télécharger le rapport d'audit</span>
+							</button>
 						{/if}
 					</div>
 				</div>
@@ -674,6 +708,11 @@
 						<p class="text-[11px] text-muted-foreground leading-relaxed line-clamp-2">
 							"{clause.text}"
 						</p>
+						{#if audited?.disposition === 'deliberated' && audited.deliberationReason}
+							<p class="text-[11px] text-emerald-800 dark:text-emerald-300 leading-relaxed">
+								<span class="font-semibold">Pourquoi à délibérer :</span> {audited.deliberationReason}
+							</p>
+						{/if}
 					</div>
 				{/each}
 			</div>

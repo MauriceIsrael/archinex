@@ -16,6 +16,8 @@ export interface MaturitySubject {
 	parent_subject_id?: string;
 	parent_subject_name?: string;
 	foundation_contested?: boolean;
+	/** Exigences du RFP que ce sujet porte (identifiants du dossier scellé : `SRC-xxxx:clause`). */
+	requirement_ids?: string[];
 }
 
 export interface ActorContext {

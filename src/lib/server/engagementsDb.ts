@@ -183,6 +183,7 @@ export async function saveEngagementToDb(profile: EngagementProfile): Promise<En
 						relativeEffort: s.relative_effort || 'M',
 						blockingCount: s.blocking_count ?? 0,
 						unlocksCount: s.unlocks_count ?? 0,
+						requirementRefs: JSON.stringify(s.requirement_ids ?? []),
 						version: 1
 					},
 					update: {
@@ -194,7 +195,9 @@ export async function saveEngagementToDb(profile: EngagementProfile): Promise<En
 						waitingForRole: s.waiting_for_role || 'lead_architect',
 						relativeEffort: s.relative_effort || 'M',
 						blockingCount: s.blocking_count ?? 0,
-						unlocksCount: s.unlocks_count ?? 0
+						unlocksCount: s.unlocks_count ?? 0,
+						// Ne jamais effacer le lien aux exigences quand le profil client ne le porte pas.
+						...(s.requirement_ids ? { requirementRefs: JSON.stringify(s.requirement_ids) } : {})
 					}
 				});
 			}

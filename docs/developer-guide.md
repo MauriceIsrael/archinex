@@ -98,8 +98,11 @@ Le pipeline (`src/lib/server/ingest/arckitRequirementsPipeline.ts`) appelle le m
 
 ```bash
 npm run eval:requirements -- examples/lumicc-noc/rfp-section4-noc.md \
-  --reference examples/lumicc-noc/reference-analysis.json --out eval-results/lumicc.json
+  --reference examples/lumicc-noc/reference-analysis.json --out eval-results/lumicc.json \
+  --report eval-results/lumicc.md
 ```
+
+`--report` écrit un rapport lisible (pourquoi ces sujets, ce que devient chaque autre clause, ce qu'il faut relire). Protocole complet pour jouer le jalon J0 : `docs/jalon-j0.md`.
 
 L'indicateur critique est le **faux négatif dangereux** (clause jugée à délibérer par l'expert mais évacuée par le pipeline) : il doit être à zéro. Le script sort en code 1 si l'intégrité n'est pas respectée, 2 si le modèle est injoignable.
 

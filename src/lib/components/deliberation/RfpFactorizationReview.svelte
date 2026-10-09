@@ -30,6 +30,12 @@
 		warning?: string;
 		errorDetail?: string;
 		wasCondensed?: boolean;
+		auditReport?: any;
+		evacuatedCount?: number;
+		deliberatedCount?: number;
+		clarificationCount?: number;
+		clarifications?: Array<{ clauseRef: string; title: string; question: string }>;
+		allAuditedRequirements?: any[];
 		onConfirm: (initialSubjects: InitialSubjectInput[]) => void;
 		onCancel: () => void;
 	}
@@ -44,6 +50,12 @@
 		warning,
 		errorDetail,
 		wasCondensed,
+		auditReport,
+		evacuatedCount,
+		deliberatedCount,
+		clarificationCount,
+		clarifications,
+		allAuditedRequirements,
 		onConfirm,
 		onCancel
 	}: Props = $props();
@@ -230,21 +242,25 @@
 					<h3 class="font-bold text-sm text-foreground flex items-center gap-2">
 						<span>Factorisation Sémantique d'Architecture</span>
 						<span class="text-[10px] px-2 py-0.5 rounded-full font-mono font-bold {
-							engine === 'map-reduce-llm'
-								? 'bg-purple-500/15 text-purple-700 dark:text-purple-300 border border-purple-500/30'
-								: engine === 'local-llm'
-									? 'bg-primary/15 text-primary'
-									: 'bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30'
+							engine === 'arckit-requirements-audit'
+								? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30'
+								: engine === 'map-reduce-llm'
+									? 'bg-purple-500/15 text-purple-700 dark:text-purple-300 border border-purple-500/30'
+									: engine === 'local-llm'
+										? 'bg-primary/15 text-primary'
+										: 'bg-amber-500/20 text-amber-700 dark:text-amber-300 border border-amber-500/30'
 						}">
-							{engine === 'map-reduce-llm'
-								? 'Moteur Hiérarchique Map-Reduce (100% Verbatim)'
-								: engine === 'local-llm'
-									? 'Moteur Souverain Local'
-									: 'Moteur de Secours Déterministe'}
+							{engine === 'arckit-requirements-audit'
+								? 'Méthodologie ArcKit (Audit & Factorisation Native)'
+								: engine === 'map-reduce-llm'
+									? 'Moteur Hiérarchique Map-Reduce (100% Verbatim)'
+									: engine === 'local-llm'
+										? 'Moteur Souverain Local'
+										: 'Moteur de Secours Déterministe'}
 						</span>
 					</h3>
 					<p class="text-[11px] text-muted-foreground">
-						Modèle : <strong class="text-foreground font-mono">{modelUsed}</strong> sur <span class="font-mono text-primary">LLM Local</span>
+						Modèle : <strong class="text-foreground font-mono">{modelUsed}</strong> sur <span class="font-mono text-primary">{engine === 'arckit-requirements-audit' ? 'ArcKit Pipeline' : 'LLM Local'}</span>
 					</p>
 				</div>
 			</div>
@@ -259,7 +275,22 @@
 			</div>
 		</div>
 
-		{#if warning || (engine !== 'local-llm' && engine !== 'map-reduce-llm')}
+		{#if engine === 'arckit-requirements-audit'}
+			<div class="p-3.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-950 dark:text-emerald-100 space-y-1.5">
+				<div class="flex items-start gap-2.5">
+					<ShieldCheck class="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
+					<div class="space-y-1">
+						<div class="font-bold text-xs uppercase tracking-wider text-emerald-700 dark:text-emerald-300 flex items-center gap-2">
+							<span>Méthodologie ArcKit · Audit d'Exigences & Points Durs Validés</span>
+							<span class="text-[10px] lowercase font-mono font-normal opacity-75">(100% traçabilité)</span>
+						</div>
+						<p class="text-xs leading-relaxed">
+							Audit d'architecture complété avec succès : <strong>{evacuatedCount ?? 0} exigences de commodités</strong> évacuées (conformité sur étagère sans débat), <strong>{clarificationCount ?? 0} questions de clarification client</strong> identifiées, et <strong>{editableSubjects.length} points durs d'architecture atomiques</strong> extraits avec leurs questions prérequis pour le sachant métier.
+						</p>
+					</div>
+				</div>
+			</div>
+		{:else if warning || (engine !== 'local-llm' && engine !== 'map-reduce-llm' && engine !== 'arckit-requirements-audit')}
 			<div class="p-3.5 rounded-xl border border-amber-500/40 bg-amber-500/10 text-amber-900 dark:text-amber-200 space-y-1.5">
 				<div class="flex items-start gap-2.5">
 					<AlertTriangle class="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
@@ -303,30 +334,57 @@
 		{/if}
 
 		<!-- Statistiques Clés -->
-		<div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs">
-			<div class="p-2 rounded-lg border bg-muted/30">
-				<div class="text-base font-bold font-mono text-foreground">{editableSubjects.length}</div>
-				<div class="text-[10px] text-muted-foreground">Sujets d'Architecture</div>
-			</div>
-			<div class="p-2 rounded-lg border bg-emerald-500/10 border-emerald-500/20 text-emerald-700 dark:text-emerald-300">
-				<div class="text-base font-bold font-mono">
-					{editableSubjects.filter((s) => s.knowledgeAlignment === 'standard_established').length}
+		{#if engine === 'arckit-requirements-audit'}
+			<div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs">
+				<div class="p-2 rounded-lg border bg-muted/30">
+					<div class="text-base font-bold font-mono text-foreground">{clauses.length}</div>
+					<div class="text-[10px] text-muted-foreground">Exigences CCTP</div>
 				</div>
-				<div class="text-[10px]">Standards Patrimoine (L2/L3)</div>
-			</div>
-			<div class="p-2 rounded-lg border bg-destructive/10 border-destructive/20 text-destructive">
-				<div class="text-base font-bold font-mono">
-					{editableSubjects.filter((s) => s.knowledgeAlignment === 'conflict_detected').length}
+				<div class="p-2 rounded-lg border bg-slate-500/10 border-slate-500/20 text-slate-700 dark:text-slate-300">
+					<div class="text-base font-bold font-mono">
+						{evacuatedCount ?? 0}
+					</div>
+					<div class="text-[10px]">Commodités Évacuées ({Math.round(((evacuatedCount ?? 0) / (clauses.length || 1)) * 100)}%)</div>
 				</div>
-				<div class="text-[10px]">Dilemmes / Conflits (L1)</div>
-			</div>
-			<div class="p-2 rounded-lg border bg-blue-500/10 border-blue-500/20 text-blue-700 dark:text-blue-300">
-				<div class="text-base font-bold font-mono">
-					{editableSubjects.filter((s) => s.knowledgeAlignment === 'novel_requirement').length}
+				<div class="p-2 rounded-lg border bg-emerald-500/10 border-emerald-500/20 text-emerald-700 dark:text-emerald-300">
+					<div class="text-base font-bold font-mono">
+						{editableSubjects.length}
+					</div>
+					<div class="text-[10px]">Points Durs ({deliberatedCount ?? 0} clauses)</div>
 				</div>
-				<div class="text-[10px]">Besoins Inédits</div>
+				<div class="p-2 rounded-lg border bg-indigo-500/10 border-indigo-500/20 text-indigo-700 dark:text-indigo-300">
+					<div class="text-base font-bold font-mono">
+						{clarificationCount ?? 0}
+					</div>
+					<div class="text-[10px]">Clarifications Client</div>
+				</div>
 			</div>
-		</div>
+		{:else}
+			<div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs">
+				<div class="p-2 rounded-lg border bg-muted/30">
+					<div class="text-base font-bold font-mono text-foreground">{editableSubjects.length}</div>
+					<div class="text-[10px] text-muted-foreground">Sujets d'Architecture</div>
+				</div>
+				<div class="p-2 rounded-lg border bg-emerald-500/10 border-emerald-500/20 text-emerald-700 dark:text-emerald-300">
+					<div class="text-base font-bold font-mono">
+						{editableSubjects.filter((s) => s.knowledgeAlignment === 'standard_established').length}
+					</div>
+					<div class="text-[10px]">Standards Patrimoine (L2/L3)</div>
+				</div>
+				<div class="p-2 rounded-lg border bg-destructive/10 border-destructive/20 text-destructive">
+					<div class="text-base font-bold font-mono">
+						{editableSubjects.filter((s) => s.knowledgeAlignment === 'conflict_detected').length}
+					</div>
+					<div class="text-[10px]">Dilemmes / Conflits (L1)</div>
+				</div>
+				<div class="p-2 rounded-lg border bg-blue-500/10 border-blue-500/20 text-blue-700 dark:text-blue-300">
+					<div class="text-base font-bold font-mono">
+						{editableSubjects.filter((s) => s.knowledgeAlignment === 'novel_requirement').length}
+					</div>
+					<div class="text-[10px]">Besoins Inédits</div>
+				</div>
+			</div>
+		{/if}
 	</div>
 
 	<!-- ─── Barre de Navigation des Vues (Tabs) ─────────────────────────────────── -->
@@ -529,16 +587,28 @@
 				{#each clauses as clause}
 					{@const isCovered = coveredClauseRefs().has(clause.clauseRef)}
 					{@const parentSubject = editableSubjects.find((s) => s.coveredClauseRefs.includes(clause.clauseRef))}
+					{@const audited = allAuditedRequirements?.find((a) => a.clauseRef === clause.clauseRef)}
 
 					<div
-						class="p-3 rounded-xl border space-y-1.5 transition-colors {isCovered
-							? 'bg-card border-border'
-							: 'bg-amber-500/5 border-amber-500/30'}"
+						class="p-3 rounded-xl border space-y-1.5 transition-colors {
+							audited?.disposition === 'evacuated'
+								? 'bg-slate-500/5 border-slate-500/20'
+								: audited?.disposition === 'clarification_needed'
+									? 'bg-indigo-500/5 border-indigo-500/25'
+									: isCovered
+										? 'bg-emerald-500/5 border-emerald-500/25'
+										: 'bg-amber-500/5 border-amber-500/30'
+						}"
 					>
 						<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
 							<div class="flex items-center gap-2">
 								<span class="font-mono text-primary font-bold text-xs">{clause.clauseRef}</span>
 								<span class="font-semibold text-xs text-foreground">{clause.title}</span>
+								{#if audited?.category}
+									<span class="px-1.5 py-0.2 rounded bg-muted text-muted-foreground font-mono text-[9px] border">
+										{audited.category}
+									</span>
+								{/if}
 								{#if clause.criticality === 'bloquant'}
 									<span class="px-1.5 py-0.2 rounded bg-destructive/10 text-destructive text-[10px] font-bold border border-destructive/20">
 										Bloquant
@@ -546,12 +616,22 @@
 								{/if}
 							</div>
 
-							<!-- Actions d'appropriation -->
+							<!-- Actions d'appropriation & statut ArcKit -->
 							<div class="flex items-center gap-2 shrink-0">
-								{#if isCovered && parentSubject}
-									<span class="text-[10px] text-muted-foreground flex items-center gap-1">
+								{#if audited?.disposition === 'evacuated'}
+									<span class="text-[10px] text-slate-600 dark:text-slate-400 font-medium flex items-center gap-1 bg-slate-500/10 px-2 py-0.5 rounded border border-slate-500/20" title={audited.evacuationReason}>
+										<Check class="h-3 w-3 text-slate-500" />
+										Évacué : <span class="italic text-foreground/80 max-w-[200px] truncate">{audited.evacuationReason || 'Standard'}</span>
+									</span>
+								{:else if audited?.disposition === 'clarification_needed'}
+									<span class="text-[10px] text-indigo-700 dark:text-indigo-300 font-medium flex items-center gap-1 bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/20" title={audited.clarificationQuestion}>
+										<Info class="h-3 w-3 text-indigo-500" />
+										Clarification : <span class="italic text-foreground/80 max-w-[200px] truncate">{audited.clarificationQuestion}</span>
+									</span>
+								{:else if isCovered && parentSubject}
+									<span class="text-[10px] text-emerald-700 dark:text-emerald-300 font-semibold flex items-center gap-1 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">
 										<Check class="h-3 w-3 text-emerald-500" />
-										Rattaché à : <strong class="text-foreground">{parentSubject.name.slice(0, 30)}...</strong>
+										Point Dur : <strong class="text-foreground">{parentSubject.name.slice(0, 30)}...</strong>
 									</span>
 								{:else}
 									<span class="text-[10px] text-amber-600 dark:text-amber-400 font-semibold flex items-center gap-1">

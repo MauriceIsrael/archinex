@@ -436,7 +436,13 @@
 						warning={factorizationResponse.warning}
 						errorDetail={factorizationResponse.errorDetail}
 						wasCondensed={factorizationResponse.wasCondensed}
-						onConfirm={(finalSubjects) => {
+						auditReport={factorizationResponse.auditReport}
+						evacuatedCount={factorizationResponse.evacuatedCount}
+						deliberatedCount={factorizationResponse.deliberatedCount}
+						clarificationCount={factorizationResponse.clarificationCount}
+						clarifications={factorizationResponse.clarifications}
+						allAuditedRequirements={factorizationResponse.allAuditedRequirements}
+						onConfirm={(finalSubjects: InitialSubjectInput[]) => {
 							onImported({
 								document: {
 									title: documentTitle || 'Cahier des Charges (RFP)',

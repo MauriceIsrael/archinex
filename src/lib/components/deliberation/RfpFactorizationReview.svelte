@@ -238,6 +238,7 @@
 					: (rawNonAdr.length > 0 ? rawNonAdr : s.seed.initialRetenu);
 
 				return {
+					coveredClauseRefs: [...(s.coveredClauseRefs || [])],
 					sectionRef: s.sectionRef,
 					name: s.name,
 					waitingForRole: s.waitingForRole,

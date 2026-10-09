@@ -373,6 +373,11 @@ export function verifyEngagementBundle(bundle: EngagementBundle): BundleProblem[
 		});
 	});
 
+	// Les exigences auditées portent aussi un niveau d'affirmation : « affirmé » exige un humain identifié.
+	(data.requirements || []).forEach((r, i) => {
+		if (r.disposition !== undefined) claimsToCheck.push({ where: `/data/requirements/${i}`, item: r });
+	});
+
 	claimsToCheck.forEach(({ where, item }) => {
 		const status = item.epistemic_status;
 		const level = item.assertion_level;
@@ -542,6 +547,52 @@ export function verifyEngagementBundle(bundle: EngagementBundle): BundleProblem[
 			message: 'must list exactly the subjects below L3_decided and the open conflicts'
 		});
 	}
+
+	// 7 bis. Exigences auditées : chaque clause est rattachée, justifiée, et rien de bloquant n'est évacué sans humain
+	const REQ_DISPOSITIONS = ['deliberated', 'evacuated', 'clarification_needed', 'to_qualify'];
+	const subjectsOfRequirement = new Map<string, string[]>();
+	(data.subjects || []).forEach((s) => {
+		(s.requirement_ids || []).forEach((rid) => {
+			subjectsOfRequirement.set(rid, [...(subjectsOfRequirement.get(rid) || []), s.id]);
+		});
+	});
+	const requirementsWithGap = new Set((data.gaps || []).map((g) => g.requirement_id).filter(Boolean));
+
+	(data.requirements || []).forEach((r, i) => {
+		if (r.disposition === undefined) return; // dossier sans audit des exigences
+		const where = `/data/requirements/${i}`;
+		if (!REQ_DISPOSITIONS.includes(r.disposition)) {
+			out.push({ code: 'REQ_DISPOSITION', path: `${where}/disposition`, message: `'${r.disposition}' is not one of ${REQ_DISPOSITIONS.join(', ')}` });
+			return;
+		}
+		if (r.disposition === 'evacuated' && !(r.disposition_reason || '').trim()) {
+			out.push({ code: 'REQ_UNJUSTIFIED', path: where, message: 'an evacuated requirement needs a disposition_reason' });
+		}
+		if (r.disposition === 'clarification_needed' && !(r.clarification_question || '').trim()) {
+			out.push({ code: 'REQ_UNJUSTIFIED', path: where, message: 'a requirement to clarify needs a clarification_question' });
+		}
+		if (r.disposition === 'evacuated' && r.criticality === 'bloquant' && r.assertion_level !== 'asserted') {
+			out.push({
+				code: 'REQ_BLOCKING_EVACUATED',
+				path: where,
+				message: 'a blocking requirement cannot be evacuated unless a human decided it (assertion_level asserted)'
+			});
+		}
+		const linked = subjectsOfRequirement.get(r.id) || [];
+		if (r.disposition === 'deliberated' && linked.length === 0) {
+			out.push({ code: 'REQ_UNCOVERED', path: where, message: 'a requirement to deliberate must belong to at least one subject' });
+		}
+		if (r.disposition !== 'deliberated' && linked.length > 0) {
+			out.push({
+				code: 'REQ_NOT_DELIBERATED',
+				path: where,
+				message: `listed by subject(s) ${linked.join(', ')} but its disposition is '${r.disposition}'`
+			});
+		}
+		if ((r.disposition === 'to_qualify' || r.disposition === 'clarification_needed') && !requirementsWithGap.has(r.id)) {
+			out.push({ code: 'REQ_NO_GAP', path: where, message: 'an unresolved requirement must be listed in data.gaps so no generator can miss it' });
+		}
+	});
 
 	// 8. Vie privée : aucun e-mail
 	const allStrings = walkStrings(bundle);

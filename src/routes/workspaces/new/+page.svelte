@@ -11,6 +11,7 @@
 		type InitialSubjectInput
 	} from '$lib/domain/engagements';
 	import type { ArchitectRole } from '$lib/types/epistemic';
+	import type { RequirementAuditInput } from '$lib/domain/requirementAudit';
 	import InviteExpertDialog from '$lib/components/deliberation/InviteExpertDialog.svelte';
 	import RfpConfrontationDialog from '$lib/components/deliberation/RfpConfrontationDialog.svelte';
 	import {
@@ -42,12 +43,27 @@
 	function handleRfpImported(result: {
 		document: UpstreamDocInput;
 		initialSubjects: InitialSubjectInput[];
+		requirementAudit?: RequirementAuditInput;
 	}) {
 		upstreamDocs = [...upstreamDocs, result.document];
 		if (result.initialSubjects && result.initialSubjects.length > 0) {
 			initialSubjects = [...initialSubjects, ...result.initialSubjects];
 		}
+		if (result.requirementAudit) {
+			if (!requirementAudit) {
+				requirementAudit = result.requirementAudit;
+			} else if (requirementAudit.source.sha256 !== result.requirementAudit.source.sha256) {
+				// Une seule source auditée par création de projet : on le dit, on ne l'écrase pas en silence.
+				deliberationStore.logNotification(
+					"Un seul RFP audité peut être rattaché à la création d'un projet : le second sera à importer depuis le projet.",
+					'warning'
+				);
+			}
+		}
 	}
+
+	/** Audit des exigences du RFP importé, persisté avec le projet pour alimenter le dossier scellé. */
+	let requirementAudit = $state<RequirementAuditInput | undefined>(undefined);
 
 	// Étape 1 : Cadrage
 	let title = $state('');
@@ -255,7 +271,8 @@
 			participants,
 			upstreamDocuments: upstreamDocs,
 			linkedStandardIds: selectedStandards,
-			initialSubjects
+			initialSubjects,
+			requirementAudit
 		};
 
 		deliberationStore.createNewWorkspace(payload);

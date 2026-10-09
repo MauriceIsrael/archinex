@@ -3,6 +3,7 @@ import type { TelegraphicDraft } from '$lib/domain/telegraphic';
 import type { Statement, ArchitectRole, MaturityLevel } from '$lib/types/epistemic';
 import type { CorpusDocument, DocumentCategory } from '$lib/domain/corpus';
 import type { DialogueMessage } from '$lib/domain/dialectic';
+import { requirementBundleId, type RequirementAuditInput } from './requirementAudit';
 
 export type EngagementType =
 	| 'generic_blueprint'
@@ -51,6 +52,15 @@ export interface EngagementProfile {
 // MINI-APP : TYPES, PRÉSETS ET GÉNÉRATEUR D'ESPACE DE TRAVAIL (PROJET)
 // ─────────────────────────────────────────────────────────────────────────────
 
+/** Identifiants dossier-scellé des clauses couvertes par un sujet, quand un audit accompagne l'import. */
+export function requirementIdsOf(
+	subject: Pick<InitialSubjectInput, 'coveredClauseRefs'>,
+	audit?: RequirementAuditInput
+): { requirement_ids: string[] } | Record<string, never> {
+	if (!audit || !subject.coveredClauseRefs || subject.coveredClauseRefs.length === 0) return {};
+	return { requirement_ids: subject.coveredClauseRefs.map((ref) => requirementBundleId(audit.source.sha256, ref)) };
+}
+
 export interface UpstreamDocInput {
 	id?: string;
 	title: string;
@@ -72,6 +82,8 @@ export interface UpstreamDocInput {
 
 export interface InitialSubjectInput {
 	id?: string;
+	/** Références de clauses du RFP couvertes par ce sujet (issues de l'audit, confirmées à la revue). */
+	coveredClauseRefs?: string[];
 	sectionRef?: string;
 	name: string;
 	level?: MaturityLevel;
@@ -96,6 +108,8 @@ export interface WorkspaceCreationInput {
 	upstreamDocuments?: UpstreamDocInput[];
 	linkedStandardIds?: string[];
 	initialSubjects?: InitialSubjectInput[];
+	/** Audit des exigences du RFP importé : persisté avec le projet pour alimenter le dossier scellé. */
+	requirementAudit?: RequirementAuditInput;
 }
 
 export const DEFAULT_PARTICIPANTS: ProjectParticipant[] = [
@@ -428,7 +442,8 @@ export function buildEngagementProfileFromWorkspaceInput(
 			last_transition_date: new Date().toISOString(),
 			stall_days: 0,
 			is_stalled: false,
-			dependent_subject_ids: []
+			dependent_subject_ids: [],
+			...requirementIdsOf(sInput, input.requirementAudit)
 		});
 
 		drafts[sId] = {

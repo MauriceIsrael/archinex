@@ -8,13 +8,33 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Dossier scellé déterministe, avec les exigences du RFP
+- L'audit clause par clause est désormais **enregistré** (tables `RequirementSource` / `Requirement`) au lieu d'être
+  perdu à la confirmation de l'import. La proposition du modèle et la décision humaine sont deux jeux de colonnes
+  distincts : un nouvel audit ne touche jamais une décision humaine.
+- Le dossier d'engagement scellé contient les exigences (état, motif, niveau d'assertion `asserted`/`proposed`/`open`,
+  auteur, date), leur rattachement aux sujets, et les lacunes correspondantes (clause à qualifier ou à clarifier).
+- Assemblage réécrit comme fonction pure (`bundleAssembly.ts`) : même état stocké, mêmes octets scellés, quelle que
+  soit l'heure d'export ou l'ordre des lignes en base. Plus de sujet « par défaut » ni de décision inventée ; un sujet
+  n'est « décidé » que s'il existe une décision enregistrée ; une incohérence devient une lacune visible.
+- Le vérificateur contrôle aussi les exigences (motif obligatoire pour une évacuation, clause bloquante jamais
+  évacuée, clause à délibérer portée par un sujet, clause à clarifier ou à qualifier signalée par une lacune).
+- Preuve de la chaîne « JSON scellé → document » : `renderTraceabilityMatrix` produit la matrice de traçabilité à
+  partir du seul dossier, refuse un dossier altéré ou incohérent, et donne le même texte pour le même sceau.
+- API : `POST/GET /api/projects/{id}/requirements`, `PATCH /api/projects/{id}/requirements/{SRC-xxxx:clause}`
+  (l'auteur est celui de la session).
+- Correctif : `sanitizeHandle` est idempotent (un handle `@nom` n'était plus reconnu et devenait `@lead-architect`).
+- Extension additive du contrat (`schemaVersion` inchangé) : champs optionnels sur `requirements[]`. À valider contre
+  le schéma de la suite avant publication vers le Hub.
+- Limite connue : le chemin d'export délégué au Hub (projet basculé) n'est pas étendu ; la décision humaine clause
+  par clause n'a pas encore d'écran (API seulement).
 ### Rapport d'audit lisible et protocole du jalon J0
 - Rapport Markdown de l'audit : pourquoi ces sujets (tension relevée sur chaque clause), ce que devient chaque autre
   clause, ce qu'il faut relire en priorité, comparaison avec une référence. Chaque clause y figure exactement une fois.
   Disponible par `--report` (ligne de commande) et par un bouton de téléchargement dans l'écran de revue.
 - L'écran de revue affiche « Pourquoi à délibérer » sur chaque clause retenue.
 - Protocole pas à pas du jalon J0 (`docs/jalon-j0.md`) et modèle de fichier de référence (`examples/reference-template.json`).
-- Limite connue, documentée : l'état des clauses non retenues n'est pas conservé après la confirmation de l'import.
+- L'état des clauses non retenues est conservé après la confirmation de l'import (voir ci-dessus).
 
 ### Plus aucune donnée de démonstration ni de repli fabriqué
 - Le client LLMOps ne connaît plus aucun projet et ne lit plus de fixtures du dossier `tests/` : si LLMOps est

@@ -1,23 +1,9 @@
 import { prisma } from '$lib/server/prisma';
-import {
-	buildEngagementBundle,
-	type EngagementBundle,
-	type ConfidentialityLevel,
-	type BundleSubject,
-	type BundleDecision,
-	type BundleStatement,
-	type BundleConflict,
-	type BundleCompliance,
-	type BundleGap,
-	type KbReference,
-	type ReuseLogEntry,
-	type GlossaryTerm
-} from '$lib/domain/engagementBundle';
-import {
-	verifyEngagementBundle,
-	type BundleProblem
-} from '$lib/domain/bundleVerifier';
+import type { EngagementBundle, ConfidentialityLevel } from '$lib/domain/engagementBundle';
+import { verifyEngagementBundle } from '$lib/domain/bundleVerifier';
+import { assembleEngagementBundle, sanitizeHandle, type AssemblyInput } from '$lib/domain/bundleAssembly';
 import type { SnapshotRef } from '$lib/domain/freezeExport';
+import { listRequirementSources, toAssemblySources } from '$lib/server/projects/requirementsDb';
 
 export interface ExportBundleResult {
 	bundle: EngagementBundle;
@@ -32,12 +18,6 @@ export interface ExportBundleOptions {
 	now?: Date;
 }
 
-function sanitizeHandle(handleOrEmail: string): string {
-	const stripped = handleOrEmail.split('@')[0].trim();
-	const slug = stripped.toLowerCase().replace(/[^a-z0-9_-]/g, '-');
-	return `@${slug || 'lead-architect'}`;
-}
-
 /**
  * Service serveur pour exporter et sceller un dossier d'engagement (Lots A16-A17).
  */
@@ -50,178 +30,71 @@ export async function exportEngagementBundle(
 		);
 	}
 
-	// 1. Récupération des données du projet ou de l'engagement
+	// 1. Lecture de l'état stocké (aucune interprétation ici : l'assemblage est une fonction pure)
 	const project = await prisma.project.findUnique({
 		where: { id: options.projectId },
 		include: {
-			subjects: {
-				include: {
-					decision: true,
-					questions: true,
-					options: true
-				}
-			},
-			statements: true,
-			frameworks: true
+			subjects: { include: { decision: true, questions: true, options: true } },
+			statements: true
 		}
 	});
 
-	let engagementRecord = null;
-	if (!project) {
-		engagementRecord = await prisma.engagement.findUnique({
-			where: { id: options.projectId }
-		});
+	let title: string;
+	if (project) {
+		title = project.title;
+	} else {
+		const engagementRecord = await prisma.engagement.findUnique({ where: { id: options.projectId } });
 		if (!engagementRecord) {
 			throw new Error(`NOT_FOUND: Projet ou engagement '${options.projectId}' introuvable.`);
 		}
+		title = engagementRecord.title;
 	}
 
-	const title = project?.title ?? engagementRecord?.title ?? options.projectId;
-	const createdAt = (options.now ?? new Date()).toISOString();
+	const sources = project ? await listRequirementSources(project.id) : [];
+	const now = options.now ?? new Date();
 	const actorHandle = sanitizeHandle(options.actorHandle);
 
-	// 2. Mapping des sujets et décisions
-	const rawSubjects = project?.subjects ?? [];
-	const rawStatements = project?.statements ?? [];
-
-	const kbRefsMap = new Map<string, KbReference>();
-
-	const subjects: BundleSubject[] = [];
-	const decisions: BundleDecision[] = [];
-	const statements: BundleStatement[] = [];
-	const compliance: BundleCompliance[] = [];
-	const gaps: BundleGap[] = [];
-	const conflicts: BundleConflict[] = [];
-	const reuseLog: ReuseLogEntry[] = [];
-	const glossary: GlossaryTerm[] = [];
-
-	rawSubjects.forEach((sub, i) => {
-		const subjId = sub.id || `SUBJ-${i + 1}`;
-		const decId = sub.decision?.id || `DEC-${subjId}`;
-
-		// Maturité conforme à la suite (L0_named..L4_specified)
-		let maturity = sub.maturityLevel || 'L0_named';
-		if (maturity === 'L5_archived') {
-			maturity = 'L4_specified';
-		}
-
-		const isDecided = sub.deliberationStatus === 'arbitrated' || maturity === 'L3_decided' || maturity === 'L4_specified';
-		const subStatus = isDecided ? ('decided' as const) : ('open' as const);
-
-		subjects.push({
-			id: subjId,
-			title: sub.name,
-			domains: [sub.domain || 'architecture'],
-			maturity,
-			status: subStatus,
-			requirement_ids: [],
-			decision_ids: [decId]
-		});
-
-		// Décision
-		const isHumanAsserted = isDecided;
-		const decisionText = sub.decision?.rationale || `Décision validée pour le sujet ${sub.name}`;
-		decisions.push({
-			id: decId,
-			subject_id: subjId,
-			status: isHumanAsserted ? 'validated' : 'proposed',
-			epistemic_status: isHumanAsserted ? 'validated' : 'ai_proposed',
-			assertion_level: isHumanAsserted ? 'asserted' : 'proposed',
-			decision: decisionText,
-			justification: sub.decision?.rationale || 'Délibération et consensus atteints.',
-			provenance: {
-				basis: isHumanAsserted ? 'human_validation' : 'ai_proposal',
-				by: [actorHandle],
-				at: createdAt
-			}
-		});
-
-		// Questions ouvertes non résolues -> Gaps
-		sub.questions?.forEach((q) => {
-			if (q.status === 'open') {
-				gaps.push({
-					id: `GAP-${q.id}`,
-					code: 'G2_unanswered_blocking',
-					subject_id: subjId,
-					description: q.text,
-					blocking: q.blocking
-				});
-			}
-		});
-	});
-
-	// Statements
-	rawStatements.forEach((st, i) => {
-		const stId = st.id || `ST-${i + 1}`;
-		const isHuman = st.productionMode === 'human-authored';
-		const subjectId = st.subjectId || subjects[0]?.id || 'SUBJ-1';
-
-		statements.push({
-			id: stId,
-			subject_id: subjectId,
-			epistemic_status: isHuman ? 'validated' : 'ai_proposed',
-			assertion_level: isHuman ? 'asserted' : 'proposed',
-			text: `${st.subjectRef} ${st.predicate} ${st.value}${st.unit ? ' ' + st.unit : ''}`,
-			property: st.predicate,
+	// 2. Assemblage déterministe du dossier (même état stocké = même sceau)
+	const input: AssemblyInput = {
+		project: { id: options.projectId, title },
+		confidentiality: options.confidentiality,
+		sourceRevision: options.sourceRevision,
+		now,
+		sources: toAssemblySources(sources),
+		subjects: (project?.subjects ?? []).map((s) => ({
+			id: s.id,
+			sectionRef: s.sectionRef,
+			name: s.name,
+			domain: s.domain,
+			maturityLevel: s.maturityLevel,
+			requirementRefs: parseJsonArray<string>(s.requirementRefs),
+			decision: s.decision
+				? {
+						id: s.decision.id,
+						retainedOptionId: s.decision.retainedOptionId,
+						rejected: parseJsonArray<{ optionId: string; reason: string }>(s.decision.rejected),
+						rationale: s.decision.rationale,
+						arbiterId: s.decision.arbiterId,
+						decidedAt: s.decision.decidedAt
+					}
+				: null,
+			options: s.options.map((o) => ({ id: o.id, title: o.title })),
+			questions: s.questions.map((q) => ({ id: q.id, text: q.text, blocking: q.blocking, status: q.status }))
+		})),
+		statements: (project?.statements ?? []).map((st) => ({
+			id: st.id,
+			subjectId: st.subjectId,
+			subjectRef: st.subjectRef,
+			predicate: st.predicate,
 			value: st.value,
-			provenance: {
-				basis: isHuman ? 'human_validation' : 'ai_proposal',
-				by: [actorHandle],
-				at: createdAt
-			}
-		});
-	});
+			unit: st.unit,
+			productionMode: st.productionMode,
+			author: st.author,
+			createdAt: st.createdAt
+		}))
+	};
 
-	// Si aucun sujet dans la DB, fournir au moins un sujet valide pour le bundle
-	if (subjects.length === 0) {
-		const defaultSubjId = 'SUBJ-core-01';
-		const defaultDecId = 'DEC-core-01';
-		subjects.push({
-			id: defaultSubjId,
-			title: 'Architecture générale de la plateforme',
-			domains: ['core-architecture'],
-			maturity: 'L3_decided',
-			status: 'decided',
-			requirement_ids: [],
-			decision_ids: [defaultDecId]
-		});
-		decisions.push({
-			id: defaultDecId,
-			subject_id: defaultSubjId,
-			status: 'validated',
-			epistemic_status: 'validated',
-			assertion_level: 'asserted',
-			decision: 'Validation du socle architectural général.',
-			justification: 'Validation officielle par le Lead Architect.',
-			provenance: {
-				basis: 'human_validation',
-				by: [actorHandle],
-				at: createdAt
-			}
-		});
-	}
-
-	// 3. Construction du bundle
-	const bundle = buildEngagementBundle({
-		engagement: {
-			id: options.projectId,
-			title,
-			language: 'fr',
-			confidentiality: options.confidentiality,
-			client_label: title
-		},
-		subjects,
-		decisions,
-		statements,
-		conflicts,
-		compliance,
-		gaps,
-		kbReferences: Array.from(kbRefsMap.values()),
-		reuseLog,
-		glossary,
-		sourceRevision: options.sourceRevision ?? 'main',
-		createdAt
-	});
+	const bundle = assembleEngagementBundle(input);
 
 	// 4. Vérification stricte
 	const problems = verifyEngagementBundle(bundle);
@@ -264,4 +137,13 @@ export async function exportEngagementBundle(
 	};
 
 	return { bundle, snapshotRef };
+}
+
+function parseJsonArray<T>(raw: string | null | undefined): T[] {
+	try {
+		const v = JSON.parse(raw || '[]');
+		return Array.isArray(v) ? (v as T[]) : [];
+	} catch {
+		return [];
+	}
 }

@@ -99,7 +99,8 @@ Le piège à éviter : trouver l'outil « intéressant » et continuer sans chif
 
 ## Et les clauses qui ne deviennent pas des sujets ?
 
-L'import ne conserve aujourd'hui **que les sujets retenus et le texte de toutes les clauses**. L'état et le motif de chaque autre clause (évacuée, à qualifier, à clarifier) ne sont **pas enregistrés** une fois l'import confirmé. En attendant que ce soit persisté :
-- téléchargez le rapport d'audit depuis l'écran de revue (« Télécharger le rapport d'audit ») avant de confirmer, ou générez-le avec `--report` ;
-- conservez-le avec le projet : c'est la trace de ce qui n'a pas été débattu et pourquoi ;
-- une clause évacuée à tort se récupère à l'écran de revue par « Promouvoir en Sujet Archi ».
+À la confirmation de l'import, l'état de **chaque** clause est enregistré avec le projet : la proposition du modèle (disposition, motif, modèle, date) et, séparément, ce que vous avez confirmé. Les sujets retenus portent la liste des clauses qu'ils couvrent.
+- le dossier scellé les exporte (`requirements[]` : état, motif, niveau `asserted`/`proposed`/`open`, auteur, date), avec une lacune pour chaque clause « à qualifier » ou « à clarifier » ;
+- le rapport d'audit reste utile pour relire : « Télécharger le rapport d'audit », ou `--report` en ligne de commande ;
+- une clause évacuée à tort se récupère à l'écran de revue par « Promouvoir en Sujet Archi », ou plus tard par `PATCH /api/projects/{id}/requirements/{SRC-xxxx:clause}` (pas encore d'écran dédié) ;
+- seule la décision d'un humain identifié rend une clause `asserted` dans le dossier ; une évacuation décidée exige un motif.

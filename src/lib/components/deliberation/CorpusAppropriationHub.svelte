@@ -1,4 +1,6 @@
 <script lang="ts">
+	import { requirementIdsOf } from '$lib/domain/engagements';
+	import type { RequirementAuditInput } from '$lib/domain/requirementAudit';
 	import { deliberationStore } from '$lib/stores/deliberationStore.svelte';
 	import {
 		filterCorpusDocuments,
@@ -43,6 +45,7 @@
 	function handleRfpImportedInCorpus(result: {
 		document: UpstreamDocInput;
 		initialSubjects: InitialSubjectInput[];
+		requirementAudit?: RequirementAuditInput;
 	}) {
 		deliberationStore.addContributorDocument({
 			id: result.document.id,
@@ -66,8 +69,18 @@
 
 		if (result.initialSubjects && result.initialSubjects.length > 0) {
 			for (const subj of result.initialSubjects) {
-				deliberationStore.addMaturitySubject(subj);
+				deliberationStore.addMaturitySubject({
+					...subj,
+					requirementIds: requirementIdsOf(subj, result.requirementAudit).requirement_ids
+				});
 			}
+		}
+
+		// Projet déjà persisté : on enregistre l'audit, puis on synchronise les sujets (qui portent leurs clauses).
+		if (result.requirementAudit) {
+			const audit = result.requirementAudit;
+			const projectId = deliberationStore.activeEngagementId;
+			void deliberationStore.persistRequirementAudit(projectId, audit).then(() => deliberationStore.persistCustomState());
 		}
 	}
 

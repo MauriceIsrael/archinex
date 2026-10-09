@@ -1,4 +1,5 @@
 import { untrack } from 'svelte';
+import type { RequirementAuditInput } from '$lib/domain/requirementAudit';
 import type { MaturityLevel, ArchitectRole, Statement } from '$lib/types/epistemic';
 import type { TelegraphicDraft } from '$lib/domain/telegraphic';
 import {
@@ -260,8 +261,15 @@ class DeliberationStore {
 		// 3. Basculer immédiatement sur ce nouvel espace de travail
 		this.switchEngagement(engagement.id);
 
-		// 4. Sauvegarder dans le stockage persistant local
-		this.persistCustomState();
+		// 4. Sauvegarder côté serveur ; l'audit des exigences ne part qu'après la création du projet
+		const persisted = this.persistCustomState();
+		if (input.requirementAudit) {
+			const audit = input.requirementAudit;
+			void persisted.then((ok) => {
+				if (ok) return this.persistRequirementAudit(engagement.id, audit);
+				this.logNotification(`Projet non enregistré : l'audit des exigences n'a pas été envoyé.`, 'warning');
+			});
+		}
 
 		this.logNotification(
 			`Nouvel espace de travail initialisé : "${engagement.title}" (${newUpstreamDocuments.length} doc(s) amont(s) versés au patrimoine commun)`,
@@ -314,22 +322,49 @@ class DeliberationStore {
 	/**
 	 * Persiste l'état de l'espace de travail sur le serveur centralisé
 	 */
-	persistCustomState() {
-		if (typeof window === 'undefined') return;
+	persistCustomState(): Promise<boolean> {
+		if (typeof window === 'undefined' || !window.fetch) return Promise.resolve(false);
+		const activeProfile = this.activeEngagement;
+		if (!activeProfile) return Promise.resolve(false);
+		// Persistance asynchrone centralisée dans Prisma SQLite
+		return window
+			.fetch('/api/engagements', {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ engagement: $state.snapshot(activeProfile) })
+			})
+			.then((res) => res.ok)
+			.catch((err) => {
+				console.warn('[Archinex] Sync Prisma en arrière-plan non disponible:', err);
+				return false;
+			});
+	}
+
+	/**
+	 * Enregistre l'audit des exigences d'un RFP importé. À appeler une fois le projet persisté
+	 * (la ligne Project est créée par /api/engagements). Un échec est signalé, jamais masqué :
+	 * sans audit enregistré, le dossier scellé ne contiendrait pas les exigences.
+	 */
+	async persistRequirementAudit(projectId: string, audit: RequirementAuditInput): Promise<boolean> {
+		if (typeof window === 'undefined') return false;
 		try {
-			// Persistance asynchrone centralisée dans Prisma SQLite
-			if (window.fetch) {
-				const activeProfile = this.activeEngagement;
-				if (activeProfile) {
-					window.fetch('/api/engagements', {
-						method: 'POST',
-						headers: { 'Content-Type': 'application/json' },
-						body: JSON.stringify({ engagement: $state.snapshot(activeProfile) })
-					}).catch((err) => console.warn('[Archinex] Sync Prisma en arrière-plan non disponible:', err));
-				}
+			const res = await window.fetch(`/api/projects/${encodeURIComponent(projectId)}/requirements`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify(audit)
+			});
+			if (!res.ok) {
+				const detail = await res.json().catch(() => ({}));
+				this.logNotification(
+					`Audit des exigences non enregistré (${res.status}) : ${detail.error ?? 'erreur serveur'}. Le dossier scellé n'inclura pas les clauses.`,
+					'warning'
+				);
+				return false;
 			}
+			return true;
 		} catch (err) {
-			console.warn('[Archinex] Échec de la persistance serveur:', err);
+			this.logNotification(`Audit des exigences non enregistré : ${err instanceof Error ? err.message : String(err)}`, 'warning');
+			return false;
 		}
 	}
 
@@ -649,6 +684,8 @@ class DeliberationStore {
 		initialQuestion?: string;
 		parentSubjectId?: string;
 		parentSubjectName?: string;
+		/** Identifiants dossier-scellé des exigences portées par ce sujet (`SRC-xxxx:clause`). */
+		requirementIds?: string[];
 	}): MaturitySubject {
 		const newId = `sub_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
 		const sectionRef = input.sectionRef || `§${this.subjects.length + 1}.0`;
@@ -668,7 +705,8 @@ class DeliberationStore {
 			is_stalled: false,
 			dependent_subject_ids: [],
 			parent_subject_id: input.parentSubjectId,
-			parent_subject_name: input.parentSubjectName
+			parent_subject_name: input.parentSubjectName,
+			...(input.requirementIds && input.requirementIds.length > 0 ? { requirement_ids: input.requirementIds } : {})
 		};
 
 		this.subjects.push(newSubject);

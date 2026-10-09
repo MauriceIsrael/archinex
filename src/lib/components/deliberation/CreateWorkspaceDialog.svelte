@@ -10,6 +10,7 @@
 		type InitialSubjectInput
 	} from '$lib/domain/engagements';
 	import type { ArchitectRole } from '$lib/types/epistemic';
+	import type { RequirementAuditInput } from '$lib/domain/requirementAudit';
 	import type { DocumentCategory } from '$lib/domain/corpus';
 	import InviteExpertDialog from '$lib/components/deliberation/InviteExpertDialog.svelte';
 	import RfpConfrontationDialog from '$lib/components/deliberation/RfpConfrontationDialog.svelte';
@@ -50,12 +51,17 @@
 	function handleRfpImported(result: {
 		document: UpstreamDocInput;
 		initialSubjects: InitialSubjectInput[];
+		requirementAudit?: RequirementAuditInput;
 	}) {
+		requirementAudit = result.requirementAudit;
 		upstreamDocs = [result.document];
 		if (result.initialSubjects && result.initialSubjects.length > 0) {
 			initialSubjects = result.initialSubjects;
 		}
 	}
+
+	/** Audit des exigences du RFP importé, persisté avec le projet pour alimenter le dossier scellé. */
+	let requirementAudit = $state<RequirementAuditInput | undefined>(undefined);
 
 	// Form State
 	let title = $state('');
@@ -265,7 +271,8 @@
 			participants,
 			upstreamDocuments: upstreamDocs,
 			linkedStandardIds: selectedStandards,
-			initialSubjects
+			initialSubjects,
+			requirementAudit
 		};
 
 		deliberationStore.createNewWorkspace(payload);

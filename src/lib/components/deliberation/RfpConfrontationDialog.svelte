@@ -8,6 +8,7 @@
 		type ClauseConfrontation
 	} from '$lib/domain/rfpConfrontation';
 	import type { UpstreamDocInput, InitialSubjectInput } from '$lib/domain/engagements';
+	import { buildRequirementAudit, type RequirementAuditInput } from '$lib/domain/requirementAudit';
 	import type { LocalLlmModel, RfpFactorizationResponse } from '$lib/domain/factorization';
 	import RfpFactorizationReview from './RfpFactorizationReview.svelte';
 	import ReuseConfirmationModal from '$lib/components/kb/ReuseConfirmationModal.svelte';
@@ -41,6 +42,8 @@
 		onImported: (result: {
 			document: UpstreamDocInput;
 			initialSubjects: InitialSubjectInput[];
+			/** Présent uniquement quand l'audit des exigences a réellement tourné (jamais fabriqué). */
+			requirementAudit?: RequirementAuditInput;
 		}) => void;
 		actorEmail?: string;
 	}
@@ -84,6 +87,24 @@
 	// Factorisation sémantique par LLM Local Souverain
 	let isFactorizing = $state<boolean>(false);
 	let factorizationResponse = $state<RfpFactorizationResponse | null>(null);
+	let auditReceivedAt = $state<string>('');
+
+	/** Audit à persister : seulement si le pipeline d'audit a produit les dispositions clause par clause. */
+	function buildAuditForImport(finalSubjects: InitialSubjectInput[]): RequirementAuditInput | undefined {
+		const resp = factorizationResponse;
+		if (!resp || resp.engine !== 'arckit-requirements-audit') return undefined;
+		const audited = resp.allAuditedRequirements ?? [];
+		if (audited.length === 0) return undefined;
+		return buildRequirementAudit({
+			sourceText: rfpText,
+			sourceTitle: documentTitle || 'Cahier des Charges (RFP)',
+			sourceVersion: documentVersion || 'v1.0',
+			model: resp.modelUsed,
+			auditedAt: auditReceivedAt || new Date().toISOString(),
+			reviewed: audited,
+			confirmedDeliberated: finalSubjects.flatMap((s) => s.coveredClauseRefs ?? [])
+		});
+	}
 	let factorizationError = $state<string | null>(null);
 
 	// Modèles et configuration locale (LLM Local)
@@ -259,6 +280,7 @@
 
 			const data: RfpFactorizationResponse = await res.json();
 			factorizationResponse = data;
+			auditReceivedAt = new Date().toISOString();
 		} catch (err: unknown) {
 			factorizationError = err instanceof Error ? err.message : 'Échec de la factorisation';
 		} finally {
@@ -454,7 +476,8 @@
 									summary: factorizationResponse?.summary || 'Synthèse RFP',
 									clauses: shredRfpTextToClauses(rfpText)
 								},
-								initialSubjects: finalSubjects
+								initialSubjects: finalSubjects,
+								requirementAudit: buildAuditForImport(finalSubjects)
 							});
 							onclose();
 						}}

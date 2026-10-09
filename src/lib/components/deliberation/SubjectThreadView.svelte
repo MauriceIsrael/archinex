@@ -42,7 +42,8 @@
 		CheckCircle2,
 		ChevronDown,
 		Scissors,
-		Gavel
+		Gavel,
+		RefreshCw
 	} from 'lucide-svelte';
 
 	let {
@@ -641,6 +642,39 @@
 			</div>
 
 			<div class="flex items-center gap-1.5 flex-wrap">
+				<!-- Indicateur d'état LLMOps -->
+				{#if deliberationStore.llmopsStatus === 'connected'}
+					<button
+						type="button"
+						onclick={() => deliberationStore.syncWithLLMOps()}
+						disabled={deliberationStore.isSyncingLLMOps}
+						class="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg border text-xs font-medium bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/20 transition-colors cursor-pointer"
+						title="Connecté au Knowledge Hub GCP Cloud Run ({deliberationStore.activeEngagementId}) · Cliquez pour resynchroniser"
+					>
+						<span class="inline-block h-2 w-2 rounded-full bg-emerald-500"></span>
+						<span class="opacity-80">LLMOps :</span>
+						<strong class="font-mono">En ligne</strong>
+						{#if deliberationStore.isSyncingLLMOps}
+							<RefreshCw class="h-3 w-3 animate-spin ml-0.5" />
+						{/if}
+					</button>
+				{:else}
+					<button
+						type="button"
+						onclick={() => deliberationStore.syncWithLLMOps()}
+						disabled={deliberationStore.isSyncingLLMOps}
+						class="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg border text-xs font-medium bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-500/30 hover:bg-rose-500/20 transition-colors cursor-pointer"
+						title="Non connecté à une instance LLMOps : aucune synchronisation distante active. Archinex fonctionne en mode local autonome. Cliquez pour tester la connexion."
+					>
+						<span class="inline-block h-2 w-2 rounded-full bg-rose-500"></span>
+						<span class="opacity-80">LLMOps :</span>
+						<strong class="font-mono">Non connecté</strong>
+						{#if deliberationStore.isSyncingLLMOps}
+							<RefreshCw class="h-3 w-3 animate-spin ml-0.5" />
+						{/if}
+					</button>
+				{/if}
+
 				<!-- Menu compact Solliciter un agent (A31) -->
 				<div class="relative">
 					<button

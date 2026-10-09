@@ -495,11 +495,13 @@ export class LLMOpsClient {
       // Fallback
     }
 
+    const isTestEnv = process.env.NODE_ENV === 'test' || Boolean(process.env.VITEST);
     const isDemo =
-      !engagement ||
-      engagement === 'cctp-mcx-nordwave' ||
-      engagement === 'nordwave-mcx-2027' ||
-      engagement === 'suse-telco-cloud-generic';
+      isTestEnv &&
+      (!engagement ||
+        engagement === 'cctp-mcx-nordwave' ||
+        engagement === 'nordwave-mcx-2027' ||
+        engagement === 'suse-telco-cloud-generic');
 
     const bundle = this.loadOfflineBundle();
     return { data: isDemo ? bundle.board : [], source: 'offline-fallback' };
@@ -529,11 +531,13 @@ export class LLMOpsClient {
       // Fallback
     }
 
+    const isTestEnv = process.env.NODE_ENV === 'test' || Boolean(process.env.VITEST);
     const isDemo =
-      !engagement ||
-      engagement === 'cctp-mcx-nordwave' ||
-      engagement === 'nordwave-mcx-2027' ||
-      engagement === 'suse-telco-cloud-generic';
+      isTestEnv &&
+      (!engagement ||
+        engagement === 'cctp-mcx-nordwave' ||
+        engagement === 'nordwave-mcx-2027' ||
+        engagement === 'suse-telco-cloud-generic');
 
     const bundle = this.loadOfflineBundle();
     let stmts = isDemo ? bundle.statements : [];
@@ -564,11 +568,13 @@ export class LLMOpsClient {
       // Fallback
     }
 
+    const isTestEnv = process.env.NODE_ENV === 'test' || Boolean(process.env.VITEST);
     const isDemo =
-      !engagement ||
-      engagement === 'cctp-mcx-nordwave' ||
-      engagement === 'nordwave-mcx-2027' ||
-      engagement === 'suse-telco-cloud-generic';
+      isTestEnv &&
+      (!engagement ||
+        engagement === 'cctp-mcx-nordwave' ||
+        engagement === 'nordwave-mcx-2027' ||
+        engagement === 'suse-telco-cloud-generic');
 
     const bundle = this.loadOfflineBundle();
     return { data: isDemo ? bundle.conflicts : [], source: 'offline-fallback' };
@@ -3474,11 +3480,13 @@ export class LLMOpsClient {
     // Fast-fail health check : si Cloud Run / serveur est injoignable, on bascule immédiatement en local sans attendre
     const healthRes = await this.getHealth();
     if (healthRes.source !== 'live') {
+      const isTestEnv = process.env.NODE_ENV === 'test' || Boolean(process.env.VITEST);
       const isDemo =
-        !localEng ||
-        localEng === 'cctp-mcx-nordwave' ||
-        localEng === 'nordwave-mcx-2027' ||
-        localEng === 'suse-telco-cloud-generic';
+        isTestEnv &&
+        (!localEng ||
+          localEng === 'cctp-mcx-nordwave' ||
+          localEng === 'nordwave-mcx-2027' ||
+          localEng === 'suse-telco-cloud-generic');
 
       const bundle = this.loadOfflineBundle();
       return {

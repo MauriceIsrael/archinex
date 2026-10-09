@@ -290,6 +290,10 @@ export class LocalLlmClient {
 			this.hasAnthropicConfigured() &&
 			(this.provider === 'anthropic' || isClaude || (this.provider === 'auto' && this.defaultModel.toLowerCase().startsWith('claude')));
 
+		console.log(
+			`🤖 [LLM Client] Requête chat -> Modèle : "${targetModel}" | Fournisseur : ${useAnthropic ? 'Anthropic Claude Cloud' : `Local Ollama (${this.endpoint})`}`
+		);
+
 		if (useAnthropic) {
 			return this.chatAnthropic(options, targetModel);
 		}
@@ -298,9 +302,10 @@ export class LocalLlmClient {
 	}
 
 	/**
-	 * Appel API Anthropic Messages (Claude 3.5 / 3.7)
+	 * Appel API Anthropic Messages (Claude 3.5 / 3.7 / 4.x / 5.x)
 	 */
 	private async chatAnthropic(options: ChatOptions, model: string): Promise<string> {
+		const startTime = Date.now();
 		const timeout = options.timeoutMs || this.timeoutMs;
 		const controller = new AbortController();
 		const timer = setTimeout(() => controller.abort(), timeout);
@@ -355,8 +360,8 @@ export class LocalLlmClient {
 				max_tokens: options.maxTokens || 4096
 			};
 
-			// Ne pas inclure temperature pour les modèles qui l'ont dépréciée (Claude 5.x, 4.7+, etc.)
-			const isTempDeprecated = /claude-(?:(?:haiku|sonnet|opus|fable)-5|opus-4-[78])/i.test(resolvedModel);
+			// Ne pas inclure temperature pour les modèles récents ou qui l'ont dépréciée (Claude 4.x, 5.x, etc.)
+			const isTempDeprecated = /claude-(?:(?:haiku|sonnet|opus|fable)-[45]|(?:opus|sonnet|haiku)-4)/i.test(resolvedModel);
 			if (!isTempDeprecated && (options.temperature !== undefined || this.temperature !== undefined)) {
 				payload.temperature = options.temperature ?? this.temperature;
 			}
@@ -364,6 +369,11 @@ export class LocalLlmClient {
 			if (systemPrompt.trim().length > 0) {
 				payload.system = systemPrompt;
 			}
+
+			const inputChars = options.messages.reduce((acc, m) => acc + (m.content?.length || 0), 0);
+			console.log(
+				`🌐 [Anthropic API] Envoi requête -> Modèle : "${resolvedModel}", messages : ${formattedMessages.length}, max_tokens : ${payload.max_tokens}, caractères envoyés : ${inputChars.toLocaleString('fr-FR')}`
+			);
 
 			let res = await fetch('https://api.anthropic.com/v1/messages', {
 				method: 'POST',
@@ -381,6 +391,7 @@ export class LocalLlmClient {
 			if (!res.ok && payload.temperature !== undefined) {
 				const errCopy = await res.clone().text().catch(() => '');
 				if (errCopy.includes('temperature') && errCopy.includes('deprecated')) {
+					console.warn(`⚠️ [Anthropic API] 400 Bad Request (température dépréciée pour ${resolvedModel}), relance immédiate sans 'temperature'...`);
 					delete payload.temperature;
 					res = await fetch('https://api.anthropic.com/v1/messages', {
 						method: 'POST',
@@ -398,8 +409,11 @@ export class LocalLlmClient {
 
 			clearTimeout(timer);
 
+			const durationSec = ((Date.now() - startTime) / 1000).toFixed(1);
+
 			if (!res.ok) {
 				const errText = await res.text().catch(() => '');
+				console.error(`❌ [Anthropic API] Erreur HTTP ${res.status} (${durationSec}s) :`, errText.slice(0, 300));
 				throw new Error(
 					`Erreur Anthropic Claude (${res.status} ${res.statusText}) : ${errText.slice(0, 300)}`
 				);
@@ -413,10 +427,17 @@ export class LocalLlmClient {
 						.join('')
 				: '';
 
+			const inTok = data.usage?.input_tokens ?? '?';
+			const outTok = data.usage?.output_tokens ?? '?';
+			console.log(
+				`✅ [Anthropic API] Réponse 200 OK reçue en ${durationSec}s -> ${text.length.toLocaleString('fr-FR')} car. (tokens: in=${inTok}, out=${outTok})`
+			);
+
 			return text;
 		} catch (err: unknown) {
 			clearTimeout(timer);
 			if (controller.signal.aborted) {
+				console.error(`⏱️ [Anthropic API] Timeout après ${Math.round(timeout / 1000)}s !`);
 				throw new Error(
 					`Délai d'inférence Claude dépassé (${Math.round(timeout / 1000)}s). L'API Anthropic n'a pas répondu à temps.`
 				);
@@ -433,6 +454,7 @@ export class LocalLlmClient {
 			throw new Error(`Air-Gap Security: Appel refusé vers ${this.endpoint}`);
 		}
 
+		const startTime = Date.now();
 		const timeout = options.timeoutMs || this.timeoutMs;
 		const controller = new AbortController();
 		const timer = setTimeout(() => controller.abort(), timeout);
@@ -463,6 +485,11 @@ export class LocalLlmClient {
 				}
 			}
 
+			const inputChars = options.messages.reduce((acc, m) => acc + (m.content?.length || 0), 0);
+			console.log(
+				`🖥️ [Local Ollama] Appel en cours -> Modèle : "${model}" sur ${this.endpoint}, caractères envoyés : ${inputChars.toLocaleString('fr-FR')}`
+			);
+
 			const res = await fetch(`${this.endpoint}/api/chat`, {
 				method: 'POST',
 				headers: {
@@ -475,18 +502,26 @@ export class LocalLlmClient {
 
 			clearTimeout(timer);
 
+			const durationSec = ((Date.now() - startTime) / 1000).toFixed(1);
+
 			if (!res.ok) {
 				const errText = await res.text().catch(() => '');
+				console.error(`❌ [Local Ollama] Erreur HTTP ${res.status} (${durationSec}s) :`, errText.slice(0, 200));
 				throw new Error(
 					`Erreur LLM local (${res.status} ${res.statusText}) : ${errText.slice(0, 200)}`
 				);
 			}
 
 			const data = await res.json();
-			return data.message?.content || data.response || '';
+			const content = data.message?.content || data.response || '';
+			console.log(
+				`✅ [Local Ollama] Réponse reçue en ${durationSec}s -> ${content.length.toLocaleString('fr-FR')} caractères générés`
+			);
+			return content;
 		} catch (err: unknown) {
 			clearTimeout(timer);
 			if (controller.signal.aborted) {
+				console.error(`⏱️ [Local Ollama] Timeout après ${Math.round(timeout / 1000)}s !`);
 				throw new Error(
 					`Délai d'inférence LLM local dépassé (${Math.round(timeout / 1000)}s sur ${this.endpoint}). Le modèle local n'a pas répondu à temps.`
 				);

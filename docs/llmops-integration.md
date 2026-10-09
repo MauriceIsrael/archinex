@@ -267,6 +267,29 @@ npx vitest run --fileParallelism=false `
 > [!NOTE]
 > L'option `--fileParallelism=false` garantit une exécution séquentielle des suites de test contre la même instance active de base de données (évite les conflits d'idempotence et d'instantanés scellés concurrents).
 
+### 7 quinquies. Banc de Test en Boîte Noire — Adaptateur Archinex (Jalon J3)
+
+Conformément à la spécification du banc de test en boîte noire (`archinex-benchmark`), Archinex expose un point d'entrée par lot sans interface graphique (§4.5) permettant d'automatiser les systèmes **S2 (autonome)** et **S3 (assisté)** :
+
+- **Moteur par lot (`src/lib/server/benchmark/benchmarkRunner.ts`)** :
+  - Reçoit un cas RFP (texte brut ou JSON `RFPCase`).
+  - Découpe en clauses et confronte aux règles de doctrine (`rfpConfrontation`).
+  - **Mode S2** : Détecte les contradictions et manques bloquants, n'invente rien (assertion `proposed`, statut `ai_proposed`), et conserve l'indicateur provisoire `is_provisional: true`.
+  - **Mode S3** : Rejoue les sollicitations d'experts fournies dans une fixture JSON (§4.3), arbitre les choix techniques (`asserted`), traite les hypothèses D8 (`reuse_log`), et lève l'état provisoire une fois les sujets mûrs.
+  - Construit et scelle un `EngagementBundle` au profil canonique SHA-256 (`canonical-json v1`).
+
+- **Interface CLI (`scripts/benchmark-run.ts`)** :
+  ```bash
+  # Mode S2 Autonome
+  npx tsx scripts/benchmark-run.ts --rfp fixtures/benchmark/tc-contra-001.json --output results/bundle-s2.json --mode s2 --verify
+
+  # Mode S3 Assisté
+  npx tsx scripts/benchmark-run.ts --rfp fixtures/benchmark/tc-contra-001.json --expert-fixture fixtures/benchmark/tc-contra-001-expert.json --output results/bundle-s3.json --summary-out results/summary-s3.json --verify
+  ```
+
+- **Validation contractuelle (`tests/contract/benchmark-adapter.test.ts`)** :
+  - 4 tests automatisés vérifiant la stricte séparation S2 / S3, le calcul des interactions d'experts, les sollicitations non couvertes (`expert_unanswered`), et l'intégrité cryptographique absolue (`verifyEngagementBundle`).
+
 ## 8. Gouvernance de la Base de Connaissances (API v1)
 
 Les lots de gouvernance étendent l'intégration au-delà du protocole MCP en appelant directement l'API REST de gouvernance avec propagation d'identité souveraine (`X-Actor-Email`) :

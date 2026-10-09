@@ -508,18 +508,28 @@ export async function runRequirementsAudit(
 	clauses: ExtractedClause[],
 	options: RequirementsAuditOptions = {}
 ): Promise<StagedAuditResult> {
+	const auditStart = Date.now();
 	const llm = options.llm ?? localLlmClient;
 	const model = options.model || localLlmClient.getDefaultModel();
 	const kb = options.kbStandards ?? [];
 	const warnings: string[] = [];
 
+	console.log(`\n--------------------------------------------------------------------------------`);
+	console.log(`📋 [Audit Exigences ArcKit] Démarrage de l'audit pour ${clauses.length} clauses (Modèle: ${model})`);
+
 	// Étape 1 : classement par lots
-	const batches = chunk(clauses, options.classifyBatchSize ?? DEFAULT_CLASSIFY_BATCH);
+	const batchSize = options.classifyBatchSize ?? DEFAULT_CLASSIFY_BATCH;
+	const concurrency = options.concurrency ?? DEFAULT_CONCURRENCY;
+	const batches = chunk(clauses, batchSize);
 	const failureByRef = new Map<string, string>();
 	const items: ClassifyItem[] = [];
 	let failedBatches = 0;
 
-	await mapWithConcurrency(batches, options.concurrency ?? DEFAULT_CONCURRENCY, async (batch, i) => {
+	console.log(`📦 [Audit Exigences ArcKit] Étape 1 : Classement par lots (${batches.length} lots de max ${batchSize} clauses, concurrence: ${concurrency})`);
+
+	await mapWithConcurrency(batches, concurrency, async (batch, i) => {
+		const batchStart = Date.now();
+		console.log(`   ⏳ [Audit Exigences ArcKit] Lot ${i + 1}/${batches.length} (${batch.length} clauses) -> envoi au modèle...`);
 		try {
 			const data = await callJson(
 				llm,
@@ -533,10 +543,14 @@ export async function runRequirementsAudit(
 				ClassifyResponseSchema
 			);
 			items.push(...data.items);
+			const batchSec = ((Date.now() - batchStart) / 1000).toFixed(1);
+			console.log(`   ✅ [Audit Exigences ArcKit] Lot ${i + 1}/${batches.length} traité en ${batchSec}s (${data.items.length} items classés).`);
 		} catch (err) {
 			failedBatches++;
+			const batchSec = ((Date.now() - batchStart) / 1000).toFixed(1);
 			const msg = err instanceof Error ? err.message : String(err);
 			const reason = `Classement indisponible pour le lot ${i + 1}/${batches.length} (${clip(msg, 100)}).`;
+			console.warn(`   ⚠️ [Audit Exigences ArcKit] Échec du lot ${i + 1}/${batches.length} (${batchSec}s) :`, msg);
 			for (const c of batch) failureByRef.set(c.clauseRef, reason);
 			warnings.push(reason);
 		}
@@ -544,6 +558,14 @@ export async function runRequirementsAudit(
 
 	// Étape 2 : contrôles déterministes
 	const requirements = applyClassificationInvariants(clauses, items, failureByRef);
+	const deliberatedCount = requirements.filter((r) => r.disposition === 'deliberated').length;
+	const evacuatedCount = requirements.filter((r) => r.disposition === 'evacuated').length;
+	const clarifyCount = requirements.filter((r) => r.disposition === 'clarification_needed').length;
+	const toQualifyCount = requirements.filter((r) => r.disposition === 'to_qualify').length;
+
+	console.log(`🔍 [Audit Exigences ArcKit] Étape 2 : Contrôles d'intégrité appliqués.`);
+	console.log(`   - À délibérer : ${deliberatedCount} | Évacuées (commodités) : ${evacuatedCount} | À clarifier : ${clarifyCount} | À qualifier : ${toQualifyCount}`);
+
 	const downgraded = requirements.filter((r) => r.disposition === 'to_qualify' && !failureByRef.has(r.clauseRef)).length;
 	if (downgraded > 0) {
 		warnings.push(
@@ -552,6 +574,7 @@ export async function runRequirementsAudit(
 	}
 
 	if (batches.length > 0 && failedBatches === batches.length) {
+		console.warn(`❌ [Audit Exigences ArcKit] Tous les lots ont échoué, modèle indisponible.`);
 		return { status: 'unavailable', report: buildAuditReport(requirements, warnings), subjects: [], warnings, modelUsed: model };
 	}
 
@@ -559,6 +582,8 @@ export async function runRequirementsAudit(
 	const deliberated = requirements.filter((r) => r.disposition === 'deliberated');
 	const subjects: FactorizedArchitecturalSubject[] = [];
 	let groupingFailed = false;
+
+	console.log(`🧩 [Audit Exigences ArcKit] Étape 3 : Regroupement de ${deliberated.length} clauses à délibérer en sujets...`);
 
 	for (const part of chunk(deliberated, options.groupChunkSize ?? DEFAULT_GROUP_CHUNK)) {
 		try {
@@ -587,7 +612,9 @@ export async function runRequirementsAudit(
 			if (part.some((r) => !covered.has(r.clauseRef))) groupingFailed = true;
 		} catch (err) {
 			groupingFailed = true;
-			warnings.push(`Regroupement en sujets indisponible (${clip(err instanceof Error ? err.message : String(err), 100)}).`);
+			const msg = clip(err instanceof Error ? err.message : String(err), 100);
+			console.warn(`   ⚠️ [Audit Exigences ArcKit] Échec du regroupement en sujets :`, msg);
+			warnings.push(`Regroupement en sujets indisponible (${msg}).`);
 		}
 	}
 
@@ -600,6 +627,10 @@ export async function runRequirementsAudit(
 	}
 
 	const status = failedBatches > 0 || groupingFailed ? 'partial' : 'ok';
+	const totalSec = ((Date.now() - auditStart) / 1000).toFixed(1);
+	console.log(`✅ [Audit Exigences ArcKit] Terminé en ${totalSec}s (Statut: ${status}, ${subjects.length} sujets générés).`);
+	console.log(`--------------------------------------------------------------------------------\n`);
+
 	return { status, report: buildAuditReport(requirements, warnings), subjects, warnings, modelUsed: model };
 }
 

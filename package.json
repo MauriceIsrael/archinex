@@ -26,7 +26,8 @@
     "test:integration:debate": "vitest run tests/integration/expert-debate-maturation.test.ts",
     "verify": "node scripts/verify.mjs",
     "ollama:models": "node scripts/ollama-models.mjs",
-    "eval:requirements": "tsx scripts/eval-requirements-audit.ts"
+    "eval:requirements": "tsx scripts/eval-requirements-audit.ts",
+    "benchmark:run": "tsx scripts/benchmark-run.ts"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.13.0",

@@ -71,8 +71,21 @@ npm run verify
 - `tests/contract/dialectic-recall.test.ts` : Détection automatique des collisions de doctrine et rappels ADRs.
 - `tests/contract/retractation-engine.test.ts` : Parcours du graphe causal direct (DAG) et clôture logique d'invalidation.
 - `tests/contract/freeze-export.test.ts` : Barrière de certification, références immuables et scellement SHA-256.
+- `tests/contract/benchmark-adapter.test.ts` : Adaptateur par lot sans IHM pour le banc de test en boîte noire (Jalon J3 : S2 autonome et S3 assisté).
 - `tests/contract/llmops-live*.test.ts` : Suites de contrat exécutées contre le serveur LLMOps réel (44 tests au vert, voir `docs/llmops-integration.md`).
 - `tests/integration/deliberation-workflow.test.ts` : Scénario d'intégration complet d'élicitation et de scellement.
+
+### 3.1 Point d'Entrée par Lot pour le Banc de Test Boîte Noire (Jalon J3)
+
+Archinex fournit une interface en ligne de commande pour le banc de mesure externe (`archinex-benchmark`) :
+
+```bash
+# Mode S2 (Autonome : aucune intervention humaine, état provisoire conservé)
+npm run benchmark:run -- --rfp fixtures/benchmark/tc-contra-001.json --output ./results/bundle-s2.json --mode s2 --verify
+
+# Mode S3 (Assisté : sollicitations d'experts servies par une fixture de rejeu)
+npm run benchmark:run -- --rfp fixtures/benchmark/tc-contra-001.json --expert-fixture fixtures/benchmark/tc-contra-001-expert.json --output ./results/bundle-s3.json --verify
+```
 
 ---
 

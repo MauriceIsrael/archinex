@@ -612,13 +612,15 @@ export async function factorizeRfpMapReduce(
 	const chunks = partitionClausesIntoMapChunks(clauses);
 	const targetDesc = inferTargetSubjectsCount(totalClauses);
 
-	console.log(`🔄 [Map-Reduce] Début de la passe MAP : ${totalClauses} clauses découpées en ${chunks.length} blocs (chacun <= ${MAX_MAP_CHUNK_CHARS} caractères).`);
+	console.log(`\n🔄 [Map-Reduce] Début de la passe MAP : ${totalClauses} clauses découpées en ${chunks.length} blocs (chacun <= ${MAX_MAP_CHUNK_CHARS} caractères).`);
 
 	const allMicroSubjects: MicroArchitecturalSubject[] = [];
 
 	// ─── PASSE 1 : MAP (Détection exhaustive des micro-sujets) ─────────────────
 	for (let i = 0; i < chunks.length; i++) {
 		const chunk = chunks[i];
+		const chunkStart = Date.now();
+		console.log(`   ⏳ [Map-Reduce] MAP Bloc ${i + 1}/${chunks.length} (${chunk.length} clauses) -> envoi au modèle ${model}...`);
 		const mapPrompt = buildMapPrompt(chunk, i, chunks.length);
 
 		try {
@@ -635,8 +637,10 @@ export async function factorizeRfpMapReduce(
 			});
 
 			const parsed = safeParseJson(rawContent);
+			const chunkSec = ((Date.now() - chunkStart) / 1000).toFixed(1);
 
 			if (parsed && Array.isArray(parsed.microSubjects) && parsed.microSubjects.length > 0) {
+				console.log(`   ✅ [Map-Reduce] MAP Bloc ${i + 1}/${chunks.length} traité en ${chunkSec}s : ${parsed.microSubjects.length} micro-sujets extraits.`);
 				for (const m of parsed.microSubjects) {
 					allMicroSubjects.push({
 						id: m.id || `MICRO-${allMicroSubjects.length + 1}`,
@@ -650,6 +654,7 @@ export async function factorizeRfpMapReduce(
 					});
 				}
 			} else {
+				console.warn(`   ⚠️ [Map-Reduce] MAP Bloc ${i + 1}/${chunks.length} (${chunkSec}s) : pas de micro-sujets dans le JSON, repli unitaire.`);
 				allMicroSubjects.push({
 					id: `MICRO-${allMicroSubjects.length + 1}`,
 					title: `Bloc ${i + 1} : ${chunk[0]?.title || 'Exigences'}`,
@@ -660,8 +665,9 @@ export async function factorizeRfpMapReduce(
 				});
 			}
 		} catch (chunkErr) {
+			const chunkSec = ((Date.now() - chunkStart) / 1000).toFixed(1);
 			const errMsg = chunkErr instanceof Error ? chunkErr.message : String(chunkErr);
-			console.warn(`⚠️ [Map-Reduce] Erreur sur le bloc ${i + 1}, conservation des clauses :`, errMsg);
+			console.warn(`   ⚠️ [Map-Reduce] Erreur sur le bloc ${i + 1}/${chunks.length} (${chunkSec}s), conservation des clauses :`, errMsg);
 			allMicroSubjects.push({
 				id: `MICRO-${allMicroSubjects.length + 1}`,
 				title: `Bloc ${i + 1} (${chunk.length} exigences : ${chunk[0]?.title || 'Architecture'})`,
@@ -673,7 +679,7 @@ export async function factorizeRfpMapReduce(
 		}
 	}
 
-	console.log(`🔄 [Map-Reduce] Fin de la passe MAP : ${allMicroSubjects.length} micro-sujets extraits. Démarrage de la passe REDUCE...`);
+	console.log(`🔄 [Map-Reduce] Fin de la passe MAP : ${allMicroSubjects.length} micro-sujets extraits au total. Démarrage de la passe REDUCE...`);
 
 	// ─── PASSE 2 : REDUCE (Consolidation en Méta-Sujets d'Architecture) ────────
 	let subjects: FactorizedArchitecturalSubject[] = [];
@@ -751,7 +757,11 @@ export async function factorizeRfpMapReduce(
 
 		for (let bIdx = 0; bIdx < reduceBatches.length; bIdx++) {
 			const batchInfo = reduceBatches[bIdx];
+			const batchStart = Date.now();
 			const targetCountForBatch = batchInfo.subjects.length <= 8 ? '1 à 2' : '2 à 3';
+			console.log(
+				`   ⏳ [Map-Reduce] REDUCE Sous-lot ${bIdx + 1}/${reduceBatches.length} (${batchInfo.lotId}, ${batchInfo.subjects.length} micro-sujets) -> envoi au modèle ${model}...`
+			);
 			const batchPrompt = buildBatchReducePrompt(
 				batchInfo.subjects,
 				kbStandards,
@@ -782,8 +792,12 @@ export async function factorizeRfpMapReduce(
 
 				const parsedBatch = safeParseJson(rawBatch);
 				const batchSubjectsList: any[] = Array.isArray(parsedBatch?.subjects) ? parsedBatch.subjects : [];
+				const batchSec = ((Date.now() - batchStart) / 1000).toFixed(1);
 
 				if (batchSubjectsList.length > 0) {
+					console.log(
+						`   ✅ [Map-Reduce] REDUCE Sous-lot ${bIdx + 1}/${reduceBatches.length} (${batchInfo.lotId}) traité en ${batchSec}s : ${batchSubjectsList.length} méta-sujets consolidés.`
+					);
 					for (let sIdx = 0; sIdx < batchSubjectsList.length; sIdx++) {
 						const s = batchSubjectsList[sIdx];
 						const subClauses = new Set<string>(Array.isArray(s.coveredClauseRefs) ? s.coveredClauseRefs : []);
@@ -851,8 +865,9 @@ export async function factorizeRfpMapReduce(
 					throw new Error(`Aucun sujet retourné par le LLM pour le sous-lot ${batchInfo.lotId}`);
 				}
 			} catch (batchErr) {
+				const batchSec = ((Date.now() - batchStart) / 1000).toFixed(1);
 				const errMsg = batchErr instanceof Error ? batchErr.message : String(batchErr);
-				console.warn(`⚠️ [Reduce] Erreur sur le sous-lot ${bIdx + 1}/${reduceBatches.length} (${batchInfo.lotId}), repli local :`, errMsg);
+				console.warn(`   ⚠️ [Reduce] Erreur sur le sous-lot ${bIdx + 1}/${reduceBatches.length} (${batchInfo.lotId}) en ${batchSec}s, repli local :`, errMsg);
 				// Synthèse de secours pour ce sous-lot particulier sans faire échouer les autres lots
 				const fallbackClauses = Array.from(new Set(batchInfo.subjects.flatMap((m) => m.coveredClauseRefs)));
 				subjects.push({
@@ -978,12 +993,22 @@ export async function factorizeRfpWithLocalLlm(
 	request: RfpFactorizationRequest,
 	kbStandards: KbItemSummary[] = []
 ): Promise<RfpFactorizationResponse> {
+	const startTime = Date.now();
 	const clauses = request.clauses || [];
 	const model = request.model || localLlmClient.getDefaultModel();
 	const totalClauses = clauses.length;
 	const engine = model.toLowerCase().startsWith('claude') ? 'anthropic-claude' : 'local-llm';
+	const isGrandContext = isGrandContextModel(model);
+
+	console.log(`\n================================================================================`);
+	console.log(`🚀 [Factorisation RFP] Démarrage de la factorisation (${totalClauses} clauses)`);
+	console.log(`   - Modèle : ${model} (Moteur: ${engine})`);
+	console.log(`   - Grand Contexte : ${isGrandContext ? 'OUI (Passe directe holistique activée)' : 'NON (Modèle local <= 32k)'}`);
+	console.log(`   - Standards KB : ${kbStandards.length} règles injectées`);
+	console.log(`================================================================================\n`);
 
 	if (totalClauses === 0) {
+		console.log(`ℹ️ [Factorisation RFP] Aucune clause à factoriser.`);
 		return {
 			status: 'ok',
 			engine,
@@ -997,14 +1022,13 @@ export async function factorizeRfpWithLocalLlm(
 		};
 	}
 
-	const isGrandContext = isGrandContextModel(model);
-
 	// Pour les modèles locaux à contexte restreint (Ollama <= 32k), Map-Reduce obligatoire dès 40 exigences.
 	// Pour les modèles à grand contexte (Claude >= 200k), la factorisation directe holistique est privilégiée
 	// jusqu'à 2 500 exigences (ce qui couvre les CCTP volumineux en une seule passe globale de 25-30s).
 	const shouldRunMapReduce = isGrandContext ? totalClauses > 2500 : totalClauses > 40;
 
 	if (shouldRunMapReduce) {
+		console.log(`🔀 [Factorisation RFP] Bascule en Map-Reduce (${totalClauses} clauses > seuil d'atomicité)...`);
 		try {
 			return await factorizeRfpMapReduce(request, kbStandards);
 		} catch (err: unknown) {
@@ -1023,6 +1047,11 @@ export async function factorizeRfpWithLocalLlm(
 	const isCondensed = !isGrandContext && shouldCondenseClauses(clauses, maxBudgetChars);
 	const targetDesc = inferTargetSubjectsCount(clauses.length, isGrandContext);
 
+	console.log(`📝 [Factorisation RFP] Construction du prompt d'architecture...`);
+	console.log(`   - Budget texte : ${maxBudgetChars.toLocaleString('fr-FR')} caractères`);
+	console.log(`   - Mode condensation : ${isCondensed ? 'OUI' : 'NON (verbatim)'}`);
+	console.log(`   - Nombre de sujets cibles : ${targetDesc}`);
+
 	try {
 		const systemPrompt = buildSystemPrompt(request.customPromptDirectives, targetDesc);
 		const userMessage = buildUserMessage(clauses, kbStandards, {
@@ -1032,6 +1061,11 @@ export async function factorizeRfpWithLocalLlm(
 			isGrandContext
 		});
 
+		console.log(`   - Taille prompt système : ${systemPrompt.length.toLocaleString('fr-FR')} caractères`);
+		console.log(`   - Taille message utilisateur : ${userMessage.length.toLocaleString('fr-FR')} caractères`);
+		console.log(`🤖 [Factorisation RFP] Appel LLM en cours (${model})...`);
+
+		const t0 = Date.now();
 		const rawContent = await localLlmClient.chat({
 			model,
 			messages: [
@@ -1043,12 +1077,18 @@ export async function factorizeRfpWithLocalLlm(
 			timeoutMs: 300000
 		});
 
+		const llmDurationSec = ((Date.now() - t0) / 1000).toFixed(1);
+		console.log(`⚡ [Factorisation RFP] Réponse reçue en ${llmDurationSec}s (${rawContent.length.toLocaleString('fr-FR')} caractères).`);
+		console.log(`🔍 [Factorisation RFP] Parsing et validation de la structure JSON...`);
+
 		// Nettoyage et parsing JSON résilient avec réparation de troncature
 		const parsed = safeParseJson(rawContent);
 
 		if (!parsed || !Array.isArray(parsed.subjects)) {
 			throw new Error('Réponse LLM invalide : propriété "subjects" manquante ou non-tableau');
 		}
+
+		console.log(`🎯 [Factorisation RFP] ${parsed.subjects.length} sujets d'architecture bruts reçus.`);
 
 		const subjects: FactorizedArchitecturalSubject[] = parsed.subjects.map(
 			(s: any, idx: number) => ({
@@ -1082,6 +1122,7 @@ export async function factorizeRfpWithLocalLlm(
 
 		const unassignedClauses = clauses.filter((c) => !coveredSet.has(c.clauseRef));
 		if (unassignedClauses.length > 0 && subjects.length > 0) {
+			console.log(`🔗 [Factorisation RFP] Réconciliation de ${unassignedClauses.length} clauses orphelines vers les sujets les plus proches...`);
 			reconcileOrphanClausesToSubjects(unassignedClauses, subjects);
 		}
 
@@ -1096,6 +1137,12 @@ export async function factorizeRfpWithLocalLlm(
 		const finalUnassigned = clauses.filter((c) => !finalCoveredSet.has(c.clauseRef));
 		const coveredClausesCount = totalClauses - finalUnassigned.length;
 		const coverageRate = Math.round((coveredClausesCount / totalClauses) * 100);
+		const totalDurationSec = ((Date.now() - startTime) / 1000).toFixed(1);
+
+		console.log(`✅ [Factorisation RFP] Terminé avec succès en ${totalDurationSec}s !`);
+		console.log(`   - Sujets générés : ${subjects.length}`);
+		console.log(`   - Taux de couverture : ${coverageRate}% (${coveredClausesCount}/${totalClauses} clauses couvertes)`);
+		console.log(`================================================================================\n`);
 
 		return {
 			status: 'ok',

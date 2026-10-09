@@ -86,6 +86,8 @@
 
 	// Factorisation sémantique par LLM Local Souverain
 	let isFactorizing = $state<boolean>(false);
+	let factorizeSeconds = $state<number>(0);
+	let factorizeTimer: any = null;
 	let factorizationResponse = $state<RfpFactorizationResponse | null>(null);
 	let auditReceivedAt = $state<string>('');
 
@@ -253,8 +255,14 @@
 	async function runLlmFactorization() {
 		if (!rfpText.trim()) return;
 		isFactorizing = true;
+		factorizeSeconds = 0;
 		factorizationError = null;
 		confrontationResult = null;
+
+		clearInterval(factorizeTimer);
+		factorizeTimer = setInterval(() => {
+			factorizeSeconds += 1;
+		}, 1000);
 
 		try {
 			const extractedClauses = shredRfpTextToClauses(rfpText);
@@ -275,7 +283,7 @@
 
 			if (!res.ok) {
 				const errData = await res.json().catch(() => ({}));
-				throw new Error(errData.message || `Erreur lors de la factorisation (${res.status})`);
+				throw new Error(errData.message || errData.error || `Erreur lors de la factorisation (${res.status})`);
 			}
 
 			const data: RfpFactorizationResponse = await res.json();
@@ -284,6 +292,7 @@
 		} catch (err: unknown) {
 			factorizationError = err instanceof Error ? err.message : 'Échec de la factorisation';
 		} finally {
+			clearInterval(factorizeTimer);
 			isFactorizing = false;
 		}
 	}
@@ -797,6 +806,33 @@
 									<span>Factoriser en 8-12 Sujets d'Architecture ({selectedModel.toLowerCase().startsWith('claude') ? 'Claude Anthropic' : 'LLM Souverain'} - {selectedModel})</span>
 								{/if}
 							</button>
+
+							{#if isFactorizing}
+								<div class="p-3.5 rounded-xl border bg-primary/5 border-primary/20 space-y-2 animate-in fade-in duration-200">
+									<div class="flex items-center justify-between text-xs">
+										<span class="font-bold text-foreground flex items-center gap-1.5">
+											<RefreshCw class="h-3.5 w-3.5 animate-spin text-primary" />
+											Inférence LLM en cours ({selectedModel})
+										</span>
+										<span class="font-mono text-xs font-semibold px-2 py-0.5 rounded bg-primary/10 text-primary">
+											{factorizeSeconds}s écoulées
+										</span>
+									</div>
+									<div class="text-[11px] text-muted-foreground flex items-center gap-2">
+										<span class="inline-block w-2 h-2 rounded-full bg-primary animate-pulse"></span>
+										{#if factorizeSeconds < 5}
+											<span>1/3 — Analyse syntaxique, validation des clauses et préparation du prompt...</span>
+										{:else if factorizeSeconds < 20}
+											<span>2/3 — Inférence LLM : identification des dilemmes d'architecture atomiques...</span>
+										{:else}
+											<span>3/3 — Synthèse des hypothèses, questions sachants et réconciliation de couverture (100%)...</span>
+										{/if}
+									</div>
+									<p class="text-[10px] text-muted-foreground/80 italic border-t pt-1.5">
+										💡 Traces complètes et métriques d'exécution visibles en temps réel dans les logs du serveur (terminal).
+									</p>
+								</div>
+							{/if}
 
 							<!-- 2. Bouton Secondaire : Dépouillement Brut Clause-par-Clause -->
 							<button

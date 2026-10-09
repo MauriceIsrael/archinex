@@ -1,0 +1,7 @@
+{
+  "id": "TC-CONTRA-001",
+  "title": "Données biométriques et calcul hors UE",
+  "category": "contradiction",
+  "language": "fr",
+  "rfp_text": "Art. 1.1 - Hébergement Souverain et Immunité Juridique\nL'ensemble de la chaîne de traitement et des données biométriques doit être opéré exclusivement sur le territoire de l'Union Européenne au sein d'une infrastructure qualifiée SecNumCloud, avec une immunité stricte contre toute juridiction extraterritoriale (notamment le Cloud Act).\n\nArt. 2.4 - Traitement Distribué et Scalabilité Cloud\nAfin d'absorber les pics de charge d'analyse vidéo temps réel, les workers de calcul intensif seront instanciés sur la région AWS us-east-1 avec réplication passive sur site en France.\n\nArt. 3.2 - Chiffrement et Gestion des Clés\nToutes les clés cryptographiques HSM doivent être hébergées localement sous contrôle exclusif de l'opérateur régalien."
+}

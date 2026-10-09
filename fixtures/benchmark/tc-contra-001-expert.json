@@ -1,0 +1,50 @@
+[
+  {
+    "sectionRef": "Art. 1.1",
+    "topic": "Hébergement Souverain",
+    "match": "Souverain",
+    "actor": "@lead-architect",
+    "action": "arbitrate",
+    "selected_option": "Cluster KVM SecNumCloud 3.2",
+    "decision": "Implantation exclusive sur infrastructure qualifiée SecNumCloud 3.2 sur le territoire national.",
+    "rationale": "Conformité impérative aux exigences régaliennes et immunité stricte au Cloud Act.",
+    "assumptions": [
+      {
+        "text": "Le fournisseur dispose de la qualification ANSSI SecNumCloud 3.2 en cours de validité.",
+        "status": "holds"
+      }
+    ]
+  },
+  {
+    "sectionRef": "Art. 2.4",
+    "topic": "Scalabilité Cloud",
+    "match": "Scalabilité Cloud",
+    "actor": "@lead-architect",
+    "action": "arbitrate",
+    "selected_option": "Rejet AWS us-east-1 / Burst Local KVM",
+    "decision": "Rejet formel d'AWS us-east-1. Traitement des pics de charge d'analyse vidéo par débordement sur cluster souverain secondaire en France.",
+    "rationale": "L'envoi de données biométriques vers AWS us-east-1 constitue une violation directe de l'Art. 1.1 et du RGPD Art. 44.",
+    "assumptions": [
+      {
+        "text": "Le cluster secondaire souverain peut absorber les pics de charge d'analyse vidéo.",
+        "status": "holds"
+      }
+    ]
+  },
+  {
+    "sectionRef": "Art. 3.2",
+    "topic": "Chiffrement et Gestion des Clés",
+    "match": "Chiffrement",
+    "actor": "@security-architect",
+    "action": "arbitrate",
+    "selected_option": "HSM On-Premise Thales",
+    "decision": "Déploiement de modules HSM certifiés ANSSI sur site régalien pour la séquestration des clés maîtresses.",
+    "rationale": "Garantie du contrôle exclusif des secrets sans dépendance à un tiers opérateur.",
+    "assumptions": [
+      {
+        "text": "Les cartes HSM sont qualifiées au niveau de résistance renforcé.",
+        "status": "holds"
+      }
+    ]
+  }
+]

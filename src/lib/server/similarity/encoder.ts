@@ -6,7 +6,7 @@
  *
  * Configuration (serveur) :
  *  - EMBEDDING_MODEL            modèle par défaut (défaut : `toy-bow`, test uniquement) ;
- *  - EMBEDDING_OLLAMA_URL       URL d'un serveur Ollama (ex. http://raptor-nino:11434) pour tout modèle autre que `toy-bow` ;
+ *  - EMBEDDING_OLLAMA_URL       URL d'un serveur Ollama (ex. http://localhost:11434) pour tout modèle autre que `toy-bow` ;
  *  - ALLOW_TOY_EMBEDDINGS=1     autorise `toy-bow` hors test/développement (déconseillé : sans valeur sémantique).
  */
 import { DEFAULT_SIMILARITY_MODEL, DEFAULT_SIMILARITY_MODEL_VERSION, encodeToyBow } from './embeddings';

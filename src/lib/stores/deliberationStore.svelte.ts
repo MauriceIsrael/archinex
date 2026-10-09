@@ -32,7 +32,6 @@ import {
 	generateSysMLVisualMermaid,
 	generateConfigJSON
 } from '$lib/domain/artifactProjections';
-import type { CandidateRule } from '$lib/domain/smartMemoryRules';
 import {
 	type CorpusDocument,
 	type CorpusStats,
@@ -144,7 +143,6 @@ class DeliberationStore {
 	dialogueMessages = $state<DialogueMessage[]>([]);
 	activeRecalls = $state<DoctrineRecallRule[]>([]);
 	frozenSnapshots = $state<Record<string, SealedSnapshot>>({});
-	candidateRules = $state<CandidateRule[]>([]);
 	selectedStatementForWhy = $state<Statement | null>(null);
 	isFreezeDialogOpen = $state<boolean>(false);
 	isWhyInspectorOpen = $state<boolean>(false);
@@ -913,7 +911,7 @@ class DeliberationStore {
 		const target = this.subjects.find((s) => s.id === subjectId);
 		if (!target) return { success: false, message: 'Sujet introuvable' };
 
-		// Vérification du Gate Tour 8
+		// Vérification de la Porte G3 (arbitrage humain)
 		const check = canTransitionMaturity(target.level, 'L3_decided', {
 			role: this.currentRole,
 			is_human: this.isHuman
@@ -1308,231 +1306,6 @@ class DeliberationStore {
 			sysmlVisual: generateSysMLVisualMermaid(subject, draft, sectionStatements),
 			configJSON: generateConfigJSON(subject, draft, sectionStatements, sealedAt)
 		};
-	}
-
-	/**
-	 * Modification préalable d'une règle doctrinale candidate avant validation ou envoi à LLMOps
-	 */
-	updateCandidateRule(ruleId: string, updates: Partial<CandidateRule>): { success: boolean; rule?: CandidateRule; message: string } {
-		const rule = this.candidateRules.find((r) => r.id === ruleId);
-		if (!rule) return { success: false, message: 'Règle candidate introuvable' };
-
-		if (updates.title !== undefined) rule.title = updates.title.trim();
-		if (updates.description !== undefined) rule.description = updates.description.trim();
-		if (updates.triggerContext !== undefined) rule.triggerContext = updates.triggerContext.trim();
-		if (updates.sparqlQuery !== undefined) rule.sparqlQuery = updates.sparqlQuery.trim();
-
-		this.persistCustomState();
-		const msg = `✍️ Règle candidate [${rule.id}] modifiée avec succès.`;
-		this.logNotification(msg, 'info');
-		return { success: true, rule, message: msg };
-	}
-
-	/**
-	 * Tour 8 : Approbation d'une règle candidate induite par SmartMemory, intégration à la KB locale et envoi au Knowledge Hub LLMOps.
-	 */
-	approveCandidateRule(ruleId: string, customUpdates?: Partial<CandidateRule>): { success: boolean; message: string } {
-		const rule = this.candidateRules.find((r) => r.id === ruleId);
-		if (!rule) return { success: false, message: 'Règle candidate introuvable' };
-
-		// Appliquer d'éventuelles modifications de dernière minute
-		if (customUpdates) {
-			this.updateCandidateRule(ruleId, customUpdates);
-		}
-
-		rule.status = 'approved';
-
-		// 1. Inscription de la doctrine dans le brouillon actif si pertinent
-		const activeDraft = this.drafts[this.activeSubjectId];
-		if (activeDraft && !activeDraft.retenu.includes(rule.id)) {
-			activeDraft.retenu = [...activeDraft.retenu, `KH:${rule.id} (${rule.title})`];
-		}
-
-		// 2. Intégration immédiate dans le patrimoine commun (Common Knowledge Base)
-		const docRef = `DOC-KB-INDUCED-${rule.id}`;
-		if (!this.commonKnowledgeBase.some((d) => d.id === docRef)) {
-			this.commonKnowledgeBase.push({
-				id: docRef,
-				title: rule.title,
-				origin: 'contributor_external',
-				category: 'standard',
-				categoryLabel: 'Règle Doctrinale Validée',
-				sourceOrAuthor: 'Maurice Israel (Lead Architect)',
-				contributorRole: 'lead_architect',
-				version: '1.0',
-				addedDate: new Date().toISOString(),
-				lastUpdated: new Date().toISOString(),
-				extractedClausesCount: 1,
-				summary: rule.description,
-				keyIdeas: [
-					`Règle doctrinale validée : ${rule.title}`,
-					`Contexte : ${rule.triggerContext}`
-				],
-				inducedRules: [
-					{
-						id: `R-${rule.id}`,
-						title: rule.title,
-						type: 'obligation',
-						description: rule.description,
-						targetSubjectId: this.activeSubjectId
-					}
-				],
-				keyClauses: [
-					{
-						id: `CLS-${rule.id}`,
-						clauseRef: rule.id,
-						title: rule.title,
-						text: rule.description,
-						criticality: 'bloquant',
-						impactSummary: rule.triggerContext
-					}
-				],
-				relatedSubjectIds: [this.activeSubjectId]
-			});
-		}
-
-		// 3. Transmission asynchrone au Knowledge Hub LLMOps (Cloud Run GCP / Scribe)
-		if (typeof window !== 'undefined' && window.fetch) {
-			const authorLabel = this.isHuman ? 'M. Israel (Lead Architect)' : 'Agent IA';
-			window.fetch('/api/llmops?action=suggest', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
-					title: rule.title,
-					rationale: rule.triggerContext || 'Induction et validation humaine depuis Archinex',
-					suggestedChange: `### ${rule.title}\n\n${rule.description}\n\n\`\`\`sparql\n${rule.sparqlQuery}\n\`\`\``,
-					author: authorLabel,
-					sourceEngagement: this.activeEngagementId
-				})
-			})
-				.then(async (res) => {
-					if (res.ok) {
-						const json = await res.json();
-						const sugId = json.suggestionId || 'SUG-OK';
-						this.logNotification(
-							`📡 Règle [${rule.id}] transmise au Knowledge Hub LLMOps avec succès (${sugId})`,
-							'success'
-						);
-					}
-				})
-				.catch((err) => {
-					console.warn('[Archinex] Notification LLMOps différée (mode local actif):', err);
-				});
-		}
-
-		this.persistCustomState();
-		const msg = `✅ Règle doctrinale [${rule.id}] formellement validée par le Lead Architect et transmise à la KB.`;
-		this.logNotification(msg, 'success');
-		return { success: true, message: msg };
-	}
-
-	/**
-	 * Récolte (Harvesting) : Transforme une décision d'architecture validée
-	 * en une règle doctrinale permanente et la transmet au Knowledge Hub LLMOps.
-	 * Idéal pour capitaliser sur un premier projet quand LLMOps est initialement vierge.
-	 */
-	async harvestSubjectToKnowledgeBase(subjectId?: string): Promise<{ success: boolean; ruleId?: string; message: string }> {
-		const targetId = subjectId || this.activeSubjectId;
-		const subj = this.subjects.find((s) => s.id === targetId);
-		const draft = this.drafts[targetId];
-
-		if (!subj || !draft) {
-			return { success: false, message: 'Sujet ou dossier de délibération introuvable.' };
-		}
-
-		if (draft.retenu.length === 0) {
-			return {
-				success: false,
-				message: 'Ce sujet ne contient aucun élément acté dans "RETENU". Veuillez valider au moins un choix technique avant de récolter.'
-			};
-		}
-
-		const ruleId = `RULE-${subj.section_ref.replace(/[^a-zA-Z0-9]/g, '')}-${Date.now().toString(36).toUpperCase()}`;
-		const title = `Standard Doctrinal : ${subj.name}`;
-		const description = draft.retenu.join(' ; ');
-		const rationale = draft.conflit.length > 0
-			? `Arbitrage de la controverse : ${draft.conflit.map((c) => c.text).join(' | ')}`
-			: `Capitalisation de la décision ${subj.section_ref} (${subj.name})`;
-
-		// 1. Ajouter à candidateRules pour visibilité dans le banner
-		const newRule: CandidateRule = {
-			id: ruleId,
-			title,
-			description,
-			triggerContext: rationale,
-			sparqlQuery: `# Règle capitalisée depuis le sujet ${subj.section_ref}\nSELECT ?s WHERE { ?s a :System ; :implements "${subj.name}" }`,
-			antecedents: [subj.section_ref],
-			confidenceScore: 0.95,
-			status: 'approved',
-			suggestedBy: 'Maurice Israel (Lead Architect - Récolte)',
-			suggestedAt: new Date().toISOString()
-		};
-		this.candidateRules = [newRule, ...this.candidateRules];
-
-		// 2. Intégrer au Patrimoine Commun local (commonKnowledgeBase)
-		const docRef = `DOC-KB-HARVEST-${ruleId}`;
-		if (!this.commonKnowledgeBase.some((d) => d.id === docRef)) {
-			this.commonKnowledgeBase.push({
-				id: docRef,
-				title,
-				origin: 'contributor_external',
-				category: 'standard',
-				categoryLabel: 'Capitalisation de Projet (Harvested)',
-				sourceOrAuthor: 'M. Israel (Lead Architect)',
-				contributorRole: 'lead_architect',
-				version: '1.0',
-				addedDate: new Date().toISOString(),
-				lastUpdated: new Date().toISOString(),
-				extractedClausesCount: draft.retenu.length,
-				summary: description,
-				keyIdeas: [title, rationale],
-				keyClauses: draft.retenu.map((r, idx) => ({
-					id: `CLS-HARVEST-${idx + 1}`,
-					clauseRef: `${subj.section_ref}.${idx + 1}`,
-					title: `Décision Validée ${idx + 1}`,
-					text: r,
-					criticality: 'bloquant',
-					impactSummary: 'Capitalisation issue de la délibération'
-				})),
-				relatedSubjectIds: [targetId]
-			});
-		}
-
-		// 3. Transmission au Knowledge Hub LLMOps local souverain
-		try {
-			await fetch('/api/llmops?action=suggest', {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
-					title,
-					rationale,
-					suggestedChange: `### ${title}\n\n${description}\n\n*Source : Sujet ${subj.section_ref} (${this.activeEngagement.title})*`,
-					author: 'M. Israel (Lead Architect)',
-					sourceEngagement: this.activeEngagementId
-				})
-			});
-		} catch {
-			// Enregistré en local
-		}
-
-		this.persistCustomState();
-		const msg = `🌾 Décision récoltée avec succès dans le Patrimoine Commun (LLMOps) sous la référence [${ruleId}].`;
-		this.logNotification(msg, 'success');
-		return { success: true, ruleId, message: msg };
-	}
-
-	/**
-	 * Rejet d'une règle candidate induite.
-	 */
-	rejectCandidateRule(ruleId: string): { success: boolean; message: string } {
-		const rule = this.candidateRules.find((r) => r.id === ruleId);
-		if (!rule) return { success: false, message: 'Règle candidate introuvable' };
-
-		rule.status = 'rejected';
-		this.persistCustomState();
-		const msg = `⛔ Règle candidate [${rule.id}] rejetée par le modérateur.`;
-		this.logNotification(msg, 'info');
-		return { success: true, message: msg };
 	}
 
 	openWhyInspector(statement: Statement) {

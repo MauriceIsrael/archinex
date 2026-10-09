@@ -1,6 +1,6 @@
 /**
  * Types Épistémiques Fondamentaux d'Archinex
- * Directement issus du document « Cadre de travail · SmartMemory × LLMOps »
+ * Issus du document « Cadre de travail » (rédigé à l'origine sous le titre « SmartMemory × LLMOps »)
  */
 
 export type ConfidenceLevel =

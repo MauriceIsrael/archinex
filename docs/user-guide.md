@@ -22,7 +22,7 @@ L'interface est structurée autour de 3 zones opérationnelles :
 
 | Rôle | Périmètre Opérationnel | Habilitations Clés |
 | :--- | :--- | :--- |
-| **Lead Architect** | Arbitrage global & modération du dossier | - Tranchage des conflits ouverts (passage L3)<br>- Approbation des règles induites au Tour 8 (SPARQL)<br>- Scellement officiel SHA-256 de section pour homologation |
+| **Lead Architect** | Arbitrage global & modération du dossier | - Tranchage des conflits ouverts (passage L3)<br>- Arbitrage humain (Porte G3) et capitalisation des décisions vers la base de connaissances (Porte G4)<br>- Scellement officiel SHA-256 de section pour homologation |
 | **Architecte Expert Infra / Réseau** | Dimensionnement technique & faisabilité | - Saisie et rectification d'hypothèses matérielles<br>- Chiffrage des impacts financiers<br>- Traitement des questions ouvertes assignées |
 | **Architecte Domaine Métier** | Couverture des besoins fonctionnels | - Évaluation des variantes divergentes (A vs B)<br>- Signalement des écarts d'exigences |
 | **Architecte Sécurité & Conformité NIS2** | Résilience opérationnelle & auditabilité | - Validation de conformité aux doctrines ANSSI<br>- Examen des dépendances causales |
@@ -53,9 +53,9 @@ L'interface est structurée autour de 3 zones opérationnelles :
     - Se replie/déplie d'un clic pour laisser un espace de lecture maximal au fil de délibération.
 - **Trancher un conflit d'architecture & Clore les objections** :
   - Le Lead Architect traite les objections ouvertes et tranche le passage à L3 après épuisement des contradictions.
-- **Validation Tour 8 SmartMemory** :
-  - Dès qu'une récurrence de décision est détectée, le bandeau supérieur propose la règle candidate.
-  - Le Lead Architect inspecte la règle et valide ou rejette son inscription au référentiel.
+- **Capitalisation (Porte G4)** :
+  - Une fois le sujet arbitré, l'onglet « Arbitrage G3 & Capitalisation G4 » prépare des candidats anonymisés (décision, dérogations, retour d'expérience).
+  - Vous les relisez, les modifiez au besoin, puis les transmettez au Knowledge Hub : rien n'est envoyé sans cette action explicite.
 
 ### Posture 3 : Rendu & Homologation
 - **Vérifier la barrière de certification** :

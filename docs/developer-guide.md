@@ -50,7 +50,7 @@ npm run dev
 Avant tout commit ou proposition d'évolution, le développeur doit exécuter la chaîne de vérification complète :
 
 ```bash
-# 1. Tests unitaires et d'intégration Vitest (31 tests contractuels)
+# 1. Tests unitaires, contractuels et d'intégration Vitest
 npm run test
 
 # 2. Vérification de typage et de syntaxe Svelte 5

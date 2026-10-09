@@ -414,7 +414,7 @@
 				</div>
 			{/if}
 
-			<!-- 2.3 RÈGLES DE LA BASE DE CONNAISSANCES APPLICABLES (SMARTMEMORY / ADRS) -->
+			<!-- 2.3 RÈGLES DE LA BASE DE CONNAISSANCES APPLICABLES (LLMOPS / ADRS) -->
 			<div class="rounded-xl border border-violet-500/25 bg-violet-500/[0.03] p-3.5 space-y-2">
 				<div class="flex items-center justify-between flex-wrap gap-2">
 					<div class="flex items-center gap-2 text-xs font-bold uppercase tracking-wider text-violet-700 dark:text-violet-400">

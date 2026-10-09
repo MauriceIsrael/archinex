@@ -16,7 +16,7 @@ Pour garantir l'étanchéité stricte des données et la confidentialité absolu
 |---|---|
 | Service | `llmops-mcp-server` (Local FastAPI / MCP) |
 | URL de base (`LLMOPS_BASE_URL`) | `http://127.0.0.1:8000` |
-| Backend Base de Gouvernance | `sqlite:///C:/Users/Momo/Documents/Dev/LLMOps/data/governance.db` |
+| Backend Base de Gouvernance | `sqlite:///<chemin-local>/LLMOps/data/governance.db` |
 | Authentification (`LLMOPS_AUTH_TOKEN`) | Jeton de service Archinex (`Bearer <token>`) |
 | Schéma & Version | `schema_version: 1.24` · Engine `0.1.0` |
 | Health check | `GET /health` → `200 OK` (`status: ok`) |
@@ -71,7 +71,7 @@ Client                              Serveur
 - Le `session_id` **doit** être obtenu depuis l'event `endpoint` avant tout POST.
 - La corrélation requête/réponse se fait via le champ `id` JSON-RPC.
 - Le flux SSE doit rester **ouvert en parallèle** pendant toute la durée des appels.
-- L'implémentation de référence est la classe `McpSession` dans [`tests/integration/llmops-mcp.test.ts`](file:///c:/Users/Momo/Documents/Dev/archinex/tests/integration/llmops-mcp.test.ts).
+- L'implémentation de référence est la classe `McpSession` dans [`tests/integration/llmops-mcp.test.ts`](../tests/integration/llmops-mcp.test.ts).
 
 ---
 
@@ -94,7 +94,7 @@ Banc d'essai 3GPP MCPTT :
 
 ## 4. Configuration MCP (`.mcp.json`)
 
-Le fichier [`.mcp.json`](file:///c:/Users/Momo/Documents/Dev/archinex/.mcp.json) à la racine d'Archinex est lu automatiquement par **Antigravity**, Claude Desktop et Cursor.
+Le fichier [`.mcp.json`](../.mcp.json) à la racine d'Archinex est lu automatiquement par **Antigravity**, Claude Desktop et Cursor.
 
 ```json
 {
@@ -122,7 +122,7 @@ LLMOPS_TOKEN=mon-vrai-jeton npx vitest run tests/integration/llmops-mcp.test.ts
 
 ## 5. Tests d'intégration
 
-Fichier : [`tests/integration/llmops-mcp.test.ts`](file:///c:/Users/Momo/Documents/Dev/archinex/tests/integration/llmops-mcp.test.ts)
+Fichier : [`tests/integration/llmops-mcp.test.ts`](../tests/integration/llmops-mcp.test.ts)
 
 **Résultat : 13/13 tests verts** (vérifié le 2026-09-27)
 

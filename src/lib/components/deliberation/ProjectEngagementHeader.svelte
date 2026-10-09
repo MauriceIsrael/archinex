@@ -231,7 +231,7 @@
 					</button>
 				{/if}
 
-				<!-- Commutateur Humain / IA (Gouvernance & Gate Tour 8) -->
+				<!-- Commutateur Humain / IA (Gouvernance & Porte G3) -->
 				<button
 					type="button"
 					onclick={() => deliberationStore.setIsHuman(!deliberationStore.isHuman)}
@@ -240,7 +240,7 @@
 						: 'bg-purple-500/10 text-purple-700 dark:text-purple-300 border-purple-500/30 hover:bg-purple-500/20'}"
 					title={deliberationStore.isHuman
 						? 'Opérateur Humain : Vous avez autorité pour trancher et arbitrer (Gates L3/L4/L5 débloqués)'
-						: 'Mode Agent IA : Suggestions & élicitation (l\'arbitrage L3 est bloqué selon le Gate Tour 8)'}
+						: 'Mode Agent IA : Suggestions & élicitation (l\'arbitrage L3 est bloqué selon la Porte G3)'}
 				>
 					{#if deliberationStore.isHuman}
 						<UserCheck class="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />

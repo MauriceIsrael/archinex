@@ -89,7 +89,7 @@ describe('Corpus Domain Logic & Separation', () => {
 		expect(firstRule.targetSubjectId).toBe('sub_sync');
 	});
 
-	it('should match relevant organizational knowledge base rules (SmartMemory / ADRs) applicable to client documents', async () => {
+	it('should match relevant organizational knowledge base rules (LLMOps / ADRs) applicable to client documents', async () => {
 		const { getApplicableDoctrineRules } = await import('$lib/domain/dialectic');
 		const { TEST_DOCTRINE_RULES } = await import('../fixtures/sample-doctrine-rules');
 		const cctpDoc = getDocumentById(INITIAL_CORPUS_DOCUMENTS, 'DOC-CLI-01')!;

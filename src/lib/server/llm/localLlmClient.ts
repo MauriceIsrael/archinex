@@ -1,7 +1,7 @@
 /**
  * Client d'Inférence LLM (Local Souverain Ollama / Cloud Anthropic Claude)
  * 
- * - Par défaut : moteur local souverain sur le réseau d'entreprise (Ollama / vLLM sur localhost / raptor-nino:11434).
+ * - Par défaut : moteur local souverain sur le réseau d'entreprise (Ollama / vLLM sur localhost:11434).
  * - Multi-modèle & Cloud : si ANTHROPIC_API_KEY est configurée, active les modèles Claude
  *   (Claude 3.7 Sonnet, Claude 3.5 Sonnet, Claude 3.5 Haiku) pour une factorisation haute fidélité
  *   et des fenêtres de contexte étendues (200k tokens).

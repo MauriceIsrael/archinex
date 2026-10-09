@@ -1,6 +1,6 @@
 # Archinex · Deliberation Workbench
 
-> **Plateforme d'arbitrage, de convergence dialectique et de gouvernance d'architecture sous le cadre SmartMemory × LLMOps.**
+> **Plateforme d'arbitrage, de convergence dialectique et de gouvernance d'architecture adossée au Knowledge Hub LLMOps.**
 
 Archinex outille le *modèle de délibération* entre architectes experts et agents IA. Plutôt que de concurrencer les outils de modélisation système (Structurizr, SysML v2, Enterprise Architect, Mermaid), Archinex capture les controverses, maintient la cohérence de vérité logique par graphe causal, chasse le blabla par des brouillons-appâts percutants et projette de façon déterministe les énoncés prouvés vers les outils cibles sans dérive documentaire.
 
@@ -12,7 +12,7 @@ Archinex outille le *modèle de délibération* entre architectes experts et age
 flowchart LR
     L1["1. Socle Épistémique\n(5 facettes & Enveloppe)"] --> L2["2. Brouillon Télégraphique\n(Anti-Blabla & Chiffrage)"]
     L2 --> L3["3. Board de Maturité\n(Tri Déblocages & Stagnation)"]
-    L3 --> L4["4. Capteur Diff & Exocortex\n(Rappels Doctrines & Tour 8)"]
+    L3 --> L4["4. Capteur Diff & Exocortex\n(Rappels de doctrine)"]
     L1 -.-> L5["5. Moteur de Rétractation\n(DAG & Vérité en Cascade)"]
     L4 --> L6["6. Gel & Export Scellé\n(SHA-256 & 0 Doc Drift)"]
     L5 --> L6
@@ -37,11 +37,11 @@ flowchart LR
 - Pastille visuelle d'alerte pour les sections en **stagnation (> 14 jours sans transition)**.
 - File des questions ouvertes et relance des experts en 1 clic.
 
-### 4. Capteur par le Diff, Règle du Silence & SmartMemory
+### 4. Capteur par le Diff, Règle du Silence & Rappel de Doctrine
 - **Édition en place** : Toute modification textuelle de l'architecte génère un énoncé auditable `human-authored`.
 - **Règle stricte du silence** : L'absence de réaction ou de contestation ne vaut jamais approbation.
 - **Rappels proactifs de doctrine** : Émergence en temps réel des ADRs pertinents dès qu'un sujet tranché est évoqué.
-- **Tour 8 (SmartMemory)** : Induction en séance de règles formelles candidates avec volet SPARQL 1.1 dépliable et approbation réservée au Lead Architect.
+- **Capitalisation (Porte G4)** : Chaque décision arbitrée produit des candidats anonymisés pour la base de connaissances LLMOps. Rien n'est transmis sans validation humaine explicite, et l'acceptation reste réservée aux experts du domaine.
 
 ### 5. Moteur de Rétractation Causale (Truth Maintenance System)
 - Modélisation du graphe acyclique direct (DAG) des dépendances `basedOn`.
@@ -112,7 +112,7 @@ Rendez-vous sur [http://localhost:5173/deliberation](http://localhost:5173/delib
 Le projet maintient une politique stricte de zéro régression et zéro avertissement :
 
 ```bash
-# Lancer l'intégralité de la suite de tests Vitest (31 tests)
+# Lancer l'intégralité de la suite de tests Vitest (les tests « live » contre un LLMOps réel sont ignorés sans `LLMOPS_LIVE_URL`)
 npm run test
 
 # Vérifier le typage strict TypeScript et les Runes Svelte 5 (0 erreur, 0 avertissement)
@@ -145,7 +145,6 @@ archinex/
 │   │   │   ├── TelegraphicDraftView.svelte      # Brouillon-appât & Diff sensor
 │   │   │   ├── DialecticChatPanel.svelte        # Chat multi-canal & rappels ADR
 │   │   │   ├── PedagogicalFramingPanel.svelte   # Cadrage Posture 1 (3GPP, NIS2)
-│   │   │   ├── RuleApprovalBanner.svelte        # Approbation Tour 8 SmartMemory
 │   │   │   ├── WhyInspector.svelte              # Inspecteur 5 facettes & DAG
 │   │   │   ├── FreezeSectionDialog.svelte       # Scellement SHA-256 de section
 │   │   │   └── ArtifactRegenerationHub.svelte   # Projections déterministes (No Doc Drift)
@@ -158,7 +157,6 @@ archinex/
 │   │   │   ├── retractation.ts      # DAG causal & invalidation de clôture logique
 │   │   │   ├── freezeExport.ts      # Barrière d'homologation & scellement
 │   │   │   ├── artifactProjections.ts # Projections Mermaid, DSL, SysML, JSON
-│   │   │   └── smartMemoryRules.ts  # Induction Tour 8 SPARQL
 │   │   ├── stores/
 │   │   │   └── deliberationStore.svelte.ts # Machine à états réactive Svelte 5
 │   │   └── types/

@@ -282,7 +282,6 @@
 	}
 
 	let isEliciting = $state<boolean>(false);
-	let isHarvesting = $state<boolean>(false);
 
 	async function handleElicitDetails() {
 		if (!draft || !activeSubject) return;
@@ -348,7 +347,7 @@
 		}
 	}
 
-	async function handleHarvestSubject() {
+	async function openCapitalization() {
 		if (!activeSubject) return;
 		activeTab = 'arbitration';
 		deliberationStore.logNotification(
@@ -479,22 +478,16 @@
 						{/if}
 					</button>
 
-					<!-- Bouton Récolter (Harvesting) dans LLMOps -->
+					<!-- Raccourci vers la capitalisation (Porte G4) -->
 					{#if draft.retenu.length > 0}
 						<button
 							type="button"
-							class="inline-flex items-center gap-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white px-2.5 py-1 text-xs font-semibold shadow-2xs transition-colors shrink-0 cursor-pointer disabled:opacity-50"
-							onclick={handleHarvestSubject}
-							disabled={isHarvesting}
-							title="Récolter les décisions validées de ce sujet dans le Patrimoine Commun (LLMOps)"
+							class="inline-flex items-center gap-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white px-2.5 py-1 text-xs font-semibold shadow-2xs transition-colors shrink-0 cursor-pointer"
+							onclick={openCapitalization}
+							title="Capitaliser les décisions validées de ce sujet dans la base de connaissances (Porte G4)"
 						>
-							{#if isHarvesting}
-								<RefreshCw class="h-3.5 w-3.5 animate-spin" />
-								<span>Récolte...</span>
-							{:else}
-								<Database class="h-3.5 w-3.5 text-indigo-200" />
-								<span>Récolter dans LLMOps</span>
-							{/if}
+							<Database class="h-3.5 w-3.5 text-indigo-200" />
+							<span>Capitaliser (G4)</span>
 						</button>
 					{/if}
 				{/if}

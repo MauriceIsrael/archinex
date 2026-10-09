@@ -73,6 +73,12 @@ class DeliberationStore {
 
 	constructor() {
 		if (typeof window !== 'undefined') {
+			try {
+				const savedId = localStorage.getItem('archinex:activeEngagementId');
+				if (savedId) {
+					this.activeEngagementId = savedId;
+				}
+			} catch {}
 			this.loadFromServer();
 		}
 	}
@@ -219,6 +225,11 @@ class DeliberationStore {
 		}
 
 		this.activeEngagementId = targetId;
+		if (typeof window !== 'undefined') {
+			try {
+				localStorage.setItem('archinex:activeEngagementId', targetId);
+			} catch {}
+		}
 
 		this.logNotification(
 			`Bascule d'instance : "${targetProfile.title}" (${targetProfile.badge}) · 100% Local`,
@@ -273,7 +284,10 @@ class DeliberationStore {
 				const localOnly = this.engagements.filter((e) => !existingIds.has(e.id));
 				this.engagements = [...engagements, ...localOnly];
 
-				if (!this.engagements.some((e) => e.id === this.activeEngagementId)) {
+				const savedId = typeof window !== 'undefined' ? localStorage.getItem('archinex:activeEngagementId') : null;
+				if (savedId && this.engagements.some((e) => e.id === savedId)) {
+					this.activeEngagementId = savedId;
+				} else if (!this.engagements.some((e) => e.id === this.activeEngagementId)) {
 					this.activeEngagementId = this.engagements[0].id;
 				}
 			}

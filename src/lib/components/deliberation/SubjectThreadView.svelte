@@ -608,11 +608,16 @@
 				<button
 					type="button"
 					onclick={onBackToBoard}
-					class="inline-flex items-center gap-1 text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors cursor-pointer mr-1"
-					title="Revenir au tableau de maturité"
+					class="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-semibold bg-muted/60 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors cursor-pointer mr-1"
+					title="Revenir au tableau de maturité et changer de projet"
 				>
 					<ArrowLeft class="h-3.5 w-3.5" />
 					<span>Tableau</span>
+					{#if deliberationStore.activeEngagement?.title}
+						<span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-background text-primary border border-primary/30 font-bold">
+							{deliberationStore.activeEngagement.shortName || deliberationStore.activeEngagement.title}
+						</span>
+					{/if}
 				</button>
 
 				<div>

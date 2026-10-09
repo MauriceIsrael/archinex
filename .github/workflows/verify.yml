@@ -24,8 +24,7 @@ jobs:
     env:
       DATABASE_URL: file:./dev.db
       JWT_SECRET: ci-only-secret-not-used-anywhere-else-0123456789
-      # Aucune clé de modèle en CI : les tests n'appellent jamais un vrai LLM.
-      LLM_PROVIDER: local
+      # Aucune clé de modèle n'est fournie en CI : les tests n'appellent jamais un vrai LLM.
     steps:
       - uses: actions/checkout@v4
 

@@ -108,13 +108,11 @@ describe('Contract: Tableau de Bord KB, Publication Scellée et Porte G7 (Lot A1
     expect(listRes.data![0].id).toBe(pub.id);
   });
 
-  it('6. listKbCampaigns retourne la liste des campagnes d’enrichissement', async () => {
+  it('6. listKbCampaigns ne renvoie aucune campagne préchargée', async () => {
     const res = await client.listKbCampaigns('expert@archinex.local');
 
     expect(res.status).toBe('ok');
-    expect(res.data).toBeDefined();
-    expect(res.data!.length).toBeGreaterThanOrEqual(1);
-    expect(res.data![0].domain).toBe('architecture');
+    expect(res.data).toEqual([]);
   });
 
   it('7. createKbCampaign crée une nouvelle campagne d’enrichissement ciblée', async () => {

@@ -1,12 +1,11 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { deliberationStore } from '$lib/stores/deliberationStore.svelte';
 import { renderTelegraphicDraft, validateTelegraphicTone } from '$lib/domain/telegraphic';
-import { createTestDefaultEngagements, SAMPLE_CANDIDATE_RULES } from '../fixtures/sample-data';
+import { createTestDefaultEngagements } from '../fixtures/sample-data';
 
 describe('Integration Scenario - End-to-End Deliberation & Epistemic Governance', () => {
 	beforeEach(() => {
 		deliberationStore.initFromDb(createTestDefaultEngagements(), []);
-		deliberationStore.candidateRules = JSON.parse(JSON.stringify(SAMPLE_CANDIDATE_RULES));
 	});
 
 	it('Scénario Intégration Complet: Cycle d\'élicitation, priorité des déblocages, garde-fous humains et effet domino', () => {
@@ -35,17 +34,17 @@ describe('Integration Scenario - End-to-End Deliberation & Epistemic Governance'
 		const toneCheck = validateTelegraphicTone(renderedDraft);
 		expect(toneCheck.valid).toBe(true);
 
-		// 5. Test d'usurpation par Agent IA (Violation Gate Tour 8)
+		// 5. Test d'usurpation par Agent IA (Violation Porte G3)
 		deliberationStore.setIsHuman(false);
 		const aiArbitration = deliberationStore.arbitrateSubject('sub_sync');
 		expect(aiArbitration.success).toBe(false);
-		expect(aiArbitration.message).toContain('Gate Tour 8 violé');
+		expect(aiArbitration.message).toContain('Porte G3 violée');
 
 		// sub_sync est toujours à L2_decomposed
 		const syncStillL2 = deliberationStore.subjects.find((s) => s.id === 'sub_sync');
 		expect(syncStillL2?.level).toBe('L2_decomposed');
 
-		// 6. Test avec rôle expert non habilité pour L4 (Violation Gate Tour 11)
+		// 6. Test avec rôle expert non habilité pour L4 (Violation Porte d'homologation)
 		deliberationStore.setIsHuman(true);
 		deliberationStore.setRole('infra_expert_architect');
 
@@ -81,23 +80,6 @@ describe('Integration Scenario - End-to-End Deliberation & Epistemic Governance'
 		// 10. Relance en 1 clic d'un expert pour une question résiduelle
 		deliberationStore.sendRelance('sub_dc_resilience', 'Q-0003');
 		expect(deliberationStore.notifications[0].message).toContain('Relance envoyée à [infra_expert_architect]');
-
-		// 11. Tour 8 : Modification préalable et approbation de la règle doctrinale candidate induite par SmartMemory
-		const pendingRule = deliberationStore.candidateRules[0];
-		expect(pendingRule.status).toBe('pending');
-
-		const editResult = deliberationStore.updateCandidateRule(pendingRule.id, {
-			title: 'Exigence Holdover ≥ 30j sur Tranche MCX Critique (Édition Architecte)',
-			description: 'Description reformulée et validée par le Lead Architect avant stockage KB.'
-		});
-		expect(editResult.success).toBe(true);
-		expect(pendingRule.title).toBe('Exigence Holdover ≥ 30j sur Tranche MCX Critique (Édition Architecte)');
-
-		const approvalResult = deliberationStore.approveCandidateRule(pendingRule.id);
-		expect(approvalResult.success).toBe(true);
-		expect(pendingRule.status).toBe('approved');
-		expect(deliberationStore.drafts['sub_sync'].retenu.some((r) => r.includes(pendingRule.id))).toBe(true);
-		expect(deliberationStore.commonKnowledgeBase.some((d) => d.id === `DOC-KB-INDUCED-${pendingRule.id}`)).toBe(true);
 
 		// 12. Inspecteur Why : Calcul du blast radius causal (S-0031 -> S-0042)
 		const dependentsOf31 = deliberationStore.getTransitiveDependents('S-0031');

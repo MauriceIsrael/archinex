@@ -6,7 +6,6 @@ import type { Statement } from '../../src/lib/types/epistemic';
 import type { CorpusDocument } from '../../src/lib/domain/corpus';
 import type { DialogueMessage } from '../../src/lib/domain/dialectic';
 import type { EngagementProfile } from '../../src/lib/domain/engagements';
-import type { CandidateRule } from '../../src/lib/domain/smartMemoryRules';
 
 function loadJson<T>(relPath: string): T {
   const fullPath = resolve(process.cwd(), relPath);
@@ -68,17 +67,3 @@ export function createTestDefaultEngagements(
   ];
 }
 
-export const SAMPLE_CANDIDATE_RULES: CandidateRule[] = [
-  {
-    id: 'RULE-CAND-001',
-    title: 'Exigence Holdover ≥ 30j sur Tranche Critique',
-    description: 'Si un site est classé Priorité 1, alors imposer une autonomie temporelle locale (Holdover) ≥ 30 jours.',
-    triggerContext: 'Induit suite à la résolution concordante des sections §4.2 et §3.1.',
-    sparqlQuery: 'PREFIX arch: <http://archinex.internal/ontology#> SELECT ?site WHERE { ?site arch:requiresHoldover "P30D" }',
-    antecedents: ['S-0031', 'S-0042', 'KH:ADR-0014'],
-    confidenceScore: 0.94,
-    status: 'pending',
-    suggestedBy: 'SmartMemory Rule Induction Engine (Tour 8)',
-    suggestedAt: '2026-09-25T14:30:00Z'
-  }
-];

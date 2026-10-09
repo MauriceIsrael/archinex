@@ -205,11 +205,11 @@
 						onclick={() => deliberationStore.syncWithLLMOps()}
 						disabled={deliberationStore.isSyncingLLMOps}
 						class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/20 transition-colors cursor-pointer"
-						title="Connecté au Knowledge Hub GCP Cloud Run ({deliberationStore.activeEngagementId}) · Cliquez pour resynchroniser"
+						title="Connecté au Knowledge Hub LLMOps ({deliberationStore.activeEngagementId}) · Cliquez pour resynchroniser"
 					>
 						<span class="inline-block h-2 w-2 rounded-full bg-emerald-500"></span>
 						<span class="opacity-80">LLMOps :</span>
-						<strong class="font-mono">Connecté (GCP)</strong>
+						<strong class="font-mono">Connecté</strong>
 						{#if deliberationStore.isSyncingLLMOps}
 							<RefreshCw class="h-3 w-3 animate-spin ml-0.5" />
 						{/if}
@@ -220,7 +220,7 @@
 						onclick={() => deliberationStore.syncWithLLMOps()}
 						disabled={deliberationStore.isSyncingLLMOps}
 						class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-medium bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-500/30 hover:bg-rose-500/20 transition-colors cursor-pointer"
-						title="Non connecté à une instance LLMOps : aucune synchronisation distante active. Archinex fonctionne en mode local autonome. Cliquez pour tester la connexion."
+						title="Non connecté à une instance LLMOps : aucune synchronisation distante active. Archinex continue avec vos données locales. Cliquez pour tester la connexion."
 					>
 						<span class="inline-block h-2 w-2 rounded-full bg-rose-500"></span>
 						<span class="opacity-80">LLMOps :</span>
@@ -231,7 +231,7 @@
 					</button>
 				{/if}
 
-				<!-- Commutateur Humain / IA (Gouvernance & Gate Tour 8) -->
+				<!-- Commutateur Humain / IA (Gouvernance & Porte G3) -->
 				<button
 					type="button"
 					onclick={() => deliberationStore.setIsHuman(!deliberationStore.isHuman)}
@@ -240,7 +240,7 @@
 						: 'bg-purple-500/10 text-purple-700 dark:text-purple-300 border-purple-500/30 hover:bg-purple-500/20'}"
 					title={deliberationStore.isHuman
 						? 'Opérateur Humain : Vous avez autorité pour trancher et arbitrer (Gates L3/L4/L5 débloqués)'
-						: 'Mode Agent IA : Suggestions & élicitation (l\'arbitrage L3 est bloqué selon le Gate Tour 8)'}
+						: 'Mode Agent IA : Suggestions & élicitation (l\'arbitrage L3 est bloqué selon la Porte G3)'}
 				>
 					{#if deliberationStore.isHuman}
 						<UserCheck class="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />

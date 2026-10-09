@@ -6,7 +6,7 @@
  * 2. Débat contradictoire multi-experts dans le canal dialectique (Infra vs RSSI vs Agent IA).
  * 3. Formalisation de la controverse dans le brouillon (conflit ouvert, is_provisional: true).
  * 4. Règle du Silence : impossibilité de consensus tacite ou de promotion L3 par l'IA.
- * 5. Arbitrage formel par le Lead Architect humain (Human Gate Tour 8).
+ * 5. Arbitrage formel par le Lead Architect humain (Porte G3).
  * 6. Promotion effective à L3_decided et purge du conflit.
  * 7. Effet Multiplicateur : déblocage en cascade des sujets aval et réordonnancement du Board.
  */

@@ -1,0 +1,43 @@
+name: verify
+
+# Porte qualité unique : garde-fou denylist, tests, types Svelte, build de production.
+# C'est la commande locale `npm run verify`, exécutée sur un clone propre.
+#
+# Les tests « live » (contre un vrai serveur LLMOps) et les parcours Playwright ne tournent pas ici :
+# ils exigent un LLMOps réel (LLMOPS_LIVE_URL ou Docker) et sont ignorés sans lui.
+
+on:
+  push:
+  pull_request:
+
+concurrency:
+  group: verify-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      DATABASE_URL: file:./dev.db
+      JWT_SECRET: ci-only-secret-not-used-anywhere-else-0123456789
+      # Aucune clé de modèle n'est fournie en CI : les tests n'appellent jamais un vrai LLM.
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Installer les dépendances
+        run: npm ci
+
+      - name: Créer la base SQLite et générer le client Prisma
+        run: npx prisma db push
+
+      - name: Vérifier (denylist, tests, types, build)
+        run: npm run verify

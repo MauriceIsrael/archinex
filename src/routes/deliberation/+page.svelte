@@ -4,7 +4,6 @@
 	import DeliberationDashboardKpis from '$lib/components/deliberation/DeliberationDashboardKpis.svelte';
 	import MaturityBoardTable from '$lib/components/deliberation/MaturityBoardTable.svelte';
 	import DeliberationWorkbench from '$lib/components/deliberation/DeliberationWorkbench.svelte';
-	import RuleApprovalBanner from '$lib/components/deliberation/RuleApprovalBanner.svelte';
 	import CorpusAppropriationHub from '$lib/components/deliberation/CorpusAppropriationHub.svelte';
 	import ArtifactRegenerationHub from '$lib/components/deliberation/ArtifactRegenerationHub.svelte';
 	import WhyInspector from '$lib/components/deliberation/WhyInspector.svelte';
@@ -53,7 +52,6 @@
 			<!-- Tableau de bord opérationnel & KPIs de Délibération (affiché en vue Board) -->
 			{#if deliberationStore.deliberationViewMode === 'board'}
 				<DeliberationDashboardKpis />
-				<RuleApprovalBanner />
 			{/if}
 
 			<!-- Sélecteur de mode Délibération : Vue d'ensemble (Tableau) vs Délibération par sujet (Workbench) -->

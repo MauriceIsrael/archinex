@@ -4,6 +4,7 @@
   "version": "0.0.1",
   "type": "module",
   "scripts": {
+    "prepare": "svelte-kit sync || echo ''",
     "dev": "vite dev",
     "dev:host": "vite dev --host",
     "build": "vite build",
@@ -24,7 +25,8 @@
     "test:integration:retraction": "vitest run tests/integration/causal-retraction-cascade.test.ts",
     "test:integration:debate": "vitest run tests/integration/expert-debate-maturation.test.ts",
     "verify": "node scripts/verify.mjs",
-    "ollama:models": "node scripts/ollama-models.mjs"
+    "ollama:models": "node scripts/ollama-models.mjs",
+    "eval:requirements": "tsx scripts/eval-requirements-audit.ts"
   },
   "devDependencies": {
     "@axe-core/playwright": "^4.13.0",

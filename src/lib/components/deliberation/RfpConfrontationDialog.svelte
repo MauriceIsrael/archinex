@@ -440,6 +440,7 @@
 						evacuatedCount={factorizationResponse.evacuatedCount}
 						deliberatedCount={factorizationResponse.deliberatedCount}
 						clarificationCount={factorizationResponse.clarificationCount}
+						toQualifyCount={factorizationResponse.toQualifyCount}
 						clarifications={factorizationResponse.clarifications}
 						allAuditedRequirements={factorizationResponse.allAuditedRequirements}
 						onConfirm={(finalSubjects: InitialSubjectInput[]) => {

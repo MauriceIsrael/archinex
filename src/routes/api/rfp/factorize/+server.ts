@@ -6,8 +6,7 @@ import {
 } from '$lib/server/llm/rfpFactorizer';
 import { localLlmClient } from '$lib/server/llm/localLlmClient';
 import { doctrineService } from '$lib/server/doctrine/doctrineService';
-import { runArcKitRequirementsAudit } from '$lib/server/ingest/arckitRequirementsPipeline';
-import type { FactorizedArchitecturalSubject } from '$lib/domain/factorization';
+import { runRequirementsAudit, toFactorizationResponse } from '$lib/server/ingest/arckitRequirementsPipeline';
 
 /**
  * GET /api/rfp/factorize
@@ -76,53 +75,19 @@ export const POST: RequestHandler = async ({ request }) => {
 			// En cas d'erreur de doctrine, on continue avec un tableau vide
 		}
 
-		// 1. Exécution prioritaire du Pipeline d'Audit et de Factorisation ArcKit
-		const auditReport = runArcKitRequirementsAudit(clauses);
-		if (auditReport.hardPoints && auditReport.hardPoints.length > 0) {
-			const subjects: FactorizedArchitecturalSubject[] = auditReport.hardPoints.map((hp, idx) => ({
-				id: `SUBJ-${String(idx + 1).padStart(2, '0')}`,
-				lotId: `LOT-${hp.id}`,
-				name: hp.name,
-				sectionRef: hp.sectionRef,
-				coveredClauseRefs: hp.coveredClauseRefs,
-				matchedKbItemIds: [],
-				knowledgeAlignment: 'novel_requirement',
-				alignmentRationale: `Point dur d'architecture extrait selon la méthodologie ArcKit (couvre ${hp.coveredClauseRefs.length} exigences).`,
-				initialLevel: 'L0_unassessed',
-				waitingForRole: hp.waitingForRole,
-				effort: hp.effort as 'S' | 'M',
-				seed: {
-					initialRetenu: hp.seed.initialRetenu,
-					initialHypothesis: hp.seed.initialHypothesis,
-					initialConflict: hp.seed.initialConflict,
-					initialQuestion: hp.seed.initialQuestion,
-					expertQuestions: hp.seed.expertQuestions
-				}
-			}));
-
-			return json({
-				status: 'ok',
-				engine: 'arckit-requirements-audit',
-				modelUsed: body.model || 'arckit-requirements-pipeline',
-				summary: `Audit qualité & factorisation ArcKit : ${auditReport.totalCount} exigences analysées, ${auditReport.evacuatedCount} commodités évacuées (${Math.round((auditReport.evacuatedCount / auditReport.totalCount) * 100)}%), ${auditReport.clarificationCount} questions client et ${auditReport.hardPoints.length} points durs d'architecture extraits.`,
-				totalClauses: auditReport.totalCount,
-				coveredClausesCount: auditReport.requirements.filter((r) => r.disposition !== 'evacuated').length,
-				coverageRate: 1.0,
-				subjects,
-				unassignedClauses: [],
-				auditReport,
-				evacuatedCount: auditReport.evacuatedCount,
-				deliberatedCount: auditReport.deliberatedCount,
-				clarificationCount: auditReport.clarificationCount,
-				clarifications: auditReport.clarifications,
-				allAuditedRequirements: auditReport.requirements
-			});
+		// 1. Audit en étapes (classement, contrôles, regroupement en sujets) par le modèle configuré
+		const model = body.model || localLlmClient.getDefaultModel();
+		const audit = await runRequirementsAudit(clauses, { model, kbStandards });
+		if (audit.status === 'ok') {
+			return json(toFactorizationResponse(audit));
 		}
 
+		// 2. Repli : factorisation directe. Le rapport d'audit incomplet n'est PAS joint, pour ne pas
+		//    afficher des dispositions partielles ou contradictoires avec les sujets du moteur de repli.
 		const result = await factorizeRfpWithLocalLlm(
 			{
 				clauses,
-				model: body.model || localLlmClient.getDefaultModel(),
+				model,
 				customPromptDirectives: body.customPromptDirectives,
 				engagementId: body.engagementId,
 				documentTitle: body.documentTitle
@@ -130,14 +95,10 @@ export const POST: RequestHandler = async ({ request }) => {
 			kbStandards
 		);
 
+		const auditNote = `L'audit des exigences n'a pas abouti (${audit.warnings.join(' ') || 'modèle indisponible'}).`;
 		return json({
 			...result,
-			auditReport,
-			evacuatedCount: auditReport.evacuatedCount,
-			deliberatedCount: auditReport.deliberatedCount,
-			clarificationCount: auditReport.clarificationCount,
-			clarifications: auditReport.clarifications,
-			allAuditedRequirements: auditReport.requirements
+			warning: [auditNote, result.warning].filter(Boolean).join(' ')
 		});
 	} catch (err: unknown) {
 		const message = err instanceof Error ? err.message : 'Erreur interne lors de la factorisation.';

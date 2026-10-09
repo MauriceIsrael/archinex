@@ -11,7 +11,7 @@ export interface LLMOpsKbMeta {
 }
 
 export interface LLMOpsHealth {
-  status: 'ok' | 'error';
+  status: 'ok' | 'error' | 'unreachable';
   plane: string;
   schema_version: string;
   service: string;

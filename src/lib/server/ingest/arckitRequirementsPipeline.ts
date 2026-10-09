@@ -1,54 +1,52 @@
 /**
- * Pipeline d'Ingestion & d'Audit d'Architecture inspiré de la méthodologie ArcKit.
- * 
- * Objectifs méthodologiques :
- * 1. Préservation intégrale des identifiants d'exigences contractuelles (REQ-Lot1-xxx, BR-xxx, NFR-xxx).
- * 2. Typage et audit qualité systématique (arckit-requirements & arckit-analyze).
- * 3. Évacuation rapide des commodités et standards sur étagère (80% sans débat).
- * 4. Extraction exclusive des VRAIS points durs sous tension d'architecture (ADRs atomiques).
- * 5. Formulation des questions précises pour le SACHANT MÉTIER afin de débloquer et maturer le sujet.
+ * Pipeline d'audit des exigences d'un RFP, par raffinements successifs (inspiré d'ArcKit).
+ *
+ * Étapes :
+ *  1. Classement de chaque exigence (LLM, par lots) : à délibérer / commodité / à clarifier.
+ *  2. Contrôles déterministes : une clause ne tombe jamais entre deux chaises, et une évacuation
+ *     n'est acceptée que motivée et jamais pour une clause bloquante.
+ *  3. Regroupement des clauses à délibérer en sujets d'architecture (LLM), ancré sur la doctrine
+ *     de la base de connaissances fournie.
+ *  4. Contrôles déterministes : chaque clause à délibérer appartient à exactement un sujet.
+ *
+ * Principes (constitution) :
+ *  - Le modèle PROPOSE, l'humain dispose : rien de produit ici n'est `verified`.
+ *  - Dans le doute, une clause est « à qualifier » : elle n'est JAMAIS évacuée par défaut.
+ *  - Aucune donnée propre à un RFP n'est codée ici : tout vient des clauses reçues et du modèle.
  */
 
+import { z } from 'zod';
 import type { ExtractedClause } from '$lib/domain/corpus';
-import type { ArchitectRole, MaturityLevel } from '$lib/types/epistemic';
+import type { FactorizedArchitecturalSubject, KnowledgeAlignment } from '$lib/domain/factorization';
+import type { ArchitectRole } from '$lib/types/epistemic';
+import { localLlmClient } from '$lib/server/llm/localLlmClient';
+import { cleanJsonString, inferTargetSubjectsCount, type KbItemSummary } from '$lib/server/llm/rfpFactorizer';
+import type { ChatOptions } from '$lib/server/llm/types';
+
+// ─── Types ────────────────────────────────────────────────────────────────────
 
 export type ArcKitRequirementCategory = 'FR' | 'NFR' | 'INT' | 'FAC' | 'BR' | 'DR';
-export type RequirementDisposition = 'deliberated' | 'evacuated' | 'clarification_needed';
+
+/** `to_qualify` : le pipeline n'a pas pu (ou pas osé) trancher ; un humain doit qualifier la clause. */
+export type RequirementDisposition = 'deliberated' | 'evacuated' | 'clarification_needed' | 'to_qualify';
 
 export interface AuditedRequirement {
 	id: string;
 	clauseRef: string;
 	title: string;
 	text: string;
-	category: ArcKitRequirementCategory;
+	category?: ArcKitRequirementCategory;
 	criticality: 'bloquant' | 'majeur' | 'info';
 	disposition: RequirementDisposition;
+	/** Motif de l'évacuation proposée (obligatoire pour `evacuated`). */
 	evacuationReason?: string;
+	/** Question précise au donneur d'ordre (obligatoire pour `clarification_needed`). */
 	clarificationQuestion?: string;
+	/** Tension d'architecture identifiée (pour `deliberated`). */
+	deliberationReason?: string;
+	/** Pourquoi la clause n'a pas pu être classée automatiquement (pour `to_qualify`). */
+	qualifyReason?: string;
 	linkedSubjectId?: string;
-}
-
-export interface ArchitecturalHardPoint {
-	id: string;
-	name: string;
-	sectionRef: string;
-	waitingForRole: ArchitectRole;
-	effort: 'XS' | 'S' | 'M' | 'L' | 'XL';
-	level: MaturityLevel;
-	coveredClauseRefs: string[];
-	seed: {
-		initialQuestion: string;
-		initialHypothesis: string;
-		initialConflict: string;
-		initialRetenu: string[];
-		expertQuestions: string[];
-	};
-	options: Array<{
-		id: string;
-		name: string;
-		pros: string;
-		cons: string;
-	}>;
 }
 
 export interface ArcKitAuditReport {
@@ -56,455 +54,586 @@ export interface ArcKitAuditReport {
 	evacuatedCount: number;
 	deliberatedCount: number;
 	clarificationCount: number;
+	toQualifyCount: number;
 	categoryDistribution: Record<ArcKitRequirementCategory, number>;
 	requirements: AuditedRequirement[];
-	hardPoints: ArchitecturalHardPoint[];
 	clarifications: Array<{ clauseRef: string; title: string; question: string }>;
+	warnings: string[];
 }
 
-/**
- * Détermine la catégorie ArcKit à partir du contenu d'une exigence
- */
-export function categorizeRequirement(ref: string, title: string, text: string): ArcKitRequirementCategory {
-	const upperRef = ref.toUpperCase();
-	if (upperRef.startsWith('BR-')) return 'BR';
-	if (upperRef.startsWith('FR-')) return 'FR';
-	if (upperRef.startsWith('NFR-')) return 'NFR';
-	if (upperRef.startsWith('INT-')) return 'INT';
-	if (upperRef.startsWith('DR-')) return 'DR';
-
-	const full = `${ref} ${title} ${text}`.toLowerCase();
-
-	if (
-		full.includes('premises') ||
-		full.includes('room layout') ||
-		full.includes('video wall') ||
-		full.includes('operator desks') ||
-		full.includes('furniture') ||
-		full.includes('screen') ||
-		full.includes('lay-out') ||
-		full.includes('hvac') ||
-		full.includes('desktop computer')
-	) {
-		return 'FAC';
-	}
-
-	if (
-		full.includes('availability') ||
-		full.includes('resilien') ||
-		full.includes('disaster recovery') ||
-		full.includes('redundanc') ||
-		full.includes('kpi') ||
-		full.includes('sla') ||
-		full.includes('target') ||
-		full.includes('mtbf') ||
-		full.includes('mtta') ||
-		full.includes('mttr') ||
-		full.includes('holdover') ||
-		full.includes('denial of service') ||
-		full.includes('power autonomy') ||
-		full.includes('anti-jamming') ||
-		full.includes('radio jamming') ||
-		full.includes('handover success rate')
-	) {
-		return 'NFR';
-	}
-
-	if (
-		full.includes('interface') ||
-		full.includes('interoperab') ||
-		full.includes('yang') ||
-		full.includes('netconf') ||
-		full.includes('restconf') ||
-		full.includes('syslog') ||
-		full.includes('snmp') ||
-		full.includes('ptp') ||
-		full.includes('mno') ||
-		full.includes('ran') ||
-		full.includes('adjacent') ||
-		full.includes('roaming') ||
-		full.includes('n3iwf')
-	) {
-		return 'INT';
-	}
-
-	if (
-		full.includes('database') ||
-		full.includes('inventory') ||
-		full.includes('cmdb') ||
-		full.includes('data collection') ||
-		full.includes('logs') ||
-		full.includes('cdr') ||
-		full.includes('call detail records')
-	) {
-		return 'DR';
-	}
-
-	if (
-		full.includes('shall be dedicated') ||
-		full.includes('governance') ||
-		full.includes('itil') ||
-		full.includes('ownership') ||
-		full.includes('responsibility') ||
-		full.includes('policy') ||
-		full.includes('contract') ||
-		full.includes('milestone')
-	) {
-		return 'BR';
-	}
-
-	return 'FR';
+/** Port minimal vers le LLM : permet d'injecter un faux modèle dans les tests. */
+export interface LlmPort {
+	chat(options: ChatOptions): Promise<string>;
 }
 
+export interface RequirementsAuditOptions {
+	llm?: LlmPort;
+	model?: string;
+	kbStandards?: KbItemSummary[];
+	/** Nombre de clauses classées par appel LLM. */
+	classifyBatchSize?: number;
+	/** Nombre maximal de clauses à délibérer regroupées par appel LLM. */
+	groupChunkSize?: number;
+	/** Nombre d'appels de classement menés en parallèle. */
+	concurrency?: number;
+}
+
+export interface StagedAuditResult {
+	/**
+	 * ok          : toutes les étapes ont abouti.
+	 * partial     : au moins un lot ou le regroupement a échoué (le rapport est fiable mais incomplet).
+	 * unavailable : aucun lot n'a pu être classé (LLM injoignable) ; tout est « à qualifier ».
+	 */
+	status: 'ok' | 'partial' | 'unavailable';
+	report: ArcKitAuditReport;
+	subjects: FactorizedArchitecturalSubject[];
+	warnings: string[];
+	modelUsed: string;
+}
+
+export const CATEGORIES: ArcKitRequirementCategory[] = ['FR', 'NFR', 'INT', 'FAC', 'BR', 'DR'];
+
+const DEFAULT_CLASSIFY_BATCH = 40;
+const DEFAULT_GROUP_CHUNK = 120;
+const DEFAULT_CONCURRENCY = 3;
+const MIN_REASON_CHARS = 12;
+const CLAUSE_TEXT_BUDGET = 700;
+const ALLOWED_ROLES: ArchitectRole[] = [
+	'lead_architect',
+	'infra_expert_architect',
+	'security_architect',
+	'domain_architect',
+	'data_architect',
+	'domain_expert'
+];
+
+// ─── Appel LLM avec JSON strict ───────────────────────────────────────────────
+
+class StageError extends Error {}
+
 /**
- * Analyse, qualifie et groupe un ensemble de clauses extraites selon la méthodologie ArcKit
+ * Appelle le LLM et exige un JSON valide conforme au schéma. Une seule relance est faite,
+ * en rappelant l'erreur au modèle. Aucune réparation « créative » : un JSON douteux est refusé
+ * plutôt que reconstitué (une réparation pourrait inventer des sujets).
  */
-export function runArcKitRequirementsAudit(clauses: ExtractedClause[]): ArcKitAuditReport {
-	const auditedReqs: AuditedRequirement[] = [];
-	const clarifications: Array<{ clauseRef: string; title: string; question: string }> = [];
-
-	for (const clause of clauses) {
-		const category = categorizeRequirement(clause.clauseRef, clause.title, clause.text);
-		const full = `${clause.clauseRef} ${clause.title} ${clause.text}`.toLowerCase();
-
-		let disposition: RequirementDisposition = 'evacuated';
-		let evacuationReason: string | undefined;
-		let clarificationQuestion: string | undefined;
-		let linkedSubjectId: string | undefined;
-
-		// 1. Détection des points durs sous tension d'architecture (ADRs)
-		// ADR-NOC-01 : Médiation O&M Multi-Constructeurs (RAN GOV vs MNO Partagé)
-		if (
-			clause.clauseRef === 'REQ-Lot1-201' ||
-			clause.clauseRef === 'REQ-Lot1-240' ||
-			clause.clauseRef === 'REQ-Lot1-241' ||
-			clause.clauseRef === 'REQ-Lot1-242' ||
-			clause.clauseRef === 'REQ-Lot1-243' ||
-			clause.clauseRef === 'REQ-Lot1-248' ||
-			clause.clauseRef === 'REQ-Lot1-249' ||
-			clause.clauseRef === 'REQ-Lot1-250' ||
-			clause.clauseRef === 'REQ-Lot1-251' ||
-			clause.clauseRef === 'REQ-Lot1-252' ||
-			clause.clauseRef === 'REQ-Lot1-253' ||
-			clause.clauseRef === 'REQ-Lot1-254'
-		) {
-			disposition = 'deliberated';
-			linkedSubjectId = 'ADR-NOC-01';
+async function callJson<T>(
+	llm: LlmPort,
+	base: Pick<ChatOptions, 'model' | 'messages'>,
+	schema: z.ZodType<T>
+): Promise<T> {
+	let lastError = 'réponse vide';
+	let messages = base.messages;
+	for (let attempt = 0; attempt < 2; attempt++) {
+		const raw = await llm.chat({
+			model: base.model,
+			messages,
+			format: 'json',
+			maxTokens: 16000,
+			temperature: 0,
+			timeoutMs: 300000
+		});
+		try {
+			const parsed = JSON.parse(cleanJsonString(raw));
+			const checked = schema.safeParse(parsed);
+			if (checked.success) return checked.data;
+			lastError = checked.error.issues
+				.slice(0, 3)
+				.map((i) => `${i.path.join('.') || '(racine)'} : ${i.message}`)
+				.join(' ; ');
+		} catch (err) {
+			lastError = `JSON invalide (${err instanceof Error ? err.message.slice(0, 80) : 'erreur'})`;
 		}
-		// ADR-NOC-02 : Résilience au Déni GNSS 30j & Détection de Brouillage Radio
-		else if (
-			clause.clauseRef === 'REQ-Lot1-223' ||
-			clause.clauseRef === 'REQ-Lot1-224' ||
-			clause.clauseRef === 'REQ-Lot1-225' ||
-			clause.clauseRef === 'REQ-Lot1-226' ||
-			clause.clauseRef === 'REQ-Lot1-227' ||
-			clause.clauseRef === 'REQ-Lot1-228' ||
-			clause.clauseRef === 'REQ-Lot1-229'
-		) {
-			disposition = 'deliberated';
-			linkedSubjectId = 'ADR-NOC-02';
-		}
-		// ADR-NOC-03 : Haute Disponibilité 24/7 du NOC (Actif/Actif vs Miroir Repli)
-		else if (
-			clause.clauseRef === 'REQ-Lot1-192' ||
-			clause.clauseRef === 'REQ-Lot1-268' ||
-			clause.clauseRef === 'REQ-Lot1-270' ||
-			clause.clauseRef === 'REQ-Lot1-271' ||
-			clause.clauseRef === 'REQ-Lot1-282'
-		) {
-			disposition = 'deliberated';
-			linkedSubjectId = 'ADR-NOC-03';
-		}
-		// ADR-NOC-04 : Boucle Fermée d'Automatisation AIOps (SMO / NWDAF / 5QI Aérien)
-		else if (
-			clause.clauseRef === 'REQ-Lot1-193' ||
-			clause.clauseRef === 'REQ-Lot1-194' ||
-			clause.clauseRef === 'REQ-Lot1-195' ||
-			clause.clauseRef === 'REQ-Lot1-196' ||
-			clause.clauseRef === 'REQ-Lot1-197' ||
-			clause.clauseRef === 'REQ-Lot1-208' ||
-			clause.clauseRef === 'REQ-Lot1-247' ||
-			clause.clauseRef === 'REQ-Lot1-263'
-		) {
-			disposition = 'deliberated';
-			linkedSubjectId = 'ADR-NOC-04';
-		}
-		// 2. Détection des ambiguïtés nécessitant une question de cadrage au donneur d'ordre
-		else if (
-			clause.clauseRef === 'REQ-Lot1-191' ||
-			clause.clauseRef === 'REQ-Lot1-206' ||
-			clause.clauseRef === 'REQ-Lot1-209'
-		) {
-			disposition = 'clarification_needed';
-			clarificationQuestion =
-				'Frontière de responsabilité opérationnelle : Jusqu’où le NOC dédié LUMICC a-t-il le pouvoir de piloter ou délester les cellules radio de l’opérateur commercial tiers (MNO) en situation d’urgence ?';
-			clarifications.push({
-				clauseRef: clause.clauseRef,
-				title: clause.title,
-				question: clarificationQuestion
-			});
-		} else if (clause.clauseRef === 'REQ-Lot1-230') {
-			disposition = 'clarification_needed';
-			clarificationQuestion =
-				'Roadmap 3GPP Rel-20 ISAC (détection radar de drones par les antennes radio) : Quel est l’échéancier réel et l’impact sur les choix matériels de stations de base Lot 2 ?';
-			clarifications.push({
-				clauseRef: clause.clauseRef,
-				title: clause.title,
-				question: clarificationQuestion
-			});
-		}
-		// 3. Évacuation automatique avec justification formelle
-		else {
-			disposition = 'evacuated';
-			if (category === 'FAC') {
-				evacuationReason = 'Aménagement physique, mobilier et environnement hors périmètre d’architecture logicielle';
-			} else if (full.includes('itil') || full.includes('ticket') || full.includes('incident') || full.includes('alarm console')) {
-				evacuationReason = 'Fonctionnalité native standard couverte par les progiciels ITSM/FCAPS sur étagère';
-			} else if (full.includes('dashboard') || full.includes('report') || full.includes('hypervisor') || full.includes('export')) {
-				evacuationReason = 'Fonctionnalité standard de restitution visuelle et reporting';
-			} else if (full.includes('syslog') || full.includes('snmp')) {
-				evacuationReason = 'Protocole de télémétrie normalisé de l’industrie sans tension d’arbitrage';
-			} else {
-				evacuationReason = 'Spécification technique nominale couverte par les composants standards du marché';
+		messages = [
+			...base.messages,
+			{
+				role: 'user',
+				content: `Ta réponse précédente est inutilisable (${lastError}). Recommence en respectant strictement le format JSON demandé, sans aucun texte autour.`
 			}
-		}
+		];
+	}
+	throw new StageError(lastError);
+}
 
-		auditedReqs.push({
+// ─── Étape 1 : classement ─────────────────────────────────────────────────────
+
+const ClassifyResponseSchema = z.object({
+	items: z.array(
+		z.object({
+			ref: z.string(),
+			category: z.string().optional().nullable(),
+			disposition: z.string(),
+			reason: z.string().optional().nullable(),
+			question: z.string().optional().nullable()
+		})
+	)
+});
+export type ClassifyItem = z.infer<typeof ClassifyResponseSchema>['items'][number];
+
+const CLASSIFY_SYSTEM = `Tu es architecte système senior (télécoms, infrastructures et systèmes critiques). Tu tries les exigences d'un appel d'offres pour décider lesquelles méritent un débat d'architecture.
+
+Pour CHAQUE exigence reçue, choisis une disposition :
+- "deliberate" : l'exigence engage un choix d'architecture avec des alternatives réelles (compromis coût / risque / performance), entre en tension avec une autre contrainte (souveraineté, sécurité, disponibilité, interopérabilité), ou a un impact transverse. Donne en "reason" la tension en une phrase.
+- "commodity" : exigence nominale, entièrement couverte par des produits ou pratiques standard du marché, sans arbitrage d'architecture possible. Tu DOIS donner en "reason" un motif précis (une phrase).
+- "clarify" : exigence ambiguë, incomplète ou contradictoire, qu'on ne peut pas traiter sans réponse du donneur d'ordre. Tu DOIS poser en "question" UNE question précise.
+
+Règles impératives :
+- En cas de doute, ne choisis JAMAIS "commodity".
+- Une exigence de criticité "bloquant" n'est jamais "commodity".
+- Toute valeur chiffrée exigeante (durées, disponibilité, délais, volumes), toute exigence de souveraineté, de sécurité ou de continuité de service relève de "deliberate".
+- N'invente aucun fait absent du texte.
+
+Catégorie ("category") : FR fonctionnelle, NFR non fonctionnelle (performance, disponibilité, résilience), INT interface ou interopérabilité, FAC installations physiques, BR règle de gestion ou gouvernance, DR donnée.
+
+Réponds UNIQUEMENT par un objet JSON : {"items":[{"ref":"…","category":"…","disposition":"deliberate|commodity|clarify","reason":"…","question":"…"}]}
+Un item par exigence, dans l'ordre reçu, sans en omettre aucune, avec "ref" recopié à l'identique.`;
+
+function clip(text: string, max: number): string {
+	const t = (text || '').replace(/\s+/g, ' ').trim();
+	return t.length > max ? `${t.slice(0, max - 1)}…` : t;
+}
+
+function buildClassifyUserMessage(batch: ExtractedClause[]): string {
+	return [
+		`Exigences à classer (${batch.length}) :`,
+		...batch.map(
+			(c) => `[${c.clauseRef}] (criticité : ${c.criticality}) ${clip(c.title, 120)} — ${clip(c.text, CLAUSE_TEXT_BUDGET)}`
+		)
+	].join('\n');
+}
+
+function normalizeDisposition(raw: string): 'deliberate' | 'commodity' | 'clarify' | null {
+	const v = (raw || '').trim().toLowerCase();
+	if (['deliberate', 'deliberated', 'deliberation'].includes(v)) return 'deliberate';
+	if (['commodity', 'evacuate', 'evacuated', 'commodite'].includes(v)) return 'commodity';
+	if (['clarify', 'clarification', 'clarification_needed'].includes(v)) return 'clarify';
+	return null;
+}
+
+function normalizeCategory(raw?: string | null): ArcKitRequirementCategory | undefined {
+	const v = (raw || '').trim().toUpperCase();
+	return (CATEGORIES as string[]).includes(v) ? (v as ArcKitRequirementCategory) : undefined;
+}
+
+/**
+ * Applique les contrôles déterministes sur les propositions du modèle. Fonction pure.
+ * Garantit : une entrée par clause reçue, et aucune évacuation non motivée ou bloquante.
+ */
+export function applyClassificationInvariants(
+	clauses: ExtractedClause[],
+	items: ClassifyItem[],
+	failureReasonByRef: Map<string, string> = new Map()
+): AuditedRequirement[] {
+	const byRef = new Map<string, ClassifyItem>();
+	for (const item of items) {
+		if (!byRef.has(item.ref)) byRef.set(item.ref, item); // doublon : le premier l'emporte
+	}
+
+	return clauses.map((clause): AuditedRequirement => {
+		const base = {
 			id: clause.id || clause.clauseRef.toLowerCase().replace(/[^a-z0-9_-]/g, '-'),
 			clauseRef: clause.clauseRef,
 			title: clause.title,
 			text: clause.text,
+			criticality: clause.criticality
+		};
+		const toQualify = (qualifyReason: string, category?: ArcKitRequirementCategory): AuditedRequirement => ({
+			...base,
 			category,
-			criticality: clause.criticality,
-			disposition,
-			evacuationReason,
-			clarificationQuestion,
-			linkedSubjectId
+			disposition: 'to_qualify',
+			qualifyReason
 		});
+
+		const failure = failureReasonByRef.get(clause.clauseRef);
+		if (failure) return toQualify(failure);
+
+		const item = byRef.get(clause.clauseRef);
+		if (!item) return toQualify('Absente de la réponse du modèle : à classer par un humain.');
+
+		const category = normalizeCategory(item.category);
+		const disposition = normalizeDisposition(item.disposition);
+		const reason = (item.reason || '').trim();
+		const question = (item.question || '').trim();
+
+		if (disposition === 'deliberate') {
+			return { ...base, category, disposition: 'deliberated', deliberationReason: reason || undefined };
+		}
+
+		if (disposition === 'commodity') {
+			if (reason.length < MIN_REASON_CHARS) {
+				return toQualify('Évacuation proposée sans motif exploitable : à qualifier par un humain.', category);
+			}
+			if (clause.criticality === 'bloquant') {
+				return toQualify(
+					`Clause bloquante : le modèle proposait de l'évacuer (« ${clip(reason, 140)} »), ce qui exige une revue humaine.`,
+					category
+				);
+			}
+			return { ...base, category, disposition: 'evacuated', evacuationReason: reason };
+		}
+
+		if (disposition === 'clarify') {
+			if (question.length < MIN_REASON_CHARS) {
+				return toQualify('Clarification demandée sans question exploitable : à qualifier par un humain.', category);
+			}
+			return { ...base, category, disposition: 'clarification_needed', clarificationQuestion: question };
+		}
+
+		return toQualify(`Disposition inconnue renvoyée par le modèle (« ${clip(item.disposition, 40)} »).`, category);
+	});
+}
+
+async function mapWithConcurrency<T, R>(items: T[], limit: number, fn: (item: T, index: number) => Promise<R>): Promise<R[]> {
+	const results = new Array<R>(items.length);
+	let next = 0;
+	const workers = Array.from({ length: Math.max(1, Math.min(limit, items.length)) }, async () => {
+		while (next < items.length) {
+			const i = next++;
+			results[i] = await fn(items[i], i);
+		}
+	});
+	await Promise.all(workers);
+	return results;
+}
+
+// ─── Étape 3 : regroupement en sujets ─────────────────────────────────────────
+
+const SubjectsResponseSchema = z.object({
+	subjects: z.array(
+		z.object({
+			name: z.string(),
+			sectionRef: z.string().optional().nullable(),
+			coveredClauseRefs: z.array(z.string()),
+			waitingForRole: z.string().optional().nullable(),
+			effort: z.string().optional().nullable(),
+			knowledgeAlignment: z.string().optional().nullable(),
+			matchedKbItemIds: z.array(z.string()).optional().nullable(),
+			alignmentRationale: z.string().optional().nullable(),
+			seed: z
+				.object({
+					initialQuestion: z.string().optional().nullable(),
+					initialHypothesis: z.string().optional().nullable(),
+					initialConflict: z.string().optional().nullable(),
+					initialRetenu: z.array(z.string()).optional().nullable(),
+					expertQuestions: z.array(z.string()).optional().nullable()
+				})
+				.optional()
+				.nullable()
+		})
+	)
+});
+export type RawSubject = z.infer<typeof SubjectsResponseSchema>['subjects'][number];
+
+function buildGroupSystem(targetCountDesc: string): string {
+	return `Tu es architecte système senior. On te donne des exigences d'un appel d'offres déjà jugées « à délibérer », et éventuellement des règles de doctrine de l'entreprise.
+
+Regroupe ces exigences en ${targetCountDesc} sujets d'architecture cohérents, chacun formulé comme un dilemme à trancher (pas comme un thème). Chaque exigence doit figurer dans exactement UN sujet.
+
+Pour chaque sujet fournis :
+- "name" : titre court du dilemme ;
+- "sectionRef" : section du RFP concernée ;
+- "coveredClauseRefs" : références EXACTES des exigences rattachées ;
+- "waitingForRole" : lead_architect | infra_expert_architect | security_architect | domain_architect | data_architect | domain_expert ;
+- "effort" : S | M | L | XL ;
+- "knowledgeAlignment" : standard_established si une règle de doctrine fournie couvre le sujet, conflict_detected si une exigence la contredit, sinon novel_requirement ; "matchedKbItemIds" : ids EXACTS parmi les règles fournies, sinon [] ; "alignmentRationale" : une phrase ;
+- "seed.initialQuestion" : la question d'architecture à trancher ;
+- "seed.initialHypothesis" : une hypothèse de départ, présentée comme telle ;
+- "seed.initialConflict" : la tension principale ;
+- "seed.initialRetenu" : uniquement des exigences du RFP reprises telles quelles ("REF : formulation courte"), jamais une décision d'architecture ;
+- "seed.expertQuestions" : 1 à 3 questions précises à poser au sachant métier.
+
+N'invente aucun chiffre absent des exigences. Réponds UNIQUEMENT par un objet JSON : {"subjects":[…]}.`;
+}
+
+function buildGroupUserMessage(part: AuditedRequirement[], kb: KbItemSummary[]): string {
+	const lines = [`Exigences à regrouper (${part.length}) :`];
+	for (const r of part) {
+		lines.push(
+			`[${r.clauseRef}] (criticité : ${r.criticality}) ${clip(r.title, 120)} — ${clip(r.text, CLAUSE_TEXT_BUDGET)}` +
+				(r.deliberationReason ? ` | tension : ${clip(r.deliberationReason, 160)}` : '')
+		);
+	}
+	if (kb.length > 0) {
+		lines.push('', `Règles de doctrine disponibles (${Math.min(kb.length, 40)}) :`);
+		for (const k of kb.slice(0, 40)) {
+			lines.push(`[${k.id}] ${clip(k.title, 100)} — ${clip(k.ruleOrStatement, 220)}`);
+		}
+	} else {
+		lines.push('', 'Aucune règle de doctrine fournie : tous les sujets sont "novel_requirement" avec matchedKbItemIds = [].');
+	}
+	return lines.join('\n');
+}
+
+function deriveLotId(refs: string[], sectionRef: string): string {
+	const sample = `${refs[0] || ''} ${sectionRef || ''}`;
+	const lot = sample.match(/lot\s*[-_ ]?(\d+)/i);
+	if (lot) return `LOT-${lot[1]}`;
+	const sec = sample.match(/§\s*(\d+)/);
+	if (sec) return `LOT-§${sec[1]}`;
+	return 'LOT-GEN';
+}
+
+function pickRole(raw?: string | null): ArchitectRole {
+	return (ALLOWED_ROLES as string[]).includes(raw || '') ? (raw as ArchitectRole) : 'lead_architect';
+}
+
+function pickEffort(raw?: string | null): 'S' | 'M' | 'L' | 'XL' {
+	return raw === 'S' || raw === 'M' || raw === 'L' || raw === 'XL' ? raw : 'M';
+}
+
+function pickAlignment(raw: string | null | undefined, matched: string[]): KnowledgeAlignment {
+	if (raw === 'conflict_detected' && matched.length > 0) return 'conflict_detected';
+	if (raw === 'standard_established' && matched.length > 0) return 'standard_established';
+	return 'novel_requirement';
+}
+
+/**
+ * Contrôles déterministes sur les sujets proposés. Fonction pure.
+ * Garantit : chaque clause à délibérer appartient à exactement un sujet ; seuls des ids de doctrine
+ * réellement fournis sont conservés ; une clause sans sujet est rattachée par proximité dans le document.
+ */
+export function applySubjectInvariants(
+	deliberated: AuditedRequirement[],
+	rawSubjects: RawSubject[],
+	kb: KbItemSummary[],
+	startIndex = 0
+): { subjects: FactorizedArchitecturalSubject[]; attachedByProximity: string[]; droppedEmpty: number } {
+	const order = new Map(deliberated.map((r, i) => [r.clauseRef, i]));
+	const kbIds = new Set(kb.map((k) => k.id));
+	const claimed = new Set<string>();
+	const kept: Array<{ raw: RawSubject; refs: string[] }> = [];
+
+	for (const raw of rawSubjects) {
+		const refs: string[] = [];
+		for (const ref of raw.coveredClauseRefs) {
+			if (order.has(ref) && !claimed.has(ref)) {
+				claimed.add(ref);
+				refs.push(ref);
+			}
+		}
+		kept.push({ raw, refs });
 	}
 
-	// 4. Synthèse des Points Durs d'Architecture (Micro-sujets pour le tableau & le chat)
-	const candidateHardPoints: ArchitecturalHardPoint[] = [
-		{
-			id: 'ADR-NOC-01',
-			name: 'Médiation O&M Multi-Constructeurs : NRM Unifié vs Passerelle Propriétaire MNO',
-			sectionRef: '§4.7-4.8',
-			waitingForRole: 'domain_architect',
-			effort: 'M',
-			level: 'L0_named',
-			coveredClauseRefs: [
-				'REQ-Lot1-201',
-				'REQ-Lot1-240',
-				'REQ-Lot1-241',
-				'REQ-Lot1-242',
-				'REQ-Lot1-243',
-				'REQ-Lot1-248',
-				'REQ-Lot1-249',
-				'REQ-Lot1-250',
-				'REQ-Lot1-251',
-				'REQ-Lot1-252',
-				'REQ-Lot1-253',
-				'REQ-Lot1-254'
-			],
-			seed: {
-				initialQuestion:
-					'Comment unifier la supervision O&M entre le réseau gouvernemental dédié (Open RAN / YANG) et le réseau commercial partagé (MNO) sans subir de dépendance propriétaire ?',
-				initialHypothesis:
-					'Déployer une couche de médiation OSS avec traducteur NRM (3GPP TS 28.659) pour normaliser les compteurs propriétaires du MNO vers le format YANG/NETCONF.',
-				initialConflict:
-					'Exigence d’unification multi-vendeurs vs Refus des opérateurs commerciaux d’exposer des interfaces de gestion directes sur leurs stations de base.',
-				initialRetenu: [
-					'REQ-Lot1-249 : Traduction des compteurs propriétaires dans un NRM unifié',
-					'REQ-Lot1-250 : Adaptation aux APIs OSS/ENM du MNO (Kafka/REST/Syslog)'
-				],
-				expertQuestions: [
-					'Quel est le niveau de granularité des compteurs radio temps réel que l’opérateur commercial tiers accepte contractuellement d’exposer au NOC LUMICC ?',
-					'En cas de panne de l’interface de médiation MNO, quel est le mode de repli opérationnel toléré pour maintenir la visibilité sur la couverture partagée ?'
-				]
-			},
-			options: [
-				{
-					id: 'opt-nrm-unified',
-					name: 'Option A : Médiation active avec NRM unifié et normalisation des compteurs',
-					pros: 'Vision homogène sur tous les RANs, conformité stricte 3GPP NRM, pas de dépendance fournisseur',
-					cons: 'Effort de développement de traducteurs spécifiques par équipementier'
-				},
-				{
-					id: 'opt-enm-passthrough',
-					name: 'Option B : Consommation directe des interfaces OSS/ENM des opérateurs sans retraduction',
-					pros: 'Mise en œuvre immédiate sans développement de médiation lourd',
-					cons: 'Écrans séparés pour les exploitants, perte de corrélation transverse entre RAN GOV et RAN MNO'
-				}
-			]
-		},
-		{
-			id: 'ADR-NOC-02',
-			name: 'Résilience au Déni GNSS 30j & Détection de Brouillage Radio',
-			sectionRef: '§4.5',
-			waitingForRole: 'infra_expert_architect',
-			effort: 'M',
-			level: 'L0_named',
-			coveredClauseRefs: [
-				'REQ-Lot1-223',
-				'REQ-Lot1-224',
-				'REQ-Lot1-225',
-				'REQ-Lot1-226',
-				'REQ-Lot1-227',
-				'REQ-Lot1-228',
-				'REQ-Lot1-229'
-			],
-			seed: {
-				initialQuestion:
-					'Quelle architecture de maintien temporel et de détection permet d’assurer 30 jours de fonctionnement nominal en cas de coupure totale du signal GNSS/GPS ?',
-				initialHypothesis:
-					'Combiner des horloges atomiques locales (Rubidium / CSAC) sur les nœuds centraux avec une distribution réseau PTP v2.1 (IEEE 1588-2019) synchronisée sur l’horloge étatique.',
-				initialConflict:
-					'Exigence de maintien temporel sub-microseconde sur 30 jours vs Coût matériel et maintenance des oscillateurs atomiques embarqués.',
-				initialRetenu: [
-					'REQ-Lot1-223 : Fonctionnement normal supérieur à 1 mois en cas de déni GNSS',
-					'REQ-Lot1-224 : Analyse d’interférences radio rapportées par les terminaux (SINR/RSSI)'
-				],
-				expertQuestions: [
-					'Quel est le drift (dérive temporelle) maximal acceptable pour les communications MCPTT avant décrochage des cellules radio synchronisées ?',
-					'Le réseau de transmission filaire de secours entre datacentres est-il garanti sans gigue pour acheminer le flux PTP v2.1 ?'
-				]
-			},
-			options: [
-				{
-					id: 'opt-atomic-holdover',
-					name: 'Option A : Oscillateurs atomiques locaux haute stabilité (Rubidium) sur chaque cœur',
-					pros: 'Autonomie absolue 30 jours sans aucune dépendance réseau externe',
-					cons: 'Coût unitaire élevé et nécessité de recalibration périodique'
-				},
-				{
-					id: 'opt-ptp-distribution',
-					name: 'Option B : Distribution filaire PTP v2.1 depuis l’horloge étatique + OCXO local',
-					pros: 'Moins onéreux, supervision centralisée de la dérive de phase',
-					cons: 'Vulnérabilité si la liaison de transport filaire est coupée en même temps que le brouillage GPS'
-				}
-			]
-		},
-		{
-			id: 'ADR-NOC-03',
-			name: 'Haute Disponibilité 24/7 du NOC : Actif/Actif Distribué vs Miroir Salle de Repli',
-			sectionRef: '§4.10-4.12',
-			waitingForRole: 'lead_architect',
-			effort: 'S',
-			level: 'L0_named',
-			coveredClauseRefs: [
-				'REQ-Lot1-192',
-				'REQ-Lot1-268',
-				'REQ-Lot1-270',
-				'REQ-Lot1-271',
-				'REQ-Lot1-282'
-			],
-			seed: {
-				initialQuestion:
-					'Quelle topologie d’infrastructure garantit la continuité opérationnelle du NOC 24/7 en cas de sinistre ou d’inaccessibilité du site principal ?',
-				initialHypothesis:
-					'Déployer le cœur applicatif NOC (ITSM, SIEM, Hyperviseur) en cluster actif/actif sur les deux datacentres géoredondants, avec salle principale et salle de repli tiède.',
-				initialConflict:
-					'Continuité de service instantanée sans perte d’état vs Complexité de synchronisation temps réel des consoles pupitres et du mur d’images.',
-				initialRetenu: [
-					'REQ-Lot1-192 : Opération continue 24/7 géoredondante (primaire + backup)',
-					'REQ-Lot1-282 : Salle de repli préconfigurée pour continuité d’activité'
-				],
-				expertQuestions: [
-					'Quel est le délai de bascule (RTO) maximal consenti aux équipes d’exploitation pour évacuer vers la salle de repli et reprendre les appels d’urgence ?',
-					'Les équipes d’astreinte 24/7 doivent-elles opérer depuis les deux salles en permanence ou uniquement lors d’une crise ?'
-				]
-			},
-			options: [
-				{
-					id: 'opt-active-active-cluster',
-					name: 'Option A : Infrastructure FCAPS actif/actif sur 2 sites avec bascule automatique',
-					pros: 'RTO = 0 sur les données de supervision, aucun point unique de défaillance',
-					cons: 'Bande passante requise entre datacentres pour réplication synchrone'
-				},
-				{
-					id: 'opt-active-passive-warm',
-					name: 'Option B : Salle principale active + Salle de repli en miroir asynchrone (RTO < 15 min)',
-					pros: 'Architecture plus simple, procédures de reprise maîtrisées et éprouvées',
-					cons: 'Nécessite une manipulation humaine de bascule DNS/routage'
-				}
-			]
-		},
-		{
-			id: 'ADR-NOC-04',
-			name: 'Boucle Fermée d’Automatisation AIOps : Auto-remédiation vs Contrôle Opérateur',
-			sectionRef: '§4.1-4.8',
-			waitingForRole: 'data_architect',
-			effort: 'S',
-			level: 'L0_named',
-			coveredClauseRefs: [
-				'REQ-Lot1-193',
-				'REQ-Lot1-194',
-				'REQ-Lot1-195',
-				'REQ-Lot1-196',
-				'REQ-Lot1-197',
-				'REQ-Lot1-208',
-				'REQ-Lot1-247',
-				'REQ-Lot1-263'
-			],
-			seed: {
-				initialQuestion:
-					'Quel niveau d’autonomie accorder au moteur d’intentions AIOps/NWDAF pour ajuster les priorités radio (5QI aérien, préemption) en situation de saturation ?',
-				initialHypothesis:
-					'Mettre en œuvre des playbooks automatisés avec garde-fous : réallocation dynamique automatique des 5QI avec seuils pré-approuvés et notification temps réel au pupitre.',
-				initialConflict:
-					'Réactivité sub-seconde exigée en crise vs Risque d’effet de bord ou de délestage intempestif d’usagers critiques par un algorithme autonome.',
-				initialRetenu: [
-					'REQ-Lot1-195 : 5QI aérien dédié pour flux montants drones/hélicoptères',
-					'REQ-Lot1-263 : Playbooks automatisés avec option d’approbation opérateur'
-				],
-				expertQuestions: [
-					'Quelles sont les conditions strictes (nature de l’intervention de sécurité civile) autorisant la préemption d’un flux vidéo drone sur un flux voix policier ?',
-					'L’opérateur NOC doit-il avoir un bouton d’arrêt d’urgence (Kill Switch) immédiat pour figer les politiques d’orchestration automatique ?'
-				]
-			},
-			options: [
-				{
-					id: 'opt-closed-loop-full',
-					name: 'Option A : Boucle fermée 100% autonome (Closed-Loop Automation)',
-					pros: 'Temps de réponse instantané (< 500 ms) face aux pics de charge et brouillages',
-					cons: 'Difficilement auditable immédiatement par les opérateurs en salle'
-				},
-				{
-					id: 'opt-human-gate-aiops',
-					name: 'Option B : Recommandation AIOps avec validation humaine en 1 clic (Human-in-the-Loop)',
-					pros: 'Maîtrise totale de l’exploitation, traçabilité et responsabilité humaine claire',
-					cons: 'Temps de réaction tributaire de la disponibilité des opérateurs en salle'
-				}
-			]
+	const nonEmpty = kept.filter((k) => k.refs.length > 0);
+	const droppedEmpty = kept.length - nonEmpty.length;
+
+	// Rattachement par proximité des clauses non couvertes (voisin le plus proche déjà affecté)
+	const attachedByProximity: string[] = [];
+	if (nonEmpty.length > 0) {
+		// Les ancres sont figées sur les affectations du modèle : une clause rattachée par proximité
+		// ne sert pas elle-même d'ancre, sinon les rattachements se propageraient en chaîne.
+		const anchorOf = new Map<string, number>();
+		nonEmpty.forEach((k, idx) => k.refs.forEach((r) => anchorOf.set(r, idx)));
+		for (const req of deliberated) {
+			if (anchorOf.has(req.clauseRef)) continue;
+			const pos = order.get(req.clauseRef)!;
+			let target = -1;
+			for (let d = 1; d < deliberated.length && target < 0; d++) {
+				const before = deliberated[pos - d];
+				const after = deliberated[pos + d];
+				if (before && anchorOf.has(before.clauseRef)) target = anchorOf.get(before.clauseRef)!;
+				else if (after && anchorOf.has(after.clauseRef)) target = anchorOf.get(after.clauseRef)!;
+			}
+			if (target >= 0) {
+				nonEmpty[target].refs.push(req.clauseRef);
+				attachedByProximity.push(req.clauseRef);
+			}
 		}
-	];
+	}
 
-	const inputClauseRefs = new Set(clauses.map((c) => c.clauseRef));
-	const hardPoints: ArchitecturalHardPoint[] = candidateHardPoints
-		.filter((hp) => hp.coveredClauseRefs.some((ref) => inputClauseRefs.has(ref)))
-		.map((hp) => ({
-			...hp,
-			coveredClauseRefs: hp.coveredClauseRefs.filter((ref) => inputClauseRefs.has(ref))
-		}));
+	const subjects = nonEmpty.map(({ raw, refs }, idx): FactorizedArchitecturalSubject => {
+		const sortedRefs = [...refs].sort((a, b) => order.get(a)! - order.get(b)!);
+		const matched = (raw.matchedKbItemIds || []).filter((id) => kbIds.has(id));
+		const sectionRef = (raw.sectionRef || '').trim() || sortedRefs[0];
+		const n = startIndex + idx + 1;
+		const name = raw.name.trim() || `Sujet d'architecture ${n}`;
+		return {
+			id: `SUBJ-${String(n).padStart(2, '0')}`,
+			lotId: deriveLotId(sortedRefs, sectionRef),
+			name,
+			sectionRef,
+			coveredClauseRefs: sortedRefs,
+			matchedKbItemIds: matched,
+			knowledgeAlignment: pickAlignment(raw.knowledgeAlignment, matched),
+			alignmentRationale:
+				(raw.alignmentRationale || '').trim() || 'Aucune règle de doctrine rapprochée : sujet à instruire.',
+			initialLevel: 'L0_unassessed',
+			waitingForRole: pickRole(raw.waitingForRole),
+			effort: pickEffort(raw.effort),
+			seed: {
+				initialRetenu: (raw.seed?.initialRetenu || []).filter((s) => s.trim().length > 0),
+				initialHypothesis: (raw.seed?.initialHypothesis || '').trim() || `Hypothèse à formuler pour « ${name} ».`,
+				initialConflict: (raw.seed?.initialConflict || '').trim() || undefined,
+				initialQuestion: (raw.seed?.initialQuestion || '').trim() || `Quelle architecture retenir pour « ${name} » ?`,
+				expertQuestions: (raw.seed?.expertQuestions || []).filter((s) => s.trim().length > 0)
+			}
+		};
+	});
 
-	// Distribution des catégories
-	const categoryDistribution: Record<ArcKitRequirementCategory, number> = {
-		FR: auditedReqs.filter((r) => r.category === 'FR').length,
-		NFR: auditedReqs.filter((r) => r.category === 'NFR').length,
-		INT: auditedReqs.filter((r) => r.category === 'INT').length,
-		FAC: auditedReqs.filter((r) => r.category === 'FAC').length,
-		BR: auditedReqs.filter((r) => r.category === 'BR').length,
-		DR: auditedReqs.filter((r) => r.category === 'DR').length
+	return { subjects, attachedByProximity, droppedEmpty };
+}
+
+// ─── Orchestration ────────────────────────────────────────────────────────────
+
+function chunk<T>(items: T[], size: number): T[][] {
+	const out: T[][] = [];
+	for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
+	return out;
+}
+
+export function buildAuditReport(requirements: AuditedRequirement[], warnings: string[] = []): ArcKitAuditReport {
+	const count = (d: RequirementDisposition) => requirements.filter((r) => r.disposition === d).length;
+	const categoryDistribution = Object.fromEntries(CATEGORIES.map((c) => [c, 0])) as Record<ArcKitRequirementCategory, number>;
+	for (const r of requirements) if (r.category) categoryDistribution[r.category]++;
+	return {
+		totalCount: requirements.length,
+		evacuatedCount: count('evacuated'),
+		deliberatedCount: count('deliberated'),
+		clarificationCount: count('clarification_needed'),
+		toQualifyCount: count('to_qualify'),
+		categoryDistribution,
+		requirements,
+		clarifications: requirements
+			.filter((r) => r.disposition === 'clarification_needed')
+			.map((r) => ({ clauseRef: r.clauseRef, title: r.title, question: r.clarificationQuestion! })),
+		warnings
 	};
+}
+
+/**
+ * Audite les exigences d'un RFP : classement, regroupement en sujets et contrôles d'intégrité.
+ * Ne lève jamais d'exception liée au LLM : en cas d'échec, les clauses concernées sont « à qualifier ».
+ */
+export async function runRequirementsAudit(
+	clauses: ExtractedClause[],
+	options: RequirementsAuditOptions = {}
+): Promise<StagedAuditResult> {
+	const llm = options.llm ?? localLlmClient;
+	const model = options.model || localLlmClient.getDefaultModel();
+	const kb = options.kbStandards ?? [];
+	const warnings: string[] = [];
+
+	// Étape 1 : classement par lots
+	const batches = chunk(clauses, options.classifyBatchSize ?? DEFAULT_CLASSIFY_BATCH);
+	const failureByRef = new Map<string, string>();
+	const items: ClassifyItem[] = [];
+	let failedBatches = 0;
+
+	await mapWithConcurrency(batches, options.concurrency ?? DEFAULT_CONCURRENCY, async (batch, i) => {
+		try {
+			const data = await callJson(
+				llm,
+				{
+					model,
+					messages: [
+						{ role: 'system', content: CLASSIFY_SYSTEM },
+						{ role: 'user', content: buildClassifyUserMessage(batch) }
+					]
+				},
+				ClassifyResponseSchema
+			);
+			items.push(...data.items);
+		} catch (err) {
+			failedBatches++;
+			const msg = err instanceof Error ? err.message : String(err);
+			const reason = `Classement indisponible pour le lot ${i + 1}/${batches.length} (${clip(msg, 100)}).`;
+			for (const c of batch) failureByRef.set(c.clauseRef, reason);
+			warnings.push(reason);
+		}
+	});
+
+	// Étape 2 : contrôles déterministes
+	const requirements = applyClassificationInvariants(clauses, items, failureByRef);
+	const downgraded = requirements.filter((r) => r.disposition === 'to_qualify' && !failureByRef.has(r.clauseRef)).length;
+	if (downgraded > 0) {
+		warnings.push(
+			`${downgraded} clause(s) laissée(s) « à qualifier » par les contrôles d'intégrité (motif manquant, clause bloquante ou réponse incomplète).`
+		);
+	}
+
+	if (batches.length > 0 && failedBatches === batches.length) {
+		return { status: 'unavailable', report: buildAuditReport(requirements, warnings), subjects: [], warnings, modelUsed: model };
+	}
+
+	// Étape 3 : regroupement des clauses à délibérer en sujets
+	const deliberated = requirements.filter((r) => r.disposition === 'deliberated');
+	const subjects: FactorizedArchitecturalSubject[] = [];
+	let groupingFailed = false;
+
+	for (const part of chunk(deliberated, options.groupChunkSize ?? DEFAULT_GROUP_CHUNK)) {
+		try {
+			const data = await callJson(
+				llm,
+				{
+					model,
+					messages: [
+						{ role: 'system', content: buildGroupSystem(inferTargetSubjectsCount(part.length, true)) },
+						{ role: 'user', content: buildGroupUserMessage(part, kb) }
+					]
+				},
+				SubjectsResponseSchema
+			);
+			// Étape 4 : contrôles déterministes
+			const res = applySubjectInvariants(part, data.subjects, kb, subjects.length);
+			subjects.push(...res.subjects);
+			if (res.attachedByProximity.length > 0) {
+				const shown = res.attachedByProximity.slice(0, 5).join(', ');
+				warnings.push(
+					`${res.attachedByProximity.length} clause(s) rattachée(s) à un sujet par proximité dans le document, à vérifier (${shown}${res.attachedByProximity.length > 5 ? '…' : ''}).`
+				);
+			}
+			if (res.droppedEmpty > 0) warnings.push(`${res.droppedEmpty} sujet(s) vide(s) proposé(s) par le modèle ont été écartés.`);
+			const covered = new Set(res.subjects.flatMap((s) => s.coveredClauseRefs));
+			if (part.some((r) => !covered.has(r.clauseRef))) groupingFailed = true;
+		} catch (err) {
+			groupingFailed = true;
+			warnings.push(`Regroupement en sujets indisponible (${clip(err instanceof Error ? err.message : String(err), 100)}).`);
+		}
+	}
+
+	const byRef = new Map(requirements.map((r) => [r.clauseRef, r]));
+	for (const s of subjects) {
+		for (const ref of s.coveredClauseRefs) {
+			const req = byRef.get(ref);
+			if (req) req.linkedSubjectId = s.id;
+		}
+	}
+
+	const status = failedBatches > 0 || groupingFailed ? 'partial' : 'ok';
+	return { status, report: buildAuditReport(requirements, warnings), subjects, warnings, modelUsed: model };
+}
+
+/**
+ * Construit la réponse de l'API de factorisation à partir d'un audit abouti (`status: 'ok'`).
+ * Le taux de couverture mesure la part de clauses réellement classées : les clauses « à qualifier »
+ * n'y comptent pas, afin de ne jamais afficher une couverture complète qui ne serait pas acquise.
+ */
+export function toFactorizationResponse(result: StagedAuditResult) {
+	const { report, subjects, warnings, modelUsed } = result;
+	const classified = report.totalCount - report.toQualifyCount;
+	const coverageRate = report.totalCount === 0 ? 100 : Math.round((classified / report.totalCount) * 100);
+	const pct = (n: number) => (report.totalCount === 0 ? 0 : Math.round((n / report.totalCount) * 100));
 
 	return {
-		totalCount: auditedReqs.length,
-		evacuatedCount: auditedReqs.filter((r) => r.disposition === 'evacuated').length,
-		deliberatedCount: auditedReqs.filter((r) => r.disposition === 'deliberated').length,
-		clarificationCount: auditedReqs.filter((r) => r.disposition === 'clarification_needed').length,
-		categoryDistribution,
-		requirements: auditedReqs,
-		hardPoints,
-		clarifications
+		status: 'ok' as const,
+		engine: 'arckit-requirements-audit',
+		modelUsed,
+		summary:
+			`Audit de ${report.totalCount} exigences : ${report.deliberatedCount} à délibérer (regroupées en ${subjects.length} sujets), ` +
+			`${report.evacuatedCount} commodités proposées à l'évacuation (${pct(report.evacuatedCount)} %), ` +
+			`${report.clarificationCount} à clarifier avec le donneur d'ordre et ${report.toQualifyCount} à qualifier par un humain. ` +
+			`Toutes ces dispositions sont des propositions du modèle, à relire.`,
+		totalClauses: report.totalCount,
+		coveredClausesCount: classified,
+		coverageRate,
+		subjects,
+		unassignedClauses: [],
+		warning: warnings.length > 0 ? warnings.join(' ') : undefined,
+		auditReport: report,
+		evacuatedCount: report.evacuatedCount,
+		deliberatedCount: report.deliberatedCount,
+		clarificationCount: report.clarificationCount,
+		toQualifyCount: report.toQualifyCount,
+		clarifications: report.clarifications,
+		allAuditedRequirements: report.requirements
 	};
 }

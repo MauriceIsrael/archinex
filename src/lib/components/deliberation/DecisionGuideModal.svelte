@@ -117,34 +117,33 @@
 					</div>
 				</div>
 
-				<!-- Levier 3 : Valider une Règle Doctrinale SmartMemory -->
+				<!-- Levier 3 : Capitaliser une décision dans la base de connaissances (Porte G4) -->
 				<div class="rounded-xl border border-violet-500/30 bg-violet-500/5 p-4 space-y-3">
 					<div class="flex items-center justify-between">
 						<div class="flex items-center gap-2 text-violet-700 dark:text-violet-400 font-semibold text-sm">
 							<div class="p-1.5 rounded-lg bg-violet-500/10">
 								<BookmarkCheck class="h-4 w-4" />
 							</div>
-							<span>3. Valider une Règle (SmartMemory)</span>
+							<span>3. Capitaliser une décision (Porte G4)</span>
 						</div>
 						<span class="font-mono text-[10px] font-bold px-2 py-0.5 rounded bg-violet-500/20 text-violet-800 dark:text-violet-300">
 							Doctrine
 						</span>
 					</div>
 					<p class="text-xs text-muted-foreground leading-relaxed">
-						L'agent dialectique détecte les récurrences et propose des règles doctrinales candidates pour l'organisation.
+						Une fois le sujet arbitré, les décisions et dérogations deviennent des candidats anonymisés pour la base de connaissances. Rien n'est transmis sans votre action explicite.
 					</p>
 					<div class="rounded-lg bg-background/80 p-2.5 text-xs space-y-1.5 border">
 						<div class="flex items-center gap-1.5 font-medium text-foreground">
 							<span class="text-muted-foreground">Où :</span>
-							<span>Bandeau doré <strong>« Règle Doctrinale Candidate »</strong> (haut de page)</span>
+							<span>Onglet <strong>« 4. Arbitrage G3 &amp; Capitalisation G4 »</strong> du sujet</span>
 						</div>
 						<div class="flex items-center gap-1.5 font-medium text-foreground">
-							<span class="text-muted-foreground">Boutons :</span>
-							<span class="rounded bg-emerald-600 text-white px-1.5 py-0.5 font-mono text-[11px]">Valider la règle</span>
-							<span class="rounded bg-muted text-foreground px-1.5 py-0.5 font-mono text-[11px]">Rejeter</span>
+							<span class="text-muted-foreground">Bouton :</span>
+							<span class="rounded bg-indigo-600 text-white px-1.5 py-0.5 font-mono text-[11px]">Transmettre à LLMOps (Porte G4)</span>
 						</div>
 						<div class="text-[11px] text-muted-foreground pt-1 border-t">
-							⚡ <strong>Effet :</strong> Capitalise la règle dans la mémoire institutionnelle locale pour enrichir les prochains projets.
+							⚡ <strong>Effet :</strong> Les candidats arrivent dans la boîte de revue des experts du Knowledge Hub ; ils réenrichissent les prochains projets une fois acceptés.
 						</div>
 					</div>
 				</div>

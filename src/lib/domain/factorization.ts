@@ -68,6 +68,7 @@ export interface RfpFactorizationResponse {
 	evacuatedCount?: number;
 	deliberatedCount?: number;
 	clarificationCount?: number;
+	toQualifyCount?: number;
 	clarifications?: Array<{ clauseRef: string; title: string; question: string }>;
 	allAuditedRequirements?: any[];
 }

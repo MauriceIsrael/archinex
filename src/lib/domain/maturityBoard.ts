@@ -98,8 +98,8 @@ import { computeMaturityCriteria, type MaturityCriteriaInput } from './maturityC
 
 /**
  * Vérifie l'éligibilité d'une transition de maturité en appliquant les deux gates humains stricts :
- * - Gate Tour 8 (L3) : Interdiction formelle aux agents IA de promouvoir à L3 sans arbitrage humain.
- * - Gate Tour 11 (L4/L5) : Réservé exclusivement au Lead Architect humain.
+ * - Porte G3 (L3) : Interdiction formelle aux agents IA de promouvoir à L3 sans arbitrage humain.
+ * - Porte d'homologation (L4/L5) : Réservé exclusivement au Lead Architect humain.
  * - Critères de passage calculés (optionnel si criteriaInput fourni).
  */
 export function canTransitionMaturity(
@@ -119,22 +119,22 @@ export function canTransitionMaturity(
 		};
 	}
 
-	// Passage vers L3_decided (Gate Tour 8 / Porte G3)
+	// Passage vers L3_decided (Porte G3)
 	if (targetIndex >= 3 && !actor.is_human) {
 		return {
 			allowed: false,
 			code: 'HUMAN_GATE_REQUIRED',
-			reason: 'Gate Tour 8 violé : Une promotion à L3+ exige formellement la signature d\'un architecte humain.'
+			reason: 'Porte G3 violée : Une promotion à L3+ exige formellement la signature d\'un architecte humain.'
 		};
 	}
 
-	// Passage vers L4_specified ou L5_archived (Gate Tour 11)
+	// Passage vers L4_specified ou L5_archived (Porte d'homologation)
 	if (targetIndex >= 4) {
 		if (!actor.is_human) {
 			return {
 				allowed: false,
 				code: 'HUMAN_GATE_REQUIRED',
-				reason: 'Gate Tour 11 violé : Une promotion à L4/L5 exige formellement la signature d\'un architecte humain.'
+				reason: 'Porte d\'homologation violée : Une promotion à L4/L5 exige formellement la signature d\'un architecte humain.'
 			};
 		}
 		if (actor.role !== 'lead_architect' && actor.role !== 'Lead Architect') {

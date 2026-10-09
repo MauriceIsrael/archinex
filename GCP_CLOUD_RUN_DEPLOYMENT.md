@@ -59,7 +59,7 @@ non configurée ».
 
 ### Délais
 
-Les délais sont **par opération** (`src/lib/server/llmops/client.ts`) : lectures moteur historiques 1,5 s (repli hors-ligne voulu),
+Les délais sont **par opération** (`src/lib/server/llmops/client.ts`) : lectures moteur historiques 1,5 s (au-delà, LLMOps est déclaré injoignable),
 lectures de gouvernance 15 s, soumission/revue/simulation/contrôles à blanc 30 s, exécution d'évaluation 60 s, upload de
 référentiel 150 s, application d'une ingestion, promotion et publication 300 s. `LLMOPS_TIMEOUT_MS` impose un délai
 **uniforme** (diagnostic) ; la requête Cloud Run est portée à 300 s pour la même raison. Un dépassement de délai à la soumission

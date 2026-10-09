@@ -1,7 +1,7 @@
 # Archinex · Software Architecture Documentation
 
 > **Document d'Architecture Système du Moteur de Co-Conception et Délibération Archinex.**
-> Conforme aux standards de modélisation système, à la constitution épistémique et aux spécifications *LLMOps × SmartMemory*.
+> Conforme aux standards de modélisation système, à la constitution épistémique et aux spécifications *LLMOps*.
 
 ---
 
@@ -139,7 +139,7 @@ Chaque arbitrage produit automatiquement des candidats à la Knowledge Base :
 
 La qualité et l'étanchéité du système sont garanties par le script unifié `node scripts/verify.mjs` validant 4 portes d'acceptation :
 1. **Denylist Check** : 0 terme projet ou fournisseur interdit dans `src/`.
-2. **Vitest Test Suites** : 201 tests unitaires, contractuels et d'intégration validés.
+2. **Vitest Test Suites** : tests unitaires, contractuels et d'intégration (les tests « live » exigent un serveur LLMOps réel et sont ignorés sinon).
 3. **Svelte Check** : 0 erreur, 0 avertissement de typage strict TypeScript / Svelte 5.
 4. **Production Build** : Compilation complète des bundles client et serveur SSR.
 

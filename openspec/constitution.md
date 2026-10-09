@@ -48,8 +48,10 @@ Un texte bien écrit et fluide endort la vigilance : l'expert hoche la tête et 
 ## Invariant V : Deux Portes Humaines Uniques et Infranchissables
 
 Le système multi-agents avance seul sur l'extraction, la détection de manques et la proposition de brouillons, mais il s'arrête strictement devant deux portes réservées aux architectes humains :
-1. **L'approbation d'une règle candidate** (Tour 8 du dialogue) : Transformer une régularité observée en règle pérenne du graphe de doctrine (qui s'appliquera à tous les dossiers futurs).
-2. **L'arbitrage d'une contradiction** (Tour 11 du dialogue) : Résoudre un conflit entre une contrainte locale et une décision antérieure (`ADR superseded`, motif consigné, auteur engagé).
+1. **L'arbitrage d'une contradiction ou d'un choix** (Porte G3) : Trancher une controverse, résoudre un conflit entre une contrainte locale et une décision antérieure (`ADR superseded`, motif consigné, auteur engagé) et promouvoir le sujet à `L3_decided`.
+2. **La capitalisation en doctrine** (Porte G4) : Transformer une décision arbitrée en candidat de la base de connaissances, qui s'appliquera aux dossiers futurs. Le candidat est anonymisé, relu par l'architecte avant envoi, puis accepté par un expert du domaine dans la boîte de revue. Aucune règle n'est jamais promue automatiquement.
+
+> *Amendement (octobre 2026)* : cet invariant désignait auparavant ces portes par « Tour 8 » (approbation d'une règle induite automatiquement) et « Tour 11 ». Aucun moteur d'induction de règles n'existait dans Archinex et SmartMemory est abandonné ; le principe — deux portes humaines infranchissables — est inchangé. L'homologation d'une section (`L4`/`L5`) reste réservée au Lead Architect (invariant VII).
 
 ---
 

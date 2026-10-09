@@ -1,11 +1,10 @@
 /**
  * Client d'intégration LLMOps (Knowledge Hub) pour Archinex
- * Implémente le Dual-Mode (Mode 1 REST live / Mode 2 Offline-First scellé)
+ * Mode REST live uniquement : si LLMOps est injoignable, le client le signale (santé « unreachable »,
+ * listes vides, erreur explicite) et ne fabrique jamais de données de repli.
  * Conforme à CONTRAT-KH-API-V1 et ADR-0015.
  */
 
-import { readFileSync, existsSync } from 'node:fs';
-import { resolve } from 'node:path';
 import type {
   LLMOpsHealth,
   LLMOpsSnapshot,
@@ -350,87 +349,17 @@ export class LLMOpsClient {
   }
 
   /**
-   * Charge le bundle scellé de secours hors-ligne
+   * État de santé renvoyé quand le serveur LLMOps est injoignable : explicitement « unreachable »,
+   * jamais un faux « ok ».
    */
-  private loadOfflineBundle(): {
-    engagement: string;
-    health: LLMOpsHealth;
-    board: LLMOpsBoardItem[];
-    statements: LLMOpsStatement[];
-    conflicts: LLMOpsConflict[];
-  } {
-    const candidates = [
-      resolve(process.cwd(), 'tests/fixtures/llmops/llmops-offline-bundle.json'),
-      resolve(process.cwd(), '../LLMOps/data/snapshots/latest.json')
-    ];
-
-    for (const filePath of candidates) {
-      if (existsSync(filePath)) {
-        try {
-          const raw = readFileSync(filePath, 'utf-8').replace(/^\uFEFF/, '');
-          const parsed = JSON.parse(raw);
-          if (parsed.health && parsed.board && parsed.statements) {
-            return {
-              engagement: parsed.engagement || this.defaultEngagement,
-              health: parsed.health,
-              board: parsed.board,
-              statements: parsed.statements,
-              conflicts: parsed.conflicts || []
-            };
-          }
-        } catch {
-          // Continue to next candidate
-        }
-      }
-    }
-
-    // Fallback minimal garanti en mémoire si aucun fichier n'est lisible
+  private unreachableHealth(): LLMOpsHealth {
     return {
-      engagement: this.defaultEngagement,
-      health: {
-        status: 'ok',
-        plane: 'offline-memory',
-        schema_version: '1.0',
-        service: 'archinex-offline-fallback',
-        engine_version: '0.1.0',
-        engine_commit: 'offline',
-        kb: {
-          snapshot_id: 'snapshot-offline-fallback',
-          source_revision: 'offline',
-          payload_sha256: 'sha256:offline-sealed-mock',
-          created_at: new Date().toISOString()
-        }
-      },
-      board: [
-        {
-          subject: 'core-platform',
-          name: 'core-platform',
-          level: 'L2_decomposed',
-          origin: 'blueprint',
-          days_at_level: 0,
-          updated_at: new Date().toISOString(),
-          is_stalled: false,
-          open_question_ref: null,
-          assigned_role: 'domain_architect',
-          dependent_sections: ['1.1']
-        }
-      ],
-      statements: [
-        {
-          id: 'S-OFFLINE-01',
-          section: '1.1',
-          subject: 'core-platform',
-          predicate: 'implements',
-          value: 'Baseline Standard Architecture',
-          unit: null,
-          author: 'archinex-offline',
-          role: 'system',
-          confidence: 'designed',
-          verbatim: 'Instantané hors-ligne par défaut.',
-          status: 'active'
-        }
-      ],
-      conflicts: []
+      status: 'unreachable',
+      plane: 'none',
+      schema_version: '',
+      service: 'llmops-unreachable',
+      engine_version: '',
+      engine_commit: ''
     };
   }
 
@@ -449,8 +378,7 @@ export class LLMOpsClient {
       // Live unreachable -> fallback offline
     }
 
-    const bundle = this.loadOfflineBundle();
-    return { data: bundle.health, source: 'offline-fallback' };
+    return { data: this.unreachableHealth(), source: 'offline-fallback' };
   }
 
   /**
@@ -468,13 +396,7 @@ export class LLMOpsClient {
       // Fallback
     }
 
-    const fixturePath = resolve(process.cwd(), 'tests/fixtures/llmops/llmops-sealed-snapshot.json');
-    if (existsSync(fixturePath)) {
-      const raw = readFileSync(fixturePath, 'utf-8').replace(/^\uFEFF/, '');
-      return { data: JSON.parse(raw) as LLMOpsSnapshot, source: 'offline-fallback' };
-    }
-
-    throw new Error('No snapshot available in live or offline storage.');
+    throw new Error(`LLMOps injoignable (${this.baseUrl}) : aucun instantané scellé disponible.`);
   }
 
   /**
@@ -495,16 +417,7 @@ export class LLMOpsClient {
       // Fallback
     }
 
-    const isTestEnv = process.env.NODE_ENV === 'test' || Boolean(process.env.VITEST);
-    const isDemo =
-      isTestEnv &&
-      (!engagement ||
-        engagement === 'cctp-mcx-nordwave' ||
-        engagement === 'nordwave-mcx-2027' ||
-        engagement === 'suse-telco-cloud-generic');
-
-    const bundle = this.loadOfflineBundle();
-    return { data: isDemo ? bundle.board : [], source: 'offline-fallback' };
+    return { data: [], source: 'offline-fallback' };
   }
 
   /**
@@ -531,20 +444,7 @@ export class LLMOpsClient {
       // Fallback
     }
 
-    const isTestEnv = process.env.NODE_ENV === 'test' || Boolean(process.env.VITEST);
-    const isDemo =
-      isTestEnv &&
-      (!engagement ||
-        engagement === 'cctp-mcx-nordwave' ||
-        engagement === 'nordwave-mcx-2027' ||
-        engagement === 'suse-telco-cloud-generic');
-
-    const bundle = this.loadOfflineBundle();
-    let stmts = isDemo ? bundle.statements : [];
-    if (subject) {
-      stmts = stmts.filter((s) => s.subject === subject);
-    }
-    return { data: stmts, source: 'offline-fallback' };
+    return { data: [], source: 'offline-fallback' };
   }
 
   /**
@@ -568,16 +468,7 @@ export class LLMOpsClient {
       // Fallback
     }
 
-    const isTestEnv = process.env.NODE_ENV === 'test' || Boolean(process.env.VITEST);
-    const isDemo =
-      isTestEnv &&
-      (!engagement ||
-        engagement === 'cctp-mcx-nordwave' ||
-        engagement === 'nordwave-mcx-2027' ||
-        engagement === 'suse-telco-cloud-generic');
-
-    const bundle = this.loadOfflineBundle();
-    return { data: isDemo ? bundle.conflicts : [], source: 'offline-fallback' };
+    return { data: [], source: 'offline-fallback' };
   }
 
   /**
@@ -616,37 +507,6 @@ export class LLMOpsClient {
         throw new Error('Erreur HTTP : Délai dépassé lors du dépouillement RFP');
       }
 
-      // Mode démo hors-ligne explicite uniquement
-      if (process.env.ALLOW_OFFLINE_MOCK === '1' || process.env.USE_FAKE_LLMOPS === '1') {
-        const sentences = rfpText
-          .split(/(?<=[.!?])\s+/)
-          .map((s) => s.trim())
-          .filter((s) => s.length > 20);
-
-        return {
-          status: 'ok',
-          documentId,
-          documentVersion,
-          count: sentences.length,
-          candidates: sentences.map((sentence, idx) => ({
-            id: `cand-LOCAL-${idx + 1}`,
-            sourceFragment: {
-              id: `frag-LOCAL-${idx + 1}`,
-              documentId,
-              documentVersion,
-              sectionPath: [`${idx + 1}.0`],
-              originalText: sentence,
-              hash: `sha256:local-${idx + 1}`
-            },
-            originalText: sentence,
-            normalizedText: sentence,
-            candidateKind: sentence.toLowerCase().includes('doit') ? 'governance-obligation' : 'technical-specification',
-            suggestedDestination: 'knowledge-hub-reference',
-            routingConfidence: 0.9,
-            verificationModes: ['manual-inspection']
-          }))
-        };
-      }
       throw new Error(`Serveur LLMOps inaccessible pour le dépouillement RFP : ${e.message}`);
     }
   }
@@ -692,14 +552,6 @@ export class LLMOpsClient {
       const errBody = await res.json().catch(() => ({}));
       throw new Error(errBody.error || errBody.detail || `Erreur HTTP ${res.status} lors de la suggestion`);
     } catch (e: any) {
-      if (process.env.ALLOW_OFFLINE_MOCK === '1' || process.env.USE_FAKE_LLMOPS === '1') {
-        const fallbackId = `SUG-LOCAL-${Date.now().toString(36).toUpperCase()}`;
-        return {
-          status: 'ok',
-          suggestionId: fallbackId,
-          message: `Règle doctrinale enregistrée en mémoire locale souveraine (ID ${fallbackId}).`
-        };
-      }
       throw e;
     }
   }
@@ -747,43 +599,6 @@ export class LLMOpsClient {
     max_items?: number;
   }): DoctrineContext {
     let items: DoctrineItem[] = [];
-
-    const fixturePath = resolve(process.cwd(), 'tests/fixtures/llmops/llmops-sealed-snapshot.json');
-    if (existsSync(fixturePath)) {
-      try {
-        const raw = readFileSync(fixturePath, 'utf-8').replace(/^\uFEFF/, '');
-        const snapshot = JSON.parse(raw) as LLMOpsSnapshot;
-        const appIndex = snapshot.applicability_index || {};
-
-        const domainsFilter = (params.domains || []).map((d) => d.toLowerCase());
-        const subjectFilter = (params.subject || '').toLowerCase();
-
-        for (const [key, meta] of Object.entries(appIndex)) {
-          const entry = meta as { domains?: string[]; rules?: string[]; phases?: string[] };
-          const entryDomains = (entry.domains || []).map((d) => d.toLowerCase());
-
-          const matchesDomain =
-            domainsFilter.length === 0 || entryDomains.some((d) => domainsFilter.includes(d));
-          const matchesSubject =
-            !subjectFilter ||
-            key.toLowerCase().includes(subjectFilter) ||
-            (entry.rules || []).some((r) => r.toLowerCase().includes(subjectFilter));
-
-          if (matchesDomain && matchesSubject) {
-            items.push({
-              id: key,
-              type: key.startsWith('ADR-') ? 'adr' : key.startsWith('TPL-') ? 'pattern' : 'rule',
-              title: `Règle doctrinale ${key}`,
-              content: `Extrait scellé pour ${key} (domaines : ${entry.domains?.join(', ') || 'général'}).`,
-              domain: entry.domains?.[0],
-              confidence: 'verified'
-            });
-          }
-        }
-      } catch {
-        // En cas d'erreur de parsing, items reste vide
-      }
-    }
 
     if (params.max_items && items.length > params.max_items) {
       items = items.slice(0, params.max_items);
@@ -2568,44 +2383,6 @@ export class LLMOpsClient {
         error: body.error || `Erreur HTTP ${res.status} lors de la récupération de la santé KB`
       };
     } catch (e: any) {
-      if (process.env.ALLOW_OFFLINE_MOCK === '1' || process.env.USE_FAKE_LLMOPS === '1') {
-        return {
-          status: 'ok',
-          data: {
-            doctrine_health: {
-              total_assets: 60,
-              principles_count: 12,
-              patterns_count: 24,
-              decisions_count: 14,
-              controls_count: 10,
-              glossary_count: 17
-            },
-            reviews_summary: {
-              pending_count: 0,
-              overdue_count: 0,
-              avg_review_duration_days: 0
-            },
-            regulatory_coverage: {
-              total_frameworks: 1,
-              total_requirements: 20,
-              covered_requirements: 20,
-              coverage_percentage: 100
-            },
-            evals_summary: {
-              latest_recall: 0.85,
-              gate_g6_passed: true,
-              last_benchmark_at: new Date().toISOString()
-            },
-            storage: {
-              mode: 'persistent',
-              persistent: true,
-              provider: 'Offline Sealed Snapshot'
-            },
-            gate_g7_eligible: true,
-            gate_g7_blockers: []
-          }
-        };
-      }
       return {
         status: 'unavailable',
         error: e?.message || 'Serveur LLMOps inaccessible pour la santé KB'
@@ -2613,24 +2390,7 @@ export class LLMOpsClient {
     }
   }
 
-  private static campaignsStore: Map<string, KbCampaign> = new Map([
-    [
-      'camp-001',
-      {
-        id: 'camp-001',
-        title: 'Durcissement Résilience & Haute Disponibilité',
-        domain: 'architecture',
-        target_asset_type: 'pattern',
-        target_count: 5,
-        created_at: '2026-09-24T10:00:00Z',
-        created_by: 'expert@archinex.local',
-        due_at: '2026-10-15T10:00:00Z',
-        status: 'active',
-        description: "Enrichissement des patrons d'isolation des pannes et de résilience multi-régions.",
-        progress: { current: 2, target: 5 }
-      }
-    ]
-  ]);
+  private static campaignsStore: Map<string, KbCampaign> = new Map();
 
   /**
    * Liste l'historique des publications scellées de doctrine.
@@ -3480,24 +3240,14 @@ export class LLMOpsClient {
     // Fast-fail health check : si Cloud Run / serveur est injoignable, on bascule immédiatement en local sans attendre
     const healthRes = await this.getHealth();
     if (healthRes.source !== 'live') {
-      const isTestEnv = process.env.NODE_ENV === 'test' || Boolean(process.env.VITEST);
-      const isDemo =
-        isTestEnv &&
-        (!localEng ||
-          localEng === 'cctp-mcx-nordwave' ||
-          localEng === 'nordwave-mcx-2027' ||
-          localEng === 'suse-telco-cloud-generic');
-
-      const bundle = this.loadOfflineBundle();
       return {
         source: 'offline-fallback',
         engagement: localEng,
         syncedAt: new Date().toISOString(),
-        health: bundle.health,
-        board: isDemo ? bundle.board : [],
-        statements: isDemo ? bundle.statements : [],
-        conflicts: isDemo ? bundle.conflicts : [],
-        snapshotMeta: bundle.health.kb
+        health: healthRes.data,
+        board: [],
+        statements: [],
+        conflicts: []
       };
     }
 

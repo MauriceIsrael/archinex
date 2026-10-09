@@ -79,7 +79,7 @@
 		</div>
 	</div>
 
-	<!-- Cartes de Rappel Proactif de Doctrine (SmartMemory) -->
+	<!-- Cartes de Rappel Proactif de Doctrine (LLMOps) -->
 	{#if deliberationStore.activeRecalls.length > 0}
 		<div class="space-y-2.5">
 			{#each deliberationStore.activeRecalls as recall}

@@ -5,9 +5,9 @@
 
 ---
 
-## 1. Topologie des Serveurs LLMOps (Dual-Mode Souverain)
+## 1. Topologie des Serveurs LLMOps
 
-Archinex prend en charge l'intégration avec LLMOps selon deux modes d'exécution (avec repli automatique hors-ligne conforme au CONTRAT-KH-API-V1) :
+Archinex se connecte à une instance LLMOps locale ou distante. **Il n'existe aucun mode de repli simulé** : si LLMOps est injoignable, la santé est `unreachable`, les listes sont vides, les opérations d'écriture échouent explicitement, et vos données locales restent intactes. Rien n'est fabriqué à la place.
 
 ### 1.1 Instance Locale Souveraine (Mode Actif Prioritaire)
 Pour garantir l'étanchéité stricte des données et la confidentialité absolue des RFP :
@@ -16,7 +16,7 @@ Pour garantir l'étanchéité stricte des données et la confidentialité absolu
 |---|---|
 | Service | `llmops-mcp-server` (Local FastAPI / MCP) |
 | URL de base (`LLMOPS_BASE_URL`) | `http://127.0.0.1:8000` |
-| Backend Base de Gouvernance | `sqlite:///C:/Users/Momo/Documents/Dev/LLMOps/data/governance.db` |
+| Backend Base de Gouvernance | `sqlite:///<chemin-local>/LLMOps/data/governance.db` |
 | Authentification (`LLMOPS_AUTH_TOKEN`) | Jeton de service Archinex (`Bearer <token>`) |
 | Schéma & Version | `schema_version: 1.24` · Engine `0.1.0` |
 | Health check | `GET /health` → `200 OK` (`status: ok`) |
@@ -71,7 +71,7 @@ Client                              Serveur
 - Le `session_id` **doit** être obtenu depuis l'event `endpoint` avant tout POST.
 - La corrélation requête/réponse se fait via le champ `id` JSON-RPC.
 - Le flux SSE doit rester **ouvert en parallèle** pendant toute la durée des appels.
-- L'implémentation de référence est la classe `McpSession` dans [`tests/integration/llmops-mcp.test.ts`](file:///c:/Users/Momo/Documents/Dev/archinex/tests/integration/llmops-mcp.test.ts).
+- L'implémentation de référence est la classe `McpSession` dans [`tests/integration/llmops-mcp.test.ts`](../tests/integration/llmops-mcp.test.ts).
 
 ---
 
@@ -94,7 +94,7 @@ Banc d'essai 3GPP MCPTT :
 
 ## 4. Configuration MCP (`.mcp.json`)
 
-Le fichier [`.mcp.json`](file:///c:/Users/Momo/Documents/Dev/archinex/.mcp.json) à la racine d'Archinex est lu automatiquement par **Antigravity**, Claude Desktop et Cursor.
+Le fichier [`.mcp.json`](../.mcp.json) à la racine d'Archinex est lu automatiquement par **Antigravity**, Claude Desktop et Cursor.
 
 ```json
 {
@@ -122,7 +122,7 @@ LLMOPS_TOKEN=mon-vrai-jeton npx vitest run tests/integration/llmops-mcp.test.ts
 
 ## 5. Tests d'intégration
 
-Fichier : [`tests/integration/llmops-mcp.test.ts`](file:///c:/Users/Momo/Documents/Dev/archinex/tests/integration/llmops-mcp.test.ts)
+Fichier : [`tests/integration/llmops-mcp.test.ts`](../tests/integration/llmops-mcp.test.ts)
 
 **Résultat : 13/13 tests verts** (vérifié le 2026-09-27)
 
@@ -181,7 +181,6 @@ Ce mapping permettra à terme d'alimenter Archinex depuis le graphe LLMOps (impo
 | `LLMOPS_LIVE_URL` | Non défini (optionnel) | URL du serveur de contrat local LLMOps pour tests de contrat vivants |
 | `LLMOPS_LIVE_TOKEN` | `contract-service-token` | Jeton de service portant les scopes `kb:review,kb:delegate` |
 | `USE_FAKE_LLMOPS` | `0` | Définir à `1` pour forcer l'utilisation du serveur mock en mémoire `fakeLlmops` lors des tests E2E Playwright |
-| `ALLOW_OFFLINE_MOCK` | `0` | Définir à `1` pour autoriser le mode démo hors-ligne simulé localement en cas d'absence de serveur |
 | `EMBEDDING_MODEL` | `toy-bow` | Modèle d'embeddings (calculé par Archinex, jamais par LLMOps) ; `toy-bow` est un encodeur de test sans valeur sémantique |
 | `EMBEDDING_OLLAMA_URL` | non défini | Serveur Ollama qui calcule les vecteurs pour tout modèle autre que `toy-bow` (ex. `http://raptor-nino:11434`) |
 | `ALLOW_TOY_EMBEDDINGS` | `0` | `1` pour autoriser `toy-bow` en production (démonstration uniquement) |

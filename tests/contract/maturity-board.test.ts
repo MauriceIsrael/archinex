@@ -58,7 +58,7 @@ describe('Lot 3 - Maturity Board & Unlocks Sorting Contract Tests', () => {
 		expect(resultFresh.stall_days).toBe(5);
 	});
 
-	it('Scénario 3: Interdiction formelle aux agents IA de promouvoir un sujet à L3 (Gate Tour 8)', () => {
+	it('Scénario 3: Interdiction formelle aux agents IA de promouvoir un sujet à L3 (Porte G3)', () => {
 		const aiActor = { role: 'infra_expert_architect' as const, is_human: false };
 		const result = canTransitionMaturity('L2_decomposed', 'L3_decided', aiActor);
 
@@ -66,7 +66,7 @@ describe('Lot 3 - Maturity Board & Unlocks Sorting Contract Tests', () => {
 		expect(result.code).toBe('HUMAN_GATE_REQUIRED');
 	});
 
-	it('Scénario 4: Seul le Lead Architect humain peut homologuer à L4 (Gate Tour 11)', () => {
+	it('Scénario 4: Seul le Lead Architect humain peut homologuer à L4 (Porte d\'homologation)', () => {
 		const expertHuman = { role: 'infra_expert_architect' as const, is_human: true };
 		const leadHuman = { role: 'lead_architect' as const, is_human: true };
 

@@ -34,6 +34,7 @@
 		evacuatedCount?: number;
 		deliberatedCount?: number;
 		clarificationCount?: number;
+		toQualifyCount?: number;
 		clarifications?: Array<{ clauseRef: string; title: string; question: string }>;
 		allAuditedRequirements?: any[];
 		onConfirm: (initialSubjects: InitialSubjectInput[]) => void;
@@ -54,6 +55,7 @@
 		evacuatedCount,
 		deliberatedCount,
 		clarificationCount,
+		toQualifyCount,
 		clarifications,
 		allAuditedRequirements,
 		onConfirm,
@@ -254,13 +256,15 @@
 								? 'Méthodologie ArcKit (Audit & Factorisation Native)'
 								: engine === 'map-reduce-llm'
 									? 'Moteur Hiérarchique Map-Reduce (100% Verbatim)'
-									: engine === 'local-llm'
-										? 'Moteur Souverain Local'
-										: 'Moteur de Secours Déterministe'}
+									: engine === 'anthropic-claude'
+										? 'Claude (Anthropic)'
+										: engine === 'local-llm'
+											? 'Moteur Souverain Local'
+											: 'Moteur de Secours Déterministe'}
 						</span>
 					</h3>
 					<p class="text-[11px] text-muted-foreground">
-						Modèle : <strong class="text-foreground font-mono">{modelUsed}</strong> sur <span class="font-mono text-primary">{engine === 'arckit-requirements-audit' ? 'ArcKit Pipeline' : 'LLM Local'}</span>
+						Modèle : <strong class="text-foreground font-mono">{modelUsed}</strong> sur <span class="font-mono text-primary">{engine === 'arckit-requirements-audit' ? 'Pipeline ArcKit' : engine === 'anthropic-claude' ? 'API Anthropic' : 'LLM Local'}</span>
 					</p>
 				</div>
 			</div>
@@ -281,22 +285,25 @@
 					<ShieldCheck class="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
 					<div class="space-y-1">
 						<div class="font-bold text-xs uppercase tracking-wider text-emerald-700 dark:text-emerald-300 flex items-center gap-2">
-							<span>Méthodologie ArcKit · Audit d'Exigences & Points Durs Validés</span>
-							<span class="text-[10px] lowercase font-mono font-normal opacity-75">(100% traçabilité)</span>
+							<span>Méthodologie ArcKit · Propositions du modèle à relire</span>
+							<span class="text-[10px] lowercase font-mono font-normal opacity-75">(chaque clause dans un seul état)</span>
 						</div>
 						<p class="text-xs leading-relaxed">
-							Audit d'architecture complété avec succès : <strong>{evacuatedCount ?? 0} exigences de commodités</strong> évacuées (conformité sur étagère sans débat), <strong>{clarificationCount ?? 0} questions de clarification client</strong> identifiées, et <strong>{editableSubjects.length} points durs d'architecture atomiques</strong> extraits avec leurs questions prérequis pour le sachant métier.
+							<strong>{deliberatedCount ?? 0} clauses à délibérer</strong> regroupées en <strong>{editableSubjects.length} sujets</strong>, <strong>{evacuatedCount ?? 0} commodités proposées à l'évacuation</strong> (chacune avec son motif), <strong>{clarificationCount ?? 0} questions</strong> pour le donneur d'ordre et <strong>{toQualifyCount ?? 0} clauses à qualifier</strong> par vous. Ce sont des propositions du modèle : relisez surtout les évacuations. Une clause évacuée à tort reste récupérable en un clic (« Promouvoir en Sujet Archi »).
 						</p>
+						{#if warning}
+							<p class="text-[11px] leading-relaxed text-amber-800 dark:text-amber-200">⚠ {warning}</p>
+						{/if}
 					</div>
 				</div>
 			</div>
-		{:else if warning || (engine !== 'local-llm' && engine !== 'map-reduce-llm' && engine !== 'arckit-requirements-audit')}
+		{:else if warning || !['local-llm', 'map-reduce-llm', 'anthropic-claude', 'arckit-requirements-audit'].includes(engine)}
 			<div class="p-3.5 rounded-xl border border-amber-500/40 bg-amber-500/10 text-amber-900 dark:text-amber-200 space-y-1.5">
 				<div class="flex items-start gap-2.5">
 					<AlertTriangle class="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0 mt-0.5" />
 					<div class="space-y-1">
 						<div class="font-bold text-xs uppercase tracking-wider text-amber-700 dark:text-amber-300 flex items-center gap-2">
-							<span>Repli sur le moteur heuristique de secours</span>
+							<span>{['local-llm', 'map-reduce-llm', 'anthropic-claude'].includes(engine) ? 'Avertissement' : 'Repli sur le moteur heuristique de secours'}</span>
 							<span class="text-[10px] lowercase font-mono font-normal opacity-75">(tolérance zéro au silence)</span>
 						</div>
 						<p class="text-xs leading-relaxed">
@@ -335,7 +342,7 @@
 
 		<!-- Statistiques Clés -->
 		{#if engine === 'arckit-requirements-audit'}
-			<div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-center text-xs">
+			<div class="grid grid-cols-2 sm:grid-cols-5 gap-2 text-center text-xs">
 				<div class="p-2 rounded-lg border bg-muted/30">
 					<div class="text-base font-bold font-mono text-foreground">{clauses.length}</div>
 					<div class="text-[10px] text-muted-foreground">Exigences CCTP</div>
@@ -344,7 +351,7 @@
 					<div class="text-base font-bold font-mono">
 						{evacuatedCount ?? 0}
 					</div>
-					<div class="text-[10px]">Commodités Évacuées ({Math.round(((evacuatedCount ?? 0) / (clauses.length || 1)) * 100)}%)</div>
+					<div class="text-[10px]">Évacuations proposées ({Math.round(((evacuatedCount ?? 0) / (clauses.length || 1)) * 100)}%)</div>
 				</div>
 				<div class="p-2 rounded-lg border bg-emerald-500/10 border-emerald-500/20 text-emerald-700 dark:text-emerald-300">
 					<div class="text-base font-bold font-mono">
@@ -357,6 +364,12 @@
 						{clarificationCount ?? 0}
 					</div>
 					<div class="text-[10px]">Clarifications Client</div>
+				</div>
+				<div class="p-2 rounded-lg border bg-amber-500/10 border-amber-500/30 text-amber-700 dark:text-amber-300">
+					<div class="text-base font-bold font-mono">
+						{toQualifyCount ?? 0}
+					</div>
+					<div class="text-[10px]">À qualifier par vous</div>
 				</div>
 			</div>
 		{:else}
@@ -621,12 +634,17 @@
 								{#if audited?.disposition === 'evacuated'}
 									<span class="text-[10px] text-slate-600 dark:text-slate-400 font-medium flex items-center gap-1 bg-slate-500/10 px-2 py-0.5 rounded border border-slate-500/20" title={audited.evacuationReason}>
 										<Check class="h-3 w-3 text-slate-500" />
-										Évacué : <span class="italic text-foreground/80 max-w-[200px] truncate">{audited.evacuationReason || 'Standard'}</span>
+										Évacuation proposée : <span class="italic text-foreground/80 max-w-[200px] truncate">{audited.evacuationReason || 'Standard'}</span>
 									</span>
 								{:else if audited?.disposition === 'clarification_needed'}
 									<span class="text-[10px] text-indigo-700 dark:text-indigo-300 font-medium flex items-center gap-1 bg-indigo-500/10 px-2 py-0.5 rounded border border-indigo-500/20" title={audited.clarificationQuestion}>
 										<Info class="h-3 w-3 text-indigo-500" />
 										Clarification : <span class="italic text-foreground/80 max-w-[200px] truncate">{audited.clarificationQuestion}</span>
+									</span>
+								{:else if audited?.disposition === 'to_qualify'}
+									<span class="text-[10px] text-amber-700 dark:text-amber-300 font-semibold flex items-center gap-1 bg-amber-500/10 px-2 py-0.5 rounded border border-amber-500/30" title={audited.qualifyReason}>
+										<AlertTriangle class="h-3 w-3 text-amber-500" />
+										À qualifier : <span class="italic font-normal text-foreground/80 max-w-[200px] truncate">{audited.qualifyReason}</span>
 									</span>
 								{:else if isCovered && parentSubject}
 									<span class="text-[10px] text-emerald-700 dark:text-emerald-300 font-semibold flex items-center gap-1 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/20">

@@ -22,7 +22,7 @@ L'interface est structurée autour de 3 zones opérationnelles :
 
 | Rôle | Périmètre Opérationnel | Habilitations Clés |
 | :--- | :--- | :--- |
-| **Lead Architect** | Arbitrage global & modération du dossier | - Tranchage des conflits ouverts (passage L3)<br>- Approbation des règles induites au Tour 8 (SPARQL)<br>- Scellement officiel SHA-256 de section pour homologation |
+| **Lead Architect** | Arbitrage global & modération du dossier | - Tranchage des conflits ouverts (passage L3)<br>- Arbitrage humain (Porte G3) et capitalisation des décisions vers la base de connaissances (Porte G4)<br>- Scellement officiel SHA-256 de section pour homologation |
 | **Architecte Expert Infra / Réseau** | Dimensionnement technique & faisabilité | - Saisie et rectification d'hypothèses matérielles<br>- Chiffrage des impacts financiers<br>- Traitement des questions ouvertes assignées |
 | **Architecte Domaine Métier** | Couverture des besoins fonctionnels | - Évaluation des variantes divergentes (A vs B)<br>- Signalement des écarts d'exigences |
 | **Architecte Sécurité & Conformité NIS2** | Résilience opérationnelle & auditabilité | - Validation de conformité aux doctrines ANSSI<br>- Examen des dépendances causales |
@@ -53,9 +53,9 @@ L'interface est structurée autour de 3 zones opérationnelles :
     - Se replie/déplie d'un clic pour laisser un espace de lecture maximal au fil de délibération.
 - **Trancher un conflit d'architecture & Clore les objections** :
   - Le Lead Architect traite les objections ouvertes et tranche le passage à L3 après épuisement des contradictions.
-- **Validation Tour 8 SmartMemory** :
-  - Dès qu'une récurrence de décision est détectée, le bandeau supérieur propose la règle candidate.
-  - Le Lead Architect inspecte la règle et valide ou rejette son inscription au référentiel.
+- **Capitalisation (Porte G4)** :
+  - Une fois le sujet arbitré, l'onglet « Arbitrage G3 & Capitalisation G4 » prépare des candidats anonymisés (décision, dérogations, retour d'expérience).
+  - Vous les relisez, les modifiez au besoin, puis les transmettez au Knowledge Hub : rien n'est envoyé sans cette action explicite.
 
 ### Posture 3 : Rendu & Homologation
 - **Vérifier la barrière de certification** :
@@ -76,17 +76,23 @@ L'interface est structurée autour de 3 zones opérationnelles :
 
 ## 4. Méthodologie d'Ingestion & Délibération (Méthodologie ArcKit)
 
-### 4.1 Qualification et Filtrage à l'Ingestion (Le Tri Sélectif)
-Pour éviter de saturer l'équipe avec des centaines de faux sujets d'architecture, le pipeline d'ingestion qualifie 100% des clauses du corpus (RFP / CCTP) en 3 dispositions :
+### 4.1 Audit des exigences : le modèle propose, vous disposez
+À l'import d'un RFP, le modèle de langage classe **chaque clause** dans l'un de quatre états. Ce sont des **propositions** : rien n'est décidé tant que vous ne les avez pas relues.
 
-1. **`deliberated` (Sujets d'Architecture proposés à la délibération)** :
-   - Exigences comportant des alternatives techniques divergentes (*trade-offs*), des conflits doctrinaires (ex: SecNumCloud vs transcodage temps réel), ou un fort rayon d'impact transverse.
-   - Elles sont converties en **points durs d'architecture (ADRs)** et initialisées aux jalons **L0 Nommé** ou **L1 Cadré**.
-2. **`evacuated` (Exigences évacuées du débat d'architecture)** :
-   - Facilités physiques et aménagement (`FAC` : mobilier, disposition de salle, écrans muraux, climatisation), fournitures bureautiques sur étagère, clauses administratives de routine.
-   - **Règle de traçabilité** : Aucune clause n'est supprimée. Chaque exigence évacuée est conservée dans le registre avec son **motif d'évacuation explicite** (ex : *« Hors périmètre d'architecture logicielle/système »*), garantissant une couverture contractuelle à 100%.
-3. **`clarification` (Questions de clarification métier)** :
-   - Exigences ambiguës ou incomplètes générant des questions directes au donneur d'ordre ou au sachant métier (Q1, Q2...).
+1. **`deliberated` (à délibérer)** : l'exigence engage un choix d'architecture avec de vraies alternatives, ou entre en tension avec une autre contrainte. Les clauses de cet état sont regroupées en sujets (niveau L0) avec une question, une hypothèse de départ et des questions pour le sachant métier.
+2. **`evacuated` (évacuation proposée)** : exigence nominale couverte par des produits standard. Le motif est **obligatoire** et visible ; aucune clause n'est supprimée du registre.
+3. **`clarification_needed` (à clarifier)** : exigence ambiguë ; le modèle formule une question précise pour le donneur d'ordre.
+4. **`to_qualify` (à qualifier par vous)** : le pipeline n'a pas pu ou pas osé trancher.
+
+**Garde-fous, appliqués par le code et non par le modèle :**
+- Chaque clause reçoit exactement un état ; une clause oubliée par le modèle devient « à qualifier ».
+- Une clause **bloquante** n'est jamais évacuée automatiquement : elle devient « à qualifier », avec la proposition du modèle jointe.
+- Une évacuation sans motif exploitable, ou une clarification sans question, devient « à qualifier ».
+- Si le modèle est injoignable, **tout** est « à qualifier » : le système ne déclare jamais « sans enjeu » faute de pouvoir analyser.
+- Le taux de couverture affiché ne compte pas les clauses « à qualifier ».
+- Une évacuation à tort se corrige en un clic (« Promouvoir en Sujet Archi »).
+
+Si l'audit n'aboutit pas entièrement (lot en échec, regroupement impossible), l'ancien moteur de factorisation prend le relais et un avertissement l'indique ; aucun rapport partiel n'est affiché.
 
 ### 4.2 Typologie des Criticités & Critères Sous-Jacents
 | Criticité | Signification | Critères & Déclencheurs NLP | Traitement dans Archinex |

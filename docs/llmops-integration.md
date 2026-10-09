@@ -5,7 +5,24 @@
 
 ---
 
-## 1. Serveur distant
+## 1. Topologie des Serveurs LLMOps (Dual-Mode Souverain)
+
+Archinex prend en charge l'intégration avec LLMOps selon deux modes d'exécution (avec repli automatique hors-ligne conforme au CONTRAT-KH-API-V1) :
+
+### 1.1 Instance Locale Souveraine (Mode Actif Prioritaire)
+Pour garantir l'étanchéité stricte des données et la confidentialité absolue des RFP :
+
+| Propriété | Valeur |
+|---|---|
+| Service | `llmops-mcp-server` (Local FastAPI / MCP) |
+| URL de base (`LLMOPS_BASE_URL`) | `http://127.0.0.1:8000` |
+| Backend Base de Gouvernance | `sqlite:///C:/Users/Momo/Documents/Dev/LLMOps/data/governance.db` |
+| Authentification (`LLMOPS_AUTH_TOKEN`) | Jeton de service Archinex (`Bearer <token>`) |
+| Schéma & Version | `schema_version: 1.24` · Engine `0.1.0` |
+| Health check | `GET /health` → `200 OK` (`status: ok`) |
+| API Gouvernance | `GET /api/knowledge/health` → `200 OK` |
+
+### 1.2 Instance Cloud Distante (GCP Cloud Run)
 
 | Propriété | Valeur |
 |---|---|
@@ -14,10 +31,8 @@
 | URL de base | `https://llmops-mcp-server-344571265365.europe-west1.run.app` |
 | Health check | `GET /health` → `200 OK` |
 | Protocole MCP | FastMCP **full async** via SSE (voir §2) |
-| Authentification | `Authorization: Bearer <token>` — requête sans token → `401 Unauthorized` |
-| Jeton public de démo | `demo-public-2026-08` |
-| Snapshot KB actif | `snapshot-2026-09-13-06f3455` |
-| Version moteur | `0.1.0` (commit `d7d3291`) |
+| Authentification | `Authorization: Bearer <token>` |
+| Version moteur | `0.1.0` |
 
 ---
 

@@ -1,11 +1,27 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { exportEngagementBundle } from '$lib/server/bundleExportService';
 import { verifyEngagementBundle } from '$lib/domain/bundleVerifier';
+import { prisma } from '$lib/server/prisma';
 import { POST as exportProjectBundle } from '../../src/routes/api/projects/[projectId]/bundle-export/+server';
 import { POST as exportEngagementBundleEndpoint } from '../../src/routes/api/engagements/[id]/export-bundle/+server';
 import type { RequestEvent } from '@sveltejs/kit';
 
 describe('Bundle Publication & Endpoint Contract Tests (A17 - bundle-publication)', () => {
+	beforeEach(async () => {
+		await prisma.project.upsert({
+			where: { id: 'cctp-mcx-nordwave' },
+			create: {
+				id: 'cctp-mcx-nordwave',
+				shortName: 'cctp-mcx',
+				type: 'project_rfp',
+				badge: 'RFP',
+				title: 'Projet CCTP MCX Nordwave',
+				description: 'Test project for bundle export'
+			},
+			update: {}
+		});
+	});
+
 	it('refuse tout export direct sans session avec code HTTP 401', async () => {
 		const mockEventNoSession = {
 			params: { projectId: 'project-mcx' },

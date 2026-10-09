@@ -71,3 +71,39 @@ L'interface est structurée autour de 3 zones opérationnelles :
     - **SysML v2** pour l'ingénierie système formelle.
     - **Profil PTP JSON** pour le déploiement sur les équipements de transmission.
   - Cliquez sur **« Régénérer sans dérive (`sync-artifacts`) »** pour garantir 0% de divergence entre les décisions prouvées et les modèles générés.
+
+---
+
+## 4. Méthodologie d'Ingestion & Délibération (Méthodologie ArcKit)
+
+### 4.1 Qualification et Filtrage à l'Ingestion (Le Tri Sélectif)
+Pour éviter de saturer l'équipe avec des centaines de faux sujets d'architecture, le pipeline d'ingestion qualifie 100% des clauses du corpus (RFP / CCTP) en 3 dispositions :
+
+1. **`deliberated` (Sujets d'Architecture proposés à la délibération)** :
+   - Exigences comportant des alternatives techniques divergentes (*trade-offs*), des conflits doctrinaires (ex: SecNumCloud vs transcodage temps réel), ou un fort rayon d'impact transverse.
+   - Elles sont converties en **points durs d'architecture (ADRs)** et initialisées aux jalons **L0 Nommé** ou **L1 Cadré**.
+2. **`evacuated` (Exigences évacuées du débat d'architecture)** :
+   - Facilités physiques et aménagement (`FAC` : mobilier, disposition de salle, écrans muraux, climatisation), fournitures bureautiques sur étagère, clauses administratives de routine.
+   - **Règle de traçabilité** : Aucune clause n'est supprimée. Chaque exigence évacuée est conservée dans le registre avec son **motif d'évacuation explicite** (ex : *« Hors périmètre d'architecture logicielle/système »*), garantissant une couverture contractuelle à 100%.
+3. **`clarification` (Questions de clarification métier)** :
+   - Exigences ambiguës ou incomplètes générant des questions directes au donneur d'ordre ou au sachant métier (Q1, Q2...).
+
+### 4.2 Typologie des Criticités & Critères Sous-Jacents
+| Criticité | Signification | Critères & Déclencheurs NLP | Traitement dans Archinex |
+| :--- | :--- | :--- | :--- |
+| **Bloquant** (`bloquant`) | Exigence éliminatoire & non-négociable | Verbes modaux stricts RFC 2119 (*« DOIT OBLIGATOIREMENT »*, *« IMPÉRATIF »*, *« FORMELLEMENT INTERDIT »*, *« SHALL NOT »*) ou contraintes dures : **SecNumCloud, NIS2, 24×7, holdover GNSS 30j sub-microseconde, redondance géo**. | Effort porté à **L ou XL**, arbitrage formel obligatoire par le `lead_architect` ou `security_officer`. |
+| **Majeur** (`majeur`) | Exigence normative standard | Verbes d'obligation standard (*« DOIT »*, *« MUST »*, *« SHALL »*, *« EXIGE »*, *« REQUIS »*). | Effort standard M, traitée en délibération collective. |
+| **Info** (`info`) | Recommandation ou contexte | Formulations incitatives (*« DEVRAIT »*, *« SHOULD »*, *« MAY »*), descriptif d'exploitation. | Recommandations sans impact bloquant. |
+
+### 4.3 Interaction sur les Questions & Maturation du Sujet
+Dans le panneau de délibération, les questions métier (ArcKit) et de cascade (K20) disposent d'un bouton interactif **`[ 💬 Répondre / Éclairer ]`** offrant 3 modes de conversion :
+* **`💡 Poser comme Hypothèse`** : Injecte la réponse dans `draft.suppose`, ce qui **satisfait immédiatement le critère de jalon L1 (« Hypothèse formulée »)**.
+* **`📌 Acter comme Retenu`** : Consigne directement la réponse comme choix d'architecture arrêté (`draft.retenu`).
+* **`💬 Débattre`** : Diffuse la réponse dans le fil de délibération pour confrontation entre pairs.
+
+### 4.4 Modèle de Données & Génération de Livrables
+L'information stockée dans Archinex (exigences sources `ExtractedClause`, sujets `MaturitySubject`, brouillons `TelegraphicDraft`, faits machine-readable `Statement`, décisions `Decision`) alimente directement les générateurs de livrables :
+1. **Bundle d'Architecture Scellé (`EngagementBundle` v1.0 SHA-256)** : Export JSON canonique opposable pour audit et conformité.
+2. **Fiches ADR (Architecture Decision Records)** : Synthèses standardisées reliant les exigences sources, le dilemme, les options écartées et le choix retenu.
+3. **Matrice de Traçabilité des Exigences (RTM)** : Tableau 100% reliant chaque clause du RFP (y compris celles évacuées) à son traitement architectural.
+4. **Dossier d'Architecture Générale & Technique (HLD / DLD)** : Compilation structurée des sections ayant franchi les jalons L3 et L4.

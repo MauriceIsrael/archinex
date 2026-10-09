@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { CascadeQuestion, CascadeResult } from '$lib/domain/cascade';
 	import { formatSourceType } from '$lib/domain/cascade';
+	import { deliberationStore } from '$lib/stores/deliberationStore.svelte';
 	import {
 		GitFork,
 		ExternalLink,
@@ -10,6 +11,7 @@
 		AlertCircle,
 		ShieldAlert,
 		Sparkles,
+		Lightbulb,
 		X
 	} from 'lucide-svelte';
 
@@ -29,6 +31,9 @@
 
 	let questions = $state<CascadeQuestion[]>([]);
 	let selectedQuestionForClose = $state<CascadeQuestion | null>(null);
+	let selectedQuestionForAnswer = $state<CascadeQuestion | null>(null);
+	let answerInput = $state('');
+	let isSubmittingAnswer = $state(false);
 	let closeJustification = $state('');
 	let closeError = $state('');
 	let isClosing = $state(false);
@@ -192,6 +197,48 @@
 			}
 		} catch (err) {
 			console.warn('[Cascade] Erreur capitalisation :', err);
+		}
+	}
+
+	async function handleSubmitCascadeAnswer(q: CascadeQuestion, mode: 'hypothesis' | 'retenu') {
+		if (!answerInput.trim()) return;
+		isSubmittingAnswer = true;
+		try {
+			// 1. Injecter la réponse dans le store de délibération (comme hypothèse ou décision retenue)
+			deliberationStore.answerExpertQuestion(subjectId, q.text, answerInput.trim(), mode);
+
+			// 2. Clore la question de cascade avec la justification automatique
+			const justification =
+				mode === 'hypothesis'
+					? `Converti en hypothèse d'architecture : ${answerInput.trim()}`
+					: `Acté comme choix d'architecture retenu : ${answerInput.trim()}`;
+
+			const res = await fetch(
+				`/api/projects/${projectId}/subjects/${subjectId}/cascade/actions`,
+				{
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({
+						action: 'close',
+						question: q,
+						justification
+					})
+				}
+			);
+
+			if (res.ok) {
+				const data = await res.json();
+				const idx = questions.findIndex((item) => item.id === q.id);
+				if (idx !== -1) questions[idx] = data.question;
+				onQuestionUpdated();
+			}
+
+			selectedQuestionForAnswer = null;
+			answerInput = '';
+		} catch (err) {
+			console.warn('[Cascade] Erreur enregistrement réponse :', err);
+		} finally {
+			isSubmittingAnswer = false;
 		}
 	}
 </script>
@@ -386,9 +433,69 @@
 						{/if}
 					</div>
 
+					<!-- Formulaire de réponse directe / formulation d'hypothèse -->
+					{#if selectedQuestionForAnswer?.id === q.id}
+						<div class="p-3 rounded-lg border border-amber-500/35 bg-amber-500/5 space-y-2 mt-2">
+							<div class="flex items-center justify-between">
+								<span class="text-[11px] font-bold text-amber-800 dark:text-amber-300 flex items-center gap-1.5">
+									<Lightbulb class="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+									<span>Éclairer cette question pour faire progresser la maturité</span>
+								</span>
+								<button
+									type="button"
+									onclick={() => { selectedQuestionForAnswer = null; answerInput = ''; }}
+									class="text-[11px] text-muted-foreground hover:text-foreground cursor-pointer"
+								>
+									Annuler
+								</button>
+							</div>
+							<textarea
+								rows="2"
+								bind:value={answerInput}
+								placeholder="Formulez l'hypothèse de travail ou le choix technique arrêté..."
+								class="w-full text-xs p-2 rounded-md border border-input bg-background focus:ring-1 focus:ring-primary focus:outline-hidden resize-none"
+							></textarea>
+							<div class="flex items-center justify-end gap-2 flex-wrap">
+								<button
+									type="button"
+									disabled={!answerInput.trim() || isSubmittingAnswer}
+									onclick={() => handleSubmitCascadeAnswer(q, 'hypothesis')}
+									class="px-2.5 py-1 rounded bg-amber-500/20 hover:bg-amber-500/30 text-amber-900 dark:text-amber-200 border border-amber-500/40 text-[11px] font-bold transition-colors cursor-pointer disabled:opacity-50"
+									title="Formule l'hypothèse de travail sur ce sujet (requis jalon L1) et clôt la question"
+								>
+									<span>💡 Poser comme Hypothèse</span>
+								</button>
+								<button
+									type="button"
+									disabled={!answerInput.trim() || isSubmittingAnswer}
+									onclick={() => handleSubmitCascadeAnswer(q, 'retenu')}
+									class="px-2.5 py-1 rounded bg-primary text-primary-foreground hover:bg-primary/90 text-[11px] font-bold transition-colors cursor-pointer disabled:opacity-50"
+									title="Acte directement la décision retenue et clôt la question"
+								>
+									<span>📌 Acter comme Retenu</span>
+								</button>
+							</div>
+						</div>
+					{/if}
+
 					<!-- Actions sur la question -->
 					{#if q.status !== 'closed' && q.status !== 'merged'}
-						<div class="flex items-center justify-end gap-1.5 pt-1 border-t border-border/40 text-xs">
+						<div class="flex items-center justify-end gap-1.5 pt-1 border-t border-border/40 text-xs flex-wrap">
+							<!-- Répondre / Poser Hypothèse -->
+							<button
+								type="button"
+								onclick={() => {
+									selectedQuestionForClose = null;
+									selectedQuestionForAnswer = selectedQuestionForAnswer?.id === q.id ? null : q;
+									answerInput = '';
+								}}
+								class="inline-flex items-center gap-1 px-2.5 py-1 rounded bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-800 dark:text-amber-200 font-semibold text-[11px] transition-colors cursor-pointer"
+								title="Répondre à cette question en formulant une hypothèse de travail ou une décision"
+							>
+								<Lightbulb class="h-3 w-3" />
+								<span>{selectedQuestionForAnswer?.id === q.id ? 'Fermer saisie' : 'Répondre / Hypothèse'}</span>
+							</button>
+
 							<!-- Ouvrir le fil de l'enfant -->
 							{#if q.childSubjectId}
 								<button
@@ -444,6 +551,7 @@
 							<button
 								type="button"
 								onclick={() => {
+									selectedQuestionForAnswer = null;
 									selectedQuestionForClose = q;
 									closeJustification = '';
 									closeError = '';

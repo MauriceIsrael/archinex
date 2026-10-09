@@ -32,8 +32,55 @@
 	let activeFilter = $state<FilterType>('all');
 	let isCreateDialogOpen = $state(false);
 
-	// Tri par déblocages (multiplicateur) strictement conservé
 	const allSubjects = $derived(deliberationStore.sortedSubjects);
+
+	function getSubjectRequirementsInfo(sub: MaturitySubject): { total: number; bloquant: number; refs: string[] } {
+		const allClauses = deliberationStore.clientDocuments.flatMap((d) => d.keyClauses || []);
+		const draft = deliberationStore.drafts[sub.id];
+		const rawRetenu = draft?.retenu || [];
+
+		// 1. Extraire les refs explicites [REQ-...] ou [clauseRef] dans draft.retenu
+		const matchedRefs = new Set<string>();
+		for (const r of rawRetenu) {
+			const m = r.match(/\[([A-Za-z0-9_.-]+)\]/);
+			if (m && !m[1].toLowerCase().startsWith('adr-')) {
+				matchedRefs.add(m[1]);
+			}
+		}
+
+		// 2. Extraire de coveredClauseRefs s'il existe sur le seed
+		const seedCovered = (sub as any)?.seed?.coveredClauseRefs || (sub as any)?.coveredClauseRefs;
+		if (Array.isArray(seedCovered)) {
+			seedCovered.forEach((ref: string) => matchedRefs.add(ref));
+		}
+
+		// 3. Fallback : correspondance par section_ref ou mots-clés
+		if (matchedRefs.size === 0 && allClauses.length > 0) {
+			for (const c of allClauses) {
+				if (
+					c.clauseRef.toLowerCase().includes(sub.section_ref.toLowerCase()) ||
+					sub.name.toLowerCase().includes(c.title.toLowerCase())
+				) {
+					matchedRefs.add(c.clauseRef);
+				}
+			}
+		}
+
+		const refs = Array.from(matchedRefs);
+		let bloquantCount = 0;
+		for (const ref of refs) {
+			const found = allClauses.find((c) => c.clauseRef === ref);
+			if (found && found.criticality === 'bloquant') {
+				bloquantCount++;
+			}
+		}
+
+		return {
+			total: refs.length,
+			bloquant: bloquantCount,
+			refs: refs.slice(0, 3)
+		};
+	}
 
 	const filteredSubjects = $derived.by(() => {
 		let list = allSubjects;
@@ -155,6 +202,7 @@
 				{@const pct = calculateMaturityPercent(sub.level)}
 				{@const isMyTurn = sessionRole && sub.waiting_for_role === sessionRole}
 				{@const isChild = sub.section_ref.includes('.') || !!sub.parent_subject_id}
+				{@const reqInfo = getSubjectRequirementsInfo(sub)}
 
 				<button
 					type="button"
@@ -254,6 +302,24 @@
 						{/if}
 						{sub.name}
 					</h4>
+
+					<!-- Lien explicite avec les exigences client sous-jacentes (RFP / CCTP) -->
+					{#if reqInfo.total > 0}
+						<div class="flex items-center gap-1.5 flex-wrap text-[10px] pt-0.5">
+							<span class="inline-flex items-center gap-1 px-1.5 py-0.2 rounded font-mono font-medium {reqInfo.bloquant > 0 ? 'bg-rose-500/10 text-rose-700 dark:text-rose-300 border border-rose-500/25' : 'bg-muted text-muted-foreground border border-border/50'}">
+								<span>📋</span>
+								<span>{reqInfo.total} exg.</span>
+								{#if reqInfo.bloquant > 0}
+									<span class="text-rose-600 dark:text-rose-400 font-bold">({reqInfo.bloquant} bloq.)</span>
+								{/if}
+							</span>
+							{#if reqInfo.refs.length > 0}
+								<span class="text-[9px] font-mono text-muted-foreground truncate max-w-[140px]" title={`Exigences : ${reqInfo.refs.join(', ')}`}>
+									{reqInfo.refs.join(', ')}
+								</span>
+							{/if}
+						</div>
+					{/if}
 
 					<div class="flex items-center justify-between text-[10px] text-muted-foreground pt-0.5">
 						<span class="truncate">⏳ <strong class="text-foreground">{sub.waiting_for_role}</strong></span>

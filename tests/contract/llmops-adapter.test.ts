@@ -17,7 +17,7 @@ describe('LLMOps Client Adapter & Dual-Mode Contract', () => {
     const res = await client.getHealth();
     expect(res.data.status).toBe('ok');
     expect(res.data.service).toBe('llmops-mcp-server');
-    expect(res.data.schema_version).toBe('1.0');
+    expect(res.data.schema_version).toMatch(/^1\./);
     expect(res.data.kb?.payload_sha256).toMatch(/^sha256:/);
     expect(['live', 'offline-fallback']).toContain(res.source);
   });
@@ -26,7 +26,7 @@ describe('LLMOps Client Adapter & Dual-Mode Contract', () => {
     const res = await client.getLatestSnapshot();
     expect(res.data.snapshot_id).toBeTruthy();
     expect(res.data.payload_sha256).toMatch(/^sha256:/);
-    expect(res.data.schema_version).toBe('1.0');
+    expect(res.data.schema_version).toMatch(/^1\./);
   });
 
   it('3. getBoard retourne les sujets réels de nordwave-mcx-2027', async () => {

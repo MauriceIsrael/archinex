@@ -832,6 +832,55 @@ class DeliberationStore {
 		this.persistCustomState();
 	}
 
+	/**
+	 * Enregistre la réponse d'un expert/sachant métier et la convertit
+	 * en Hypothèse de cadrage, Choix Retenu ou Argument de débat.
+	 */
+	answerExpertQuestion(
+		subjectId: string,
+		question: string,
+		answer: string,
+		mode: 'hypothesis' | 'retenu' | 'argument'
+	) {
+		const draft = this.drafts[subjectId];
+		if (!draft) return;
+		if (!draft.expertAnswers) {
+			draft.expertAnswers = {};
+		}
+		draft.expertAnswers[question] = { answer, mode };
+
+		if (mode === 'hypothesis') {
+			if (!draft.suppose) draft.suppose = [];
+			draft.suppose.unshift({
+				text: `${answer} (Réponse métier à : ${question.slice(0, 60)}...)`,
+				consequence: 'Hypothèse de cadrage posée par le sachant métier',
+				cost_hint: 'Précision métier'
+			});
+			this.sendSubjectMessage(
+				`💡 Précision Sachant Métier (Hypothèse) : à la question « ${question} », la réponse est : « ${answer} ».`,
+				subjectId
+			);
+			this.logNotification('Réponse enregistrée et injectée comme hypothèse de travail !', 'success');
+		} else if (mode === 'retenu') {
+			if (!draft.retenu) draft.retenu = [];
+			draft.retenu.unshift(`[Précision Métier] ${answer}`);
+			this.sendSubjectMessage(
+				`📌 Précision Sachant Métier (Choix Retenu) : « ${answer} » (Question : ${question}).`,
+				subjectId
+			);
+			this.logNotification('Réponse enregistrée et actée dans les choix retenus !', 'success');
+		} else {
+			this.sendSubjectMessage(
+				`💬 Éclairage Sachant Métier : « ${answer} » (Question : ${question}).`,
+				subjectId
+			);
+			this.logNotification('Réponse publiée dans le fil de délibération !', 'info');
+		}
+
+		this.activeEngagement.drafts = $state.snapshot(this.drafts);
+		this.persistCustomState();
+	}
+
 	linkDocumentToSubject(docId: string, subjectId: string) {
 		this.corpusDocuments = this.corpusDocuments.map((doc) => {
 			if (doc.id === docId && !doc.relatedSubjectIds.includes(subjectId)) {

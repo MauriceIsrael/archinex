@@ -45,7 +45,7 @@
 		{ level: 'L5_archived', label: 'Archivé', short: 'L5', locked: true, lockRole: 'Lead Architect' }
 	];
 
-	let isDetailsExpanded = $state(false);
+	let isDetailsExpanded = $state(true);
 	let inspectedLevel = $state<MaturityLevel | null>(null);
 
 	const activeLevel = $derived(report?.displayedLevel || 'L0_named');
@@ -91,20 +91,22 @@
 				<button
 					type="button"
 					onclick={() => handleStepClick(step.level)}
-					class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg font-semibold text-[11px] transition-all cursor-pointer whitespace-nowrap {isCurrent
-						? 'bg-primary text-primary-foreground shadow-xs ring-2 ring-primary/30'
+					class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg font-bold text-[11px] transition-all cursor-pointer whitespace-nowrap {isCurrent
+						? 'bg-blue-600 text-white shadow-sm ring-2 ring-blue-500/40 border border-blue-600'
 						: isPast
-							? 'bg-muted/80 text-foreground border border-border/80'
+							? 'bg-emerald-500/10 text-emerald-800 dark:text-emerald-300 border border-emerald-500/30 hover:bg-emerald-500/20'
 							: isInspected
-								? 'bg-muted text-foreground border border-primary/40'
-								: 'bg-muted/30 text-muted-foreground hover:text-foreground'}"
+								? 'bg-muted text-foreground border border-primary/50'
+								: 'bg-muted/40 text-muted-foreground border border-border/40 hover:bg-muted/70'}"
 					title={step.locked ? `Verrouillé : ${step.lockRole}` : `Étape ${step.label}`}
 				>
 					<!-- Pastille / Statut -->
 					{#if isPast}
-						<Check class="h-3 w-3 stroke-[3] text-emerald-600 dark:text-emerald-400" />
+						<Check class="h-3.5 w-3.5 stroke-[3] text-emerald-600 dark:text-emerald-400" />
+					{:else if isCurrent}
+						<span class="inline-block h-2 w-2 rounded-full bg-white animate-pulse"></span>
 					{:else if step.locked}
-						<Lock class="h-3 w-3 {isCurrent ? 'text-primary-foreground' : 'text-muted-foreground'}" />
+						<Lock class="h-3 w-3 text-muted-foreground" />
 					{/if}
 
 					<span>{step.short} · {step.label}</span>

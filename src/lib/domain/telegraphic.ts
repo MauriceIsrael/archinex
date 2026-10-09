@@ -35,6 +35,7 @@ export interface TelegraphicDraft {
 	manque: TelegraphicGap[];
 	variante_b?: TelegraphicVariant;
 	expertQuestions?: string[];
+	expertAnswers?: Record<string, { answer: string; mode: 'hypothesis' | 'retenu' | 'argument' }>;
 }
 
 export interface ToneValidationError {

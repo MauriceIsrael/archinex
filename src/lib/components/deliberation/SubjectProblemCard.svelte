@@ -179,6 +179,22 @@
 		}
 	}
 
+	// Réponse interactive aux questions du sachant métier
+	let answeringQuestionIdx = $state<number | null>(null);
+	let currentAnswerInput = $state<string>('');
+
+	function startAnswerQuestion(idx: number, existingAnswer?: string) {
+		answeringQuestionIdx = idx;
+		currentAnswerInput = existingAnswer || '';
+	}
+
+	function submitExpertAnswer(q: string, mode: 'hypothesis' | 'retenu' | 'argument') {
+		if (!currentAnswerInput.trim()) return;
+		deliberationStore.answerExpertQuestion(subject.id, q, currentAnswerInput.trim(), mode);
+		answeringQuestionIdx = null;
+		currentAnswerInput = '';
+	}
+
 	function scrollToComposer() {
 		const composerElem = document.getElementById('compose-claim');
 		if (composerElem) {
@@ -216,6 +232,16 @@
 		</div>
 
 		<div class="flex items-center gap-1.5">
+			<button
+				type="button"
+				onclick={onSplit}
+				class="inline-flex items-center gap-1 px-2.5 py-1 rounded-md border bg-background/80 hover:bg-muted text-[11px] font-semibold text-foreground transition-colors cursor-pointer shadow-2xs"
+				title="Découper ce sujet d'architecture en 2 sous-problèmes distincts"
+			>
+				<Scissors class="h-3 w-3 text-muted-foreground" />
+				<span>Scinder ce sujet</span>
+			</button>
+
 			<!-- Toggle Déplier / Replier -->
 			<button
 				type="button"
@@ -448,24 +474,131 @@
 
 			<!-- 2 bis. Questions au Sachant Métier (Méthodologie ArcKit) -->
 			{#if expertQuestions.length > 0}
-				<div class="rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 space-y-2">
-					<div class="flex items-center justify-between gap-2">
-						<div class="flex items-center gap-1.5 text-xs font-bold text-amber-700 dark:text-amber-400">
-							<HelpCircle class="h-4 w-4" />
-							<span>Questions au Sachant Métier (Prérequis d'Arbitrage)</span>
+				<div class="rounded-xl border border-amber-500/30 bg-amber-500/5 p-3.5 space-y-3">
+					<div class="flex items-center justify-between gap-2 flex-wrap">
+						<div class="flex items-center gap-1.5 text-xs font-bold text-amber-800 dark:text-amber-300">
+							<HelpCircle class="h-4 w-4 text-amber-600 dark:text-amber-400" />
+							<span>Questions au Sachant Métier & Donneur d'Ordre ({expertQuestions.length})</span>
 						</div>
-						<span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-800 dark:text-amber-300 border border-amber-500/20 font-semibold">
+						<span class="text-[10px] font-mono px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-900 dark:text-amber-200 border border-amber-500/30 font-semibold">
 							Cadrage ArcKit
 						</span>
 					</div>
-					<p class="text-[11px] text-muted-foreground">
-						Ces questions clés doivent être éclairées par le sachant métier ou le donneur d'ordre pour permettre aux architectes de trancher :
+					<p class="text-[11px] text-muted-foreground leading-relaxed">
+						Répondez à ces questions clés pour transformer les incertitudes en <strong>hypothèses de travail</strong> ou en <strong>décisions actées</strong> afin de franchir les jalons de maturité :
 					</p>
-					<div class="space-y-1.5">
+
+					<div class="space-y-2.5">
 						{#each expertQuestions as q, idx}
-							<div class="flex items-start gap-2 p-2 rounded-lg bg-background border border-amber-500/20 text-xs">
-								<span class="font-mono font-bold text-amber-600 dark:text-amber-400 shrink-0">Q{idx + 1}.</span>
-								<span class="flex-1 font-medium text-foreground">{q}</span>
+							{@const savedAnswer = draft?.expertAnswers?.[q]}
+							{@const isAnswering = answeringQuestionIdx === idx}
+
+							<div class="rounded-lg bg-background border {savedAnswer ? 'border-emerald-500/40 bg-emerald-500/5' : 'border-amber-500/25'} p-3 space-y-2 text-xs transition-all shadow-2xs">
+								<!-- Ligne Question -->
+								<div class="flex items-start justify-between gap-2">
+									<div class="flex items-start gap-2 flex-1">
+										<span class="font-mono font-bold {savedAnswer ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'} shrink-0 mt-0.5">
+											Q{idx + 1}.
+										</span>
+										<span class="font-medium text-foreground leading-snug">{q}</span>
+									</div>
+
+									{#if savedAnswer && !isAnswering}
+										<button
+											type="button"
+											onclick={() => startAnswerQuestion(idx, savedAnswer.answer)}
+											class="text-[11px] text-muted-foreground hover:text-foreground font-medium underline decoration-dotted shrink-0 cursor-pointer ml-2"
+										>
+											Modifier
+										</button>
+									{/if}
+								</div>
+
+								<!-- Affichage de la réponse existante -->
+								{#if savedAnswer && !isAnswering}
+									<div class="p-2.5 rounded-md bg-emerald-500/10 border border-emerald-500/25 flex items-start justify-between gap-2">
+										<div class="space-y-1">
+											<div class="flex items-center gap-1.5 text-[10px] font-bold text-emerald-800 dark:text-emerald-300 uppercase tracking-wide">
+												{#if savedAnswer.mode === 'hypothesis'}
+													<span>💡 Hypothèse formulée (valide le jalon L1)</span>
+												{:else if savedAnswer.mode === 'retenu'}
+													<span>📌 Décision actée (Retenu)</span>
+												{:else}
+													<span>💬 Argument partagé au débat</span>
+												{/if}
+											</div>
+											<p class="text-xs text-foreground font-sans italic">« {savedAnswer.answer} »</p>
+										</div>
+									</div>
+								{/if}
+
+								<!-- Formulaire de réponse / saisie -->
+								{#if isAnswering}
+									<div class="space-y-2 pt-1 border-t border-border/50">
+										<textarea
+											rows={2}
+											bind:value={currentAnswerInput}
+											placeholder="Saisissez la réponse, l'hypothèse d'architecture ou l'éclairage métier..."
+											class="w-full text-xs p-2 rounded-md border border-input bg-background focus:ring-1 focus:ring-primary focus:outline-hidden resize-none"
+										></textarea>
+
+										<div class="flex items-center justify-between gap-2 flex-wrap">
+											<span class="text-[10px] text-muted-foreground">
+												Choisir comment intégrer cette réponse au sujet :
+											</span>
+
+											<div class="flex items-center gap-1.5 flex-wrap">
+												<button
+													type="button"
+													onclick={() => { answeringQuestionIdx = null; currentAnswerInput = ''; }}
+													class="px-2 py-1 rounded text-[11px] text-muted-foreground hover:text-foreground border border-border/60 hover:bg-muted cursor-pointer"
+												>
+													Annuler
+												</button>
+
+												<button
+													type="button"
+													disabled={!currentAnswerInput.trim()}
+													onclick={() => submitExpertAnswer(q, 'argument')}
+													class="px-2.5 py-1 rounded text-[11px] font-semibold border border-border hover:bg-muted text-foreground cursor-pointer disabled:opacity-50"
+													title="Diffuse l'éclairage dans le fil de discussion"
+												>
+													💬 Débattre
+												</button>
+
+												<button
+													type="button"
+													disabled={!currentAnswerInput.trim()}
+													onclick={() => submitExpertAnswer(q, 'hypothesis')}
+													class="px-2.5 py-1 rounded text-[11px] font-bold bg-amber-500/20 hover:bg-amber-500/30 text-amber-900 dark:text-amber-200 border border-amber-500/40 cursor-pointer disabled:opacity-50"
+													title="Formule l'hypothèse de travail du problème (requis pour le jalon L1)"
+												>
+													💡 Poser comme Hypothèse
+												</button>
+
+												<button
+													type="button"
+													disabled={!currentAnswerInput.trim()}
+													onclick={() => submitExpertAnswer(q, 'retenu')}
+													class="px-2.5 py-1 rounded text-[11px] font-bold bg-primary text-primary-foreground hover:bg-primary/90 cursor-pointer disabled:opacity-50"
+													title="Acter directement cette réponse comme choix arrêté (Retenu)"
+												>
+													📌 Acter comme Retenu
+												</button>
+											</div>
+										</div>
+									</div>
+								{:else if !savedAnswer}
+									<div class="flex justify-end pt-1">
+										<button
+											type="button"
+											onclick={() => startAnswerQuestion(idx, '')}
+											class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-[11px] font-semibold text-amber-800 dark:text-amber-200 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 transition-colors cursor-pointer"
+										>
+											<span>💬 Répondre / Éclairer</span>
+										</button>
+									</div>
+								{/if}
 							</div>
 						{/each}
 					</div>

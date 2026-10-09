@@ -3,7 +3,7 @@ import * as fs from 'fs';
 
 const steps = [
 	{ name: '1/4 Denylist Check', cmd: 'node scripts/check-no-project-names.mjs' },
-	{ name: '2/4 Vitest Tests', cmd: 'npx vitest run' },
+	{ name: '2/4 Vitest Tests', cmd: 'npx svelte-kit sync && npx vitest run' },
 	{ name: '3/4 Svelte Check', cmd: 'npx svelte-kit sync && npx svelte-check --tsconfig ./tsconfig.json' },
 	{
 		name: '4/4 Production Build',

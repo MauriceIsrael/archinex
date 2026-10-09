@@ -8,6 +8,17 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Audit des exigences en étapes (remplace l'audit câblé sur un seul RFP)
+- Le pipeline d'ingestion classe désormais chaque clause avec le modèle configuré (lots, JSON validé par schéma),
+  puis des contrôles déterministes garantissent : un état par clause, aucune évacuation de clause bloquante ou sans motif,
+  chaque clause à délibérer dans exactement un sujet.
+- Nouvel état « à qualifier » : en cas de doute ou de panne du modèle, la clause revient à l'humain au lieu d'être évacuée.
+  Avant ce changement, tout RFP autre que la section de démonstration voyait ses clauses déclarées « évacuées ».
+- Taux de couverture honnête (les clauses « à qualifier » n'y comptent pas) ; l'interface affiche un compteur « À qualifier ».
+- Les analyses expertes du RFP de démonstration quittent `src/` pour `examples/lumicc-noc/reference-analysis.json`.
+- Outil de mesure : `npm run eval:requirements` (rappel, faux négatifs dangereux, appariement des points durs).
+- Correctif d'affichage : un résultat produit par Claude n'est plus présenté comme un « repli heuristique ».
+
 ### 2026-10-09 — Ingestion ArcKit, fournisseurs LLM, ergonomie
 - Ajout du pipeline d'audit des exigences inspiré d'ArcKit (`src/lib/server/ingest/`).
 - Fournisseur LLM multiple : Anthropic Claude ou serveur local (Ollama), découverte dynamique des modèles.

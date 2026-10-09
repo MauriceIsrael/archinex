@@ -1,0 +1,202 @@
+{
+  "_description": "Analyse de référence rédigée à la main par un architecte pour la section 4 du RFP LUMICC (rfp-section4-noc.md). Sert uniquement de jeu d'évaluation du pipeline (npm run eval:requirements) : ne jamais l'importer depuis src/.",
+  "source": "examples/lumicc-noc/rfp-section4-noc.md",
+  "hardPoints": [
+    {
+      "id": "ADR-NOC-01",
+      "name": "Médiation O&M Multi-Constructeurs : NRM Unifié vs Passerelle Propriétaire MNO",
+      "sectionRef": "§4.7-4.8",
+      "waitingForRole": "domain_architect",
+      "effort": "M",
+      "level": "L0_named",
+      "coveredClauseRefs": [
+        "REQ-Lot1-201",
+        "REQ-Lot1-240",
+        "REQ-Lot1-241",
+        "REQ-Lot1-242",
+        "REQ-Lot1-243",
+        "REQ-Lot1-248",
+        "REQ-Lot1-249",
+        "REQ-Lot1-250",
+        "REQ-Lot1-251",
+        "REQ-Lot1-252",
+        "REQ-Lot1-253",
+        "REQ-Lot1-254"
+      ],
+      "seed": {
+        "initialQuestion": "Comment unifier la supervision O&M entre le réseau gouvernemental dédié (Open RAN / YANG) et le réseau commercial partagé (MNO) sans subir de dépendance propriétaire ?",
+        "initialHypothesis": "Déployer une couche de médiation OSS avec traducteur NRM (3GPP TS 28.659) pour normaliser les compteurs propriétaires du MNO vers le format YANG/NETCONF.",
+        "initialConflict": "Exigence d’unification multi-vendeurs vs Refus des opérateurs commerciaux d’exposer des interfaces de gestion directes sur leurs stations de base.",
+        "initialRetenu": [
+          "REQ-Lot1-249 : Traduction des compteurs propriétaires dans un NRM unifié",
+          "REQ-Lot1-250 : Adaptation aux APIs OSS/ENM du MNO (Kafka/REST/Syslog)"
+        ],
+        "expertQuestions": [
+          "Quel est le niveau de granularité des compteurs radio temps réel que l’opérateur commercial tiers accepte contractuellement d’exposer au NOC LUMICC ?",
+          "En cas de panne de l’interface de médiation MNO, quel est le mode de repli opérationnel toléré pour maintenir la visibilité sur la couverture partagée ?"
+        ]
+      },
+      "options": [
+        {
+          "id": "opt-nrm-unified",
+          "name": "Option A : Médiation active avec NRM unifié et normalisation des compteurs",
+          "pros": "Vision homogène sur tous les RANs, conformité stricte 3GPP NRM, pas de dépendance fournisseur",
+          "cons": "Effort de développement de traducteurs spécifiques par équipementier"
+        },
+        {
+          "id": "opt-enm-passthrough",
+          "name": "Option B : Consommation directe des interfaces OSS/ENM des opérateurs sans retraduction",
+          "pros": "Mise en œuvre immédiate sans développement de médiation lourd",
+          "cons": "Écrans séparés pour les exploitants, perte de corrélation transverse entre RAN GOV et RAN MNO"
+        }
+      ]
+    },
+    {
+      "id": "ADR-NOC-02",
+      "name": "Résilience au Déni GNSS 30j & Détection de Brouillage Radio",
+      "sectionRef": "§4.5",
+      "waitingForRole": "infra_expert_architect",
+      "effort": "M",
+      "level": "L0_named",
+      "coveredClauseRefs": [
+        "REQ-Lot1-223",
+        "REQ-Lot1-224",
+        "REQ-Lot1-225",
+        "REQ-Lot1-226",
+        "REQ-Lot1-227",
+        "REQ-Lot1-228",
+        "REQ-Lot1-229"
+      ],
+      "seed": {
+        "initialQuestion": "Quelle architecture de maintien temporel et de détection permet d’assurer 30 jours de fonctionnement nominal en cas de coupure totale du signal GNSS/GPS ?",
+        "initialHypothesis": "Combiner des horloges atomiques locales (Rubidium / CSAC) sur les nœuds centraux avec une distribution réseau PTP v2.1 (IEEE 1588-2019) synchronisée sur l’horloge étatique.",
+        "initialConflict": "Exigence de maintien temporel sub-microseconde sur 30 jours vs Coût matériel et maintenance des oscillateurs atomiques embarqués.",
+        "initialRetenu": [
+          "REQ-Lot1-223 : Fonctionnement normal supérieur à 1 mois en cas de déni GNSS",
+          "REQ-Lot1-224 : Analyse d’interférences radio rapportées par les terminaux (SINR/RSSI)"
+        ],
+        "expertQuestions": [
+          "Quel est le drift (dérive temporelle) maximal acceptable pour les communications MCPTT avant décrochage des cellules radio synchronisées ?",
+          "Le réseau de transmission filaire de secours entre datacentres est-il garanti sans gigue pour acheminer le flux PTP v2.1 ?"
+        ]
+      },
+      "options": [
+        {
+          "id": "opt-atomic-holdover",
+          "name": "Option A : Oscillateurs atomiques locaux haute stabilité (Rubidium) sur chaque cœur",
+          "pros": "Autonomie absolue 30 jours sans aucune dépendance réseau externe",
+          "cons": "Coût unitaire élevé et nécessité de recalibration périodique"
+        },
+        {
+          "id": "opt-ptp-distribution",
+          "name": "Option B : Distribution filaire PTP v2.1 depuis l’horloge étatique + OCXO local",
+          "pros": "Moins onéreux, supervision centralisée de la dérive de phase",
+          "cons": "Vulnérabilité si la liaison de transport filaire est coupée en même temps que le brouillage GPS"
+        }
+      ]
+    },
+    {
+      "id": "ADR-NOC-03",
+      "name": "Haute Disponibilité 24/7 du NOC : Actif/Actif Distribué vs Miroir Salle de Repli",
+      "sectionRef": "§4.10-4.12",
+      "waitingForRole": "lead_architect",
+      "effort": "S",
+      "level": "L0_named",
+      "coveredClauseRefs": [
+        "REQ-Lot1-192",
+        "REQ-Lot1-268",
+        "REQ-Lot1-270",
+        "REQ-Lot1-271",
+        "REQ-Lot1-282"
+      ],
+      "seed": {
+        "initialQuestion": "Quelle topologie d’infrastructure garantit la continuité opérationnelle du NOC 24/7 en cas de sinistre ou d’inaccessibilité du site principal ?",
+        "initialHypothesis": "Déployer le cœur applicatif NOC (ITSM, SIEM, Hyperviseur) en cluster actif/actif sur les deux datacentres géoredondants, avec salle principale et salle de repli tiède.",
+        "initialConflict": "Continuité de service instantanée sans perte d’état vs Complexité de synchronisation temps réel des consoles pupitres et du mur d’images.",
+        "initialRetenu": [
+          "REQ-Lot1-192 : Opération continue 24/7 géoredondante (primaire + backup)",
+          "REQ-Lot1-282 : Salle de repli préconfigurée pour continuité d’activité"
+        ],
+        "expertQuestions": [
+          "Quel est le délai de bascule (RTO) maximal consenti aux équipes d’exploitation pour évacuer vers la salle de repli et reprendre les appels d’urgence ?",
+          "Les équipes d’astreinte 24/7 doivent-elles opérer depuis les deux salles en permanence ou uniquement lors d’une crise ?"
+        ]
+      },
+      "options": [
+        {
+          "id": "opt-active-active-cluster",
+          "name": "Option A : Infrastructure FCAPS actif/actif sur 2 sites avec bascule automatique",
+          "pros": "RTO = 0 sur les données de supervision, aucun point unique de défaillance",
+          "cons": "Bande passante requise entre datacentres pour réplication synchrone"
+        },
+        {
+          "id": "opt-active-passive-warm",
+          "name": "Option B : Salle principale active + Salle de repli en miroir asynchrone (RTO < 15 min)",
+          "pros": "Architecture plus simple, procédures de reprise maîtrisées et éprouvées",
+          "cons": "Nécessite une manipulation humaine de bascule DNS/routage"
+        }
+      ]
+    },
+    {
+      "id": "ADR-NOC-04",
+      "name": "Boucle Fermée d’Automatisation AIOps : Auto-remédiation vs Contrôle Opérateur",
+      "sectionRef": "§4.1-4.8",
+      "waitingForRole": "data_architect",
+      "effort": "S",
+      "level": "L0_named",
+      "coveredClauseRefs": [
+        "REQ-Lot1-193",
+        "REQ-Lot1-194",
+        "REQ-Lot1-195",
+        "REQ-Lot1-196",
+        "REQ-Lot1-197",
+        "REQ-Lot1-208",
+        "REQ-Lot1-247",
+        "REQ-Lot1-263"
+      ],
+      "seed": {
+        "initialQuestion": "Quel niveau d’autonomie accorder au moteur d’intentions AIOps/NWDAF pour ajuster les priorités radio (5QI aérien, préemption) en situation de saturation ?",
+        "initialHypothesis": "Mettre en œuvre des playbooks automatisés avec garde-fous : réallocation dynamique automatique des 5QI avec seuils pré-approuvés et notification temps réel au pupitre.",
+        "initialConflict": "Réactivité sub-seconde exigée en crise vs Risque d’effet de bord ou de délestage intempestif d’usagers critiques par un algorithme autonome.",
+        "initialRetenu": [
+          "REQ-Lot1-195 : 5QI aérien dédié pour flux montants drones/hélicoptères",
+          "REQ-Lot1-263 : Playbooks automatisés avec option d’approbation opérateur"
+        ],
+        "expertQuestions": [
+          "Quelles sont les conditions strictes (nature de l’intervention de sécurité civile) autorisant la préemption d’un flux vidéo drone sur un flux voix policier ?",
+          "L’opérateur NOC doit-il avoir un bouton d’arrêt d’urgence (Kill Switch) immédiat pour figer les politiques d’orchestration automatique ?"
+        ]
+      },
+      "options": [
+        {
+          "id": "opt-closed-loop-full",
+          "name": "Option A : Boucle fermée 100% autonome (Closed-Loop Automation)",
+          "pros": "Temps de réponse instantané (< 500 ms) face aux pics de charge et brouillages",
+          "cons": "Difficilement auditable immédiatement par les opérateurs en salle"
+        },
+        {
+          "id": "opt-human-gate-aiops",
+          "name": "Option B : Recommandation AIOps avec validation humaine en 1 clic (Human-in-the-Loop)",
+          "pros": "Maîtrise totale de l’exploitation, traçabilité et responsabilité humaine claire",
+          "cons": "Temps de réaction tributaire de la disponibilité des opérateurs en salle"
+        }
+      ]
+    }
+  ],
+  "clarifications": [
+    {
+      "clauseRefs": [
+        "REQ-Lot1-191",
+        "REQ-Lot1-206",
+        "REQ-Lot1-209"
+      ],
+      "question": "Frontière de responsabilité opérationnelle : Jusqu’où le NOC dédié LUMICC a-t-il le pouvoir de piloter ou délester les cellules radio de l’opérateur commercial tiers (MNO) en situation d’urgence ?"
+    },
+    {
+      "clauseRefs": [
+        "REQ-Lot1-230"
+      ],
+      "question": "Roadmap 3GPP Rel-20 ISAC (détection radar de drones par les antennes radio) : Quel est l’échéancier réel et l’impact sur les choix matériels de stations de base Lot 2 ?"
+    }
+  ]
+}

@@ -13,9 +13,9 @@ import { describe, it, expect } from 'vitest';
 import { LLMOpsClient } from '../../src/lib/server/llmops/client';
 
 const LIVE = process.env.LLMOPS_LIVE_URL;
-const ALICE = 'alice@example.org'; // propriétaire du domaine network-automation, sans rôle d'évaluateur
-const EVA = 'eva@example.org'; // kb:evaluate
-const MAINT = 'maint@example.org'; // kb:maintain + kb:admin
+const ALICE = process.env.LLMOPS_EXPERT_ALICE || 'alice@example.org'; // propriétaire du domaine network-automation, sans rôle d'évaluateur
+const EVA = process.env.LLMOPS_EXPERT_EVA || 'eva@example.org'; // kb:evaluate
+const MAINT = process.env.LLMOPS_EXPERT_MAINT || 'maint@example.org'; // kb:maintain + kb:admin
 
 const RUN_ID = Math.floor(200 + Math.random() * 700);
 const PAT_ID = `PAT-${RUN_ID}`;

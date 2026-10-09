@@ -51,9 +51,9 @@
 		document: UpstreamDocInput;
 		initialSubjects: InitialSubjectInput[];
 	}) {
-		upstreamDocs = [...upstreamDocs, result.document];
+		upstreamDocs = [result.document];
 		if (result.initialSubjects && result.initialSubjects.length > 0) {
-			initialSubjects = [...initialSubjects, ...result.initialSubjects];
+			initialSubjects = result.initialSubjects;
 		}
 	}
 

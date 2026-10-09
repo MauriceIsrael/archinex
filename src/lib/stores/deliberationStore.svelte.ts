@@ -1530,7 +1530,9 @@ class DeliberationStore {
 			}
 			const payload = (await res.json()) as LLMOpsSyncPayload;
 
-			this.activeEngagementId = payload.engagement;
+			if (!this.activeEngagementId) {
+				this.activeEngagementId = payload.engagement;
+			}
 			this.llmopsStatus = payload.source === 'live' ? 'connected' : 'offline';
 			this.llmopsSyncSource = payload.source;
 			this.llmopsHealth = payload.health;

@@ -1,6 +1,6 @@
 import type { MaturitySubject } from '$lib/domain/maturityBoard';
 import type { TelegraphicDraft } from '$lib/domain/telegraphic';
-import type { Statement, ArchitectRole } from '$lib/types/epistemic';
+import type { Statement, ArchitectRole, MaturityLevel } from '$lib/types/epistemic';
 import type { CorpusDocument, DocumentCategory } from '$lib/domain/corpus';
 import type { DialogueMessage } from '$lib/domain/dialectic';
 
@@ -74,6 +74,7 @@ export interface InitialSubjectInput {
 	id?: string;
 	sectionRef?: string;
 	name: string;
+	level?: MaturityLevel;
 	waitingForRole: ArchitectRole;
 	effort?: 'S' | 'M' | 'L' | 'XL';
 	initialRetenu?: string[];
@@ -418,7 +419,7 @@ export function buildEngagementProfileFromWorkspaceInput(
 			id: sId,
 			section_ref: sectionRef,
 			name: sInput.name,
-			level: idx === 0 ? 'L1_framed' : 'L0_named',
+			level: sInput.level || 'L0_named',
 			blocking_count: 0,
 			unlocks_count: Math.max(0, initialSubjectInputs.length - 1 - idx),
 			waiting_for_role: sInput.waitingForRole,
@@ -432,7 +433,7 @@ export function buildEngagementProfileFromWorkspaceInput(
 		drafts[sId] = {
 			section_id: sectionRef,
 			subject: sInput.name,
-			maturity: idx === 0 ? 'L1_framed' : 'L0_named',
+			maturity: sInput.level || 'L0_named',
 			is_provisional: true,
 			retenu:
 				sInput.initialRetenu && sInput.initialRetenu.length > 0

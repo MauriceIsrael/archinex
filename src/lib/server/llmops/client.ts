@@ -495,8 +495,14 @@ export class LLMOpsClient {
       // Fallback
     }
 
+    const isDemo =
+      !engagement ||
+      engagement === 'cctp-mcx-nordwave' ||
+      engagement === 'nordwave-mcx-2027' ||
+      engagement === 'suse-telco-cloud-generic';
+
     const bundle = this.loadOfflineBundle();
-    return { data: bundle.board, source: 'offline-fallback' };
+    return { data: isDemo ? bundle.board : [], source: 'offline-fallback' };
   }
 
   /**
@@ -523,8 +529,14 @@ export class LLMOpsClient {
       // Fallback
     }
 
+    const isDemo =
+      !engagement ||
+      engagement === 'cctp-mcx-nordwave' ||
+      engagement === 'nordwave-mcx-2027' ||
+      engagement === 'suse-telco-cloud-generic';
+
     const bundle = this.loadOfflineBundle();
-    let stmts = bundle.statements;
+    let stmts = isDemo ? bundle.statements : [];
     if (subject) {
       stmts = stmts.filter((s) => s.subject === subject);
     }
@@ -552,8 +564,14 @@ export class LLMOpsClient {
       // Fallback
     }
 
+    const isDemo =
+      !engagement ||
+      engagement === 'cctp-mcx-nordwave' ||
+      engagement === 'nordwave-mcx-2027' ||
+      engagement === 'suse-telco-cloud-generic';
+
     const bundle = this.loadOfflineBundle();
-    return { data: bundle.conflicts, source: 'offline-fallback' };
+    return { data: isDemo ? bundle.conflicts : [], source: 'offline-fallback' };
   }
 
   /**
@@ -3456,15 +3474,21 @@ export class LLMOpsClient {
     // Fast-fail health check : si Cloud Run / serveur est injoignable, on bascule immédiatement en local sans attendre
     const healthRes = await this.getHealth();
     if (healthRes.source !== 'live') {
+      const isDemo =
+        !localEng ||
+        localEng === 'cctp-mcx-nordwave' ||
+        localEng === 'nordwave-mcx-2027' ||
+        localEng === 'suse-telco-cloud-generic';
+
       const bundle = this.loadOfflineBundle();
       return {
         source: 'offline-fallback',
         engagement: localEng,
         syncedAt: new Date().toISOString(),
         health: bundle.health,
-        board: bundle.board,
-        statements: bundle.statements,
-        conflicts: bundle.conflicts,
+        board: isDemo ? bundle.board : [],
+        statements: isDemo ? bundle.statements : [],
+        conflicts: isDemo ? bundle.conflicts : [],
         snapshotMeta: bundle.health.kb
       };
     }

@@ -2,17 +2,19 @@
  * Évalue le pipeline d'audit des exigences sur un RFP, avec le modèle réellement configuré.
  *
  *   npm run eval:requirements -- examples/lumicc-noc/rfp-section4-noc.md \
- *       --reference examples/lumicc-noc/reference-analysis.json [--model claude-...] [--out resultat.json]
+ *       --reference examples/lumicc-noc/reference-analysis.json [--model claude-...] [--out resultat.json] [--report rapport.md]
  *
  * Le modèle vient de l'environnement (ANTHROPIC_API_KEY / LLM_PROVIDER / LLM_LOCAL_*), comme dans l'application.
  * Sans référence, seules les statistiques de répartition sont affichées.
+ * --report écrit un rapport lisible : pourquoi ces sujets, ce que devient chaque autre clause, ce qu'il faut relire.
  * Code de sortie : 0 si l'intégrité est respectée, 1 sinon, 2 si le modèle était injoignable.
  */
 
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
-import { dirname, resolve } from 'node:path';
+import { basename, dirname, resolve } from 'node:path';
 import { shredRfpTextToClauses } from '../src/lib/domain/rfpConfrontation';
 import { computeAuditMetrics, type AuditReference } from '../src/lib/domain/requirementsAuditEval';
+import { buildAuditReportMarkdown } from '../src/lib/domain/requirementsAuditReport';
 import { runRequirementsAudit } from '../src/lib/server/ingest/arckitRequirementsPipeline';
 import { localLlmClient } from '../src/lib/server/llm/localLlmClient';
 
@@ -23,7 +25,7 @@ function arg(name: string): string | undefined {
 
 const rfpPath = process.argv[2];
 if (!rfpPath || rfpPath.startsWith('--')) {
-	console.error('Usage : npm run eval:requirements -- <rfp.md|txt> [--reference ref.json] [--model id] [--out fichier.json]');
+	console.error('Usage : npm run eval:requirements -- <rfp.md|txt> [--reference ref.json] [--model id] [--out fichier.json] [--report rapport.md]');
 	process.exit(64);
 }
 
@@ -67,6 +69,25 @@ async function main() {
 			);
 		}
 		console.log(`\nIntégrité (0 faux négatif dangereux, 0 évacuation bloquante) : ${integrityOk ? 'OK' : 'ÉCHEC'}`);
+	}
+
+	const reportOut = arg('report');
+	if (reportOut) {
+		mkdirSync(dirname(resolve(reportOut)), { recursive: true });
+		writeFileSync(
+			resolve(reportOut),
+			buildAuditReportMarkdown({
+				title: basename(rfpPath),
+				model,
+				status: result.status,
+				generatedAt: new Date().toISOString(),
+				requirements: r.requirements,
+				subjects: result.subjects,
+				warnings: result.warnings,
+				metrics
+			})
+		);
+		console.log(`Rapport lisible : ${reportOut}`);
 	}
 
 	const out = arg('out');

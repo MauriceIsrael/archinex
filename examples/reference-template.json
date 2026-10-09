@@ -1,0 +1,17 @@
+{
+  "_instructions": "Copier ce fichier, le remplir AVANT de lancer la moindre mesure, puis le figer (commit daté). Il est le juge : il doit être écrit par un architecte qui n'a pas vu la sortie du pipeline. Les identifiants de clauses sont ceux du RFP (colonne « Clause » du rapport).",
+  "source": "chemin/vers/le-rfp.md",
+  "hardPoints": [
+    {
+      "id": "HP-1",
+      "name": "Le dilemme, en une phrase (ex. « autonomie locale ou dépendance au réseau de transport »)",
+      "coveredClauseRefs": ["REF-DE-CLAUSE-1", "REF-DE-CLAUSE-2"]
+    }
+  ],
+  "clarifications": [
+    {
+      "clauseRefs": ["REF-DE-CLAUSE-3"],
+      "question": "La question que vous poseriez au donneur d'ordre."
+    }
+  ]
+}

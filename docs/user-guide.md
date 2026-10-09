@@ -92,6 +92,8 @@ L'interface est structurée autour de 3 zones opérationnelles :
 - Le taux de couverture affiché ne compte pas les clauses « à qualifier ».
 - Une évacuation à tort se corrige en un clic (« Promouvoir en Sujet Archi »).
 
+**Ce que l'import conserve.** À la confirmation, seuls les sujets retenus et le texte de toutes les clauses sont enregistrés. L'état et le motif des autres clauses ne le sont pas encore : téléchargez le **rapport d'audit** depuis l'écran de revue avant de confirmer (voir `docs/jalon-j0.md`).
+
 Si l'audit n'aboutit pas entièrement (lot en échec, regroupement impossible), l'ancien moteur de factorisation prend le relais et un avertissement l'indique ; aucun rapport partiel n'est affiché.
 
 ### 4.2 Typologie des Criticités & Critères Sous-Jacents

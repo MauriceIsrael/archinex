@@ -8,6 +8,14 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Rapport d'audit lisible et protocole du jalon J0
+- Rapport Markdown de l'audit : pourquoi ces sujets (tension relevée sur chaque clause), ce que devient chaque autre
+  clause, ce qu'il faut relire en priorité, comparaison avec une référence. Chaque clause y figure exactement une fois.
+  Disponible par `--report` (ligne de commande) et par un bouton de téléchargement dans l'écran de revue.
+- L'écran de revue affiche « Pourquoi à délibérer » sur chaque clause retenue.
+- Protocole pas à pas du jalon J0 (`docs/jalon-j0.md`) et modèle de fichier de référence (`examples/reference-template.json`).
+- Limite connue, documentée : l'état des clauses non retenues n'est pas conservé après la confirmation de l'import.
+
 ### Plus aucune donnée de démonstration ni de repli fabriqué
 - Le client LLMOps ne connaît plus aucun projet et ne lit plus de fixtures du dossier `tests/` : si LLMOps est
   injoignable, la santé est `unreachable`, les listes sont vides, l'instantané et les écritures échouent explicitement.

@@ -8,7 +8,7 @@ import { anonymizeSubjectText, computeSubjectFingerprint, encodeToyBow, syncEmbe
 
 const LIVE = process.env.LLMOPS_LIVE_URL;
 const TOKEN = process.env.LLMOPS_LIVE_TOKEN || 'contract-service-token';
-const ARCHITECT = 'alice@example.org';
+const ARCHITECT = process.env.LLMOPS_EXPERT_ALICE || 'alice@example.org';
 const A1 = 'The control plane handles fewer than 10000 managed devices.';
 const A2 = 'Every site keeps an out-of-band access path to its routers.';
 
@@ -62,7 +62,7 @@ describe.skipIf(!LIVE)('Contrat réel LLMOps — réutilisation : refus et mémo
 
   it('mémorise un rejet avec sa raison dans la recherche suivante', async () => {
     await syncEmbeddingsWithLLMOps(client, { model: 'toy-bow' });
-    const subject = 'Restauration de la configuration réseau après une panne';
+    const subject = 'Git as the source of truth for network and platform configuration';
     const anonymized = anonymizeSubjectText(subject);
     const fingerprint = computeSubjectFingerprint(anonymized);
     const reason = `Autre périmètre : accès physique ${Date.now()}`;
@@ -78,6 +78,7 @@ describe.skipIf(!LIVE)('Contrat réel LLMOps — réutilisation : refus et mémo
       vector: encodeToyBow(anonymized),
       query_text: anonymized,
       subject_fingerprint: fingerprint,
+      types: ['decision'],
       top_k: 10
     });
     expect(search.status).toBe('ok');

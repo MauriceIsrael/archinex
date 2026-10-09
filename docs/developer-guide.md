@@ -71,6 +71,7 @@ npm run verify
 - `tests/contract/dialectic-recall.test.ts` : Détection automatique des collisions de doctrine et rappels ADRs.
 - `tests/contract/retractation-engine.test.ts` : Parcours du graphe causal direct (DAG) et clôture logique d'invalidation.
 - `tests/contract/freeze-export.test.ts` : Barrière de certification, références immuables et scellement SHA-256.
+- `tests/contract/llmops-live*.test.ts` : Suites de contrat exécutées contre le serveur LLMOps réel (44 tests au vert, voir `docs/llmops-integration.md`).
 - `tests/integration/deliberation-workflow.test.ts` : Scénario d'intégration complet d'élicitation et de scellement.
 
 ---

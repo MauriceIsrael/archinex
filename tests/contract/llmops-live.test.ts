@@ -15,10 +15,10 @@ import { readFileSync, existsSync } from 'node:fs';
 import { LLMOpsClient } from '../../src/lib/server/llmops/client';
 
 const LIVE = process.env.LLMOPS_LIVE_URL;
-const ALICE = 'alice@example.org'; // @core-owner-architecture
-const SEC = 'sec@example.org'; // @security-compliance-team (domaine security-governance)
-const EVA = 'eva@example.org'; // @ciso-office, kb:evaluate
-const MAINT = 'maint@example.org'; // @maintainers, kb:maintain + kb:admin
+const ALICE = process.env.LLMOPS_EXPERT_ALICE || 'alice@example.org'; // @core-owner-architecture
+const SEC = process.env.LLMOPS_EXPERT_SEC || 'sec@example.org'; // @security-compliance-team (domaine security-governance)
+const EVA = process.env.LLMOPS_EXPERT_EVA || 'eva@example.org'; // @ciso-office, kb:evaluate
+const MAINT = process.env.LLMOPS_EXPERT_MAINT || 'maint@example.org'; // @maintainers, kb:maintain + kb:admin
 
 const PATTERN = `---
 id: PAT-099

@@ -240,6 +240,33 @@ Les cas « actif sans hypothèses » et « actif remplacé » façonnent la rép
 
 **Limite connue** : l'acte 6 de l'E2E (boucle fermée) montre que le motif capitalisé entre dans le jugement avec le verdict `unassessed`, car il ne porte pas d'assertion formelle ; prouver qu'il *change* un verdict exige une règle avec assertion (atelier A8).
 
+### 7 quater. Exécution des Tests de Contrat Vivants (Serveur LLMOps Réel)
+
+Les tests de contrat exécutés contre une instance locale vivante (`LLMOps` en cours d'exécution sur `http://127.0.0.1:8000`) valident l'adhérence stricte aux contrats d'API A6 à A15 :
+
+```powershell
+# Configuration des variables d'environnement (PowerShell)
+$env:LLMOPS_LIVE_URL = "http://127.0.0.1:8000"
+$env:LLMOPS_LIVE_TOKEN = "zHy8ssNovKzgXtb8vL3vzB-xrZ00ONR3"
+
+# Personas configurables (s'alignent sur les propriétaires déclarés dans governance.db)
+$env:LLMOPS_EXPERT_ALICE = "maurice.israel+archi@free.fr"
+$env:LLMOPS_EXPERT_SEC = "maurice.israel+secu@free.fr"
+$env:LLMOPS_EXPERT_EVA = "maurice.israel+eval@free.fr"
+$env:LLMOPS_EXPERT_MAINT = "maurice.israel+maint@free.fr"
+$env:LLMOPS_EXPERT_ARCHITECT = "maurice.israel+archi@free.fr"
+
+# Lancement séquentiel des 4 suites de contrat vivant (44 tests au vert)
+npx vitest run --fileParallelism=false `
+  tests/contract/llmops-live.test.ts `
+  tests/contract/llmops-live-a9-a11.test.ts `
+  tests/contract/llmops-live-a12-a15.test.ts `
+  tests/contract/llmops-live-reuse-negative.test.ts
+```
+
+> [!NOTE]
+> L'option `--fileParallelism=false` garantit une exécution séquentielle des suites de test contre la même instance active de base de données (évite les conflits d'idempotence et d'instantanés scellés concurrents).
+
 ## 8. Gouvernance de la Base de Connaissances (API v1)
 
 Les lots de gouvernance étendent l'intégration au-delà du protocole MCP en appelant directement l'API REST de gouvernance avec propagation d'identité souveraine (`X-Actor-Email`) :

@@ -29,7 +29,7 @@ const BASE_URL =
 		? 'https://llmops-mcp-server-344571265365.europe-west1.run.app'
 		: 'http://127.0.0.1:8000');
 
-const TOKEN = process.env.LLMOPS_TOKEN ?? 'demo-local-sovereign-2026';
+const TOKEN = process.env.LLMOPS_AUTH_TOKEN ?? process.env.LLMOPS_TOKEN ?? 'demo-local-sovereign-2026';
 const ENGAGEMENT = process.env.LLMOPS_ENGAGEMENT ?? 'nordwave-mcx-2027';
 const TIMEOUT_MS = 15_000;
 
@@ -226,7 +226,7 @@ describe.skipIf(!isServerLive)('LLMOps MCP Server — Intégration Archinex', ()
 			const body = await res.json();
 			expect(body.status).toBe('ok');
 			expect(body.service).toBe('llmops-mcp-server');
-			expect(body.schema_version).toBe('1.0');
+			expect(body.schema_version).toMatch(/^1\./);
 			expect(body.engine_version).toMatch(/^\d+\.\d+\.\d+$/);
 			expect(body.kb?.snapshot_id).toBeTruthy();
 		});

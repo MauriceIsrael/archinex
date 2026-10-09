@@ -45,8 +45,8 @@ describe('Matrice de traçabilité générée depuis le dossier scellé', () => 
 		const md = renderTraceabilityMatrix(assembleEngagementBundle(input(T0)));
 		expect(md).toContain('`SRC-');
 		expect(md).toMatch(/R-1.*À délibérer.*décidé par un humain.*@alice.*Synchronisation.*Option retenue : Horloge locale/);
-		expect(md).toMatch(/R-2.*Évacuée.*proposé par le modèle.*model:m1/);
-		expect(md).toMatch(/R-3.*À qualifier.*non tranché.*G_requirement_unqualified \(bloquante\)/);
+		expect(md).toMatch(/R-2.*Évacuée.*proposé par le modèle.*@model-m1/);
+		expect(md).toMatch(/R-3.*À qualifier.*non tranché.*requirement_unqualified \(bloquante\)/);
 	});
 
 	it('refuse un dossier altéré après scellement', () => {

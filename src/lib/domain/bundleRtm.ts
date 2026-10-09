@@ -66,7 +66,7 @@ export function renderTraceabilityMatrix(bundle: EngagementBundle): string {
 	out.push(`## Lacunes bloquantes (${blocking.length})`);
 	out.push('');
 	if (blocking.length === 0) out.push('_Aucune._');
-	for (const g of blocking) out.push(`- \`${g.code}\` ${g.requirement_id ? `(${g.requirement_id}) ` : g.subject_id ? `(${g.subject_id}) ` : ''}: ${cell(g.description, 240)}`);
+	for (const g of blocking) out.push(`- \`${g.kind}\` ${g.requirement_id ? `(${g.requirement_id}) ` : g.subject_id ? `(${g.subject_id}) ` : ''}: ${cell(g.description, 240)}`);
 	out.push('');
 
 	for (const src of d.source_documents) {
@@ -90,7 +90,7 @@ export function renderTraceabilityMatrix(bundle: EngagementBundle): string {
 					`| ${who(r)} ` +
 					`| ${subs.map((s) => cell(s.title, 50)).join('; ') || '—'} ` +
 					`| ${decs.map((x) => cell(x!.decision, 60)).join('; ') || '—'} ` +
-					`| ${gaps.map((g) => `${g.code}${g.blocking ? ' (bloquante)' : ''}`).join('; ') || '—'} |`
+					`| ${gaps.map((g) => `${g.kind}${g.blocking ? ' (bloquante)' : ''}`).join('; ') || '—'} |`
 			);
 		}
 		out.push('');

@@ -50,12 +50,35 @@ export const POST: RequestHandler = async (event) => {
 			const strategy = typeof project.strategy === 'string' ? JSON.parse(project.strategy || '{}') : (project.strategy || {});
 			const engagementId = strategy.hubEngagementId || project.shortName || project.id;
 			const hubExport = await llmopsClient.exportEngagementSnapshot(engagementId, session.user.email);
+
+			// Le Hub scelle les faits engagés ; Archinex scelle le processus (exigences, sujets, lacunes) et épingle ce snapshot.
+			let processBundle: Awaited<ReturnType<typeof exportEngagementBundle>> | null = null;
+			let processBundleError: string | undefined;
+			try {
+				processBundle = await exportEngagementBundle({
+					projectId: event.params.projectId,
+					confidentiality,
+					actorHandle,
+					factsFromHub: {
+						engagement_id: engagementId,
+						snapshot_id: hubExport.snapshotRef.snapshotId,
+						checksum: hubExport.snapshotRef.checksum
+					}
+				});
+			} catch (e) {
+				// Le snapshot du Hub est déjà émis : on le rend, et on dit pourquoi le dossier de processus manque.
+				processBundleError = e instanceof Error ? e.message : String(e);
+			}
+
 			return json({
 				status: 'ok',
 				snapshotRef: hubExport.snapshotRef,
 				created: hubExport.created,
 				is_provisional: hubExport.is_provisional,
-				systemOfRecord: 'hub'
+				systemOfRecord: 'hub',
+				processBundle: processBundle?.bundle ?? null,
+				processSnapshotRef: processBundle?.snapshotRef ?? null,
+				processBundleError
 			});
 		}
 

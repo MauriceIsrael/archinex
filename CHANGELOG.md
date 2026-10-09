@@ -24,10 +24,14 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 - API : `POST/GET /api/projects/{id}/requirements`, `PATCH /api/projects/{id}/requirements/{SRC-xxxx:clause}`
   (l'auteur est celui de la session).
 - Correctif : `sanitizeHandle` est idempotent (un handle `@nom` n'était plus reconnu et devenait `@lead-architect`).
-- Extension additive du contrat (`schemaVersion` inchangé) : champs optionnels sur `requirements[]`. À valider contre
-  le schéma de la suite avant publication vers le Hub.
-- Limite connue : le chemin d'export délégué au Hub (projet basculé) n'est pas étendu ; la décision humaine clause
-  par clause n'a pas encore d'écran (API seulement).
+- Contrat `EngagementBundle` **1.1** (décision du propriétaire) : exigences auditées, lacunes typées par `kind`, `pins.hub_snapshot`.
+  Le schéma proposé est dans `tests/fixtures/bundle/engagement_bundle.schema.1.1.json` et les dossiers produits y sont validés
+  (ajv) par les tests. La validation a révélé des écarts de l'ancien export avec le schéma 1.0 de la suite, corrigés :
+  décisions (`title`, `rationale`, `alternatives` objets), énoncés (`predicate`), `sha256` des sources, statuts de sujet.
+  Les dossiers 1.0 restent vérifiables. **À soumettre à la suite** (le schéma 1.0 y est figé).
+- Source de vérité : **Hub pour les faits engagés, Archinex pour le processus**. Pour un projet basculé, l'export demande
+  son snapshot au Hub puis scelle un dossier de processus qui l'épingle ; il ne porte ni décision ni énoncé.
+- Limite connue : la décision humaine clause par clause n'a pas encore d'écran (API seulement).
 ### Rapport d'audit lisible et protocole du jalon J0
 - Rapport Markdown de l'audit : pourquoi ces sujets (tension relevée sur chaque clause), ce que devient chaque autre
   clause, ce qu'il faut relire en priorité, comparaison avec une référence. Chaque clause y figure exactement une fois.

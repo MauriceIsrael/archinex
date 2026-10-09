@@ -38,7 +38,16 @@ export interface EngagementIdentity {
 	client_label: string;
 }
 
+/** Snapshot du Hub qui détient les faits engagés (décisions, énoncés) d'un engagement basculé. */
+export interface HubSnapshotPin {
+	engagement_id: string;
+	snapshot_id: string;
+	/** `sha256:<64 hex>` */
+	checksum: string;
+}
+
 export interface BundlePins {
+	hub_snapshot?: HubSnapshotPin;
 	llmops_contract_version?: string;
 	kb?: {
 		snapshot_id: string;
@@ -95,7 +104,7 @@ export interface BundleSubject {
 	title: string;
 	domains: string[];
 	maturity: string;
-	status: 'open' | 'in_progress' | 'decided' | 'archived';
+	status: 'open' | 'decided' | 'deferred' | 'reopened';
 	requirement_ids: string[];
 	decision_ids: string[];
 	open_questions?: OpenQuestion[];
@@ -108,8 +117,9 @@ export interface BundleDecision {
 	epistemic_status: EpistemicStatus;
 	assertion_level: AssertionLevel;
 	decision: string;
-	justification: string;
-	alternatives?: string[];
+	title: string;
+	rationale: string;
+	alternatives?: Array<{ title: string; rejected_because?: string }>;
 	consequences?: string[];
 	provenance: ProvenanceInfo;
 	derived_from?: {
@@ -124,8 +134,9 @@ export interface BundleStatement {
 	epistemic_status: EpistemicStatus;
 	assertion_level: AssertionLevel;
 	text: string;
-	property: string;
+	predicate: string;
 	value: unknown;
+	unit?: string;
 	provenance: ProvenanceInfo;
 }
 
@@ -149,9 +160,23 @@ export interface BundleConflict {
 	resolution?: string;
 }
 
+/** Types de lacune du schéma 1.1 (les quatre derniers sont ajoutés par 1.1). */
+export type GapKind =
+	| 'G1_empty_section'
+	| 'G2_unanswered_blocking'
+	| 'G3_principle_unaddressed'
+	| 'uncovered_requirement'
+	| 'missing_assumption'
+	| 'unreviewed_proposal'
+	| 'requirement_unqualified'
+	| 'requirement_clarification'
+	| 'decided_without_decision'
+	| 'statement_without_subject'
+	| 'other';
+
 export interface BundleGap {
 	id: string;
-	code: string;
+	kind: GapKind;
 	subject_id?: string;
 	requirement_id?: string;
 	description: string;
@@ -237,7 +262,8 @@ export interface EngagementBundleData {
 }
 
 export interface EngagementBundle {
-	schemaVersion: '1.0';
+	/** `1.1` : exigences auditées, lacunes typées par `kind`. Les dossiers `1.0` restent vérifiables. */
+	schemaVersion: '1.0' | '1.1';
 	snapshotId: string;
 	sourceSystem: 'archinex';
 	createdAt: string;
@@ -318,7 +344,7 @@ export function buildEngagementBundle(params: BuildEngagementBundleParams): Enga
 	const checksum = `sha256:${universalSha256(canonicalJson(data))}`;
 
 	return {
-		schemaVersion: '1.0',
+		schemaVersion: '1.1',
 		snapshotId,
 		sourceSystem: 'archinex',
 		createdAt,

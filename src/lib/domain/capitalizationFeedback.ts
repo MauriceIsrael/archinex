@@ -63,7 +63,7 @@ export function extractBundleKbCandidates(bundle: EngagementBundle): BundleKbCan
 		candidates.push({
 			id: `CAND-${decision.id}`,
 			title: decision.decision,
-			description: decision.justification || `Décision adoptée pour le sujet ${subject?.title || decision.subject_id}`,
+			description: decision.rationale || `Décision adoptée pour le sujet ${subject?.title || decision.subject_id}`,
 			domain,
 			type: 'pattern',
 			status: 'in_review', // Arrive obligatoirement dans la boîte de revue en statut 'in_review'

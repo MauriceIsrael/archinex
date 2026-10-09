@@ -56,12 +56,19 @@ export function sealEngagementBundle(bundle: EngagementBundle): EngagementBundle
 export function checkSchemaProblems(bundle: EngagementBundle): BundleProblem[] {
 	const problems: BundleProblem[] = [];
 
-	if (!bundle.schemaVersion || bundle.schemaVersion !== '1.0') {
+	if (!bundle.schemaVersion || (bundle.schemaVersion !== '1.0' && bundle.schemaVersion !== '1.1')) {
 		problems.push({
 			code: 'SCHEMA',
 			path: '/schemaVersion',
-			message: "schemaVersion must be '1.0'"
+			message: "schemaVersion must be '1.0' or '1.1'"
 		});
+	}
+	const hub = bundle.data?.pins?.hub_snapshot;
+	if (hub && !/^sha256:[0-9a-f]{64}$/.test(hub.checksum ?? '')) {
+		problems.push({ code: 'SCHEMA', path: '/data/pins/hub_snapshot/checksum', message: 'hub snapshot checksum must be sha256:<64 hex>' });
+	}
+	if (hub && (!hub.snapshot_id || !hub.engagement_id)) {
+		problems.push({ code: 'SCHEMA', path: '/data/pins/hub_snapshot', message: 'hub snapshot needs engagement_id and snapshot_id' });
 	}
 	if (!bundle.snapshotId) {
 		problems.push({

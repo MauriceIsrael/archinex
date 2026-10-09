@@ -1,6 +1,7 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { listOptions, createOption } from '$lib/server/projects/optionsDb';
+import { ensureSubjectExists } from '$lib/server/projects/projectsDb';
 import { CreateOptionSchema } from '$lib/schemas/optionsApiSchemas';
 import { getActorFromEvent } from '$lib/server/projects/actorHelper';
 
@@ -23,6 +24,7 @@ export const POST: RequestHandler = async (event) => {
 		}
 
 		const actor = getActorFromEvent(event);
+		await ensureSubjectExists(params.projectId, params.subjectId);
 		const option = await createOption(params.subjectId, parsed.data, actor);
 		return json({ option }, { status: 201 });
 	} catch (err: any) {

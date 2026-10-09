@@ -2,6 +2,7 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import {
 	getSubject,
+	ensureSubjectExists,
 	updateSubject,
 	deleteSubject,
 	ConcurrencyConflictError
@@ -12,9 +13,9 @@ import { z } from 'zod';
 
 export const GET: RequestHandler = async ({ params }) => {
 	try {
-		const subject = await getSubject(params.projectId, params.subjectId);
+		let subject = await getSubject(params.projectId, params.subjectId);
 		if (!subject) {
-			return json({ error: `Sujet ${params.subjectId} introuvable` }, { status: 404 });
+			subject = await ensureSubjectExists(params.projectId, params.subjectId);
 		}
 		return json({ subject });
 	} catch (err: any) {
@@ -32,6 +33,7 @@ export const PATCH: RequestHandler = async (event) => {
 		}
 
 		const actor = getActorFromEvent(event);
+		await ensureSubjectExists(params.projectId, params.subjectId);
 		const updated = await updateSubject(params.projectId, params.subjectId, parsed.data, actor);
 		return json({ subject: updated });
 	} catch (err: any) {

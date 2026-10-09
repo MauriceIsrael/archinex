@@ -232,6 +232,120 @@ export async function getSubject(projectId: string, subjectId: string) {
 	return subject;
 }
 
+export async function ensureSubjectExists(projectId: string, subjectId: string) {
+	let existingSubject = await prisma.subject.findUnique({
+		where: { id: subjectId },
+		include: {
+			criteria: true,
+			options: true,
+			arguments: true,
+			questions: true,
+			decision: true
+		}
+	});
+
+	if (existingSubject) {
+		return existingSubject;
+	}
+
+	// S'assurer de la présence du projet parent
+	let project = await prisma.project.findUnique({ where: { id: projectId } });
+	if (!project) {
+		const eng = await prisma.engagement.findUnique({ where: { id: projectId } });
+		try {
+			if (eng) {
+				project = await prisma.project.create({
+					data: {
+						id: eng.id,
+						title: eng.title,
+						shortName: eng.shortName,
+						type: eng.type,
+						badge: eng.badge,
+						description: eng.description,
+						status: 'active',
+						strategy: eng.strategy,
+						version: 1
+					}
+				});
+			} else {
+				project = await prisma.project.create({
+					data: {
+						id: projectId,
+						title: projectId,
+						shortName: projectId,
+						type: 'project_rfp',
+						badge: 'PROJET',
+						description: `Projet ${projectId}`,
+						status: 'active',
+						strategy: '{}',
+						version: 1
+					}
+				});
+			}
+		} catch {
+			project = await prisma.project.findUnique({ where: { id: projectId } });
+		}
+	}
+
+	// Chercher métadonnées éventuelles dans l'engagement
+	const eng = await prisma.engagement.findUnique({ where: { id: projectId } });
+	let subjectMeta: any = null;
+	if (eng?.subjects) {
+		try {
+			const list = JSON.parse(eng.subjects);
+			subjectMeta = list.find((s: any) => s.id === subjectId);
+		} catch {}
+	}
+
+	const cleanName =
+		subjectMeta?.name ||
+		subjectId.replace(/[-_]/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase());
+	const sectionRef = subjectMeta?.section_ref || (subjectId.startsWith('§') ? subjectId : '§4.x');
+
+	try {
+		existingSubject = await prisma.subject.create({
+			data: {
+				id: subjectId,
+				projectId: project!.id,
+				sectionRef,
+				name: cleanName,
+				domain: subjectMeta?.domain || 'general',
+				problemStatement:
+					subjectMeta?.problem_statement || `Instruction d'architecture sur ${cleanName}`,
+				maturityLevel: subjectMeta?.level || 'L1_framed',
+				deliberationStatus: 'debating',
+				waitingForRole: subjectMeta?.waiting_for_role || 'lead_architect',
+				relativeEffort: subjectMeta?.relative_effort || 'M',
+				blockingCount: subjectMeta?.blocking_count ?? 0,
+				unlocksCount: subjectMeta?.unlocks_count ?? 0,
+				version: 1
+			},
+			include: {
+				criteria: true,
+				options: true,
+				arguments: true,
+				questions: true,
+				decision: true
+			}
+		});
+	} catch (err: any) {
+		const found = await prisma.subject.findUnique({
+			where: { id: subjectId },
+			include: {
+				criteria: true,
+				options: true,
+				arguments: true,
+				questions: true,
+				decision: true
+			}
+		});
+		if (found) return found;
+		throw err;
+	}
+
+	return existingSubject;
+}
+
 export async function createSubject(
 	projectId: string,
 	data: {

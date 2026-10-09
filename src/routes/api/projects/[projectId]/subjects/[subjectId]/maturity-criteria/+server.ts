@@ -4,6 +4,7 @@ import { prisma } from '$lib/server/prisma';
 import { computeMaturityCriteria } from '$lib/domain/maturityCriteria';
 import { isProjectCutOverToHub } from '$lib/server/projects/hubMigrationService';
 import { getActorFromEvent } from '$lib/server/projects/actorHelper';
+import { ensureSubjectExists } from '$lib/server/projects/projectsDb';
 import type { MaturityLevel } from '$lib/types/epistemic';
 
 export const GET: RequestHandler = async (event) => {
@@ -11,29 +12,12 @@ export const GET: RequestHandler = async (event) => {
 	const { projectId, subjectId } = params;
 
 	try {
-		const project = await prisma.project.findUnique({
+		const subject = await ensureSubjectExists(projectId, subjectId);
+
+		const project = (await prisma.project.findUnique({
 			where: { id: projectId },
 			include: { members: true }
-		});
-
-		if (!project) {
-			return json({ error: `Projet ${projectId} introuvable` }, { status: 404 });
-		}
-
-		const subject = await prisma.subject.findUnique({
-			where: { id: subjectId },
-			include: {
-				criteria: true,
-				options: true,
-				arguments: true,
-				questions: true,
-				decision: true
-			}
-		});
-
-		if (!subject || subject.projectId !== projectId) {
-			return json({ error: `Sujet ${subjectId} introuvable` }, { status: 404 });
-		}
+		})) || { id: projectId, members: [], title: projectId, strategy: '{}' };
 
 		// Vérifier si le projet a basculé vers le Hub (A23 / #34)
 		const isHubCutover = isProjectCutOverToHub(project);
@@ -102,6 +86,11 @@ export const GET: RequestHandler = async (event) => {
 			select: { id: true, maturityLevel: true }
 		});
 
+		// Calcul de la stagnation réelle basée sur updatedAt
+		const diffMs = Date.now() - new Date(subject.updatedAt).getTime();
+		const actualStallDays = Math.max(0, Math.floor(diffMs / (1000 * 60 * 60 * 24)));
+		const isStalled = actualStallDays >= 14 && subject.maturityLevel < 'L3';
+
 		// Calcul du rapport pur
 		const report = computeMaturityCriteria({
 			subject: {
@@ -111,8 +100,8 @@ export const GET: RequestHandler = async (event) => {
 				sectionRef: subject.sectionRef,
 				level: subject.maturityLevel as MaturityLevel,
 				hubLevel: (subject.maturityLevel as MaturityLevel), // synchronisé si cutover
-				is_stalled: subject.blockingCount > 0 && subject.maturityLevel < 'L3',
-				stall_days: 15
+				is_stalled: isStalled,
+				stall_days: actualStallDays
 			},
 			criteria: subject.criteria.map((c) => ({ id: c.id, name: c.name })),
 			options: subject.options.map((o) => ({ id: o.id, title: o.title })),

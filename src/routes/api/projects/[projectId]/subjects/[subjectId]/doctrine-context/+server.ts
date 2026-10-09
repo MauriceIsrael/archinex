@@ -1,18 +1,13 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { prisma } from '$lib/server/prisma';
 import { doctrineService } from '$lib/server/doctrine/doctrineService';
+import { ensureSubjectExists } from '$lib/server/projects/projectsDb';
 
 export const GET: RequestHandler = async ({ params }) => {
-	const { subjectId } = params;
+	const { projectId, subjectId } = params;
 
 	try {
-		const subject = await prisma.subject.findUnique({
-			where: { id: subjectId }
-		});
-		if (!subject) {
-			return json({ message: `Sujet ${subjectId} introuvable` }, { status: 404 });
-		}
+		const subject = await ensureSubjectExists(projectId, subjectId);
 
 		let allowedKbRefs: string[] = [];
 		let items: any[] = [];

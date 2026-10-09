@@ -1,4 +1,5 @@
 import { prisma } from '../prisma';
+import { ensureSubjectExists } from '../projects/projectsDb';
 import type {
 	CascadeQuestion,
 	CascadeResult,
@@ -24,7 +25,7 @@ export async function getOrCreateCascadeForDecision(params: {
 }): Promise<CascadeResult> {
 	const { projectId, subjectId } = params;
 
-	const parentSubject = await prisma.subject.findUnique({
+	let parentSubject = await prisma.subject.findUnique({
 		where: { id: subjectId },
 		include: {
 			decision: true
@@ -32,7 +33,7 @@ export async function getOrCreateCascadeForDecision(params: {
 	});
 
 	if (!parentSubject) {
-		throw new Error(`Sujet parent ${subjectId} introuvable`);
+		parentSubject = await ensureSubjectExists(projectId, subjectId);
 	}
 
 	const decision = parentSubject.decision;

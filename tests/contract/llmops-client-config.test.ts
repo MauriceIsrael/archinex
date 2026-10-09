@@ -132,21 +132,18 @@ describe('shredRfp et replis stricts (Issue #18)', () => {
     await expect(client.shredRfp(rfpText)).rejects.toThrow(/LLMOps internal error|Erreur HTTP 500/);
   });
 
-  it('si le serveur est injoignable et que ALLOW_OFFLINE_MOCK n’est pas défini, shredRfp lève une erreur explicite', async () => {
+  it('si le serveur est injoignable, shredRfp lève une erreur explicite', async () => {
     delete process.env.ALLOW_OFFLINE_MOCK;
     delete process.env.USE_FAKE_LLMOPS;
     const client = new LLMOpsClient({ baseUrl: 'http://127.0.0.1:1', timeoutMs: 200 });
     await expect(client.shredRfp(rfpText)).rejects.toThrow(/Serveur LLMOps inaccessible/);
   });
 
-  it('si ALLOW_OFFLINE_MOCK=1 est explicitement défini, shredRfp bascule sur la simulation locale', async () => {
+  it('même avec ALLOW_OFFLINE_MOCK=1, shredRfp ne simule jamais localement', async () => {
     process.env.ALLOW_OFFLINE_MOCK = '1';
     try {
       const client = new LLMOpsClient({ baseUrl: 'http://127.0.0.1:1', timeoutMs: 200 });
-      const res = await client.shredRfp(rfpText, 'cctp-offline', '1.0');
-      expect(res.status).toBe('ok');
-      expect(res.candidates.length).toBeGreaterThan(0);
-      expect(res.candidates[0].id).toMatch(/^cand-LOCAL-/);
+      await expect(client.shredRfp(rfpText, 'cctp-offline', '1.0')).rejects.toThrow(/Serveur LLMOps inaccessible/);
     } finally {
       delete process.env.ALLOW_OFFLINE_MOCK;
     }

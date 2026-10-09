@@ -85,7 +85,13 @@ Pour ajouter un nouveau format cible de projection (ex: Terraform ou PlantUML C4
 
 ---
 
-## 5. Évaluer l'audit des exigences d'un RFP
+## 5. Intégration continue
+
+`.github/workflows/verify.yml` exécute `npm run verify` sur un clone propre à chaque push et pull request. Une PR rouge ne se fusionne pas. Pour reproduire localement : `cp .env.example .env && npx prisma db push && npm run verify`.
+
+Les tests « live » (vrai LLMOps) et les parcours Playwright ne tournent pas en CI : ils sont ignorés sans `LLMOPS_LIVE_URL` ou Docker. Lancez-les avant une fusion qui touche l'intégration LLMOps.
+
+## 6. Évaluer l'audit des exigences d'un RFP
 
 Le pipeline (`src/lib/server/ingest/arckitRequirementsPipeline.ts`) appelle le modèle configuré (`LLM_PROVIDER`, `ANTHROPIC_API_KEY`…). Pour mesurer sa qualité sur un RFP, face à l'analyse d'un architecte :
 

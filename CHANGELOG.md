@@ -8,6 +8,20 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Plus aucune donnée de démonstration ni de repli fabriqué
+- Le client LLMOps ne connaît plus aucun projet et ne lit plus de fixtures du dossier `tests/` : si LLMOps est
+  injoignable, la santé est `unreachable`, les listes sont vides, l'instantané et les écritures échouent explicitement.
+- Supprimés : le jeu « hors ligne » servi aux projets de démo, la fausse santé « ok », la fausse santé KB
+  (qui annonçait un rappel de 85 % et une publication G7 éligible), les simulations activées par
+  `ALLOW_OFFLINE_MOCK` / `USE_FAKE_LLMOPS` dans `src/`, et la campagne d'enrichissement préchargée.
+- Garde-fou denylist : 33 violations → 0.
+- Les tests 1 à 6 de `llmops-adapter.test.ts` passaient grâce à ces fixtures sans rien prouver ; ils testent désormais
+  l'adaptateur contre un serveur HTTP local explicite, et vérifient qu'un LLMOps absent ne produit aucune donnée.
+  Le contrat réel reste couvert par `llmops-live*.test.ts` (`LLMOPS_LIVE_URL`).
+
+### Intégration continue
+- Ajout de `.github/workflows/verify.yml` : `npm run verify` (denylist, tests, types, build) à chaque push et pull request.
+
 ### Audit des exigences en étapes (remplace l'audit câblé sur un seul RFP)
 - Le pipeline d'ingestion classe désormais chaque clause avec le modèle configuré (lots, JSON validé par schéma),
   puis des contrôles déterministes garantissent : un état par clause, aucune évacuation de clause bloquante ou sans motif,

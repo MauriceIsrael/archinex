@@ -1337,7 +1337,7 @@ class DeliberationStore {
 
 	/**
 	 * Synchronisation avec le moteur Knowledge Hub / LLMOps
-	 * Récupère le board de maturité, les énoncés et les conflits réels (Live Cloud Run ou Snapshot Scellé local)
+	 * Récupère le board de maturité, les énoncés et les conflits depuis LLMOps (aucune donnée de repli si injoignable)
 	 */
 	async syncWithLLMOps(engagementId?: string, customFetch?: typeof fetch) {
 		const eng = engagementId || this.activeEngagementId;
@@ -1363,12 +1363,12 @@ class DeliberationStore {
 
 			if (payload.source === 'live') {
 				this.logNotification(
-					`Synchronisation réussie avec GCP Cloud Run (${payload.engagement}) · En direct`,
+					`Synchronisation réussie avec LLMOps (${payload.engagement}) · En direct`,
 					'success'
 				);
 			} else {
 				this.logNotification(
-					`Mode Souverain Local (${payload.engagement}) · Données scellées hors-ligne`,
+					`LLMOps injoignable : aucune donnée synchronisée pour ${payload.engagement}. Vos données locales sont conservées.`,
 					'info'
 				);
 			}

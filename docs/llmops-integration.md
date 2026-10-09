@@ -5,9 +5,9 @@
 
 ---
 
-## 1. Topologie des Serveurs LLMOps (Dual-Mode Souverain)
+## 1. Topologie des Serveurs LLMOps
 
-Archinex prend en charge l'intégration avec LLMOps selon deux modes d'exécution (avec repli automatique hors-ligne conforme au CONTRAT-KH-API-V1) :
+Archinex se connecte à une instance LLMOps locale ou distante. **Il n'existe aucun mode de repli simulé** : si LLMOps est injoignable, la santé est `unreachable`, les listes sont vides, les opérations d'écriture échouent explicitement, et vos données locales restent intactes. Rien n'est fabriqué à la place.
 
 ### 1.1 Instance Locale Souveraine (Mode Actif Prioritaire)
 Pour garantir l'étanchéité stricte des données et la confidentialité absolue des RFP :
@@ -181,7 +181,6 @@ Ce mapping permettra à terme d'alimenter Archinex depuis le graphe LLMOps (impo
 | `LLMOPS_LIVE_URL` | Non défini (optionnel) | URL du serveur de contrat local LLMOps pour tests de contrat vivants |
 | `LLMOPS_LIVE_TOKEN` | `contract-service-token` | Jeton de service portant les scopes `kb:review,kb:delegate` |
 | `USE_FAKE_LLMOPS` | `0` | Définir à `1` pour forcer l'utilisation du serveur mock en mémoire `fakeLlmops` lors des tests E2E Playwright |
-| `ALLOW_OFFLINE_MOCK` | `0` | Définir à `1` pour autoriser le mode démo hors-ligne simulé localement en cas d'absence de serveur |
 | `EMBEDDING_MODEL` | `toy-bow` | Modèle d'embeddings (calculé par Archinex, jamais par LLMOps) ; `toy-bow` est un encodeur de test sans valeur sémantique |
 | `EMBEDDING_OLLAMA_URL` | non défini | Serveur Ollama qui calcule les vecteurs pour tout modèle autre que `toy-bow` (ex. `http://raptor-nino:11434`) |
 | `ALLOW_TOY_EMBEDDINGS` | `0` | `1` pour autoriser `toy-bow` en production (démonstration uniquement) |

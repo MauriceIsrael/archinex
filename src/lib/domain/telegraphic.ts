@@ -34,6 +34,7 @@ export interface TelegraphicDraft {
 	conflit: TelegraphicConflict[];
 	manque: TelegraphicGap[];
 	variante_b?: TelegraphicVariant;
+	expertQuestions?: string[];
 }
 
 export interface ToneValidationError {

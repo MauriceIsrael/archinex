@@ -6,6 +6,8 @@ import {
 } from '$lib/server/llm/rfpFactorizer';
 import { localLlmClient } from '$lib/server/llm/localLlmClient';
 import { doctrineService } from '$lib/server/doctrine/doctrineService';
+import { runArcKitRequirementsAudit } from '$lib/server/ingest/arckitRequirementsPipeline';
+import type { FactorizedArchitecturalSubject } from '$lib/domain/factorization';
 
 /**
  * GET /api/rfp/factorize
@@ -74,6 +76,49 @@ export const POST: RequestHandler = async ({ request }) => {
 			// En cas d'erreur de doctrine, on continue avec un tableau vide
 		}
 
+		// 1. Exécution prioritaire du Pipeline d'Audit et de Factorisation ArcKit
+		const auditReport = runArcKitRequirementsAudit(clauses);
+		if (auditReport.hardPoints && auditReport.hardPoints.length > 0) {
+			const subjects: FactorizedArchitecturalSubject[] = auditReport.hardPoints.map((hp, idx) => ({
+				id: `SUBJ-${String(idx + 1).padStart(2, '0')}`,
+				lotId: `LOT-${hp.id}`,
+				name: hp.name,
+				sectionRef: hp.sectionRef,
+				coveredClauseRefs: hp.coveredClauseRefs,
+				matchedKbItemIds: [],
+				knowledgeAlignment: 'novel_requirement',
+				alignmentRationale: `Point dur d'architecture extrait selon la méthodologie ArcKit (couvre ${hp.coveredClauseRefs.length} exigences).`,
+				initialLevel: 'L0_unassessed',
+				waitingForRole: hp.waitingForRole,
+				effort: hp.effort as 'S' | 'M',
+				seed: {
+					initialRetenu: hp.seed.initialRetenu,
+					initialHypothesis: hp.seed.initialHypothesis,
+					initialConflict: hp.seed.initialConflict,
+					initialQuestion: hp.seed.initialQuestion,
+					expertQuestions: hp.seed.expertQuestions
+				}
+			}));
+
+			return json({
+				status: 'ok',
+				engine: 'arckit-requirements-audit',
+				modelUsed: body.model || 'arckit-requirements-pipeline',
+				summary: `Audit qualité & factorisation ArcKit : ${auditReport.totalCount} exigences analysées, ${auditReport.evacuatedCount} commodités évacuées (${Math.round((auditReport.evacuatedCount / auditReport.totalCount) * 100)}%), ${auditReport.clarificationCount} questions client et ${auditReport.hardPoints.length} points durs d'architecture extraits.`,
+				totalClauses: auditReport.totalCount,
+				coveredClausesCount: auditReport.requirements.filter((r) => r.disposition !== 'evacuated').length,
+				coverageRate: 1.0,
+				subjects,
+				unassignedClauses: [],
+				auditReport,
+				evacuatedCount: auditReport.evacuatedCount,
+				deliberatedCount: auditReport.deliberatedCount,
+				clarificationCount: auditReport.clarificationCount,
+				clarifications: auditReport.clarifications,
+				allAuditedRequirements: auditReport.requirements
+			});
+		}
+
 		const result = await factorizeRfpWithLocalLlm(
 			{
 				clauses,
@@ -85,7 +130,15 @@ export const POST: RequestHandler = async ({ request }) => {
 			kbStandards
 		);
 
-		return json(result);
+		return json({
+			...result,
+			auditReport,
+			evacuatedCount: auditReport.evacuatedCount,
+			deliberatedCount: auditReport.deliberatedCount,
+			clarificationCount: auditReport.clarificationCount,
+			clarifications: auditReport.clarifications,
+			allAuditedRequirements: auditReport.requirements
+		});
 	} catch (err: unknown) {
 		const message = err instanceof Error ? err.message : 'Erreur interne lors de la factorisation.';
 		return json({ status: 'error', error: message }, { status: 500 });

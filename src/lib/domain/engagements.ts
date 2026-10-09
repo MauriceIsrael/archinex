@@ -81,6 +81,7 @@ export interface InitialSubjectInput {
 	initialHypothesis?: string;
 	initialConflict?: string;
 	initialQuestion?: string;
+	expertQuestions?: string[];
 }
 
 export interface WorkspaceCreationInput {
@@ -465,7 +466,8 @@ export function buildEngagementProfileFromWorkspaceInput(
 							assigned_role: sInput.waitingForRole
 						}
 				  ]
-				: []
+				: [],
+			expertQuestions: sInput.expertQuestions || []
 		};
 	});
 

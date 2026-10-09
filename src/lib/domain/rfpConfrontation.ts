@@ -112,27 +112,37 @@ export function shredRfpTextToClauses(rawText: string): ExtractedClause[] {
 	let currentClause: Partial<ExtractedClause> | null = null;
 	let clauseCounter = 1;
 
-	// Regex pour détecter les débuts d'articles ou exigences
-	const articleRegex = /^(?:art(?:icle|\.)?|exigence|clause|req(?:uirement)?|§)\s*([\d\w.-]+)\s*[:-]?\s*(.*)$/i;
+	// Regex robuste pour détecter les débuts d'articles ou exigences :
+	// Exemples supportés : REQ-Lot1-191, Art. 1.1, §2.1, Clause 3.1, Exigence NET-03, BR-001, NFR-SEC-002
+	const articleRegex = /^(?:[-*]\s*)?(?:\*\*)?(?:(?:art(?:icle|\.)?|exigence|clause|§)\s*([\d\w.-]+)|((?:REQ|BR|FR|NFR|INT|DR|SEC|LOT|STD)-[a-z0-9_-]+|req\s*[\d\w.-]+))\s*[:-]?\s*(.*?)(?:\*\*)?$/i;
+	const hasStructuredArticles = lines.some((l) => articleRegex.test(l.trim()));
 
 	for (const rawLine of lines) {
 		const line = rawLine.trim();
 		if (!line) continue;
+		// Ignorer les en-têtes purs de structure Markdown ou métadonnées
+		if (line.startsWith('#') || line.startsWith('---') || line.startsWith('Source:')) continue;
 
 		const match = line.match(articleRegex);
 		if (match) {
-			if (currentClause && currentClause.text) {
+			if (currentClause && (currentClause.text || currentClause.title)) {
 				clauses.push(finalizeClause(currentClause, clauseCounter++));
 			}
+			const rawRef = (match[1] || match[2]).trim();
+			const clauseRef = rawRef.startsWith('§') || rawRef.toLowerCase().startsWith('req') || rawRef.includes('-')
+				? rawRef
+				: `§${rawRef}`;
+
 			currentClause = {
-				clauseRef: match[1] ? `§${match[1]}` : `§${clauseCounter}.0`,
-				title: match[2]?.trim() || `Exigence ${match[1] || clauseCounter}`,
+				id: `clause-${clauseRef.toLowerCase().replace(/[^a-z0-9_-]/g, '-')}`,
+				clauseRef,
+				title: match[3]?.replace(/\*\*/g, '').trim() || `Exigence ${clauseRef}`,
 				text: ''
 			};
 		} else if (currentClause) {
 			currentClause.text = currentClause.text ? `${currentClause.text} ${line}` : line;
-		} else {
-			// Si aucun en-tête n'a encore été détecté, chaque paragraphe substantiel devient une clause
+		} else if (!hasStructuredArticles) {
+			// Si aucun article formel n'existe dans le document, chaque paragraphe substantiel devient une clause
 			if (line.length > 25) {
 				clauses.push({
 					id: `clause-${clauseCounter}`,
@@ -147,7 +157,7 @@ export function shredRfpTextToClauses(rawText: string): ExtractedClause[] {
 		}
 	}
 
-	if (currentClause && currentClause.text) {
+	if (currentClause && (currentClause.text || currentClause.title)) {
 		clauses.push(finalizeClause(currentClause, clauseCounter));
 	}
 
@@ -180,7 +190,13 @@ function detectCriticality(text: string): 'bloquant' | 'majeur' | 'info' {
 		lower.includes('stricte') ||
 		lower.includes('sub-microseconde') ||
 		lower.includes('bloquant') ||
-		lower.includes('secnumcloud')
+		lower.includes('secnumcloud') ||
+		lower.includes('shall not') ||
+		lower.includes('shall be dedicated') ||
+		lower.includes('geo-redundant') ||
+		lower.includes('high availability') ||
+		lower.includes('24x7') ||
+		lower.includes('24×7')
 	) {
 		return 'bloquant';
 	}
@@ -188,7 +204,10 @@ function detectCriticality(text: string): 'bloquant' | 'majeur' | 'info' {
 		lower.includes('doit') ||
 		lower.includes('exige') ||
 		lower.includes('nécessite') ||
-		lower.includes('requis')
+		lower.includes('requis') ||
+		lower.includes('shall') ||
+		lower.includes('must') ||
+		lower.includes('requires')
 	) {
 		return 'majeur';
 	}

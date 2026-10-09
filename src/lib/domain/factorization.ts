@@ -39,6 +39,7 @@ export interface FactorizedArchitecturalSubject {
 		initialHypothesis: string;
 		initialConflict?: string;
 		initialQuestion: string;
+		expertQuestions?: string[];
 	};
 }
 
@@ -63,4 +64,10 @@ export interface RfpFactorizationResponse {
 	warning?: string;
 	wasCondensed?: boolean;
 	errorDetail?: string;
+	auditReport?: any;
+	evacuatedCount?: number;
+	deliberatedCount?: number;
+	clarificationCount?: number;
+	clarifications?: Array<{ clauseRef: string; title: string; question: string }>;
+	allAuditedRequirements?: any[];
 }

@@ -132,6 +132,17 @@
 		return [];
 	});
 
+	const expertQuestions = $derived.by(() => {
+		if (draft?.expertQuestions && draft.expertQuestions.length > 0) {
+			return draft.expertQuestions;
+		}
+		const seedQuestions = (subject as any)?.seed?.expertQuestions;
+		if (Array.isArray(seedQuestions) && seedQuestions.length > 0) {
+			return seedQuestions;
+		}
+		return [];
+	});
+
 	function startEditQuestion() {
 		editedQuestion = currentQuestion;
 		isEditingQuestion = true;
@@ -435,7 +446,33 @@
 				</div>
 			</div>
 
-			<!-- 2 bis. Propositions Immédiates & Options à l'Étude -->
+			<!-- 2 bis. Questions au Sachant Métier (Méthodologie ArcKit) -->
+			{#if expertQuestions.length > 0}
+				<div class="rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 space-y-2">
+					<div class="flex items-center justify-between gap-2">
+						<div class="flex items-center gap-1.5 text-xs font-bold text-amber-700 dark:text-amber-400">
+							<HelpCircle class="h-4 w-4" />
+							<span>Questions au Sachant Métier (Prérequis d'Arbitrage)</span>
+						</div>
+						<span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-800 dark:text-amber-300 border border-amber-500/20 font-semibold">
+							Cadrage ArcKit
+						</span>
+					</div>
+					<p class="text-[11px] text-muted-foreground">
+						Ces questions clés doivent être éclairées par le sachant métier ou le donneur d'ordre pour permettre aux architectes de trancher :
+					</p>
+					<div class="space-y-1.5">
+						{#each expertQuestions as q, idx}
+							<div class="flex items-start gap-2 p-2 rounded-lg bg-background border border-amber-500/20 text-xs">
+								<span class="font-mono font-bold text-amber-600 dark:text-amber-400 shrink-0">Q{idx + 1}.</span>
+								<span class="flex-1 font-medium text-foreground">{q}</span>
+							</div>
+						{/each}
+					</div>
+				</div>
+			{/if}
+
+			<!-- 2 ter. Propositions Immédiates & Options à l'Étude -->
 			{#if options && options.length > 0}
 				<div class="rounded-xl border border-primary/20 bg-primary/5 p-3 space-y-2 shadow-2xs">
 					<div class="flex items-center justify-between gap-2 flex-wrap">

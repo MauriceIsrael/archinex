@@ -209,7 +209,8 @@
 					initialRetenu,
 					initialHypothesis: s.seed.initialHypothesis,
 					initialConflict: s.seed.initialConflict,
-					initialQuestion: s.seed.initialQuestion
+					initialQuestion: s.seed.initialQuestion,
+					expertQuestions: s.seed.expertQuestions || []
 				};
 			});
 
@@ -467,6 +468,24 @@
 							class="w-full text-[11px] font-medium bg-background/80 rounded px-2 py-1 border text-foreground"
 						/>
 					</div>
+
+					<!-- Questions préalables pour le Sachant Métier (ArcKit) -->
+					{#if subj.seed.expertQuestions && subj.seed.expertQuestions.length > 0}
+						<div class="p-2.5 rounded-lg bg-amber-500/5 border border-amber-500/20 text-xs space-y-1.5">
+							<div class="flex items-center justify-between text-[10px] font-bold text-amber-700 dark:text-amber-400">
+								<span>Questions préalables pour le Sachant Métier :</span>
+								<span class="font-mono text-[9px] uppercase px-1.5 py-0.2 rounded bg-amber-500/10 border border-amber-500/20">ArcKit Triage</span>
+							</div>
+							<div class="space-y-1">
+								{#each subj.seed.expertQuestions as eq, eqIdx}
+									<div class="flex items-start gap-1.5 text-[11px] text-foreground">
+										<span class="font-mono font-bold text-amber-600 dark:text-amber-400">Q{eqIdx + 1}.</span>
+										<span class="flex-1">{eq}</span>
+									</div>
+								{/each}
+							</div>
+						</div>
+					{/if}
 
 					<!-- Clauses agrégées & Standards activés -->
 					<div class="flex flex-wrap items-center justify-between gap-2 pt-1 border-t text-[11px]">

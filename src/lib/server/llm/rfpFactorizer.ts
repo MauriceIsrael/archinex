@@ -126,6 +126,7 @@ RÈGLES D'OR DE FACTORISATION ARCHITECTURALE :
    - "initialHypothesis" : L'hypothèse de solution cible recommandée (concrète, chiffrée ou orientée composant).
    - "initialConflict" : Le conflit de contraintes ou le dilemme (ex: "Coût & latence du déport SOC vs Exigence de supervision unifiée").
    - "initialRetenu" : 2 à 5 clauses clés du CCTP imposées par le client (avec référence, ex: "[§4.2] Latence critique < 10ms").
+   - "expertQuestions" : Exactement 2 questions techniques précises adressées au SACHANT MÉTIER / donneur d'ordre, indispensables pour lever un angle mort et démarrer l'implémentation.
 8. COUVERTURE ET EXHAUSTIVITÉ INTÉGRALE :
    - Répartis rigoureusement l'ensemble des clauses du CCTP dans "coveredClauseRefs" des différents sujets pour garantir 100% de traçabilité.`;
 
@@ -153,7 +154,11 @@ RÈGLES D'OR DE FACTORISATION ARCHITECTURALE :
         "initialRetenu": ["[§4.2] Latence critique < 10ms pour les incidents temps réel"],
         "initialHypothesis": "Déployer des sondes de corrélation locales dans les salles d'opérations et ne remonter que les alertes agrégées",
         "initialConflict": "Tension entre l'exigence de centralisation unifiée et le seuil de latence maximal",
-        "initialQuestion": "Comment concilier la centralisation du SOC/NOC avec la contrainte de latence < 10ms pour les salles d'opérations ?"
+        "initialQuestion": "Comment concilier la centralisation du SOC/NOC avec la contrainte de latence < 10ms pour les salles d'opérations ?",
+        "expertQuestions": [
+          "Quel est le délai maximal admissible pour la synchronisation des alarmes critiques vers le site centralisé ?",
+          "Quelles sont les capacités de traitement bordure autorisées par la politique de sécurité locale ?"
+        ]
       }
     }
   ]

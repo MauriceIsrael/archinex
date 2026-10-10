@@ -92,6 +92,36 @@ export interface StagedAuditResult {
 	modelUsed: string;
 }
 
+/**
+ * Au-delà de cette taille (caractères de titres + textes), la factorisation directe en un seul appel ne peut pas
+ * aboutir : elle envoie tout le RFP d'un bloc et dépasse le délai. On n'y bascule donc pas, pour ne pas masquer
+ * la vraie cause de l'échec de l'audit par un second échec 5 minutes plus tard.
+ */
+export const DIRECT_FALLBACK_MAX_CHARS = 60000;
+
+export function totalClauseChars(clauses: ReadonlyArray<{ title?: string; text?: string }>): number {
+	return clauses.reduce((n, c) => n + (c.title?.length ?? 0) + (c.text?.length ?? 0), 0);
+}
+
+/**
+ * Taille maximale (caractères) pour la passe directe « grand contexte » : tout le RFP en un seul appel, sans
+ * découpage ni flux. Constaté : 477 000 caractères dépassent le délai de 300 s (le temps est dominé par la
+ * génération de la réponse). Le seuil par défaut est une estimation prudente, NON mesurée : à ajuster d'après
+ * vos essais via `RFP_DIRECT_MAX_CHARS`. Au-delà, l'audit en étapes (appels courts, en parallèle) prend le relais.
+ */
+export function directPassMaxChars(): number {
+	const fromEnv = Number.parseInt(process.env.RFP_DIRECT_MAX_CHARS ?? '', 10);
+	return Number.isFinite(fromEnv) && fromEnv > 0 ? fromEnv : 120000;
+}
+
+export function canUseDirectHolisticPass(clauses: ReadonlyArray<{ title?: string; text?: string }>): boolean {
+	return totalClauseChars(clauses) <= directPassMaxChars();
+}
+
+export function canFallBackToDirectFactorization(clauses: ReadonlyArray<{ title?: string; text?: string }>): boolean {
+	return totalClauseChars(clauses) <= DIRECT_FALLBACK_MAX_CHARS;
+}
+
 export const CATEGORIES: ArcKitRequirementCategory[] = ['FR', 'NFR', 'INT', 'FAC', 'BR', 'DR'];
 
 const DEFAULT_CLASSIFY_BATCH = 40;

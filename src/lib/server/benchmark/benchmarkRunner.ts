@@ -161,7 +161,7 @@ export async function runBenchmarkCase(
 			epistemic_status: 'ai_proposed',
 			assertion_level: 'proposed',
 			text: r.text,
-			property: r.title || `Exigence ${r.clause_ref}`,
+			predicate: r.title || `Exigence ${r.clause_ref}`,
 			value: r.clause_ref,
 			provenance: {
 				basis: 'ai_proposal',
@@ -187,8 +187,8 @@ export async function runBenchmarkCase(
 		} else if (c.status === 'gap') {
 			gaps.push({
 				id: `GAP-${idx + 1}`,
-				code: c.clauseRef,
-				description: c.rationale || `Écart non couvert par la doctrine : "${c.title}"`,
+				kind: 'uncovered_requirement',
+				description: `[${c.clauseRef}] ${c.rationale || `Écart non couvert par la doctrine : "${c.title}"`}`,
 				blocking: c.criticality === 'bloquant'
 			});
 		}
@@ -214,7 +214,8 @@ export async function runBenchmarkCase(
 				epistemic_status: 'ai_proposed',
 				assertion_level: 'proposed',
 				decision: `Proposition préliminaire d'architecture pour ${subj.title}`,
-				justification: 'Généré de façon autonome en attente d\'arbitrage contradictoire.',
+				title: subj.title,
+				rationale: 'Généré de façon autonome en attente d\'arbitrage contradictoire.',
 				provenance: {
 					basis: 'ai_proposal',
 					by: ['@system-autonomous'],
@@ -277,7 +278,8 @@ export async function runBenchmarkCase(
 					epistemic_status: 'validated',
 					assertion_level: 'asserted',
 					decision: decisionText,
-					justification: fixture.rationale || 'Décision opposable prise par l\'expert désigné.',
+					title: decisionText.slice(0, 120),
+					rationale: fixture.rationale || 'Décision opposable prise par l\'expert désigné.',
 					provenance: {
 						basis: 'human_validation',
 						by: [fixture.actor],
@@ -369,7 +371,7 @@ export async function runBenchmarkCase(
 		`# Engagement : ${bundle.data.engagement.title} (${bundle.data.engagement.id})`,
 		`État provisoire : ${bundle.data.is_provisional ? 'OUI' : 'NON'}`,
 		'\n## Décisions :',
-		...decisions.map((d) => `- [${d.assertion_level.toUpperCase()}] ${d.decision} (Justification: ${d.justification})`),
+		...decisions.map((d) => `- [${d.assertion_level.toUpperCase()}] ${d.decision} (Justification: ${d.rationale})`),
 		'\n## Conflits :',
 		...conflicts.map((c) => `- [${c.status.toUpperCase()}] ${c.description || c.id}`),
 		'\n## Questions en suspens :',
@@ -384,7 +386,7 @@ export async function runBenchmarkCase(
 		provisional_reasons: bundle.data.provisional_reasons,
 		questions: subjects.flatMap((s) => (s.open_questions ?? []).map((q) => q.text)),
 		conflicts: conflicts.map((c) => c.description || c.id),
-		gaps: gaps.map((g) => g.description || g.code),
+		gaps: gaps.map((g) => g.description || g.kind),
 		expert_interactions: expertInteractions,
 		expert_unanswered: expertUnanswered,
 		wall_seconds: Number(wallSeconds.toFixed(3)),

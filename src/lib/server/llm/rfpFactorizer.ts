@@ -1066,6 +1066,10 @@ export async function factorizeRfpWithLocalLlm(
 		console.log(`🤖 [Factorisation RFP] Appel LLM en cours (${model})...`);
 
 		const t0 = Date.now();
+		// Pour les modèles grand contexte (Claude), budget de tokens étendu à 32k (pour éviter les troncatures et supporter le thinking)
+		const isGrand = isGrandContextModel(model);
+		const maxTokens = isGrand ? 32768 : 8192;
+
 		const rawContent = await localLlmClient.chat({
 			model,
 			messages: [
@@ -1073,7 +1077,7 @@ export async function factorizeRfpWithLocalLlm(
 				{ role: 'user', content: userMessage }
 			],
 			format: 'json',
-			maxTokens: 8192,
+			maxTokens,
 			timeoutMs: 300000
 		});
 
@@ -1158,17 +1162,20 @@ export async function factorizeRfpWithLocalLlm(
 		};
 	} catch (err: unknown) {
 		const rawErr = err instanceof Error ? err.message : String(err);
-		let cleanWarning = 'Serveur LLM local non disponible, factorisation déterministe appliquée.';
-		if (rawErr.includes('exceeds the available context size') || rawErr.includes('exceed_context_size_error')) {
+		const providerLabel = engine === 'anthropic-claude' ? 'Anthropic Claude' : 'LLM local souverain';
+		let cleanWarning = `Service d'inférence (${providerLabel}) non disponible, factorisation heuristique appliquée.`;
+		if (rawErr.includes('quota max_tokens') || rawErr.includes('max_tokens')) {
+			cleanWarning = `Dépassement de quota tokens (${providerLabel}) : ${rawErr.slice(0, 180)}.`;
+		} else if (rawErr.includes('exceeds the available context size') || rawErr.includes('exceed_context_size_error')) {
 			cleanWarning = `Le volume du document dépasse la fenêtre de contexte maximale du modèle (${rawErr.slice(0, 180)}).`;
 		} else if (rawErr.includes('400 Bad Request')) {
-			cleanWarning = `Erreur de requête LLM local (400 Bad Request) : ${rawErr.slice(0, 180)}.`;
+			cleanWarning = `Erreur de requête ${providerLabel} (400 Bad Request) : ${rawErr.slice(0, 180)}.`;
 		} else if (rawErr.includes('Injoignable') || rawErr.includes('ECONNREFUSED')) {
 			cleanWarning = `Serveur LLM local (${model}) injoignable sur ${process.env.LLM_LOCAL_ENDPOINT || 'http://localhost:11434'}.`;
 		} else {
-			cleanWarning = `Échec LLM : ${rawErr.slice(0, 140)}.`;
+			cleanWarning = `Échec ${providerLabel} : ${rawErr.slice(0, 140)}.`;
 		}
-		console.warn('⚠️ Échec de factorisation par LLM local souverain, bascule vers moteur heuristique déterministe :', err);
+		console.warn(`⚠️ Échec de factorisation par ${providerLabel}, bascule vers moteur heuristique déterministe :`, err);
 		const fallback = fallbackDeterministicFactorization(clauses, kbStandards, cleanWarning);
 		return {
 			...fallback,

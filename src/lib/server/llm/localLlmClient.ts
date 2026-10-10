@@ -212,6 +212,30 @@ export class LocalLlmClient {
 					}
 				);
 			}
+
+			// Tri par pertinence : Sonnet en tête (version la plus récente d'abord), puis Opus, puis Haiku
+			models.sort((a, b) => {
+				const score = (id: string) => {
+					const s = id.toLowerCase();
+					let base = 0;
+					if (s.includes('sonnet')) base += 1000;
+					else if (s.includes('opus')) base += 500;
+					else if (s.includes('haiku')) base += 100;
+
+					if (s.includes('5-5') || s.includes('5.5')) base += 50;
+					else if (s.includes('5')) base += 40;
+					else if (s.includes('4-5') || s.includes('4.5')) base += 30;
+					else if (s.includes('3-7') || s.includes('3.7')) base += 20;
+					else if (s.includes('3-5') || s.includes('3.5')) base += 10;
+					return base;
+				};
+				return score(b.id) - score(a.id);
+			});
+
+			// Si aucune variable ANTHROPIC_MODEL n'est explicitement fixée, privilégier le modèle le plus pertinent
+			if (!process.env.ANTHROPIC_MODEL && models.length > 0) {
+				this.defaultModel = models[0].id;
+			}
 		}
 
 		// Si forcé strictement en mode cloud Anthropic, on s'arrête là
@@ -354,10 +378,15 @@ export class LocalLlmClient {
 				formattedMessages.unshift({ role: 'user', content: 'Instructions d\'amorce :' });
 			}
 
+			// Modèle grand contexte (Claude) : allocation par défaut étendue
+			const isGrandContext = /claude-(?:sonnet|opus|haiku|3-7|4|5)/i.test(resolvedModel);
+			const defaultMaxTokens = isGrandContext ? 32768 : 8192;
+			const maxTokens = options.maxTokens || defaultMaxTokens;
+
 			const payload: any = {
 				model: resolvedModel,
 				messages: formattedMessages,
-				max_tokens: options.maxTokens || 4096
+				max_tokens: maxTokens
 			};
 
 			// Ne pas inclure temperature pour les modèles récents ou qui l'ont dépréciée (Claude 4.x, 5.x, etc.)
@@ -420,18 +449,48 @@ export class LocalLlmClient {
 			}
 
 			const data = await res.json();
-			const text = Array.isArray(data.content)
-				? data.content
-						.filter((block: any) => block.type === 'text')
-						.map((block: any) => block.text)
-						.join('')
-				: '';
+			const thinkingBlocks = Array.isArray(data.content)
+				? data.content.filter((block: any) => block.type === 'thinking')
+				: [];
+			const textBlocks = Array.isArray(data.content)
+				? data.content.filter((block: any) => block.type === 'text')
+				: [];
+
+			const text = textBlocks.map((block: any) => block.text).join('');
+			const thinkingChars = thinkingBlocks.reduce((acc: number, b: any) => acc + (b.thinking?.length || 0), 0);
 
 			const inTok = data.usage?.input_tokens ?? '?';
 			const outTok = data.usage?.output_tokens ?? '?';
+			const stopReason = data.stop_reason;
+
+			if (thinkingBlocks.length > 0) {
+				console.log(
+					`🧠 [Anthropic API] Raisonnement thinking interne : ${thinkingChars.toLocaleString('fr-FR')} caractères.`
+				);
+			}
+
 			console.log(
-				`✅ [Anthropic API] Réponse 200 OK reçue en ${durationSec}s -> ${text.length.toLocaleString('fr-FR')} car. (tokens: in=${inTok}, out=${outTok})`
+				`✅ [Anthropic API] Réponse 200 OK reçue en ${durationSec}s -> ${text.length.toLocaleString('fr-FR')} car. (tokens: in=${inTok}, out=${outTok}, stop_reason="${stopReason}")`
 			);
+
+			// Diagnostic de troncature et d'épuisement de budget max_tokens
+			if (stopReason === 'max_tokens' && text.trim().length === 0) {
+				throw new Error(
+					`Le modèle Claude (${resolvedModel}) a consommé l'intégralité du quota max_tokens (${payload.max_tokens}) dans sa phase de réflexion interne (thinking: ${thinkingChars} car.) sans émettre de texte. Augmentez max_tokens (ex: 32768) pour laisser de la place au texte de réponse.`
+				);
+			}
+
+			if (stopReason === 'max_tokens' && text.trim().length > 0) {
+				console.warn(
+					`⚠️ [Anthropic API] Attention : Réponse tronquée par max_tokens (${payload.max_tokens}). Le JSON risque d'être incomplet.`
+				);
+			}
+
+			if (text.trim().length === 0) {
+				throw new Error(
+					`Réponse vide reçue de l'API Anthropic (0 caractères, stop_reason="${stopReason}").`
+				);
+			}
 
 			return text;
 		} catch (err: unknown) {

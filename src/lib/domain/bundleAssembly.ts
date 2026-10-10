@@ -18,6 +18,7 @@ import {
 	type BundleSubject,
 	type ConfidentialityLevel,
 	type EngagementBundle,
+	type HubSnapshotPin,
 	type SourceDocument
 } from './engagementBundle';
 import { effectiveRequirementState, requirementBundleId, sourceBundleId } from './requirementAudit';
@@ -29,6 +30,12 @@ export function sanitizeHandle(handleOrEmail: string): string {
 	const stripped = (handleOrEmail ?? '').trim().replace(/^@+/, '').split('@')[0].trim();
 	const slug = stripped.toLowerCase().replace(/[^a-z0-9_-]/g, '-');
 	return `@${slug || 'lead-architect'}`;
+}
+
+/** Auteur d'une proposition du modèle (`model:<id>` en base) sous forme de handle du schéma : `@model-<id>`. */
+export function modelHandle(proposedBy: string): string {
+	const id = proposedBy.replace(/^model:/, '').toLowerCase().replace(/[^a-z0-9-]/g, '-').replace(/^-+/, '');
+	return `@model-${id || 'inconnu'}`;
 }
 
 export interface AssemblyRequirement {
@@ -89,6 +96,11 @@ export interface AssemblyStatement {
 }
 
 export interface AssemblyInput {
+	/**
+	 * Engagement basculé sur le Hub : les faits engagés (décisions, énoncés) sont ceux du Hub, scellés par lui.
+	 * Le dossier d'Archinex ne porte alors que le processus (exigences, sujets, lacunes) et épingle ce snapshot.
+	 */
+	factsFromHub?: HubSnapshotPin;
 	project: { id: string; title: string; language?: string };
 	confidentiality: ConfidentialityLevel;
 	subjects: AssemblySubject[];
@@ -115,7 +127,7 @@ export function assembleEngagementBundle(input: AssemblyInput): EngagementBundle
 
 	for (const src of sources) {
 		const srcId = sourceBundleId(src.sha256);
-		sourceDocuments.push({ id: srcId, kind: src.kind, title: src.title, language: src.language, sha256: src.sha256 });
+		sourceDocuments.push({ id: srcId, kind: src.kind, title: src.title, language: src.language, sha256: src.sha256.replace(/^sha256:/, '') });
 		for (const r of [...src.requirements].sort((a, b) => a.position - b.position || cmp(a.clauseRef, b.clauseRef))) {
 			const id = requirementBundleId(src.sha256, r.clauseRef);
 			const state = effectiveRequirementState(r);
@@ -137,7 +149,7 @@ export function assembleEngagementBundle(input: AssemblyInput): EngagementBundle
 				assertion_level: state.assertionLevel,
 				provenance: {
 					basis: state.basis,
-					by: [state.basis === 'human_validation' ? sanitizeHandle(state.by) : state.by],
+					by: [state.basis === 'human_validation' ? sanitizeHandle(state.by) : modelHandle(state.by)],
 					at: state.at.toISOString()
 				}
 			});
@@ -149,13 +161,15 @@ export function assembleEngagementBundle(input: AssemblyInput): EngagementBundle
 	const decisions: BundleDecision[] = [];
 	const gaps: BundleGap[] = [];
 
+	const hubFacts = Boolean(input.factsFromHub);
+
 	for (const sub of [...input.subjects].sort((a, b) => cmp(a.sectionRef, b.sectionRef) || cmp(a.id, b.id))) {
 		// L'ancien niveau L5 se projette sur L4 (vocabulaire de la suite).
 		const maturity = sub.maturityLevel === 'L5_archived' ? 'L4_specified' : sub.maturityLevel || 'L0_named';
 		const refs = [...new Set(sub.requirementRefs)].sort(
 			(a, b) => (positionOf.get(a) ?? Infinity) - (positionOf.get(b) ?? Infinity) || cmp(a, b)
 		);
-		const hasDecision = Boolean(sub.decision);
+		const hasDecision = !hubFacts && Boolean(sub.decision);
 
 		subjects.push({
 			id: sub.id,
@@ -163,12 +177,15 @@ export function assembleEngagementBundle(input: AssemblyInput): EngagementBundle
 			domains: [sub.domain || 'architecture'],
 			maturity,
 			// Un sujet n'est « décidé » que si une décision enregistrée existe : jamais d'après son seul niveau.
+			// Sur un engagement basculé (`hasDecision` faux), la décision est un fait du Hub, pas d'Archinex.
 			status: hasDecision ? 'decided' : 'open',
 			requirement_ids: refs,
 			decision_ids: hasDecision ? [sub.decision!.id] : []
 		});
 
-		if (sub.decision) {
+		if (hubFacts) {
+			// Rien à dire des décisions : elles vivent dans le snapshot du Hub épinglé.
+		} else if (sub.decision) {
 			const d = sub.decision;
 			const title = (id: string) => sub.options.find((o) => o.id === id)?.title ?? id;
 			decisions.push({
@@ -178,16 +195,17 @@ export function assembleEngagementBundle(input: AssemblyInput): EngagementBundle
 				epistemic_status: 'validated',
 				assertion_level: 'asserted',
 				decision: `Option retenue : ${title(d.retainedOptionId)}`,
-				justification: d.rationale,
+				title: title(d.retainedOptionId),
+				rationale: d.rationale,
 				alternatives: [...d.rejected]
 					.sort((x, y) => cmp(x.optionId, y.optionId))
-					.map((r) => `${title(r.optionId)} : ${r.reason}`),
+					.map((r) => ({ title: title(r.optionId), rejected_because: r.reason })),
 				provenance: { basis: 'human_validation', by: [sanitizeHandle(d.arbiterId)], at: d.decidedAt.toISOString() }
 			});
 		} else if (DECIDED_MATURITIES.includes(sub.maturityLevel)) {
 			gaps.push({
 				id: `GAP-NODEC-${sub.id}`,
-				code: 'G_decided_without_decision',
+				kind: 'decided_without_decision',
 				subject_id: sub.id,
 				description: `Le sujet « ${sub.name} » est au niveau ${sub.maturityLevel} sans décision enregistrée.`,
 				blocking: true
@@ -196,7 +214,7 @@ export function assembleEngagementBundle(input: AssemblyInput): EngagementBundle
 
 		for (const q of [...sub.questions].sort((a, b) => cmp(a.id, b.id))) {
 			if (q.status === 'open') {
-				gaps.push({ id: `GAP-${q.id}`, code: 'G2_unanswered_blocking', subject_id: sub.id, description: q.text, blocking: q.blocking });
+				gaps.push({ id: `GAP-${q.id}`, kind: 'G2_unanswered_blocking', subject_id: sub.id, description: q.text, blocking: q.blocking });
 			}
 		}
 	}
@@ -207,7 +225,7 @@ export function assembleEngagementBundle(input: AssemblyInput): EngagementBundle
 		if (r.disposition === 'to_qualify') {
 			gaps.push({
 				id: `GAP-${r.id}`,
-				code: 'G_requirement_unqualified',
+				kind: 'requirement_unqualified',
 				requirement_id: r.id,
 				description: `La clause ${r.clause_ref} n'est pas qualifiée${r.disposition_reason ? ` : ${r.disposition_reason}` : '.'}`,
 				blocking
@@ -215,7 +233,7 @@ export function assembleEngagementBundle(input: AssemblyInput): EngagementBundle
 		} else if (r.disposition === 'clarification_needed') {
 			gaps.push({
 				id: `GAP-${r.id}`,
-				code: 'G_requirement_clarification',
+				kind: 'requirement_clarification',
 				requirement_id: r.id,
 				description: `À clarifier auprès du donneur d'ordre : ${r.clarification_question ?? r.clause_ref}`,
 				blocking
@@ -226,11 +244,12 @@ export function assembleEngagementBundle(input: AssemblyInput): EngagementBundle
 	// ── Énoncés ─────────────────────────────────────────────────────────────────────────────────
 	const statements: BundleStatement[] = [];
 	for (const st of [...input.statements].sort((a, b) => cmp(a.id, b.id))) {
+		if (hubFacts) break;
 		const isHuman = st.productionMode === 'human-authored';
 		if (!st.subjectId) {
 			gaps.push({
 				id: `GAP-NOSUBJ-${st.id}`,
-				code: 'G_statement_without_subject',
+				kind: 'statement_without_subject',
 				description: `L'énoncé ${st.id} n'est rattaché à aucun sujet.`,
 				blocking: false
 			});
@@ -241,8 +260,9 @@ export function assembleEngagementBundle(input: AssemblyInput): EngagementBundle
 			epistemic_status: isHuman ? 'validated' : 'ai_proposed',
 			assertion_level: isHuman ? 'asserted' : 'proposed',
 			text: `${st.subjectRef} ${st.predicate} ${st.value}${st.unit ? ' ' + st.unit : ''}`,
-			property: st.predicate,
+			predicate: st.predicate,
 			value: st.value,
+			...(st.unit ? { unit: st.unit } : {}),
 			provenance: {
 				basis: isHuman ? 'human_validation' : 'ai_proposal',
 				by: [sanitizeHandle(st.author)],
@@ -267,6 +287,7 @@ export function assembleEngagementBundle(input: AssemblyInput): EngagementBundle
 		decisions,
 		statements,
 		gaps,
+		pins: input.factsFromHub ? { hub_snapshot: input.factsFromHub } : undefined,
 		sourceRevision: input.sourceRevision ?? 'main',
 		createdAt: input.now.toISOString()
 	});

@@ -85,7 +85,8 @@ describe('E2E Acte 7 — Du scénario de bout en bout au dossier scellé (A18 - 
 		epistemic_status: 'reused_confirmed',
 		assertion_level: 'asserted',
 		decision: 'Déploiement d un réseau de secours out-of-band pour le plan de contrôle.',
-		justification: 'Réutilisation confirmée du motif ADR-0001 avec toutes hypothèses validées.',
+		title: 'Décision de test',
+		rationale: 'Réutilisation confirmée du motif ADR-0001 avec toutes hypothèses validées.',
 		derived_from: {
 			kb_ref: 'ADR-0001',
 			reuse_log_id: 'RL-001'
@@ -104,7 +105,8 @@ describe('E2E Acte 7 — Du scénario de bout en bout au dossier scellé (A18 - 
 		epistemic_status: 'ai_proposed',
 		assertion_level: 'proposed',
 		decision: 'Automatisation de l alerte CSIRT via webhook sécurisé.',
-		justification: 'Proposition issue du débat d architecture (non encore validée par un humain).',
+		title: 'Décision de test',
+		rationale: 'Proposition issue du débat d architecture (non encore validée par un humain).',
 		provenance: {
 			basis: 'ai_proposal',
 			by: ['@archinex-ai'],
@@ -118,7 +120,7 @@ describe('E2E Acte 7 — Du scénario de bout en bout au dossier scellé (A18 - 
 		epistemic_status: 'validated',
 		assertion_level: 'asserted',
 		text: 'Bande passante out-of-band garantie à 1 Gbps.',
-		property: 'oob_bandwidth',
+		predicate: 'oob_bandwidth',
 		value: '1 Gbps',
 		provenance: {
 			basis: 'human_validation',

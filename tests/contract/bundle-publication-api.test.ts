@@ -108,7 +108,7 @@ describe('Bundle Publication & Endpoint Contract Tests (A17 - bundle-publication
 			now: new Date('2026-10-03T14:00:00Z')
 		});
 
-		expect(result.bundle.schemaVersion).toBe('1.0');
+		expect(result.bundle.schemaVersion).toBe('1.1');
 		expect(result.bundle.sourceSystem).toBe('archinex');
 		expect(result.bundle.data.engagement.confidentiality).toBe('confidential');
 		expect(result.snapshotRef.checksum).toBe(result.bundle.checksum);

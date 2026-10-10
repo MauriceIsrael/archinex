@@ -95,7 +95,7 @@ describe('OSCAL Export, Bundle Diff & Capitalization Feedback Contract Tests (A1
 				epistemic_status: 'validated',
 				assertion_level: 'asserted',
 				text: 'Nouveau contrôle de redondance',
-				property: 'redundancy',
+				predicate: 'redundancy',
 				value: 'N+1',
 				provenance: {
 					basis: 'human_validation',
@@ -146,7 +146,8 @@ describe('OSCAL Export, Bundle Diff & Capitalization Feedback Contract Tests (A1
 				epistemic_status: 'validated',
 				assertion_level: 'asserted',
 				decision: 'Partitionnement dynamique des VLANs opérationnels.',
-				justification: 'Arbitrage validé en atelier pour isoler les flux industriels.',
+				title: 'Partitionnement VLAN',
+				rationale: 'Arbitrage validé en atelier pour isoler les flux industriels.',
 				provenance: {
 					basis: 'human_validation',
 					by: ['@lead-architect'],

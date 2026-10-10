@@ -99,7 +99,9 @@ describe('Rien n\'est fabriqué', () => {
 		expect(d.provenance.by).toEqual(['@bob']);
 		expect(d.provenance.at).toBe('2026-10-05T10:30:00.000Z');
 		expect(d.decision).toBe('Option retenue : Horloge locale');
-		expect(d.alternatives).toEqual(['Distribution réseau : Trop dépendant du transport']);
+		expect(d.alternatives).toEqual([{ title: 'Distribution réseau', rejected_because: 'Trop dépendant du transport' }]);
+		expect(d.title).toBe('Horloge locale');
+		expect(d.rationale).toBe('Autonomie locale retenue.');
 		expect(JSON.stringify(b)).not.toMatch(/@exemple\.org/);
 	});
 
@@ -118,14 +120,14 @@ describe('Rien n\'est fabriqué', () => {
 		input.statements[0].subjectId = null;
 		const b = assembleEngagementBundle(input);
 		expect(b.data.statements.find((s) => s.id === 'st-2')!.subject_id).toBe('');
-		expect(b.data.gaps.some((g) => g.code === 'G_statement_without_subject')).toBe(true);
+		expect(b.data.gaps.some((g) => g.kind === 'statement_without_subject')).toBe(true);
 	});
 });
 
 describe('Les exigences dans le dossier scellé', () => {
 	it('liste la source avec son empreinte et chaque exigence dans l\'ordre du document', () => {
 		const b = assembleEngagementBundle(baseInput());
-		expect(b.data.source_documents).toEqual([{ id: SRC, kind: 'rfp', title: 'RFP A', language: 'fr', sha256: SHA }]);
+		expect(b.data.source_documents).toEqual([{ id: SRC, kind: 'rfp', title: 'RFP A', language: 'fr', sha256: SHA.replace('sha256:', '') }]);
 		expect(b.data.requirements.map((r) => r.clause_ref)).toEqual(['R-1', 'R-2', 'R-3', 'R-4']);
 		expect(b.data.requirements.every((r) => r.source_document_id === SRC)).toBe(true);
 	});
@@ -141,15 +143,15 @@ describe('Les exigences dans le dossier scellé', () => {
 		const b = assembleEngagementBundle(baseInput());
 		const by = (ref: string) => b.data.requirements.find((r) => r.clause_ref === ref)!;
 		expect(by('R-2')).toMatchObject({ disposition: 'evacuated', assertion_level: 'proposed', disposition_reason: 'Hors périmètre' });
-		expect(by('R-2').provenance).toMatchObject({ basis: 'ai_proposal', by: ['model:m1'] });
+		expect(by('R-2').provenance).toMatchObject({ basis: 'ai_proposal', by: ['@model-m1'] });
 		expect(by('R-3')).toMatchObject({ disposition: 'to_qualify', assertion_level: 'open' });
 	});
 
 	it('chaque clause non résolue apparaît comme lacune, bloquante si la clause est bloquante', () => {
 		const b = assembleEngagementBundle(baseInput());
 		const gap = (ref: string) => b.data.gaps.find((g) => g.requirement_id === rid(ref));
-		expect(gap('R-3')).toMatchObject({ code: 'G_requirement_unqualified', blocking: true });
-		expect(gap('R-4')).toMatchObject({ code: 'G_requirement_clarification', blocking: false });
+		expect(gap('R-3')).toMatchObject({ kind: 'requirement_unqualified', blocking: true });
+		expect(gap('R-4')).toMatchObject({ kind: 'requirement_clarification', blocking: false });
 		expect(gap('R-1')).toBeUndefined();
 		expect(gap('R-2')).toBeUndefined();
 	});

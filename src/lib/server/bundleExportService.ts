@@ -1,5 +1,5 @@
 import { prisma } from '$lib/server/prisma';
-import type { EngagementBundle, ConfidentialityLevel } from '$lib/domain/engagementBundle';
+import type { EngagementBundle, ConfidentialityLevel, HubSnapshotPin } from '$lib/domain/engagementBundle';
 import { verifyEngagementBundle } from '$lib/domain/bundleVerifier';
 import { assembleEngagementBundle, sanitizeHandle, type AssemblyInput } from '$lib/domain/bundleAssembly';
 import type { SnapshotRef } from '$lib/domain/freezeExport';
@@ -16,6 +16,8 @@ export interface ExportBundleOptions {
 	actorHandle: string;
 	sourceRevision?: string;
 	now?: Date;
+	/** Engagement basculé : snapshot du Hub qui détient les faits engagés. */
+	factsFromHub?: HubSnapshotPin;
 }
 
 /**
@@ -59,6 +61,7 @@ export async function exportEngagementBundle(
 		project: { id: options.projectId, title },
 		confidentiality: options.confidentiality,
 		sourceRevision: options.sourceRevision,
+		factsFromHub: options.factsFromHub,
 		now,
 		sources: toAssemblySources(sources),
 		subjects: (project?.subjects ?? []).map((s) => ({

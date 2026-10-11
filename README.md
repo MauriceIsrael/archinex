@@ -149,7 +149,6 @@ archinex/
 │   │   │   ├── FreezeSectionDialog.svelte       # Scellement SHA-256 de section
 │   │   │   └── ArtifactRegenerationHub.svelte   # Projections déterministes (No Doc Drift)
 │   │   ├── domain/                  # Logique métier pure (indépendante de la vue)
-│   │   │   ├── epistemicEnvelope.ts # Validation des enveloppes & universalSha256
 │   │   │   ├── telegraphic.ts       # Rendu télégraphique & filtre anti-blabla
 │   │   │   ├── maturityBoard.ts     # Tri par déblocages & calcul de stagnation
 │   │   │   ├── diffSensor.ts        # Détection de diffs & règle du silence

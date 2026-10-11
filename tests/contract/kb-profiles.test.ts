@@ -36,12 +36,12 @@ describe('Contract: KB Expert Profiles, Roles & Casbin Habilitations (Lot A6)', 
 
     expect(res).toBeDefined();
     expect(res.invitationToken).toBeDefined();
-    expect(res.invitationToken.length).toBeGreaterThanOrEqual(32);
+    expect(res.invitationToken!.length).toBeGreaterThanOrEqual(32);
     expect(res.invitationUrl).toBe(`/invite?token=${res.invitationToken}`);
 
     const expert = res.expert;
     createdUserId = expert.id;
-    invitationToken = res.invitationToken;
+    invitationToken = res.invitationToken!;
 
     expect(expert.email).toBe(testEmail);
     expect(expert.kbHandle).toBe(testHandle);

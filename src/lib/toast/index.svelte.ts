@@ -12,6 +12,15 @@
  * Variants: 'default' | 'success' | 'error' | 'warning' | 'info'
  */
 
+/**
+ * Identifiant local d'une notification. `crypto.randomUUID` n'existe qu'en contexte sécurisé (HTTPS ou localhost) :
+ * en HTTP sur une adresse réseau (ex. http://100.x.y.z:5173), il est absent et l'appel lèverait une erreur.
+ */
+function newToastId(): string {
+	if (typeof crypto !== 'undefined' && typeof crypto.randomUUID === 'function') return crypto.randomUUID();
+	return `toast-${Date.now().toString(36)}-${Math.random().toString(36).slice(2, 10)}`;
+}
+
 export type ToastVariant = 'default' | 'success' | 'error' | 'warning' | 'info';
 
 export type Toast = {
@@ -34,7 +43,7 @@ class ToastState {
     message: string,
     opts?: { variant?: ToastVariant; duration?: number }
   ): string {
-    const id = crypto.randomUUID();
+    const id = newToastId();
     const entry: Toast = {
       id,
       message,

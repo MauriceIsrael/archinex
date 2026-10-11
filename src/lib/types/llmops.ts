@@ -471,6 +471,20 @@ export interface FrameworkRequirement {
   rejection_reason?: string;
   reviewed_by?: string;
   reviewed_at?: string;
+  /** Titre français et référence légale exacte (article, paragraphe, point). */
+  title_fr?: string;
+  source_ref?: string;
+  /** Exigence déjà présente comme contrôle actif dans la base. */
+  in_kb?: boolean;
+  /** Propositions (modèle ou propriétaire) : n'engagent rien tant que l'expert n'a pas tranché. */
+  proposed_acceptance_criteria?: string[];
+  proposed_links?: string[];
+  proposed_title_fr?: string;
+  links_production_mode?: string;
+  /** Critères d'acceptation retenus par l'expert (amendement). */
+  acceptance_criteria?: string[];
+  /** Avancement de la ligne côté LLMOps : pending | decided | applied | failed. */
+  row_status?: string;
 }
 
 export interface FrameworkIngestion {

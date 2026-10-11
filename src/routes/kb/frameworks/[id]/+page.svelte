@@ -37,6 +37,7 @@
   let amendingReq = $state<FrameworkRequirement | null>(null);
   let amendmentNotes = $state('');
   let amendmentMappedAssets = $state('');
+  let amendmentCriteria = $state('');
 
   // Modale de rejet (motif obligatoire)
   let rejectingReq = $state<FrameworkRequirement | null>(null);
@@ -84,6 +85,7 @@
       mapped_assets?: string[];
       amendment_notes?: string;
       rejection_reason?: string;
+      acceptance_criteria?: string[];
     }
   ) {
     try {
@@ -124,6 +126,8 @@
     amendingReq = req;
     amendmentNotes = req.amendment_notes || '';
     amendmentMappedAssets = req.mapped_assets.join(', ');
+    // Point de départ : critères déjà retenus, sinon ceux proposés (une ligne par critère)
+    amendmentCriteria = (req.acceptance_criteria?.length ? req.acceptance_criteria : req.proposed_acceptance_criteria ?? []).join('\n');
   }
 
   async function submitAmend() {
@@ -136,7 +140,8 @@
     await updateRequirementReview(amendingReq.id, {
       status: 'amended',
       mapped_assets: mapped,
-      amendment_notes: amendmentNotes
+      amendment_notes: amendmentNotes,
+      acceptance_criteria: amendmentCriteria.split('\n').map((c) => c.trim()).filter(Boolean)
     });
 
     amendingReq = null;
@@ -196,6 +201,54 @@
         status: req.status === 'pending' ? 'accepted' : req.status,
         mapped_assets: req.mapped_assets
       });
+    }
+  }
+
+  // Propositions préparées hors ligne (fichier JSON du dépôt LLMOps, data/proposals/frameworks/) : chargées sur les lignes,
+  // elles restent à accepter, amender ou rejeter une par une.
+  let isLoadingProposals = $state(false);
+  async function loadProposals(event: Event) {
+    const input = event.currentTarget as HTMLInputElement;
+    const file = input.files?.[0];
+    if (!file) return;
+    isLoadingProposals = true;
+    coverageError = null;
+    try {
+      const res = await fetch(`/api/frameworks/ingestions/${ingestion.id}/link-proposals`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: await file.text()
+      });
+      const resData = await res.json();
+      if (!res.ok) throw new Error(resData.error || `Erreur HTTP ${res.status}`);
+      location.reload();
+    } catch (err: any) {
+      coverageError = `Propositions non chargées : ${err.message}`;
+    } finally {
+      isLoadingProposals = false;
+      input.value = '';
+    }
+  }
+
+  // Publication : les exigences acceptées ou amendées deviennent des contrôles actifs de la base LLMOps.
+  let isApplying = $state(false);
+  async function applyIngestion() {
+    isApplying = true;
+    coverageError = null;
+    try {
+      const res = await fetch(`/api/frameworks/ingestions/${ingestion.id}/apply`, { method: 'POST' });
+      const resData = await res.json();
+      if (!res.ok) throw new Error(resData.error || `Erreur HTTP ${res.status}`);
+      if (resData.publication?.status !== 'ok') {
+        // Contrôles promus mais base servie non rafraîchie : le juge ne les voit pas encore.
+        coverageError = `Exigences appliquées, mais la publication de la base a échoué (${resData.publication?.error || resData.publication?.status}) : relancez « Publier ».`;
+      } else {
+        alert('Exigences validées publiées : elles accompagnent désormais les sujets et le juge de conformité.');
+      }
+    } catch (err: any) {
+      coverageError = `Publication impossible : ${err.message}`;
+    } finally {
+      isApplying = false;
     }
   }
 
@@ -260,6 +313,23 @@
 
     <!-- Bouton Déclaration de Couverture -->
     <div class="flex items-center gap-3">
+      <label
+        class="px-4 py-2.5 border border-purple-400 text-purple-700 hover:bg-purple-50 font-semibold text-sm rounded-lg cursor-pointer"
+        title="Fichier JSON de propositions (critères d'acceptation, liens) préparé dans le dépôt LLMOps : data/proposals/frameworks/"
+      >
+        {isLoadingProposals ? 'Chargement…' : 'Charger des propositions (JSON)'}
+        <input type="file" accept="application/json,.json" class="hidden" onchange={loadProposals} data-testid="input-proposals" />
+      </label>
+      <button
+        onclick={applyIngestion}
+        disabled={isApplying || acceptedCount + amendedCount === 0}
+        data-testid="btn-apply-ingestion"
+        title="Publie dans la base LLMOps les exigences acceptées ou amendées (rôle kb:maintain)"
+        class="px-4 py-2.5 border border-emerald-600 text-emerald-700 hover:bg-emerald-50 disabled:opacity-50 font-semibold text-sm rounded-lg flex items-center gap-2 transition-colors"
+      >
+        {#if isApplying}<RefreshCw class="w-4 h-4 animate-spin" />{/if}
+        <span>Publier les exigences validées ({acceptedCount + amendedCount})</span>
+      </button>
       <button
         onclick={triggerCoverageDeclaration}
         disabled={isDeclaringCoverage}
@@ -450,10 +520,33 @@
           </div>
         </div>
 
-        <!-- Texte de l'exigence -->
+        {#if req.title_fr || req.source_ref}
+          <p class="text-xs text-surface-600">
+            {#if req.title_fr}<span class="font-semibold text-surface-800">{req.title_fr}</span>{/if}
+            {#if req.source_ref}<span class="ml-2 font-mono">{req.source_ref}</span>{/if}
+            {#if req.in_kb}<span class="ml-2 px-1.5 py-0.5 rounded bg-surface-100 border text-[10px] font-semibold">déjà dans la base</span>{/if}
+          </p>
+        {/if}
+
+        <!-- Texte de l'exigence (texte légal, mot pour mot) -->
         <p class="text-sm text-surface-700 bg-surface-50 p-3.5 rounded-lg border border-surface-200 leading-relaxed font-serif">
           {req.text}
         </p>
+
+        <!-- Critères d'acceptation : retenus par l'expert, sinon proposés -->
+        {#if req.acceptance_criteria?.length}
+          <div class="p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-xs space-y-1">
+            <span class="font-bold text-emerald-900">Critères d'acceptation retenus</span>
+            <ul class="list-disc pl-5 text-emerald-900">{#each req.acceptance_criteria as c (c)}<li>{c}</li>{/each}</ul>
+          </div>
+        {:else if req.proposed_acceptance_criteria?.length}
+          <div class="p-3 bg-purple-50 border border-purple-200 rounded-lg text-xs space-y-1" data-testid="proposed-criteria">
+            <span class="font-bold text-purple-900">
+              Critères d'acceptation proposés {req.links_production_mode === 'llm-derived' ? 'par le modèle' : ''} — à accepter, amender ou rejeter
+            </span>
+            <ul class="list-disc pl-5 text-purple-900">{#each req.proposed_acceptance_criteria as c (c)}<li>{c}</li>{/each}</ul>
+          </div>
+        {/if}
 
         <!-- Liaisons doctrinales -->
         <div class="flex flex-wrap items-center gap-2">
@@ -596,6 +689,19 @@
             placeholder="Ex: CTRL-SEC-01, PRIN-RES-01, PAT-OUTBOX-02"
             class="w-full px-3 py-2 text-xs border border-surface-300 rounded-lg focus:ring-2 focus:ring-sky-500 font-mono"
           />
+        </div>
+
+        <div>
+          <label for="amendCriteriaInput" class="block text-xs font-semibold text-surface-700 mb-1">
+            Critères d'acceptation (un par ligne)
+          </label>
+          <textarea
+            id="amendCriteriaInput"
+            bind:value={amendmentCriteria}
+            rows="5"
+            placeholder="Ce qu'une architecture doit démontrer pour satisfaire l'exigence…"
+            class="w-full px-3 py-2 text-xs border border-surface-300 rounded-lg focus:ring-2 focus:ring-sky-500"
+          ></textarea>
         </div>
 
         <div>

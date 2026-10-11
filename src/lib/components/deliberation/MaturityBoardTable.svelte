@@ -244,7 +244,7 @@
 								class="inline-flex items-center gap-1 rounded bg-primary px-2 py-1 text-[11px] font-semibold text-primary-foreground hover:bg-primary/90 shadow-2xs"
 								onclick={(e) => {
 									e.stopPropagation();
-									deliberationStore.arbitrateSubject(sub.id);
+									deliberationStore.requestFormalDecision(sub.id);
 								}}
 							>
 								<CheckCircle2 class="h-3 w-3" />
@@ -324,6 +324,14 @@
 							<span class="inline-flex items-center rounded-md px-2 py-0.5 font-mono text-[10px] font-bold border {getMaturityBadgeClass(sub.level)}">
 								{formatMaturityLevel(sub.level)}
 							</span>
+							{#if sub.awaiting_review}
+								<span
+									class="ml-1 inline-flex items-center rounded-md px-1.5 py-0.5 text-[10px] font-bold border border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300"
+									title="Décision tranchée, en attente d'affirmation par un décideur distinct de son auteur"
+								>
+									En revue
+								</span>
+							{/if}
 						</td>
 
 						<!-- 3. Bloquants -->
@@ -371,7 +379,7 @@
 										title="Trancher et acter à L3"
 										onclick={(e) => {
 											e.stopPropagation();
-											deliberationStore.arbitrateSubject(sub.id);
+											deliberationStore.requestFormalDecision(sub.id);
 										}}
 									>
 										<CheckCircle2 class="h-3 w-3" />

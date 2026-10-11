@@ -130,3 +130,49 @@ Le plan de contrôle doit envoyer les métriques brutes non chiffrées sur un cl
 		expect(clauses[0].criticality).toBe('bloquant');
 	});
 });
+
+describe('Découpage d\'un RFP extrait de PDF : mobilier de page et références', () => {
+	const header = ['Ministère X – Service Y', 'Request For Proposals – Lot 1 SoW – Q2 2026'];
+	/** Texte au format pdf-parse : marqueur de saut de page, en-têtes répétés, numéro de page. */
+	const pdfText = (pages: string[][]) =>
+		pages
+			.map((body, i) => [...(i > 0 ? [`-- ${i} of ${pages.length} --`, ''] : []), ...header, String(i + 1), ...body].join('\n'))
+			.join('\n');
+
+	const text = pdfText([
+		['Introduction du document.', 'REQ-Lot1-1 Synchronisation (C) 50', 'Le cœur doit rester synchronisé'],
+		['plus d\'un mois sans GNSS.', 'REQ-Lot1-2 Disponibilité (C) 50', 'Disponibilité de 99,999 %.'],
+		['REQ-Lot1-3Enrolment of a new user (C) 50', 'Enrôlement des utilisateurs.', 'REQ-Lot1- Gestion des terminaux (C) 250', 'Texte sans numéro.'],
+		['REQ-Lot1-2 Disponibilité (rappel)', 'Renvoi dans un tableau récapitulatif.']
+	]);
+
+	it('ne prend jamais un en-tête de page (« Request… », « requirements ») pour une exigence', () => {
+		const refs = shredRfpTextToClauses(text).map((c) => c.clauseRef);
+		expect(refs.some((r) => /^req(uest|uire)/i.test(r))).toBe(false);
+		const withHeader = shredRfpTextToClauses(text).filter((c) => /Request For Proposals|Ministère X|-- \d+ of/.test(c.text));
+		expect(withHeader).toEqual([]);
+	});
+
+	it('recolle une exigence coupée par un saut de page', () => {
+		const req1 = shredRfpTextToClauses(text).find((c) => c.clauseRef === 'REQ-Lot1-1')!;
+		expect(req1.text).toBe('Le cœur doit rester synchronisé plus d\'un mois sans GNSS.');
+	});
+
+	it('sépare un numéro collé au titre et signale une référence sans numéro', () => {
+		const clauses = shredRfpTextToClauses(text);
+		const req3 = clauses.find((c) => c.clauseRef === 'REQ-Lot1-3')!;
+		expect(req3.title).toBe('Enrolment of a new user (C) 50');
+		expect(clauses.map((c) => c.clauseRef)).toContain('REQ-Lot1-?');
+	});
+
+	it('rend distinctes deux clauses de même référence, sans en perdre aucune', () => {
+		const clauses = shredRfpTextToClauses(text);
+		expect(clauses.map((c) => c.clauseRef)).toEqual(['REQ-Lot1-1', 'REQ-Lot1-2', 'REQ-Lot1-3', 'REQ-Lot1-?', 'REQ-Lot1-2#2']);
+		expect(new Set(clauses.map((c) => c.id)).size).toBe(clauses.length);
+	});
+
+	it('ne retire rien d\'un texte sans marqueurs de page', () => {
+		const plain = 'Clause 1.1 - Titre\nLigne répétée\nClause 1.2 - Autre\nLigne répétée\nClause 1.3 - Encore\nLigne répétée';
+		expect(shredRfpTextToClauses(plain).map((c) => c.text)).toEqual(['Ligne répétée', 'Ligne répétée', 'Ligne répétée']);
+	});
+});

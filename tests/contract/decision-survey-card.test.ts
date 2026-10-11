@@ -164,7 +164,10 @@ describe('Lot A27 Contract & Integration: Decision Survey Card, Machine-Readable
 		for (const f of facts) {
 			expect(vocabulary).toContain(f.key);
 			expect(f.productionMode).toBe('llm-derived');
-			expect(f.selected).toBe(true);
+			// En test, le modèle ne répond pas : les faits viennent du repli par mots-clés,
+			// jamais cochés d'office et signalés comme tels (à vérifier par l'humain).
+			expect(f.selected).toBe(false);
+			expect(f.fallback).toBe(true);
 			expect(f.source_excerpt).toBeDefined();
 		}
 

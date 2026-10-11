@@ -414,6 +414,7 @@ export async function updateSubject(
 		relativeEffort?: string;
 		blockingCount?: number;
 		unlocksCount?: number;
+		singleOptionRationale?: string;
 	},
 	actor: ActorInfo
 ) {
@@ -451,6 +452,7 @@ export async function updateSubject(
 		if (data.relativeEffort !== undefined) updatePayload.relativeEffort = data.relativeEffort;
 		if (data.blockingCount !== undefined) updatePayload.blockingCount = data.blockingCount;
 		if (data.unlocksCount !== undefined) updatePayload.unlocksCount = data.unlocksCount;
+		if (data.singleOptionRationale !== undefined) updatePayload.singleOptionRationale = data.singleOptionRationale.trim() || null;
 
 		const updated = await tx.subject.update({
 			where: { id: subjectId },

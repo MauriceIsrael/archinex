@@ -196,11 +196,10 @@
 				draft.retenu = [retained.title, ...draft.retenu];
 			}
 		}
-		if (activeSubject) {
-			deliberationStore.setSubjectLevel(activeSubject.id, 'L3_decided');
-		}
+		// Le serveur fixe le niveau : L3 si le Lead Architect a tranché, sinon décision en revue.
+		if (activeSubject) void deliberationStore.refreshSubjectFromServer(activeSubject.id);
 		deliberationStore.logNotification(
-			`Décision formelle L3 enregistrée : option "${retained?.title || dec.retainedOptionId}" retenue.`,
+			`Décision formelle enregistrée : option "${retained?.title || dec.retainedOptionId}" retenue.`,
 			'success'
 		);
 	}
@@ -1035,6 +1034,7 @@
 						const sId = deliberationStore.activeSubjectId;
 						if (pId && sId) {
 							loadSubjectMatrix(pId, sId);
+							void deliberationStore.refreshSubjectFromServer(sId, pId);
 						}
 					}}
 				/>

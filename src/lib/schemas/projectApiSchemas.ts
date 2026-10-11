@@ -40,7 +40,7 @@ export const CreateSubjectSchema = z.object({
 		.enum(['L0_named', 'L1_framed', 'L2_decomposed', 'L3_decided', 'L4_specified', 'L5_archived'])
 		.default('L0_named'),
 	deliberationStatus: z
-		.enum(['open', 'debating', 'ready_for_arbitration', 'arbitrated'])
+		.enum(['open', 'debating', 'ready_for_arbitration', 'awaiting_review', 'arbitrated'])
 		.default('open'),
 	waitingForRole: z.string().default('lead_architect'),
 	relativeEffort: z.enum(['XS', 'S', 'M', 'L', 'XL']).default('M'),
@@ -58,12 +58,14 @@ export const UpdateSubjectSchema = z.object({
 		.enum(['L0_named', 'L1_framed', 'L2_decomposed', 'L3_decided', 'L4_specified', 'L5_archived'])
 		.optional(),
 	deliberationStatus: z
-		.enum(['open', 'debating', 'ready_for_arbitration', 'arbitrated'])
+		.enum(['open', 'debating', 'ready_for_arbitration', 'awaiting_review', 'arbitrated'])
 		.optional(),
 	waitingForRole: z.string().optional(),
 	relativeEffort: z.enum(['XS', 'S', 'M', 'L', 'XL']).optional(),
 	blockingCount: z.number().int().nonnegative().optional(),
-	unlocksCount: z.number().int().nonnegative().optional()
+	unlocksCount: z.number().int().nonnegative().optional(),
+	/** Justification d'une option unique (pas d'alternative réelle) ; chaîne vide pour l'effacer. */
+	singleOptionRationale: z.string().optional()
 });
 
 export const CreateStatementSchema = z.object({

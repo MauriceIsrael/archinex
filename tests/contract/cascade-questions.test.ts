@@ -306,4 +306,26 @@ describe('Lot A28 Contract Tests: Cascade de questions, sujets enfants & détect
 		expect(getBody.cascade).toBeDefined();
 		expect(getBody.treeSeries).toBeDefined();
 	});
+
+	it('Scenario 6: une décision sans fait de topologie affirmé n\'ouvre aucun sous-sujet de doctrine bi-site', async () => {
+		const unrelatedId = 'sub-unrelated-os-39';
+		await prisma.subject.create({
+			data: {
+				id: unrelatedId,
+				projectId: testProjectId,
+				sectionRef: '§7',
+				name: 'Périmètre OS des terminaux',
+				maturityLevel: 'L3_decided',
+				deliberationStatus: 'arbitrated',
+				waitingForRole: 'lead_architect',
+				relativeEffort: 'M',
+				version: 1
+			}
+		});
+
+		const result = await getOrCreateCascadeForDecision({ projectId: testProjectId, subjectId: unrelatedId });
+
+		expect(result.questions).toHaveLength(0);
+		expect(await prisma.subject.count({ where: { id: { startsWith: `sub-child-${unrelatedId}` } } })).toBe(0);
+	});
 });

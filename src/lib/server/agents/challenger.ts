@@ -3,6 +3,7 @@ import { localLlmClient } from '../llm/localLlmClient';
 import type { Option, Criterion } from '$lib/domain/options';
 import type { Argument } from '$lib/domain/debate';
 import type { CreateArgumentData } from '../projects/debateDb';
+import { AGENT_TIMEOUT_MS, FALLBACK_PREFIX } from './agentConfig';
 
 const ChallengerOutputSchema = z.object({
 	objections: z.array(
@@ -46,7 +47,7 @@ ${input.existingArguments.slice(-6).map((a) => `[ID: ${a.id}, Auteur: ${a.author
 Génère les objections critiques :`;
 
 	try {
-		const timeoutMs = process.env.NODE_ENV === 'test' ? 300 : 15000;
+		const timeoutMs = AGENT_TIMEOUT_MS;
 		const response = await localLlmClient.chat({
 			messages: [
 				{ role: 'system', content: systemPrompt },
@@ -94,7 +95,7 @@ Génère les objections critiques :`;
 			optionId: opt.id,
 			targetArgumentId: null,
 			stance: 'objection' as const,
-			claim: `Risque d'exploitation et complexité cachée sur ${opt.title}`,
+			claim: `${FALLBACK_PREFIX}Risque d'exploitation et complexité cachée sur ${opt.title}`,
 			grounds: `L'implémentation de cette option introduit des dépendances opérationnelles critiques et un risque de surcoût MCO non budgété lors des montées de version.`,
 			kbRefs: validKb,
 			confidence: 'assumed' as const,

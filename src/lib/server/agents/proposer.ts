@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { localLlmClient } from '../llm/localLlmClient';
 import type { Option, Criterion } from '$lib/domain/options';
 import type { CreateArgumentData } from '../projects/debateDb';
+import { AGENT_TIMEOUT_MS, FALLBACK_PREFIX } from './agentConfig';
 
 const ProposerOutputSchema = z.object({
 	arguments: z.array(
@@ -55,7 +56,7 @@ RÈGLES D'OR :
 }`;
 
 		try {
-			const timeoutMs = process.env.NODE_ENV === 'test' ? 300 : 15000;
+			const timeoutMs = AGENT_TIMEOUT_MS;
 			const response = await localLlmClient.chat({
 				messages: [
 					{ role: 'system', content: systemPrompt },
@@ -100,9 +101,9 @@ RÈGLES D'OR :
 				id: `arg-prop-init-${Date.now()}-0`,
 				optionId: null,
 				stance: 'support' as const,
-				claim: isSplitRequested
+				claim: FALLBACK_PREFIX + (isSplitRequested
 					? `Proposition de scission en 2 sous-sujets : NOC et SOC`
-					: `Pistes de cadrage pour ${input.subject.name}`,
+					: `Pistes de cadrage pour ${input.subject.name}`),
 				grounds: isSplitRequested
 					? `Sur la base de votre directive (« ${input.contextPrompt!.slice(0, 120)} »), nous recommandons de scinder ce macro-sujet en deux salles d'opérations distinctes : 1) Volet NOC (Supervision réseau, métriques temps réel et maintien en conditions opérationnelles) et 2) Volet SOC (Détection d'incidents, posture Zéro-Trust, isolation et conformité SecNumCloud). Vous pouvez utiliser le bouton « ✂️ Scinder ce sujet » ci-dessus pour acter ce découpage.`
 					: (input.contextPrompt
@@ -134,7 +135,7 @@ ${input.options.map((o) => `[ID: ${o.id}] Titre: ${o.title}\nRésumé: ${o.summa
 Génère les arguments de soutien :`;
 
 	try {
-		const timeoutMs = process.env.NODE_ENV === 'test' ? 300 : 15000;
+		const timeoutMs = AGENT_TIMEOUT_MS;
 		const response = await localLlmClient.chat({
 			messages: [
 				{ role: 'system', content: systemPrompt },
@@ -177,10 +178,10 @@ Génère les arguments de soutien :`;
 			id: `arg-prop-${input.round}-${Date.now()}-${idx}`,
 			optionId: opt.id,
 			stance: 'support' as const,
-			claim: `Conformité optimale avec ${topCriterion}`,
+			claim: `${FALLBACK_PREFIX}Conformité optimale avec ${topCriterion}`,
 			grounds: `L'architecture de l'option '${opt.title}' maximise l'adéquation technique et simplifie l'intégration logicielle.`,
 			kbRefs: validKb,
-			confidence: 'verified' as const,
+			confidence: 'assumed' as const,
 			authorKind: 'agent:proposer',
 			round: input.round
 		};

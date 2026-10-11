@@ -1,4 +1,5 @@
 import { json } from '@sveltejs/kit';
+import { getApplicableFrameworks } from '$lib/server/compliance/complianceService';
 import type { RequestHandler } from './$types';
 import { doctrineService } from '$lib/server/doctrine/doctrineService';
 import { ensureSubjectExists } from '$lib/server/projects/projectsDb';
@@ -14,7 +15,8 @@ export const GET: RequestHandler = async ({ params }) => {
 		try {
 			const docCtx = await doctrineService.getDoctrineContext({
 				topics: [subject.name],
-				domains: subject.domain ? [subject.domain] : []
+				domains: subject.domain ? [subject.domain] : [],
+				frameworks: await getApplicableFrameworks(subject.projectId)
 			});
 			if (docCtx && Array.isArray(docCtx.items)) {
 				allowedKbRefs = docCtx.items.map((i: any) => i.id);

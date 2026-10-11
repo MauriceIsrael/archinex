@@ -24,6 +24,8 @@ export interface ReportRequirement {
 	linkedSubjectId?: string;
 }
 
+import type { SubjectTriage } from './factorization';
+
 export interface ReportSubject {
 	id: string;
 	name: string;
@@ -40,6 +42,7 @@ export interface ReportSubject {
 		initialConflict?: string;
 		expertQuestions?: string[];
 	};
+	triage?: SubjectTriage;
 }
 
 export interface AuditReportInput {
@@ -111,6 +114,29 @@ export function buildAuditReportMarkdown(input: AuditReportInput): string {
 		out.push('');
 	}
 
+	// Plan de délibération : sujets classés par priorité proposée (importance, puis difficulté).
+	const triaged = input.subjects.filter((s) => s.triage).sort((a, b) => a.triage!.rank - b.triage!.rank);
+	if (triaged.length > 0) {
+		out.push('## Plan de délibération proposé');
+		out.push('');
+		out.push("Ordre proposé par le modèle (importance pour l'offre, puis difficulté d'architecture), à ajuster en équipe.");
+		out.push('');
+		out.push(
+			table(
+				['Rang', 'Sujet', 'Importance', 'Difficulté', 'Nature', 'À trancher après', 'Recouvre'],
+				triaged.map((s) => [
+					String(s.triage!.rank),
+					`${s.id} · ${cell(s.name, 90)}`,
+					s.triage!.importance,
+					s.triage!.difficulty,
+					s.triage!.nature,
+					s.triage!.dependsOn.join(', ') || '—',
+					s.triage!.overlapsWith.join(', ') || '—'
+				])
+			)
+		);
+	}
+
 	out.push(`## Pourquoi ces sujets (${input.subjects.length})`);
 	out.push('');
 	if (input.subjects.length === 0) out.push('_Aucun sujet : aucune clause n\'a été jugée à délibérer._\n');
@@ -125,6 +151,9 @@ export function buildAuditReportMarkdown(input: AuditReportInput): string {
 		const kb = s.matchedKbItemIds && s.matchedKbItemIds.length > 0 ? `rapproché de ${s.matchedKbItemIds.join(', ')}` : 'aucune règle de doctrine rapprochée';
 		out.push(`- **Doctrine** : ${kb}${s.alignmentRationale ? ` (${s.alignmentRationale})` : ''}`);
 		for (const q of s.seed.expertQuestions || []) out.push(`- **Question pour le sachant** : ${q}`);
+		if (s.triage) {
+			out.push(`- **Priorité proposée** : rang ${s.triage.rank} (importance ${s.triage.importance}, difficulté ${s.triage.difficulty}, ${s.triage.nature})${s.triage.rationale ? ` — ${s.triage.rationale}` : ''}`);
+		}
 		out.push('');
 		out.push(
 			table(

@@ -211,7 +211,7 @@ describe('Lot A5 Integration: KB Capitalization & Human-in-the-loop Gate (Porte 
 					}
 				]
 			},
-			infraExpert // Expert du domaine infrastructure
+			leadArchitect // Le Lead Architect décide seul ; la décision d'un expert attendrait une revue
 		);
 
 		expect(decision).toBeDefined();

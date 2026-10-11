@@ -303,17 +303,6 @@
 
 						{#if !crit.satisfied}
 							<div class="flex items-center gap-1.5 shrink-0">
-								{#if isHumanUser}
-									<button
-										type="button"
-										onclick={() => (crit.satisfied = true)}
-										class="inline-flex items-center gap-1 px-2 py-1 rounded border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 text-[10px] font-semibold transition-colors cursor-pointer"
-										title="Considérer ce critère comme déjà satisfait par décision d'architecte"
-									>
-										<Check class="h-3 w-3" />
-										<span>Valider</span>
-									</button>
-								{/if}
 								<button
 									type="button"
 									onclick={() => onAction(crit)}

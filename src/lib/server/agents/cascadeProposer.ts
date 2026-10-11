@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { localLlmClient, LocalLlmClient } from '../llm/localLlmClient';
 import { encodeToyBow } from '../similarity/embeddings';
+import { AGENT_TIMEOUT_MS } from './agentConfig';
 import type {
 	CascadeQuestion,
 	CascadePossibleDuplicate
@@ -136,7 +137,7 @@ ${factsSummary || '(aucun fait affirmé)'}
 Formule au plus 2 questions complémentaires pertinentes :`;
 
 	try {
-		const timeoutMs = process.env.NODE_ENV === 'test' ? 300 : 15000;
+		const timeoutMs = AGENT_TIMEOUT_MS;
 		const response = await client.chat({
 			messages: [
 				{ role: 'system', content: systemPrompt },

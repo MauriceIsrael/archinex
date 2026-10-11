@@ -1,7 +1,7 @@
 import { json } from '@sveltejs/kit';
 import { z } from 'zod';
 import type { RequestHandler } from './$types';
-import { prisma } from '$lib/server/prisma';
+import { authorizeProjectAccess } from '$lib/server/projects/projectAccess';
 import { sanitizeHandle } from '$lib/domain/bundleAssembly';
 import { listRequirementSources, saveRequirementAudit } from '$lib/server/projects/requirementsDb';
 import { effectiveRequirementState, sourceBundleId, requirementBundleId } from '$lib/domain/requirementAudit';
@@ -34,16 +34,8 @@ const AuditSchema = z.object({
 	confirmedDeliberated: z.array(z.string())
 });
 
-async function authorize(event: Parameters<RequestHandler>[0]) {
-	const session = event.locals.session;
-	if (!session?.user) return { error: json({ status: 'error', error: 'Non authentifié : session requise' }, { status: 401 }) };
-	const project = await prisma.project.findUnique({ where: { id: event.params.projectId }, include: { members: true } });
-	if (!project) return { error: json({ status: 'error', error: `Projet ${event.params.projectId} introuvable` }, { status: 404 }) };
-	const isMember = project.members.some((m) => m.userId === session.user.id);
-	if (!isMember && session.user.role !== 'admin') {
-		return { error: json({ status: 'error', error: 'forbidden', reason: "Réservé aux membres du projet" }, { status: 403 }) };
-	}
-	return { session };
+function authorize(event: Parameters<RequestHandler>[0]) {
+	return authorizeProjectAccess(event, event.params.projectId!);
 }
 
 /** Enregistre l'audit d'un RFP (propositions du modèle + clauses confirmées par l'humain). Idempotent. */

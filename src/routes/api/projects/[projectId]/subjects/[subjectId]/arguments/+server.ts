@@ -1,4 +1,5 @@
 import { json } from '@sveltejs/kit';
+import { getApplicableFrameworks } from '$lib/server/compliance/complianceService';
 import type { RequestHandler } from './$types';
 import { prisma } from '$lib/server/prisma';
 import { listArguments, createArgument } from '$lib/server/projects/debateDb';
@@ -33,12 +34,16 @@ export const POST: RequestHandler = async ({ params, request }) => {
 	const actor = getActorInfo(request);
 
 	// S'assurer de la présence du sujet dans la base relationnelle
-	await ensureSubjectExists(projectId, subjectId);
+	const subject = await ensureSubjectExists(projectId, subjectId);
 
-	// Récupérer doctrine context pour vérifier les kbRefs
+	// Récupérer doctrine context pour vérifier les kbRefs (LLMOps exige le sujet interrogé)
 	let allowedKbRefs: string[] = [];
 	try {
-		const docCtx = await doctrineService.getDoctrineContext();
+		const docCtx = await doctrineService.getDoctrineContext({
+			topics: [subject.name],
+			domains: subject.domain ? [subject.domain] : [],
+			frameworks: await getApplicableFrameworks(subject.projectId)
+		});
 		if (docCtx && Array.isArray(docCtx.items)) {
 			allowedKbRefs = docCtx.items.map((i: any) => i.id);
 		}

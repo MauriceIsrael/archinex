@@ -155,6 +155,30 @@ describe('Lot A4 Contract: Maturity Rules & Arbitration Gate (computeMaturity)',
 		expect(res.blockers.some((b) => b.code === 'INSUFFICIENT_OPTIONS')).toBe(true);
 	});
 
+	it('3 bis. Une option unique justifiée (pas d\'alternative réelle) suffit, avec un seul critère', () => {
+		const res = computeMaturity({
+			subject: { ...baseSubject, singleOptionRationale: 'Choix imposé par le RFP : aucune alternative recevable.' },
+			criteria: [crit1],
+			options: [opt1],
+			evaluations: [evalOpt1Crit1],
+			arguments: []
+		});
+		expect(res.blockers).toEqual([]);
+		expect(res.level).toBe('L2_decomposed');
+		expect(res.readyForArbitration).toBe(true);
+	});
+
+	it('3 ter. Une justification d\'option unique ne dispense pas de 2 critères quand il y a plusieurs options', () => {
+		const res = computeMaturity({
+			subject: { ...baseSubject, singleOptionRationale: 'Choix imposé.' },
+			criteria: [crit1],
+			options: [opt1, opt2],
+			evaluations: [],
+			arguments: []
+		});
+		expect(res.blockers.some((b) => b.code === 'MISSING_CRITERIA')).toBe(true);
+	});
+
 	it('4. Détecte UNEVALUATED_OPTION si une option manque d\'évaluation sur un critère', () => {
 		const res = computeMaturity({
 			subject: baseSubject,

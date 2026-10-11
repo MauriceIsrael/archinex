@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import type { Option, Decision } from '$lib/domain/options';
 	import type { ExtractedFact } from '$lib/server/agents/factExtractor';
 	import {
@@ -97,10 +98,15 @@
 		Boolean(decision && decision.id) && !isAuthor && isQualifiedDecider && !decision?.validatedBy
 	);
 
+	// Une seule extraction par décision : une extraction sans fait (liste vide) ne doit pas relancer l'appel au modèle.
+	let factsRequestedFor: string | null = null;
 	$effect(() => {
-		if (decision && decision.id && facts.length === 0) {
-			loadOrExtractFacts();
-		}
+		const decisionId = decision?.id;
+		if (!decisionId || decisionId === factsRequestedFor) return;
+		factsRequestedFor = decisionId;
+		untrack(() => {
+			if (facts.length === 0) void loadOrExtractFacts();
+		});
 	});
 
 	async function loadOrExtractFacts() {
@@ -412,6 +418,11 @@
 								<span class="text-[10px] text-muted-foreground italic">
 									Source : « {fact.source_excerpt || fact.value} »
 								</span>
+								{#if fact.fallback}
+									<span class="text-[10px] font-semibold text-amber-700 dark:text-amber-300" title="Le modèle n'a pas répondu : fait déduit par mots-clés, non coché par défaut.">
+										Déduit sans le modèle, à vérifier
+									</span>
+								{/if}
 							</div>
 
 							<!-- Valeur modifiable -->

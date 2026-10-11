@@ -81,10 +81,13 @@ export async function getOrCreateCascadeForDecision(params: {
 		affirmedFacts = activeStmts.map((s) => ({ key: s.predicate, value: s.value }));
 	}
 
-	// Valeurs des faits clés
-	const siteCountFact = affirmedFacts.find((f) => f.key === 'site_count')?.value || '2';
-	const resilienceModeFact =
-		affirmedFacts.find((f) => f.key === 'resilience_mode')?.value || 'actif/actif';
+	// Valeurs des faits clés : une règle de doctrine ne s'ouvre que sur un fait réellement affirmé,
+	// jamais sur une valeur supposée (sinon toute décision, même sans rapport, ouvre la cascade bi-site).
+	const siteCountFact = affirmedFacts.find((f) => f.key === 'site_count')?.value;
+	const resilienceModeFact = affirmedFacts.find((f) => f.key === 'resilience_mode')?.value;
+	const isMultiSite = siteCountFact !== undefined && Number.parseInt(siteCountFact, 10) >= 2;
+	const isActiveActive =
+		resilienceModeFact !== undefined && /actif\s*\/\s*actif|active\s*\/\s*active/i.test(resilienceModeFact);
 
 	// 1. Lire les règles et désactivations du projet (Lot A30)
 	const { getProjectRules } = await import('$lib/server/rules/projectRulesService');
@@ -106,7 +109,7 @@ export async function getOrCreateCascadeForDecision(params: {
 			lineage: {
 				ruleRef: 'DOC-HA-01',
 				ruleName: 'Topologie de Continuité d’Activité Bi-Site',
-				triggeringFacts: [{ key: 'resilience_mode', value: resilienceModeFact }],
+				triggeringFacts: [{ key: 'resilience_mode', value: resilienceModeFact ?? '' }],
 				parentDecisionId: decisionId,
 				parentSubjectId: subjectId,
 				parentSubjectName: parentSubject.name
@@ -130,7 +133,7 @@ export async function getOrCreateCascadeForDecision(params: {
 				assetRef: 'SEC-RESIL-02',
 				ruleRef: 'SEC-RESIL-02',
 				ruleName: 'Quorum d’Arbitrage et Témoin Indépendant',
-				triggeringFacts: [{ key: 'site_count', value: '2' }],
+				triggeringFacts: [{ key: 'site_count', value: siteCountFact ?? '' }],
 				parentDecisionId: decisionId,
 				parentSubjectId: subjectId,
 				parentSubjectName: parentSubject.name
@@ -154,7 +157,7 @@ export async function getOrCreateCascadeForDecision(params: {
 			lineage: {
 				ruleRef: 'LOC-NET-01',
 				ruleName: 'Règle Locale de Routage Multi-Site',
-				triggeringFacts: [{ key: 'resilience_mode', value: resilienceModeFact }],
+				triggeringFacts: [{ key: 'resilience_mode', value: resilienceModeFact ?? '' }],
 				parentDecisionId: decisionId,
 				parentSubjectId: subjectId,
 				parentSubjectName: parentSubject.name
@@ -162,6 +165,16 @@ export async function getOrCreateCascadeForDecision(params: {
 			initialLevel: 'L0_named'
 		}
 	];
+
+	const triggered = new Set([
+		...(isActiveActive ? ['replication'] : []),
+		...(isMultiSite ? ['split-brain'] : []),
+		...(resilienceModeFact !== undefined ? ['failover'] : [])
+	]);
+	for (let i = candidateQuestions.length - 1; i >= 0; i--) {
+		const kind = candidateQuestions[i].id.slice(`q-casc-${subjectId}-`.length);
+		if (!triggered.has(kind)) candidateQuestions.splice(i, 1);
+	}
 
 	// Évaluation des règles locales affirmées (K21/A30)
 	for (const localRule of projectRulesState.localRules) {

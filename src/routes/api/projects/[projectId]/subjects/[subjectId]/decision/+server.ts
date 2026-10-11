@@ -1,6 +1,6 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { getActorInfo } from '$lib/server/projects/actorHelper';
+import { resolveProjectActor } from '$lib/server/projects/actorHelper';
 import {
 	getSubjectArbitrationContext,
 	recordArbitrationDecision,
@@ -8,6 +8,7 @@ import {
 	UnauthorizedArbitrationError
 } from '$lib/server/projects/arbitrationDb';
 import { CreateDecisionSchema } from '$lib/schemas/decisionApiSchemas';
+import { canDecideAlone } from '$lib/domain/options';
 
 export const GET: RequestHandler = async ({ params }) => {
 	const { subjectId } = params;
@@ -37,7 +38,7 @@ export const GET: RequestHandler = async ({ params }) => {
 
 export const POST: RequestHandler = async (event) => {
 	const { subjectId } = event.params;
-	const actor = getActorInfo(event);
+	const actor = await resolveProjectActor(event, event.params.projectId!);
 
 	let body: any;
 	try {
@@ -59,7 +60,9 @@ export const POST: RequestHandler = async (event) => {
 
 	try {
 		const decision = await recordArbitrationDecision(subjectId, parsed.data, actor);
-		return json({ decision }, { status: 201 });
+		// Le Lead Architect décide seul ; la décision d'un autre architecte attend la revue d'un décideur distinct.
+		const awaitingReview = !canDecideAlone(actor.role);
+		return json({ decision, awaitingReview, subjectLevel: awaitingReview ? 'L2_decomposed' : 'L3_decided' }, { status: 201 });
 	} catch (err: any) {
 		if (err instanceof MaturityUnreadyError) {
 			return json(

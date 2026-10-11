@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { page } from '$app/state';
 	import { deliberationStore } from '$lib/stores/deliberationStore.svelte';
 	import type { Argument, ArgumentResolution, Stance } from '$lib/domain/debate';
 	import {
@@ -210,6 +211,9 @@
 				subjectDecision = decData.decision || null;
 			}
 
+			// Liste des sujets (colonne de gauche) : niveau tel que le serveur le connaît après l'action
+			void deliberationStore.refreshSubjectFromServer(subjectId, projectId);
+
 			if (cascadeRes && cascadeRes.ok) {
 				const cascData = await cascadeRes.json();
 				cascadeResult = cascData.cascade || null;
@@ -223,7 +227,33 @@
 		}
 	}
 
+	/**
+	 * Met à jour le sujet côté serveur avec la version courante (verrou optimiste) ; en cas de conflit,
+	 * relit la version renvoyée par le serveur et réessaie une fois.
+	 */
+	async function patchSubject(payload: Record<string, unknown>): Promise<Response> {
+		const url = `/api/projects/${projectId}/subjects/${subjectId}`;
+		const current = await fetch(url).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+		const send = (expectedVersion: number) =>
+			fetch(url, {
+				method: 'PATCH',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ ...payload, expectedVersion })
+			});
+		let res = await send(current?.subject?.version ?? 1);
+		if (res.status === 409) {
+			const conflict = await res.clone().json().catch(() => ({}));
+			if (typeof conflict.currentVersion === 'number') res = await send(conflict.currentVersion);
+		}
+		return res;
+	}
+
 	async function handleTransitionMaturity(targetLevel: MaturityLevel) {
+		// La décision (L3+) passe par l'arbitrage formel du dossier, jamais par un simple changement de niveau.
+		if (targetLevel === 'L3_decided' || targetLevel === 'L4_specified' || targetLevel === 'L5_archived') {
+			deliberationStore.requestFormalDecision(subjectId);
+			return;
+		}
 		// Toujours appliquer la transition dans le store réactif pour fluidité immédiate
 		deliberationStore.setSubjectLevel(subjectId, targetLevel);
 
@@ -233,14 +263,7 @@
 		}
 
 		try {
-			const res = await fetch(`/api/projects/${projectId}/subjects/${subjectId}`, {
-				method: 'PATCH',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
-					maturityLevel: targetLevel,
-					expectedVersion: 1
-				})
-			});
+			const res = await patchSubject({ maturityLevel: targetLevel });
 
 			if (!res.ok) {
 				const err = await res.json().catch(() => ({}));
@@ -276,7 +299,7 @@
 		else nextLevel = activeSubject.level;
 
 		if (nextLevel === 'L3_decided') {
-			deliberationStore.arbitrateSubject(activeSubject.id);
+			deliberationStore.requestFormalDecision(activeSubject.id);
 		} else {
 			await handleTransitionMaturity(nextLevel);
 		}
@@ -345,7 +368,9 @@
 				scrollToNextUnresolvedObjection();
 				break;
 			case 'run_verifier':
-				handleLaunchDebate();
+				// Le seul agent vérificateur, pas un débat complet : il confronte les options à la doctrine.
+				deliberationStore.logNotification('Vérificateur sollicité : il confronte les options à la doctrine (peut prendre une minute).', 'info');
+				handleInvokeAgent('verifier');
 				break;
 			case 'derive_subjects':
 				handleDecomposeSubject();
@@ -395,8 +420,14 @@
 				if (!isDossierOpen) onToggleDossier();
 				break;
 			case 'hub_affirmation':
+				if (!subjectDecision) {
+					// Rien à valider tant que la décision n'est pas tranchée : on ouvre l'arbitrage formel.
+					deliberationStore.requestFormalDecision(subjectId);
+					break;
+				}
+				viewMode = 'synthesis';
 				deliberationStore.logNotification(
-					'Validation K16 : Une décision requiert une affirmation dans le Hub par un valideur distinct de son auteur.',
+					"La décision doit être validée par un autre architecte que son auteur : il ouvre ce sujet et clique « Affirmer » sur la carte de décision.",
 					'info'
 				);
 				break;
@@ -509,14 +540,7 @@
 		deliberationStore.updateDraftQuestion(subjectId, newQ);
 		if (projectId && subjectId) {
 			try {
-				await fetch(`/api/projects/${projectId}/subjects/${subjectId}`, {
-					method: 'PATCH',
-					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({
-						problemStatement: newQ,
-						expectedVersion: 1
-					})
-				});
+				await patchSubject({ problemStatement: newQ });
 			} catch {}
 		}
 		deliberationStore.logNotification('Problème d’architecture reformulé et enregistré.', 'success');
@@ -872,6 +896,30 @@
 	<!-- ═════════════════════════════════════════════════════════════════════════ -->
 	<div class="flex-1 overflow-y-auto p-4 space-y-4">
 		<!-- CARTE DE CADRAGE DU PROBLÈME (GRAINE D'ARCHITECTURE & RFP SEED) -->
+		{#if activeSubject && (activeSubject.nature || activeSubject.depends_on_subject_ids?.length)}
+			<!-- Nature et dépendances proposées à la factorisation : à relire comme le reste -->
+			<div class="flex flex-wrap items-center gap-2 text-[11px]">
+				{#if activeSubject.nature && activeSubject.nature !== 'architecture'}
+					<span class="px-2 py-0.5 rounded-full font-bold border bg-violet-500/10 text-violet-700 dark:text-violet-300 border-violet-500/20">
+						{activeSubject.nature === 'contractuel' ? 'Sujet contractuel' : 'Sujet organisationnel'}
+					</span>
+				{/if}
+				{#if activeSubject.depends_on_subject_ids?.length}
+					<span class="text-muted-foreground"><strong>À trancher après :</strong></span>
+					{#each activeSubject.depends_on_subject_ids as depId (depId)}
+						{@const dep = deliberationStore.activeEngagement?.subjects.find((s) => s.id === depId)}
+						<button
+							type="button"
+							onclick={() => deliberationStore.selectSubject(depId)}
+							class="px-2 py-0.5 rounded-md border hover:bg-muted/40 cursor-pointer {dep && ['L3_decided', 'L4_specified', 'L5_archived'].includes(dep.level) ? 'text-emerald-700 dark:text-emerald-300 border-emerald-500/30' : 'text-amber-700 dark:text-amber-300 border-amber-500/30'}"
+							title={dep && ['L3_decided', 'L4_specified', 'L5_archived'].includes(dep.level) ? 'Déjà tranché' : 'Pas encore tranché'}
+						>
+							{dep?.name ?? depId}
+						</button>
+					{/each}
+				{/if}
+			</div>
+		{/if}
 		{#if activeSubject}
 			<SubjectProblemCard
 				subject={activeSubject}
@@ -989,7 +1037,9 @@
 				{subjectId}
 				decision={subjectDecision}
 				options={subjectOptions}
-				sessionUser={{ id: 'session-user', email: 'session-user@domain.com', role: userRole }}
+				sessionUser={page.data?.session?.user
+					? { id: page.data.session.user.id, email: page.data.session.user.email, role: userRole }
+					: { id: 'anonymous', email: '', role: userRole }}
 				isHubCutover={effectiveReport?.sourceOfRecord === 'hub'}
 				onAffirmed={async () => {
 					await loadArgumentsAndContext();

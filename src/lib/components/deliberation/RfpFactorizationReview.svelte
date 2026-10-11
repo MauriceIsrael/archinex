@@ -83,6 +83,12 @@
 
 	// Filtre par lot dans la vue sujets
 	let selectedLotFilter = $state<string>('ALL');
+	// Synthèse transverse : ordre de délibération proposé et nature des sujets
+	let sortMode = $state<'priority' | 'document'>('priority');
+	let natureFilter = $state<'ALL' | 'architecture' | 'contractuel' | 'organisationnel'>('ALL');
+	let hasTriage = $derived(editableSubjects.some((s) => s.triage));
+	const NATURE_LABELS = { architecture: 'Architecture', contractuel: 'Contractuel', organisationnel: 'Organisationnel' } as const;
+	const subjectName = (id: string) => editableSubjects.find((s) => s.id === id)?.name ?? id;
 
 	const availableRoles: Array<{ id: ArchitectRole; label: string }> = [
 		{ id: 'lead_architect', label: 'Lead Architect' },
@@ -117,8 +123,12 @@
 
 	// Sujets filtrés selon le lot sélectionné
 	let filteredSubjects = $derived(() => {
-		if (selectedLotFilter === 'ALL') return editableSubjects;
-		return editableSubjects.filter((s) => s.lotId === selectedLotFilter);
+		let list = selectedLotFilter === 'ALL' ? editableSubjects : editableSubjects.filter((s) => s.lotId === selectedLotFilter);
+		if (natureFilter !== 'ALL') list = list.filter((s) => s.triage?.nature === natureFilter);
+		if (sortMode === 'priority' && hasTriage) {
+			list = [...list].sort((a, b) => (a.triage?.rank ?? Infinity) - (b.triage?.rank ?? Infinity));
+		}
+		return list;
 	});
 
 	function toggleSubjectSelection(id: string) {
@@ -247,7 +257,11 @@
 					initialHypothesis: s.seed.initialHypothesis,
 					initialConflict: s.seed.initialConflict,
 					initialQuestion: s.seed.initialQuestion,
-					expertQuestions: s.seed.expertQuestions || []
+					expertQuestions: s.seed.expertQuestions || [],
+					problemStatement: s.seed.initialQuestion,
+					factorizationId: s.id,
+					...(s.triage ? { nature: s.triage.nature, dependsOn: s.triage.dependsOn } : {}),
+					...(s.proposal ? { proposal: s.proposal } : {})
 				};
 			});
 
@@ -472,7 +486,21 @@
 					{#each availableLots() as lot}
 						<option value={lot}>{lot}</option>
 					{/each}
-				</select>
+					</select>
+					{#if hasTriage}
+						<span class="text-[11px] text-muted-foreground font-medium ml-2">Ordre :</span>
+						<select bind:value={sortMode} class="rounded-lg border bg-background px-2 py-1 text-xs">
+							<option value="priority">Priorité proposée</option>
+							<option value="document">Ordre du document</option>
+						</select>
+						<span class="text-[11px] text-muted-foreground font-medium ml-2">Nature :</span>
+						<select bind:value={natureFilter} class="rounded-lg border bg-background px-2 py-1 text-xs">
+							<option value="ALL">Toutes</option>
+							{#each Object.entries(NATURE_LABELS) as [value, label]}
+								<option {value}>{label} ({editableSubjects.filter((s) => s.triage?.nature === value).length})</option>
+							{/each}
+						</select>
+					{/if}
 			</div>
 		{/if}
 	</div>
@@ -514,6 +542,23 @@
 									<span class="px-2 py-0.5 rounded bg-muted font-mono font-bold text-[10px] text-foreground border">
 										{subj.lotId}
 									</span>
+									{#if subj.triage}
+										<span
+											class="px-2 py-0.5 rounded font-mono font-bold text-[10px] border {subj.triage.importance === 'H' && subj.triage.difficulty === 'H'
+												? 'bg-destructive/10 text-destructive border-destructive/25'
+												: subj.triage.importance === 'H'
+													? 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/25'
+													: 'bg-muted text-muted-foreground'}"
+											title="Rang {subj.triage.rank} — importance {subj.triage.importance}, difficulté {subj.triage.difficulty}"
+										>
+											#{subj.triage.rank} · I {subj.triage.importance} · D {subj.triage.difficulty}
+										</span>
+										{#if subj.triage.nature !== 'architecture'}
+											<span class="px-2 py-0.5 rounded-full text-[10px] font-bold border bg-violet-500/10 text-violet-700 dark:text-violet-300 border-violet-500/20">
+												{NATURE_LABELS[subj.triage.nature]}
+											</span>
+										{/if}
+									{/if}
 
 									<!-- Titre éditable inline -->
 									<input
@@ -545,6 +590,24 @@
 								<p class="text-[11px] text-muted-foreground leading-relaxed">
 									{subj.alignmentRationale}
 								</p>
+								{#if subj.triage}
+									{#if subj.triage.rationale}
+										<p class="text-[11px] text-muted-foreground leading-relaxed"><strong>Priorité :</strong> {subj.triage.rationale}</p>
+									{/if}
+									{#if subj.triage.dependsOn.length > 0}
+										<p class="text-[11px] text-muted-foreground">
+											<strong>À trancher après :</strong>
+											{#each subj.triage.dependsOn as dep, i}<span title={subjectName(dep)} class="font-mono">{dep}</span>{i < subj.triage.dependsOn.length - 1 ? ', ' : ''}{/each}
+										</p>
+									{/if}
+									{#if subj.triage.overlapsWith.length > 0}
+										<p class="text-[11px] text-amber-700 dark:text-amber-300">
+											<strong>Recouvre en partie :</strong>
+											{#each subj.triage.overlapsWith as other, i}<span title={subjectName(other)} class="font-mono">{other}</span>{i < subj.triage.overlapsWith.length - 1 ? ', ' : ''}{/each}
+											(fusion à envisager)
+										</p>
+									{/if}
+								{/if}
 							</div>
 						</div>
 

@@ -194,6 +194,9 @@ model Subject {
   deliberationStatus String   @default("open")     // open, debating, ready_for_arbitration, arbitrated
   waitingForRole     String?  @default("lead_architect")
   requirementRefs    String   @default("[]")          // JSON array d'identifiants d'exigences du dossier (SRC-xxxx:clause)
+  nature                String?                       // architecture | contractuel | organisationnel (proposée à la factorisation)
+  dependsOn             String   @default("[]")       // JSON array d'ids de sujets à trancher avant celui-ci
+  singleOptionRationale String?                       // pourquoi une seule option suffit (pas d'alternative réelle)
   relativeEffort     String?  @default("M")
   blockingCount      Int      @default(0)
   unlocksCount       Int      @default(0)
@@ -590,4 +593,42 @@ model Requirement {
   @@unique([sourceId, clauseRef])
   @@index([sourceId, position])
   @@map("requirements")
+}
+
+// ── Factorisation des RFP : exécutions et points de reprise ────────────────
+
+/// Une exécution de factorisation (audit en étapes ou passe directe) et son résultat complet,
+/// persisté dès la fin du calcul : une coupure du navigateur ne fait plus perdre le travail.
+model FactorizationRun {
+  id            String    @id @default(cuid())
+  inputSha256   String                    // empreinte des clauses, du modèle, de la doctrine et des consignes
+  documentTitle String?
+  model         String
+  engine        String?                   // audit | direct | fallback
+  status        String    @default("running") // running | ok | partial | unavailable | error | interrupted
+  clauseCount   Int
+  subjectCount  Int?
+  error         String?
+  result        String?                   // RfpFactorizationResponse sérialisée (JSON) ; état partiel tant que status = running
+  progress      String?                   // avancement (JSON) : étape, fait / total
+  request       String?                   // requête d'origine (JSON) : permet de reprendre une exécution interrompue
+  sourceText    String?                   // texte source du RFP : la provenance d'un résultat rechargé reste exacte
+  startedAt     DateTime  @default(now())
+  finishedAt    DateTime?
+
+  @@index([inputSha256])
+  @@index([startedAt])
+  @@map("factorization_runs")
+}
+
+/// Résultat intermédiaire d'une étape LLM (lot classé, cartographie, sujet instruit), indexé par l'empreinte
+/// de ses entrées (étape, version du prompt, modèle, contenu). Une relance ne refait que ce qui manque.
+model FactorizationStageCache {
+  key       String   @id
+  stage     String
+  value     String                         // JSON
+  createdAt DateTime @default(now())
+
+  @@index([stage])
+  @@map("factorization_stage_cache")
 }

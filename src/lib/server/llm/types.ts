@@ -13,4 +13,6 @@ export interface ChatOptions {
 	maxTokens?: number;
 	numCtx?: number;
 	timeoutMs?: number;
+	/** Profondeur de réflexion des modèles Claude récents (réflexion adaptative). Défaut : high. */
+	effort?: 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 }

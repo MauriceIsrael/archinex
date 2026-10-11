@@ -1,8 +1,9 @@
 import { prisma } from '../prisma';
 import { computeMaturity, type MaturityComputationResult, type MaturityBlocker } from '$lib/domain/maturityRules';
 import { getProjectFrameworks } from './frameworksDb';
+import { checkSubjectCompliance } from '../compliance/complianceService';
 import type { ActorInfo } from './projectsDb';
-import type { Criterion, Option, OptionEvaluation, Decision } from '$lib/domain/options';
+import { canDecideAlone, type Criterion, type Option, type OptionEvaluation, type Decision } from '$lib/domain/options';
 import type { Argument } from '$lib/domain/debate';
 
 export class MaturityUnreadyError extends Error {
@@ -188,7 +189,8 @@ export async function getSubjectArbitrationContext(subjectId: string): Promise<{
 			id: subject.id,
 			name: subject.name,
 			problemStatement: subject.problemStatement,
-			maturityLevel: subject.maturityLevel as any
+			maturityLevel: subject.maturityLevel as any,
+			singleOptionRationale: subject.singleOptionRationale
 		},
 		criteria,
 		options,
@@ -241,7 +243,8 @@ export async function recordArbitrationDecision(
 			id: subject.id,
 			name: subject.name,
 			problemStatement: subject.problemStatement,
-			maturityLevel: subject.maturityLevel as any
+			maturityLevel: subject.maturityLevel as any,
+			singleOptionRationale: subject.singleOptionRationale
 		},
 		criteria: ctx.criteria,
 		options: ctx.options,
@@ -255,6 +258,21 @@ export async function recordArbitrationDecision(
 		throw new MaturityUnreadyError(readinessWithViolations.blockers);
 	}
 
+	// Conformité réglementaire de l'option retenue (LLMOps) : une clause validée par l'expert qui la déclare
+	// non conforme bloque, sauf écart accepté et justifié par l'arbitre. LLMOps injoignable : on ne bloque pas.
+	const compliance = await checkSubjectCompliance(subject.projectId, subjectId, [data.retainedOptionId]).catch(() => null);
+	const acceptedIds = new Set((data.acceptedViolations || []).map((v) => v.typedId));
+	const blockingViolations = (compliance?.violations ?? []).filter((v) => v.validated && !acceptedIds.has(v.typedId));
+	if (blockingViolations.length > 0) {
+		throw new MaturityUnreadyError(
+			blockingViolations.map((v) => ({
+				code: 'UNRESOLVED_VIOLATION' as const,
+				message: `Option retenue non conforme à ${v.typedId} : ${v.message} Pour trancher malgré tout, acceptez l'écart en le justifiant.`,
+				targetId: v.typedId
+			}))
+		);
+	}
+
 	// Vérification que l'option retenue existe
 	const retained = ctx.options.find((o) => o.id === data.retainedOptionId);
 	if (!retained) {
@@ -263,6 +281,7 @@ export async function recordArbitrationDecision(
 
 	const decisionId = `dec-${subjectId}-${Date.now()}`;
 	const decidedAt = new Date();
+	const decidesAlone = canDecideAlone(actor.role);
 
 	const created = await prisma.$transaction(async (tx) => {
 		// 1. Enregistrement de la décision
@@ -308,17 +327,15 @@ export async function recordArbitrationDecision(
 			});
 		}
 
-		// 3. Promotion du statut de maturité du sujet à L3_decided
+		// 3. Maturité : le Lead Architect décide seul (L3) ; sinon la décision attend la revue d'un décideur distinct.
 		await tx.subject.update({
 			where: { id: subjectId },
-			data: {
-				maturityLevel: 'L3_decided',
-				deliberationStatus: 'arbitrated',
-				version: { increment: 1 }
-			}
+			data: decidesAlone
+				? { maturityLevel: 'L3_decided', deliberationStatus: 'arbitrated', version: { increment: 1 } }
+				: { maturityLevel: 'L2_decomposed', deliberationStatus: 'awaiting_review', version: { increment: 1 } }
 		});
 
-		// 4. Invariant II : Promotion des énoncés dérivés vers llm-proposed-human-approved
+		// 4. Invariant II : un humain a tranché, les énoncés dérivés deviennent llm-proposed-human-approved
 		await tx.statement.updateMany({
 			where: {
 				subjectId,
@@ -326,7 +343,7 @@ export async function recordArbitrationDecision(
 			},
 			data: {
 				productionMode: 'llm-proposed-human-approved',
-				subjectLevel: 'L3_decided',
+				subjectLevel: decidesAlone ? 'L3_decided' : 'L2_decomposed',
 				version: { increment: 1 }
 			}
 		});
@@ -346,7 +363,8 @@ export async function recordArbitrationDecision(
 					retainedOptionId: data.retainedOptionId,
 					arbiter: { id: actor.userId, role: actor.role },
 					reversibility: data.reversibility,
-					rationale: data.rationale
+					rationale: data.rationale,
+					awaitingReview: !decidesAlone
 				})
 			}
 		});

@@ -311,17 +311,34 @@ describe('Lot A4 Integration: Calculated Maturity & Human Arbitration Gate (Port
 		expect(decision.retainedOptionId).toBe(opt1Id);
 		expect(decision.arbiterId).toBe(securityExpert.userId);
 
-		// 4. Vérification de la mise à jour du sujet
+		// 4. Seul le Lead Architect décide seul : la décision de l'expert attend la revue d'un décideur distinct
 		const updatedSubject = await prisma.subject.findUnique({ where: { id: testSubjectId } });
-		expect(updatedSubject?.maturityLevel).toBe('L3_decided');
-		expect(updatedSubject?.deliberationStatus).toBe('arbitrated');
+		expect(updatedSubject?.maturityLevel).toBe('L2_decomposed');
+		expect(updatedSubject?.deliberationStatus).toBe('awaiting_review');
 
-		// 5. Invariant II : Vérification de la promotion de l'énoncé dérivé par IA
+		// 5. Invariant II : un humain a tranché, l'énoncé dérivé par IA est approuvé (au niveau en revue)
 		const promotedStatement = await prisma.statement.findFirst({
 			where: { subjectId: testSubjectId }
 		});
 		expect(promotedStatement?.productionMode).toBe('llm-proposed-human-approved');
-		expect(promotedStatement?.subjectLevel).toBe('L3_decided');
+		expect(promotedStatement?.subjectLevel).toBe('L2_decomposed');
+
+		// 5 bis. Le Lead Architect qui tranche à son tour rend la décision effective (L3)
+		const leadDecision = await recordArbitrationDecision(
+			testSubjectId,
+			{
+				retainedOptionId: opt1Id,
+				rejected: [{ optionId: opt2Id, reason: 'Dépendance réseau inacceptable pour les clés racine.' }],
+				rationale: 'Le HSM physique dédié garantit l’étanchéité et la souveraineté des clés.',
+				reversibility: 'costly',
+				acceptedViolations: []
+			},
+			leadArchitect
+		);
+		expect(leadDecision.arbiterRole).toBe('lead_architect');
+		const decidedSubject = await prisma.subject.findUnique({ where: { id: testSubjectId } });
+		expect(decidedSubject?.maturityLevel).toBe('L3_decided');
+		expect(decidedSubject?.deliberationStatus).toBe('arbitrated');
 
 		// 6. Vérification de l'enregistrement de l'événement de domaine
 		const event = await prisma.domainEvent.findFirst({
@@ -329,7 +346,8 @@ describe('Lot A4 Integration: Calculated Maturity & Human Arbitration Gate (Port
 				projectId: testProjectId,
 				entityId: testSubjectId,
 				type: 'ARBITRATED'
-			}
+			},
+			orderBy: { createdAt: 'asc' }
 		});
 		expect(event).toBeDefined();
 		expect(event?.actorId).toBe(securityExpert.userId);

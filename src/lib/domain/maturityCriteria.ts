@@ -1,5 +1,6 @@
 import type { MaturityLevel } from '$lib/types/epistemic';
 import type { Argument } from './debate';
+import { canDecideAlone } from './options';
 
 export type MaturityStep =
 	| 'L0_named'
@@ -69,6 +70,8 @@ export interface MaturityCriteriaInput {
 	verifierPassed?: boolean;
 	decision?: {
 		authorId?: string;
+		/** Rôle de l'auteur : la décision du Lead Architect est effective sans revue. */
+		authorRole?: string;
 		affirmedBy?: string;
 		status?: string;
 	} | null;
@@ -190,7 +193,10 @@ export function computeMaturityCriteria(input: MaturityCriteriaInput): MaturityT
 			dec.affirmedBy !== dec.authorId &&
 			(dec.status === 'active' || dec.status === 'asserted')
 	);
-	const hubAffirmed = isHubCutover ? (hubLevel === 'L3_decided' || hubLevel === 'L4_specified' || affirmedByDistinct) : affirmedByDistinct || Boolean(dec && dec.affirmedBy && dec.affirmedBy !== dec.authorId);
+	const leadDecided = !isHubCutover && Boolean(dec && canDecideAlone(dec.authorRole));
+	const hubAffirmed = isHubCutover
+		? hubLevel === 'L3_decided' || hubLevel === 'L4_specified' || affirmedByDistinct
+		: leadDecided || affirmedByDistinct || Boolean(dec && dec.affirmedBy && dec.affirmedBy !== dec.authorId);
 
 	// Sujets dérivés jusqu'à L1 au moins (A28)
 	const derived = input.derivedSubjects || [];
@@ -295,19 +301,19 @@ export function computeMaturityCriteria(input: MaturityCriteriaInput): MaturityT
 		{
 			id: 'verifier_passed',
 			label: 'Vérificateur d’architecture passé',
-			description: 'L’agent vérificateur doit avoir inspecté et validé la conformité doctrinale.',
+			description: 'L’agent vérificateur confronte les options à la doctrine (#base) et signale les non-conformités.',
 			satisfied: verifierPassed,
-			actionLabel: 'Passer le vérificateur',
+			actionLabel: 'Lancer le vérificateur',
 			actionType: 'run_verifier',
 			unblockRole: 'Agent Vérificateur'
 		},
 		{
 			id: 'hub_decision_affirmed',
-			label: 'Décision affirmée dans le Hub par un decider distinct de son auteur',
+			label: 'Décision tranchée par le Lead Architect, ou affirmée par un décideur distinct',
 			description:
-				'Validation formelle K16 : Seul un décideur distinct de l’auteur peut acter le choix.',
+				'Le Lead Architect décide seul. La décision d’un autre architecte est en revue : un décideur distinct de son auteur l’affirme sur la carte de décision.',
 			satisfied: hubAffirmed,
-			actionLabel: 'Demander l’affirmation',
+			actionLabel: 'Voir la décision à valider',
 			actionType: 'hub_affirmation',
 			unblockRole: 'Décideur distinct (K16)'
 		}

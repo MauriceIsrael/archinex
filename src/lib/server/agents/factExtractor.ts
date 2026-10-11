@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { localLlmClient } from '../llm/localLlmClient';
+import { AGENT_TIMEOUT_MS } from './agentConfig';
 
 export interface ExtractedFact {
 	key: string;
@@ -7,6 +8,8 @@ export interface ExtractedFact {
 	source_excerpt: string;
 	selected: boolean;
 	productionMode: 'llm-derived';
+	/** Fait déduit par heuristique locale, le modèle n'ayant pas répondu : non coché, à vérifier. */
+	fallback?: boolean;
 }
 
 export const DEFAULT_ARCHINEX_VOCABULARY = [
@@ -79,7 +82,7 @@ Motivation & Rationale :
 Extrais les faits techniques machine-lisibles conformes à la liste de vocabulaire autorisée :`;
 
 	try {
-		const timeoutMs = process.env.NODE_ENV === 'test' ? 300 : 12000;
+		const timeoutMs = AGENT_TIMEOUT_MS;
 		const response = await localLlmClient.chat({
 			messages: [
 				{ role: 'system', content: systemPrompt },
@@ -126,8 +129,9 @@ Extrais les faits techniques machine-lisibles conformes à la liste de vocabulai
 			key: 'resilience_mode',
 			value: 'actif/actif',
 			source_excerpt: 'actif/actif',
-			selected: true,
-			productionMode: 'llm-derived'
+			selected: false,
+			productionMode: 'llm-derived',
+			fallback: true
 		});
 	}
 
@@ -139,8 +143,9 @@ Extrais les faits techniques machine-lisibles conformes à la liste de vocabulai
 			key: 'site_count',
 			value: '2',
 			source_excerpt: 'deux sites',
-			selected: true,
-			productionMode: 'llm-derived'
+			selected: false,
+			productionMode: 'llm-derived',
+			fallback: true
 		});
 	}
 
@@ -152,8 +157,9 @@ Extrais les faits techniques machine-lisibles conformes à la liste de vocabulai
 			key: 'sovereignty_level',
 			value: 'SecNumCloud 3.2',
 			source_excerpt: 'SecNumCloud',
-			selected: true,
-			productionMode: 'llm-derived'
+			selected: false,
+			productionMode: 'llm-derived',
+			fallback: true
 		});
 	}
 
@@ -165,8 +171,9 @@ Extrais les faits techniques machine-lisibles conformes à la liste de vocabulai
 			key: 'floor_control',
 			value: 'UDP direct prioritaire',
 			source_excerpt: 'Floor Control UDP direct',
-			selected: true,
-			productionMode: 'llm-derived'
+			selected: false,
+			productionMode: 'llm-derived',
+			fallback: true
 		});
 	}
 
@@ -175,8 +182,9 @@ Extrais les faits techniques machine-lisibles conformes à la liste de vocabulai
 			key: 'storage_engine',
 			value: 'Ceph RBD',
 			source_excerpt: 'Ceph',
-			selected: true,
-			productionMode: 'llm-derived'
+			selected: false,
+			productionMode: 'llm-derived',
+			fallback: true
 		});
 	}
 

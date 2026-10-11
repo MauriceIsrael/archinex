@@ -3,6 +3,7 @@ import { localLlmClient } from '../llm/localLlmClient';
 import type { Option, Criterion } from '$lib/domain/options';
 import type { Argument } from '$lib/domain/debate';
 import type { CreateArgumentData } from '../projects/debateDb';
+import { AGENT_TIMEOUT_MS, FALLBACK_PREFIX } from './agentConfig';
 
 const SynthesizerOutputSchema = z.object({
 	syntheses: z.array(
@@ -55,7 +56,7 @@ ${input.existingArguments.map((a) => `[${a.stance.toUpperCase()}] ${a.claim} : $
 Génère la synthèse et les questions d'arbitrage :`;
 
 	try {
-		const timeoutMs = process.env.NODE_ENV === 'test' ? 300 : 15000;
+		const timeoutMs = AGENT_TIMEOUT_MS;
 		const response = await localLlmClient.chat({
 			messages: [
 				{ role: 'system', content: systemPrompt },
@@ -100,7 +101,7 @@ Génère la synthèse et les questions d'arbitrage :`;
 				id: `arg-synth-${input.round}-${Date.now()}-0`,
 				optionId: null,
 				stance: 'synthesis' as const,
-				claim: `Compromis d'architecture central : ${optTitles || 'Options en présence'}`,
+				claim: `${FALLBACK_PREFIX}Compromis d'architecture central : ${optTitles || 'Options en présence'}`,
 				grounds: `L'arbitrage oppose la garantie de performance matérielle déterministe à la flexibilité et à l'économie d'échelle du pur logiciel open-source.`,
 				kbRefs: input.allowedKbRefs.slice(0, 1),
 				confidence: 'assumed' as const,

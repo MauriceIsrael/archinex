@@ -120,6 +120,16 @@
 					<span>Nouvel Espace Projet</span>
 				</a>
 
+				<a
+					href="/workspaces/new?import=rfp"
+					data-testid="link-resume-factorization"
+					class="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-emerald-500/30 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 font-bold text-xs shadow-xs transition-colors"
+					title="Analyser un RFP, ou reprendre une analyse enregistrée, pour créer un espace à partir de ses sujets"
+				>
+					<FolderPlus class="h-4 w-4" />
+					<span>Depuis un RFP (analyses enregistrées)</span>
+				</a>
+
 				<button
 					type="button"
 					onclick={() => (isCreateModalOpen = true)}

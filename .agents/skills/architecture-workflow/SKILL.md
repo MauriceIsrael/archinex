@@ -1,8 +1,10 @@
 ---
 name: architecture-workflow
-description: This skill should be used when the user asks how to start an architecture
-  project, which ArcKit commands to run and in what order, what workflow to follow,
-  getting started, new project setup, guide me through, or what comes next.
+description: Recommends which $arckit-* commands to run, and in what order, for a
+  new or in-flight architecture project, from a short triage of sector, project type,
+  current stage and timeline. Backs $arckit-start. Not needed when the user has already
+  named the command they want, or is asking about the content of an artefact rather
+  than the sequence.
 ---
 
 # Architecture Workflow
@@ -10,7 +12,7 @@ description: This skill should be used when the user asks how to start an archit
 Guides users through project onboarding using adaptive-depth questions and recommends a tailored command sequence.
 
 <HARD-GATE>
-Do NOT run any `/arckit:*` commands during this process. Your only output is a recommended command plan. The user decides when and what to execute. This applies regardless of how simple the project seems.
+Do NOT run any `$arckit-*` commands during this process. Your only output is a recommended command plan. The user decides when and what to execute. This applies regardless of how simple the project seems.
 </HARD-GATE>
 
 ## Anti-Patterns
@@ -25,7 +27,7 @@ A 30-command sequence helps nobody. The skill's job is to recommend the *right* 
 
 ## Process
 
-Follow these steps in order. Ask questions one at a time using AskUserQuestion. Prefer multiple-choice options.
+Follow these steps in order. Ask questions one at a time. Prefer multiple-choice options.
 
 ### Step 1: Detect Project State
 
@@ -56,7 +58,7 @@ Project State: No project structure found. Starting fresh.
 
 ### Step 2: Triage Questions
 
-Ask these questions one at a time. Each uses AskUserQuestion with multiple-choice options.
+Ask these questions one at a time. Each offers multiple-choice options.
 
 **Question 1 — Sector:**
 

@@ -43,7 +43,7 @@ Scan for external (non-ArcKit) documents the user may have provided:
 **Existing AWS Assessments & Cost Reports**:
 
 - **Look in**: `projects/{project}/external/`
-- **File types**: PDF (.pdf), Word (.docx), Markdown (.md), CSV (.csv)
+- **File types**: PDF (.pdf), Word (.docx), Markdown (.md), CSV (.csv), subtitles/transcripts (.srt, .vtt)
 - **What to extract**: Current AWS usage, cost reports, Well-Architected review findings, migration assessments
 - **Examples**: `aws-cost-report.csv`, `well-architected-review.pdf`, `migration-assessment.docx`
 
@@ -89,7 +89,8 @@ Detect if UK Government project (look for "UK Government", "Ministry of", "Depar
 
 ### Step 3: Read Template
 
-- Read `.arckit/templates/aws-research-template.md` for output structure
+- First, check `.arckit/templates-custom/aws-research-template.md` (user override)
+- If not found, read `.arckit/templates/aws-research-template.md` (default)
 
 ### Step 4: Extract Requirements for AWS Mapping
 
@@ -225,7 +226,7 @@ Auto-populate fields:
 - `[VERSION]` = determined version from Step 9
 - `[DATE]` = current date (YYYY-MM-DD)
 - `[STATUS]` = "DRAFT"
-- `[CLASSIFICATION]` = "OFFICIAL" (UK Gov) or "PUBLIC"
+- **Classification** → comes from the resolved Document Control header, not from a placeholder. `_partials/RENDERING.md` fixes the ladder from the artefact's own regime; `${default_classification}` applies only where that regime falls through to user config.
 
 Include the generation metadata footer:
 
@@ -273,8 +274,8 @@ Return ONLY a concise summary including:
 
 ## Toolchain
 
-- **Templates** — `.arckit/templates/aws-research-template.md`
-- **Helpers** — `.arckit/scripts/bash/create-project.sh` · `.arckit/scripts/bash/generate-document-id.sh`
+- **Templates** — `.arckit/templates/aws-research-template.md` (override at `.arckit/templates-custom/aws-research-template.md`)
+- **Helpers** — `.arckit/scripts/bash/create-project.sh` · `.arckit/scripts/generate-document-id.mjs`
 - **MCP server** — `aws-knowledge` (search, read, recommend, regional availability, list regions, retrieve skill)
 - **External tools** — `WebSearch` · `WebFetch` (STANDALONE-mode fallback when MCP unavailable)
 - **Related commands** — `$arckit-requirements` (input) · `$arckit-research` (cross-cloud comparison) · `$arckit-azure-research` · `$arckit-gcp-research`

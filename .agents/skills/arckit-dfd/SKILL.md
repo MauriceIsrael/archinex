@@ -62,13 +62,13 @@ Read existing project artifacts to understand what to diagram:
 
 ## Step 1c: Interactive Configuration
 
-If the user has **not** specified a DFD level in their arguments, use the **AskUserQuestion** tool to ask:
+If the user has **not** specified a DFD level in their arguments, ask the user:
 
-**Gathering rules** (apply to all questions in this section):
+**Gathering rules** — the one-message interview in `.arckit/references/interview-pattern.md`:
 
-- Ask the most important question first; fill in secondary details from context or reasonable defaults.
-- **Maximum 2 rounds of questions.** After that, pick the best option from available context.
-- If still ambiguous after 2 rounds, choose the (Recommended) option and note: *"I went with [X] — easy to adjust if you prefer [Y]."*
+- Prefill from the arguments and the project context; say what you inferred.
+- Ask every remaining question in **one** call. There is no second round.
+- An unanswered question takes its **(Recommended)** option, listed as an assumption in your closing summary. With no question tool available, take every default and never block.
 
 **Question 1** — header: `DFD Level`, multiSelect: false
 > "What level of Data Flow Diagram should be generated?"
@@ -245,9 +245,10 @@ Before writing the file, read `.arckit/references/quality-checklist.md` and veri
 
 **Read the template** (with user override support):
 
-- **First**, check if `.arckit/templates/dfd-template.md` exists in the project root
+- **First**, check if `.arckit/templates-custom/dfd-template.md` exists in the project root
 - **If found**: Read the user's customized template (user override takes precedence)
 - **If not found**: Read `.arckit/templates/dfd-template.md` (default)
+- **Then read** `.arckit/templates/_partials/RENDERING.md` and resolve the `<!-- DOC-CONTROL-HEADER -->` marker in the template before writing. Do not hand-write the Document Control table: the partial `RENDERING.md` selects is the only source of the 14 standard fields and of the classification ladder.
 
 **Construct Document ID**:
 
@@ -305,11 +306,11 @@ Before completing the document, populate ALL document control fields in the head
 
 - `[PROJECT_NAME]` → Full project name from project metadata or user input
 - `[OWNER_NAME_AND_ROLE]` → Document owner (prompt user if not in metadata)
-- `[CLASSIFICATION]` → Default to "OFFICIAL" for UK Gov, "PUBLIC" otherwise
+- **Classification** → comes from the resolved Document Control header, not from a placeholder. `_partials/RENDERING.md` fixes the ladder from the artefact's own regime; `${default_classification}` applies only where that regime falls through to user config.
 
 *Calculated fields*:
 
-- `[YYYY-MM-DD]` for Review Date → Current date + 30 days
+- `[YYYY-MM-DD]` for Next Review Date → Current date + 30 days
 
 *Pending fields* (leave as [PENDING]):
 

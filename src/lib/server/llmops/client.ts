@@ -581,6 +581,9 @@ export class LLMOpsClient {
         const data = (body.data || body) as DoctrineContext;
         return { ...data, offline: false };
       }
+      // Hub joignable mais requête refusée (paramètre manquant, jeton…) : à distinguer d'une indisponibilité.
+      const detail = await res.text().catch(() => '');
+      console.warn(`[LLMOps] Contexte de doctrine refusé (HTTP ${res.status}) : ${detail.slice(0, 200)}`);
     } catch {
       // Live unreachable -> fallback offline
     }

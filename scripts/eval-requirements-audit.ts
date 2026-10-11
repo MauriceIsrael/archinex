@@ -25,20 +25,37 @@ function arg(name: string): string | undefined {
 
 const rfpPath = process.argv[2];
 if (!rfpPath || rfpPath.startsWith('--')) {
-	console.error('Usage : npm run eval:requirements -- <rfp.md|txt> [--reference ref.json] [--model id] [--out fichier.json] [--report rapport.md]');
+	console.error('Usage : npm run eval:requirements -- <rfp.md|txt|pdf> [--reference ref.json] [--model id] [--out fichier.json] [--report rapport.md] [--cache]');
 	process.exit(64);
 }
 
 const pct = (x: number) => `${(x * 100).toFixed(0)} %`;
 
+/** Texte du RFP : PDF extrait comme dans l'application (/api/rfp/parse-file), sinon lu tel quel. */
+async function readRfpText(path: string): Promise<string> {
+	if (!path.toLowerCase().endsWith('.pdf')) return readFileSync(path, 'utf-8');
+	const { PDFParse } = await import('pdf-parse');
+	const parser = new PDFParse({ data: readFileSync(path) });
+	try {
+		return ((await parser.getText()).text || '').trim();
+	} finally {
+		await parser.destroy();
+	}
+}
+
 async function main() {
-	const clauses = shredRfpTextToClauses(readFileSync(resolve(rfpPath), 'utf-8'));
+	const clauses = shredRfpTextToClauses(await readRfpText(resolve(rfpPath)));
 	const model = arg('model') || localLlmClient.getDefaultModel();
 	console.log(`RFP : ${rfpPath} — ${clauses.length} clauses`);
 	console.log(`Modèle : ${model} (fournisseur : ${localLlmClient.getProvider()})`);
 
+	// --cache : résultats d'étapes persistés en base, une relance reprend là où le passage s'est arrêté.
+	const cache = process.argv.includes('--cache')
+		? (await import('../src/lib/server/ingest/factorizationRunsDb')).prismaStageCache
+		: undefined;
+
 	const started = Date.now();
-	const result = await runRequirementsAudit(clauses, { model });
+	const result = await runRequirementsAudit(clauses, { model, cache });
 	const seconds = (Date.now() - started) / 1000;
 
 	console.log(`\nStatut : ${result.status} — ${seconds.toFixed(1)} s — ${result.subjects.length} sujets`);

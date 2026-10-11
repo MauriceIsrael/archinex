@@ -15,11 +15,12 @@
  *  - Aucune donnée propre à un RFP n'est codée ici : tout vient des clauses reçues et du modèle.
  */
 
+import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import type { ExtractedClause } from '$lib/domain/corpus';
-import type { FactorizedArchitecturalSubject, KnowledgeAlignment } from '$lib/domain/factorization';
+import type { FactorizedArchitecturalSubject, KnowledgeAlignment, SubjectProposal, SubjectTriage } from '$lib/domain/factorization';
 import type { ArchitectRole } from '$lib/types/epistemic';
-import { localLlmClient } from '$lib/server/llm/localLlmClient';
+import { anthropicCapabilities, localLlmClient } from '$lib/server/llm/localLlmClient';
 import { cleanJsonString, inferTargetSubjectsCount, type KbItemSummary } from '$lib/server/llm/rfpFactorizer';
 import type { ChatOptions } from '$lib/server/llm/types';
 import type { RequirementDisposition } from '$lib/domain/requirementAudit';
@@ -73,10 +74,38 @@ export interface RequirementsAuditOptions {
 	kbStandards?: KbItemSummary[];
 	/** Nombre de clauses classées par appel LLM. */
 	classifyBatchSize?: number;
-	/** Nombre maximal de clauses à délibérer regroupées par appel LLM. */
+	/** Nombre maximal de clauses à délibérer cartographiées par appel LLM (modèles à petite fenêtre). */
 	groupChunkSize?: number;
-	/** Nombre d'appels de classement menés en parallèle. */
+	/** Nombre d'appels LLM menés en parallèle. */
 	concurrency?: number;
+	/**
+	 * Modèle à grande fenêtre (1M de jetons) : la cartographie voit tout le RFP d'un seul tenant.
+	 * Par défaut, déduit du modèle.
+	 */
+	largeContext?: boolean;
+	/** Cache des résultats d'étapes : une relance ne refait que ce qui manque. */
+	cache?: StageCache;
+	/** Suivi en direct de l'avancement, avec des états partiels exploitables aux étapes clés. */
+	onProgress?: (progress: AuditProgress) => void;
+	/**
+	 * Doctrine ciblée par sujet (LLMOps interrogé avec le dilemme du sujet), ajoutée aux règles globales lors de
+	 * l'instruction. En cas d'échec, l'instruction se fait avec les seules règles globales.
+	 */
+	doctrineFor?: (topic: string) => Promise<KbItemSummary[]>;
+}
+
+export interface AuditProgress {
+	stage: 'classify' | 'partition' | 'instruct' | 'triage';
+	done: number;
+	total: number;
+	/** État exploitable à ce stade : dispositions après le tri, puis périmètre des sujets après la cartographie. */
+	snapshot?: StagedAuditResult;
+}
+
+/** Port de cache des étapes LLM (persistant en production, en mémoire dans les tests). */
+export interface StageCache {
+	get(key: string): Promise<unknown | undefined>;
+	set(key: string, stage: string, value: unknown): Promise<void>;
 }
 
 export interface StagedAuditResult {
@@ -125,8 +154,9 @@ export function canFallBackToDirectFactorization(clauses: ReadonlyArray<{ title?
 export const CATEGORIES: ArcKitRequirementCategory[] = ['FR', 'NFR', 'INT', 'FAC', 'BR', 'DR'];
 
 const DEFAULT_CLASSIFY_BATCH = 40;
-const DEFAULT_GROUP_CHUNK = 120;
-const DEFAULT_CONCURRENCY = 3;
+// Modèles à petite fenêtre (LLM local) : la cartographie se fait par parties de 40 clauses consécutives.
+const DEFAULT_GROUP_CHUNK = 40;
+const DEFAULT_CONCURRENCY = 4;
 const MIN_REASON_CHARS = 12;
 const CLAUSE_TEXT_BUDGET = 700;
 const ALLOWED_ROLES: ArchitectRole[] = [
@@ -149,7 +179,7 @@ class StageError extends Error {}
  */
 async function callJson<T>(
 	llm: LlmPort,
-	base: Pick<ChatOptions, 'model' | 'messages'>,
+	base: Pick<ChatOptions, 'model' | 'messages' | 'effort' | 'maxTokens' | 'timeoutMs'>,
 	schema: z.ZodType<T>
 ): Promise<T> {
 	let lastError = 'réponse vide';
@@ -159,9 +189,10 @@ async function callJson<T>(
 			model: base.model,
 			messages,
 			format: 'json',
-			maxTokens: 16000,
+			maxTokens: base.maxTokens,
 			temperature: 0,
-			timeoutMs: 300000
+			effort: base.effort,
+			timeoutMs: base.timeoutMs
 		});
 		try {
 			const parsed = JSON.parse(cleanJsonString(raw));
@@ -183,6 +214,59 @@ async function callJson<T>(
 		];
 	}
 	throw new StageError(lastError);
+}
+
+/** Version des prompts : la changer invalide les résultats intermédiaires mis en cache. */
+const PROMPT_VERSION = 'v2';
+
+interface StageContext {
+	llm: LlmPort;
+	model: string;
+	cache?: StageCache;
+}
+
+interface StageCall {
+	stage: 'classify' | 'partition' | 'instruct' | 'triage';
+	system: string;
+	user: string;
+	effort: NonNullable<ChatOptions['effort']>;
+	maxTokens: number;
+	timeoutMs: number;
+}
+
+/**
+ * `callJson` précédé d'une lecture du cache des étapes : un lot ou un sujet déjà traité avec exactement
+ * les mêmes entrées (prompt, modèle, contenu) n'est pas recalculé lors d'une relance.
+ */
+async function callStage<T>(ctx: StageContext, call: StageCall, schema: z.ZodType<T>): Promise<T> {
+	const key = createHash('sha256')
+		.update(JSON.stringify([call.stage, PROMPT_VERSION, ctx.model, call.system, call.user]))
+		.digest('hex');
+	if (ctx.cache) {
+		const hit = await ctx.cache.get(key).catch(() => undefined);
+		const checked = hit === undefined ? null : schema.safeParse(hit);
+		if (checked?.success) return checked.data;
+	}
+	const data = await callJson(
+		ctx.llm,
+		{
+			model: ctx.model,
+			messages: [
+				{ role: 'system', content: call.system },
+				{ role: 'user', content: call.user }
+			],
+			effort: call.effort,
+			maxTokens: call.maxTokens,
+			timeoutMs: call.timeoutMs
+		},
+		schema
+	);
+	if (ctx.cache) {
+		await ctx.cache.set(key, call.stage, data).catch((err) => {
+			console.warn(`   ⚠️ [Audit Exigences ArcKit] Point de reprise non enregistré (${call.stage}) :`, err instanceof Error ? err.message : err);
+		});
+	}
+	return data;
 }
 
 // ─── Étape 1 : classement ─────────────────────────────────────────────────────
@@ -326,72 +410,311 @@ async function mapWithConcurrency<T, R>(items: T[], limit: number, fn: (item: T,
 	return results;
 }
 
-// ─── Étape 3 : regroupement en sujets ─────────────────────────────────────────
+// ─── Étape 3 : cartographie des décisions puis instruction des sujets ─────────
 
-const SubjectsResponseSchema = z.object({
+const ProposalSchema = z.object({
+	options: z.array(z.object({ title: z.string(), summary: z.string().optional().nullable() })).optional().nullable(),
+	singleOptionRationale: z.string().optional().nullable(),
+	criteria: z
+		.array(z.object({ name: z.string(), kind: z.string().optional().nullable(), weight: z.number().optional().nullable(), description: z.string().optional().nullable() }))
+		.optional()
+		.nullable(),
+	evaluations: z
+		.array(z.object({ option: z.string(), criterion: z.string(), score: z.number(), justification: z.string().optional().nullable() }))
+		.optional()
+		.nullable()
+});
+
+const SubjectItemSchema = z.object({
+	name: z.string(),
+	sectionRef: z.string().optional().nullable(),
+	coveredClauseRefs: z.array(z.string()),
+	waitingForRole: z.string().optional().nullable(),
+	effort: z.string().optional().nullable(),
+	knowledgeAlignment: z.string().optional().nullable(),
+	matchedKbItemIds: z.array(z.string()).optional().nullable(),
+	alignmentRationale: z.string().optional().nullable(),
+	proposal: ProposalSchema.optional().nullable(),
+	seed: z
+		.object({
+			initialQuestion: z.string().optional().nullable(),
+			initialHypothesis: z.string().optional().nullable(),
+			initialConflict: z.string().optional().nullable(),
+			initialRetenu: z.array(z.string()).optional().nullable(),
+			expertQuestions: z.array(z.string()).optional().nullable()
+		})
+		.optional()
+		.nullable()
+});
+export type RawSubject = z.infer<typeof SubjectItemSchema>;
+
+/** 3a. Cartographie : uniquement le partitionnement, sortie compacte. */
+const PartitionResponseSchema = z.object({
 	subjects: z.array(
 		z.object({
 			name: z.string(),
+			dilemma: z.string().optional().nullable(),
 			sectionRef: z.string().optional().nullable(),
-			coveredClauseRefs: z.array(z.string()),
-			waitingForRole: z.string().optional().nullable(),
-			effort: z.string().optional().nullable(),
-			knowledgeAlignment: z.string().optional().nullable(),
-			matchedKbItemIds: z.array(z.string()).optional().nullable(),
-			alignmentRationale: z.string().optional().nullable(),
-			seed: z
-				.object({
-					initialQuestion: z.string().optional().nullable(),
-					initialHypothesis: z.string().optional().nullable(),
-					initialConflict: z.string().optional().nullable(),
-					initialRetenu: z.array(z.string()).optional().nullable(),
-					expertQuestions: z.array(z.string()).optional().nullable()
-				})
-				.optional()
-				.nullable()
+			coveredClauseRefs: z.array(z.string())
 		})
 	)
 });
-export type RawSubject = z.infer<typeof SubjectsResponseSchema>['subjects'][number];
 
-function buildGroupSystem(targetCountDesc: string): string {
-	return `Tu es architecte système senior. On te donne des exigences d'un appel d'offres déjà jugées « à délibérer », et éventuellement des règles de doctrine de l'entreprise.
+/** 3b. Instruction d'un sujet : tout sauf le périmètre, fixé par la cartographie. */
 
-Regroupe ces exigences en ${targetCountDesc} sujets d'architecture cohérents, chacun formulé comme un dilemme à trancher (pas comme un thème). Chaque exigence doit figurer dans exactement UN sujet.
+const InstructResponseSchema = SubjectItemSchema.omit({ coveredClauseRefs: true, sectionRef: true }).extend({
+	name: z.string().optional().nullable()
+});
 
-Pour chaque sujet fournis :
-- "name" : titre court du dilemme ;
-- "sectionRef" : section du RFP concernée ;
-- "coveredClauseRefs" : références EXACTES des exigences rattachées ;
-- "waitingForRole" : lead_architect | infra_expert_architect | security_architect | domain_architect | data_architect | domain_expert ;
-- "effort" : S | M | L | XL ;
-- "knowledgeAlignment" : standard_established si une règle de doctrine fournie couvre le sujet, conflict_detected si une exigence la contredit, sinon novel_requirement ; "matchedKbItemIds" : ids EXACTS parmi les règles fournies, sinon [] ; "alignmentRationale" : une phrase ;
-- "seed.initialQuestion" : la question d'architecture à trancher ;
-- "seed.initialHypothesis" : une hypothèse de départ, présentée comme telle ;
-- "seed.initialConflict" : la tension principale ;
-- "seed.initialRetenu" : uniquement des exigences du RFP reprises telles quelles ("REF : formulation courte"), jamais une décision d'architecture ;
-- "seed.expertQuestions" : 1 à 3 questions précises à poser au sachant métier.
+const CRITERION_KINDS = ['functional', 'nfr', 'cost', 'risk', 'compliance'] as const;
+const sameLabel = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
 
-N'invente aucun chiffre absent des exigences. Réponds UNIQUEMENT par un objet JSON : {"subjects":[…]}.`;
+/**
+ * Contrôles déterministes de la proposition d'options et de critères. Fonction pure.
+ * Les évaluations ne sont gardées que si elles visent une option et un critère proposés, avec une justification ;
+ * la justification « pas d'alternative » n'a de sens qu'avec une option unique. Sans option, pas de proposition.
+ */
+export function normalizeProposal(raw: z.infer<typeof ProposalSchema> | null | undefined): SubjectProposal | undefined {
+	const options: SubjectProposal['options'] = [];
+	for (const o of raw?.options ?? []) {
+		const title = (o.title || '').trim();
+		if (title && !options.some((x) => sameLabel(x.title, title)) && options.length < 4) {
+			options.push({ title, summary: (o.summary || '').trim() });
+		}
+	}
+	if (options.length === 0) return undefined;
+
+	const criteria: SubjectProposal['criteria'] = [];
+	for (const c of raw?.criteria ?? []) {
+		const name = (c.name || '').trim();
+		if (!name || criteria.some((x) => sameLabel(x.name, name)) || criteria.length >= 5) continue;
+		const kind = (CRITERION_KINDS as readonly string[]).includes((c.kind || '').trim()) ? (c.kind!.trim() as SubjectProposal['criteria'][number]['kind']) : 'nfr';
+		const weight = Math.max(1, Math.min(5, Math.round(c.weight ?? 3)));
+		criteria.push({ name, kind, weight, description: (c.description || '').trim() });
+	}
+
+	const evaluations: SubjectProposal['evaluations'] = [];
+	for (const e of raw?.evaluations ?? []) {
+		const option = options.find((o) => sameLabel(o.title, e.option || ''));
+		const criterion = criteria.find((c) => sameLabel(c.name, e.criterion || ''));
+		const justification = (e.justification || '').trim();
+		if (!option || !criterion || !justification || !Number.isFinite(e.score)) continue;
+		if (evaluations.some((x) => x.option === option.title && x.criterion === criterion.name)) continue;
+		evaluations.push({ option: option.title, criterion: criterion.name, score: Math.max(-2, Math.min(2, Math.round(e.score))), justification });
+	}
+
+	const singleOptionRationale = options.length === 1 ? (raw?.singleOptionRationale || '').trim() || undefined : undefined;
+	return { options, criteria, evaluations, ...(singleOptionRationale ? { singleOptionRationale } : {}) };
 }
 
-function buildGroupUserMessage(part: AuditedRequirement[], kb: KbItemSummary[]): string {
-	const lines = [`Exigences à regrouper (${part.length}) :`];
-	for (const r of part) {
-		lines.push(
-			`[${r.clauseRef}] (criticité : ${r.criticality}) ${clip(r.title, 120)} — ${clip(r.text, CLAUSE_TEXT_BUDGET)}` +
-				(r.deliberationReason ? ` | tension : ${clip(r.deliberationReason, 160)}` : '')
-		);
+/**
+ * Au-delà de cette taille, la cartographie est découpée en parties (dans l'ordre du document).
+ * ~330 000 jetons : tient largement dans la fenêtre d'un modèle à 1M de jetons, tout en laissant le
+ * modèle voir d'un seul tenant l'ensemble des exigences d'un très gros RFP.
+ */
+const PARTITION_MAX_CHARS = 1_200_000;
+const PARTITION_TEXT_BUDGET = 400;
+const INSTRUCT_TEXT_BUDGET = 2000;
+
+function targetSubjectsRange(count: number): string {
+	if (count <= 200) return inferTargetSubjectsCount(count, true);
+	return `${Math.round(count / 30)} à ${Math.round(count / 12)}`;
+}
+
+function buildPartitionSystem(targetCountDesc: string, isPartial: boolean): string {
+	return `Tu es architecte d'entreprise senior. Tu prépares la délibération d'architecture d'une réponse à appel d'offres. On te donne ${
+		isPartial ? 'une partie' : "l'ensemble"
+	} des exigences jugées « à délibérer », chacune avec sa criticité, sa catégorie et la tension relevée lors du tri.
+
+Ta tâche : cartographier les DÉCISIONS d'architecture que ces exigences obligent à prendre.
+
+Méthode :
+1. Lis toutes les exigences avant de regrouper : les contraintes qui pèsent sur une même décision sont souvent dispersées dans le document (une exigence de disponibilité, une contrainte de souveraineté et un délai de bascule situés dans des sections différentes peuvent relever du même choix).
+2. Un sujet = UNE décision d'architecture avec des alternatives réelles, formulée comme un dilemme (« X ou Y, sous la contrainte Z »), et non un thème ou un chapitre du document.
+3. Rattache chaque exigence au sujet dont elle contraint le plus directement la décision ; une exigence transverse va au sujet où elle est la plus discriminante.
+4. Pas de sujet fourre-tout (« Divers », « Exigences générales »).
+5. Granularité : un sujet doit pouvoir être tranché par une équipe d'architectes en un atelier. Scinde un sujet qui mêle des décisions indépendantes ; fusionne deux sujets qui ne peuvent pas être tranchés séparément.
+Vise ${targetCountDesc} sujets.
+
+Pour chaque sujet : "name" (titre court du dilemme, 12 mots au plus), "dilemma" (le choix à trancher et ce qui le rend difficile, deux phrases au plus), "sectionRef" (sections du RFP principalement concernées), "coveredClauseRefs" (références EXACTES).
+Chaque exigence reçue figure dans exactement UN sujet. Réponds UNIQUEMENT par un objet JSON : {"subjects":[{"name":"…","dilemma":"…","sectionRef":"…","coveredClauseRefs":["…"]}]}`;
+}
+
+function partitionLine(r: AuditedRequirement): string {
+	return (
+		`[${r.clauseRef}] (criticité : ${r.criticality}${r.category ? `, catégorie : ${r.category}` : ''}) ${clip(r.title, 120)} — ${clip(r.text, PARTITION_TEXT_BUDGET)}` +
+		(r.deliberationReason ? ` | tension : ${clip(r.deliberationReason, 160)}` : '')
+	);
+}
+
+function buildPartitionUserMessage(part: AuditedRequirement[]): string {
+	return [`Exigences à cartographier (${part.length}) :`, ...part.map(partitionLine)].join('\n');
+}
+
+const INSTRUCT_SYSTEM = `Tu es architecte d'entreprise senior. Tu instruis UN sujet d'architecture d'une réponse à appel d'offres, avant sa délibération par l'équipe. On te donne le dilemme pressenti, le texte des exigences rattachées, la liste des autres sujets du RFP (pour situer les interfaces) et, le cas échéant, les règles de doctrine de l'entreprise.
+
+Instruis le sujet comme le ferait un architecte expérimenté :
+- identifie la décision réellement à prendre et les options crédibles, avec ce qui les départage. S'il n'existe pas d'alternative réelle (contrainte imposée, choix qui s'impose), propose une seule option et dis pourquoi plutôt que d'inventer une alternative factice ;
+- relève les contraintes chiffrées et les exigences bloquantes qui éliminent ou imposent une option ;
+- repère les tensions entre exigences du sujet, et les dépendances avec les autres sujets ;
+- confronte le sujet à la doctrine fournie : couvert, contredit ou nouveau ;
+- formule ce qu'il faut demander au sachant métier ou au donneur d'ordre pour trancher.
+Ne tranche pas à la place de l'équipe : l'hypothèse de départ est présentée comme telle, avec sa justification.
+N'invente aucun chiffre, produit ou fait absent des exigences.
+
+Réponds UNIQUEMENT par un objet JSON :
+{"name": titre du dilemme (affine celui reçu si nécessaire, 12 mots au plus),
+ "waitingForRole": "lead_architect" | "infra_expert_architect" | "security_architect" | "domain_architect" | "data_architect" | "domain_expert",
+ "effort": "S" | "M" | "L" | "XL" (charge d'instruction du sujet),
+ "knowledgeAlignment": "standard_established" si une règle fournie couvre le sujet, "conflict_detected" si une exigence la contredit, sinon "novel_requirement",
+ "matchedKbItemIds": ids EXACTS parmi les règles fournies, sinon [],
+ "alignmentRationale": une phrase,
+ "seed": {
+   "initialQuestion": la question d'architecture à trancher, précise et décidable,
+   "initialHypothesis": l'hypothèse de départ et sa justification, en nommant les options écartées et pourquoi (3 à 5 phrases),
+   "initialConflict": la tension principale, en nommant les exigences qui s'opposent,
+   "initialRetenu": 3 à 6 exigences structurantes reprises telles quelles ("REF : formulation courte"), jamais une décision,
+   "expertQuestions": 2 à 4 questions précises dont la réponse change la décision
+ },
+ "proposal": {
+   "options": 1 à 4 options crédibles [{"title": nom court, "summary": en quoi elle consiste (1 à 2 phrases)}],
+   "singleOptionRationale": si une seule option, pourquoi il n'y a pas d'alternative réelle ; sinon null,
+   "criteria": 2 à 5 critères qui départagent réellement les options [{"name": nom court, "kind": "functional" | "nfr" | "cost" | "risk" | "compliance", "weight": 1 à 5, "description": une phrase}],
+   "evaluations": une évaluation par option et par critère [{"option": titre EXACT de l'option, "criterion": nom EXACT du critère, "score": entier de -2 à 2, "justification": une phrase appuyée sur les exigences}]
+ }}
+La proposition (options, critères, évaluations) est un point de départ que l'équipe validera ou corrigera.`;
+
+function buildInstructUserMessage(
+	draft: RawSubject,
+	clauses: AuditedRequirement[],
+	otherSubjects: string[],
+	kb: KbItemSummary[]
+): string {
+	const lines = [`Sujet : ${draft.name}`];
+	if (draft.seed?.initialQuestion) lines.push(`Dilemme pressenti : ${draft.seed.initialQuestion}`);
+	lines.push('', `Exigences rattachées (${clauses.length}) :`);
+	for (const r of clauses) {
+		lines.push(`[${r.clauseRef}] (criticité : ${r.criticality}${r.category ? `, catégorie : ${r.category}` : ''}) ${clip(r.title, 160)}`);
+		lines.push(`  ${clip(r.text, INSTRUCT_TEXT_BUDGET)}`);
+		if (r.deliberationReason) lines.push(`  Tension relevée au tri : ${clip(r.deliberationReason, 240)}`);
+	}
+	if (otherSubjects.length > 0) {
+		lines.push('', 'Autres sujets du RFP (pour situer les interfaces ; ne pas les instruire) :', ...otherSubjects.map((n) => `- ${n}`));
 	}
 	if (kb.length > 0) {
 		lines.push('', `Règles de doctrine disponibles (${Math.min(kb.length, 40)}) :`);
 		for (const k of kb.slice(0, 40)) {
-			lines.push(`[${k.id}] ${clip(k.title, 100)} — ${clip(k.ruleOrStatement, 220)}`);
+			lines.push(`[${k.id}] ${clip(k.title, 100)} — ${clip(k.ruleOrStatement, 300)}`);
 		}
 	} else {
-		lines.push('', 'Aucune règle de doctrine fournie : tous les sujets sont "novel_requirement" avec matchedKbItemIds = [].');
+		lines.push('', 'Aucune règle de doctrine fournie : le sujet est "novel_requirement" avec matchedKbItemIds = [].');
 	}
 	return lines.join('\n');
+}
+
+// ─── Étape 5 : synthèse transverse (priorités, nature, dépendances) ───────────
+
+const TriageResponseSchema = z.object({
+	subjects: z.array(
+		z.object({
+			id: z.string(),
+			importance: z.string().optional().nullable(),
+			difficulty: z.string().optional().nullable(),
+			nature: z.string().optional().nullable(),
+			dependsOn: z.array(z.string()).optional().nullable(),
+			overlapsWith: z.array(z.string()).optional().nullable(),
+			rationale: z.string().optional().nullable()
+		})
+	)
+});
+export type TriageItem = z.infer<typeof TriageResponseSchema>['subjects'][number];
+
+const TRIAGE_SYSTEM = `Tu es architecte d'entreprise senior. Tu prépares le plan de délibération d'une réponse à appel d'offres : on te donne la liste des sujets d'architecture déjà instruits (dilemme, tension, volume et criticité des exigences).
+
+Ton rôle n'est pas de trancher les sujets, mais d'aider l'équipe à savoir par où commencer, en t'inspirant de l'arbre d'utilité ATAM. Pour CHAQUE sujet reçu :
+- "importance" : H, M ou L — poids pour le donneur d'ordre et l'issue de l'offre (exigences bloquantes, disponibilité ou sécurité engagée, pénalités, risque de non-conformité éliminatoire) ;
+- "difficulty" : H, M ou L — difficulté d'architecture (incertitude technique, compromis entre attributs de qualité, nombre de contraintes croisées, dépendance à des tiers ou à d'autres lots) ;
+- "nature" : "architecture" (choix de conception technique), "contractuel" (engagement de service, pénalités, licences, pérennité, réversibilité) ou "organisationnel" (équipe, processus d'exploitation, gouvernance, logistique, formation) ;
+- "dependsOn" : ids des sujets dont la décision conditionne réellement celle-ci et doit être prise avant ; [] sinon. Pas de dépendance thématique vague ;
+- "overlapsWith" : ids des sujets qui portent la MÊME décision, au point qu'on ne peut pas les trancher séparément (doublons à fusionner). Un thème commun, une interface ou une dépendance ne sont PAS un recouvrement. C'est rare : [] dans la grande majorité des cas ;
+- "rationale" : une phrase qui justifie l'importance et la difficulté.
+
+Sois discriminant : tous les sujets ne peuvent pas être H/H. Réponds UNIQUEMENT par un objet JSON {"subjects":[{"id":"…","importance":"H|M|L","difficulty":"H|M|L","nature":"…","dependsOn":[],"overlapsWith":[],"rationale":"…"}]}, un item par sujet reçu, "id" recopié à l'identique.`;
+
+function buildTriageUserMessage(part: FactorizedArchitecturalSubject[], byRef: Map<string, AuditedRequirement>): string {
+	const lines = [`Sujets à positionner (${part.length}) :`];
+	for (const s of part) {
+		const blocking = s.coveredClauseRefs.filter((ref) => byRef.get(ref)?.criticality === 'bloquant').length;
+		lines.push(
+			`[${s.id}] ${s.name} | question : ${clip(s.seed.initialQuestion, 260)}` +
+				(s.seed.initialConflict ? ` | tension : ${clip(s.seed.initialConflict, 200)}` : '') +
+				` | ${s.coveredClauseRefs.length} exigence(s) dont ${blocking} bloquante(s) | rôle : ${s.waitingForRole} | charge : ${s.effort}`
+		);
+	}
+	return lines.join('\n');
+}
+
+const LEVEL_WEIGHT = { H: 3, M: 2, L: 1 } as const;
+
+function pickLevel(raw?: string | null): 'H' | 'M' | 'L' {
+	const v = (raw || '').trim().toUpperCase().charAt(0);
+	return v === 'H' || v === 'L' ? v : 'M';
+}
+
+function pickNature(raw?: string | null): SubjectTriage['nature'] {
+	const v = (raw || '').trim().toLowerCase();
+	if (v.startsWith('contract')) return 'contractuel';
+	if (v.startsWith('organi')) return 'organisationnel';
+	return 'architecture';
+}
+
+/**
+ * Contrôles déterministes de la synthèse transverse. Fonction pure.
+ * Ne conserve que des références à des sujets existants (jamais le sujet lui-même), rend les recouvrements
+ * symétriques, et classe les sujets par importance puis difficulté (ordre du document à égalité).
+ * Un sujet absent de la réponse du modèle reste sans synthèse plutôt que de recevoir une valeur inventée.
+ */
+export function applyTriageInvariants(subjects: FactorizedArchitecturalSubject[], items: TriageItem[]): FactorizedArchitecturalSubject[] {
+	const ids = new Set(subjects.map((s) => s.id));
+	const byId = new Map<string, TriageItem>();
+	for (const item of items) if (ids.has(item.id) && !byId.has(item.id)) byId.set(item.id, item);
+
+	const refs = (list: string[] | null | undefined, self: string) => [...new Set((list || []).filter((id) => ids.has(id) && id !== self))];
+	const overlaps = new Map<string, Set<string>>();
+	for (const [id, item] of byId) {
+		for (const other of refs(item.overlapsWith, id)) {
+			(overlaps.get(id) ?? overlaps.set(id, new Set()).get(id)!).add(other);
+			(overlaps.get(other) ?? overlaps.set(other, new Set()).get(other)!).add(id);
+		}
+	}
+
+	const order = new Map(subjects.map((s, i) => [s.id, i]));
+	const ranked = [...byId.entries()]
+		.map(([id, item]) => ({ id, importance: pickLevel(item.importance), difficulty: pickLevel(item.difficulty) }))
+		.sort(
+			(a, b) =>
+				LEVEL_WEIGHT[b.importance] - LEVEL_WEIGHT[a.importance] ||
+				LEVEL_WEIGHT[b.difficulty] - LEVEL_WEIGHT[a.difficulty] ||
+				order.get(a.id)! - order.get(b.id)!
+		);
+	const rankOf = new Map(ranked.map((r, i) => [r.id, i + 1]));
+
+	return subjects.map((s) => {
+		const item = byId.get(s.id);
+		if (!item) return s;
+		return {
+			...s,
+			triage: {
+				importance: pickLevel(item.importance),
+				difficulty: pickLevel(item.difficulty),
+				nature: pickNature(item.nature),
+				dependsOn: refs(item.dependsOn, s.id),
+				overlapsWith: [...(overlaps.get(s.id) ?? [])].sort((a, b) => order.get(a)! - order.get(b)!),
+				rationale: (item.rationale || '').trim(),
+				rank: rankOf.get(s.id)!
+			}
+		};
+	});
 }
 
 function deriveLotId(refs: string[], sectionRef: string): string {
@@ -477,6 +800,7 @@ export function applySubjectInvariants(
 		const sectionRef = (raw.sectionRef || '').trim() || sortedRefs[0];
 		const n = startIndex + idx + 1;
 		const name = raw.name.trim() || `Sujet d'architecture ${n}`;
+		const proposal = normalizeProposal(raw.proposal);
 		return {
 			id: `SUBJ-${String(n).padStart(2, '0')}`,
 			lotId: deriveLotId(sortedRefs, sectionRef),
@@ -496,7 +820,8 @@ export function applySubjectInvariants(
 				initialConflict: (raw.seed?.initialConflict || '').trim() || undefined,
 				initialQuestion: (raw.seed?.initialQuestion || '').trim() || `Quelle architecture retenir pour « ${name} » ?`,
 				expertQuestions: (raw.seed?.expertQuestions || []).filter((s) => s.trim().length > 0)
-			}
+			},
+			...(proposal ? { proposal } : {})
 		};
 	});
 
@@ -508,6 +833,25 @@ export function applySubjectInvariants(
 function chunk<T>(items: T[], size: number): T[][] {
 	const out: T[][] = [];
 	for (let i = 0; i < items.length; i += size) out.push(items.slice(i, i + size));
+	return out;
+}
+
+/** Découpe en parties consécutives dont la taille rendue (caractères) ne dépasse pas `maxChars`. */
+function chunkByChars<T>(items: T[], maxChars: number, render: (item: T) => string): T[][] {
+	const out: T[][] = [];
+	let current: T[] = [];
+	let size = 0;
+	for (const item of items) {
+		const len = render(item).length + 1;
+		if (current.length > 0 && size + len > maxChars) {
+			out.push(current);
+			current = [];
+			size = 0;
+		}
+		current.push(item);
+		size += len;
+	}
+	if (current.length > 0) out.push(current);
 	return out;
 }
 
@@ -543,6 +887,15 @@ export async function runRequirementsAudit(
 	const model = options.model || localLlmClient.getDefaultModel();
 	const kb = options.kbStandards ?? [];
 	const warnings: string[] = [];
+	const ctx: StageContext = { llm, model, cache: options.cache };
+	// Le suivi d'avancement ne doit jamais faire échouer l'audit.
+	const progress = (p: AuditProgress) => {
+		try {
+			options.onProgress?.(p);
+		} catch (err) {
+			console.warn(`   ⚠️ [Audit Exigences ArcKit] Suivi d'avancement en erreur :`, err instanceof Error ? err.message : err);
+		}
+	};
 
 	console.log(`\n--------------------------------------------------------------------------------`);
 	console.log(`📋 [Audit Exigences ArcKit] Démarrage de l'audit pour ${clauses.length} clauses (Modèle: ${model})`);
@@ -557,18 +910,21 @@ export async function runRequirementsAudit(
 
 	console.log(`📦 [Audit Exigences ArcKit] Étape 1 : Classement par lots (${batches.length} lots de max ${batchSize} clauses, concurrence: ${concurrency})`);
 
+	let classifiedBatches = 0;
+	progress({ stage: 'classify', done: 0, total: batches.length });
 	await mapWithConcurrency(batches, concurrency, async (batch, i) => {
 		const batchStart = Date.now();
 		console.log(`   ⏳ [Audit Exigences ArcKit] Lot ${i + 1}/${batches.length} (${batch.length} clauses) -> envoi au modèle...`);
 		try {
-			const data = await callJson(
-				llm,
+			const data = await callStage(
+				ctx,
 				{
-					model,
-					messages: [
-						{ role: 'system', content: CLASSIFY_SYSTEM },
-						{ role: 'user', content: buildClassifyUserMessage(batch) }
-					]
+					stage: 'classify',
+					system: CLASSIFY_SYSTEM,
+					user: buildClassifyUserMessage(batch),
+					effort: 'high',
+					maxTokens: 32000,
+					timeoutMs: 15 * 60_000
 				},
 				ClassifyResponseSchema
 			);
@@ -584,6 +940,7 @@ export async function runRequirementsAudit(
 			for (const c of batch) failureByRef.set(c.clauseRef, reason);
 			warnings.push(reason);
 		}
+		progress({ stage: 'classify', done: ++classifiedBatches, total: batches.length });
 	});
 
 	// Étape 2 : contrôles déterministes
@@ -608,47 +965,204 @@ export async function runRequirementsAudit(
 		return { status: 'unavailable', report: buildAuditReport(requirements, warnings), subjects: [], warnings, modelUsed: model };
 	}
 
-	// Étape 3 : regroupement des clauses à délibérer en sujets
+	// Premier état exploitable : les dispositions clause par clause, avant tout regroupement.
+	progress({
+		stage: 'partition',
+		done: 0,
+		total: 1,
+		snapshot: { status: 'partial', report: buildAuditReport(requirements, [...warnings]), subjects: [], warnings: [...warnings], modelUsed: model }
+	});
+
+	// Étape 3a : cartographie des décisions d'architecture (partitionnement des clauses à délibérer).
+	// Avec un modèle à grande fenêtre, le RFP est vu d'un seul tenant : pas de sujets en doublon
+	// d'une partie à l'autre, et les contraintes dispersées dans le document se retrouvent.
 	const deliberated = requirements.filter((r) => r.disposition === 'deliberated');
-	const subjects: FactorizedArchitecturalSubject[] = [];
 	let groupingFailed = false;
+	const largeContext = options.largeContext ?? anthropicCapabilities(model).adaptiveThinking;
+	const parts = largeContext
+		? chunkByChars(deliberated, PARTITION_MAX_CHARS, partitionLine)
+		: chunk(deliberated, options.groupChunkSize ?? DEFAULT_GROUP_CHUNK);
 
-	console.log(`🧩 [Audit Exigences ArcKit] Étape 3 : Regroupement de ${deliberated.length} clauses à délibérer en sujets...`);
+	console.log(
+		`🧩 [Audit Exigences ArcKit] Étape 3a : Cartographie de ${deliberated.length} clauses à délibérer en décisions (${parts.length} partie(s), concurrence: ${concurrency})...`
+	);
 
-	for (const part of chunk(deliberated, options.groupChunkSize ?? DEFAULT_GROUP_CHUNK)) {
+	type PartitionOutcome = { data?: z.infer<typeof PartitionResponseSchema>; error?: unknown };
+	const partitioned = await mapWithConcurrency(parts, concurrency, async (part): Promise<PartitionOutcome> => {
 		try {
-			const data = await callJson(
-				llm,
+			const data = await callStage(
+				ctx,
 				{
-					model,
-					messages: [
-						{ role: 'system', content: buildGroupSystem(inferTargetSubjectsCount(part.length, true)) },
-						{ role: 'user', content: buildGroupUserMessage(part, kb) }
-					]
+					stage: 'partition',
+					system: buildPartitionSystem(targetSubjectsRange(part.length), parts.length > 1),
+					user: buildPartitionUserMessage(part),
+					effort: 'high',
+					maxTokens: 64000,
+					timeoutMs: 45 * 60_000
 				},
-				SubjectsResponseSchema
+				PartitionResponseSchema
 			);
-			// Étape 4 : contrôles déterministes
-			const res = applySubjectInvariants(part, data.subjects, kb, subjects.length);
-			subjects.push(...res.subjects);
-			if (res.attachedByProximity.length > 0) {
-				const shown = res.attachedByProximity.slice(0, 5).join(', ');
-				warnings.push(
-					`${res.attachedByProximity.length} clause(s) rattachée(s) à un sujet par proximité dans le document, à vérifier (${shown}${res.attachedByProximity.length > 5 ? '…' : ''}).`
-				);
-			}
-			if (res.droppedEmpty > 0) warnings.push(`${res.droppedEmpty} sujet(s) vide(s) proposé(s) par le modèle ont été écartés.`);
-			const covered = new Set(res.subjects.flatMap((s) => s.coveredClauseRefs));
-			if (part.some((r) => !covered.has(r.clauseRef))) groupingFailed = true;
+			return { data };
 		} catch (err) {
-			groupingFailed = true;
-			const msg = clip(err instanceof Error ? err.message : String(err), 100);
-			console.warn(`   ⚠️ [Audit Exigences ArcKit] Échec du regroupement en sujets :`, msg);
-			warnings.push(`Regroupement en sujets indisponible (${msg}).`);
+			return { error: err };
 		}
+	});
+
+	// Contrôles déterministes, dans l'ordre du document, pour des identifiants stables.
+	const drafts: RawSubject[] = [];
+	for (const [i, part] of parts.entries()) {
+		const { data, error } = partitioned[i];
+		if (!data) {
+			groupingFailed = true;
+			const msg = clip(error instanceof Error ? error.message : String(error), 100);
+			console.warn(`   ⚠️ [Audit Exigences ArcKit] Échec de la cartographie (partie ${i + 1}/${parts.length}) :`, msg);
+			warnings.push(`Regroupement en sujets indisponible (${msg}).`);
+			continue;
+		}
+		const proposed: RawSubject[] = data.subjects.map((s) => ({
+			name: s.name,
+			sectionRef: s.sectionRef,
+			coveredClauseRefs: s.coveredClauseRefs,
+			seed: { initialQuestion: s.dilemma }
+		}));
+		const res = applySubjectInvariants(part, proposed, kb);
+		if (res.attachedByProximity.length > 0) {
+			const shown = res.attachedByProximity.slice(0, 5).join(', ');
+			warnings.push(
+				`${res.attachedByProximity.length} clause(s) rattachée(s) à un sujet par proximité dans le document, à vérifier (${shown}${res.attachedByProximity.length > 5 ? '…' : ''}).`
+			);
+		}
+		if (res.droppedEmpty > 0) warnings.push(`${res.droppedEmpty} sujet(s) vide(s) proposé(s) par le modèle ont été écartés.`);
+		const covered = new Set(res.subjects.flatMap((s) => s.coveredClauseRefs));
+		if (part.some((r) => !covered.has(r.clauseRef))) groupingFailed = true;
+		drafts.push(
+			...res.subjects.map((s) => ({
+				name: s.name,
+				sectionRef: s.sectionRef,
+				coveredClauseRefs: s.coveredClauseRefs,
+				seed: { initialQuestion: s.seed.initialQuestion }
+			}))
+		);
 	}
 
+	// Une partie de la cartographie a pu échouer : seules les clauses effectivement cartographiées sont regroupées,
+	// pour qu'un échec ne soit jamais masqué par un rattachement par proximité.
+	const mapped = new Set(drafts.flatMap((d) => d.coveredClauseRefs));
+	const mappedDeliberated = deliberated.filter((r) => mapped.has(r.clauseRef));
+
+	// Deuxième état exploitable : le périmètre des sujets, avant leur instruction.
+	progress({
+		stage: 'instruct',
+		done: 0,
+		total: drafts.length,
+		snapshot: {
+			status: 'partial',
+			report: buildAuditReport(requirements, [...warnings]),
+			subjects: applySubjectInvariants(mappedDeliberated, drafts, kb).subjects,
+			warnings: [...warnings],
+			modelUsed: model
+		}
+	});
+
+	// Étape 3b : instruction de chaque sujet, sur le texte intégral de ses exigences.
+	console.log(`🔬 [Audit Exigences ArcKit] Étape 3b : Instruction de ${drafts.length} sujets (concurrence: ${concurrency})...`);
 	const byRef = new Map(requirements.map((r) => [r.clauseRef, r]));
+	const names = drafts.map((d) => d.name);
+	let notInstructed = 0;
+	let instructedCount = 0;
+	// Règles de doctrine vues pendant l'instruction : seules celles-ci peuvent être citées par un sujet.
+	const doctrineSeen = new Map(kb.map((k) => [k.id, k]));
+	const instructed = await mapWithConcurrency(drafts, concurrency, async (draft, i): Promise<RawSubject> => {
+		const subjectStart = Date.now();
+		let subjectKb = kb;
+		if (options.doctrineFor) {
+			const targeted = await options.doctrineFor(`${draft.name} ${draft.seed?.initialQuestion ?? ''}`.trim()).catch(() => []);
+			const merged = new Map(kb.map((k) => [k.id, k]));
+			for (const k of targeted) {
+				merged.set(k.id, k);
+				doctrineSeen.set(k.id, k);
+			}
+			subjectKb = [...merged.values()];
+		}
+		try {
+			const data = await callStage(
+				ctx,
+				{
+					stage: 'instruct',
+					system: INSTRUCT_SYSTEM,
+					user: buildInstructUserMessage(
+						draft,
+						draft.coveredClauseRefs.map((ref) => byRef.get(ref)!),
+						names.filter((_, j) => j !== i),
+						subjectKb
+					),
+					effort: 'high',
+					maxTokens: 32000,
+					timeoutMs: 20 * 60_000
+				},
+				InstructResponseSchema
+			);
+			const sec = ((Date.now() - subjectStart) / 1000).toFixed(1);
+			console.log(`   ✅ [Audit Exigences ArcKit] Sujet ${i + 1}/${drafts.length} instruit en ${sec}s.`);
+			progress({ stage: 'instruct', done: ++instructedCount, total: drafts.length });
+			return {
+				...data,
+				name: data.name?.trim() || draft.name,
+				sectionRef: draft.sectionRef,
+				coveredClauseRefs: draft.coveredClauseRefs,
+				seed: { ...data.seed, initialQuestion: data.seed?.initialQuestion || draft.seed?.initialQuestion }
+			};
+		} catch (err) {
+			notInstructed++;
+			console.warn(`   ⚠️ [Audit Exigences ArcKit] Sujet ${i + 1}/${drafts.length} non instruit :`, err instanceof Error ? err.message : err);
+			progress({ stage: 'instruct', done: ++instructedCount, total: drafts.length });
+			return draft;
+		}
+	});
+	if (notInstructed > 0) {
+		warnings.push(`${notInstructed} sujet(s) n'ont pas pu être instruits : seul leur périmètre est proposé, à instruire en atelier.`);
+	}
+
+	// Étape 4 : contrôles déterministes finaux.
+	const instructedSubjects = applySubjectInvariants(mappedDeliberated, instructed, [...doctrineSeen.values()]).subjects;
+
+	// Étape 5 : synthèse transverse — priorités, nature, dépendances et recouvrements entre sujets.
+	// Avec une grande fenêtre, tous les sujets sont vus ensemble ; sinon par groupes (dépendances internes au groupe).
+	let subjects = instructedSubjects;
+	if (instructedSubjects.length > 1) {
+		console.log(`🧭 [Audit Exigences ArcKit] Étape 5 : Synthèse transverse de ${instructedSubjects.length} sujets...`);
+		progress({ stage: 'triage', done: 0, total: 1 });
+		const triageParts = chunk(instructedSubjects, largeContext ? 400 : 30);
+		const triageItems: TriageItem[] = [];
+		let triageFailed = false;
+		await mapWithConcurrency(triageParts, concurrency, async (part) => {
+			try {
+				const data = await callStage(
+					ctx,
+					{
+						stage: 'triage',
+						system: TRIAGE_SYSTEM,
+						user: buildTriageUserMessage(part, byRef),
+						effort: 'high',
+						maxTokens: 32000,
+						timeoutMs: 20 * 60_000
+					},
+					TriageResponseSchema
+				);
+				triageItems.push(...data.subjects);
+			} catch (err) {
+				triageFailed = true;
+				console.warn(`   ⚠️ [Audit Exigences ArcKit] Synthèse transverse indisponible :`, err instanceof Error ? err.message : err);
+			}
+		});
+		subjects = applyTriageInvariants(instructedSubjects, triageItems);
+		const missing = subjects.filter((s) => !s.triage).length;
+		if (triageFailed || missing > 0) {
+			warnings.push(`Priorités et dépendances indisponibles pour ${missing} sujet(s) : à positionner en atelier.`);
+		}
+		progress({ stage: 'triage', done: 1, total: 1 });
+	}
+
 	for (const s of subjects) {
 		for (const ref of s.coveredClauseRefs) {
 			const req = byRef.get(ref);

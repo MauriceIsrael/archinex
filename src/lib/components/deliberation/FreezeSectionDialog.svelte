@@ -63,7 +63,7 @@
 		bundleExportError = null;
 
 		try {
-			const res = await fetch(`/api/projects/${activeSubject.id}/bundle-export`, {
+			const res = await fetch(`/api/projects/${deliberationStore.activeEngagement?.id ?? activeSubject.id}/bundle-export`, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({ confidentiality })

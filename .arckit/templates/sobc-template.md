@@ -1,11 +1,11 @@
 # Strategic Outline Business Case (SOBC)
 
-> **Template Origin**: Official | **ArcKit Version**: [VERSION] | **Command**: `/arckit.sobc`
+> **Template Origin**: Official | **ArcKit Version**: [VERSION] | **Command**: `/arckit:sobc`
 
 ## Document Control
 
 <!-- DOC-CONTROL-HEADER -->
-<!-- Resolved at command-execution time to _partials/document-control-uk.md or _partials/document-control-uae.md based on plugin userConfig classification_scheme + governance_framework. See _partials/RENDERING.md (when present). -->
+<!-- Resolved at command-execution time per _partials/RENDERING.md. -->
 
 ## Revision History
 
@@ -20,6 +20,12 @@
 ---
 
 ## Executive Summary
+
+**Go/No-Go Recommendation**: **PROCEED** | **DO NOT PROCEED** | **DEFER** — [One sentence naming the recommended option and the headline reason, e.g. "Option 2: Balanced Approach is the only option that meets all five critical success factors within the £[X]M budget."]
+
+**Recommended Option**: Option [X]: [Name]
+
+**Rationale**: [The reasons the recommendation rests on, most decisive first, each with the figure behind it from the Economic or Financial Case. As many as the appraisal supports; not a fixed number.]
 
 **Purpose**: [1 paragraph: Why does this project exist?]
 
@@ -36,7 +42,7 @@
 
 **Expected Benefits**: £[X]M over [Y] years
 
-- [Top 3 benefits with values]
+- [The benefits that carry most of the value, each with its figure; as many as matter, not a fixed three]
 
 **Return on Investment**:
 
@@ -44,22 +50,16 @@
 - Payback Period: [X] months
 - ROI: [X]%
 
-**Recommended Option**: Option [X]: [Name]
-
-**Key Risks**:
+**Key Risks**: [A risk that would change the recommendation if it materialised also goes in the Go/No-Go line above]
 
 1. [Risk 1]
 2. [Risk 2]
 3. [Risk 3]
 
-**Go/No-Go Recommendation**: **PROCEED** | **DO NOT PROCEED** | **DEFER**
-
-**Rationale**: [2-3 sentences explaining recommendation]
-
 **Next Steps if Approved**:
 
 1. Secure funding approval: [Date]
-2. Define detailed requirements: `/arckit.requirements`
+2. Define detailed requirements: `/arckit:requirements`
 3. Develop Outline Business Case (OBC): [Date]
 4. Procurement approach: [Date]
 
@@ -387,6 +387,12 @@ Before analyzing options, define what "success" looks like:
 
 **Stakeholder Goals Met**: 100%
 
+**Risks**:
+
+- [Risk 1]: Scope and budget overrun on an 18-month build → £[X]M additional cost
+- [Risk 2]: Delivery complexity (multi-region, AI components) → delayed benefits and supplier dependency
+- [Risk 3]: Affordability → funding not approved, forcing a mid-programme re-scope
+
 **Recommendation**: **Reject** - Diminishing returns, cost not justified.
 
 ---
@@ -702,7 +708,7 @@ Derived from stakeholder analysis RACI matrix in `ARC-{PROJECT_ID}-STKE-v*.md`:
 |-----------|------|--------------|-------|
 | SOBC Approval (this document) | [Date] | Stakeholder analysis complete | SRO |
 | Funding Secured | [Date] | SOBC approval | Finance Director |
-| Requirements Complete (`/arckit.requirements`) | [Date] | SOBC approval | Business Analyst |
+| Requirements Complete (`/arckit:requirements`) | [Date] | SOBC approval | Business Analyst |
 | Procurement Launch | [Date] | Requirements approved | Commercial Manager |
 | Vendor Contract Award | [Date] | Evaluation complete | SRO |
 | High-Level Design Approval | [Date] | Vendor onboarded | Solution Architect |
@@ -950,21 +956,21 @@ Derived from stakeholder analysis RACI matrix in `ARC-{PROJECT_ID}-STKE-v*.md`:
 
 **Phase 1: Requirements** (Months 1-2):
 
-1. **Detailed Requirements**: Run `/arckit.requirements` to create comprehensive requirements - **Target: [Date]**
+1. **Detailed Requirements**: Run `/arckit:requirements` to create comprehensive requirements - **Target: [Date]**
 2. **Stakeholder Validation**: Review and sign-off requirements with all stakeholders - **Target: [Date]**
 3. **Traceability Matrix**: Generate requirements traceability matrix - **Target: [Date]**
 
 **Phase 2: Procurement** (Months 2-4):
 
-1. **SOW Generation**: Run `/arckit.sow` to create RFP - **Target: [Date]**
+1. **SOW Generation**: Run `/arckit:sow` to create RFP - **Target: [Date]**
 2. **Digital Marketplace**: Publish opportunity on Digital Marketplace (UK Gov) - **Target: [Date]**
-3. **Vendor Evaluation**: Score and compare vendors using `/arckit.evaluate` - **Target: [Date]**
+3. **Vendor Evaluation**: Score and compare vendors using `/arckit:evaluate` - **Target: [Date]**
 4. **Contract Award**: Award contract to selected vendor - **Target: [Date]**
 
 **Phase 3: Design** (Months 4-6):
 
-1. **High-Level Design**: Vendor delivers HLD, reviewed with `/arckit.hld-review` - **Target: [Date]**
-2. **Detailed Design**: Vendor delivers DLD, reviewed with `/arckit.dld-review` - **Target: [Date]**
+1. **High-Level Design**: Vendor delivers HLD, reviewed with `/arckit:hld-review` - **Target: [Date]**
+2. **Detailed Design**: Vendor delivers DLD, reviewed with `/arckit:dld-review` - **Target: [Date]**
 3. **Security Sign-off**: CISO approves security architecture - **Target: [Date]**
 
 **Phase 4: Build & Test** (Months 6-9):
@@ -1091,7 +1097,7 @@ If this SOBC is not approved:
 
 **END OF STRATEGIC OUTLINE BUSINESS CASE**
 
-*Document created using ArcKit `/arckit.sobc` command*
+*Document created using ArcKit `/arckit:sobc` command*
 *Template version: 1.0*
 *Green Book compliant: Yes (HM Treasury 5-case model)*
 
@@ -1120,7 +1126,7 @@ If this SOBC is not approved:
 
 ---
 
-**Generated by**: ArcKit `/arckit.sobc` command
+**Generated by**: ArcKit `/arckit:sobc` command
 **Generated on**: [DATE]
 **ArcKit Version**: [VERSION]
 **Project**: [PROJECT_NAME]

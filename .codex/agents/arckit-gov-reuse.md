@@ -106,13 +106,13 @@ Scan for external (non-ArcKit) documents the user may have provided:
 **Existing Reuse Assessments or Technology Audits**:
 
 - **Look in**: `projects/{project}/external/`
-- **File types**: PDF (.pdf), Word (.docx), Markdown (.md)
+- **File types**: PDF (.pdf), Word (.docx), Markdown (.md), subtitles/transcripts (.srt, .vtt)
 - **What to extract**: Previous reuse research, technology audits, existing open-source evaluations
 - **Examples**: `technology-audit.pdf`, `open-source-review.docx`, `existing-reuse-assessment.md`
 
 **Important**: This agent works without external documents. They enhance output quality but are never blocking.
 
-- **Citation traceability**: When referencing content from external documents, follow the citation instructions in `${CLAUDE_PLUGIN_ROOT}/references/citation-instructions.md`. Place inline citation markers (e.g., `[PP-C1]`) next to findings informed by source documents and populate the "External References" section in the template.
+- **Citation traceability**: When referencing content from external documents, follow the citation instructions in `.arckit/references/citation-instructions.md`. Place inline citation markers (e.g., `[PP-C1]`) next to findings informed by source documents and populate the "External References" section in the template.
 
 ### Step 2: Read Available Documents
 
@@ -137,7 +137,10 @@ Find the project directory in `projects/` (user may specify name/number, otherwi
 
 ### Step 3: Read Template
 
-Read `${CLAUDE_PLUGIN_ROOT}/templates/gov-reuse-template.md` for the output structure.
+Read the template with user override support:
+
+- First, check `.arckit/templates-custom/gov-reuse-template.md` (user override)
+- If not found, read `.arckit/templates/gov-reuse-template.md` (default)
 
 ### Step 4: Extract Capabilities as Search Targets
 
@@ -279,7 +282,7 @@ Use Glob to find existing `projects/{project-dir}/research/ARC-{PROJECT_ID}-GOVR
 
 ### Step 13: Quality Check
 
-Before writing, read `${CLAUDE_PLUGIN_ROOT}/references/quality-checklist.md` and verify all **Common Checks** plus the **GOVR** per-type checks pass. Fix any failures before proceeding.
+Before writing, read `.arckit/references/quality-checklist.md` and verify all **Common Checks** plus the **GOVR** per-type checks pass. Fix any failures before proceeding.
 
 ### Step 14: Write Output
 
@@ -291,7 +294,7 @@ Auto-populate fields:
 - `[VERSION]` = determined version from Step 11
 - `[DATE]` = current date (YYYY-MM-DD)
 - `[STATUS]` = "DRAFT"
-- `[CLASSIFICATION]` = "OFFICIAL" (UK Gov) or "PUBLIC"
+- **Classification** → comes from the resolved Document Control header, not from a placeholder. `_partials/RENDERING.md` fixes the ladder from the artefact's own regime; `${default_classification}` applies only where that regime falls through to user config.
 
 Include the generation metadata footer:
 
@@ -338,8 +341,8 @@ Return ONLY a concise summary including:
 
 ## Toolchain
 
-- **Templates** — `${CLAUDE_PLUGIN_ROOT}/templates/gov-reuse-template.md`
-- **Helpers** — `${CLAUDE_PLUGIN_ROOT}/scripts/bash/create-project.sh` · `${CLAUDE_PLUGIN_ROOT}/scripts/bash/generate-document-id.sh`
+- **Templates** — `.arckit/templates/gov-reuse-template.md` (override at `.arckit/templates-custom/gov-reuse-template.md`)
+- **Helpers** — `.arckit/scripts/bash/create-project.sh` · `.arckit/scripts/generate-document-id.mjs`
 - **MCP server** — `govreposcrape` (`search_uk_gov_code` over 24,500+ UK government repositories)
 - **External tools** — `WebFetch` (GitHub repo pages for deeper assessment)
 - **Related commands** — `/arckit:requirements` (input) · `/arckit:research` (build-vs-buy comparison) · `/arckit:gov-code-search` · `/arckit:gov-landscape`

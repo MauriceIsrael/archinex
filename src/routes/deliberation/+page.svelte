@@ -5,7 +5,9 @@
 	import MaturityBoardTable from '$lib/components/deliberation/MaturityBoardTable.svelte';
 	import DeliberationWorkbench from '$lib/components/deliberation/DeliberationWorkbench.svelte';
 	import CorpusAppropriationHub from '$lib/components/deliberation/CorpusAppropriationHub.svelte';
+	import RegulatoryFrameworksPanel from '$lib/components/deliberation/RegulatoryFrameworksPanel.svelte';
 	import ArtifactRegenerationHub from '$lib/components/deliberation/ArtifactRegenerationHub.svelte';
+	import HldFragmentView from '$lib/components/deliberation/HldFragmentView.svelte';
 	import WhyInspector from '$lib/components/deliberation/WhyInspector.svelte';
 	import FreezeSectionDialog from '$lib/components/deliberation/FreezeSectionDialog.svelte';
 	import DecisionGuideModal from '$lib/components/deliberation/DecisionGuideModal.svelte';
@@ -41,6 +43,7 @@
 	<!-- ═════════════════════════════════════════════════════════════════════════ -->
 	{#if deliberationStore.activePosture === 'appropriation'}
 		<div class="space-y-4 animate-in fade-in duration-150">
+			<RegulatoryFrameworksPanel />
 			<CorpusAppropriationHub />
 		</div>
 
@@ -111,6 +114,7 @@
 	<!-- ═════════════════════════════════════════════════════════════════════════ -->
 	{:else if deliberationStore.activePosture === 'rendu'}
 		<div class="space-y-4 animate-in fade-in duration-150">
+			<HldFragmentView />
 			<ArtifactRegenerationHub />
 		</div>
 	{/if}

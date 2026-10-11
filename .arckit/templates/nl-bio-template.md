@@ -1,0 +1,125 @@
+# BIO2 Conformance Assessment
+
+> **Template Origin**: Community | **ArcKit Version**: [VERSION] | **Command**: `/arckit:nl-bio`
+>
+> ⚠️ **Community-contributed** — not yet validated against current Rijksoverheid / EU regulatory text. Verify all citations before relying on output.
+
+## Document Control
+
+<!-- DOC-CONTROL-HEADER -->
+<!-- Resolved at command-execution time per _partials/RENDERING.md. -->
+
+## Revision History
+
+| Version | Date | Author | Changes | Approved By | Approval Date |
+|---------|------|--------|---------|-------------|---------------|
+| [VERSION] | [YYYY-MM-DD] | ArcKit AI | Initial creation from `/arckit:nl-bio` | [PENDING] | [PENDING] |
+
+## Executive Summary
+
+**Assessment scope**: [System / organisational unit assessed]
+
+**BIO2 version applied**: v1.3, dated 9 January 2026 (established by the OBDO on 23 September 2025)
+
+**Overall conformance**: [Conformant / Partially conformant / Not conformant]
+
+**Key findings**:
+
+- [Finding 1]
+- [Finding 2]
+- [Finding 3]
+
+---
+
+## 1. Scope Statement
+
+| Element | Value |
+|---------|-------|
+| System / organisational unit | [Description] |
+| BIV/TBB scores (from `/arckit:nl-tbb`, if available) | [B: ?, I: ?, V: ? / Not yet determined] |
+| Base standards | NEN-EN-ISO/IEC 27001:2023, NEN-EN-ISO/IEC 27002:2022 |
+
+> **Certification note**: BIO2 does not mandate ISO/IEC 27001 certification. The overheidsmaatregelen (government-specific measures) that supplement the ISO base standards are mandatory where applicable. This assessment does not treat the two as equivalent.
+
+---
+
+## 2. Organisational Controls
+
+[Assess against the ISO/IEC 27002:2022 Organisational control theme and any applicable BIO2 overheidsmaatregelen. Populate the specific overheidsmaatregel reference from the current official BIO2 text — do not invent a measure number.]
+
+| Control area | Status | Overheidsmaatregel reference | Gap |
+|--------------|--------|-------------------------------|-----|
+| [e.g. Policies for information security] | [Status] | [PENDING — cite from current BIO2 text] | [Gap] |
+
+## 3. People Controls
+
+[Assess against the ISO/IEC 27002:2022 People control theme and any applicable BIO2 overheidsmaatregelen.]
+
+| Control area | Status | Overheidsmaatregel reference | Gap |
+|--------------|--------|-------------------------------|-----|
+| [e.g. Screening] | [Status] | [PENDING — cite from current BIO2 text] | [Gap] |
+
+## 4. Physical Controls
+
+[Assess against the ISO/IEC 27002:2022 Physical control theme and any applicable BIO2 overheidsmaatregelen.]
+
+| Control area | Status | Overheidsmaatregel reference | Gap |
+|--------------|--------|-------------------------------|-----|
+| [e.g. Physical security perimeters] | [Status] | [PENDING — cite from current BIO2 text] | [Gap] |
+
+## 5. Technological Controls
+
+[Assess against the ISO/IEC 27002:2022 Technological control theme and any applicable BIO2 overheidsmaatregelen. Cross-reference `/arckit:nl-cloud` Section 7 (data location and encryption) where the system is cloud-hosted.]
+
+| Control area | Status | Overheidsmaatregel reference | Gap |
+|--------------|--------|-------------------------------|-----|
+| [e.g. Cryptography] | [Status] | [PENDING — cite from current BIO2 text] | [Gap] |
+| [e.g. Access control] | [Status] | [PENDING — cite from current BIO2 text] | [Gap] |
+
+## 6. Gap Summary
+
+| Gap | Priority | Owner | Target Date |
+|-----|---------|-------|--------------|
+| [Gap description] | 🔴 High | [Role] | [Date] |
+| [Gap description] | 🟠 Medium | [Role] | [Date] |
+| [Gap description] | 🟡 Low | [Role] | [Date] |
+
+## 7. Sector Context
+
+| Question | Answer |
+|----------|--------|
+| Organisation in scope of the Cyberbeveiligingswet (Cbw) or Wet weerbaarheid kritieke entiteiten (Wwke)? | [Yes / No] |
+| If yes: supervisory authority | Rijksinspectie Digitale Infrastructuur (RDI) |
+
+**Next steps**: Run `/arckit:nl-cloud` if hosting decisions depend on this conformance status. Run `/arckit:risk` to reflect open gaps in the risk register.
+
+## 8. External References
+
+> This section provides traceability from generated content back to source documents.
+> Follow citation instructions in the project's citation reference guide.
+
+### Document Register
+
+| Doc ID | Filename | Type | Source Location | Description |
+|--------|----------|------|-----------------|-------------|
+| WEB-1 | [primary URL — BIO2 is not linked from a stable source; verify the current text before citing] | Web URL | digitaleoverheid.nl | BIO2 — Baseline Informatiebeveiliging Overheid 2, v1.3 dated 9 January 2026 (established by the OBDO 23 September 2025). Verified [YYYY-MM-DD] |
+
+### Citations
+
+| Citation ID | Doc ID | Page/Section | Category | Quoted Passage |
+|-------------|--------|--------------|----------|----------------|
+| — | — | — | — | — |
+
+### Unreferenced Documents
+
+| Filename | Source Location | Reason |
+|----------|-----------------|--------|
+| — | — | — |
+
+---
+
+**Generated by**: ArcKit `/arckit:nl-bio` command
+**Generated on**: [YYYY-MM-DD]
+**ArcKit Version**: [VERSION]
+**Project**: [PROJECT_NAME]
+**Model**: [AI_MODEL]

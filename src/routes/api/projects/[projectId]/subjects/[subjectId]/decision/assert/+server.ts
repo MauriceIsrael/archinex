@@ -3,7 +3,7 @@ import type { RequestHandler } from './$types';
 import { prisma } from '$lib/server/prisma';
 import { llmopsClient } from '$lib/server/llmops/client';
 import { isProjectCutOverToHub } from '$lib/server/projects/hubMigrationService';
-import { getActorFromEvent } from '$lib/server/projects/actorHelper';
+import { resolveProjectActor } from '$lib/server/projects/actorHelper';
 import { DEFAULT_ARCHINEX_VOCABULARY } from '$lib/server/agents/factExtractor';
 import { formatDecisionAffirmedMilestone } from '$lib/domain/debate';
 import { proposeAndPersistComplementaryQuestions } from '$lib/server/cascade/cascadeService';
@@ -12,11 +12,12 @@ export const POST: RequestHandler = async (event) => {
 	const { params } = event;
 	const { projectId, subjectId } = params;
 
-	const actor = getActorFromEvent(event);
+	// Rôle dans l'espace : fiche participant de la personne connectée (ou admin), pas son rôle applicatif.
+	const actor = await resolveProjectActor(event, projectId!);
 	const sessionUser = event.locals.session?.user;
 	const actorEmail = (sessionUser?.email || actor.userId).toLowerCase();
 	const actorName = sessionUser?.name || actor.userId;
-	const actorRole = (sessionUser?.role || actor.role || '').toLowerCase().replace(/[\s-]/g, '_');
+	const actorRole = (actor.role || '').toLowerCase().replace(/[\s-]/g, '_');
 
 	const project = await prisma.project.findUnique({
 		where: { id: projectId },
@@ -190,6 +191,12 @@ export const POST: RequestHandler = async (event) => {
 				deliberationStatus: 'arbitrated',
 				version: { increment: 1 }
 			}
+		});
+
+		// 1 bis. Une décision en revue devient effective : ses énoncés passent au niveau décidé
+		await tx.statement.updateMany({
+			where: { subjectId, subjectLevel: { not: 'L3_decided' }, status: 'active' },
+			data: { subjectLevel: 'L3_decided', version: { increment: 1 } }
 		});
 
 		// 2. Création des énoncés affirmés à partir des faits validés

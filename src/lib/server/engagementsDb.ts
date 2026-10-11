@@ -1,4 +1,5 @@
 import { prisma } from './prisma';
+import { seedSubjectProposal } from './projects/proposalSeeder';
 import type { EngagementProfile, EngagementType, ProjectParticipant, ProjectStrategy } from '$lib/domain/engagements';
 import type { MaturitySubject } from '$lib/domain/maturityBoard';
 import type { TelegraphicDraft } from '$lib/domain/telegraphic';
@@ -71,6 +72,68 @@ export function mapPrismaToCorpusDocument(row: any): CorpusDocument {
 }
 
 /**
+ * La table des sujets fait foi : la décision formelle et la cascade y écrivent directement, alors que la copie
+ * des sujets stockée dans l'engagement n'est réécrite qu'à la prochaine sauvegarde du client. On y reporte donc
+ * le niveau de maturité, et on y ajoute les sujets créés côté serveur (sous-sujets de cascade).
+ */
+async function overlayServerSubjects(profiles: EngagementProfile[]): Promise<void> {
+	if (profiles.length === 0) return;
+	const rows = await prisma.subject.findMany({ where: { projectId: { in: profiles.map((p) => p.id) } } });
+	for (const profile of profiles) {
+		const own = rows.filter((r) => r.projectId === profile.id);
+		const known = new Map(profile.subjects.map((s) => [s.id, s]));
+		for (const row of own) {
+			const existing = known.get(row.id);
+			if (existing) {
+				if (existing.level !== row.maturityLevel) {
+					existing.level = row.maturityLevel as MaturitySubject['level'];
+					existing.last_transition_date = row.updatedAt.toISOString();
+				}
+				if (row.deliberationStatus === 'awaiting_review') existing.awaiting_review = true;
+				else delete existing.awaiting_review;
+				continue;
+			}
+			// Sous-sujet né côté serveur : rattaché au sujet dont l'identifiant préfixe le sien (sub-child-<parent>-…).
+			const parent = profile.subjects
+				.filter((s) => row.id.startsWith(`sub-child-${s.id}-`) || row.id.startsWith(`sub-child-agent-${s.id}-`))
+				.sort((a, b) => b.id.length - a.id.length)[0];
+			const subject: MaturitySubject = {
+				id: row.id,
+				section_ref: row.sectionRef,
+				name: row.name,
+				level: row.maturityLevel as MaturitySubject['level'],
+				blocking_count: row.blockingCount,
+				unlocks_count: row.unlocksCount,
+				waiting_for_role: (row.waitingForRole || 'lead_architect') as MaturitySubject['waiting_for_role'],
+				relative_effort: (row.relativeEffort || 'M') as MaturitySubject['relative_effort'],
+				last_transition_date: row.updatedAt.toISOString(),
+				stall_days: 0,
+				is_stalled: false,
+				dependent_subject_ids: [],
+				problem_statement: row.problemStatement || undefined,
+				...(parent ? { parent_subject_id: parent.id, parent_subject_name: parent.name } : {})
+			};
+			profile.subjects.push(subject);
+			known.set(row.id, subject);
+			profile.drafts[row.id] ??= {
+				section_id: row.sectionRef,
+				subject: row.name,
+				maturity: subject.level,
+				is_provisional: true,
+				retenu: [],
+				suppose: [],
+				conflit: [],
+				manque: []
+			};
+		}
+		for (const [id, draft] of Object.entries(profile.drafts)) {
+			const level = known.get(id)?.level;
+			if (level && draft.maturity !== level) draft.maturity = level;
+		}
+	}
+}
+
+/**
  * Récupère tous les engagements persistés dans Prisma
  */
 export async function getAllEngagementsFromDb(): Promise<EngagementProfile[]> {
@@ -82,7 +145,7 @@ export async function getAllEngagementsFromDb(): Promise<EngagementProfile[]> {
 		getAllCorpusDocumentsFromDb()
 	]);
 
-	return rows.map((r) => {
+	const profiles = rows.map((r) => {
 		const profile = mapPrismaToEngagementProfile(r);
 		// Relie les documents du corpus pertinents à cet engagement
 		profile.corpusDocuments = allDocs.filter(
@@ -92,6 +155,8 @@ export async function getAllEngagementsFromDb(): Promise<EngagementProfile[]> {
 		);
 		return profile;
 	});
+	await overlayServerSubjects(profiles);
+	return profiles;
 }
 
 /**
@@ -108,6 +173,7 @@ export async function getEngagementByIdFromDb(id: string): Promise<EngagementPro
 			d.isGlobalStandard ||
 			(d.engagementIds && d.engagementIds.includes(profile.id))
 	);
+	await overlayServerSubjects([profile]);
 	return profile;
 }
 
@@ -168,34 +234,65 @@ export async function saveEngagementToDb(profile: EngagementProfile): Promise<En
 			for (const s of profile.subjects) {
 				const subjectId = s.id;
 				if (!subjectId) continue;
-				await prisma.subject.upsert({
+				const existing = await prisma.subject.findUnique({ where: { id: subjectId }, select: { projectId: true, maturityLevel: true } });
+				if (existing && existing.projectId !== profile.id) {
+					// Un identifiant de sujet est global : ne jamais réécrire le sujet d'un autre projet.
+					console.warn(`[engagementsDb] Sujet ${subjectId} déjà rattaché au projet ${existing.projectId} : ignoré pour ${profile.id}.`);
+					continue;
+				}
+				const problemStatement = (s.problem_statement || (s as any).problemStatement || '').trim();
+				const proposal = s.proposal;
+				if (!existing) {
+					await prisma.subject.create({
+						data: {
+							id: subjectId,
+							projectId: profile.id,
+							sectionRef: s.section_ref || '§0.0',
+							name: s.name || 'Sujet sans titre',
+							domain: (s as any).domain || 'general',
+							problemStatement,
+							maturityLevel: s.level || 'L0_named',
+							deliberationStatus: (s as any).deliberationStatus || 'open',
+							waitingForRole: s.waiting_for_role || 'lead_architect',
+							relativeEffort: s.relative_effort || 'M',
+							blockingCount: s.blocking_count ?? 0,
+							unlocksCount: s.unlocks_count ?? 0,
+							requirementRefs: JSON.stringify(s.requirement_ids ?? []),
+							nature: s.nature ?? null,
+							dependsOn: JSON.stringify(s.depends_on_subject_ids ?? []),
+							singleOptionRationale: proposal?.singleOptionRationale ?? null,
+							version: 1
+						}
+					});
+					// Options, critères et évaluations proposés par le modèle : créés une seule fois, à la création du sujet.
+					if (proposal) {
+						try {
+							await seedSubjectProposal(subjectId, proposal);
+						} catch (err) {
+							console.warn(`[engagementsDb] Proposition non matérialisée pour ${subjectId} :`, err instanceof Error ? err.message : err);
+						}
+					}
+					continue;
+				}
+				// Mise à jour depuis le profil client : le serveur reste maître de l'énoncé du problème (édité via
+				// /subjects/[id]), du domaine et des niveaux décidés (L3+ ne s'obtient que par l'arbitrage formel).
+				const serverDecided = ['L3_decided', 'L4_specified', 'L5_archived'].includes(existing.maturityLevel);
+				const clientLevel = s.level || 'L0_named';
+				const clientDecided = ['L3_decided', 'L4_specified', 'L5_archived'].includes(clientLevel);
+				await prisma.subject.update({
 					where: { id: subjectId },
-					create: {
-						id: subjectId,
-						projectId: profile.id,
+					data: {
 						sectionRef: s.section_ref || '§0.0',
 						name: s.name || 'Sujet sans titre',
-						domain: (s as any).domain || 'general',
-						problemStatement: (s as any).problem_statement || (s as any).problemStatement || '',
-						maturityLevel: s.level || 'L0_named',
-						deliberationStatus: (s as any).deliberationStatus || 'open',
+						...((s as any).domain ? { domain: (s as any).domain } : {}),
+						...(problemStatement ? { problemStatement } : {}),
+						...(!serverDecided && !clientDecided ? { maturityLevel: clientLevel } : {}),
 						waitingForRole: s.waiting_for_role || 'lead_architect',
 						relativeEffort: s.relative_effort || 'M',
 						blockingCount: s.blocking_count ?? 0,
 						unlocksCount: s.unlocks_count ?? 0,
-						requirementRefs: JSON.stringify(s.requirement_ids ?? []),
-						version: 1
-					},
-					update: {
-						sectionRef: s.section_ref || '§0.0',
-						name: s.name || 'Sujet sans titre',
-						domain: (s as any).domain || 'general',
-						problemStatement: (s as any).problem_statement || (s as any).problemStatement || '',
-						maturityLevel: s.level || 'L0_named',
-						waitingForRole: s.waiting_for_role || 'lead_architect',
-						relativeEffort: s.relative_effort || 'M',
-						blockingCount: s.blocking_count ?? 0,
-						unlocksCount: s.unlocks_count ?? 0,
+						...(s.nature ? { nature: s.nature } : {}),
+						...(s.depends_on_subject_ids ? { dependsOn: JSON.stringify(s.depends_on_subject_ids) } : {}),
 						// Ne jamais effacer le lien aux exigences quand le profil client ne le porte pas.
 						...(s.requirement_ids ? { requirementRefs: JSON.stringify(s.requirement_ids) } : {})
 					}

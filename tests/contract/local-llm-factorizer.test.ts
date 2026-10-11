@@ -624,22 +624,22 @@ describe('Local LLM Souverain & Factorisation de RFP', () => {
 	});
 
 	describe('10. Multi-Provider & Intégration Anthropic Claude Cloud', () => {
-		it('détecte la clé API Claude et expose les modèles Claude avec contexte 200k', async () => {
+		it('détecte la clé API Claude et expose les modèles Claude avec contexte 1M', async () => {
 			const claudeClient = new LocalLlmClient({
 				anthropicApiKey: 'sk-ant-test-key-12345',
 				endpoint: 'http://localhost:11434'
 			});
 
 			expect(claudeClient.hasAnthropicConfigured()).toBe(true);
-			expect(claudeClient.getDefaultModel()).toBe('claude-sonnet-4-5-20250929');
+			expect(claudeClient.getDefaultModel()).toBe('claude-sonnet-5-5');
 
 			const models = await claudeClient.getAvailableModels();
 			const modelIds = models.map((m) => m.id);
 
-			expect(modelIds).toContain('claude-sonnet-4-5-20250929');
+			expect(modelIds).toContain('claude-sonnet-5-5');
 
-			const sonnet = models.find((m) => m.id === 'claude-sonnet-4-5-20250929');
-			expect(sonnet?.contextLength).toBe(200000);
+			const sonnet = models.find((m) => m.id === 'claude-sonnet-5-5');
+			expect(sonnet?.contextLength).toBe(1000000);
 		});
 
 		it('route vers l API Anthropic Messages avec extraction du prompt system et entêtes corrects', async () => {
@@ -652,29 +652,25 @@ describe('Local LLM Souverain & Factorisation de RFP', () => {
 			let capturedHeaders: Record<string, string> = {};
 			let capturedBody: any = null;
 
+			// Réponse en flux (SSE), telle que l'API la renvoie au SDK
+			const text = JSON.stringify({ summary: 'Factorisation via Claude 3.5 Sonnet', subjects: [] });
+			const sse = [
+				['message_start', { type: 'message_start', message: { id: 'msg_123', type: 'message', role: 'assistant', model: 'claude-sonnet-5-5', content: [], stop_reason: null, stop_sequence: null, usage: { input_tokens: 10, output_tokens: 0 } } }],
+				['content_block_start', { type: 'content_block_start', index: 0, content_block: { type: 'text', text: '' } }],
+				['content_block_delta', { type: 'content_block_delta', index: 0, delta: { type: 'text_delta', text } }],
+				['content_block_stop', { type: 'content_block_stop', index: 0 }],
+				['message_delta', { type: 'message_delta', delta: { stop_reason: 'end_turn', stop_sequence: null }, usage: { output_tokens: 20 } }],
+				['message_stop', { type: 'message_stop' }]
+			]
+				.map(([event, data]) => `event: ${event}\ndata: ${JSON.stringify(data)}\n\n`)
+				.join('');
+
 			const originalFetch = global.fetch;
 			global.fetch = vi.fn().mockImplementation(async (url, init) => {
 				capturedUrl = String(url);
-				capturedHeaders = (init?.headers as Record<string, string>) || {};
+				capturedHeaders = Object.fromEntries(new Headers(init?.headers as HeadersInit).entries());
 				capturedBody = JSON.parse(init?.body as string);
-
-				return {
-					ok: true,
-					json: async () => ({
-						id: 'msg_123',
-						type: 'message',
-						role: 'assistant',
-						content: [
-							{
-								type: 'text',
-								text: JSON.stringify({
-									summary: 'Factorisation via Claude 3.5 Sonnet',
-									subjects: []
-								})
-							}
-						]
-					})
-				};
+				return new Response(sse, { status: 200, headers: { 'content-type': 'text/event-stream' } });
 			}) as any;
 
 			try {
@@ -688,10 +684,11 @@ describe('Local LLM Souverain & Factorisation de RFP', () => {
 					temperature: 0.1
 				});
 
-				expect(capturedUrl).toBe('https://api.anthropic.com/v1/messages');
+				expect(capturedUrl.split('?')[0]).toBe('https://api.anthropic.com/v1/messages');
+				expect(capturedBody.stream).toBe(true);
 				expect(capturedHeaders['x-api-key']).toBe('sk-ant-live-dummy-key');
 				expect(capturedHeaders['anthropic-version']).toBe('2023-06-01');
-				expect(capturedBody.model).toBe('claude-sonnet-4-5-20250929');
+				expect(capturedBody.model).toBe('claude-sonnet-5-5');
 				expect(capturedBody.system).toContain('Tu es un architecte expert.');
 				expect(capturedBody.system).toContain('INSTRUCTION STRICTE');
 				expect(capturedBody.messages).toEqual([

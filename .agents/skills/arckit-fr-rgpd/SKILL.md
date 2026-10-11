@@ -5,7 +5,7 @@ description: "[COMMUNITY] Assess CNIL-specific GDPR obligations for French deplo
 
 > ⚠️ **Community-contributed command** — not part of the officially-maintained ArcKit baseline. Output should be reviewed by qualified DPO / RSSI / legal counsel before reliance. Citations to ANSSI / CNIL / EU regulations may lag the current text — verify against the source.
 
-You are helping an enterprise architect generate a **French CNIL Compliance Assessment** — the French-specific GDPR layer applied by the CNIL (Commission Nationale de l'Informatique et des Libertés). Run this after `/arckit.eu-rgpd` to add French obligations that go beyond the EU GDPR baseline.
+You are helping an enterprise architect generate a **French CNIL Compliance Assessment** — the French-specific GDPR layer applied by the CNIL (Commission Nationale de l'Informatique et des Libertés). Run this after `$arckit-eu-rgpd` to add French obligations that go beyond the EU GDPR baseline.
 
 ## User Input
 
@@ -24,7 +24,7 @@ $ARGUMENTS
 - **DATA** (Data Model) — Extract: all entities with personal data, special category data, data subjects, data flows, retention periods, third-party processors
   - If missing: warn that CNIL assessment requires a data model to identify personal data categories
 - **RGPD** (EU RGPD Assessment) — Extract: legal basis mapping, DPIA screening results, DPO determination, international transfer analysis
-  - If missing: warn that `/arckit.fr-rgpd` should be run after `/arckit.eu-rgpd` for best results. Proceed with available data.
+  - If missing: warn that `$arckit-fr-rgpd` should be run after `$arckit-eu-rgpd` for best results. Proceed with available data.
 
 **RECOMMENDED** (read if available, note if missing):
 
@@ -66,9 +66,10 @@ Read all documents from Step 0. Identify:
 
 **Read the template** (with user override support):
 
-- **First**, check if `.arckit/templates/fr-rgpd-template.md` exists in the project root
+- **First**, check if `.arckit/templates-custom/fr-rgpd-template.md` exists in the project root
 - **If found**: Read the user's customized template
 - **If not found**: Read `.arckit/templates/fr-rgpd-template.md`
+- **Then read** `.arckit/templates/_partials/RENDERING.md` and resolve the `<!-- DOC-CONTROL-HEADER -->` marker in the template before writing. `CNIL` carries the France regime, which hard-routes to `_partials/document-control-fr.md` whatever the operator's user config says.
 
 ### Step 4: Generate CNIL Compliance Assessment
 
@@ -83,7 +84,7 @@ Read all documents from Step 0. Identify:
    - Status: DRAFT
    - Created Date: {current_date}
    - Next Review Date: {current_date + 12 months}
-   - Classification: OFFICIAL-SENSITIVE (privacy assessments contain sensitive risk information)
+   - Classification: Diffusion Restreinte (privacy assessments contain sensitive risk information)
    - Add note: "This document supplements ARC-{PROJECT_ID}-RGPD-v*.md with French/CNIL-specific requirements"
 
 3. **Section 1: CNIL Regulatory Framework**
@@ -108,7 +109,7 @@ Read all documents from Step 0. Identify:
    - ANS security framework requirements
    - Mon Espace Santé integration (if patient-facing)
    - CNIL référentiel santé applicability
-   - DPIA mandatory flag: health data = special category → run `/arckit.dpia`
+   - DPIA mandatory flag: health data = special category → run `$arckit-dpia`
    - If no health data: include section header with "N/A — no health data (données de santé) identified"
 
 6. **Section 4: DPO Registration with CNIL**
@@ -156,7 +157,7 @@ Read all documents from Step 0. Identify:
     - Consolidate gaps from all sections
     - Priority based on CNIL enforcement priority and legal obligation level
 
-Before writing the file, read `.arckit/references/quality-checklist.md` and verify all **Common Checks** pass.
+Before writing the file, read `.arckit/references/quality-checklist.md` and verify all **Common Checks** plus **CNIL** per-type checks pass.
 
 Write the document to:
 
@@ -174,7 +175,7 @@ projects/{project_id}/ARC-{PROJECT_ID}-CNIL-v{VERSION}.md
 📄 Document: projects/{project_id}/ARC-{PROJECT_ID}-CNIL-v{VERSION}.md
 📋 Document ID: {document_id}
 📅 Assessment Date: {date}
-🔒 Classification: OFFICIAL-SENSITIVE
+🔒 Classification: Diffusion Restreinte
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 📊 French-Specific Compliance Areas
@@ -204,7 +205,7 @@ Next steps:
 
 ## Important Notes
 
-- **Run after eu-rgpd**: This command adds the French layer on top of the EU GDPR baseline. For best results, run `/arckit.eu-rgpd` first, then this command.
+- **Run after eu-rgpd**: This command adds the French layer on top of the EU GDPR baseline. For best results, run `$arckit-eu-rgpd` first, then this command.
 - **CNIL cookie ruling on Google Analytics**: The CNIL ruled in January 2022 that Google Analytics transfers data to the US without adequate protection. This is an active enforcement risk for French services using Google Analytics. Flag explicitly.
 - **HDS is legally mandatory**: Any third-party hosting of health data (as defined by Art. L. 1111-8 CSP) without HDS certification is a criminal offence. This is not a recommended control — it is a legal requirement.
 - **French age of consent is 15, not 16**: France chose the lower limit allowed by GDPR (member states can set 13–16). Do not apply the GDPR default of 16.
@@ -217,12 +218,12 @@ Next steps:
 | CNIL — official website and guidance | CNIL | https://www.cnil.fr/ |
 | Délibération 2020-091 — cookies and consent (French rules) | CNIL | https://www.cnil.fr/fr/cookies-et-autres-traceurs/regles/cookies/que-dit-la-loi |
 | Loi n°78-17 Informatique et Libertés (amended) | Légifrance | https://www.legifrance.gouv.fr/loda/id/JORFTEXT000000886460 |
-| HDS — Hébergement de Données de Santé (health data hosting) | ANS (Agence du Numérique en Santé) | https://esante.gouv.fr/secteur/hebergement-des-donnees-de-sante |
+| HDS — Hébergement de Données de Santé (health data hosting) | ANS (Agence du Numérique en Santé) | https://esante.gouv.fr/produits-services/hds |
 | DPO registration with CNIL | CNIL | https://notifications.cnil.fr/ |
 | CNIL AIPD / DPIA guidance and tool (PIA) | CNIL | https://www.cnil.fr/fr/outil-pia-telechargez-et-installez-le-logiciel-de-la-cnil |
 | GDPR full text | EUR-Lex | https://eur-lex.europa.eu/eli/reg/2016/679/oj |
 
-> **Note for reviewers**: This command covers France-specific GDPR obligations layered on top of the baseline EU GDPR (covered by `/arckit.eu-rgpd`). Key French specifics: the age of digital consent is **15** (not the GDPR default of 16), HDS (Hébergement de Données de Santé) is a mandatory French certification for any cloud provider hosting health data, and the CNIL has issued specific guidance on analytics tools — notably ruling that Google Analytics transfers personal data to the US unlawfully (2022). The CNIL is the French Data Protection Authority (DPA), member of the EDPB.
+> **Note for reviewers**: This command covers France-specific GDPR obligations layered on top of the baseline EU GDPR (covered by `$arckit-eu-rgpd`). Key French specifics: the age of digital consent is **15** (not the GDPR default of 16), HDS (Hébergement de Données de Santé) is a mandatory French certification for any cloud provider hosting health data, and the CNIL has issued specific guidance on analytics tools — notably ruling that Google Analytics transfers personal data to the US unlawfully (2022). The CNIL is the French Data Protection Authority (DPA), member of the EDPB.
 
 ## Success Criteria
 
@@ -237,7 +238,7 @@ Next steps:
 - ✅ CNIL enforcement priority self-assessment completed
 - ✅ 72-hour breach notification to CNIL process assessed
 - ✅ Gap analysis with prioritised action plan generated
-- ✅ Document classified OFFICIAL-SENSITIVE
+- ✅ Document classified Diffusion Restreinte
 
 ## Example Usage
 

@@ -10,3 +10,5 @@ tests
 *.log
 .DS_Store
 Thumbs.db
+Lulu.pdf
+**/Lulu.pdf

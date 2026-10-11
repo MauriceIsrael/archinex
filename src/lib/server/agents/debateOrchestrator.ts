@@ -1,4 +1,5 @@
 import { prisma } from '../prisma';
+import { getApplicableFrameworks } from '$lib/server/compliance/complianceService';
 import { listOptions } from '../projects/optionsDb';
 import { listCriteria } from '../projects/optionsDb';
 import {
@@ -56,7 +57,8 @@ export async function orchestrateDebate(
 	try {
 		const docCtx = await doctrineService.getDoctrineContext({
 			topics: [subject.name],
-			domains: subject.domain ? [subject.domain] : []
+			domains: subject.domain ? [subject.domain] : [],
+			frameworks: await getApplicableFrameworks(subject.projectId)
 		});
 		if (docCtx && docCtx.items) {
 			allowedKbRefs = docCtx.items.map((r) => r.id);
@@ -258,7 +260,8 @@ export async function invokeSpecificAgent(
 	try {
 		const docCtx = await doctrineService.getDoctrineContext({
 			topics: [subject.name],
-			domains: subject.domain ? [subject.domain] : []
+			domains: subject.domain ? [subject.domain] : [],
+			frameworks: await getApplicableFrameworks(subject.projectId)
 		});
 		if (docCtx && docCtx.items) {
 			allowedKbRefs = docCtx.items.map((r) => r.id);

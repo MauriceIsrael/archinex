@@ -22,6 +22,37 @@ export interface LocalLlmConfig {
 
 export type KnowledgeAlignment = 'standard_established' | 'conflict_detected' | 'novel_requirement';
 
+/**
+ * Synthèse transverse d'un sujet (inspirée de l'arbre d'utilité ATAM) : où commencer, et dans quel ordre.
+ * Proposition du modèle, à relire comme le reste.
+ */
+export interface SubjectTriage {
+	/** Poids pour le donneur d'ordre et l'issue de l'offre. */
+	importance: 'H' | 'M' | 'L';
+	/** Difficulté d'architecture : incertitude, compromis entre attributs de qualité, dépendance à des tiers. */
+	difficulty: 'H' | 'M' | 'L';
+	nature: 'architecture' | 'contractuel' | 'organisationnel';
+	/** Sujets dont la décision conditionne celle-ci (à trancher avant). */
+	dependsOn: string[];
+	/** Sujets traitant en partie de la même décision (candidats à fusion). */
+	overlapsWith: string[];
+	rationale: string;
+	/** Rang de priorité (1 = à délibérer en premier) : importance, puis difficulté. */
+	rank: number;
+}
+
+/**
+ * Proposition du modèle pour préparer la délibération : options, critères qui les départagent et évaluations.
+ * Point de départ à valider ou corriger par l'équipe ; une option unique est admise si elle est justifiée.
+ */
+export interface SubjectProposal {
+	options: Array<{ title: string; summary: string }>;
+	/** Pourquoi il n'y a pas d'alternative réelle (option unique). */
+	singleOptionRationale?: string;
+	criteria: Array<{ name: string; kind: 'functional' | 'nfr' | 'cost' | 'risk' | 'compliance'; weight: number; description: string }>;
+	evaluations: Array<{ option: string; criterion: string; score: number; justification: string }>;
+}
+
 export interface FactorizedArchitecturalSubject {
 	id: string;
 	lotId: string;
@@ -41,6 +72,8 @@ export interface FactorizedArchitecturalSubject {
 		initialQuestion: string;
 		expertQuestions?: string[];
 	};
+	triage?: SubjectTriage;
+	proposal?: SubjectProposal;
 }
 
 export interface RfpFactorizationRequest {
@@ -71,4 +104,10 @@ export interface RfpFactorizationResponse {
 	toQualifyCount?: number;
 	clarifications?: Array<{ clauseRef: string; title: string; question: string }>;
 	allAuditedRequirements?: any[];
+	/** Exécution persistée côté serveur (rechargeable via /api/rfp/factorize/runs/[runId]). */
+	runId?: string | null;
+	/** Résultat renvoyé depuis une exécution antérieure sur les mêmes entrées, sans recalcul. */
+	reusedRun?: boolean;
+	/** État partiel d'une exécution encore en cours (dispositions, puis périmètre des sujets). */
+	inProgress?: boolean;
 }

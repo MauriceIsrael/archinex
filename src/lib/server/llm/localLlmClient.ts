@@ -3,13 +3,43 @@
  * 
  * - Par défaut : moteur local souverain sur le réseau d'entreprise (Ollama / vLLM sur localhost:11434).
  * - Multi-modèle & Cloud : si ANTHROPIC_API_KEY est configurée, active les modèles Claude
- *   (Claude 3.7 Sonnet, Claude 3.5 Sonnet, Claude 3.5 Haiku) pour une factorisation haute fidélité
- *   et des fenêtres de contexte étendues (200k tokens).
+ *   (Sonnet, Opus, Haiku, Fable) pour une factorisation haute fidélité
+ *   et des fenêtres de contexte étendues (jusqu'à 1M tokens).
  */
 
+import Anthropic from '@anthropic-ai/sdk';
+import type { AnthropicBeta } from '@anthropic-ai/sdk/resources/beta/beta';
+import type { BetaMessageStreamParams } from '@anthropic-ai/sdk/resources/beta/messages/messages';
 import type { LocalLlmConfig, LocalLlmModel, ChatOptions } from './types';
 
+/** Résout les alias historiques (Claude 3.x) vers un modèle servi ; un identifiant non Claude retombe sur le modèle par défaut. */
+export function resolveAnthropicModel(model: string, fallback: string): string {
+	const m = model.toLowerCase();
+	if (m === 'claude-3-7-sonnet' || m === 'claude-3-7-sonnet-20250219') return 'claude-sonnet-5-5';
+	if (m === 'claude-3-5-sonnet' || m === 'claude-3-5-sonnet-20241022') return 'claude-sonnet-5-5';
+	if (m === 'claude-3-5-haiku' || m === 'claude-3-5-haiku-20241022' || m === 'claude-3-haiku-20240307') return 'claude-haiku-5-5';
+	if (!m.startsWith('claude')) return fallback;
+	return model;
+}
+
+export interface AnthropicCapabilities {
+	/** Réflexion adaptative + effort (`output_config.effort`) ; temperature refusée. */
+	adaptiveThinking: boolean;
+	/** Repli serveur en cas de refus du filtre de sécurité (`fallbacks: "default"`). */
+	serverFallback: boolean;
+	maxOutputTokens: number;
+}
+
+/** Capacités d'API par famille de modèle (Claude 4.6 et suivants : réflexion adaptative, 128k jetons de sortie). */
+export function anthropicCapabilities(model: string): AnthropicCapabilities {
+	const m = model.toLowerCase();
+	const adaptiveThinking = /claude-(?:fable|mythos)-|claude-(?:opus|sonnet|haiku)-5|claude-opus-4-[678]|claude-sonnet-4-6/.test(m);
+	const serverFallback = /^claude-(?:fable-5-1|opus-5-5|opus-5|sonnet-5-5)$/.test(m);
+	return { adaptiveThinking, serverFallback, maxOutputTokens: adaptiveThinking ? 128000 : 64000 };
+}
+
 export class LocalLlmClient {
+	private anthropic?: Anthropic;
 	private endpoint: string;
 	private defaultModel: string;
 	private timeoutMs: number;
@@ -29,7 +59,7 @@ export class LocalLlmClient {
 		// Clé et configuration Anthropic Claude
 		this.anthropicApiKey = (config.anthropicApiKey || process.env.ANTHROPIC_API_KEY || '').trim();
 		this.provider = (config.provider || (process.env.LLM_PROVIDER as any) || 'auto') as 'local' | 'anthropic' | 'auto';
-		this.anthropicModel = config.anthropicModel || process.env.ANTHROPIC_MODEL || 'claude-sonnet-4-5-20250929';
+		this.anthropicModel = config.anthropicModel || process.env.ANTHROPIC_MODEL || 'claude-sonnet-5-5';
 
 		const hasAnthropic = Boolean(this.anthropicApiKey) && this.provider !== 'local';
 		const localDefault = process.env.LLM_LOCAL_MODEL || 'ministral:latest';
@@ -193,22 +223,22 @@ export class LocalLlmClient {
 			if (models.length === 0) {
 				models.push(
 					{
-						id: 'claude-sonnet-4-5-20250929',
-						name: 'Claude Sonnet 4.5 (Anthropic - Haute fidélité, 200k tokens)',
+						id: 'claude-sonnet-5-5',
+						name: 'Claude Sonnet 5.5 (Anthropic - Haute fidélité, 1M tokens)',
 						family: 'claude',
-						contextLength: 200000
+						contextLength: 1000000
 					},
 					{
-						id: 'claude-haiku-4-5-20251001',
-						name: 'Claude Haiku 4.5 (Anthropic - Ultra-rapide, 200k tokens)',
+						id: 'claude-haiku-5-5',
+						name: 'Claude Haiku 5.5 (Anthropic - Ultra-rapide, 1M tokens)',
 						family: 'claude',
-						contextLength: 200000
+						contextLength: 1000000
 					},
 					{
-						id: 'claude-opus-4-5-20251101',
-						name: 'Claude Opus 4.5 (Anthropic - Raisonnement profond, 200k tokens)',
+						id: 'claude-opus-5-5',
+						name: 'Claude Opus 5.5 (Anthropic - Raisonnement profond, 1M tokens)',
 						family: 'claude',
-						contextLength: 200000
+						contextLength: 1000000
 					}
 				);
 			}
@@ -326,7 +356,8 @@ export class LocalLlmClient {
 	}
 
 	/**
-	 * Appel API Anthropic Messages (Claude 3.5 / 3.7 / 4.x / 5.x)
+	 * Appel API Anthropic Messages (Claude 4.x / 5.x) via le SDK officiel, en flux (streaming) :
+	 * une réponse longue n'est plus coupée par un délai HTTP, et le SDK relance seul les 429 / 5xx.
 	 */
 	private async chatAnthropic(options: ChatOptions, model: string): Promise<string> {
 		const startTime = Date.now();
@@ -335,12 +366,8 @@ export class LocalLlmClient {
 		const timer = setTimeout(() => controller.abort(), timeout);
 
 		try {
-			// Résolution d'alias de modèle éventuel
-			let resolvedModel = model;
-			if (resolvedModel === 'claude-3-7-sonnet' || resolvedModel === 'claude-3-7-sonnet-20250219') resolvedModel = 'claude-sonnet-4-5-20250929';
-			else if (resolvedModel === 'claude-3-5-sonnet' || resolvedModel === 'claude-3-5-sonnet-20241022') resolvedModel = 'claude-sonnet-4-5-20250929';
-			else if (resolvedModel === 'claude-3-5-haiku' || resolvedModel === 'claude-3-5-haiku-20241022' || resolvedModel === 'claude-3-haiku-20240307') resolvedModel = 'claude-haiku-4-5-20251001';
-			else if (!resolvedModel.toLowerCase().startsWith('claude')) resolvedModel = this.anthropicModel;
+			const resolvedModel = resolveAnthropicModel(model, this.anthropicModel);
+			const caps = anthropicCapabilities(resolvedModel);
 
 			// Extraction du prompt système
 			const systemParts = options.messages
@@ -378,20 +405,21 @@ export class LocalLlmClient {
 				formattedMessages.unshift({ role: 'user', content: 'Instructions d\'amorce :' });
 			}
 
-			// Modèle grand contexte (Claude) : allocation par défaut étendue
-			const isGrandContext = /claude-(?:sonnet|opus|haiku|3-7|4|5)/i.test(resolvedModel);
-			const defaultMaxTokens = isGrandContext ? 32768 : 8192;
-			const maxTokens = options.maxTokens || defaultMaxTokens;
+			// En flux, un plafond élevé ne coûte rien tant qu'il n'est pas atteint : il évite les troncatures.
+			const maxTokens = Math.min(options.maxTokens || caps.maxOutputTokens, caps.maxOutputTokens);
 
-			const payload: any = {
+			const payload: BetaMessageStreamParams = {
 				model: resolvedModel,
 				messages: formattedMessages,
 				max_tokens: maxTokens
 			};
 
-			// Ne pas inclure temperature pour les modèles récents ou qui l'ont dépréciée (Claude 4.x, 5.x, etc.)
-			const isTempDeprecated = /claude-(?:(?:haiku|sonnet|opus|fable)-[45]|(?:opus|sonnet|haiku)-4)/i.test(resolvedModel);
-			if (!isTempDeprecated && (options.temperature !== undefined || this.temperature !== undefined)) {
+			if (caps.adaptiveThinking) {
+				// Réflexion adaptative : le modèle raisonne avant de répondre, l'effort en règle la profondeur.
+				// Les paramètres d'échantillonnage (temperature) sont refusés par ces modèles.
+				payload.thinking = { type: 'adaptive' };
+				payload.output_config = { effort: options.effort ?? 'high' };
+			} else {
 				payload.temperature = options.temperature ?? this.temperature;
 			}
 
@@ -399,84 +427,49 @@ export class LocalLlmClient {
 				payload.system = systemPrompt;
 			}
 
+			const betas: AnthropicBeta[] = [];
+			if (caps.serverFallback) {
+				// Si le modèle décline la requête (filtre de sécurité), l'API la rejoue sur un modèle de repli.
+				betas.push('server-side-fallback-2026-07-01');
+				payload.fallbacks = 'default';
+			}
+
 			const inputChars = options.messages.reduce((acc, m) => acc + (m.content?.length || 0), 0);
 			console.log(
-				`🌐 [Anthropic API] Envoi requête -> Modèle : "${resolvedModel}", messages : ${formattedMessages.length}, max_tokens : ${payload.max_tokens}, caractères envoyés : ${inputChars.toLocaleString('fr-FR')}`
+				`🌐 [Anthropic API] Envoi requête (flux) -> Modèle : "${resolvedModel}", max_tokens : ${payload.max_tokens}${
+					payload.output_config?.effort ? `, effort : ${payload.output_config.effort}` : ''
+				}, caractères envoyés : ${inputChars.toLocaleString('fr-FR')}`
 			);
 
-			let res = await fetch('https://api.anthropic.com/v1/messages', {
-				method: 'POST',
-				headers: {
-					'Content-Type': 'application/json',
-					Accept: 'application/json',
-					'x-api-key': this.anthropicApiKey,
-					'anthropic-version': '2023-06-01'
-				},
-				body: JSON.stringify(payload),
-				signal: controller.signal
-			});
-
-			// Si le modèle rejette temperature (400 Bad Request), relance immédiatement sans le paramètre
-			if (!res.ok && payload.temperature !== undefined) {
-				const errCopy = await res.clone().text().catch(() => '');
-				if (errCopy.includes('temperature') && errCopy.includes('deprecated')) {
-					console.warn(`⚠️ [Anthropic API] 400 Bad Request (température dépréciée pour ${resolvedModel}), relance immédiate sans 'temperature'...`);
-					delete payload.temperature;
-					res = await fetch('https://api.anthropic.com/v1/messages', {
-						method: 'POST',
-						headers: {
-							'Content-Type': 'application/json',
-							Accept: 'application/json',
-							'x-api-key': this.anthropicApiKey,
-							'anthropic-version': '2023-06-01'
-						},
-						body: JSON.stringify(payload),
-						signal: controller.signal
-					});
-				}
-			}
+			const data = await this.getAnthropic()
+				.beta.messages.stream({ ...payload, ...(betas.length > 0 ? { betas } : {}) }, { signal: controller.signal })
+				.finalMessage();
 
 			clearTimeout(timer);
 
 			const durationSec = ((Date.now() - startTime) / 1000).toFixed(1);
-
-			if (!res.ok) {
-				const errText = await res.text().catch(() => '');
-				console.error(`❌ [Anthropic API] Erreur HTTP ${res.status} (${durationSec}s) :`, errText.slice(0, 300));
-				throw new Error(
-					`Erreur Anthropic Claude (${res.status} ${res.statusText}) : ${errText.slice(0, 300)}`
-				);
-			}
-
-			const data = await res.json();
-			const thinkingBlocks = Array.isArray(data.content)
-				? data.content.filter((block: any) => block.type === 'thinking')
-				: [];
-			const textBlocks = Array.isArray(data.content)
-				? data.content.filter((block: any) => block.type === 'text')
-				: [];
-
-			const text = textBlocks.map((block: any) => block.text).join('');
-			const thinkingChars = thinkingBlocks.reduce((acc: number, b: any) => acc + (b.thinking?.length || 0), 0);
+			const text = data.content
+				.filter((block): block is Extract<typeof block, { type: 'text' }> => block.type === 'text')
+				.map((block) => block.text)
+				.join('');
 
 			const inTok = data.usage?.input_tokens ?? '?';
 			const outTok = data.usage?.output_tokens ?? '?';
 			const stopReason = data.stop_reason;
 
-			if (thinkingBlocks.length > 0) {
-				console.log(
-					`🧠 [Anthropic API] Raisonnement thinking interne : ${thinkingChars.toLocaleString('fr-FR')} caractères.`
-				);
-			}
-
 			console.log(
-				`✅ [Anthropic API] Réponse 200 OK reçue en ${durationSec}s -> ${text.length.toLocaleString('fr-FR')} car. (tokens: in=${inTok}, out=${outTok}, stop_reason="${stopReason}")`
+				`✅ [Anthropic API] Réponse reçue en ${durationSec}s -> ${text.length.toLocaleString('fr-FR')} car. (modèle: ${data.model}, tokens: in=${inTok}, out=${outTok}, stop_reason="${stopReason}")`
 			);
+
+			if (stopReason === 'refusal') {
+				const category = data.stop_details?.category ?? 'non précisée';
+				throw new Error(`Le modèle Claude (${data.model}) a décliné la requête (catégorie : ${category}).`);
+			}
 
 			// Diagnostic de troncature et d'épuisement de budget max_tokens
 			if (stopReason === 'max_tokens' && text.trim().length === 0) {
 				throw new Error(
-					`Le modèle Claude (${resolvedModel}) a consommé l'intégralité du quota max_tokens (${payload.max_tokens}) dans sa phase de réflexion interne (thinking: ${thinkingChars} car.) sans émettre de texte. Augmentez max_tokens (ex: 32768) pour laisser de la place au texte de réponse.`
+					`Le modèle Claude (${resolvedModel}) a consommé l'intégralité du quota max_tokens (${payload.max_tokens}) dans sa phase de réflexion interne sans émettre de texte.`
 				);
 			}
 
@@ -501,8 +494,18 @@ export class LocalLlmClient {
 					`Délai d'inférence Claude dépassé (${Math.round(timeout / 1000)}s). L'API Anthropic n'a pas répondu à temps.`
 				);
 			}
+			if (err instanceof Anthropic.APIError) {
+				console.error(`❌ [Anthropic API] Erreur HTTP ${err.status ?? '?'} :`, err.message.slice(0, 300));
+				throw new Error(`Erreur Anthropic Claude (${err.status ?? 'réseau'}) : ${err.message.slice(0, 300)}`);
+			}
 			throw err;
 		}
+	}
+
+	private getAnthropic(): Anthropic {
+		// fetch résolu à l'appel : les tests peuvent substituer globalThis.fetch.
+		this.anthropic ??= new Anthropic({ apiKey: this.anthropicApiKey, maxRetries: 4, fetch: (...args) => globalThis.fetch(...args) });
+		return this.anthropic;
 	}
 
 	/**

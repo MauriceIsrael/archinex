@@ -141,11 +141,30 @@ describe('Lot A26 Contract: Maturity Criteria Stepper, Locks, Convergence & Stag
 		expect(l3Transition.missingReasons).toContain('Aucune objection ouverte (ou risque accepté)');
 		expect(l3Transition.missingReasons).toContain('Vérificateur d’architecture passé');
 		expect(l3Transition.missingReasons).toContain(
-			'Décision affirmée dans le Hub par un decider distinct de son auteur'
+			'Décision tranchée par le Lead Architect, ou affirmée par un décideur distinct'
 		);
 
 		// Un contributeur voit pourquoi L3 lui est inaccessible et qui peut le débloquer
 		expect(l3Transition.unblockHint).toContain('Décideur distinct (K16)');
+	});
+
+	it('3 quater. La décision du Lead Architect est effective sans revue ; celle d\'un autre architecte attend une affirmation', () => {
+		const base: MaturityCriteriaInput = {
+			subject: { id: 'sub-lead', name: 'Topologie', level: 'L2_decomposed' },
+			arguments: [],
+			verifierPassed: true
+		};
+		const byLead = computeMaturityCriteria({
+			...base,
+			decision: { authorId: 'lead', authorRole: 'lead_architect', status: 'proposed' }
+		});
+		expect(byLead.transitions.L3_decided.allowed).toBe(true);
+
+		const byArchitect = computeMaturityCriteria({
+			...base,
+			decision: { authorId: 'archi', authorRole: 'infra_expert_architect', status: 'proposed' }
+		});
+		expect(byArchitect.transitions.L3_decided.allowed).toBe(false);
 	});
 
 	it('4. L2 -> L3 : validation réussie avec décideur distinct et objections résolues', () => {

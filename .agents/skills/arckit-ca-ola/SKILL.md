@@ -8,6 +8,12 @@ description: "[COMMUNITY] Generate an Official Languages Act review — Parts IV
 > (ATIP coordinator, ITSEC officer, OCHRO language lead, CIO branch) before reliance. Citations
 > may lag current text — verify against the Justice Laws Website and the issuing TBS / CSE / OPC source.
 
+## User Request
+
+```text
+$ARGUMENTS
+```
+
 You are an enterprise architect generating an Official Languages Act review for a federal digital service.
 
 ## Process
@@ -20,10 +26,10 @@ You are an enterprise architect generating an Official Languages Act review for 
    - `.arckit/templates/_partials/RENDERING.md`
 2. Read the template:
    - **First**, check `.arckit/templates-custom/ca-ola-template.md` (user override)
-   - **Then**, `.arckit/templates/ca-ola-template.md`
+   - **Then**, `.arckit/templates-custom/ca-ola-template.md`
    - **Fallback**, `.arckit/templates/ca-ola-template.md`
-3. Use `scripts/bash/generate-document-id.sh <PROJECT_ID> OLA --filename` for the artefact filename.
-4. Resolve the `<!-- DOC-CONTROL-HEADER -->` marker per `RENDERING.md`. Use the Canadian classification scheme (UNCLASSIFIED / Protected A / Protected B / Protected C / CONFIDENTIAL / SECRET / TOP SECRET) — replace the standard UK line in the header.
+3. Use `node scripts/generate-document-id.mjs <PROJECT_ID> OLA --filename` for the artefact filename.
+4. Resolve the `<!-- DOC-CONTROL-HEADER -->` marker per `RENDERING.md` before writing the artefact. `RENDERING.md` hard-routes the CA regime to `_partials/document-control-ca.md`, which already carries the Policy on Government Security categorization ladder — no per-command classification override is needed.
 5. Generate the following sections (the template provides skeletons for each):
    - **Service Surface Inventory** — every user-facing surface that must be language-equivalent: screens, forms, notifications, error messages, public registers, accessibility statements, printed correspondence, IVR scripts, and social media. Per surface: language posture (bilingual / unilingual + justification), audience, and channel.
    - **Part IV — Communications with and Services to the Public** — per surface, state the bilingual obligation rationale (significant demand, public-travel, head-office, designated bilingual office). Active offer at first contact (greeting, signage, written initiation). Bilingual capacity at time of service.
@@ -35,8 +41,9 @@ You are an enterprise architect generating an Official Languages Act review for 
    - **Risk and Mitigation Register** — per OLA risk: complaint exposure to the Commissioner of Official Languages, court remedies under Part X, reputational risk; mitigations.
    - **Open Items** — outstanding decisions, deferred remediations, unresolved Translation Bureau lead times, owners, and review dates.
 6. Populate the External References section per `.arckit/references/citation-instructions.md`. The *Official Languages Act*, *An Act for the Substantive Equality of Canada's Official Languages* (Bill C-13, 2023), the TBS *Policy on Official Languages*, and the *Directive on the Implementation of the Official Languages (Communications with and Services to the Public) Regulations* MUST appear in the Document Register with their primary URLs and verification dates.
-7. Write the artefact via the Write tool to `projects/<project-id>/<filename>`.
-8. Show only a summary to the user (one paragraph plus the headline OLA posture per Part, top three remediation actions, any "translation lag" risks identified, and any surfaces where active offer is missing).
+7. Before writing the file, read `.arckit/references/quality-checklist.md` and verify all **Common Checks** plus the **OLA** per-type checks pass. Fix any failures before proceeding.
+8. Write the artefact via the Write tool to `projects/<project-id>/<filename>`.
+9. Show only a summary to the user (one paragraph plus the headline OLA posture per Part, top three remediation actions, any "translation lag" risks identified, and any surfaces where active offer is missing).
 
 ## Authoritative anchor
 

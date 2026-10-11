@@ -370,7 +370,7 @@ describe('Lot A5 E2E: Second cas de test IT pure - Plateforme Cloud Privé Souve
 				reversibility: 'reversible',
 				acceptedViolations: []
 			},
-			infraExpert // Expert du domaine infrastructure
+			leadArchitect // Le Lead Architect décide seul ; la décision d'un expert attendrait une revue
 		);
 
 		expect(decision).toBeDefined();

@@ -30,6 +30,7 @@ $ARGUMENTS
 **FORMAT** (optional): Output formats (default: `markdown`)
 
 - Valid: `markdown`, `csv`, `json`, `all`
+- The Markdown backlog and the JSON backlog are **always** written: the JSON is the structured record every total is computed from and checked against (Step 13.1). `csv` or `all` adds the CSV export. `json` is accepted for compatibility and behaves like `markdown`.
 
 **PRIORITY** (optional): Prioritization approach (default: `multi`)
 
@@ -80,7 +81,7 @@ Scans all ArcKit artifacts and automatically:
    - Links to HLD components
    - Maps to epics and business goals
 
-**Output**: `projects/{project-dir}/ARC-{PROJECT_ID}-BKLG-v1.0.md` (+ optional CSV/JSON)
+**Output**: `projects/{project-dir}/ARC-{PROJECT_ID}-BKLG-v1.0.md` and `.json` (+ optional CSV)
 
 **Time Savings**: 75%+ reduction (4-6 weeks → 3-5 days)
 
@@ -115,6 +116,19 @@ Extract project metadata:
   - Extract: All BR/FR/NFR/INT/DR requirement IDs, descriptions, priorities, acceptance criteria
   - If missing: warn user to run `$arckit-requirements` first — backlog is derived from requirements
 
+**PREVIOUS BACKLOG** (read if one exists):
+
+- **BKLG** — an earlier `ARC-*-BKLG-*.json` (or `.md`) in this project means you are revising, not starting again. Follow **Regenerating an existing backlog** below.
+
+#### Regenerating an existing backlog
+
+When a previous backlog exists, carry it forward and apply one estimation policy to every item:
+
+- **Keep an item's existing story points** unless its acceptance criteria, its linked requirements, or the requirement text it derives from changed since the previous version. Re-estimating an unchanged item makes velocity and burn-down meaningless.
+- **Re-estimate an item whose source changed**, and list each re-estimated item with its old and new points and the reason in the Revision History `Changes` column.
+- **New items** are estimated fresh; **items whose requirement was removed** are dropped and listed the same way.
+- Every total is then recomputed from the revised items (Step 13.1). Never patch a total by hand to absorb a change.
+
 **RECOMMENDED** (read if available, note if missing):
 
 - **STKE** (Stakeholder Analysis)
@@ -146,13 +160,13 @@ Extract project metadata:
 
 ### Step 2c: Interactive Configuration
 
-Before generating the backlog, use the **AskUserQuestion** tool to gather user preferences. **Skip any question where the user has already specified their choice via the arguments above** (e.g., if they wrote `PRIORITY=risk`, do not ask about prioritization).
+Before generating the backlog, ask the user for user preferences. **Skip any question where the user has already specified their choice via the arguments above** (e.g., if they wrote `PRIORITY=risk`, do not ask about prioritization).
 
-**Gathering rules** (apply to all questions in this section):
+**Gathering rules** — the one-message interview in `.arckit/references/interview-pattern.md`:
 
-- Ask the most important question first; fill in secondary details from context or reasonable defaults.
-- **Maximum 2 rounds of questions.** After that, pick the best option from available context.
-- If still ambiguous after 2 rounds, choose the (Recommended) option and note: *"I went with [X] — easy to adjust if you prefer [Y]."*
+- Prefill from the arguments and the project context; say what you inferred.
+- Ask every remaining question in **one** call. There is no second round.
+- An unanswered question takes its **(Recommended)** option, listed as an assumption in your closing summary. With no question tool available, take every default and never block.
 
 **Question 1** — header: `Priority`, multiSelect: false
 > "Which prioritization approach should be used for the backlog?"
@@ -165,12 +179,10 @@ Before generating the backlog, use the **AskUserQuestion** tool to gather user p
 **Question 2** — header: `Format`, multiSelect: false
 > "What output format do you need?"
 
-- **All formats (Recommended)**: Markdown report + CSV (Jira/Azure DevOps import) + JSON (API integration)
-- **Markdown only**: Standard report document
-- **CSV only**: For direct import into Jira, Azure DevOps, or GitHub Projects
-- **JSON only**: For programmatic access and custom integrations
+- **All formats (Recommended)**: Markdown report + JSON + CSV (Jira/Azure DevOps import)
+- **Markdown and JSON**: Report document plus the JSON record, no CSV
 
-Apply the user's selections to the corresponding parameters throughout this command. For example, if they chose "MoSCoW", use only MoSCoW prioritization in Step 7 instead of the full multi-factor algorithm. If they chose "CSV only", generate only the CSV output in Step 13.
+Apply the user's selections to the corresponding parameters throughout this command. For example, if they chose "MoSCoW", use only MoSCoW prioritization in Step 7 instead of the full multi-factor algorithm. The Markdown and the JSON are written whichever format is chosen; the choice only decides whether the CSV is added in Step 13.
 
 ### Step 3: Parse Requirements
 
@@ -704,6 +716,8 @@ with UK GDPR Article 30 (records of processing activities).
 
 ### Step 7: Prioritization
 
+**A requirement's MoSCoW priority is an input, not an output.** Each story or task takes the MoSCoW priority of the requirement it is derived from in the REQ document. A requirement marked MUST_HAVE there must be delivered by at least one Must Have item. If there is a real reason to deliver it at a lower priority (the product owner deferred it, a dependency moves it out of the MVP), keep the lower priority **and** record the reason on that requirement's `traceability` row in the JSON as `"priority_change": "<reason, who agreed it, date>"`, and say so in the Markdown traceability appendix. A lowered priority with no recorded reason is blocked when the JSON is written: this is how a compliance requirement ends up silently downgraded. The scoring below orders items **within** the backlog; it never changes a MoSCoW category.
+
 Apply **multi-factor prioritization algorithm**:
 
 #### 7.1: Calculate Priority Score
@@ -1236,7 +1250,7 @@ Every story must meet these criteria before marking "Done":
 
 ### Compliance
 - [ ] GDPR requirements met (if handling user data)
-- [ ] Accessibility tested (WCAG 2.1 AA)
+- [ ] Accessibility tested (WCAG 2.2 AA)
 - [ ] Audit logging in place (if required)
 
 ### Documentation
@@ -1263,101 +1277,47 @@ Every story must meet these criteria before marking "Done":
 
 ### Step 13: Generate Output Files
 
-#### 13.1: Primary Output - ARC-*-BKLG-*.md
+#### 13.1: Write the JSON first, and compute every total from it
 
-Create comprehensive markdown file at `projects/{project-dir}/ARC-{PROJECT_ID}-BKLG-v1.0.md`:
+Build the complete backlog as the JSON structure shown in 13.4 **before** writing any Markdown, and write it with the **Write tool** to `projects/{project-dir}/ARC-{PROJECT_ID}-BKLG-v1.0.json`.
 
-```markdown
-# Product Backlog: {Project Name}
+Every aggregate in the backlog is **computed from the items, never estimated or carried over**:
 
-**Generated**: {date}
-**Project**: {project-name}
-**Phase**: Beta (Implementation)
-**Team Velocity**: {velocity} points/sprint
-**Sprint Length**: {sprint_length}
-**Total Sprints Planned**: {sprints}
+- `stories` holds **every** backlog item: user stories and the technical tasks from Step 6. `summary.total_stories` is the length of that array.
+- `summary.total_points` is the sum of every item's `story_points`; each `*_have_points` is the same sum restricted to one MoSCoW category.
+- Each epic's `points` is the sum of its items' `story_points`, and its `stories` list names exactly the items whose `epic` is that epic.
+- Sprints are numbered from 1. An item not yet scheduled has `"sprint": null`, never `0`. A sprint's `stories` list agrees with each item's own `sprint`.
+- `summary.total_requirements` is the number of `traceability` rows.
 
----
+A hook recomputes all of these when the JSON is written and blocks the write with the exact differences. If it blocks, recompute from the items; do not edit the declared number to match.
 
-## Executive Summary
+#### 13.2: Primary Output - ARC-*-BKLG-*.md
 
-**Total Stories**: {N}
-**Total Epics**: {N}
-**Total Story Points**: {N}
-**Estimated Duration**: {N / velocity} sprints ({N} weeks)
+**Read the template** (user override takes precedence):
 
-### Priority Breakdown
-- Must Have: {N} stories ({N} points) - {X}%
-- Should Have: {N} stories ({N} points) - {X}%
-- Could Have: {N} stories ({N} points) - {X}%
+- **First**, check `.arckit/templates-custom/backlog-template.md`
+- **Then**, `.arckit/templates-custom/backlog-template.md`
+- **Fallback**, `.arckit/templates/backlog-template.md`
+- **Then read** `.arckit/templates/_partials/RENDERING.md` and resolve the `<!-- DOC-CONTROL-HEADER -->` marker in the template before writing. Do not hand-write the Document Control table: the partial `RENDERING.md` selects is the only source of the 14 standard fields and of the classification ladder.
 
-### Epic Breakdown
-{List all epics with point totals}
+The template owns the document structure. Populate it from Steps 3-12 — do not invent a parallel one.
 
----
+| Template section | Filled from |
+|---|---|
+| **Executive Summary** | totals, priority breakdown and epic breakdown, **copied from the JSON written in 13.1**. Every other section that restates a total (epic headers, Appendix A coverage summary, Appendix C, Appendix D) uses the same figures |
+| **How to Use This Backlog** | ships complete; keep it, and set the refinement schedule to the sprint length chosen in Step 2c |
+| **Epics** | Step 5, one block per BR-xxx |
+| **Prioritized Backlog** | Steps 4 and 7, one `Story-NNN` block per story in priority order |
+| **Sprint Plan** | Step 8, one block per sprint with goals, dependencies, risks and the Definition of Done |
+| **Appendices A-F** | A from Step 9, B from Step 10, C from Step 11, D from the Step 7 points distribution, E from the Step 7 risk-based ordering, F from Step 12 |
+| **Future Sprints** | the remainder of the ordered backlog beyond the planned sprints |
+| **Backlog Maintenance** | ships complete — velocity tracking, grooming cadence, and when to re-generate |
+| **Integration with Other ArcKit Commands** | ships complete |
+| **External References** | the document register, citations and unreferenced documents, per the citation instructions read in Step 2b |
 
-## How to Use This Backlog
+Write it with the **Write tool** to `projects/{project-dir}/ARC-{PROJECT_ID}-BKLG-v1.0.md`. A backlog is long, so writing it inline risks the 32K output-token limit.
 
-### For Product Owners:
-1. Review epic priorities - adjust based on business needs
-2. Refine story acceptance criteria before sprint planning
-3. Validate user stories with actual users
-4. Adjust sprint sequence based on stakeholder priorities
-
-### For Development Teams:
-1. Review stories in upcoming sprint (Sprint Planning)
-2. Break down stories into tasks if needed
-3. Estimate effort using team velocity
-4. Identify technical blockers early
-5. Update story status as work progresses
-
-### For Scrum Masters:
-1. Track velocity after each sprint
-2. Adjust future sprint loading based on actual velocity
-3. Monitor dependency chains
-4. Escalate blockers early
-5. Facilitate backlog refinement sessions
-
-### Backlog Refinement:
-- **Weekly**: Review and refine next 2 sprints
-- **Bi-weekly**: Groom backlog beyond 2 sprints
-- **Monthly**: Reassess epic priorities
-- **Per sprint**: Update based on completed work and learnings
-
----
-
-## Epics
-
-{Generate all epic sections from Step 5}
-
----
-
-## Prioritized Backlog
-
-{Generate all user stories from Step 4, sorted by priority from Step 7}
-
----
-
-## Sprint Plan
-
-{Generate all sprint plans from Step 8}
-
----
-
-## Appendices
-
-{Include all appendices from Steps 9-12}
-
----
-
-**Note**: This backlog was auto-generated from ArcKit artifacts. Review and refine with your team before sprint planning begins. Story points are estimates - re-estimate based on your team's velocity and capacity.
-
----
-
-**End of Backlog**
-```
-
-#### 13.2: CSV Export (if requested)
+#### 13.3: CSV Export (if requested)
 
 Create `backlog.csv` for Jira/Azure DevOps import:
 
@@ -1370,9 +1330,9 @@ Task,TASK-001-B,STORY-001,"Implement registration API","POST /api/users/register
 [... all items ...]
 ```
 
-#### 13.3: JSON Export (if requested)
+#### 13.4: JSON Structure
 
-Create `backlog.json` for programmatic access:
+The JSON written in 13.1 (also read by `$arckit-trello`):
 
 ```json
 {
@@ -1387,7 +1347,9 @@ Create `backlog.json` for programmatic access:
     "total_points": 342,
     "must_have_points": 180,
     "should_have_points": 98,
-    "could_have_points": 64
+    "could_have_points": 64,
+    "wont_have_points": 0,
+    "total_requirements": 64
   },
   "epics": [
     {
@@ -1466,6 +1428,14 @@ Create `backlog.json` for programmatic access:
       "stories": ["STORY-001"],
       "sprint": 1,
       "status": "Planned"
+    },
+    {
+      "requirement": "FR-014",
+      "type": "Functional",
+      "stories": ["STORY-031"],
+      "sprint": null,
+      "status": "Deferred",
+      "priority_change": "MUST_HAVE in REQ, delivered as Should Have: deferred to phase 2 by the product owner, 2026-09-20"
     }
   ]
 }
@@ -1496,11 +1466,11 @@ Before completing the document, populate ALL document control fields in the head
 
 - `[PROJECT_NAME]` → Full project name from project metadata or user input
 - `[OWNER_NAME_AND_ROLE]` → Document owner (prompt user if not in metadata)
-- `[CLASSIFICATION]` → Default to "OFFICIAL" for UK Gov, "PUBLIC" otherwise (or prompt user)
+- **Classification** → comes from the resolved Document Control header, not from a placeholder. `_partials/RENDERING.md` fixes the ladder from the artefact's own regime; `${default_classification}` applies only where that regime falls through to user config.
 
 *Calculated fields*:
 
-- `[YYYY-MM-DD]` for Review Date → Current date + 30 days
+- `[YYYY-MM-DD]` for Next Review Date → Current date + 30 days
 
 *Pending fields* (leave as [PENDING] until manually updated):
 
@@ -1523,7 +1493,7 @@ The footer should be populated with:
 **Generated on**: {DATE} {TIME} GMT
 **ArcKit Version**: {ARCKIT_VERSION}
 **Project**: {PROJECT_NAME} (Project {PROJECT_ID})
-**AI Model**: [Use actual model name, e.g., "claude-sonnet-4-5-20250929"]
+**AI Model**: [Use actual model name, e.g., "Claude Sonnet 5 (session default)"]
 **Generation Context**: [Brief note about source documents used]
 ```
 
@@ -1539,10 +1509,11 @@ Write all files to `projects/{project-dir}/`:
 
 - `ARC-{PROJECT_ID}-BKLG-v1.0.md` - Primary output
 
+- `ARC-{PROJECT_ID}-BKLG-v1.0.json` - The structured record every total is computed from (written first, Step 13.1)
+
 **Create if FORMAT includes**:
 
 - `ARC-{PROJECT_ID}-BKLG-v1.0.csv` - If FORMAT=csv or FORMAT=all
-- `ARC-{PROJECT_ID}-BKLG-v1.0.json` - If FORMAT=json or FORMAT=all
 
 **CRITICAL - Show Summary Only**:
 After writing the file(s), show ONLY the confirmation message below. Do NOT output the full backlog content in your response. The backlog document can be 1000+ lines and will exceed token limits.

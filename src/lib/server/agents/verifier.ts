@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { localLlmClient } from '../llm/localLlmClient';
 import type { Option } from '$lib/domain/options';
 import type { CreateArgumentData } from '../projects/debateDb';
+import { AGENT_TIMEOUT_MS, FALLBACK_PREFIX } from './agentConfig';
 
 const VerifierOutputSchema = z.object({
 	verifications: z.array(
@@ -44,7 +45,7 @@ ${input.options.map((o) => `[ID: ${o.id}] Titre: ${o.title}\nRésumé: ${o.summa
 Génère les constats de vérification :`;
 
 	try {
-		const timeoutMs = process.env.NODE_ENV === 'test' ? 300 : 15000;
+		const timeoutMs = AGENT_TIMEOUT_MS;
 		const response = await localLlmClient.chat({
 			messages: [
 				{ role: 'system', content: systemPrompt },
@@ -85,10 +86,10 @@ Génère les constats de vérification :`;
 		id: `arg-verif-${input.round}-${Date.now()}-${idx}`,
 		optionId: opt.id,
 		stance: 'verification' as const,
-		claim: `Contrôle de conformité doctrine vis-à-vis de [${primaryRule}]`,
+		claim: `${FALLBACK_PREFIX}Contrôle de conformité doctrine vis-à-vis de [${primaryRule}]`,
 		grounds: `L'analyse d'architecture confirme la cohérence des mécanismes d'isolation et d'authentification retenus dans ${opt.title} avec les directives du guide de référence.`,
 		kbRefs: [primaryRule],
-		confidence: 'verified' as const,
+		confidence: 'assumed' as const,
 		authorKind: 'agent:verifier',
 		round: input.round
 	}));

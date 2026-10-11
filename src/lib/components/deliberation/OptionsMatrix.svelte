@@ -72,6 +72,55 @@
 	let decisionReversibility = $state<'reversible' | 'costly' | 'irreversible'>('reversible');
 	let decisionError = $state<string | null>(null);
 
+	// Conformité réglementaire des options (LLMOps, contre les référentiels de l'espace)
+	interface ComplianceViolation { optionId: string; typedId: string; message: string; validated: boolean; matchedTerms: string[] }
+	let compliance = $state<{ frameworks: string[]; offline: boolean; violations: ComplianceViolation[]; unassessedCount: number } | null>(null);
+	let violationJustifications = $state<Record<string, string>>({});
+	const violationsOf = (optionId: string) => (compliance?.violations ?? []).filter((v) => v.optionId === optionId);
+
+	$effect(() => {
+		const optionCount = options.length;
+		if (!projectId || !subjectId || optionCount === 0) return;
+		fetch(`/api/projects/${projectId}/subjects/${subjectId}/compliance`)
+			.then((r) => (r.ok ? r.json() : null))
+			.then((data) => (compliance = data?.status === 'ok' ? data : null))
+			.catch(() => (compliance = null));
+	});
+
+	// Option unique : certains sujets n'ont pas d'alternative réelle ; la justification lève l'exigence de 2 options.
+	let singleOptionRationale = $state<string>('');
+	let singleOptionSaved = $state<string>('');
+	let singleOptionStatus = $state<string | null>(null);
+
+	$effect(() => {
+		if (!projectId || !subjectId) return;
+		fetch(`/api/projects/${projectId}/subjects/${subjectId}`)
+			.then((r) => (r.ok ? r.json() : null))
+			.then((data) => {
+				singleOptionRationale = data?.subject?.singleOptionRationale ?? '';
+				singleOptionSaved = singleOptionRationale;
+			})
+			.catch(() => {});
+	});
+
+	async function saveSingleOptionRationale() {
+		singleOptionStatus = null;
+		const url = `/api/projects/${projectId}/subjects/${subjectId}`;
+		try {
+			const current = await fetch(url).then((r) => r.json());
+			const res = await fetch(url, {
+				method: 'PATCH',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ singleOptionRationale, expectedVersion: current?.subject?.version ?? 1 })
+			});
+			if (!res.ok) throw new Error((await res.json().catch(() => ({}))).error || `HTTP ${res.status}`);
+			singleOptionSaved = singleOptionRationale;
+			singleOptionStatus = 'Justification enregistrée.';
+		} catch (err) {
+			onError(`Justification non enregistrée : ${err instanceof Error ? err.message : 'erreur'}`);
+		}
+	}
+
 	function getEvaluation(optionId: string, criterionId: string): OptionEvaluation | undefined {
 		return evaluations.find((e) => e.optionId === optionId && e.criterionId === criterionId);
 	}
@@ -255,16 +304,22 @@
 					retainedOptionId: selectedRetainedOptionId,
 					rationale: decisionRationale.trim(),
 					reversibility: decisionReversibility,
-					rejected
+					rejected,
+					// Écarts réglementaires acceptés et justifiés par l'arbitre (règles validées seulement)
+					acceptedViolations: violationsOf(selectedRetainedOptionId)
+						.filter((v) => v.validated && violationJustifications[v.typedId]?.trim())
+						.map((v) => ({ typedId: v.typedId, justification: violationJustifications[v.typedId].trim() }))
 				})
 			});
 
 			if (!res.ok) {
 				const err = await res.json().catch(() => ({}));
-				throw new Error(err.message || 'Erreur lors de l\'enregistrement de la décision');
+				const blockers = Array.isArray(err.blockers) ? err.blockers.map((b: { message: string }) => b.message).join(' ') : '';
+				throw new Error(blockers || err.error || 'Erreur lors de l\'enregistrement de la décision');
 			}
 
-			const savedDecision = await res.json();
+			const body = await res.json();
+			const savedDecision = body.decision ?? body;
 			decision = savedDecision;
 			isDeciding = false;
 			onDecisionMade(savedDecision);
@@ -313,6 +368,32 @@
 			</button>
 		</div>
 	</div>
+
+	{#if options.length === 1 && !decision}
+		<div class="rounded-lg border bg-muted/20 p-3 space-y-2 text-xs">
+			<label for="single-option-rationale" class="font-semibold text-foreground">
+				Une seule option : pourquoi n'y a-t-il pas d'alternative réelle ?
+			</label>
+			<textarea
+				id="single-option-rationale"
+				bind:value={singleOptionRationale}
+				rows="2"
+				placeholder="Ex. contrainte imposée par le RFP, choix qui s'impose techniquement… (sinon, proposez une alternative)"
+				class="w-full rounded-md border bg-background p-2 text-xs"
+			></textarea>
+			<div class="flex items-center gap-2">
+				<button
+					type="button"
+					onclick={saveSingleOptionRationale}
+					disabled={singleOptionRationale.trim() === singleOptionSaved.trim()}
+					class="px-2.5 py-1 rounded-md border text-[11px] font-semibold hover:bg-muted/40 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+				>
+					Enregistrer la justification
+				</button>
+				{#if singleOptionStatus}<span class="text-[11px] text-emerald-700 dark:text-emerald-300">{singleOptionStatus}</span>{/if}
+			</div>
+		</div>
+	{/if}
 
 	<!-- Décision actée si existante -->
 	{#if decision}
@@ -363,6 +444,14 @@
 										{/if}
 										<span class="font-bold text-foreground line-clamp-1">{opt.title}</span>
 									</div>
+									{#each violationsOf(opt.id) as v (v.typedId)}
+										<div
+											class="mx-auto w-fit rounded px-1.5 py-0.5 text-[10px] font-bold border {v.validated ? 'border-destructive/40 bg-destructive/10 text-destructive' : 'border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300'}"
+											title={v.validated ? v.message : `${v.message} (règle encore en brouillon : à confirmer par l'expert du domaine)`}
+										>
+											{v.validated ? 'Non conforme' : 'À vérifier'} · {v.typedId}
+										</div>
+									{/each}
 									<div class="flex items-center justify-center gap-1 flex-wrap">
 										<span class="text-[9px] font-mono uppercase px-1 py-0.2 rounded bg-muted text-muted-foreground">
 											{opt.productionMode}
@@ -534,6 +623,29 @@
 						class="w-full rounded-md border bg-background px-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground"
 					></textarea>
 				</div>
+
+				{#if violationsOf(selectedRetainedOptionId).length > 0}
+					<div class="space-y-2 rounded-lg border border-destructive/30 bg-destructive/5 p-2.5" data-testid="decision-violations">
+						<p class="font-bold text-foreground">Conformité réglementaire de l'option retenue</p>
+						{#each violationsOf(selectedRetainedOptionId) as v (v.typedId)}
+							<div class="space-y-1">
+								<p><span class="font-mono font-bold">{v.typedId}</span> — {v.message}</p>
+								{#if v.validated}
+									<textarea
+										bind:value={violationJustifications[v.typedId]}
+										rows={2}
+										placeholder="Écart accepté : justifiez pourquoi l'option reste retenue malgré cette non-conformité (obligatoire pour trancher)…"
+										class="w-full rounded-md border bg-background px-2 py-1 text-xs"
+									></textarea>
+								{:else}
+									<p class="text-[11px] text-amber-700 dark:text-amber-300">Règle encore en brouillon : alerte à vérifier, elle n'empêche pas de trancher.</p>
+								{/if}
+							</div>
+						{/each}
+					</div>
+				{:else if compliance?.offline}
+					<p class="text-[11px] text-muted-foreground">LLMOps injoignable : la conformité réglementaire de l'option n'a pas pu être vérifiée.</p>
+				{/if}
 			</div>
 
 			<div class="flex justify-end gap-2 border-t pt-3">

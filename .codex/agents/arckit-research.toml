@@ -1,4 +1,4 @@
-# Auto-generated from arckit-claude/agents/arckit-research.md
+# Auto-generated from plugins/arckit-claude/agents/arckit-research.md
 # Do not edit — edit the source and re-run scripts/converter.py
 
 name = "arckit-research"
@@ -75,7 +75,7 @@ Scan for external (non-ArcKit) documents the user may have provided:
 **Market Research Reports & Analyst Briefings**:
 
 - **Look in**: `projects/{project}/external/`
-- **File types**: PDF (.pdf), Word (.docx), Markdown (.md)
+- **File types**: PDF (.pdf), Word (.docx), Markdown (.md), subtitles/transcripts (.srt, .vtt)
 - **What to extract**: Market landscape data, vendor rankings, pricing benchmarks, technology trend analysis
 - **Examples**: `gartner-report.pdf`, `forrester-wave.pdf`, `market-analysis.docx`
 
@@ -88,7 +88,9 @@ Scan for external (non-ArcKit) documents the user may have provided:
 
 ### Step 2: Read Template
 
-- Read `.arckit/templates/research-findings-template.md` for output structure
+- First, check `.arckit/templates-custom/research-findings-template.md` (user override)
+- If not found, read `.arckit/templates/research-findings-template.md` (default)
+- Then read `.arckit/templates/_partials/RENDERING.md` and resolve the `<!-- DOC-CONTROL-HEADER -->` marker in every template you render, including the per-vendor profiles spawned below. Do not hand-write the Document Control table: the partial `RENDERING.md` selects is the only source of the 14 standard fields and of the classification ladder.
 
 ### Step 3: Extract and Categorize Requirements
 
@@ -118,6 +120,20 @@ Scan requirements for keywords that indicate technology needs. Examples of commo
 - ML/AI: "machine learning", "AI", "prediction", "NLP"
 
 Use WebSearch to discover the current market landscape for each category rather than assuming fixed vendor options. Only research categories where actual requirements exist. If requirements reveal categories not listed above, research those too.
+
+### Step 4b: Read Procurement Award Evidence (if present)
+
+**Procurement award evidence (if present):** Before conducting web research, check whether a `TNDR` (Procurement Market Intelligence) or `CMPT` (Competitor Landscape) artefact exists at `projects/{P}/research/ARC-{P}-{TNDR,CMPT}-*.md`. Use Glob to find matching files.
+
+If found, read the artefact(s) and extract:
+
+- **Award values**: Notice-backed contract award amounts and durations — these are authoritative and preferred over scraped or estimated figures.
+- **Incumbency**: Current supplier(s) holding contracts in this space.
+- **Supplier market-share**: Competitive landscape data derived from real award notices.
+
+Feed these into the build-vs-buy analysis in Step 6 to ground the "buy" market structure and contract-value estimates. Carry the caveat throughout the document that **awarded value is not actual spend** — award values represent ceiling/commitment, not realised expenditure (market context, not committed cost).
+
+If no `TNDR`/`CMPT` artefacts are present, skip this step silently and proceed — the market is researched via web as usual.
 
 ### Step 5: Conduct Web Research for Each Category
 
@@ -232,13 +248,15 @@ Before writing the file, read `.arckit/references/quality-checklist.md` and veri
 
 **Use the Write tool** to save the complete document to `projects/{project-dir}/research/ARC-{PROJECT_ID}-RSCH-v${VERSION}.md` following the template structure.
 
+The Executive Summary opens with the verdict: the overall build/buy/adopt recommendation first, then one Key Findings bullet per category, with Research Scope last, as `.arckit/references/executive-summary-pattern.md` sets out.
+
 Auto-populate fields:
 
 - `[PROJECT_ID]` from project path
 - `[VERSION]` = determined version from Step 9
 - `[DATE]` = current date (YYYY-MM-DD)
 - `[STATUS]` = "DRAFT"
-- `[CLASSIFICATION]` = "OFFICIAL" (UK Gov) or "PUBLIC"
+- **Classification** → comes from the resolved Document Control header, not from a placeholder. `_partials/RENDERING.md` fixes the ladder from the artefact's own regime; `${default_classification}` applies only where that regime falls through to user config.
 
 Include the generation metadata footer:
 
@@ -360,8 +378,8 @@ Return ONLY a concise summary including:
 
 ## Toolchain
 
-- **Templates** — `.arckit/templates/research-findings-template.md` · `.arckit/templates/vendor-profile-template.md`
-- **Helpers** — `.arckit/scripts/bash/create-project.sh` (project resolution) · `.arckit/scripts/bash/generate-document-id.sh` (document ID allocation)
+- **Templates** — `.arckit/templates/research-findings-template.md` (override at `.arckit/templates-custom/research-findings-template.md`) · `.arckit/templates/vendor-profile-template.md`
+- **Helpers** — `.arckit/scripts/bash/create-project.sh` (project resolution) · `.arckit/scripts/generate-document-id.mjs` (document ID allocation)
 - **External tools** — `WebSearch` · `WebFetch` (vendor research, no MCP)
-- **Related commands** — `/arckit:requirements` (input) · `/arckit:evaluate` (downstream) · `/arckit:score` (downstream) · `/arckit:gcloud-search` (G-Cloud cross-check)
+- **Related commands** — `/arckit:requirements` (input) · `/arckit:tenders` (upstream procurement award evidence — run before research) · `/arckit:competitors` (upstream competitor landscape — run before research) · `/arckit:evaluate` (downstream) · `/arckit:score` (downstream) · `/arckit:gcloud-search` (G-Cloud cross-check)
 """

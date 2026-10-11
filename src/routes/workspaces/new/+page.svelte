@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { deliberationStore } from '$lib/stores/deliberationStore.svelte';
 	import { goto } from '$app/navigation';
+	import { page } from '$app/state';
 	import {
 		WORKSPACE_PRESETS,
 		DEFAULT_PARTICIPANTS,
@@ -12,6 +13,7 @@
 	} from '$lib/domain/engagements';
 	import type { ArchitectRole } from '$lib/types/epistemic';
 	import type { RequirementAuditInput } from '$lib/domain/requirementAudit';
+	import { REGULATORY_FRAMEWORKS, type DetectedFramework } from '$lib/domain/regulatoryFrameworks';
 	import InviteExpertDialog from '$lib/components/deliberation/InviteExpertDialog.svelte';
 	import RfpConfrontationDialog from '$lib/components/deliberation/RfpConfrontationDialog.svelte';
 	import {
@@ -36,19 +38,41 @@
 	let { data } = $props();
 	let isInviteOpen = $state(false);
 	let isRfpImporterOpen = $state(false);
+	// Arrivée depuis « Depuis un RFP » : ouvre directement l'import du RFP et la liste des analyses enregistrées.
+	// Lu depuis l'URL de la page : le rendu serveur et le navigateur ouvrent la même étape.
+	const openRfpOnArrival = page.url.searchParams.get('import') === 'rfp';
 
 	type Step = 1 | 2 | 3 | 4 | 5;
-	let currentStep = $state<Step>(1);
+	let currentStep = $state<Step>(openRfpOnArrival ? 3 : 1);
+	if (openRfpOnArrival) isRfpImporterOpen = true;
 
 	function handleRfpImported(result: {
 		document: UpstreamDocInput;
 		initialSubjects: InitialSubjectInput[];
 		requirementAudit?: RequirementAuditInput;
+		detectedFrameworks?: DetectedFramework[];
 	}) {
-		upstreamDocs = [...upstreamDocs, result.document];
-		if (result.initialSubjects && result.initialSubjects.length > 0) {
-			initialSubjects = [...initialSubjects, ...result.initialSubjects];
+		// Référentiels cités par le RFP : proposés cochés, l'architecte confirme à l'étape 2.
+		for (const fw of result.detectedFrameworks ?? []) {
+			if (!detectedFrameworks.some((d) => d.code === fw.code)) detectedFrameworks = [...detectedFrameworks, fw];
+			if (!applicableFrameworks.includes(fw.code)) applicableFrameworks = [...applicableFrameworks, fw.code];
 		}
+		// Les exemples non modifiés laissent la place au RFP : ils ne doivent pas finir dans le projet.
+		const isUntouched = (current: unknown, example: unknown) => JSON.stringify(current) === JSON.stringify(example);
+		upstreamDocs = isUntouched($state.snapshot(upstreamDocs), EXAMPLE_UPSTREAM_DOCS)
+			? [result.document]
+			: [...upstreamDocs, result.document];
+		if (result.initialSubjects && result.initialSubjects.length > 0) {
+			initialSubjects = isUntouched($state.snapshot(initialSubjects), EXAMPLE_SUBJECTS)
+				? result.initialSubjects
+				: [...initialSubjects, ...result.initialSubjects];
+		}
+		if (!title.trim()) title = result.document.title;
+		rfpImportSummary = {
+			title: result.document.title,
+			subjectCount: result.initialSubjects?.length ?? 0,
+			frameworkCount: (result.detectedFrameworks ?? []).length
+		};
 		if (result.requirementAudit) {
 			if (!requirementAudit) {
 				requirementAudit = result.requirementAudit;
@@ -61,6 +85,18 @@
 			}
 		}
 	}
+
+	/** Référentiels réglementaires applicables (codes LLMOps), déclarés à LLMOps à la création de l'espace. */
+	let applicableFrameworks = $state<string[]>([]);
+	let detectedFrameworks = $state<DetectedFramework[]>([]);
+	function toggleFramework(code: string) {
+		applicableFrameworks = applicableFrameworks.includes(code)
+			? applicableFrameworks.filter((c) => c !== code)
+			: [...applicableFrameworks, code];
+	}
+
+	/** Dernier RFP importé : rappelé en tête de l'assistant avec ce qu'il reste à faire. */
+	let rfpImportSummary = $state<{ title: string; subjectCount: number; frameworkCount: number } | null>(null);
 
 	/** Audit des exigences du RFP importé, persisté avec le projet pour alimenter le dossier scellé. */
 	let requirementAudit = $state<RequirementAuditInput | undefined>(undefined);
@@ -96,7 +132,8 @@
 	let newConstraint = $state('');
 
 	// Étape 3 : Docs Amonts
-	let upstreamDocs = $state<UpstreamDocInput[]>([
+	// Exemple affiché tant qu'aucun document réel n'est versé ; remplacé par le premier RFP importé.
+	const EXAMPLE_UPSTREAM_DOCS: UpstreamDocInput[] = [
 		{
 			title: 'CCTP Lot 1 · Cahier des Charges Principal & Spécifications',
 			category: 'cctp',
@@ -119,7 +156,8 @@
 				}
 			]
 		}
-	]);
+	];
+	let upstreamDocs = $state<UpstreamDocInput[]>(structuredClone(EXAMPLE_UPSTREAM_DOCS));
 
 	let selectedStandards = $state<string[]>(['DOC-EXT-03', 'DOC-EXT-04']);
 
@@ -129,7 +167,8 @@
 	]);
 
 	// Étape 5 : Sujets initiaux
-	let initialSubjects = $state<InitialSubjectInput[]>([
+	// Exemples affichés tant qu'aucun sujet réel n'est fourni ; remplacés par les sujets d'un RFP importé.
+	const EXAMPLE_SUBJECTS: InitialSubjectInput[] = [
 		{
 			sectionRef: '§1.1',
 			name: 'Cadrage Stratégique & Exigences Globales',
@@ -157,7 +196,8 @@
 			initialHypothesis: 'Conformité NIS2 et guide d\'hygiène ANSSI',
 			initialQuestion: 'Quelles exigences de chiffrement pour les flux d\'administration ?'
 		}
-	]);
+	];
+	let initialSubjects = $state<InitialSubjectInput[]>(structuredClone(EXAMPLE_SUBJECTS));
 
 	function applyPreset(presetId: string) {
 		const found = WORKSPACE_PRESETS.find((p) => p.id === presetId);
@@ -266,7 +306,8 @@
 				principles: principles.length > 0 ? principles : ['Validation formelle'],
 				constraints: constraints.length > 0 ? constraints : ['Plafond budgétaire respecté'],
 				targetDate,
-				budget
+				budget,
+				applicableFrameworks
 			},
 			participants,
 			upstreamDocuments: upstreamDocs,
@@ -326,6 +367,33 @@
 			</span>
 		</div>
 	</div>
+
+	{#if rfpImportSummary}
+		<div class="rounded-xl border border-emerald-500/30 bg-emerald-500/10 p-4 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-3" data-testid="rfp-import-summary">
+			<div class="flex items-start gap-2">
+				<CheckCircle2 class="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
+				<div class="space-y-0.5">
+					<p class="font-bold text-foreground">
+						RFP « {rfpImportSummary.title} » importé : {rfpImportSummary.subjectCount} sujet(s) d'architecture prêts à délibérer.
+					</p>
+					<p class="text-muted-foreground">
+						{#if rfpImportSummary.frameworkCount > 0}
+							{rfpImportSummary.frameworkCount} référentiel(s) réglementaire(s) cité(s) par le RFP : confirmez-les à l'étape 2.
+						{/if}
+						Vérifiez le cadrage (étapes 1, 2 et 4 : les valeurs proposées sont des exemples), puis lancez l'espace.
+					</p>
+				</div>
+			</div>
+			<div class="flex items-center gap-2 shrink-0">
+				<button type="button" onclick={() => (currentStep = 1)} class="px-3 py-1.5 rounded-lg border bg-card font-semibold hover:bg-muted cursor-pointer">
+					Revoir le cadrage
+				</button>
+				<button type="button" onclick={handleLaunchWorkspace} class="px-3 py-1.5 rounded-lg bg-primary text-primary-foreground font-bold hover:opacity-90 cursor-pointer">
+					Lancer l'espace
+				</button>
+			</div>
+		</div>
+	{/if}
 
 	<!-- ═════════════════════════════════════════════════════════════════════════ -->
 	<!-- BARRE D'ÉTAPES DU WIZARD                                                  -->
@@ -594,6 +662,29 @@
 									<Trash2 class="h-4 w-4" />
 								</button>
 							</div>
+						{/each}
+					</div>
+				</div>
+
+				<!-- Référentiels réglementaires applicables -->
+				<div class="space-y-2" data-testid="applicable-frameworks">
+					<div class="flex items-center justify-between">
+						<span class="font-bold text-foreground">Référentiels réglementaires applicables</span>
+						<span class="text-[11px] text-muted-foreground">{applicableFrameworks.length} retenu(s)</span>
+					</div>
+					<p class="text-[11px] text-muted-foreground leading-relaxed">
+						Déclarés à LLMOps à la création : leurs contrôles accompagnent chaque sujet, et une option jugée non conforme par une règle validée ne peut être retenue qu'en acceptant et justifiant l'écart.
+					</p>
+					<div class="grid sm:grid-cols-2 gap-1.5">
+						{#each REGULATORY_FRAMEWORKS as fw (fw.code)}
+							{@const detected = detectedFrameworks.find((d) => d.code === fw.code)}
+							<label class="flex items-start gap-2 p-2 rounded-lg border cursor-pointer {applicableFrameworks.includes(fw.code) ? 'border-primary/40 bg-primary/5' : 'bg-muted/10'}" title={detected?.excerpt}>
+								<input type="checkbox" class="mt-0.5" checked={applicableFrameworks.includes(fw.code)} onchange={() => toggleFramework(fw.code)} />
+								<span>
+									<span class="font-semibold text-foreground">{fw.label}</span>
+									{#if detected}<span class="block text-[10px] text-emerald-700 dark:text-emerald-300">Cité {detected.mentions} fois par le RFP</span>{/if}
+								</span>
+							</label>
 						{/each}
 					</div>
 				</div>
@@ -907,4 +998,5 @@
 	actorEmail={data?.session?.user?.email || 'lead@archinex.local'}
 	onclose={() => (isRfpImporterOpen = false)}
 	onImported={handleRfpImported}
+	showSavedRunsOnOpen={openRfpOnArrival}
 />

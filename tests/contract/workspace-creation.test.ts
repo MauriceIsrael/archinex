@@ -123,7 +123,8 @@ describe('Workspace Creation & Common Knowledge Base Contract', () => {
 						}
 					]
 				}
-			]
+			],
+			initialSubjects: [{ name: 'Couverture radio des quais', waitingForRole: 'infra_expert_architect' }]
 		};
 
 		const created = deliberationStore.createNewWorkspace(input);
@@ -143,6 +144,35 @@ describe('Workspace Creation & Common Knowledge Base Contract', () => {
 			(d) => d.title === 'Spécification Portuaire · Lot Radio Maritime'
 		);
 		expect(addedDoc).toBeDefined();
+	});
+
+	it('2 bis. Sans sujet fourni, aucun sujet fictif ; « débloque » compte les vrais dépendants', () => {
+		const base = {
+			type: 'generic_blueprint' as const,
+			description: 'd',
+			strategy: { objectives: [], principles: [], constraints: [] },
+			participants: DEFAULT_PARTICIPANTS
+		};
+		const empty = buildEngagementProfileFromWorkspaceInput({ ...base, title: 'Vide' }, []);
+		expect(empty.engagement.subjects).toHaveLength(0);
+
+		const linked = buildEngagementProfileFromWorkspaceInput(
+			{
+				...base,
+				title: 'Lié',
+				initialSubjects: [
+					{ name: 'Sites', waitingForRole: 'lead_architect', factorizationId: 'SUBJ-01' },
+					{ name: 'Réseau', waitingForRole: 'lead_architect', factorizationId: 'SUBJ-02', dependsOn: ['SUBJ-01'] },
+					{ name: 'Sécurité', waitingForRole: 'lead_architect', factorizationId: 'SUBJ-03', dependsOn: ['SUBJ-01'] }
+				]
+			},
+			[]
+		);
+		const [sites, reseau, securite] = linked.engagement.subjects;
+		expect(sites.unlocks_count).toBe(2);
+		expect(sites.dependent_subject_ids).toEqual([reseau.id, securite.id]);
+		expect(reseau.unlocks_count).toBe(0);
+		expect(securite.unlocks_count).toBe(0);
 	});
 
 	it('3. Invariant Clé : la base de connaissance reste commune et enrichie lors des bascules d\'engagement', () => {

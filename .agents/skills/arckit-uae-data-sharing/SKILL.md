@@ -5,6 +5,12 @@ description: "[COMMUNITY] Generate a Data Sharing Agreement under the UAE Govern
 
 > ⚠️ **Community-contributed command** — not part of the officially-maintained ArcKit baseline. Output should be reviewed by qualified DPO / RSSI / federal compliance counsel before reliance. Citations to UAE Cabinet / PDPL / IAS / Cybersecurity Council text may lag the current text — verify against the source.
 
+## User Request
+
+```text
+$ARGUMENTS
+```
+
 You are an enterprise architect generating a Data Sharing Agreement under the UAE Government Services Data Sharing Policy ("collect once, use securely").
 
 ## Process
@@ -15,10 +21,10 @@ You are an enterprise architect generating a Data Sharing Agreement under the UA
    - `.arckit/templates/_partials/RENDERING.md`
 2. Read the template:
    - **First**, check `.arckit/templates-custom/uae-data-sharing-template.md` (user override)
-   - **Then**, `.arckit/templates/uae-data-sharing-template.md`
+   - **Then**, `.arckit/templates-custom/uae-data-sharing-template.md`
    - **Fallback**, `.arckit/templates/uae-data-sharing-template.md`
-3. Use `scripts/bash/create-project.sh --json <project-name>` if the project does not yet exist; otherwise locate it.
-4. Use `scripts/bash/generate-document-id.sh DSHR --filename` for the artefact filename.
+3. Use `scripts/bash/create-project.sh --json --name "<project-name>"` if the project does not yet exist; otherwise locate it.
+4. Use `node scripts/generate-document-id.mjs <PROJECT_ID> DSHR --filename` for the artefact filename.
 5. Resolve the `<!-- DOC-CONTROL-HEADER -->` marker per `RENDERING.md`.
 6. Generate the following sections:
    - **Sharing Parties** — provider entity, consumer entity, joint-controller status, service-level commitments.
@@ -28,8 +34,9 @@ You are an enterprise architect generating a Data Sharing Agreement under the UA
    - **Information-Security Safeguards** — encryption (transit + rest), key management, access controls, logging, and incident-response co-ordination between parties.
    - **Data-Subject Rights Implications** — how data subject rights (access, rectification, erasure, restriction, portability, object) flow across the sharing boundary, and which party owns each obligation.
 7. Populate the External References section per `.arckit/references/citation-instructions.md`. The 23 April 2026 UAE Cabinet meeting announcement (Government Services Data Sharing Policy) MUST appear in the Document Register with its primary URL and the verification date.
-8. Write the artefact via the Write tool to `projects/<project-id>/<filename>`.
-9. Show only a summary to the user (one paragraph plus the count of shares per direction and any unresolved lawful-basis gaps).
+8. Before writing the file, read `.arckit/references/quality-checklist.md` and verify all **Common Checks** plus the **DSHR** per-type checks pass. Fix any failures before proceeding.
+9. Write the artefact via the Write tool to `projects/<project-id>/<filename>`.
+10. Show only a summary to the user (one paragraph plus the count of shares per direction and any unresolved lawful-basis gaps).
 
 ## Authoritative anchor
 
@@ -38,12 +45,12 @@ UAE Government Services Data Sharing Policy ("collect once, use securely") — C
 ## Important notes
 
 - The "collect once, use securely" principle prohibits re-collecting data the federal entity already holds — flag any share that duplicates existing datasets across parties.
-- Every share involving personal data MUST cite a PDPL lawful basis. Where `/arckit.uae-pdpl` has not yet been run, recommend it as a follow-up before sign-off.
+- Every share involving personal data MUST cite a PDPL lawful basis. Where `$arckit-uae-pdpl` has not yet been run, recommend it as a follow-up before sign-off.
 - Sharing across parties does NOT change classification — Confidential data remains Confidential at the consumer end. Cross-reference the CLAS register for the correct level.
 
 ## Suggested Next Steps
 
 After completing this command, consider running:
 
-- `$arckit-integration` -- Federation and API mechanisms feed the integration specification.
+- `$arckit-platform-design` -- Federation and API mechanisms feed the integration specification.
 - `$arckit-uae-pdpl` -- Per-share PDPL lawful basis must be reflected in the PDPL compliance assessment.

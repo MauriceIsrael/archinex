@@ -632,6 +632,62 @@ class DeliberationStore {
 		this.deliberationViewMode = mode;
 	}
 
+	/** Sujet dont la décision formelle est demandée : l'atelier ouvre son dossier (matrice et arbitrage). */
+	pendingDecisionSubjectId = $state<string | null>(null);
+
+	/**
+	 * Une décision ne se prend que par l'arbitrage formel (dossier du sujet → « Trancher & Arbitrer »), qui
+	 * enregistre la décision côté serveur et alimente le dossier exporté. Les raccourcis de l'interface y mènent.
+	 */
+	requestFormalDecision(subjectId: string) {
+		this.selectSubject(subjectId);
+		this.setDeliberationViewMode('conversation');
+		this.pendingDecisionSubjectId = subjectId;
+		this.logNotification(
+			"La décision se prend par arbitrage formel : le dossier du sujet est ouvert. Vérifiez les options et les critères, puis « Trancher & Arbitrer ».",
+			'info'
+		);
+	}
+
+	/**
+	 * Reporte dans la liste des sujets le niveau qu'en connaît le serveur, qui fait foi : décision formelle,
+	 * affirmation par un décideur distinct, etc. À appeler après toute action du panneau central qui l'a changé.
+	 */
+	applyServerSubjectLevel(subjectId: string, serverLevel: MaturityLevel, deliberationStatus?: string) {
+		const target = this.subjects.find((s) => s.id === subjectId);
+		if (!target) return;
+		const awaitingReview = deliberationStatus === 'awaiting_review';
+		if (target.level === serverLevel && Boolean(target.awaiting_review) === awaitingReview) return;
+		const becameDecided = serverLevel === 'L3_decided' && target.level !== 'L3_decided';
+		// Sujet décidé : les sujets qui l'attendaient sont débloqués
+		const base = becameDecided ? resolveSubjectArbitration(subjectId, this.subjects).updatedSubjects : this.subjects;
+		this.subjects = base.map((s) =>
+			s.id === subjectId
+				? { ...s, level: serverLevel, awaiting_review: awaitingReview || undefined, last_transition_date: new Date().toISOString() }
+				: s
+		);
+		if (this.drafts[subjectId]) {
+			this.drafts[subjectId] = {
+				...this.drafts[subjectId],
+				maturity: serverLevel,
+				...(becameDecided ? { is_provisional: false } : {})
+			};
+		}
+	}
+
+	/** Relit le sujet sur le serveur puis met à jour la liste (niveau et revue en attente). */
+	async refreshSubjectFromServer(subjectId: string, projectId = this.activeEngagement?.id) {
+		if (!projectId || !subjectId) return;
+		try {
+			const res = await fetch(`/api/projects/${encodeURIComponent(projectId)}/subjects/${encodeURIComponent(subjectId)}`);
+			if (!res.ok) return;
+			const { subject } = await res.json();
+			if (subject?.maturityLevel) this.applyServerSubjectLevel(subjectId, subject.maturityLevel, subject.deliberationStatus);
+		} catch {
+			// la liste sera resynchronisée au prochain chargement de l'espace
+		}
+	}
+
 	setActiveDocument(id: string) {
 		this.activeDocumentId = id;
 	}
@@ -1558,14 +1614,7 @@ class DeliberationStore {
 				draft.manque = draft.manque.filter((m) => m.id !== gapIdToClose);
 			}
 
-			// 3. Clôture des contradictions si existantes
-			draft.conflit = [];
-			draft.maturity = 'L3_decided';
-			draft.is_provisional = false;
-
-			// 4. Mettre à jour le sujet vers L3_decided
-			target.level = 'L3_decided';
-			target.last_transition_date = new Date().toISOString();
+			// 3. La réponse débloque le sujet ; la décision elle-même reste formelle (arbitrage du dossier).
 			target.is_stalled = false;
 			target.stall_days = 0;
 		}
@@ -1587,7 +1636,7 @@ class DeliberationStore {
 					role: this.currentRole,
 					productionMode: 'human-authored'
 				},
-				maturity: { subjectLevel: 'L3_decided', confidence: 'designed' },
+				maturity: { subjectLevel: target.level, confidence: 'designed' },
 				revisability: { antecedents: [] },
 				status: 'active',
 				createdAt: new Date().toISOString(),
@@ -1603,8 +1652,9 @@ class DeliberationStore {
 		);
 
 		this.persistCustomState();
-		const msg = `Décision validée et actée pour "${target.name}". Versée aux acquis (RETENU) au niveau L3.`;
+		const msg = `Réponse versée aux acquis (RETENU) pour "${target.name}". Il reste à trancher formellement dans le dossier du sujet.`;
 		this.logNotification(msg, 'success');
+		this.requestFormalDecision(subjectId);
 		return { success: true, message: msg };
 	}
 
@@ -1619,6 +1669,11 @@ class DeliberationStore {
 	 * Change le niveau de maturité d'un sujet (ex: passage à L2_decomposed lors de l'élicitation)
 	 */
 	setSubjectLevel(subjectId: string, level: MaturityLevel) {
+		// L3 et au-delà ne s'obtiennent que par l'arbitrage formel.
+		if (level === 'L3_decided' || level === 'L4_specified' || level === 'L5_archived') {
+			this.requestFormalDecision(subjectId);
+			return;
+		}
 		const subj = this.subjects.find((s) => s.id === subjectId);
 		if (subj) {
 			subj.level = level;

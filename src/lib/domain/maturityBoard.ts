@@ -15,9 +15,19 @@ export interface MaturitySubject {
 	dependent_subject_ids: string[];
 	parent_subject_id?: string;
 	parent_subject_name?: string;
+	/** Décision tranchée par un autre architecte que le Lead : en attente d'affirmation par un décideur distinct. */
+	awaiting_review?: boolean;
 	foundation_contested?: boolean;
 	/** Exigences du RFP que ce sujet porte (identifiants du dossier scellé : `SRC-xxxx:clause`). */
 	requirement_ids?: string[];
+	/** Énoncé du problème d'architecture, repris à la création du sujet côté serveur. */
+	problem_statement?: string;
+	/** Nature proposée à la factorisation : architecture, contractuel ou organisationnel. */
+	nature?: 'architecture' | 'contractuel' | 'organisationnel';
+	/** Sujets de l'espace à trancher avant celui-ci. */
+	depends_on_subject_ids?: string[];
+	/** Options, critères et évaluations proposés par le modèle (créés côté serveur à la création du sujet). */
+	proposal?: import('$lib/domain/factorization').SubjectProposal;
 }
 
 export interface ActorContext {

@@ -17,12 +17,15 @@ export class DoctrineService {
 		topics?: string[];
 		projectType?: string;
 		domains?: string[];
+		/** Référentiels applicables : LLMOps inclut alors tous leurs contrôles actifs, pertinents ou non au mot près. */
+		frameworks?: string[];
 		maxItems?: number;
 	} = {}): Promise<DoctrineContext> {
 		const subject = params.topics && params.topics.length > 0 ? params.topics.join(' ') : params.projectType;
 		return llmopsClient.getDoctrineContext({
 			subject,
 			domains: params.domains,
+			frameworks: params.frameworks,
 			max_items: params.maxItems
 		});
 	}

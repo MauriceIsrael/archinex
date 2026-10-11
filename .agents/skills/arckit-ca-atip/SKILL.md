@@ -8,6 +8,12 @@ description: "[COMMUNITY] Generate a Canada ATIP reconciliation — Access to In
 > (ATIP coordinator, ITSEC officer, OCHRO language lead, CIO branch) before reliance. Citations
 > may lag current text — verify against the Justice Laws Website and the issuing TBS / CSE / OPC source.
 
+## User Request
+
+```text
+$ARGUMENTS
+```
+
 You are an enterprise architect generating a Canada ATIP (Access to Information / Privacy Act) Reconciliation for a federal entity.
 
 ## Process
@@ -19,10 +25,10 @@ You are an enterprise architect generating a Canada ATIP (Access to Information 
    - `.arckit/templates/_partials/RENDERING.md`
 2. Read the template:
    - **First**, check `.arckit/templates-custom/ca-atip-template.md` (user override)
-   - **Then**, `.arckit/templates/ca-atip-template.md`
+   - **Then**, `.arckit/templates-custom/ca-atip-template.md`
    - **Fallback**, `.arckit/templates/ca-atip-template.md`
-3. Use `scripts/bash/generate-document-id.sh <PROJECT_ID> ATIP --filename` for the artefact filename.
-4. Resolve the `<!-- DOC-CONTROL-HEADER -->` marker per `RENDERING.md`. Use the Canadian classification scheme (UNCLASSIFIED / Protected A / Protected B / Protected C / CONFIDENTIAL / SECRET / TOP SECRET) — replace the standard UK line in the header.
+3. Use `node scripts/generate-document-id.mjs <PROJECT_ID> ATIP --filename` for the artefact filename.
+4. Resolve the `<!-- DOC-CONTROL-HEADER -->` marker per `RENDERING.md` before writing the artefact. `RENDERING.md` hard-routes the CA regime to `_partials/document-control-ca.md`, which already carries the Policy on Government Security categorization ladder — no per-command classification override is needed.
 5. Generate the following sections (the template provides skeletons for each):
    - **Information Holdings Inventory** — categorise every dataset / holding as Public, Protected, or Classified. Map each holding to its Personal Information Bank (PIB) where applicable, and identify the owner and lifecycle stage. The inventory MUST account for every data element that surfaces in the data model, not just personal information.
    - **Access to Information Act Mapping** — per holding, list applicable exemptions and explain why they apply:
@@ -47,8 +53,9 @@ You are an enterprise architect generating a Canada ATIP (Access to Information 
    - **Annual Report Mapping** — alignment to TBS InfoSource, the departmental ATI / Privacy annual report, and the Office of the Information Commissioner / Office of the Privacy Commissioner reporting cycle. Identify what feeds which report and on what cadence.
    - **Open Issues** — explicit list of unresolved exemption rationales, missing PIB updates, pending consultation responses, and any severance rules that remain `<TBC>`.
 6. Populate the External References section per `.arckit/references/citation-instructions.md`. The Access to Information Act and the Privacy Act MUST appear in the Document Register with their primary URLs (Justice Laws Website) and verification dates. TBS directives and OIC / OPC guidance documents should be cited where relied on.
-7. Write the artefact via the Write tool to `projects/<project-id>/<filename>`.
-8. Show only a summary to the user (one paragraph plus the headline exemption posture, the §8(2) letters in play, the severance design summary, and any open issues).
+7. Before writing the file, read `.arckit/references/quality-checklist.md` and verify all **Common Checks** plus the **ATIP** per-type checks pass. Fix any failures before proceeding.
+8. Write the artefact via the Write tool to `projects/<project-id>/<filename>`.
+9. Show only a summary to the user (one paragraph plus the headline exemption posture, the §8(2) letters in play, the severance design summary, and any open issues).
 
 ## Authoritative anchor
 

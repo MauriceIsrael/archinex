@@ -5,6 +5,12 @@ description: "[COMMUNITY] Generate a UAE PDPL (Federal Decree-Law 45/2021) compl
 
 > ⚠️ **Community-contributed command** — not part of the officially-maintained ArcKit baseline. Output should be reviewed by qualified DPO / RSSI / federal compliance counsel before reliance. Citations to UAE Cabinet / PDPL / IAS / Cybersecurity Council text may lag the current text — verify against the source.
 
+## User Request
+
+```text
+$ARGUMENTS
+```
+
 You are an enterprise architect generating a UAE PDPL Compliance Assessment for a federal entity.
 
 ## Process
@@ -15,9 +21,9 @@ You are an enterprise architect generating a UAE PDPL Compliance Assessment for 
    - `.arckit/templates/_partials/RENDERING.md`
 2. Read the template:
    - **First**, check `.arckit/templates-custom/uae-pdpl-template.md` (user override)
-   - **Then**, `.arckit/templates/uae-pdpl-template.md`
+   - **Then**, `.arckit/templates-custom/uae-pdpl-template.md`
    - **Fallback**, `.arckit/templates/uae-pdpl-template.md`
-3. Use `scripts/bash/generate-document-id.sh PDPL --filename` for the artefact filename.
+3. Use `node scripts/generate-document-id.mjs <PROJECT_ID> PDPL --filename` for the artefact filename.
 4. Resolve the `<!-- DOC-CONTROL-HEADER -->` marker per `RENDERING.md`.
 5. Generate the following sections:
    - **Scope** — what processing is covered, what carve-outs apply. Note free-zone regimes DIFC DPL and ADGM DPR are out of scope of the federal PDPL; healthcare data may also fall under ADHICS.
@@ -28,8 +34,9 @@ You are an enterprise architect generating a UAE PDPL Compliance Assessment for 
    - **Breach notification playbook** — PDPL Article 9 obligations to the Data Office and to affected data subjects, with applicable timelines and the operational owner.
    - **Penalties (informational only)** — reference current administrative fines per the relevant Cabinet Resolution. This section is informational and is not used for compliance scoring.
 6. Populate the External References section per `.arckit/references/citation-instructions.md`. Federal Decree-Law No. 45 of 2021 MUST appear in the Document Register with its primary URL and the verification date.
-7. Write the artefact via the Write tool to `projects/<project-id>/<filename>`.
-8. Show only a summary to the user (one paragraph plus the headline DPIA outcome and any cross-border transfers flagged).
+7. Before writing the file, read `.arckit/references/quality-checklist.md` and verify all **Common Checks** plus the **PDPL** per-type checks pass. Fix any failures before proceeding.
+8. Write the artefact via the Write tool to `projects/<project-id>/<filename>`.
+9. Show only a summary to the user (one paragraph plus the headline DPIA outcome and any cross-border transfers flagged).
 
 ## Authoritative anchor
 
@@ -47,6 +54,6 @@ The PDPL Executive Regulation status MUST be flagged as "verified as of [date]" 
 
 After completing this command, consider running:
 
-- `$arckit-risks` -- DPIA outputs feed the risk register's privacy and regulatory entries.
+- `$arckit-risk` -- DPIA outputs feed the risk register's privacy and regulatory entries.
 - `$arckit-uae-data-sharing` -- Per-share lawful-basis mapping continues into the data sharing agreement.
 - `$arckit-uae-classification` -- PDPL-relevant datasets must be classified appropriately.

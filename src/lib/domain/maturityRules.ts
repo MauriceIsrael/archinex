@@ -30,6 +30,8 @@ export interface MaturityComputationInput {
 		name: string;
 		problemStatement?: string | null;
 		maturityLevel?: SubjectMaturity;
+		/** Justification d'une option unique : certains sujets n'ont pas d'alternative réelle. */
+		singleOptionRationale?: string | null;
 	};
 	criteria: Criterion[];
 	options: Option[];
@@ -51,8 +53,9 @@ export interface MaturityComputationResult {
  *
  * Règles :
  * - L0_named : sujet existant mais sans cadrage suffisant.
- * - L1_framed : problemStatement non vide et au moins 2 critères.
- * - L2_decomposed : au moins 2 options évaluées sur TOUS les critères avec justification.
+ * - L1_framed : problemStatement non vide et au moins 2 critères (1 suffit pour une option unique justifiée).
+ * - L2_decomposed : au moins 2 options évaluées sur TOUS les critères avec justification, ou une option unique
+ *                   évaluée de même, avec la justification de l'absence d'alternative (singleOptionRationale).
  * - readyForArbitration : L2 atteint + aucune objection ouverte + aucune violation non couverte par acceptedViolations
  *                         + aucune question bloquante ouverte + tous les référentiels requis sont 'covered'.
  * - L3_decided : posé UNIQUEMENT suite à l'arbitrage formel (présence d'une Decision ou niveau déjà fixé à L3+).
@@ -93,20 +96,27 @@ export function computeMaturity(input: MaturityComputationInput): MaturityComput
 		});
 	}
 
-	if (input.criteria.length < 2) {
+	const singleOptionJustified =
+		input.options.length === 1 && typeof input.subject.singleOptionRationale === 'string' && input.subject.singleOptionRationale.trim().length > 0;
+	const minCriteria = singleOptionJustified ? 1 : 2;
+
+	if (input.criteria.length < minCriteria) {
 		l1Passed = false;
 		blockers.push({
 			code: 'MISSING_CRITERIA',
-			message: `Au moins 2 critères d'architecture sont requis (${input.criteria.length} défini(s)).`
+			message: `Au moins ${minCriteria} critère(s) d'architecture requis (${input.criteria.length} défini(s)).`
 		});
 	}
 
 	// --- 2. Validation L2 (Decomposed) ---
-	if (input.options.length < 2) {
+	if (input.options.length === 0 || (input.options.length === 1 && !singleOptionJustified)) {
 		l2Passed = false;
 		blockers.push({
 			code: 'INSUFFICIENT_OPTIONS',
-			message: `Au moins 2 options d'architecture sont requises (${input.options.length} définie(s)).`
+			message:
+				input.options.length === 0
+					? "Aucune option d'architecture n'est formulée."
+					: "Une seule option est formulée : ajoutez une alternative, ou justifiez pourquoi il n'y en a pas de réelle."
 		});
 	}
 

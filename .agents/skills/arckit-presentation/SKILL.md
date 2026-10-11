@@ -74,13 +74,13 @@ Run more /arckit commands first, then re-run $arckit-presentation.
 
 ### Step 3: Interactive Configuration
 
-Before generating the presentation, use the **AskUserQuestion** tool to gather preferences. **Skip any question the user has already answered in their arguments.**
+Before generating the presentation, ask the user for preferences. **Skip any question the user has already answered in their arguments.**
 
-**Gathering rules** (apply to all questions in this section):
+**Gathering rules** — the one-message interview in `.arckit/references/interview-pattern.md`:
 
-- Ask the most important question first; fill in secondary details from context or reasonable defaults.
-- **Maximum 2 rounds of questions.** After that, pick the best option from available context.
-- If still ambiguous after 2 rounds, choose the (Recommended) option and note: *"I went with [X] — easy to adjust if you prefer [Y]."*
+- Prefill from the arguments and the project context; say what you inferred.
+- Ask every remaining question in **one** call. There is no second round.
+- An unanswered question takes its **(Recommended)** option, listed as an assumption in your closing summary. With no question tool available, take every default and never block.
 
 **Question 1** — header: `Focus`, multiSelect: false
 > "What audience is this presentation for?"
@@ -101,9 +101,10 @@ Apply the user's selections: the focus determines which artifacts are emphasised
 
 ### Step 4: Read the template (with user override support)
 
-- **First**, check if `.arckit/templates/presentation-template.md` exists in the project root
+- **First**, check if `.arckit/templates-custom/presentation-template.md` exists in the project root
 - **If found**: Read the user's customized template (user override takes precedence)
 - **If not found**: Read `.arckit/templates/presentation-template.md` (default)
+- **Then read** `.arckit/templates/_partials/RENDERING.md` and resolve the `<!-- DOC-CONTROL-HEADER -->` marker in the template before writing. Do not hand-write the Document Control table: the partial `RENDERING.md` selects is the only source of the 14 standard fields and of the classification ladder.
 
 > **Tip**: Users can customize templates with `$arckit-customize presentation`
 
@@ -230,7 +231,7 @@ Before generating the document ID, check if a previous version exists:
 
 - `[PROJECT_NAME]` → Full project name from project metadata or user input
 - `[OWNER_NAME_AND_ROLE]` → Document owner (prompt user if not in metadata)
-- `[CLASSIFICATION]` → Default to "OFFICIAL" for UK Gov, "PUBLIC" otherwise (or prompt user)
+- `[CLASSIFICATION]` (MARP footer and title slide) → copy the Classification value from the resolved Document Control header, so the slides and the header cannot disagree. That header's ladder comes from `_partials/RENDERING.md`.
 
 **Pending fields** (leave as [PENDING] until manually updated):
 
@@ -251,7 +252,7 @@ Before generating the document ID, check if a previous version exists:
 **Generated on**: {DATE} {TIME} GMT
 **ArcKit Version**: {ARCKIT_VERSION}
 **Project**: {PROJECT_NAME} (Project {PROJECT_ID})
-**AI Model**: [Use actual model name, e.g., "claude-sonnet-4-5-20250929"]
+**AI Model**: [Use actual model name, e.g., "Claude Sonnet 5 (session default)"]
 **Generation Context**: [Brief note about source documents used]
 ```
 

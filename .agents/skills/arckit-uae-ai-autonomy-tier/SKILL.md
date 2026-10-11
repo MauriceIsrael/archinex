@@ -5,6 +5,12 @@ description: "[COMMUNITY] Generate a three-tier AI autonomy posture (Tier 1 inte
 
 > ⚠️ **Community-contributed command** — not part of the officially-maintained ArcKit baseline. Output should be reviewed by qualified DPO / RSSI / federal compliance counsel before reliance. Citations to UAE Cabinet / PDPL / IAS / Cybersecurity Council text may lag the current text — verify against the source.
 
+## User Request
+
+```text
+$ARGUMENTS
+```
+
 You are an enterprise architect generating a three-tier AI Autonomy Posture for a UAE federal entity AI deployment. This artefact is internal ArcKit synthesis based on the federal three-tier model (Tier 1 internal-productivity, Tier 2 investor-facing-with-approval, Tier 3 regulated/financial); there is no single public regulatory anchor — apply the related UAE AI Charter (AICH) and PDPL obligations as the underlying rules.
 
 ## Process
@@ -15,10 +21,10 @@ You are an enterprise architect generating a three-tier AI Autonomy Posture for 
    - `.arckit/templates/_partials/RENDERING.md`
 2. Read the template:
    - **First**, check `.arckit/templates-custom/uae-ai-autonomy-tier-template.md` (user override)
-   - **Then**, `.arckit/templates/uae-ai-autonomy-tier-template.md`
+   - **Then**, `.arckit/templates-custom/uae-ai-autonomy-tier-template.md`
    - **Fallback**, `.arckit/templates/uae-ai-autonomy-tier-template.md`
-3. Use `scripts/bash/create-project.sh --json <project-name>` if the project does not yet exist; otherwise locate it.
-4. Use `scripts/bash/generate-document-id.sh AUTI --filename` for the artefact filename.
+3. Use `scripts/bash/create-project.sh --json --name "<project-name>"` if the project does not yet exist; otherwise locate it.
+4. Use `node scripts/generate-document-id.mjs <PROJECT_ID> AUTI --filename` for the artefact filename.
 5. Resolve the `<!-- DOC-CONTROL-HEADER -->` marker per `RENDERING.md`.
 6. Generate the following sections:
    - **AI Use-Case Inventory (mapped to tier)** — every AI use-case in scope, mapped to Tier 1, Tier 2, or Tier 3 with rationale.
@@ -30,8 +36,9 @@ You are an enterprise architect generating a three-tier AI Autonomy Posture for 
    - **Audit Obligations per Tier** — logging detail (prompt, response, model version, retrieval context, human reviewer), retention, audit cadence, and reporting line.
    - **Tier-Promotion Criteria** — the criteria that must be evidenced before a use-case is promoted from Tier 1 to Tier 2, or Tier 2 to Tier 3.
 7. Populate the External References section per `.arckit/references/citation-instructions.md`. Where the tier framing references the UAE AI Charter, cite the Charter directly.
-8. Write the artefact via the Write tool to `projects/<project-id>/<filename>`.
-9. Show only a summary to the user (one paragraph plus the count of use-cases per tier and any tier-promotion proposals).
+8. Before writing the file, read `.arckit/references/quality-checklist.md` and verify all **Common Checks** plus the **AUTI** per-type checks pass. Fix any failures before proceeding.
+9. Write the artefact via the Write tool to `projects/<project-id>/<filename>`.
+10. Show only a summary to the user (one paragraph plus the count of use-cases per tier and any tier-promotion proposals).
 
 ## Authoritative anchor
 
@@ -51,4 +58,4 @@ This artefact is internal ArcKit synthesis lifted from federal practice (no sing
 After completing this command, consider running:
 
 - `$arckit-adr` -- Tier-promotion decisions are architecturally significant and warrant an ADR.
-- `$arckit-risks` -- Per-tier residual risks feed the project risk register.
+- `$arckit-risk` -- Per-tier residual risks feed the project risk register.

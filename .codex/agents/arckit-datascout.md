@@ -140,7 +140,7 @@ Scan for external (non-ArcKit) documents the user may have provided:
 **Existing Data Catalogues & API Registries**:
 
 - **Look in**: `projects/{project}/external/`
-- **File types**: PDF (.pdf), Word (.docx), Markdown (.md), CSV (.csv), JSON (.json)
+- **File types**: PDF (.pdf), Word (.docx), Markdown (.md), CSV (.csv), JSON (.json), subtitles/transcripts (.srt, .vtt)
 - **What to extract**: Known data sources, API endpoints, data quality assessments, existing integrations
 - **Examples**: `data-catalogue.csv`, `api-registry.json`, `data-audit.pdf`
 
@@ -149,11 +149,12 @@ Scan for external (non-ArcKit) documents the user may have provided:
 
 **Important**: This agent works without external documents. They enhance output quality but are never blocking.
 
-- **Citation traceability**: When referencing content from external documents, follow the citation instructions in `${CLAUDE_PLUGIN_ROOT}/references/citation-instructions.md`. Place inline citation markers (e.g., `[PP-C1]`) next to findings informed by source documents and populate the "External References" section in the template.
+- **Citation traceability**: When referencing content from external documents, follow the citation instructions in `.arckit/references/citation-instructions.md`. Place inline citation markers (e.g., `[PP-C1]`) next to findings informed by source documents and populate the "External References" section in the template.
 
 ### Step 2: Read Template
 
-- Read `${CLAUDE_PLUGIN_ROOT}/templates/datascout-template.md` for output structure
+- First, check `.arckit/templates-custom/datascout-template.md` (user override)
+- If not found, read `.arckit/templates/datascout-template.md` (default)
 
 ### Step 3: Extract Data Needs from Requirements
 
@@ -438,7 +439,7 @@ Use Glob to find existing `projects/{project-dir}/research/ARC-{PROJECT_ID}-DSCT
 
 ### Step 15: Write the Document
 
-Before writing the file, read `${CLAUDE_PLUGIN_ROOT}/references/quality-checklist.md` and verify all **Common Checks** plus the **DSCT** per-type checks pass. Fix any failures before proceeding.
+Before writing the file, read `.arckit/references/quality-checklist.md` and verify all **Common Checks** plus the **DSCT** per-type checks pass. Fix any failures before proceeding.
 
 **Use the Write tool** to save the complete document to `projects/{project-dir}/research/ARC-{PROJECT_ID}-DSCT-v${VERSION}.md` following the template structure.
 
@@ -448,7 +449,7 @@ Auto-populate fields:
 - `[VERSION]` = determined version from Step 14
 - `[DATE]` = current date (YYYY-MM-DD)
 - `[STATUS]` = "DRAFT"
-- `[CLASSIFICATION]` = "OFFICIAL" (UK Gov) or "PUBLIC"
+- **Classification** → comes from the resolved Document Control header, not from a placeholder. `_partials/RENDERING.md` fixes the ladder from the artefact's own regime; `${default_classification}` applies only where that regime falls through to user config.
 
 Include the generation metadata footer:
 
@@ -524,7 +525,7 @@ Return ONLY a concise summary including:
 
 ## Toolchain
 
-- **Templates** — `${CLAUDE_PLUGIN_ROOT}/templates/datascout-template.md`
-- **Helpers** — `${CLAUDE_PLUGIN_ROOT}/scripts/bash/create-project.sh` · `${CLAUDE_PLUGIN_ROOT}/scripts/bash/generate-document-id.sh`
+- **Templates** — `.arckit/templates/datascout-template.md` (override at `.arckit/templates-custom/datascout-template.md`)
+- **Helpers** — `.arckit/scripts/bash/create-project.sh` · `.arckit/scripts/generate-document-id.mjs`
 - **External tools** — `WebSearch` · `WebFetch` (no MCP)
 - **Related commands** — `/arckit:requirements` (input) · `/arckit:data-model` (downstream) · `/arckit:dpia` (downstream privacy assessment)

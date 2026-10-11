@@ -5,10 +5,12 @@ import type { ExtractedClause } from '$lib/domain/corpus';
 import { shredRfpTextToClauses } from '$lib/domain/rfpConfrontation';
 import {
 	applyClassificationInvariants,
+	normalizeProposal,
 	applySubjectInvariants,
 	runRequirementsAudit,
 	toFactorizationResponse,
 	type AuditedRequirement,
+	type AuditProgress,
 	type ClassifyItem,
 	type LlmPort,
 	type RawSubject
@@ -174,14 +176,50 @@ describe('Contrôles déterministes du regroupement en sujets', () => {
 });
 
 /** Faux LLM déterministe : lit les références envoyées et répond selon une règle simple. */
-function fakeLlm(opts: { failClassify?: boolean; failGroup?: boolean; badJsonOnce?: boolean } = {}) {
-	const calls = { classify: 0, group: 0 };
+function fakeLlm(
+	opts: { failClassify?: boolean; failGroup?: boolean; badJsonOnce?: boolean; failInstruct?: boolean; failPartitionContaining?: string; failTriage?: boolean } = {}
+) {
+	const calls = { classify: 0, group: 0, instruct: 0, triage: 0 };
 	let badServed = false;
 	const llm: LlmPort = {
 		async chat({ messages }) {
 			const system = messages.find((m) => m.role === 'system')!.content;
 			const user = messages.find((m) => m.role === 'user')!.content;
 			const refs = [...user.matchAll(/^\[([^\]]+)\] \(criticité/gm)].map((m) => m[1]);
+			if (system.includes('plan de délibération')) {
+				calls.triage++;
+				if (opts.failTriage) return 'pas du JSON';
+				const ids = [...user.matchAll(/^\[(SUBJ-[^\]]+)\]/gm)].map((m) => m[1]);
+				return JSON.stringify({
+					subjects: ids.map((id, i) => ({
+						id,
+						importance: i === ids.length - 1 ? 'H' : 'M',
+						difficulty: 'H',
+						nature: i === 0 ? 'contractuel' : 'architecture',
+						dependsOn: i > 0 ? [ids[0], 'SUBJ-INVENTE', id] : [],
+						overlapsWith: i === 1 ? [ids[0]] : [],
+						rationale: "Pèse sur la conformité de l'offre."
+					}))
+				});
+			}
+			if (system.includes('Tu instruis UN sujet')) {
+				calls.instruct++;
+				if (opts.failInstruct) throw new Error('Délai d\'inférence dépassé');
+				return JSON.stringify({
+					waitingForRole: 'infra_expert_architect',
+					effort: 'L',
+					knowledgeAlignment: 'novel_requirement',
+					matchedKbItemIds: [],
+					alignmentRationale: 'Aucune règle de doctrine ne couvre ce choix.',
+					seed: {
+						initialQuestion: `Quelle option retenir pour ${refs.length} exigences ?`,
+						initialHypothesis: 'Hypothèse : option A, car l\'option B ne tient pas le délai de bascule.',
+						initialConflict: `${refs[0]} contre ${refs[refs.length - 1]}`,
+						initialRetenu: refs.slice(0, 3).map((r) => `${r} : exigence`),
+						expertQuestions: ['Le délai de bascule est-il contractuel ?']
+					}
+				});
+			}
 			if (system.includes('Tu tries les exigences')) {
 				calls.classify++;
 				if (opts.failClassify) throw new Error('ECONNREFUSED');
@@ -200,18 +238,17 @@ function fakeLlm(opts: { failClassify?: boolean; failGroup?: boolean; badJsonOnc
 			}
 			calls.group++;
 			if (opts.failGroup) return 'pas du JSON';
+			if (opts.failPartitionContaining && refs.includes(opts.failPartitionContaining)) return 'pas du JSON';
 			const third = Math.ceil(refs.length / 3);
 			return JSON.stringify({
 				subjects: [0, 1, 2]
 					.map((i) => refs.slice(i * third, (i + 1) * third))
 					.filter((part) => part.length > 0)
 					.map((part, i) => ({
-						name: `Dilemme ${i + 1}`,
+						name: `Dilemme ${refs[0]}-${i + 1}`,
+						dilemma: `Que choisir pour ${i + 1} ?`,
 						sectionRef: '§4',
-						coveredClauseRefs: part,
-						waitingForRole: 'domain_architect',
-						effort: 'M',
-						seed: { initialQuestion: `Que choisir pour ${i + 1} ?`, expertQuestions: ['Quel niveau de service est contractuel ?'] }
+						coveredClauseRefs: part
 					}))
 			});
 		}
@@ -229,9 +266,12 @@ describe('Pipeline complet avec un faux modèle', () => {
 
 		expect(res.status).toBe('ok');
 		expect(calls.classify).toBe(3); // 92 clauses en lots de 40
-		expect(calls.group).toBe(1);
-
 		const r = res.report;
+		expect(calls.group).toBe(Math.ceil(r.deliberatedCount / 40)); // cartographie par parties de 40 (petite fenêtre)
+		expect(calls.instruct).toBe(res.subjects.length); // chaque sujet est instruit
+		expect(res.subjects.every((s) => s.waitingForRole === 'infra_expert_architect' && s.effort === 'L')).toBe(true);
+		expect(res.subjects.every((s) => (s.seed.expertQuestions ?? []).length > 0)).toBe(true);
+		expect(res.subjects.map((s) => s.id)).toEqual(res.subjects.map((_, i) => `SUBJ-${String(i + 1).padStart(2, '0')}`));
 		expect(r.requirements).toHaveLength(92);
 		expect(r.deliberatedCount + r.evacuatedCount + r.clarificationCount + r.toQualifyCount).toBe(92);
 		expect(r.requirements.filter((x) => x.disposition === 'evacuated' && x.criticality === 'bloquant')).toHaveLength(0);
@@ -286,6 +326,97 @@ describe('Pipeline complet avec un faux modèle', () => {
 		expect(res.warnings.join(' ')).toContain('Regroupement');
 	});
 
+	it('grande fenêtre : la cartographie voit toutes les clauses à délibérer en un seul appel', async () => {
+		const { llm, calls } = fakeLlm();
+		const res = await runRequirementsAudit(clauses, { llm, model: 'faux-modele', largeContext: true });
+		expect(res.status).toBe('ok');
+		expect(calls.group).toBe(1);
+		expect(res.subjects.length).toBe(3);
+	});
+
+	it('sujet non instruit : son périmètre est conservé et signalé, rien n\'est perdu', async () => {
+		const { llm } = fakeLlm({ failInstruct: true });
+		const res = await runRequirementsAudit(clauses, { llm, model: 'faux-modele', largeContext: true });
+		expect(res.status).toBe('ok');
+		expect(res.subjects.length).toBe(3);
+		expect(res.subjects[0].seed.initialQuestion).toBe('Que choisir pour 1 ?'); // dilemme de la cartographie
+		expect(res.warnings.join(' ')).toContain('pas pu être instruits');
+		const deliberated = res.report.requirements.filter((x) => x.disposition === 'deliberated');
+		expect(deliberated.every((x) => !!x.linkedSubjectId)).toBe(true);
+	});
+
+	it('partie de cartographie en échec : ses clauses restent sans sujet, jamais rattachées par proximité', async () => {
+		const probe = await runRequirementsAudit(clauses, { llm: fakeLlm().llm, model: 'faux-modele' });
+		const firstDeliberated = probe.report.requirements.find((x) => x.disposition === 'deliberated')!.clauseRef;
+		const { llm } = fakeLlm({ failPartitionContaining: firstDeliberated });
+		const res = await runRequirementsAudit(clauses, { llm, model: 'faux-modele' });
+		expect(res.status).toBe('partial');
+		const failed = res.report.requirements.find((x) => x.clauseRef === firstDeliberated)!;
+		expect(failed.linkedSubjectId).toBeUndefined();
+		expect(res.subjects.length).toBeGreaterThan(0);
+		expect(res.subjects.flatMap((s) => s.coveredClauseRefs)).not.toContain(firstDeliberated);
+	});
+
+	it('publie son avancement, avec un état exploitable après le tri puis après la cartographie', async () => {
+		const events: AuditProgress[] = [];
+		const res = await runRequirementsAudit(clauses, { llm: fakeLlm().llm, model: 'faux-modele', largeContext: true, onProgress: (p) => events.push(p) });
+		const classify = events.filter((e) => e.stage === 'classify');
+		expect(classify.at(-1)).toMatchObject({ done: 3, total: 3 });
+		const [afterTriage, afterMapping] = events.filter((e) => e.snapshot);
+		expect(afterTriage.snapshot!.subjects).toEqual([]);
+		expect(afterTriage.snapshot!.report.deliberatedCount).toBe(res.report.deliberatedCount);
+		expect(afterMapping.snapshot!.subjects.map((s) => s.coveredClauseRefs)).toEqual(res.subjects.map((s) => s.coveredClauseRefs));
+		expect(events.filter((e) => e.stage === 'instruct').at(-1)).toMatchObject({ done: 3, total: 3 });
+	});
+
+	it('un suivi d\'avancement défaillant ne fait jamais échouer l\'audit', async () => {
+		const res = await runRequirementsAudit(clauses.slice(0, 10), {
+			llm: fakeLlm().llm,
+			model: 'faux-modele',
+			onProgress: () => {
+				throw new Error('base indisponible');
+			}
+		});
+		expect(res.status).toBe('ok');
+	});
+
+	it('synthèse transverse : priorités, nature, dépendances et recouvrements contrôlés', async () => {
+		const { llm, calls } = fakeLlm();
+		const res = await runRequirementsAudit(clauses, { llm, model: 'faux-modele', largeContext: true });
+		expect(calls.triage).toBe(1);
+		const [first, second, third] = res.subjects;
+		expect(third.triage).toMatchObject({ importance: 'H', difficulty: 'H', rank: 1 }); // seul H/H : en tête
+		expect(first.triage!.nature).toBe('contractuel');
+		expect(second.triage!.dependsOn).toEqual([first.id]); // id inventé et auto-référence écartés
+		expect(first.triage!.overlapsWith).toEqual([second.id]); // recouvrement rendu symétrique
+		expect(res.warnings.join(' ')).not.toContain('Priorités');
+	});
+
+	it('synthèse transverse indisponible : les sujets restent complets, sans priorités inventées', async () => {
+		const res = await runRequirementsAudit(clauses, { llm: fakeLlm({ failTriage: true }).llm, model: 'faux-modele', largeContext: true });
+		expect(res.status).toBe('ok');
+		expect(res.subjects).toHaveLength(3);
+		expect(res.subjects.every((s) => s.triage === undefined)).toBe(true);
+		expect(res.warnings.join(' ')).toContain('Priorités et dépendances indisponibles pour 3 sujet(s)');
+	});
+
+	it('relance avec cache : les étapes déjà calculées ne rappellent pas le modèle', async () => {
+		const store = new Map<string, unknown>();
+		const cache = {
+			get: async (key: string) => store.get(key),
+			set: async (key: string, _stage: string, value: unknown) => void store.set(key, value)
+		};
+		const first = fakeLlm();
+		const a = await runRequirementsAudit(clauses, { llm: first.llm, model: 'faux-modele', cache });
+		expect(first.calls.classify + first.calls.group + first.calls.instruct).toBeGreaterThan(0);
+
+		const second = fakeLlm({ failClassify: true, failGroup: true, failInstruct: true });
+		const b = await runRequirementsAudit(clauses, { llm: second.llm, model: 'faux-modele', cache });
+		expect(second.calls).toEqual({ classify: 0, group: 0, instruct: 0, triage: 0 });
+		expect(b.status).toBe('ok');
+		expect(b.subjects).toEqual(a.subjects);
+	});
+
 	it('un autre RFP n\'est pas déclaré « sans enjeu » : les exigences dures sont délibérées', async () => {
 		const other = [
 			clause('§3.1', 'bloquant', 'Holdover 30 jours'),
@@ -322,5 +453,32 @@ describe('Aucune donnée de RFP dans le code', () => {
 		for (const forbidden of [/REQ-Lot/i, /LUMICC/i, /ADR-NOC/i, /\bNOC\b/, /Rubidium/i, /\bMNO\b/]) {
 			expect(src).not.toMatch(forbidden);
 		}
+	});
+});
+
+describe('Proposition d\'options et de critères : contrôles déterministes', () => {
+	it('ne garde que des évaluations justifiées visant des options et critères proposés, scores bornés', () => {
+		const p = normalizeProposal({
+			options: [{ title: 'A', summary: 'a' }, { title: 'a', summary: 'doublon' }, { title: 'B', summary: null }],
+			criteria: [{ name: 'Coût', kind: 'cost', weight: 9 }, { name: 'Risque', kind: 'inconnu', weight: null }],
+			evaluations: [
+				{ option: 'A', criterion: 'coût', score: 7, justification: 'Cher.' },
+				{ option: 'B', criterion: 'Risque', score: -1, justification: '' },
+				{ option: 'Z', criterion: 'Coût', score: 1, justification: 'Option inventée.' }
+			],
+			singleOptionRationale: 'Ignorée : deux options'
+		})!;
+		expect(p.options.map((o) => o.title)).toEqual(['A', 'B']);
+		expect(p.criteria).toEqual([
+			{ name: 'Coût', kind: 'cost', weight: 5, description: '' },
+			{ name: 'Risque', kind: 'nfr', weight: 3, description: '' }
+		]);
+		expect(p.evaluations).toEqual([{ option: 'A', criterion: 'Coût', score: 2, justification: 'Cher.' }]);
+		expect(p.singleOptionRationale).toBeUndefined();
+	});
+
+	it('option unique : la justification est conservée ; sans option, pas de proposition', () => {
+		expect(normalizeProposal({ options: [{ title: 'Seule voie' }], singleOptionRationale: ' Imposée par le RFP. ' })!.singleOptionRationale).toBe('Imposée par le RFP.');
+		expect(normalizeProposal({ options: [], criteria: [{ name: 'Coût' }] })).toBeUndefined();
 	});
 });

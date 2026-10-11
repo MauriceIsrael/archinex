@@ -24,7 +24,7 @@ $ARGUMENTS
 **MANDATORY** (warn if missing):
 
 - **REQ** (Requirements) — Extract: system functional description, integration requirements (INT-xxx), deployment environment (cloud/on-premise/hybrid), user population, data flows to external parties
-  - If missing: STOP — cartography requires a minimum understanding of the system. Run `/arckit.requirements` first.
+  - If missing: STOP — cartography requires a minimum understanding of the system. Run `$arckit-requirements` first.
 
 **RECOMMENDED** (read if available, note if missing):
 
@@ -68,9 +68,10 @@ Read all documents from Step 0. Extract:
 
 **Read the template** (with user override support):
 
-- **First**, check if `.arckit/templates/fr-anssi-carto-template.md` exists in the project root
+- **First**, check if `.arckit/templates-custom/fr-anssi-carto-template.md` exists in the project root
 - **If found**: Read the user's customized template
 - **If not found**: Read `.arckit/templates/fr-anssi-carto-template.md`
+- **Then read** `.arckit/templates/_partials/RENDERING.md` and resolve the `<!-- DOC-CONTROL-HEADER -->` marker in the template before writing. `CARTO` carries the France regime, which hard-routes to `_partials/document-control-fr.md` whatever the operator's user config says.
 
 ### Step 4: Four-Level Cartography
 
@@ -137,7 +138,7 @@ After completing all four levels, synthesise the key attack surface findings:
    - Status: DRAFT
    - Created Date: {current_date}
    - Next Review Date: {current_date + 12 months}
-   - Classification: OFFICIAL-SENSITIVE minimum (cartography reveals attack surface — restrict distribution)
+   - Classification: Diffusion Restreinte minimum (cartography reveals attack surface — restrict distribution)
 
 3. Write the complete cartography following the template populated with Step 4 findings.
 
@@ -159,7 +160,7 @@ projects/{project_id}/ARC-{PROJECT_ID}-CARTO-v{VERSION}.md
 📄 Document: projects/{project_id}/ARC-{PROJECT_ID}-CARTO-v{VERSION}.md
 📋 Document ID: {document_id}
 📅 Date: {date}
-🔒 Classification: OFFICIAL-SENSITIVE
+🔒 Classification: Diffusion Restreinte
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 📊 Cartography Summary
@@ -190,19 +191,19 @@ Next steps:
 
 ## Important Notes
 
-- **Cartography is security-sensitive**: A complete SI cartography reveals attack surface, administration paths, and asset locations. Always classify OFFICIAL-SENSITIVE minimum and restrict distribution to personnel with a need to know.
+- **Cartography is security-sensitive**: A complete SI cartography reveals attack surface, administration paths, and asset locations. Always classify Diffusion Restreinte minimum and restrict distribution to personnel with a need to know.
 - **Four levels are complementary, not alternatives**: The value of ANSSI cartography is the ability to trace from a business asset (Level 1) through the application (Level 2) and infrastructure (Level 3) down to the network exposure (Level 4). Completing only one or two levels produces an incomplete picture.
 - **EBIOS synergy**: If an EBIOS Risk Manager study is planned or exists, the cartography feeds directly into Workshop 3 (ecosystem map) and Workshop 4 (operational scenarios). The VM-xx IDs should be consistent between the two documents.
 - **Living document**: The cartography must be updated when the IS architecture changes significantly. A stale cartography is worse than no cartography — it gives false confidence. Set a review trigger on major architectural change.
-- **Visual diagrams**: This command produces a structured text cartography. Use `/arckit.diagram` to generate visual Mermaid or PlantUML diagrams from the cartography data for presentations and homologation dossiers.
+- **Visual diagrams**: This command produces a structured text cartography. Use `$arckit-diagram` to generate visual Mermaid or PlantUML diagrams from the cartography data for presentations and homologation dossiers.
 
 ## Key References
 
 | Document | Publisher | URL |
 |----------|-----------|-----|
 | Guide de cartographie du système d'information | ANSSI | https://cyber.gouv.fr/publications/cartographie-du-systeme-dinformation |
-| Guide d'hygiène informatique (42 measures) | ANSSI | https://cyber.gouv.fr/publications/guide-dhygiene-informatique |
-| EBIOS Risk Manager guide (Workshop 3 ecosystem map) | ANSSI | https://cyber.gouv.fr/publications/la-methode-ebios-risk-manager |
+| Guide d'hygiène informatique (42 measures) | ANSSI | https://messervices.cyber.gouv.fr/guides/guide-dhygiene-informatique |
+| EBIOS Risk Manager guide (Workshop 3 ecosystem map) | ANSSI | https://cyber.gouv.fr/securisation/analyse-des-risques/methode-ebios-rm/ |
 | ANSSI publications catalogue | ANSSI | https://cyber.gouv.fr/publications |
 
 ## Success Criteria
@@ -215,7 +216,7 @@ Next steps:
 - ✅ Sensitive flows identified and mapped across all four levels
 - ✅ Attack surface summary with internet-exposed entry points and admin exposure
 - ✅ Security recommendations prioritised from attack surface findings
-- ✅ Document classified OFFICIAL-SENSITIVE minimum
+- ✅ Document classified Diffusion Restreinte minimum
 
 ## Example Usage
 

@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import { deliberationStore } from '$lib/stores/deliberationStore.svelte';
 	import {
 		shredRfpTextToClauses,
@@ -9,6 +10,7 @@
 	} from '$lib/domain/rfpConfrontation';
 	import type { UpstreamDocInput, InitialSubjectInput } from '$lib/domain/engagements';
 	import { buildRequirementAudit, type RequirementAuditInput } from '$lib/domain/requirementAudit';
+	import { detectApplicableFrameworks, type DetectedFramework } from '$lib/domain/regulatoryFrameworks';
 	import type { LocalLlmModel, RfpFactorizationResponse } from '$lib/domain/factorization';
 	import RfpFactorizationReview from './RfpFactorizationReview.svelte';
 	import ReuseConfirmationModal from '$lib/components/kb/ReuseConfirmationModal.svelte';
@@ -44,11 +46,15 @@
 			initialSubjects: InitialSubjectInput[];
 			/** Présent uniquement quand l'audit des exigences a réellement tourné (jamais fabriqué). */
 			requirementAudit?: RequirementAuditInput;
+			/** Référentiels réglementaires cités par le RFP (détection déterministe, à confirmer par l'architecte). */
+			detectedFrameworks?: DetectedFramework[];
 		}) => void;
 		actorEmail?: string;
+		/** Déplie d'emblée la liste des analyses enregistrées (arrivée depuis la liste des espaces). */
+		showSavedRunsOnOpen?: boolean;
 	}
 
-	let { open = $bindable(false), onclose, onImported, actorEmail = '' }: Props = $props();
+	let { open = $bindable(false), onclose, onImported, actorEmail = '', showSavedRunsOnOpen = false }: Props = $props();
 
 	// Recherche de similarité sémantique & Réutilisation validée (Contrats 1.9 & 1.10 - A12/A13/A15)
 	let similarAssetsByClause = $state<Record<string, { item: SimilarKnowledgeItem; fingerprint: string }>>({});
@@ -108,6 +114,197 @@
 		});
 	}
 	let factorizationError = $state<string | null>(null);
+
+	// Factorisations exécutées côté serveur, en tâche de fond : le suivi survit à un rechargement de page
+	// (l'exécution suivie est mémorisée dans le navigateur) et à une fermeture de la boîte de dialogue.
+	const ACTIVE_RUN_KEY = 'archinex.factorization.activeRun';
+	interface RunProgress {
+		stage: string;
+		label: string;
+		done: number;
+		total: number;
+		updatedAt: string;
+	}
+	interface PersistedRun {
+		id: string;
+		documentTitle: string | null;
+		model: string;
+		status: string;
+		clauseCount: number;
+		subjectCount: number | null;
+		progress: RunProgress | null;
+		error: string | null;
+		startedAt: string;
+		finishedAt: string | null;
+	}
+	let showPersistedRuns = $state<boolean>(false);
+	let persistedRuns = $state<PersistedRun[]>([]);
+	let persistedRunsError = $state<string | null>(null);
+	let loadingRunId = $state<string | null>(null);
+	let activeRunId = $state<string | null>(null);
+	let activeProgress = $state<RunProgress | null>(null);
+	let activeRunHasPartial = $state<boolean>(false);
+	let interruptedRunId = $state<string | null>(null);
+	let pollToken = 0;
+
+	const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+	const RESUMABLE = ['interrupted', 'error', 'unavailable', 'partial'];
+
+	async function refreshPersistedRuns() {
+		persistedRunsError = null;
+		try {
+			const res = await fetch('/api/rfp/factorize/runs');
+			if (!res.ok) throw new Error(`HTTP ${res.status}`);
+			persistedRuns = (await res.json()).runs ?? [];
+		} catch (err) {
+			persistedRunsError = err instanceof Error ? err.message : 'Liste indisponible';
+		}
+	}
+
+	async function togglePersistedRuns() {
+		showPersistedRuns = !showPersistedRuns;
+		if (showPersistedRuns) await refreshPersistedRuns();
+	}
+
+	/** Exécution persistée, ou null si elle n'existe plus. Lève une erreur si le serveur ne répond pas. */
+	async function fetchRun(runId: string) {
+		const res = await fetch(`/api/rfp/factorize/runs/${encodeURIComponent(runId)}`);
+		if (res.status === 404) return null;
+		if (!res.ok) throw new Error(`HTTP ${res.status}`);
+		return res.json();
+	}
+
+	/** Affiche le résultat d'une exécution : final, ou partiel tant qu'elle est en cours. */
+	function applyRunResult(run: { id: string; result: RfpFactorizationResponse; sourceText?: string | null; documentTitle?: string | null; finishedAt?: string | null; startedAt: string }) {
+		// Le texte source accompagne le résultat : la provenance de l'audit importé reste exacte.
+		if (run.sourceText) rfpText = run.sourceText;
+		if (run.documentTitle) documentTitle = run.documentTitle;
+		confrontationResult = null;
+		factorizationError = null;
+		factorizationResponse = { ...run.result, runId: run.id };
+		auditReceivedAt = run.finishedAt ?? run.startedAt;
+	}
+
+	async function loadPersistedRun(runId: string) {
+		loadingRunId = runId;
+		persistedRunsError = null;
+		try {
+			const run = await fetchRun(runId);
+			if (!run) throw new Error('exécution introuvable');
+			if (!run.result) throw new Error('cette exécution n\'a pas produit de résultat');
+			applyRunResult(run);
+			showPersistedRuns = false;
+		} catch (err) {
+			persistedRunsError = `Chargement impossible : ${err instanceof Error ? err.message : 'erreur'}`;
+		} finally {
+			loadingRunId = null;
+		}
+	}
+
+	/**
+	 * Suit une exécution jusqu'à son terme en interrogeant le serveur. S'arrête si une autre exécution est suivie
+	 * ou si la boîte de dialogue se ferme (l'exécution, elle, continue côté serveur).
+	 */
+	async function followRun(runId: string) {
+		const token = ++pollToken;
+		activeRunId = runId;
+		isFactorizing = true;
+		factorizationError = null;
+		interruptedRunId = null;
+		activeProgress = null;
+		activeRunHasPartial = false;
+		localStorage.setItem(ACTIVE_RUN_KEY, runId);
+
+		let startedAt = Date.now();
+		clearInterval(factorizeTimer);
+		factorizeTimer = setInterval(() => {
+			factorizeSeconds = Math.max(0, Math.round((Date.now() - startedAt) / 1000));
+		}, 1000);
+
+		try {
+			while (token === pollToken) {
+				let run;
+				try {
+					run = await fetchRun(runId);
+				} catch {
+					// Serveur momentanément injoignable (redémarrage) : on réessaie, l'exécution sera vue « interrompue » si besoin.
+					await sleep(5000);
+					continue;
+				}
+				if (token !== pollToken) break;
+				if (!run) {
+					factorizationError = 'Exécution introuvable côté serveur.';
+					localStorage.removeItem(ACTIVE_RUN_KEY);
+					break;
+				}
+				startedAt = new Date(run.startedAt).getTime();
+				activeProgress = run.progress;
+				if (run.status === 'running') {
+					activeRunHasPartial = !!run.result;
+					await sleep(3000);
+					continue;
+				}
+				localStorage.removeItem(ACTIVE_RUN_KEY);
+				if ((run.status === 'ok' || run.status === 'partial') && run.result) {
+					applyRunResult(run);
+				} else {
+					factorizationError = run.error || 'Échec de la factorisation';
+					if (RESUMABLE.includes(run.status)) interruptedRunId = run.id;
+				}
+				break;
+			}
+		} finally {
+			if (token === pollToken) {
+				clearInterval(factorizeTimer);
+				isFactorizing = false;
+				activeRunId = null;
+				activeRunHasPartial = false;
+			}
+		}
+	}
+
+	/** Affiche l'état partiel de l'exécution suivie, sans interrompre le suivi. */
+	async function showActiveRunPartial() {
+		if (!activeRunId) return;
+		try {
+			const run = await fetchRun(activeRunId);
+			if (run?.result) applyRunResult(run);
+		} catch {
+			// le suivi continue ; l'état partiel sera disponible au prochain essai
+		}
+	}
+
+	async function resumeRun(runId: string) {
+		factorizationError = null;
+		try {
+			const res = await fetch(`/api/rfp/factorize/runs/${encodeURIComponent(runId)}/resume`, { method: 'POST' });
+			if (!res.ok) {
+				const errData = await res.json().catch(() => ({}));
+				throw new Error(errData.message || `Reprise impossible (${res.status})`);
+			}
+			showPersistedRuns = false;
+			void followRun(runId);
+		} catch (err) {
+			factorizationError = err instanceof Error ? err.message : 'Reprise impossible';
+		}
+	}
+
+	// À l'ouverture : on se rattache à l'exécution suivie avant un rechargement de page ou une fermeture.
+	// À la fermeture : on arrête seulement de l'interroger.
+	$effect(() => {
+		if (!open) return;
+		untrack(() => {
+			const pending = localStorage.getItem(ACTIVE_RUN_KEY);
+			if (pending && !activeRunId) void followRun(pending);
+			if (showSavedRunsOnOpen && !showPersistedRuns) void togglePersistedRuns();
+		});
+		return () => {
+			pollToken++;
+			clearInterval(factorizeTimer);
+			isFactorizing = false;
+			activeRunId = null;
+		};
+	});
 
 	// Modèles et configuration locale (LLM Local)
 	let availableModels = $state<LocalLlmModel[]>([
@@ -251,18 +448,14 @@
 		}
 	}
 
-	// 1. Déclenche la Factorisation Sémantique par LLM Local Souverain
+	// 1. Déclenche la factorisation : le calcul tourne côté serveur, l'interface en suit l'avancement.
 	async function runLlmFactorization() {
 		if (!rfpText.trim()) return;
-		isFactorizing = true;
 		factorizeSeconds = 0;
 		factorizationError = null;
+		interruptedRunId = null;
 		confrontationResult = null;
-
-		clearInterval(factorizeTimer);
-		factorizeTimer = setInterval(() => {
-			factorizeSeconds += 1;
-		}, 1000);
+		isFactorizing = true;
 
 		try {
 			const extractedClauses = shredRfpTextToClauses(rfpText);
@@ -277,7 +470,8 @@
 					clauses: extractedClauses,
 					model: selectedModel,
 					customPromptDirectives: customPromptDirectives.trim() || undefined,
-					documentTitle
+					documentTitle,
+					sourceText: rfpText
 				})
 			});
 
@@ -286,13 +480,17 @@
 				throw new Error(errData.message || errData.error || `Erreur lors de la factorisation (${res.status})`);
 			}
 
-			const data: RfpFactorizationResponse = await res.json();
-			factorizationResponse = data;
+			const data = await res.json();
+			if (res.status === 202 && data.runId) {
+				void followRun(data.runId);
+				return;
+			}
+			// Résultat déjà calculé pour ces entrées, renvoyé sans recalcul.
+			factorizationResponse = data as RfpFactorizationResponse;
 			auditReceivedAt = new Date().toISOString();
+			isFactorizing = false;
 		} catch (err: unknown) {
 			factorizationError = err instanceof Error ? err.message : 'Échec de la factorisation';
-		} finally {
-			clearInterval(factorizeTimer);
 			isFactorizing = false;
 		}
 	}
@@ -457,6 +655,12 @@
 			<div class="p-4 sm:p-6 overflow-y-auto flex-1 space-y-5 text-xs">
 				<!-- Si la factorisation LLM a été calculée, on affiche l'écran de revue et d'appropriation -->
 				{#if factorizationResponse}
+					{#if factorizationResponse.inProgress}
+						<div class="p-3 rounded-xl border border-amber-500/30 bg-amber-500/10 text-amber-800 dark:text-amber-200 text-xs">
+							<strong>État partiel :</strong> l'analyse est toujours en cours côté serveur{#if activeProgress} ({activeProgress.label}{#if activeProgress.stage !== 'partition'} {activeProgress.done}/{activeProgress.total}{/if}){/if}.
+							Le résultat final remplacera cet aperçu automatiquement ; l'import n'est possible qu'une fois l'analyse terminée.
+						</div>
+					{/if}
 					<RfpFactorizationReview
 						subjects={factorizationResponse.subjects}
 						clauses={shredRfpTextToClauses(rfpText)}
@@ -475,6 +679,10 @@
 						clarifications={factorizationResponse.clarifications}
 						allAuditedRequirements={factorizationResponse.allAuditedRequirements}
 						onConfirm={(finalSubjects: InitialSubjectInput[]) => {
+							if (factorizationResponse?.inProgress) {
+								factorizationError = "Analyse encore en cours : l'import sera possible une fois le résultat final disponible.";
+								return;
+							}
 							onImported({
 								document: {
 									title: documentTitle || 'Cahier des Charges (RFP)',
@@ -486,7 +694,8 @@
 									clauses: shredRfpTextToClauses(rfpText)
 								},
 								initialSubjects: finalSubjects,
-								requirementAudit: buildAuditForImport(finalSubjects)
+								requirementAudit: buildAuditForImport(finalSubjects),
+								detectedFrameworks: detectApplicableFrameworks(rfpText)
 							});
 							onclose();
 						}}
@@ -785,7 +994,16 @@
 								<AlertTriangle class="h-4 w-4 shrink-0 mt-0.5" />
 								<div>
 									<strong>Erreur de factorisation :</strong> {factorizationError}
-								</div>
+									{#if interruptedRunId}
+										<button
+											type="button"
+											onclick={() => resumeRun(interruptedRunId!)}
+											class="ml-2 px-2 py-0.5 rounded-md border border-destructive/40 font-semibold hover:bg-destructive/10 cursor-pointer"
+										>
+											Reprendre
+										</button>
+									{/if}
+									</div>
 							</div>
 						{/if}
 
@@ -820,19 +1038,112 @@
 									</div>
 									<div class="text-[11px] text-muted-foreground flex items-center gap-2">
 										<span class="inline-block w-2 h-2 rounded-full bg-primary animate-pulse"></span>
-										{#if factorizeSeconds < 5}
-											<span>1/3 — Analyse syntaxique, validation des clauses et préparation du prompt...</span>
-										{:else if factorizeSeconds < 20}
-											<span>2/3 — Inférence LLM : identification des dilemmes d'architecture atomiques...</span>
+										{#if activeProgress}
+											<span>
+												{activeProgress.label}{#if activeProgress.stage !== 'partition'} — {activeProgress.done}/{activeProgress.total}{/if}
+											</span>
 										{:else}
-											<span>3/3 — Synthèse des hypothèses, questions sachants et réconciliation de couverture (100%)...</span>
+											<span>Préparation de l'analyse…</span>
 										{/if}
 									</div>
+									{#if activeProgress && activeProgress.total > 0 && activeProgress.stage !== 'partition'}
+										<div class="h-1.5 rounded-full bg-primary/10 overflow-hidden">
+											<div class="h-full bg-primary transition-all" style="width: {Math.round((activeProgress.done / activeProgress.total) * 100)}%"></div>
+										</div>
+									{/if}
+									{#if activeRunHasPartial}
+										<button
+											type="button"
+											onclick={showActiveRunPartial}
+											class="px-2 py-1 rounded-md border text-[11px] font-semibold hover:bg-muted/40 cursor-pointer"
+										>
+											Afficher l'état actuel de l'analyse
+										</button>
+									{/if}
 									<p class="text-[10px] text-muted-foreground/80 italic border-t pt-1.5">
-										💡 Traces complètes et métriques d'exécution visibles en temps réel dans les logs du serveur (terminal).
+										Le calcul se poursuit côté serveur : vous pouvez fermer cette fenêtre ou recharger la page, le suivi reprendra à la réouverture.
+										Traces détaillées dans les logs du serveur.
 									</p>
 								</div>
 							{/if}
+
+							<!-- Factorisations persistées côté serveur -->
+							<div class="rounded-xl border bg-muted/10">
+								<button
+									type="button"
+									data-testid="btn-toggle-persisted-runs"
+									onclick={togglePersistedRuns}
+									class="w-full px-3 py-2 text-xs font-semibold text-muted-foreground hover:text-foreground flex items-center gap-2 cursor-pointer"
+								>
+									{#if showPersistedRuns}
+										<ChevronDown class="h-3.5 w-3.5" />
+									{:else}
+										<ChevronRight class="h-3.5 w-3.5" />
+									{/if}
+									<Server class="h-3.5 w-3.5" />
+									<span>Factorisations enregistrées</span>
+								</button>
+								{#if showPersistedRuns}
+									<div class="px-3 pb-3 space-y-1.5">
+										{#if persistedRunsError}
+											<div class="text-[11px] text-destructive">{persistedRunsError}</div>
+										{/if}
+										{#if persistedRuns.length === 0 && !persistedRunsError}
+											<div class="text-[11px] text-muted-foreground italic">Aucune factorisation enregistrée.</div>
+										{/if}
+										{#each persistedRuns as run (run.id)}
+											<div class="flex items-center justify-between gap-2 text-[11px] border-t pt-1.5">
+												<div class="min-w-0">
+													<div class="font-semibold text-foreground truncate">{run.documentTitle || 'Sans titre'}</div>
+													<div class="text-muted-foreground">
+														{new Date(run.startedAt).toLocaleString('fr-FR')} · {run.model} · {run.clauseCount} clauses ·
+														{#if run.status === 'running'}
+															en cours{#if run.progress} ({run.progress.label}{#if run.progress.stage !== 'partition'} {run.progress.done}/{run.progress.total}{/if}){/if}
+														{:else if run.status === 'ok'}
+															{run.subjectCount ?? 0} sujets
+														{:else if run.status === 'partial'}
+															partiel, {run.subjectCount ?? 0} sujets
+														{:else if run.status === 'interrupted'}
+															interrompue{#if run.progress} à l'étape « {run.progress.label} »{/if}
+														{:else}
+															échec
+														{/if}
+														</div>
+														</div>
+														<div class="shrink-0 flex gap-1">
+															{#if run.status === 'running' && activeRunId !== run.id}
+																<button
+																	type="button"
+																	onclick={() => { showPersistedRuns = false; void followRun(run.id); }}
+																	class="px-2 py-1 rounded-md border text-[11px] font-semibold hover:bg-muted/40 cursor-pointer"
+																>
+																	Suivre
+																</button>
+															{/if}
+															{#if RESUMABLE.includes(run.status)}
+																<button
+																	type="button"
+																	onclick={() => resumeRun(run.id)}
+																	disabled={isFactorizing}
+																	class="px-2 py-1 rounded-md border text-[11px] font-semibold hover:bg-muted/40 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+																>
+																	Reprendre
+																</button>
+															{/if}
+															<button
+																type="button"
+																onclick={() => loadPersistedRun(run.id)}
+																disabled={run.subjectCount === null || loadingRunId !== null}
+																class="px-2 py-1 rounded-md border text-[11px] font-semibold hover:bg-muted/40 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
+															>
+																{loadingRunId === run.id ? 'Chargement…' : run.status === 'running' ? 'État actuel' : 'Charger'}
+															</button>
+														</div>
+											</div>
+										{/each}
+									</div>
+								{/if}
+							</div>
 
 							<!-- 2. Bouton Secondaire : Dépouillement Brut Clause-par-Clause -->
 							<button

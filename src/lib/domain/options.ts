@@ -160,3 +160,12 @@ export function convertVarianteBToOption(
 		version: 1
 	};
 }
+
+/**
+ * Le Lead Architect (ou un administrateur) peut trancher seul : sa décision rend le sujet décidé (L3).
+ * La décision de tout autre architecte reste proposée, en revue, jusqu'à son affirmation par un décideur distinct (K16).
+ */
+export function canDecideAlone(role: string | undefined | null): boolean {
+	const normalized = (role || '').toLowerCase().replace(/[\s-]/g, '_');
+	return normalized === 'lead_architect' || normalized === 'admin';
+}

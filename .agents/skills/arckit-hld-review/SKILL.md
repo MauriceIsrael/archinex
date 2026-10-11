@@ -37,9 +37,10 @@ $ARGUMENTS
    - **TCOP** (TCoP Review) — Extract: Technology governance findings relevant to design review
 
    **Read the template** (with user override support):
-   - **First**, check if `.arckit/templates/hld-review-template.md` exists in the project root
+   - **First**, check if `.arckit/templates-custom/hld-review-template.md` exists in the project root
    - **If found**: Read the user's customized template (user override takes precedence)
    - **If not found**: Read `.arckit/templates/hld-review-template.md` (default)
+   - **Then read** `.arckit/templates/_partials/RENDERING.md` and resolve the `<!-- DOC-CONTROL-HEADER -->` marker in the template before writing. Do not hand-write the Document Control table: the partial `RENDERING.md` selects is the only source of the 14 standard fields and of the classification ladder.
 
    > **Tip**: Users can customize templates with `$arckit-customize hld-review`
 
@@ -141,9 +142,9 @@ $ARGUMENTS
 
    Create a comprehensive review document with:
 
-   **Executive Summary**:
-   - Overall status: APPROVED / APPROVED WITH CONDITIONS / REJECTED
-   - Key findings (top 3-5 issues)
+   **Executive Summary** (section 1, verdict first, as `.arckit/references/executive-summary-pattern.md` sets out):
+   - Overall status: APPROVED / APPROVED WITH CONDITIONS / REJECTED, stated in the summary's first sentence
+   - Key findings, most decisive first, as many as the review found
    - Recommendation
 
    **Detailed Findings**:
@@ -188,11 +189,11 @@ Before completing the document, populate ALL document control fields in the head
 
 - `[PROJECT_NAME]` → Full project name from project metadata or user input
 - `[OWNER_NAME_AND_ROLE]` → Document owner (prompt user if not in metadata)
-- `[CLASSIFICATION]` → Default to "OFFICIAL" for UK Gov, "PUBLIC" otherwise (or prompt user)
+- **Classification** → comes from the resolved Document Control header, not from a placeholder. `_partials/RENDERING.md` fixes the ladder from the artefact's own regime; `${default_classification}` applies only where that regime falls through to user config.
 
 *Calculated fields*:
 
-- `[YYYY-MM-DD]` for Review Date → Current date + 30 days
+- `[YYYY-MM-DD]` for Next Review Date → Current date + 30 days
 
 *Pending fields* (leave as [PENDING] until manually updated):
 
@@ -215,7 +216,7 @@ The footer should be populated with:
 **Generated on**: {DATE} {TIME} GMT
 **ArcKit Version**: {ARCKIT_VERSION}
 **Project**: {PROJECT_NAME} (Project {PROJECT_ID})
-**AI Model**: [Use actual model name, e.g., "claude-sonnet-4-5-20250929"]
+**AI Model**: [Use actual model name, e.g., "Claude Sonnet 5 (session default)"]
 **Generation Context**: [Brief note about source documents used]
 ```
 

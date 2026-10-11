@@ -3,6 +3,7 @@ import type { TelegraphicDraft } from '$lib/domain/telegraphic';
 import type { Statement, ArchitectRole, MaturityLevel } from '$lib/types/epistemic';
 import type { CorpusDocument, DocumentCategory } from '$lib/domain/corpus';
 import type { DialogueMessage } from '$lib/domain/dialectic';
+import type { SubjectProposal } from '$lib/domain/factorization';
 import { requirementBundleId, type RequirementAuditInput } from './requirementAudit';
 
 export type EngagementType =
@@ -17,6 +18,8 @@ export interface ProjectStrategy {
 	constraints: string[];
 	targetDate?: string;
 	budget?: string;
+	/** Référentiels réglementaires applicables (codes LLMOps : NIS2, RGPD, CRA…), confirmés par l'architecte. */
+	applicableFrameworks?: string[];
 }
 
 export interface ProjectParticipant {
@@ -94,6 +97,16 @@ export interface InitialSubjectInput {
 	initialConflict?: string;
 	initialQuestion?: string;
 	expertQuestions?: string[];
+	/** Énoncé du problème d'architecture (par défaut : la question à trancher). */
+	problemStatement?: string;
+	/** Identifiant du sujet dans la factorisation (ex. SUBJ-04) : sert à résoudre les dépendances entre sujets. */
+	factorizationId?: string;
+	/** Nature du sujet proposée par la synthèse transverse. */
+	nature?: 'architecture' | 'contractuel' | 'organisationnel';
+	/** Identifiants de factorisation des sujets à trancher avant celui-ci. */
+	dependsOn?: string[];
+	/** Options, critères et évaluations proposés par le modèle, à valider en délibération. */
+	proposal?: SubjectProposal;
 }
 
 export interface WorkspaceCreationInput {
@@ -382,45 +395,8 @@ export function buildEngagementProfileFromWorkspaceInput(
 			? availableCommonStandards.filter((s) => input.linkedStandardIds!.includes(s.id))
 			: availableCommonStandards.filter((s) => s.isGlobalStandard || s.origin === 'contributor_external');
 
-	// 3. Sujets initiaux de réflexion
-	const initialSubjectInputs =
-		input.initialSubjects && input.initialSubjects.length > 0
-			? input.initialSubjects
-			: [
-					{
-						sectionRef: '§1.1',
-						name: 'Cadrage Stratégique & Exigences Globales',
-						waitingForRole: 'lead_architect' as ArchitectRole,
-						effort: 'M' as const,
-						initialRetenu:
-							input.strategy.principles.length > 0
-								? [input.strategy.principles[0]]
-								: ['Validation formelle des principes'],
-						initialHypothesis:
-							input.strategy.objectives.length > 0
-								? input.strategy.objectives[0]
-								: 'Objectifs prioritaires validés',
-						initialQuestion: 'Quels sont les jalons de validation du comité de direction ?'
-					},
-					{
-						sectionRef: '§2.1',
-						name: 'Architecture Cible & Composants Centraux',
-						waitingForRole: 'infra_expert_architect' as ArchitectRole,
-						effort: 'L' as const,
-						initialRetenu: ['Architecture hautement disponible N+1'],
-						initialHypothesis: 'Hébergement souverain sans dépendance hyperscaler',
-						initialQuestion: 'Quelle matrice de compatibilité matérielle minimale ?'
-					},
-					{
-						sectionRef: '§3.1',
-						name: 'Sécurité Zero-Trust & Homologation Réglementaire',
-						waitingForRole: 'security_architect' as ArchitectRole,
-						effort: 'M' as const,
-						initialRetenu: ['Chiffrement systématique au repos et en transit'],
-						initialHypothesis: 'Conformité NIS2 et guide d\'hygiène ANSSI',
-						initialQuestion: 'Quelles exigences de chiffrement pour les flux d\'administration ?'
-					}
-			  ];
+	// 3. Sujets initiaux de réflexion : ceux fournis, et aucun sujet fictif à défaut.
+	const initialSubjectInputs = input.initialSubjects ?? [];
 
 	const subjects: MaturitySubject[] = [];
 	const drafts: Record<string, TelegraphicDraft> = {};
@@ -434,9 +410,12 @@ export function buildEngagementProfileFromWorkspaceInput(
 			id: sId,
 			section_ref: sectionRef,
 			name: sInput.name,
+			problem_statement: (sInput.problemStatement || sInput.initialQuestion || '').trim() || undefined,
+			...(sInput.nature ? { nature: sInput.nature } : {}),
+			...(sInput.proposal ? { proposal: sInput.proposal } : {}),
 			level: sInput.level || 'L0_named',
 			blocking_count: 0,
-			unlocks_count: Math.max(0, initialSubjectInputs.length - 1 - idx),
+			unlocks_count: 0,
 			waiting_for_role: sInput.waitingForRole,
 			relative_effort: sInput.effort || 'M',
 			last_transition_date: new Date().toISOString(),
@@ -485,6 +464,24 @@ export function buildEngagementProfileFromWorkspaceInput(
 			expertQuestions: sInput.expertQuestions || []
 		};
 	});
+
+	// Dépendances entre sujets : les identifiants de factorisation (SUBJ-NN) sont traduits en identifiants d'espace.
+	const idByFactorization = new Map(
+		initialSubjectInputs.flatMap((sInput, idx) => (sInput.factorizationId ? [[sInput.factorizationId, subjects[idx].id] as const] : []))
+	);
+	initialSubjectInputs.forEach((sInput, idx) => {
+		const deps = (sInput.dependsOn || []).map((d) => idByFactorization.get(d)).filter((d): d is string => !!d && d !== subjects[idx].id);
+		if (deps.length > 0) subjects[idx].depends_on_subject_ids = [...new Set(deps)];
+	});
+	// « Débloque » = nombre de sujets qui attendent celui-ci, pas sa position dans la liste.
+	const subjectById = new Map(subjects.map((s) => [s.id, s]));
+	for (const s of subjects) {
+		for (const dep of s.depends_on_subject_ids ?? []) {
+			const upstream = subjectById.get(dep);
+			if (upstream && !upstream.dependent_subject_ids.includes(s.id)) upstream.dependent_subject_ids.push(s.id);
+		}
+	}
+	for (const s of subjects) s.unlocks_count = s.dependent_subject_ids.length;
 
 	// Relier les documents amonts aux sujets créés
 	const subjectIds = subjects.map((s) => s.id);

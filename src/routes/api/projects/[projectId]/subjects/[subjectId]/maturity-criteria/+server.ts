@@ -25,15 +25,18 @@ export const GET: RequestHandler = async (event) => {
 		// Acteur courant
 		const actorInfo = getActorFromEvent(event);
 
-		// Recherche d'affirmation sur la décision par un décideur distinct (K16)
-		const assertionEvent = await prisma.domainEvent.findFirst({
-			where: {
-				projectId,
-				entityType: 'statement',
-				type: 'STATEMENT_ASSERTED'
-			},
-			orderBy: { createdAt: 'desc' }
-		});
+		// Recherche d'affirmation de CETTE décision par un décideur distinct (K16), telle qu'écrite par decision/assert
+		const assertionEvent = subject.decision
+			? await prisma.domainEvent.findFirst({
+					where: {
+						projectId,
+						entityType: 'decision',
+						entityId: subject.decision.id,
+						type: 'DECISION_ASSERTED'
+					},
+					orderBy: { createdAt: 'desc' }
+				})
+			: null;
 
 		let decisionAffirmed = false;
 		let affirmedBy: string | undefined = undefined;
@@ -117,6 +120,7 @@ export const GET: RequestHandler = async (event) => {
 			decision: subject.decision
 				? {
 						authorId: subject.decision.arbiterId,
+						authorRole: subject.decision.arbiterRole,
 						affirmedBy: affirmedBy || undefined,
 						status: decisionAffirmed ? 'active' : 'proposed'
 					}

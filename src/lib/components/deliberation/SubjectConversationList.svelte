@@ -259,6 +259,14 @@
 							<span class="inline-flex items-center rounded-md px-1.5 py-0.2 font-mono text-[9px] font-bold border {getMaturityBadgeClass(sub.level)}">
 								{formatMaturityLevel(sub.level)}
 							</span>
+							{#if sub.awaiting_review}
+								<span
+									class="inline-flex items-center rounded-md px-1.5 py-0.2 text-[9px] font-bold border border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300"
+									title="Décision tranchée, en attente d'affirmation par un décideur distinct de son auteur"
+								>
+									En revue
+								</span>
+							{/if}
 						</div>
 
 						<div class="flex items-center gap-1">

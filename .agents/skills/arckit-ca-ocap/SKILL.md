@@ -20,6 +20,12 @@ description: "[COMMUNITY] Generate a First Nations OCAP® (Ownership, Control, A
 > Métis, and Inuit communities**. The architect must engage FNIGC and community representatives
 > before relying on any OCAP determinations made here.
 
+## User Request
+
+```text
+$ARGUMENTS
+```
+
 You are an enterprise architect generating a First Nations OCAP® sovereignty assessment for a federal information system that processes Indigenous data.
 
 ## Process
@@ -31,10 +37,10 @@ You are an enterprise architect generating a First Nations OCAP® sovereignty as
    - `.arckit/templates/_partials/RENDERING.md`
 2. Read the template:
    - **First**, check `.arckit/templates-custom/ca-ocap-template.md` (user override)
-   - **Then**, `.arckit/templates/ca-ocap-template.md`
+   - **Then**, `.arckit/templates-custom/ca-ocap-template.md`
    - **Fallback**, `.arckit/templates/ca-ocap-template.md`
-3. Use `scripts/bash/generate-document-id.sh <PROJECT_ID> OCAP --filename` for the artefact filename.
-4. Resolve the `<!-- DOC-CONTROL-HEADER -->` marker per `RENDERING.md`. Use the Canadian classification scheme (UNCLASSIFIED / Protected A / Protected B / Protected C / CONFIDENTIAL / SECRET / TOP SECRET) — replace the standard UK line in the header. Note that OCAP-relevant artefacts may carry community-protected information that exceeds the federal classification scheme; mark accordingly and flag in the Open Items section.
+3. Use `node scripts/generate-document-id.mjs <PROJECT_ID> OCAP --filename` for the artefact filename.
+4. Resolve the `<!-- DOC-CONTROL-HEADER -->` marker per `RENDERING.md` before writing the artefact. `RENDERING.md` hard-routes the CA regime to `_partials/document-control-ca.md`, which already carries the Policy on Government Security categorization ladder — no per-command classification override is needed. Note that OCAP-relevant artefacts may carry community-protected information that exceeds the federal classification scheme; mark accordingly and flag in the Open Items section.
 5. Generate the following sections (the template provides skeletons for each). **The FNIGC Pre-Engagement Confirmation gate in step 5.1 is structurally enforced — if engagement is not confirmed, STOP at the planning scaffold and do NOT generate sections 5.2–5.10.**
 
    1. **FNIGC Pre-Engagement Confirmation Block** — the architect MUST confirm:
@@ -77,8 +83,9 @@ You are an enterprise architect generating a First Nations OCAP® sovereignty as
    10. **Open Items** — including any unresolved community-protected classification, pending FNIGC follow-up, and outstanding USAI / ITK community engagements.
 
 6. Populate the External References section per `.arckit/references/citation-instructions.md`. The First Nations Principles of OCAP® (FNIGC) and the *United Nations Declaration on the Rights of Indigenous Peoples Act* (S.C. 2021, c. 14) MUST appear in the Document Register with their primary URLs and verification dates.
-7. Write the artefact via the Write tool to `projects/<project-id>/<filename>`.
-8. Show only a summary to the user (one paragraph plus the FNIGC engagement status, the count of datasets mapped, and any open items). If the artefact is a planning scaffold, say so plainly in the summary.
+7. Before writing the file, read `.arckit/references/quality-checklist.md` and verify all **Common Checks** plus the **OCAP** per-type checks pass. Fix any failures before proceeding.
+8. Write the artefact via the Write tool to `projects/<project-id>/<filename>`.
+9. Show only a summary to the user (one paragraph plus the FNIGC engagement status, the count of datasets mapped, and any open items). If the artefact is a planning scaffold, say so plainly in the summary.
 
 ## Authoritative anchor
 

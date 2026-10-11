@@ -36,7 +36,7 @@
 	} = $props();
 
 	type DossierTab = 'draft' | 'matrix' | 'kb' | 'tree' | 'rules';
-	let activeTab = $state<DossierTab>('draft');
+	let activeTab = $state<DossierTab>('matrix');
 
 	const activeSubject = $derived(deliberationStore.activeSubject);
 	const openObjectionsCount = $derived(countOpenObjections(argumentsList));
@@ -289,6 +289,7 @@
 						bind:tradeOffs={matrixTradeOffs}
 						bind:decision={matrixDecision}
 						userRole={deliberationStore.currentRole}
+						onDecisionMade={() => deliberationStore.refreshSubjectFromServer(subjectId, projectId)}
 						onError={(msg) => deliberationStore.logNotification(msg, 'warning')}
 					/>
 				</div>

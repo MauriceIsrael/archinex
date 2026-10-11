@@ -74,7 +74,7 @@ Scan for external (non-ArcKit) documents the user may have provided:
 **Existing Data Catalogues & API Registries**:
 
 - **Look in**: `projects/{project}/external/`
-- **File types**: PDF (.pdf), Word (.docx), Markdown (.md), CSV (.csv), JSON (.json)
+- **File types**: PDF (.pdf), Word (.docx), Markdown (.md), CSV (.csv), JSON (.json), subtitles/transcripts (.srt, .vtt)
 - **What to extract**: Known data sources, API endpoints, data quality assessments, existing integrations
 - **Examples**: `data-catalogue.csv`, `api-registry.json`, `data-audit.pdf`
 
@@ -87,7 +87,8 @@ Scan for external (non-ArcKit) documents the user may have provided:
 
 ### Step 2: Read Template
 
-- Read `.arckit/templates/datascout-template.md` for output structure
+- First, check `.arckit/templates-custom/datascout-template.md` (user override)
+- If not found, read `.arckit/templates/datascout-template.md` (default)
 
 ### Step 3: Extract Data Needs from Requirements
 
@@ -382,7 +383,7 @@ Auto-populate fields:
 - `[VERSION]` = determined version from Step 14
 - `[DATE]` = current date (YYYY-MM-DD)
 - `[STATUS]` = "DRAFT"
-- `[CLASSIFICATION]` = "OFFICIAL" (UK Gov) or "PUBLIC"
+- **Classification** → comes from the resolved Document Control header, not from a placeholder. `_partials/RENDERING.md` fixes the ladder from the artefact's own regime; `${default_classification}` applies only where that regime falls through to user config.
 
 Include the generation metadata footer:
 
@@ -458,8 +459,8 @@ Return ONLY a concise summary including:
 
 ## Toolchain
 
-- **Templates** — `.arckit/templates/datascout-template.md`
-- **Helpers** — `.arckit/scripts/bash/create-project.sh` · `.arckit/scripts/bash/generate-document-id.sh`
+- **Templates** — `.arckit/templates/datascout-template.md` (override at `.arckit/templates-custom/datascout-template.md`)
+- **Helpers** — `.arckit/scripts/bash/create-project.sh` · `.arckit/scripts/generate-document-id.mjs`
 - **External tools** — `WebSearch` · `WebFetch` (no MCP)
 - **Related commands** — `$arckit-requirements` (input) · `$arckit-data-model` (downstream) · `$arckit-dpia` (downstream privacy assessment)
 

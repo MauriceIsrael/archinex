@@ -48,9 +48,10 @@ $ARGUMENTS
    - **Citation traceability**: When referencing content from external documents, follow the citation instructions in `.arckit/references/citation-instructions.md`. Place inline citation markers (e.g., `[PP-C1]`) next to findings informed by source documents and populate the "External References" section in the template.
 
 4. **Read the template** (with user override support):
-   - **First**, check if `.arckit/templates/requirements-template.md` exists in the project root
+   - **First**, check if `.arckit/templates-custom/requirements-template.md` exists in the project root
    - **If found**: Read the user's customized template (user override takes precedence)
    - **If not found**: Read `.arckit/templates/requirements-template.md` (default)
+   - **Then read** `.arckit/templates/_partials/RENDERING.md` and resolve the `<!-- DOC-CONTROL-HEADER -->` marker in the template before writing. Do not hand-write the Document Control table: the partial `RENDERING.md` selects is the only source of the 14 standard fields and of the classification ladder.
    - **Update Template Version**: Replace the version in the template metadata line with `{ARCKIT_VERSION}` from the session context
 
    > **Tip**: Users can customize templates with `$arckit-customize requirements`
@@ -92,7 +93,7 @@ $ARGUMENTS
    - Unique ID (BR-001, FR-001, NFR-P-001, etc.)
    - Clear requirement statement
    - Acceptance criteria (testable)
-   - Priority (MUST/SHOULD/MAY)
+   - Priority (MoSCoW: MUST_HAVE / SHOULD_HAVE / COULD_HAVE / WONT_HAVE)
    - Rationale
 
 7. **Align with stakeholder goals and architecture principles**:
@@ -175,12 +176,12 @@ Before generating the document ID, check if a previous version exists:
 
 - `[PROJECT_NAME]` → Full project name from project metadata or user input
 - `[OWNER_NAME_AND_ROLE]` → Document owner (prompt user if not in metadata)
-- `[CLASSIFICATION]` → Default to "OFFICIAL" for UK Gov, "PUBLIC" otherwise (or prompt user)
+- **Classification** → comes from the resolved Document Control header, not from a placeholder. `_partials/RENDERING.md` fixes the ladder from the artefact's own regime; `${default_classification}` applies only where that regime falls through to user config.
 
 **Calculated fields**:
 
-- `[YYYY-MM-DD]` for Review Date → Current date + 30 days (requirements, research, risks)
-- `[YYYY-MM-DD]` for Review Date → Phase gate dates (Alpha/Beta/Live for compliance docs)
+- `[YYYY-MM-DD]` for Next Review Date → Current date + 30 days (requirements, research, risks)
+- `[YYYY-MM-DD]` for Next Review Date → Phase gate dates (Alpha/Beta/Live for compliance docs)
 
 **Pending fields** (leave as [PENDING] until manually updated):
 
@@ -203,30 +204,17 @@ The footer should be populated with:
 **Generated on**: {DATE} {TIME} GMT
 **ArcKit Version**: {ARCKIT_VERSION}
 **Project**: {PROJECT_NAME} (Project {PROJECT_ID})
-**AI Model**: [Use actual model name, e.g., "claude-sonnet-4-5-20250929"]
+**AI Model**: [Use actual model name, e.g., "Claude Sonnet 5 (session default)"]
 **Generation Context**: [Brief note about source documents used]
 ```
 
-### Example Fully Populated Document Control Section
+### Example Rendered Header and Revision History
 
 ```markdown
 ## Document Control
 
-| Field | Value |
-|-------|-------|
-| **Document ID** | ARC-001-REQ-v1.0 |
-| **Document Type** | {Document purpose} |
-| **Project** | Windows 10 to Windows 11 Migration (Project 001) |
-| **Classification** | OFFICIAL-SENSITIVE |
-| **Status** | DRAFT |
-| **Version** | 1.0 |
-| **Created Date** | 2025-10-29 |
-| **Last Modified** | 2025-10-29 |
-| **Review Date** | 2025-11-30 |
-| **Owner** | John Smith (Business Analyst) |
-| **Reviewed By** | [PENDING] |
-| **Approved By** | [PENDING] |
-| **Distribution** | PM Team, Architecture Team, Dev Team |
+<!-- DOC-CONTROL-HEADER -->
+<!-- Resolved at command-execution time per _partials/RENDERING.md. -->
 
 ## Revision History
 

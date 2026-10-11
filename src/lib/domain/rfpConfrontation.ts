@@ -107,14 +107,17 @@ Un accès de secours indépendant hors-bande doit permettre de restaurer le serv
 export function shredRfpTextToClauses(rawText: string): ExtractedClause[] {
 	if (!rawText || !rawText.trim()) return [];
 
-	const lines = rawText.split('\n');
+	const lines = stripPageFurniture(rawText).split('\n');
 	const clauses: ExtractedClause[] = [];
 	let currentClause: Partial<ExtractedClause> | null = null;
 	let clauseCounter = 1;
+	const seenRefs = new Map<string, number>();
 
 	// Regex robuste pour détecter les débuts d'articles ou exigences :
-	// Exemples supportés : REQ-Lot1-191, Art. 1.1, §2.1, Clause 3.1, Exigence NET-03, BR-001, NFR-SEC-002
-	const articleRegex = /^(?:[-*]\s*)?(?:\*\*)?(?:(?:art(?:icle|\.)?|exigence|clause|§)\s*([\d\w.-]+)|((?:REQ|BR|FR|NFR|INT|DR|SEC|LOT|STD)-[a-z0-9_-]+|req\s*[\d\w.-]+))\s*[:-]?\s*(.*?)(?:\*\*)?$/i;
+	// Exemples supportés : REQ-Lot1-191, Art. 1.1, §2.1, Clause 3.1, Exigence NET-03, BR-001, NFR-SEC-002, REQ 12
+	// Une référence contient toujours un chiffre : sans cela, « Request For Proposals », « requirements »,
+	// « Exigences générales » ou « artificial » seraient pris pour des débuts d'exigence.
+	const articleRegex = /^(?:[-*]\s*)?(?:\*\*)?(?:(?:art(?:icle|\.)?|exigence|clause|§)\s*(\d[\w.-]*|[a-z]+-[\w.-]*\d[\w.-]*)|((?:REQ|BR|FR|NFR|INT|DR|SEC|LOT|STD)-[a-z0-9_-]*\d[a-z0-9_-]*|req[-_\s]*\d[\w.-]*))(?![\w])\s*[:-]?\s*(.*?)(?:\*\*)?$/i;
 	const hasStructuredArticles = lines.some((l) => articleRegex.test(l.trim()));
 
 	for (const rawLine of lines) {
@@ -128,15 +131,29 @@ export function shredRfpTextToClauses(rawText: string): ExtractedClause[] {
 			if (currentClause && (currentClause.text || currentClause.title)) {
 				clauses.push(finalizeClause(currentClause, clauseCounter++));
 			}
-			const rawRef = (match[1] || match[2]).trim();
-			const clauseRef = rawRef.startsWith('§') || rawRef.toLowerCase().startsWith('req') || rawRef.includes('-')
+			let rawRef = (match[1] || match[2]).trim();
+			let title = match[3]?.replace(/\*\*/g, '').trim() || '';
+			// Extraction PDF : numéro collé au titre (« REQ-Lot1-960Enrolment of… ») → référence et titre séparés.
+			const glued = rawRef.match(/^(.*\d)([A-Z][a-z]{2,}.*)$/);
+			if (glued) {
+				rawRef = glued[1];
+				title = `${glued[2]} ${title}`.trim();
+			}
+			// Référence sans numéro dans le document source (« REQ-Lot1- ») : conservée, et signalée comme telle.
+			if (rawRef.endsWith('-')) rawRef = `${rawRef}?`;
+			const baseRef = rawRef.startsWith('§') || rawRef.toLowerCase().startsWith('req') || rawRef.includes('-')
 				? rawRef
 				: `§${rawRef}`;
+			// Une référence en double (renvoi, tableau récapitulatif) reste une clause distincte et visible :
+			// deux clauses de même référence seraient confondues par les contrôles d'intégrité.
+			const occurrence = (seenRefs.get(baseRef) ?? 0) + 1;
+			seenRefs.set(baseRef, occurrence);
+			const clauseRef = occurrence === 1 ? baseRef : `${baseRef}#${occurrence}`;
 
 			currentClause = {
 				id: `clause-${clauseRef.toLowerCase().replace(/[^a-z0-9_-]/g, '-')}`,
 				clauseRef,
-				title: match[3]?.replace(/\*\*/g, '').trim() || `Exigence ${clauseRef}`,
+				title: title || `Exigence ${clauseRef}`,
 				text: ''
 			};
 		} else if (currentClause) {
@@ -212,6 +229,42 @@ function detectCriticality(text: string): 'bloquant' | 'majeur' | 'info' {
 		return 'majeur';
 	}
 	return 'info';
+}
+
+const PAGE_MARKER = /^--\s*\d+\s+of\s+\d+\s*--$/i;
+
+/**
+ * Retire le « mobilier » de page d'un texte extrait de PDF : marqueurs de saut de page (« -- 6 of 194 -- »),
+ * en-têtes et pieds de page répétés sur la majorité des pages, numéros de page isolés. Sans cela, un en-tête
+ * coupe une exigence en deux au saut de page et sa suite est perdue ou rattachée à une fausse clause.
+ * Sans marqueurs de page détectables, le texte est rendu inchangé (aucune heuristique risquée).
+ */
+export function stripPageFurniture(rawText: string): string {
+	const lines = rawText.split(/\r?\n/);
+	const pages = lines.filter((l) => PAGE_MARKER.test(l.trim())).length;
+	if (pages < 3) return rawText;
+
+	// Une ligne courte présente sur au moins la moitié des pages est un en-tête ou un pied de page.
+	const counts = new Map<string, number>();
+	for (const l of lines) {
+		const t = l.trim();
+		if (t && t.length <= 200) counts.set(t, (counts.get(t) ?? 0) + 1);
+	}
+	const furniture = new Set([...counts].filter(([, n]) => n >= Math.max(3, pages / 2)).map(([t]) => t));
+
+	const out: string[] = [];
+	let afterPageFurniture = false;
+	for (const l of lines) {
+		const t = l.trim();
+		if (PAGE_MARKER.test(t) || furniture.has(t)) {
+			afterPageFurniture = true;
+			continue;
+		}
+		if (afterPageFurniture && /^\d{1,4}$/.test(t)) continue; // numéro de page
+		if (t) afterPageFurniture = false;
+		out.push(l);
+	}
+	return out.join('\n');
 }
 
 function finalizeClause(partial: Partial<ExtractedClause>, counter: number): ExtractedClause {

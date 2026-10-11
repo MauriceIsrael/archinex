@@ -108,7 +108,7 @@ Scan for external (non-ArcKit) documents the user may have provided:
 **Existing AWS Assessments & Cost Reports**:
 
 - **Look in**: `projects/{project}/external/`
-- **File types**: PDF (.pdf), Word (.docx), Markdown (.md), CSV (.csv)
+- **File types**: PDF (.pdf), Word (.docx), Markdown (.md), CSV (.csv), subtitles/transcripts (.srt, .vtt)
 - **What to extract**: Current AWS usage, cost reports, Well-Architected review findings, migration assessments
 - **Examples**: `aws-cost-report.csv`, `well-architected-review.pdf`, `migration-assessment.docx`
 
@@ -117,7 +117,7 @@ Scan for external (non-ArcKit) documents the user may have provided:
 
 **Important**: This agent works without external documents. They enhance output quality but are never blocking.
 
-- **Citation traceability**: When referencing content from external documents, follow the citation instructions in `${CLAUDE_PLUGIN_ROOT}/references/citation-instructions.md`. Place inline citation markers (e.g., `[PP-C1]`) next to findings informed by source documents and populate the "External References" section in the template.
+- **Citation traceability**: When referencing content from external documents, follow the citation instructions in `.arckit/references/citation-instructions.md`. Place inline citation markers (e.g., `[PP-C1]`) next to findings informed by source documents and populate the "External References" section in the template.
 
 ### Step 2: Read Available Documents
 
@@ -154,7 +154,8 @@ Detect if UK Government project (look for "UK Government", "Ministry of", "Depar
 
 ### Step 3: Read Template
 
-- Read `${CLAUDE_PLUGIN_ROOT}/templates/aws-research-template.md` for output structure
+- First, check `.arckit/templates-custom/aws-research-template.md` (user override)
+- If not found, read `.arckit/templates/aws-research-template.md` (default)
 
 ### Step 4: Extract Requirements for AWS Mapping
 
@@ -278,7 +279,7 @@ Use Glob to find existing `projects/{project-dir}/research/ARC-{PROJECT_ID}-AWRS
    - Document Control: Version field
    - Revision History: Add new row with version, date, "AI Agent", description of changes, "PENDING", "PENDING"
 
-Before writing the file, read `${CLAUDE_PLUGIN_ROOT}/references/quality-checklist.md` and verify all **Common Checks** plus the **AWRS** per-type checks pass. Fix any failures before proceeding.
+Before writing the file, read `.arckit/references/quality-checklist.md` and verify all **Common Checks** plus the **AWRS** per-type checks pass. Fix any failures before proceeding.
 
 ### Step 10: Write Output
 
@@ -290,7 +291,7 @@ Auto-populate fields:
 - `[VERSION]` = determined version from Step 9
 - `[DATE]` = current date (YYYY-MM-DD)
 - `[STATUS]` = "DRAFT"
-- `[CLASSIFICATION]` = "OFFICIAL" (UK Gov) or "PUBLIC"
+- **Classification** → comes from the resolved Document Control header, not from a placeholder. `_partials/RENDERING.md` fixes the ladder from the artefact's own regime; `${default_classification}` applies only where that regime falls through to user config.
 
 Include the generation metadata footer:
 
@@ -338,8 +339,8 @@ Return ONLY a concise summary including:
 
 ## Toolchain
 
-- **Templates** — `${CLAUDE_PLUGIN_ROOT}/templates/aws-research-template.md`
-- **Helpers** — `${CLAUDE_PLUGIN_ROOT}/scripts/bash/create-project.sh` · `${CLAUDE_PLUGIN_ROOT}/scripts/bash/generate-document-id.sh`
+- **Templates** — `.arckit/templates/aws-research-template.md` (override at `.arckit/templates-custom/aws-research-template.md`)
+- **Helpers** — `.arckit/scripts/bash/create-project.sh` · `.arckit/scripts/generate-document-id.mjs`
 - **MCP server** — `aws-knowledge` (search, read, recommend, regional availability, list regions, retrieve skill)
 - **External tools** — `WebSearch` · `WebFetch` (STANDALONE-mode fallback when MCP unavailable)
 - **Related commands** — `/arckit:requirements` (input) · `/arckit:research` (cross-cloud comparison) · `/arckit:azure-research` · `/arckit:gcp-research`

@@ -46,9 +46,10 @@ $ARGUMENTS
      - Extract: Risks requiring vendor mitigation, risk allocation
 
 3. **Read the template** (with user override support):
-   - **First**, check if `.arckit/templates/sow-template.md` exists in the project root
+   - **First**, check if `.arckit/templates-custom/sow-template.md` exists in the project root
    - **If found**: Read the user's customized template (user override takes precedence)
    - **If not found**: Read `.arckit/templates/sow-template.md` (default)
+   - **Then read** `.arckit/templates/_partials/RENDERING.md` and resolve the `<!-- DOC-CONTROL-HEADER -->` marker in the template before writing. Do not hand-write the Document Control table: the partial `RENDERING.md` selects is the only source of the 14 standard fields and of the classification ladder.
 
    > **Tip**: Users can customize templates with `$arckit-customize sow`
 
@@ -61,12 +62,12 @@ $ARGUMENTS
 
 5. **Interactive Configuration**:
 
-   Before generating the SOW, use the **AskUserQuestion** tool to gather procurement preferences. **Skip any question the user has already answered in their arguments.**
+   Before generating the SOW, ask the user for procurement preferences. **Skip any question the user has already answered in their arguments.**
 
-   **Gathering rules** (apply to all questions in this section):
-   - Ask the most important question first; fill in secondary details from context or reasonable defaults.
-   - **Maximum 2 rounds of questions.** After that, pick the best option from available context.
-   - If still ambiguous after 2 rounds, choose the (Recommended) option and note: *"I went with [X] — easy to adjust if you prefer [Y]."*
+   **Gathering rules** — the one-message interview in `.arckit/references/interview-pattern.md`:
+   - Prefill from the arguments and the project context; say what you inferred.
+   - Ask every remaining question in **one** call. There is no second round.
+   - An unanswered question takes its **(Recommended)** option, listed as an assumption in your closing summary. With no question tool available, take every default and never block.
 
    **Question 1** — header: `Contract`, multiSelect: false
    > "What contract type should the SOW specify?"
@@ -196,12 +197,12 @@ Before generating the document ID, check if a previous version exists:
 
 - `[PROJECT_NAME]` → Full project name from project metadata or user input
 - `[OWNER_NAME_AND_ROLE]` → Document owner (prompt user if not in metadata)
-- `[CLASSIFICATION]` → Default to "OFFICIAL" for UK Gov, "PUBLIC" otherwise (or prompt user)
+- **Classification** → comes from the resolved Document Control header, not from a placeholder. `_partials/RENDERING.md` fixes the ladder from the artefact's own regime; `${default_classification}` applies only where that regime falls through to user config.
 
 **Calculated fields**:
 
-- `[YYYY-MM-DD]` for Review Date → Current date + 30 days (requirements, research, risks)
-- `[YYYY-MM-DD]` for Review Date → Phase gate dates (Alpha/Beta/Live for compliance docs)
+- `[YYYY-MM-DD]` for Next Review Date → Current date + 30 days (requirements, research, risks)
+- `[YYYY-MM-DD]` for Next Review Date → Phase gate dates (Alpha/Beta/Live for compliance docs)
 
 **Pending fields** (leave as [PENDING] until manually updated):
 
@@ -224,30 +225,17 @@ The footer should be populated with:
 **Generated on**: {DATE} {TIME} GMT
 **ArcKit Version**: {ARCKIT_VERSION}
 **Project**: {PROJECT_NAME} (Project {PROJECT_ID})
-**AI Model**: [Use actual model name, e.g., "claude-sonnet-4-5-20250929"]
+**AI Model**: [Use actual model name, e.g., "Claude Sonnet 5 (session default)"]
 **Generation Context**: [Brief note about source documents used]
 ```
 
-### Example Fully Populated Document Control Section
+### Example Rendered Header and Revision History
 
 ```markdown
 ## Document Control
 
-| Field | Value |
-|-------|-------|
-| **Document ID** | ARC-001-SOW-v1.0 |
-| **Document Type** | {Document purpose} |
-| **Project** | Windows 10 to Windows 11 Migration (Project 001) |
-| **Classification** | OFFICIAL-SENSITIVE |
-| **Status** | DRAFT |
-| **Version** | 1.0 |
-| **Created Date** | 2025-10-29 |
-| **Last Modified** | 2025-10-29 |
-| **Review Date** | 2025-11-30 |
-| **Owner** | John Smith (Business Analyst) |
-| **Reviewed By** | [PENDING] |
-| **Approved By** | [PENDING] |
-| **Distribution** | PM Team, Architecture Team, Dev Team |
+<!-- DOC-CONTROL-HEADER -->
+<!-- Resolved at command-execution time per _partials/RENDERING.md. -->
 
 ## Revision History
 

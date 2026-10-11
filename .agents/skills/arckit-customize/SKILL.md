@@ -13,12 +13,20 @@ $ARGUMENTS
 
 ## Overview
 
-ArcKit uses document templates to generate consistent architecture artifacts. Users can customize these templates by copying them to `.arckit/templates/`. When a template exists in the custom directory, it takes precedence over the default template.
+ArcKit uses document templates to generate consistent architecture artifacts. Users can customize these templates by copying them to `.arckit/templates-custom/`. When a template exists in the custom directory, it takes precedence over the default template.
 
 **Template locations:**
 
 - **Defaults**: `.arckit/templates/` (shipped with ArcKit, refreshed by `arckit init`)
-- **User overrides**: `.arckit/templates/` (your customizations, preserved across updates)
+- **User overrides**: `.arckit/templates-custom/` (your customizations, preserved across updates)
+
+**Scope.** `.arckit` resolves to the core `arckit` plugin. Community overlays (`arckit-uae`, `arckit-ca`, `arckit-uk-nhs`, `arckit-repo` and the rest) are separate plugins installed beside it, and only the overlays the user has installed are on disk. Both halves are reachable, and where overlays are installed they are the larger half of the catalogue:
+
+- **`list`** covers core **and** overlays
+- **Copying by name** covers core and overlays
+- **`all`** covers core only, deliberately, because a UK project has no use for twelve UAE templates
+
+Whichever scope an action has, **say which one you used**. Never present a core-only result as the complete inventory.
 
 ## Instructions
 
@@ -33,9 +41,21 @@ The user may request:
 
 ### 2. **List Available Templates**
 
-If user wants to see available templates, use Glob to find `.arckit/templates/*-template.md` and `.arckit/templates/*-template.html`, then extract the template name from each filename (strip the `-template.md`/`.html` suffix).
+Glob **both** template trees, then strip the `-template.md`/`.html` suffix from each filename to get the short name:
 
-Display as a table:
+1. **Core**: `.arckit/templates/*-template.md` and `.arckit/templates/*-template.html`
+2. **Overlays**: installed overlays sit beside the core, and where depends on how the core was loaded. Glob all three and ignore any that match nothing:
+   - Marketplace install, where each plugin is cached as `<marketplace>/<plugin>/<version>/`: `.arckit/../../arckit-*/*/templates/*-template.{md,html}`
+   - A checkout of the published repo (core at `plugins/arckit/`, overlays at `plugins/uae/`, `plugins/uk/finance/`) or of the source repo (`plugins/arckit-uae/`): `.arckit/../**/templates/*-template.{md,html}`, leaving out the core's own `templates/`
+   - The source repo's mirror inside the core: `.arckit/plugins/**/templates/*-template.{md,html}`
+
+For an overlay hit, the owning plugin is the `name` in the `.claude-plugin/plugin.json` beside that `templates/` folder. The same template can match more than one glob (a cached older version, or the source repo's mirror): list it once, from the highest version.
+
+State the totals first, in these words or close to them:
+
+> NN templates available: NN in the core `arckit` plugin, NN across NN community overlay plugins.
+
+Then display the core templates as a table:
 
 | Template | Command | Description |
 |----------|---------|-------------|
@@ -47,23 +67,37 @@ Display as a table:
 | `aws-research` | `$arckit-aws-research` | AWS service research findings |
 | `azure-research` | `$arckit-azure-research` | Azure service research findings |
 | `backlog` | `$arckit-backlog` | Product backlog with user stories |
+| `competitors` | `$arckit-competitors` | Competitor landscape and market share |
+| `conformance-assessment` | `$arckit-conformance` | Architecture conformance assessment |
 | `data-mesh-contract` | `$arckit-data-mesh-contract` | Data product contracts |
 | `data-model` | `$arckit-data-model` | Data model with GDPR compliance |
+| `data-source-profile` | `$arckit-datascout` | Per-source data profile (multi-instance) |
 | `datascout` | `$arckit-datascout` | External data source discovery |
 | `devops` | `$arckit-devops` | DevOps strategy and CI/CD |
+| `dfd` | `$arckit-dfd` | Yourdon-DeMarco data flow diagrams |
 | `dld-review` | `$arckit-dld-review` | Detailed design review |
 | `dos-requirements` | `$arckit-dos` | Digital Outcomes & Specialists |
 | `dpia` | `$arckit-dpia` | Data Protection Impact Assessment |
 | `evaluation-criteria` | `$arckit-evaluate` | Vendor evaluation framework |
 | `finops` | `$arckit-finops` | FinOps cloud cost management |
+| `framework-overview` | `$arckit-framework` | Framework overview and executive guide |
 | `gcloud-clarify` | `$arckit-gcloud-clarify` | G-Cloud clarification questions |
 | `gcloud-requirements` | `$arckit-gcloud-search` | G-Cloud service requirements |
+| `gcp-research` | `$arckit-gcp-research` | Google Cloud service research findings |
+| `glossary` | `$arckit-glossary` | Consolidated project glossary |
+| `gov-code-search` | `$arckit-gov-code-search` | UK government code search report |
+| `gov-landscape` | `$arckit-gov-landscape` | UK government domain landscape |
+| `gov-reuse` | `$arckit-gov-reuse` | Government code reuse assessment |
+| `grants` | `$arckit-grants` | UK grants and funding research |
 | `hld-review` | `$arckit-hld-review` | High-level design review |
 | `jsp-936` | `$arckit-jsp-936` | MOD AI assurance (JSP 936) |
+| `maturity-model` | `$arckit-maturity-model` | Capability maturity model |
 | `mlops` | `$arckit-mlops` | MLOps strategy |
 | `mod-secure-by-design` | `$arckit-mod-secure` | MOD Secure by Design |
 | `operationalize` | `$arckit-operationalize` | Operational readiness pack |
+| `pages` | `$arckit-pages` | GitHub Pages site (HTML/CSS/JS) |
 | `platform-design` | `$arckit-platform-design` | Platform Design Toolkit |
+| `presentation` | `$arckit-presentation` | MARP governance board slides |
 | `principles-compliance-assessment` | `$arckit-principles-compliance` | Principles compliance scorecard |
 | `project-plan` | `$arckit-plan` | Project plan with timeline |
 | `requirements` | `$arckit-requirements` | Business & technical requirements |
@@ -77,14 +111,31 @@ Display as a table:
 | `stakeholder-drivers` | `$arckit-stakeholders` | Stakeholder analysis |
 | `story` | `$arckit-story` | Project story with timeline |
 | `tcop-review` | `$arckit-tcop` | Technology Code of Practice |
+| `tech-note` | `$arckit-research` | Per-candidate technical note (multi-instance) |
+| `tenders` | `$arckit-tenders` | Procurement market intelligence |
 | `traceability-matrix` | `$arckit-traceability` | Requirements traceability |
 | `uk-gov-ai-playbook` | `$arckit-ai-playbook` | AI Playbook compliance |
 | `uk-gov-atrs` | `$arckit-atrs` | Algorithmic Transparency Record |
-| `uk-gov-tcop` | `$arckit-tcop` | TCoP review template |
 | `ukgov-secure-by-design` | `$arckit-secure` | UK Gov Secure by Design |
+| `vendor-profile` | `$arckit-research` | Per-vendor profile (multi-instance) |
 | `vendor-scoring` | `$arckit-evaluate` | Vendor scoring matrix |
+| `wardley-climate` | `$arckit-wardley-climate` | Wardley climatic patterns assessment |
+| `wardley-doctrine` | `$arckit-wardley-doctrine` | Wardley doctrine maturity assessment |
+| `wardley-gameplay` | `$arckit-wardley-gameplay` | Wardley gameplay analysis |
 | `wardley-map` | `$arckit-wardley` | Wardley Map documentation |
-| `pages` | `$arckit-pages` | GitHub Pages site (HTML/CSS/JS) |
+| `wardley-value-chain` | `$arckit-wardley-value-chain` | Wardley value chain decomposition |
+
+Then list the overlay templates, grouped by owning plugin, ordered by descending count. Render these from the glob results, not from a hardcoded list, so a newly added overlay appears without this file changing:
+
+| Plugin | Templates |
+|--------|-----------|
+| `arckit-uae` | `uae-ai-charter`, `uae-classification`, ... |
+
+Close with the line that makes the two halves actionable:
+
+> Copy any of these by name, for example `$arckit-customize uae-ai-charter`. `$arckit-customize all` copies the core set only.
+
+If the user asked to list a single plugin's templates (e.g. "list arckit-repo"), show only that group.
 
 ### 3. **Copy Template(s)**
 
@@ -93,15 +144,28 @@ Display as a table:
 1. Map the user's short name to the full filename (e.g., "requirements" → `requirements-template.md`, "pages" → `pages-template.html`)
 2. Use the Read tool to read the source template from `.arckit/templates/{name}-template.{ext}`
 3. **Update the origin banner**: Before writing, change the `Template Origin` line from `Official` to `Custom` and add a `Based On` reference:
-   - Find: ``> **Template Origin**: Official | **ArcKit Version**: [VERSION] | **Command**: `/arckit.{command}` ``
-   - Replace with: ``> **Template Origin**: Custom | **Based On**: `/arckit.{command}` | **ArcKit Version**: [VERSION]``
-4. Use the Write tool to save it to `.arckit/templates/{name}-template.{ext}` (the directory will be created automatically)
-5. If the source template does not exist, inform the user and suggest running `$arckit-customize list`
+   - Find: ``> **Template Origin**: Official | **ArcKit Version**: [VERSION] | **Command**: `$arckit-{command}` ``
+   - Replace with: ``> **Template Origin**: Custom | **Based On**: `$arckit-{command}` | **ArcKit Version**: [VERSION]``
+4. Use the Write tool to save it to `.arckit/templates-custom/{name}-template.{ext}` (the directory will be created automatically)
+5. If the source template does not exist, do **not** stop at "not found". Glob `.arckit/../../arckit-*/*/templates/{name}-template.*`, `.arckit/../**/templates/{name}-template.*` and `.arckit/plugins/**/templates/{name}-template.*` before answering: if one matches, the template ships in an overlay plugin, so follow "Copy an overlay template" below. Only if both globs come back empty, tell the user it does not exist and suggest `$arckit-customize list`.
 
 **Copy all templates:**
 
 1. Use Glob to find all `.arckit/templates/*-template.md` and `.arckit/templates/*-template.html` files
-2. For each template found, use Read to load it, update the origin banner (change `Template Origin: Official` to `Template Origin: Custom | Based On: /arckit.{command}`), and Write to save it to `.arckit/templates/`
+2. For each template found, use Read to load it, update the origin banner (change `Template Origin: Official` to `Template Origin: Custom | Based On: $arckit-{command}`), and Write to save it to `.arckit/templates-custom/`
+3. **Report the scope, not just the count.** "all" here means all *core* templates. Say so explicitly, and say that overlay templates were not included:
+
+   > Copied NN core `arckit` templates. Community overlay plugins ship their own templates, which `all` does not cover.
+
+   Reporting "copied all templates" after a core-only pass is a wrong answer, not a terse one.
+
+**Copy an overlay template:**
+
+Templates belonging to a community overlay plugin are not in the core `templates/` glob. Copy one from the installed overlay exactly as you would a core template:
+
+1. Locate `{name}-template.*`: glob `.arckit/../../arckit-*/*/templates/` (marketplace install), then `.arckit/../**/templates/` (a repo checkout, leaving out the core's own), then `.arckit/plugins/**/templates/` (the source repo's mirror)
+2. Read it, update the origin banner as under "Copy specific template" above, and Write it to `.arckit/templates-custom/{name}-template.{ext}`
+3. Tell the user which overlay it came from. If no glob matches, the overlay that owns the template is not installed: say which plugin to install (`/plugin install arckit-<overlay>@arckit-claude`) instead of reporting that the template does not exist
 
 ### 4. **Show Template Info**
 
@@ -119,13 +183,13 @@ After copying, explain:
 ```markdown
 ## Template Customization Guide
 
-Your template has been copied to `.arckit/templates/`. You can now customize it.
+Your template has been copied to `.arckit/templates-custom/`. You can now customize it.
 
 ### How It Works
 
 When you run an ArcKit command (e.g., `$arckit-requirements`):
 
-1. Command checks: Does `.arckit/templates/requirements-template.md` exist?
+1. Command checks: Does `.arckit/templates-custom/requirements-template.md` exist?
 2. **If YES** → Uses YOUR customized template
 3. **If NO** → Uses default from `.arckit/templates/`
 
@@ -162,7 +226,7 @@ When you run an ArcKit command (e.g., `$arckit-requirements`):
 
 When ArcKit CLI updates with new template features:
 - Default templates in `.arckit/templates/` are refreshed by `arckit init`
-- Your customizations in `.arckit/templates/` are **preserved**
+- Your customizations in `.arckit/templates-custom/` are **preserved**
 - Compare your templates with defaults periodically to adopt new features
 
 To see the current default template, use the Read tool on `.arckit/templates/{name}-template.md`.
@@ -171,7 +235,7 @@ To compare your customization with the default, read both files and compare the 
 
 ### Reverting to Default
 
-To stop using a custom template and revert to default, delete `.arckit/templates/{name}-template.md`.
+To stop using a custom template and revert to default, delete `.arckit/templates-custom/{name}-template.md`.
 
 ```
 
@@ -184,14 +248,16 @@ After completing the request, show:
 
 **Action**: [Listed templates / Copied X template(s)]
 
-**Location**: `.arckit/templates/`
+**Scope**: [Core + overlays ([N] templates) for `list` and copy-by-name / Core `arckit` plugin only ([N] templates) for `all`]
+
+**Location**: `.arckit/templates-custom/`
 
 **Files**:
 - [List of files copied or available]
 
 **Next Steps**:
-1. Edit the template(s) in `.arckit/templates/`
-2. Run the corresponding `/arckit:*` command
+1. Edit the template(s) in `.arckit/templates-custom/`
+2. Run the corresponding `$arckit-*` command
 3. Your customized template will be used automatically
 
 **Tip**: Read both the default and your custom template to compare differences.

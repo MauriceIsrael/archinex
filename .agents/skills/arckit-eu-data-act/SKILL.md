@@ -63,9 +63,10 @@ Read all documents from Step 0. Identify:
 
 **Read the template** (with user override support):
 
-- **First**, check if `.arckit/templates/eu-data-act-template.md` exists in the project root
+- **First**, check if `.arckit/templates-custom/eu-data-act-template.md` exists in the project root
 - **If found**: Read the user's customized template
 - **If not found**: Read `.arckit/templates/eu-data-act-template.md`
+- **Then read** `.arckit/templates/_partials/RENDERING.md` and resolve the `<!-- DOC-CONTROL-HEADER -->` marker in the template before writing. Do not hand-write the Document Control table: the partial `RENDERING.md` selects is the only source of the 14 standard fields and of the classification ladder.
 
 ### Step 4: Role and Scope Determination
 
@@ -148,7 +149,7 @@ Show role determination before proceeding.
    - Personal data in shared data sets: both Data Act and GDPR apply
    - Data minimisation: Data Act sharing doesn't override GDPR purpose limitation
    - Transfer restrictions: GDPR Chapter V applies to personal data transfers
-   - Recommend running `/arckit.eu-rgpd` if personal data is involved
+   - Recommend running `$arckit-eu-rgpd` if personal data is involved
 
 9. **Section 9: Gap Analysis and Timeline**
    - Role-based gaps with Data Act application dates
@@ -236,7 +237,7 @@ Next steps:
 - ✅ Public sector exceptional access (Chapter V) assessed or N/A
 - ✅ Cloud switching obligations (Chapter VI) assessed if DAPS or N/A
 - ✅ International transfer restrictions (Article 27) assessed
-- ✅ GDPR intersection documented with recommendation to run `/arckit.eu-rgpd`
+- ✅ GDPR intersection documented with recommendation to run `$arckit-eu-rgpd`
 - ✅ Gap analysis with Data Act application timeline (Sep 2025 / Sep 2027)
 
 ## Example Usage

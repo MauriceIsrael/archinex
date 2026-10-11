@@ -72,9 +72,10 @@ Read all documents from Step 0. Extract:
 
 **Read the template** (with user override support):
 
-- **First**, check if `.arckit/templates/fr-code-reuse-template.md` exists in the project root
+- **First**, check if `.arckit/templates-custom/fr-code-reuse-template.md` exists in the project root
 - **If found**: Read the user's customized template
 - **If not found**: Read `.arckit/templates/fr-code-reuse-template.md`
+- **Then read** `.arckit/templates/_partials/RENDERING.md` and resolve the `<!-- DOC-CONTROL-HEADER -->` marker in the template before writing. `REUSE` carries the France regime, which hard-routes to `_partials/document-control-fr.md` whatever the operator's user config says.
 
 ### Step 4: Reuse Assessment
 
@@ -145,7 +146,7 @@ For each component, produce a decision with justification:
 - **Reuse as-is**: Component meets requirements without modification; integrate directly
 - **Fork and adapt**: Component partially meets requirements; fork and adapt with a commitment to contribute improvements back
 - **Assemble from SILL components**: No single component meets needs but SILL software can be assembled to cover requirements
-- **Procure**: No suitable public code exists; proceed to procurement via `/arckit.fr-marche-public`
+- **Procure**: No suitable public code exists; proceed to procurement via `$arckit-fr-marche-public`
 - **Build from scratch**: No existing solution; custom development required — document justification as required by Circulaire 2021
 
 #### Step 4g: Contribution-Back Plan
@@ -177,7 +178,7 @@ Assess which code developed for this project must be published as open source:
    - Status: DRAFT
    - Created Date: {current_date}
    - Next Review Date: {current_date + 12 months}
-   - Classification: PUBLIC / OFFICIAL (reuse assessment is typically not sensitive)
+   - Classification: Non protégé (reuse assessment is typically not sensitive)
 
 3. Write the complete assessment following the template.
 

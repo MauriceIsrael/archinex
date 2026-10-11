@@ -31,6 +31,19 @@ Wardley Mapping is a strategic situational awareness technique that maps:
 $ARGUMENTS
 ```
 
+### Flags
+
+- `--tidy-owm` — after building the OWM map, auto-place its component `label [x, y]`
+  offsets so labels do not overlap when rendered at <https://create.wardleymaps.ai>.
+  Opt-in: the OWM block is the canonical, author-edited source, so it is never
+  rewritten silently. See the **Tidy OWM labels** step in the *Mermaid Wardley
+  Map* procedure for where this runs. (The Mermaid `wardley-beta` block is always
+  tidied automatically by the `tidy-wardley-labels.mjs` hook on write —
+  `--tidy-owm` is only about the OWM block.)
+- `--no-html` — skip the self-contained interactive HTML map. By default the
+  command renders one alongside the artefact via `owm-to-html.mjs`. See the
+  **Interactive HTML Map** step.
+
 ## Step 1: Read Available Documents
 
 > **Note**: Before generating, scan `projects/` for existing project directories. For each project, list all `ARC-*.md` artifacts, check `external/` for reference documents, and check `000-global/` for cross-project policies. If no external docs exist but they would improve output, ask the user.
@@ -211,34 +224,92 @@ style wardley
 
 ### Mermaid Wardley Map (Enhanced)
 
-After generating the OWM code block, generate a Mermaid `wardley-beta` equivalent inside a `<details>` block (as shown in the template). The Mermaid version adds sourcing strategy decorators derived from the Build vs Buy analysis:
+After generating the OWM code block, generate the Mermaid `wardley-beta` equivalent **by running the bundled converter** rather than re-emitting the syntax by hand. Hand-rolled `wardley-beta` is brittle across Mermaid versions: 11.14.0 tokenises hyphens as `->`, 11.15.0 fixes hyphenated names but still requires care around bare numeric words (`NIS 2031`), keyword prefixes (`label`, `evolve`, `pipeline`), slashes, dots, and other punctuation. The converter resolves this by emitting every name as a double-quoted STRING for cross-version compatibility, and it also handles pipeline child detection, `evolve`-label stripping, and sourcing-decorator pass-through.
 
-- Components with evolution < 0.50 that are strategic differentiators: `(build)`
-- Components procured from market (Product stage): `(buy)`
-- Components outsourced to vendors: `(outsource)`
-- Commodity/utility components: no decorator (or `(buy)` if via G-Cloud/marketplace)
-- Components with identified inertia: append `(inertia)`
+**Procedure**:
 
-**Pipeline translation**: Convert OWM `pipeline Name [vis, evo_start, evo_end]` to Mermaid's named-child format where pipeline variants are identified:
+1. Write the OWM block (exactly as it will appear in the artifact's primary code block) to a temp file:
 
-```text
-pipeline Parent {
-  component "Variant A" [evo_a]
-  component "Variant B" [evo_b]
-}
+   ```bash
+   cat > /tmp/arckit-wardley.owm <<'OWM'
+   title …
+   anchor …
+   component …
+   …
+   build CustomComponent
+   buy CommodityComponent
+   outsource VendorComponent
+   …
+   style wardley
+   OWM
+   ```
+
+   - To get sourcing decorators (`(build)`, `(buy)`, `(outsource)`) on the Mermaid output, include matching `build <Name>` / `buy <Name>` / `outsource <Name>` lines in the OWM source. The converter reads them and emits the decorator next to the component declaration; it strips them from the Mermaid output (they are OWM-only directives).
+   - Keep `inertia` on the component line in OWM (`component Foo [v, e] inertia`); the converter appends `(inertia)` automatically.
+
+1a. **Tidy OWM labels** — *only if `--tidy-owm` was passed in `$ARGUMENTS`*. Rewrite the
+   temp file's component `label [x, y]` offsets so labels do not overlap when rendered
+   at <https://create.wardleymaps.ai>:
+
+   ```bash
+   node .arckit/hooks/owm-tidy.mjs /tmp/arckit-wardley.owm
+   ```
+
+   This rewrites `/tmp/arckit-wardley.owm` in place. Collision-free authored offsets
+   are kept; only overlapping or untuned labels are moved. The tidied temp file then
+   becomes **both** the artifact's primary ` ```wardley ` block and the converter input
+   below, so the OWM and Mermaid blocks stay consistent. If `--tidy-owm` was not
+   passed, skip this step and use the OWM block as authored.
+
+2. Run the converter and capture the output:
+
+   ```bash
+   node .arckit/scripts/owm-to-mermaid.mjs /tmp/arckit-wardley.owm
+   ```
+
+3. Place the converter output verbatim inside a `<details>` block fenced with ` ```mermaid `:
+
+   ```markdown
+   <details>
+   <summary>Mermaid Wardley Map</summary>
+
+   ```mermaid
+   <converter stdout>
+   ```
+
+   </details>
+   ```
+
+**Do not re-author the wardley-beta block by hand.** If the converter output is missing something the source OWM expressed, fix the OWM input and re-run — do not edit the Mermaid output directly. Manually check that the OWM source and Mermaid output stay consistent after conversion.
+
+### Interactive HTML Map
+
+Render the same OWM source as a self-contained interactive map. This is on by
+default; skip it only if `--no-html` was passed in `$ARGUMENTS`.
+
+```bash
+node .arckit/scripts/owm-to-html.mjs /tmp/arckit-wardley.owm \
+  projects/{project_number}-{project_name}/wardley-maps/ARC-{PROJECT_ID}-WARD-{NUM}-v{VERSION}.html \
+  --title "{Map Title}" --json
 ```
 
-**Syntax differences from OWM** (apply these when translating):
+Run it on the **same temp file** the Mermaid conversion used, after any
+`--tidy-owm` pass, so all three renderings describe one map.
 
-- Start with `wardley-beta` keyword (not `style wardley` at end)
-- Add `size [1100, 800]` after title
-- **Quote names that contain non-simple characters or any bare numeric word.** A name is "simple" (safe unquoted) only when every whitespace-separated word starts with a letter and matches `[A-Za-z][A-Za-z0-9_()&]*`. Wrap the name in double quotes if it contains hyphens, dots, slashes, colons, apostrophes, commas (`.NET`, `GPT-4`, `GOV.UK`, `Real-Time`, `C#`, `F#`, `Zero-Trust`, `End-to-End`), **or if any whitespace-separated word is purely digits** (`NIS 2031`, `ISO 27001`, `Log4j 2024`, `Windows 11`). Bare numeric words are tokenised as numeric literals by the `wardley-beta` parser and break rendering with `Expecting token of type '[' but found '2031'`. Hyphens break rendering by tokenising as the start of `->`. Quote the name everywhere it appears — component/anchor declarations, both sides of `->` link arrows, `evolve` targets, and `pipeline` parents. Simple multi-word names like `Data Processing` stay unquoted.
-- Wrap note text in double quotes: `note "text" [vis, evo]`
-- Annotations use comma separator: `annotation N,[vis, evo] "text"`
-- Add `annotations [0.05, 0.05]` to position the annotation list
-- Remove `style wardley` line
-- Remove the `label` keyword and any text after the target evolution number on `evolve` lines (Mermaid does not support evolve labels)
-- Use ` ```mermaid ` as the code fence language identifier (not ` ```wardley-beta ` or ` ```text `)
+The output is a single HTML file: inline SVG, dark/light themes, pan/zoom,
+click-to-trace dependencies, and a Download SVG button. It makes **no external
+requests**, so it is safe for OFFICIAL-SENSITIVE work and opens in an
+air-gapped review. It also embeds the OWM source so the map round-trips.
+
+The `--json` receipt reports `components`, `links`, `annotations` and
+`warnings`. **Act on warnings** — `Link references unknown component "X"` means
+the OWM block has a dependency pointing at a component that was never
+declared, usually a typo or a renamed component. Fix the OWM source and re-run
+both converters; never ship a map with unresolved warnings.
+
+This HTML is a *rendering*, not the artefact. The OWM code block inside the
+WARD markdown stays canonical, and pasting it into
+<https://create.wardleymaps.ai> remains available for anyone who prefers it.
 
 ### Strategic Analysis
 
@@ -363,9 +434,10 @@ Create the Wardley Map document using the template:
 
 **Read the template** (with user override support):
 
-- **First**, check if `.arckit/templates/wardley-map-template.md` exists in the project root
+- **First**, check if `.arckit/templates-custom/wardley-map-template.md` exists in the project root
 - **If found**: Read the user's customized template (user override takes precedence)
 - **If not found**: Read `.arckit/templates/wardley-map-template.md` (default)
+- **Then read** `.arckit/templates/_partials/RENDERING.md` and resolve the `<!-- DOC-CONTROL-HEADER -->` marker in the template before writing. Do not hand-write the Document Control table: the partial `RENDERING.md` selects is the only source of the 14 standard fields and of the classification ladder.
 
 > **Tip**: Users can customize templates with `$arckit-customize wardley`
 
@@ -395,11 +467,11 @@ Before completing the document, populate ALL document control fields in the head
 
 - `[PROJECT_NAME]` → Full project name from project metadata or user input
 - `[OWNER_NAME_AND_ROLE]` → Document owner (prompt user if not in metadata)
-- `[CLASSIFICATION]` → Default to "OFFICIAL" for UK Gov, "PUBLIC" otherwise (or prompt user)
+- **Classification** → comes from the resolved Document Control header, not from a placeholder. `_partials/RENDERING.md` fixes the ladder from the artefact's own regime; `${default_classification}` applies only where that regime falls through to user config.
 
 *Calculated fields*:
 
-- `[YYYY-MM-DD]` for Review Date → Current date + 30 days
+- `[YYYY-MM-DD]` for Next Review Date → Current date + 30 days
 
 *Pending fields* (leave as [PENDING] until manually updated):
 
@@ -422,7 +494,7 @@ The footer should be populated with:
 **Generated on**: {DATE} {TIME} GMT
 **ArcKit Version**: {ARCKIT_VERSION}
 **Project**: {PROJECT_NAME} (Project {PROJECT_ID})
-**AI Model**: [Use actual model name, e.g., "claude-sonnet-4-5-20250929"]
+**AI Model**: [Use actual model name, e.g., "Claude Sonnet 5 (session default)"]
 **Generation Context**: [Brief note about source documents used]
 ```
 
@@ -441,6 +513,27 @@ The Wardley Map document must include:
 3. **Component Inventory**:
    - All components with visibility, evolution, stage classification
    - Strategic notes for each component
+   - **Source** for each component — this column is a rule, not decoration:
+     - The document ID of an artefact in this repository, exactly as it is on disk.
+       Value chains and research artefacts are multi-instance, so their IDs carry a
+       sequence number: `ARC-nnn-WVCH-001-v1.0`, `ARC-nnn-RSCH-001-v1.0`; single-instance
+       artefacts do not: `ARC-nnn-REQ-v1.0`, `ARC-000-PRIN-v1.0`. Copy the ID from the
+       project context rather than composing it. A citation ID declared in this map's
+       own Citations table (`[WVCH-C1]`), a doc-type code the project holds (`WVCH`),
+       an external Doc ID from the Document Register, or the literal `Assumption` for a
+       component that is your analytical judgement with no source document behind it,
+       are the other accepted forms.
+     - A Source naming a document that is not in the repository is a fabricated
+       provenance. Where the plugin's map check runs before a write (a pre-write hook,
+       not available on every runtime) it rejects the file and tells you why; where it
+       does not, this is a rule you hold yourself. Either way, do not invent a document
+       ID to fill the cell — write `Assumption` and say so in the Assumptions section
+       instead.
+     - **Where the Source is a value chain, copy its visibility verbatim.** That WVCH
+       artefact owns visibility; this map owns evolution. A component sourced to a
+       value chain but absent from it, or carrying a different visibility, fails the
+       same check. If the value chain is wrong, fix it with `$arckit-wardley-value-chain`
+       and re-run — do not silently diverge here.
 
 4. **Evolution Analysis**:
    - Components by evolution stage (Genesis, Custom, Product, Commodity)
@@ -757,9 +850,16 @@ annotation 1,[0.48, 0.45] "Build custom - competitive advantage"
 
 ### Visualization
 
-Always remind users:
+Point users at the interactive map ArcKit rendered alongside the artefact:
 
-**"View this map by pasting the code into https://create.wardleymaps.ai"**
+**"Open `ARC-{PROJECT_ID}-WARD-{NUM}-v{VERSION}.html` — it opens offline, with
+no external requests."**
+
+The OWM code block remains canonical and portable, so also mention:
+
+**"Or paste the OWM code into https://create.wardleymaps.ai"** — noting that
+this sends the map to a third-party site, which may not be appropriate for
+OFFICIAL-SENSITIVE work.
 
 The visualization helps:
 
@@ -796,8 +896,10 @@ After creating the map, provide a summary to the user:
 ✅ Wardley Map Created: {map_name}
 
 📁 Location: projects/{project}/wardley-maps/ARC-{PROJECT_ID}-WARD-{NUM}-v{VERSION}.md
+📁 Interactive: projects/{project}/wardley-maps/ARC-{PROJECT_ID}-WARD-{NUM}-v{VERSION}.html
 
-🗺️ View Map: Paste the Wardley code into https://create.wardleymaps.ai
+🗺️ View Map: open the .html file — offline, no external requests
+             (or paste the OWM code into https://create.wardleymaps.ai)
 
 📊 Key Insights:
 - {insight_1}
@@ -835,6 +937,6 @@ After completing this command, consider running:
 - `$arckit-roadmap` -- Create strategic roadmap from evolution analysis
 - `$arckit-strategy` -- Synthesise Wardley insights into architecture strategy
 - `$arckit-research` -- Research vendors for Custom-Built components *(when Custom-Built components identified that need market research)*
-- `$arckit-wardley.doctrine` -- Assess organizational doctrine maturity
-- `$arckit-wardley.gameplay` -- Identify strategic plays from the map
-- `$arckit-wardley.climate` -- Assess climatic patterns affecting components
+- `$arckit-wardley-doctrine` -- Assess organizational doctrine maturity
+- `$arckit-wardley-gameplay` -- Identify strategic plays from the map
+- `$arckit-wardley-climate` -- Assess climatic patterns affecting components

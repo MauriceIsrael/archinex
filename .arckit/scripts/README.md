@@ -200,7 +200,7 @@ ArcKit provides a set of bash scripts to support enterprise architecture governa
   "vendors_dir": "/workspaces/arc-kit/projects/001-payment-gateway/vendors",
   "traceability_file": "/workspaces/arc-kit/projects/001-payment-gateway/traceability-matrix.md",
   "next_steps": [
-    "/arckit.stakeholders - Analyze stakeholder drivers and goals"
+    "/arckit:stakeholders - Analyze stakeholder drivers and goals"
   ]
 }
 ```
@@ -208,40 +208,51 @@ ArcKit provides a set of bash scripts to support enterprise architecture governa
 **Smart Next Steps**:
 The script automatically determines the next steps based on what artifacts exist:
 
-1. /arckit.stakeholders (if stakeholder-drivers.md missing)
-2. /arckit.risk (if risk-register.md missing)
-3. /arckit.sobc (if sobc.md missing)
-4. /arckit.requirements (if requirements.md missing)
-5. /arckit.data-model (if data-model.md missing)
-6. /arckit.research or /arckit.wardley (if wardley-maps/ missing)
-7. /arckit.sow (if sow.md missing)
-8. /arckit.evaluate (if all above complete)
+1. /arckit:stakeholders (if stakeholder-drivers.md missing)
+2. /arckit:risk (if risk-register.md missing)
+3. /arckit:sobc (if sobc.md missing)
+4. /arckit:requirements (if requirements.md missing)
+5. /arckit:data-model (if data-model.md missing)
+6. /arckit:research or /arckit:wardley (if wardley-maps/ missing)
+7. /arckit:sow (if sow.md missing)
+8. /arckit:evaluate (if all above complete)
 
-### 4. generate-document-id.sh
+### 4. generate-document-id.mjs
 
 **Purpose**: Generate consistent ArcKit document IDs (`ARC-<PROJECT>-<TYPE>-vX.Y`) for traceability.
+
+Lives at `plugins/arckit-claude/scripts/generate-document-id.mjs` and is scaffolded to `.arckit/scripts/generate-document-id.mjs` by `arckit init`.
 
 **Usage**:
 
 ```bash
-./scripts/bash/generate-document-id.sh PROJECT_ID DOC_TYPE [VERSION]
+node plugins/arckit-claude/scripts/generate-document-id.mjs PROJECT_ID DOC_TYPE [VERSION] [OPTIONS]
 ```
 
 **Examples**:
 
 ```bash
 # Default version v1.0
-./scripts/bash/generate-document-id.sh 001 REQ
+node plugins/arckit-claude/scripts/generate-document-id.mjs 001 REQ
 
 # Explicit version
-./scripts/bash/generate-document-id.sh 042 HLD 2.1
+node plugins/arckit-claude/scripts/generate-document-id.mjs 042 HLDR 2.1
+
+# Filename, and the next sequence number for a multi-instance type
+node plugins/arckit-claude/scripts/generate-document-id.mjs 001 ADR --filename --next-num ./decisions
+
+# Project-relative path, with the artefact's subdirectory applied
+node plugins/arckit-claude/scripts/generate-document-id.mjs 001 RSCH --relpath --next-num ./research
 ```
 
 **Notes**:
 
 - Pads project numbers to three digits automatically.
-- Accepts any doc type (REQ, HLD, DPIA, ATRS, etc.).
+- **Rejects a doc-type code that is not registered** in `plugins/arckit-claude/config/doc-types.mjs`, rather than emitting a name the `validate-arc-filename.mjs` hook will then block.
+- `MULTI_INSTANCE_TYPES`, `KNOWN_TYPES` and `SUBDIR_MAP` are imported from that registry, so there is one copy of each list.
 - Emits the ID to stdout so it can be piped into editors or JSON payloads.
+
+`scripts/bash/generate-document-id.sh` is a shim that execs the `.mjs`, kept for projects scaffolded before #723. It will be removed a release later.
 
 ### 5. list-projects.sh
 
@@ -369,7 +380,7 @@ python scripts/converter.py
 
 **Description**:
 
-Automatically converts all plugin slash commands from `arckit-claude/commands/*.md` to Codex Skills (`arckit-codex/skills/arckit-*/SKILL.md`), Codex prompts (`.codex/prompts/arckit.*.md`), OpenCode commands (`.opencode/commands/arckit.*.md`), and Gemini extension TOML (`arckit-gemini/commands/arckit/*.toml`). The plugin is the source of truth for all commands.
+Automatically converts all plugin slash commands from `plugins/arckit-claude/commands/*.md` to Codex Skills (`extensions/arckit-codex/skills/arckit-*/SKILL.md`), Codex prompts (`.codex/prompts/arckit.*.md`), OpenCode commands (`.opencode/commands/arckit.*.md`), and Gemini extension TOML (`extensions/arckit-gemini/commands/arckit/*.toml`). The plugin is the source of truth for all commands.
 
 **Key Features**:
 
@@ -381,13 +392,13 @@ Automatically converts all plugin slash commands from `arckit-claude/commands/*.
 
 **Conversion Process**:
 
-1. Reads each `arckit-claude/commands/*.md` file
+1. Reads each `plugins/arckit-claude/commands/*.md` file
 2. Extracts frontmatter description and prompt body
-3. For agent-delegating commands, reads `arckit-claude/agents/arckit-*.md` and extracts the full agent prompt
-4. Writes Codex Skills to `arckit-codex/skills/arckit-*/SKILL.md` with `agents/openai.yaml`
+3. For agent-delegating commands, reads `plugins/arckit-claude/agents/arckit-*.md` and extracts the full agent prompt
+4. Writes Codex Skills to `extensions/arckit-codex/skills/arckit-*/SKILL.md` with `agents/openai.yaml`
 5. Writes Codex Markdown to `.codex/prompts/arckit.*.md`
 6. Writes OpenCode Markdown to `.opencode/commands/arckit.*.md`
-7. Writes Gemini extension TOML to `arckit-gemini/commands/arckit/*.toml`
+7. Writes Gemini extension TOML to `extensions/arckit-gemini/commands/arckit/*.toml`
 8. Copies supporting files (templates, scripts, guides, skills) to extension dirs
 
 **Example**:
@@ -397,9 +408,9 @@ Automatically converts all plugin slash commands from `arckit-claude/commands/*.
 python scripts/converter.py
 
 # Output:
-#   Codex CLI:    arckit-claude/commands/plan.md -> .codex/prompts/arckit.plan.md
-#   Codex Skills: arckit-claude/commands/plan.md -> arckit-codex/skills/arckit-plan/
-#   Gemini:       arckit-claude/commands/plan.md -> arckit-gemini/commands/arckit/plan.toml
+#   Codex CLI:    plugins/arckit-claude/commands/plan.md -> .codex/prompts/arckit.plan.md
+#   Codex Skills: plugins/arckit-claude/commands/plan.md -> extensions/arckit-codex/skills/arckit-plan/
+#   Gemini:       plugins/arckit-claude/commands/plan.md -> extensions/arckit-gemini/commands/arckit/plan.toml
 #   ...
 # Generated 59 Codex CLI + 59 Codex Skills + 59 OpenCode + 59 Gemini = 295 total files.
 ```
@@ -418,12 +429,12 @@ python scripts/converter.py
 
 **Related**:
 
-- Plugin commands (source): `arckit-claude/commands/`
-- Plugin agents (source): `arckit-claude/agents/`
-- Codex Skills (generated): `arckit-codex/skills/arckit-*/`
+- Plugin commands (source): `plugins/arckit-claude/commands/`
+- Plugin agents (source): `plugins/arckit-claude/agents/`
+- Codex Skills (generated): `extensions/arckit-codex/skills/arckit-*/`
 - Codex prompts (generated, deprecated): `.codex/prompts/`
 - OpenCode commands (generated): `.opencode/commands/`
-- Gemini extension (generated): `arckit-gemini/commands/arckit/`
+- Gemini extension (generated): `extensions/arckit-gemini/commands/arckit/`
 - See `.codex/README.md` for Codex CLI setup
 
 ---
@@ -623,7 +634,7 @@ print(f"Total projects: {projects['project_count']}")
 # Ensure you're in an ArcKit project
 cd /path/to/your/arc-kit-project
 
-# Or run /arckit.init to initialize
+# Or run /arckit:init to initialize
 ```
 
 ### "Prerequisites not met" Error
@@ -633,7 +644,7 @@ cd /path/to/your/arc-kit-project
 **Solution**:
 
 ```bash
-# Run /arckit.principles first
+# Run /arckit:principles first
 # Or use --force flag (not recommended)
 ./scripts/bash/create-project.sh --name "My Project" --force
 ```

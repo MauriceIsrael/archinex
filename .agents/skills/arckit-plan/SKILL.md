@@ -28,9 +28,10 @@ $ARGUMENTS
 
 **Read the template** (with user override support):
 
-- **First**, check if `.arckit/templates/project-plan-template.md` exists in the project root
+- **First**, check if `.arckit/templates-custom/project-plan-template.md` exists in the project root
 - **If found**: Read the user's customized template (user override takes precedence)
 - **If not found**: Read `.arckit/templates/project-plan-template.md` (default)
+- **Then read** `.arckit/templates/_partials/RENDERING.md` and resolve the `<!-- DOC-CONTROL-HEADER -->` marker in the template before writing. Do not hand-write the Document Control table: the partial `RENDERING.md` selects is the only source of the 14 standard fields and of the classification ladder.
 
 > **Tip**: Users can customize templates with `$arckit-customize plan`
 
@@ -55,13 +56,13 @@ Read existing project artifacts to tailor the plan:
 
 ## Step 1c: Interactive Configuration
 
-Before determining project parameters, use the **AskUserQuestion** tool to gather user preferences. **Skip any question where the user has already specified their preference in the arguments.**
+Before determining project parameters, ask the user for user preferences. **Skip any question where the user has already specified their preference in the arguments.**
 
-**Gathering rules** (apply to all questions in this section):
+**Gathering rules** — the one-message interview in `.arckit/references/interview-pattern.md`:
 
-- Ask the most important question first; fill in secondary details from context or reasonable defaults.
-- **Maximum 2 rounds of questions.** After that, pick the best option from available context.
-- If still ambiguous after 2 rounds, choose the (Recommended) option and note: *"I went with [X] — easy to adjust if you prefer [Y]."*
+- Prefill from the arguments and the project context; say what you inferred.
+- Ask every remaining question in **one** call. There is no second round.
+- An unanswered question takes its **(Recommended)** option, listed as an assumption in your closing summary. With no question tool available, take every default and never block.
 
 **Question 1** — header: `Approach`, multiSelect: false
 > "What delivery approach should this project follow?"
@@ -74,7 +75,7 @@ Before determining project parameters, use the **AskUserQuestion** tool to gathe
 > "What is the expected project complexity?"
 
 - **Small (3-6 months)**: Under 30 requirements, 1-2 integrations, standard technology
-- **Medium (6-12 months)**: 30-100 requirements, 3-5 integrations, some custom development
+- **Medium (6-12 months) (Recommended)**: 30-100 requirements, 3-5 integrations, some custom development
 - **Large (12-24 months)**: 100+ requirements, 5+ integrations, significant custom development, multiple compliance regimes
 
 Apply the user's selections when calculating timeline durations and structuring the Gantt chart. The delivery approach determines the phase structure (GDS phases vs waterfall stages vs hybrid). The complexity tier determines phase durations in Step 2 below.
@@ -420,11 +421,11 @@ Before completing the document, populate ALL document control fields in the head
 
 - `[PROJECT_NAME]` → Full project name from project metadata or user input
 - `[OWNER_NAME_AND_ROLE]` → Document owner (prompt user if not in metadata)
-- `[CLASSIFICATION]` → Default to "OFFICIAL" for UK Gov, "PUBLIC" otherwise (or prompt user)
+- **Classification** → comes from the resolved Document Control header, not from a placeholder. `_partials/RENDERING.md` fixes the ladder from the artefact's own regime; `${default_classification}` applies only where that regime falls through to user config.
 
 *Calculated fields*:
 
-- `[YYYY-MM-DD]` for Review Date → Current date + 30 days
+- `[YYYY-MM-DD]` for Next Review Date → Current date + 30 days
 
 *Pending fields* (leave as [PENDING] until manually updated):
 
@@ -447,7 +448,7 @@ The footer should be populated with:
 **Generated on**: {DATE} {TIME} GMT
 **ArcKit Version**: {ARCKIT_VERSION}
 **Project**: {PROJECT_NAME} (Project {PROJECT_ID})
-**AI Model**: [Use actual model name, e.g., "claude-sonnet-4-5-20250929"]
+**AI Model**: [Use actual model name, e.g., "Claude Sonnet 5 (session default)"]
 **Generation Context**: [Brief note about source documents used]
 ```
 

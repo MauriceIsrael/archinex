@@ -10,12 +10,12 @@ This directory is for your customized ArcKit templates.
 
 ## Getting Started
 
-Use the `/arckit.customize` command to copy templates for editing:
+Use the `/arckit:customize` command to copy templates for editing:
 
 ```
-/arckit.customize requirements      # Copy requirements template
-/arckit.customize all               # Copy all templates
-/arckit.customize list              # See available templates
+/arckit:customize requirements      # Copy requirements template
+/arckit:customize all               # Copy all templates
+/arckit:customize list              # See available templates
 ```
 
 ## Why This Pattern?

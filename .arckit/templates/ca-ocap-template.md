@@ -1,6 +1,6 @@
 # Canada First Nations OCAP® Sovereignty Assessment
 
-> **Template Origin**: Community | **ArcKit Version**: [VERSION] | **Command**: `/arckit.ca-ocap`
+> **Template Origin**: Community | **ArcKit Version**: [VERSION] | **Command**: `/arckit:ca-ocap`
 >
 > 🪶 **OCAP® notice**: OCAP® is a registered trademark of the First Nations Information Governance Centre (FNIGC). The OCAP® principles describe a *relationship*, not a checklist. This template supports — but does not substitute for — direct engagement with FNIGC and the affected First Nation(s), Métis, and Inuit communities.
 
@@ -8,15 +8,13 @@
 
 <!-- DOC-CONTROL-HEADER -->
 <!-- Resolved at command-execution time per _partials/RENDERING.md. -->
-<!-- Classification line MUST be: -->
-<!-- | Classification | UNCLASSIFIED / Protected A / Protected B / Protected C / CONFIDENTIAL / SECRET / TOP SECRET | -->
 <!-- Note: OCAP-relevant artefacts may carry community-protected information that exceeds the federal classification scheme. Mark accordingly and capture the override in Open Items. -->
 
 ## Revision History
 
 | Version | Date | Author | Changes | Approved By | Approval Date |
 |---------|------|--------|---------|-------------|---------------|
-| [VERSION] | [YYYY-MM-DD] | ArcKit AI | Initial creation from `/arckit.ca-ocap` | [PENDING] | [PENDING] |
+| [VERSION] | [YYYY-MM-DD] | ArcKit AI | Initial creation from `/arckit:ca-ocap` | [PENDING] | [PENDING] |
 
 ## Executive Summary
 

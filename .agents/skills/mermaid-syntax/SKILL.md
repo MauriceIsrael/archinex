@@ -1,13 +1,17 @@
 ---
 name: mermaid-syntax
-description: This skill should be used when the user asks about Mermaid diagram syntax,
-  how to write flowchart, sequence, class, state, ER, Gantt, C4, mindmap, timeline,
-  or other diagram types, node shapes, styling, theming, or rendering errors.
+description: 'Mermaid syntax reference for writing or fixing a diagram in an artefact:
+  flowchart, sequence, class, state, ER, Gantt, C4, mindmap, timeline and the other
+  diagram types, node shapes, styling, theming, and why a diagram fails to render.
+  Not needed for PlantUML (plantuml-syntax), or when the request is for a governed
+  diagram artefact with document control, which $arckit-diagram produces.'
 ---
 
 # Mermaid Syntax Reference
 
 A comprehensive reference for all 23 Mermaid diagram types plus configuration and theming. This skill provides official Mermaid syntax documentation sourced from the [mermaid-skill](https://github.com/WH-2099/mermaid-skill) project (auto-synced from upstream Mermaid docs).
+
+**This skill ships reference material, not runnable scripts.** Read the relevant reference file with `Read`, apply the syntax, and write the diagram into the user's artefact. Do not `Bash`-execute anything from `references/` — they are Mermaid syntax docs, not commands.
 
 To look up syntax for a specific diagram type, identify the type from the table below and read the corresponding reference file.
 
@@ -17,19 +21,19 @@ Select the appropriate diagram type and read the corresponding reference file:
 
 | Type | Reference | ArcKit Commands Using It |
 | ---- | --------- | ------------------------ |
-| Flowchart | [flowchart.md](references/flowchart.md) | `/arckit.diagram`, `/arckit.dfd`, `/arckit.roadmap`, `/arckit.plan`, `/arckit.backlog`, `/arckit.strategy`, `/arckit.story`, `/arckit.jsp-936` |
-| Sequence Diagram | [sequenceDiagram.md](references/sequenceDiagram.md) | `/arckit.diagram` |
+| Flowchart | [flowchart.md](references/flowchart.md) | `$arckit-diagram`, `$arckit-dfd`, `$arckit-roadmap`, `$arckit-plan`, `$arckit-backlog`, `$arckit-strategy`, `$arckit-story`, `$arckit-jsp-936` |
+| Sequence Diagram | [sequenceDiagram.md](references/sequenceDiagram.md) | `$arckit-diagram` |
 | Class Diagram | [classDiagram.md](references/classDiagram.md) | — |
 | State Diagram | [stateDiagram.md](references/stateDiagram.md) | — |
-| ER Diagram | [entityRelationshipDiagram.md](references/entityRelationshipDiagram.md) | `/arckit.data-model` |
-| Gantt Chart | [gantt.md](references/gantt.md) | `/arckit.roadmap`, `/arckit.plan`, `/arckit.strategy`, `/arckit.story`, `/arckit.presentation` |
-| Pie Chart | [pie.md](references/pie.md) | `/arckit.story`, `/arckit.presentation` |
-| Mindmap | [mindmap.md](references/mindmap.md) | `/arckit.story` |
-| Timeline | [timeline.md](references/timeline.md) | `/arckit.story` |
+| ER Diagram | [entityRelationshipDiagram.md](references/entityRelationshipDiagram.md) | `$arckit-data-model` |
+| Gantt Chart | [gantt.md](references/gantt.md) | `$arckit-roadmap`, `$arckit-plan`, `$arckit-strategy`, `$arckit-story`, `$arckit-presentation` |
+| Pie Chart | [pie.md](references/pie.md) | `$arckit-story`, `$arckit-presentation` |
+| Mindmap | [mindmap.md](references/mindmap.md) | `$arckit-story` |
+| Timeline | [timeline.md](references/timeline.md) | `$arckit-story` |
 | Git Graph | [gitgraph.md](references/gitgraph.md) | — |
-| Quadrant Chart | [quadrantChart.md](references/quadrantChart.md) | `/arckit.presentation` |
+| Quadrant Chart | [quadrantChart.md](references/quadrantChart.md) | `$arckit-presentation` |
 | Requirement Diagram | [requirementDiagram.md](references/requirementDiagram.md) | — |
-| C4 Diagram | [c4.md](references/c4.md) | `/arckit.diagram`, `/arckit.presentation` |
+| C4 Diagram | [c4.md](references/c4.md) | `$arckit-diagram`, `$arckit-presentation` |
 | Sankey Diagram | [sankey.md](references/sankey.md) | — |
 | XY Chart | [xyChart.md](references/xyChart.md) | — |
 | Block Diagram | [block.md](references/block.md) | — |
@@ -69,7 +73,9 @@ These are the most common Mermaid syntax errors encountered when generating diag
 | Gantt task status | Invalid task status keywords | Valid: `done`, `active`, `crit`, `milestone` |
 | Parentheses in labels | Unescaped `()` breaks node parsing | Wrap in quotes: `Node["Label (with parens)"]` |
 | Special chars in IDs | Hyphens, dots, spaces in node IDs | Use camelCase or underscores: `apiGateway`, `api_gateway` |
-| Missing semicolons in ER | ER diagram attributes need specific syntax | Follow `entity { type name }` pattern |
+| ER combined keys | `FK UK` (space-separated) and `PK_FK` are parse errors, and the whole block silently fails to render | Comma-separate them: `uuid tenant_id FK, UK` |
+| ER attribute comments | An unclosed `"`, or a `"` inside the comment, breaks the block | One pair of double quotes, last on the line, no `"` inside |
+| ER cardinality tokens | Invented tokens (e.g. `\|\|--x{`) fail to parse | Left: `\|\|` `\|o` `}o` `}\|` — right: `\|\|` `o\|` `o{` `\|{` |
 | Subgraph naming | Subgraph IDs with spaces need quotes | `subgraph "My Group"` |
 
 ## ArcKit Integration

@@ -65,9 +65,10 @@ Read all documents from Step 0. Extract:
 
 **Read the template** (with user override support):
 
-- **First**, check if `.arckit/templates/fr-algorithme-public-template.md` exists in the project root
+- **First**, check if `.arckit/templates-custom/fr-algorithme-public-template.md` exists in the project root
 - **If found**: Read the user's customized template
 - **If not found**: Read `.arckit/templates/fr-algorithme-public-template.md`
+- **Then read** `.arckit/templates/_partials/RENDERING.md` and resolve the `<!-- DOC-CONTROL-HEADER -->` marker in the template before writing. `ALGO` carries the France regime, which hard-routes to `_partials/document-control-fr.md` whatever the operator's user config says.
 
 ### Step 4: Algorithm Transparency Assessment
 
@@ -98,7 +99,7 @@ For each algorithm subject to the transparency obligation, document in plain lan
 #### Step 4c: Data Assessment (for each ALGO-xx)
 
 1. **Data inventory**: List all data types used by the algorithm — source, whether personal data, and legal basis for processing
-2. **GDPR Article 22 check**: Does the algorithm make fully automated decisions with legal or similarly significant effects on individuals? If yes, GDPR Article 22 applies — flag for `/arckit.eu-rgpd`
+2. **GDPR Article 22 check**: Does the algorithm make fully automated decisions with legal or similarly significant effects on individuals? If yes, GDPR Article 22 applies — flag for `$arckit-eu-rgpd`
 3. **Sensitive data**: Does the algorithm use special categories of data (health, ethnicity, political opinion, etc.)? If yes, enhanced obligations apply.
 4. **Data minimisation**: Is the algorithm using only the minimum data necessary? Flag any data inputs whose necessity is unclear.
 
@@ -120,9 +121,9 @@ For each algorithm, document:
 
 #### Step 4f: Intersections
 
-- **GDPR / CNIL**: If the algorithm processes personal data, document the GDPR intersection. Recommend running `/arckit.fr-rgpd` for CNIL-specific assessment.
-- **EU AI Act**: If the algorithm uses ML/AI techniques, assess the AI Act high-risk category (Annex III includes access to essential public services, education, employment). Recommend `/arckit.eu-ai-act`.
-- **DPIA**: If the algorithm systematically profiles citizens or processes sensitive data at scale, a DPIA (AIPD) is likely required. Flag for `/arckit.dpia`.
+- **GDPR / CNIL**: If the algorithm processes personal data, document the GDPR intersection. Recommend running `$arckit-fr-rgpd` for CNIL-specific assessment.
+- **EU AI Act**: If the algorithm uses ML/AI techniques, assess the AI Act high-risk category (Annex III includes access to essential public services, education, employment). Recommend `$arckit-eu-ai-act`.
+- **DPIA**: If the algorithm systematically profiles citizens or processes sensitive data at scale, a DPIA (AIPD) is likely required. Flag for `$arckit-dpia`.
 
 ### Step 5: Generate Algorithm Transparency Document
 
@@ -137,7 +138,7 @@ For each algorithm, document:
    - Status: DRAFT
    - Created Date: {current_date}
    - Next Review Date: {current_date + 12 months}
-   - Classification: PUBLIC — this notice must be publicly accessible
+   - Classification: Non protégé — this notice must be publicly accessible
 
 3. Write the complete transparency notice following the template.
 
@@ -159,7 +160,7 @@ projects/{project_id}/ARC-{PROJECT_ID}-ALGO-v{VERSION}.md
 📄 Document: projects/{project_id}/ARC-{PROJECT_ID}-ALGO-v{VERSION}.md
 📋 Document ID: {document_id}
 📅 Date: {date}
-🔓 Classification: PUBLIC
+🔓 Classification: Non protégé
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 📊 Algorithms Assessed
@@ -201,7 +202,7 @@ Next steps:
 
 | Document | Publisher | URL |
 |----------|-----------|-----|
-| Art. L311-3-1 CRPA (algorithmic transparency obligation) | Légifrance | https://www.legifrance.gouv.fr/codes/article_lc/LEGIARTI000033218710/ |
+| Art. L311-3-1 CRPA (algorithmic transparency obligation) | Légifrance | https://www.legifrance.gouv.fr/codes/article_lc/LEGIARTI000033205535/ |
 | Loi n°2016-1321 pour une République Numérique (source legislation) | Légifrance | https://www.legifrance.gouv.fr/loda/id/JORFTEXT000033202746 |
 | algorithmes.data.gouv.fr — public algorithm register | DINUM | https://algorithmes.data.gouv.fr/ |
 | CNIL guidance on algorithms and automated decisions | CNIL | https://www.cnil.fr/fr/algorithmes |
@@ -222,7 +223,7 @@ Next steps:
 - ✅ GDPR Article 22 intersection assessed
 - ✅ AI Act intersection flagged if ML/AI used
 - ✅ Publication plan (algorithmes.data.gouv.fr + administration website) documented
-- ✅ Document classified PUBLIC
+- ✅ Document classified Non protégé
 - ✅ ALGO per-type quality checks passed
 
 ## Example Usage

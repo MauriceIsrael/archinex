@@ -1,4 +1,4 @@
-# Auto-generated from arckit-claude/agents/arckit-azure-research.md
+# Auto-generated from plugins/arckit-claude/agents/arckit-azure-research.md
 # Do not edit — edit the source and re-run scripts/converter.py
 
 name = "arckit-azure-research"
@@ -44,7 +44,7 @@ Scan for external (non-ArcKit) documents the user may have provided:
 **Existing Azure Assessments & Cost Reports**:
 
 - **Look in**: `projects/{project}/external/`
-- **File types**: PDF (.pdf), Word (.docx), Markdown (.md), CSV (.csv)
+- **File types**: PDF (.pdf), Word (.docx), Markdown (.md), CSV (.csv), subtitles/transcripts (.srt, .vtt)
 - **What to extract**: Current Azure usage, cost reports, Azure Advisor findings, migration assessments
 - **Examples**: `azure-cost-report.csv`, `azure-advisor-findings.pdf`, `cloud-assessment.docx`
 
@@ -90,7 +90,8 @@ Detect if UK Government project (look for "UK Government", "Ministry of", "Depar
 
 ### Step 3: Read Template
 
-- Read `.arckit/templates/azure-research-template.md` for output structure
+- First, check `.arckit/templates-custom/azure-research-template.md` (user override)
+- If not found, read `.arckit/templates/azure-research-template.md` (default)
 
 ### Step 4: Extract Requirements for Azure Mapping
 
@@ -220,7 +221,7 @@ Auto-populate fields:
 - `[VERSION]` = determined version from Step 9
 - `[DATE]` = current date (YYYY-MM-DD)
 - `[STATUS]` = "DRAFT"
-- `[CLASSIFICATION]` = "OFFICIAL" (UK Gov) or "PUBLIC"
+- **Classification** → comes from the resolved Document Control header, not from a placeholder. `_partials/RENDERING.md` fixes the ladder from the artefact's own regime; `${default_classification}` applies only where that regime falls through to user config.
 
 Include the generation metadata footer:
 
@@ -268,8 +269,8 @@ Return ONLY a concise summary including:
 
 ## Toolchain
 
-- **Templates** — `.arckit/templates/azure-research-template.md`
-- **Helpers** — `.arckit/scripts/bash/create-project.sh` · `.arckit/scripts/bash/generate-document-id.sh`
+- **Templates** — `.arckit/templates/azure-research-template.md` (override at `.arckit/templates-custom/azure-research-template.md`)
+- **Helpers** — `.arckit/scripts/bash/create-project.sh` · `.arckit/scripts/generate-document-id.mjs`
 - **MCP server** — `microsoft-learn` (docs search, docs fetch, code sample search)
 - **External tools** — `WebSearch` · `WebFetch` (STANDALONE-mode fallback when MCP unavailable)
 - **Related commands** — `/arckit:requirements` (input) · `/arckit:research` (cross-cloud comparison) · `/arckit:aws-research` · `/arckit:gcp-research`

@@ -104,7 +104,7 @@ This command works without a project context, but project context improves searc
 - Read `ARC-*-REQ-*.md` if present to understand the domain and extract additional search terms
 - Read `ARC-000-PRIN-*.md` if present to understand technology stack constraints
 
-If no project exists, that is fine — proceed with the user's query alone. You will need to create a project directory using `create-project.sh --json` before writing output.
+If no project exists, that is fine — proceed with the user's query alone. Create the project directory with `create-project.sh --json --force --name "<project-name>"` before writing output. Both flags matter: without `--name` the script exits 1 without returning a path, and without `--force` it refuses any repository that has no `ARC-000-PRIN-*.md` — which is exactly the no-project-context case this agent is built for. If `projects/` does not exist at all the script cannot run, so create `projects/{NNN}-<slug>/` directly with the Write tool instead, as `/arckit:repo-audit` does.
 
 ### Step 2: Take User's Query
 
@@ -112,7 +112,10 @@ Extract the search query from the user's arguments. The query is what follows th
 
 ### Step 3: Read Template
 
-Read `${CLAUDE_PLUGIN_ROOT}/templates/gov-code-search-template.md` for the output structure.
+Read the template with user override support:
+
+- First, check `.arckit/templates-custom/gov-code-search-template.md` (user override)
+- If not found, read `.arckit/templates/gov-code-search-template.md` (default)
 
 ### Step 4: Initial Search
 
@@ -245,7 +248,7 @@ Use Glob to find existing `projects/{project-dir}/research/ARC-{PROJECT_ID}-GCSR
 
 ### Step 13: Quality Check
 
-Before writing, read `${CLAUDE_PLUGIN_ROOT}/references/quality-checklist.md` and verify all **Common Checks** plus the **GCSR** per-type checks pass. Fix any failures before proceeding.
+Before writing, read `.arckit/references/quality-checklist.md` and verify all **Common Checks** plus the **GCSR** per-type checks pass. Fix any failures before proceeding.
 
 ### Step 14: Write Output
 
@@ -257,7 +260,7 @@ Auto-populate fields:
 - `[VERSION]` = determined version from Step 11
 - `[DATE]` = current date (YYYY-MM-DD)
 - `[STATUS]` = "DRAFT"
-- `[CLASSIFICATION]` = "OFFICIAL" (UK Gov) or "PUBLIC"
+- **Classification** → comes from the resolved Document Control header, not from a placeholder. `_partials/RENDERING.md` fixes the ladder from the artefact's own regime; `${default_classification}` applies only where that regime falls through to user config.
 
 Include the generation metadata footer:
 
@@ -291,7 +294,7 @@ Return ONLY a concise summary including:
 
 ## Edge Cases
 
-- **No project context**: Still works — create a project directory first using `create-project.sh --json` before writing output. Use the query as the project name if needed
+- **No project context**: Still works — create a project directory first using `create-project.sh --json --force --name "<project-name>"` before writing output, using the query as the project name. `--name` is required or the script exits 1; `--force` is required or it refuses a repository with no `ARC-000-PRIN-*.md`
 - **No results after all query variations**: Suggest refining the query with more government-specific terms, broader domain terms, or alternative technical terminology. Include the attempted queries in the report
 - **govreposcrape unavailable**: Report the unavailability and suggest manual search at `https://github.com/search?q=org:alphagov+{query}` and other government GitHub organisations
 
@@ -301,8 +304,8 @@ Return ONLY a concise summary including:
 
 ## Toolchain
 
-- **Templates** — `${CLAUDE_PLUGIN_ROOT}/templates/gov-code-search-template.md`
-- **Helpers** — `${CLAUDE_PLUGIN_ROOT}/scripts/bash/create-project.sh` · `${CLAUDE_PLUGIN_ROOT}/scripts/bash/generate-document-id.sh`
+- **Templates** — `.arckit/templates/gov-code-search-template.md` (override at `.arckit/templates-custom/gov-code-search-template.md`)
+- **Helpers** — `.arckit/scripts/bash/create-project.sh` · `.arckit/scripts/generate-document-id.mjs`
 - **MCP server** — `govreposcrape` (`search_uk_gov_code` over 24,500+ UK government repositories)
 - **External tools** — `WebFetch` (deeper inspection of top hits)
 - **Related commands** — `/arckit:gov-reuse` (capability-driven reuse) · `/arckit:gov-landscape` (domain landscape)

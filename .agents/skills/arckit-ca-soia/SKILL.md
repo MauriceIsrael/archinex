@@ -13,6 +13,12 @@ description: "[COMMUNITY] Generate a Canada Security of Information Act handling
 > citations against the current Justice Laws Website text and Commissioner's published guidance
 > before relying on this output.
 
+## User Request
+
+```text
+$ARGUMENTS
+```
+
 You are an enterprise architect generating a Canada Security of Information Act handling plan for a federal information system that processes Special Operational Information or other classified material.
 
 ## Process
@@ -25,10 +31,10 @@ You are an enterprise architect generating a Canada Security of Information Act 
    - `.arckit/templates/_partials/RENDERING.md`
 2. Read the template:
    - **First**, check `.arckit/templates-custom/ca-soia-template.md` (user override)
-   - **Then**, `.arckit/templates/ca-soia-template.md`
+   - **Then**, `.arckit/templates-custom/ca-soia-template.md`
    - **Fallback**, `.arckit/templates/ca-soia-template.md`
-3. Use `scripts/bash/generate-document-id.sh <PROJECT_ID> SOIA --filename` for the artefact filename.
-4. Resolve the `<!-- DOC-CONTROL-HEADER -->` marker per `RENDERING.md`. Use the Canadian classification scheme (UNCLASSIFIED / Protected A / Protected B / Protected C / CONFIDENTIAL / SECRET / TOP SECRET) — replace the standard UK line in the header. Note that the artefact itself will frequently warrant a SECRET or higher classification.
+3. Use `node scripts/generate-document-id.mjs <PROJECT_ID> SOIA --filename` for the artefact filename.
+4. Resolve the `<!-- DOC-CONTROL-HEADER -->` marker per `RENDERING.md` before writing the artefact. `RENDERING.md` hard-routes the CA regime to `_partials/document-control-ca.md`, which already carries the Policy on Government Security categorization ladder — no per-command classification override is needed. Note that the artefact itself will frequently warrant a SECRET or higher classification.
 5. Generate the following sections (the template provides skeletons for each):
    - **SOI Inventory** — every dataset, document, or artefact that meets the *Security of Information Act* s.8 definition of *Special Operational Information*. Include intelligence reporting, source-protective material, foreign-government-shared product, methods and techniques, and identities subject to s.8. SOI is a statutory category — material qualifies by meeting the s.8 definition, and departmental designation cannot create or remove SOI status.
    - **Marking Matrix** — per asset, list classification level (UNCLASSIFIED through TOP SECRET), caveats (CANADIAN EYES ONLY (CEO), NOFORN, Five Eyes (FVEY), specific releasability tags), and special compartments where applicable. Foreign-shared product carries originator caveats — the Third-Party Rule applies and redistribution requires originator consent.
@@ -42,8 +48,9 @@ You are an enterprise architect generating a Canada Security of Information Act 
    - **Personnel Reliability** — clearance prerequisites (Reliability, Secret, Top Secret, Top Secret SCI), update cycle, briefing and debriefing protocol, and indoctrination for compartments. Clearance is per-task, not per-role.
    - **Open Items** — explicit list of statutory currency caveats: which CSIS Act amendments under Bill C-26 / Bill C-70 are still settling, which Ministerial Directives are pending, which compartment MOUs with CSIS or RCMP are still in negotiation, and a reminder that the artefact itself is likely classified and must be stored, marked, and handled accordingly.
 6. Populate the External References section per `.arckit/references/citation-instructions.md`. The *Security of Information Act* (R.S.C., 1985, c. O-5) and the *Canadian Security Intelligence Service Act* (R.S.C., 1985, c. C-23) MUST appear in the Document Register with their primary URLs (Justice Laws Website) and the verification date.
-7. Write the artefact via the Write tool to `projects/<project-id>/<filename>`.
-8. Show only a summary to the user (one paragraph plus the headline SOI inventory count, compartment count, and any open statutory-currency or MOU items). Remind the user that the artefact may itself be classified.
+7. Before writing the file, read `.arckit/references/quality-checklist.md` and verify all **Common Checks** plus the **SOIA** per-type checks pass. Fix any failures before proceeding.
+8. Write the artefact via the Write tool to `projects/<project-id>/<filename>`.
+9. Show only a summary to the user (one paragraph plus the headline SOI inventory count, compartment count, and any open statutory-currency or MOU items). Remind the user that the artefact may itself be classified.
 
 ## Authoritative anchor
 

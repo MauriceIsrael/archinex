@@ -1,13 +1,18 @@
 ---
 name: wardley-mapping
-description: This skill should be used when the user asks about Wardley Mapping, evolution
-  stages, strategic positioning, creating maps, value chain decomposition, gameplay
-  patterns, doctrine assessment, climatic patterns, build vs. buy, or inertia analysis.
+description: 'Wardley Mapping reference for a map, a positioning question or a strategic
+  read: value-chain decomposition, evolution stages, OnlineWardleyMaps syntax, gameplay,
+  doctrine and climatic patterns, build-versus-buy and inertia. Also loaded while
+  a WARD artefact is being written. Not needed when the request is for a governed
+  Wardley artefact with document control; the $arckit-wardley, wardley.value-chain,
+  wardley.doctrine, wardley.gameplay and wardley.climate commands produce those.'
 ---
 
 # Wardley Mapping
 
 A strategic mapping technique created by Simon Wardley for understanding competitive landscape, technology evolution, and making informed architectural decisions. A Wardley Map visualizes four dimensions: the **value chain** (components needed to meet user needs), **evolution** (how components mature over time), the **landscape** (competitive environment), and **movement** (how the landscape changes).
+
+**This skill ships reference material, not runnable scripts.** Read the relevant section here (or the linked references) with `Read`, apply the OnlineWardleyMaps syntax, and write the map into the user's artefact. Do not `Bash`-execute anything from this skill — there is no script to run.
 
 ## Map Structure
 
@@ -57,11 +62,11 @@ Follow these steps in order when the user asks to create or analyze a Wardley Ma
 
 ### Step 1: Gather Context
 
-Use the AskUserQuestion tool to interactively gather the information needed to create the map. Ask up to 3 questions at a time.
+Ask the user for the information needed to create the map. Ask up to 3 questions at a time.
 
 **First, identify the anchor and scope:**
 
-Use AskUserQuestion to ask:
+Ask the user:
 
 - **Who is the primary user?** — Options might include: "External customers", "Internal developers", "Business analysts", or let the user specify
 - **What is the user need?** — e.g., "Purchase products online", "Deploy applications reliably", "Generate analytical reports"
@@ -69,7 +74,7 @@ Use AskUserQuestion to ask:
 
 **Then, gather strategic context:**
 
-Use AskUserQuestion to ask:
+Ask the user:
 
 - **What is the primary goal?** — Options: "Identify investment priorities", "Evaluate build vs. buy", "Assess competitive position", "Plan technology evolution"
 - **What industry/domain?** — Let the user specify (affects how components are positioned on the evolution axis)
@@ -84,7 +89,7 @@ Work backwards from the user need. List every component required to deliver it, 
 - Map both **technical and business** components
 - Ask: "What components are needed?", "What does each depend on?", "What is hidden from the user?"
 
-If component identification is uncertain, use AskUserQuestion to ask the user about key capabilities, technologies, and processes in their domain.
+If component identification is uncertain, ask the user about key capabilities, technologies, and processes in their domain.
 
 ### Step 3: Position on Evolution
 
@@ -99,7 +104,7 @@ Key questions for each component:
 
 Avoid common mistakes: don't position based on age (use market maturity), don't confuse internal unfamiliarity with market-wide genesis, and always consider industry context.
 
-If positioning is ambiguous for key components, use AskUserQuestion to clarify with the user — e.g., "Is your recommendation engine a custom differentiator or are you using an off-the-shelf product?"
+If positioning is ambiguous for key components, clarify with the user — e.g., "Is your recommendation engine a custom differentiator or are you using an off-the-shelf product?"
 
 ### Step 4: Add Movement
 
@@ -113,7 +118,7 @@ Add arrows showing how components are evolving. All components naturally drift r
 
 After drawing the map, apply the analysis checklist below, then review gameplay patterns in [references/gameplay-patterns.md](references/gameplay-patterns.md) and climatic patterns in [references/climatic-patterns.md](references/climatic-patterns.md) to identify strategic moves.
 
-Use AskUserQuestion to confirm priorities with the user before finalizing recommendations — e.g., "The map suggests these three strategic moves. Which areas are most important to your organization right now?"
+Confirm priorities with the user before finalizing recommendations — e.g., "The map suggests these three strategic moves. Which areas are most important to your organization right now?"
 
 ### Step 6: Quantitative Analysis (Optional)
 
@@ -124,6 +129,72 @@ When the user asks for numeric precision, scoring, or data-driven positioning, a
 3. **Weak Signal Detection** — Assess readiness factors to predict stage transitions
 
 Present results as a table alongside the qualitative analysis — the numbers should confirm or challenge the intuitive positioning, not replace it.
+
+## Common Gotchas
+
+The highest-signal failures, collected from real maps. Check these before finalizing.
+
+### Positioning mistakes
+
+- **Positioning by age, not market maturity.** A 20-year-old internal system is not Commodity if the capability it provides is still bespoke across the market. Use *ubiquity + certainty*, never "how long we've had it." (See Step 3 and [references/evolution-stages.md](references/evolution-stages.md).)
+- **Confusing internal unfamiliarity with Genesis.** "New to us" ≠ "new to the world." If multiple vendors sell it, it is Product/Commodity even if your team has never used it. This is the single most common error.
+- **Treating the Y-axis as importance.** Visibility means *visibility to the user*, not business value or criticality. Power supply is invisible-but-critical → it belongs low on the map, not high.
+- **Floating components with no anchor.** Every value chain must trace upward to the user need. A component nothing depends on (directly or transitively) is either mis-placed or doesn't belong on this map.
+
+### OnlineWardleyMaps (OWM) syntax — for the `$arckit-wardley*` commands
+
+These produce OWM text for <https://create.wardleymaps.ai>. The renderer is strict:
+
+- **Coordinates are `[visibility, evolution]`, both 0–1, in that order** — `component Foo [0.9, 0.2]`. Authors routinely swap the pair or use 0–100; either silently mis-renders. Visibility first (Y), evolution second (X).
+- **Declare a component before linking it.** `A->B` referencing an undeclared `B` drops the link. Declare all `component` lines first, dependency lines after.
+- **`evolve` needs only the target X, and the component must already exist:** `evolve Foo 0.7`. Don't restate visibility; don't `evolve` a name you never declared.
+- **Names with spaces work in declarations but must match *exactly* in links** — `component Data Pipeline [..]` then `Kettle->Data Pipeline`, not `->DataPipeline`. Trailing whitespace breaks the match.
+- **Stage-boundary x-values:** Genesis `0.0–0.25`, Custom `0.25–0.50`, Product `0.50–0.75`, Commodity `0.75–1.0`. Keep positions inside the intended band so the visual reads correctly.
+- **One statement per line.** OWM is line-based; no semicolons. A trailing `// comment` *is* stripped by ArcKit's
+  converters (and a `://` inside a URL is left alone), but a full-line `//` comment is the portable form.
+
+### OWM decorations and placement — the silent-failure set
+
+Everything here parses without error and renders wrong. Found while building
+`scripts/owm-parse.mjs`; the same rules govern the Mermaid and HTML converters.
+
+- **`pipeline` has two forms with different child-selection rules.** The coordinate form
+  `pipeline Foo [0.3, 0.7]` claims children by *proximity*: same visibility as the parent
+  (within about 0.05) **and** evolution inside the declared range. Give a child a slightly
+  different visibility and it silently drops out of the pipeline — so give pipeline children
+  the **exact** visibility of their parent rather than a near value; the tolerance is
+  floating-point-fragile at its edge. The block form (`pipeline Foo` then `{ … }`) names its
+  children explicitly and is the safer choice: inside the block a child takes **only an
+  evolution coordinate** (`component "Text-Based Guidance" [0.25]`) and inherits the parent's
+  visibility, so there is no near-miss to get wrong.
+- **`annotation` accepts two spellings and you will meet both:** `annotation 1 [v, e] text`
+  and the comma form `annotation 1,[0.48, 0.45] "text"`. A multi-point annotation nests the
+  pairs: `annotation 1 [[v1, e1],[v2, e2]] text`.
+- **An annotation on a component's exact coordinate hides that component.** `annotation 1 [0.5, 0.1]`
+  pointing at the component already at `[0.5, 0.1]` lands the marker on top of the dot. Offset the
+  annotation by roughly 0.02–0.03, or accept that the renderer must move it for you.
+- **`note` is placed absolutely and has no collision avoidance.** A note near a populated
+  region will overlap component labels. Put notes in visibly empty areas of the map.
+- **Component labels default to the same offset**, so two components close together get
+  overlapping labels. Set `label [x, y]` (pixel offsets, y negative is up) on the crowded ones, or
+  run `$arckit-wardley --tidy-owm` to place them automatically.
+- **Sourcing is its own directive, not part of the component line:** `build Foo` / `buy Bar` /
+  `outsource Baz` on separate lines (the inline `component Foo [v, e] (build)` decorator also
+  works). Omit them and the map shows positions but no build-versus-buy read — which is usually
+  the whole point of drawing it.
+- **`inertia` is a bare word at the end of the component line:** `component Foo [0.5, 0.4] inertia`.
+  It composes with a label offset and a sourcing decorator on the same line.
+- **A duplicate `component` declaration is not an error.** The first one wins and the second is
+  discarded silently, so a copy-pasted line with corrected coordinates has no effect. Edit the
+  original.
+
+### Process mistakes
+
+- **Skipping the triage questions.** Inventing the user need, scope, or positioning instead of asking produces a confident-but-wrong map. When positioning is ambiguous for a key component, ask (Step 3) rather than guess.
+- **Listing only technology.** A value chain includes people, practices, and data — not just systems. Maps that are all boxes-of-software miss the inertia and doctrine insights that make the exercise worthwhile.
+- **Recommendations with no rationale.** Every strategic move must tie back to a position or movement on the map ("commoditize X because it sits Product-right with three vendors"), not generic advice.
+- **Manufacturing a source to fill the Source column.** A Source must name something that exists — copy the ID from the project context (value chains are numbered: `ARC-001-WVCH-001-v1.0`) or write `Assumption`. Inventing a plausible-looking ID is the failure the map check catches.
+- **Retyping a value chain's visibility instead of copying it.** A component sourced to a value chain carries that value chain's number to 2dp. If the value chain is wrong, fix it with `$arckit-wardley-value-chain` and re-run; if the map re-anchors on a different user need, source those components elsewhere.
 
 ## Analysis Checklist
 
@@ -266,10 +337,10 @@ This skill handles **conversational** Wardley Mapping — quick questions, evolu
 
 For **formal architecture documents** with document control, project integration, UK Government compliance (TCoP, GDS, AI Playbook), and OnlineWardleyMaps syntax for https://create.wardleymaps.ai, use the ArcKit Wardley suite:
 
-- `/arckit.wardley.value-chain` — Decompose user needs into value chains (WVCH artifact)
-- `/arckit.wardley` — Create strategic Wardley Maps (WARD artifact)
-- `/arckit.wardley.doctrine` — Assess organizational doctrine maturity across 4 phases, 40+ principles (WDOC artifact)
-- `/arckit.wardley.gameplay` — Analyze strategic plays from 60+ gameplay patterns with D&D alignment (WGAM artifact)
-- `/arckit.wardley.climate` — Assess 32 climatic patterns across 6 categories with prediction horizons (WCLM artifact)
+- `$arckit-wardley-value-chain` — Decompose user needs into value chains (WVCH artifact)
+- `$arckit-wardley` — Create strategic Wardley Maps (WARD artifact)
+- `$arckit-wardley-doctrine` — Assess organizational doctrine maturity across 4 phases, 40+ principles (WDOC artifact)
+- `$arckit-wardley-gameplay` — Analyze strategic plays from 60+ gameplay patterns with D&D alignment (WGAM artifact)
+- `$arckit-wardley-climate` — Assess 32 climatic patterns across 6 categories with prediction horizons (WCLM artifact)
 
 These generate versioned artifacts saved to your project directory with full traceability to requirements and architecture principles. Each command works standalone but gets richer when sibling artifacts exist.

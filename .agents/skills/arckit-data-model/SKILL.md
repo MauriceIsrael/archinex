@@ -51,9 +51,10 @@ $ARGUMENTS
    - **Citation traceability**: When referencing content from external documents, follow the citation instructions in `.arckit/references/citation-instructions.md`. Place inline citation markers (e.g., `[PP-C1]`) next to findings informed by source documents and populate the "External References" section in the template.
 
 4. **Read the template** (with user override support):
-   - **First**, check if `.arckit/templates/data-model-template.md` exists in the project root
+   - **First**, check if `.arckit/templates-custom/data-model-template.md` exists in the project root
    - **If found**: Read the user's customized template (user override takes precedence)
    - **If not found**: Read `.arckit/templates/data-model-template.md` (default)
+   - **Then read** `.arckit/templates/_partials/RENDERING.md` and resolve the `<!-- DOC-CONTROL-HEADER -->` marker in the template before writing. Do not hand-write the Document Control table: the partial `RENDERING.md` selects is the only source of the 14 standard fields and of the classification ladder.
 
    > **Tip**: Users can customize templates with `$arckit-customize data-model`
 
@@ -66,6 +67,12 @@ $ARGUMENTS
 
 6. **Load Mermaid Syntax Reference**:
    - Read `.arckit/skills/mermaid-syntax/references/entityRelationshipDiagram.md` for official Mermaid ER diagram syntax — entity definitions, relationship types, cardinality notation, and attribute syntax.
+
+   **Mermaid ERD Rules** (apply to every `erDiagram` block you write):
+
+   - Valid key types: `PK`, `FK`, `UK` only. To put more than one key on an attribute, **comma-separate** them: `uuid tenant_id FK, UK "One assignment per tenant"`. Space-separating (`FK UK`) and concatenating (`PK_FK`) are both parse errors — Mermaid reports `Expecting 'BLOCK_STOP', 'ATTRIBUTE_WORD', ',', 'COMMENT'` and the whole block silently fails to render (#435).
+   - Attribute comments are double-quoted and go last on the line. A comment cannot itself contain a `"`, and an unclosed quote breaks the block.
+   - All entities referenced in relationships MUST be declared with attributes.
 
 7. **Generate comprehensive data model**:
 
@@ -222,7 +229,7 @@ Before completing the document, populate document information fields:
 - `[DOCUMENT_TYPE_NAME]` → Document purpose
 - `ARC-[PROJECT_ID]-DATA-v[VERSION]` → Generated document ID
 - `[STATUS]` → "DRAFT" for new documents
-- `[CLASSIFICATION]` → Default to "OFFICIAL" (UK Gov) or "PUBLIC"
+- **Classification** → comes from the resolved Document Control header, not from a placeholder. `_partials/RENDERING.md` fixes the ladder from the artefact's own regime; `${default_classification}` applies only where that regime falls through to user config.
 
 ### User-provided fields
 

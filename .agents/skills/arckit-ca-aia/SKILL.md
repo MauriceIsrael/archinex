@@ -13,6 +13,12 @@ description: "[COMMUNITY] Generate a Canada Algorithmic Impact Assessment per th
 > citations against the current Justice Laws Website text and Commissioner's published guidance
 > before relying on this output.
 
+## User Request
+
+```text
+$ARGUMENTS
+```
+
 You are an enterprise architect generating a Canada Algorithmic Impact Assessment for an automated decision-making system in a federal entity.
 
 ## Process
@@ -25,10 +31,10 @@ You are an enterprise architect generating a Canada Algorithmic Impact Assessmen
    - `.arckit/templates/_partials/RENDERING.md`
 2. Read the template:
    - **First**, check `.arckit/templates-custom/ca-aia-template.md` (user override)
-   - **Then**, `.arckit/templates/ca-aia-template.md`
+   - **Then**, `.arckit/templates-custom/ca-aia-template.md`
    - **Fallback**, `.arckit/templates/ca-aia-template.md`
-3. Use `scripts/bash/generate-document-id.sh <PROJECT_ID> AIA --filename` for the artefact filename.
-4. Resolve the `<!-- DOC-CONTROL-HEADER -->` marker per `RENDERING.md`. Use the Canadian classification scheme (UNCLASSIFIED / Protected A / Protected B / Protected C / CONFIDENTIAL / SECRET / TOP SECRET) — replace the standard UK line in the header.
+3. Use `node scripts/generate-document-id.mjs <PROJECT_ID> AIA --filename` for the artefact filename.
+4. Resolve the `<!-- DOC-CONTROL-HEADER -->` marker per `RENDERING.md` before writing the artefact. `RENDERING.md` hard-routes the CA regime to `_partials/document-control-ca.md`, which already carries the Policy on Government Security categorization ladder — no per-command classification override is needed.
 5. Generate the following sections (the template provides skeletons for each):
    - **System Description** — purpose of the system, the specific decisions automated (or assisted), training-data lineage (sources, vintage, licensing), vendor / open-source provenance (model family, supplier, hosting jurisdiction), and the stewardship chain (owner, operator, accountable executive).
    - **Levels I–IV Questionnaire Scoring** — score each of the six dimensions (Project, System, Algorithm, Decision, Impact, Data) 0–N with evidence cited, then compute the overall Impact Level (I, II, III, or IV) per the TBS Directive's threshold matrix. Show the workings — the questionnaire output is the source of truth, not a self-declared level.
@@ -44,8 +50,9 @@ You are an enterprise architect generating a Canada Algorithmic Impact Assessmen
    - **Reassessment Triggers** — material change to data, model, decision boundary, or operating environment. Include a periodic reassessment cadence (annual default, accelerated for Level III/IV systems).
    - **Open Items** — explicit list of unresolved questionnaire scores, pending peer-review nominations, or downstream artefacts that must be produced before launch.
 6. Populate the External References section per `.arckit/references/citation-instructions.md`. The TBS *Directive on Automated Decision-Making* and the *Algorithmic Impact Assessment Tool* MUST appear in the Document Register with their primary URLs and the verification date.
-7. Write the artefact via the Write tool to `projects/<project-id>/<filename>`.
-8. Show only a summary to the user (one paragraph plus the computed Impact Level, the headline mitigations triggered by that level, and any open peer-review or reassessment items).
+7. Before writing the file, read `.arckit/references/quality-checklist.md` and verify all **Common Checks** plus the **AIA** per-type checks pass. Fix any failures before proceeding.
+8. Write the artefact via the Write tool to `projects/<project-id>/<filename>`.
+9. Show only a summary to the user (one paragraph plus the computed Impact Level, the headline mitigations triggered by that level, and any open peer-review or reassessment items).
 
 ## Authoritative anchor
 

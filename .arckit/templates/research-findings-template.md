@@ -1,35 +1,27 @@
 # Technology and Service Research: [PROJECT_NAME]
 
-> **Template Origin**: Official | **ArcKit Version**: [VERSION] | **Command**: `/arckit.research`
+> **Template Origin**: Official | **ArcKit Version**: [VERSION] | **Command**: `/arckit:research`
 
 ## Document Control
 
 <!-- DOC-CONTROL-HEADER -->
-<!-- Resolved at command-execution time to _partials/document-control-uk.md or _partials/document-control-uae.md based on plugin userConfig classification_scheme + governance_framework. See _partials/RENDERING.md (when present). -->
+<!-- Resolved at command-execution time per _partials/RENDERING.md. -->
 
 ## Revision History
 
 | Version | Date | Author | Changes | Approved By | Approval Date |
 |---------|------|--------|---------|-------------|---------------|
-| [VERSION] | [DATE] | ArcKit AI | Initial creation from `/arckit.research` agent | PENDING | PENDING |
+| [VERSION] | [DATE] | ArcKit AI | Initial creation from `/arckit:research` agent | PENDING | PENDING |
 
 ---
 
 ## Executive Summary
 
-### Research Scope
-
-This document presents research findings for technology, services, and products that can meet the requirements documented in `ARC-{PROJECT_ID}-REQ-v*.md`. It provides build vs buy analysis and vendor recommendations for procurement decisions.
-
-**Requirements Analyzed**: [X] functional, [Y] non-functional, [Z] integration, [W] data requirements
-
-**Research Categories Identified**: [X] categories based on requirement analysis
-
-**Research Approach**: [Market research, vendor evaluation, UK Government Digital Marketplace search, open source assessment]
-
 ### Key Findings
 
-[3-5 bullet points summarizing the most important findings]
+**Recommendation**: [One sentence: the overall build/buy/adopt split and its 3-year TCO, e.g. "Buy for [Y] of [Total] categories and build only [Category], for a blended 3-year TCO of £[TOTAL]."]
+
+[One bullet per research category, most decisive first. As many as there are categories; not a fixed number.]
 
 - **[Category]**: [Recommendation] - [Key reason]
 - **[Category]**: [Recommendation] - [Key reason]
@@ -58,6 +50,16 @@ This document presents research findings for technology, services, and products 
 - ✅ **[X%]** of requirements have identified solutions
 - ⚠️ **[Y]** requirements need custom development (no suitable off-the-shelf)
 - 🔍 **[Z]** requirements need further research or clarification
+
+### Research Scope
+
+This document presents research findings for technology, services, and products that can meet the requirements documented in `ARC-{PROJECT_ID}-REQ-v*.md`. It provides build vs buy analysis and vendor recommendations for procurement decisions.
+
+**Requirements Analyzed**: [X] functional, [Y] non-functional, [Z] integration, [W] data requirements
+
+**Research Categories Identified**: [X] categories based on requirement analysis
+
+**Research Approach**: [Market research, vendor evaluation, UK Government Digital Marketplace search, open source assessment]
 
 ---
 
@@ -477,7 +479,7 @@ Assessment against 13 TCoP points relevant to technology selection:
 | TCoP Point | Status | Notes |
 |-----------|--------|-------|
 | **1. Define user needs** | ✅ Compliant | Research driven by user requirements |
-| **2. Make things accessible** | ✅ Compliant | All vendors assessed for WCAG 2.1 AA |
+| **2. Make things accessible** | ✅ Compliant | All vendors assessed for WCAG 2.2 AA |
 | **3. Be open and use open standards** | ✅ Compliant | Open source options prioritized |
 | **4. Make use of open source** | ✅ Compliant | [X] categories using open source |
 | **5. Use cloud first** | ✅ Compliant | Public cloud (AWS/Azure/GCP) recommended |
@@ -594,7 +596,7 @@ Research findings inform Wardley Map value chain positioning and evolution:
 
 **Next Steps**:
 
-- Run `/arckit.wardley` to create Wardley Map with research findings
+- Run `/arckit:wardley` to create Wardley Map with research findings
 - Position components on evolution axis based on build/buy decisions
 - Identify strategic plays (e.g., componentize novel features once mature)
 
@@ -837,10 +839,10 @@ Research findings feed into Strategic Outline Business Case (SOBC) Economic Case
 
 ### Integration with Other Commands
 
-14. **Update SOBC**: Run `/arckit.sobc` to update Economic Case with research data
-15. **Create Wardley Map**: Run `/arckit.wardley` to map value chain with evolution positioning
-16. **Generate SOW/RFP**: Run `/arckit.sow` to create vendor RFP with technical requirements
-17. **HLD Review**: Run `/arckit.hld-review` once architecture defined, validate against research
+14. **Update SOBC**: Run `/arckit:sobc` to update Economic Case with research data
+15. **Create Wardley Map**: Run `/arckit:wardley` to map value chain with evolution positioning
+16. **Generate SOW/RFP**: Run `/arckit:sow` to create vendor RFP with technical requirements
+17. **HLD Review**: Run `/arckit:hld-review` once architecture defined, validate against research
 
 ---
 
@@ -932,7 +934,7 @@ Research findings feed into Strategic Outline Business Case (SOBC) Economic Case
 
 ---
 
-**Generated by**: ArcKit `/arckit.research` agent
+**Generated by**: ArcKit `/arckit:research` agent
 **Generated on**: [DATE]
 **ArcKit Version**: [VERSION]
 **Project**: [PROJECT_NAME]

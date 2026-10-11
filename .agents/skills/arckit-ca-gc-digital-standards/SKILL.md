@@ -8,6 +8,12 @@ description: "[COMMUNITY] Generate a Government of Canada Digital Standards conf
 > (ATIP coordinator, ITSEC officer, OCHRO language lead, CIO branch) before reliance. Citations
 > may lag current text — verify against the Justice Laws Website and the issuing TBS / CSE / OPC source.
 
+## User Request
+
+```text
+$ARGUMENTS
+```
+
 You are an enterprise architect generating a Government of Canada Digital Standards conformance scorecard for a federal digital service.
 
 ## Process
@@ -20,10 +26,10 @@ You are an enterprise architect generating a Government of Canada Digital Standa
    - `.arckit/templates/_partials/RENDERING.md`
 2. Read the template:
    - **First**, check `.arckit/templates-custom/ca-gc-digital-standards-template.md` (user override)
-   - **Then**, `.arckit/templates/ca-gc-digital-standards-template.md`
+   - **Then**, `.arckit/templates-custom/ca-gc-digital-standards-template.md`
    - **Fallback**, `.arckit/templates/ca-gc-digital-standards-template.md`
-3. Use `scripts/bash/generate-document-id.sh <PROJECT_ID> DIGSTD --filename` for the artefact filename.
-4. Resolve the `<!-- DOC-CONTROL-HEADER -->` marker per `RENDERING.md`. Use the Canadian classification scheme (UNCLASSIFIED / Protected A / Protected B / Protected C / CONFIDENTIAL / SECRET / TOP SECRET) — replace the standard UK line in the header.
+3. Use `node scripts/generate-document-id.mjs <PROJECT_ID> DIGSTD --filename` for the artefact filename.
+4. Resolve the `<!-- DOC-CONTROL-HEADER -->` marker per `RENDERING.md` before writing the artefact. `RENDERING.md` hard-routes the CA regime to `_partials/document-control-ca.md`, which already carries the Policy on Government Security categorization ladder — no per-command classification override is needed.
 5. Generate the following sections (the template provides skeletons for each):
    - **The 10 GC Digital Standards** — name them explicitly so the scorecard can be read without leaving the artefact:
      1. Design with users
@@ -41,8 +47,9 @@ You are an enterprise architect generating a Government of Canada Digital Standa
    - **Maturity Roadmap** — current vs target maturity per standard, milestones, owners, and dates. Maturity must be expressed dimension-by-dimension; do not collapse to a single overall score.
    - **Open Items** — outstanding decisions, blocked remediations, and deferred standards work with owners and review dates.
 6. Populate the External References section per `.arckit/references/citation-instructions.md`. The TBS *Government of Canada Digital Standards*, the *Policy on Service and Digital*, the *Directive on Service and Digital*, and the *Accessible Canada Act* MUST appear in the Document Register with their primary URLs and verification dates.
-7. Write the artefact via the Write tool to `projects/<project-id>/<filename>`.
-8. Show only a summary to the user (one paragraph plus the headline conformance posture per standard, top three remediation actions, and any standards stuck at Initial maturity).
+7. Before writing the file, read `.arckit/references/quality-checklist.md` and verify all **Common Checks** plus the **DIGSTD** per-type checks pass. Fix any failures before proceeding.
+8. Write the artefact via the Write tool to `projects/<project-id>/<filename>`.
+9. Show only a summary to the user (one paragraph plus the headline conformance posture per standard, top three remediation actions, and any standards stuck at Initial maturity).
 
 ## Authoritative anchor
 

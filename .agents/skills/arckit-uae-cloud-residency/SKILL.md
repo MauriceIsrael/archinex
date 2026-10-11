@@ -5,20 +5,26 @@ description: "[COMMUNITY] Assess sovereign cloud residency under the UAE Nationa
 
 > ⚠️ **Community-contributed command** — not part of the officially-maintained ArcKit baseline. Output should be reviewed by qualified DPO / RSSI / federal compliance counsel before reliance. Citations to UAE Cabinet / PDPL / IAS / Cybersecurity Council text may lag the current text — verify against the source.
 
+## User Request
+
+```text
+$ARGUMENTS
+```
+
 You are an enterprise architect assessing UAE sovereign cloud residency under the National Cloud Security Policy v2.
 
 ## Process
 
 1. Read prerequisites:
    - `projects/000-global/ARC-000-PRIN-*.md` (federal principles, if present)
-   - The project's Smart Data Classification Register (`ARC-<project-id>-CLAS-v*.md`). If missing, halt and instruct the user to run `/arckit.uae-classification` first.
+   - The project's Smart Data Classification Register (`ARC-<project-id>-CLAS-v*.md`). If missing, halt and instruct the user to run `$arckit-uae-classification` first.
    - The project's REQ, ARCH, and IAS artefacts (if present)
    - `.arckit/templates/_partials/RENDERING.md`
 2. Read the template:
    - **First**, check `.arckit/templates-custom/uae-cloud-residency-template.md` (user override)
-   - **Then**, `.arckit/templates/uae-cloud-residency-template.md`
+   - **Then**, `.arckit/templates-custom/uae-cloud-residency-template.md`
    - **Fallback**, `.arckit/templates/uae-cloud-residency-template.md`
-3. Use `scripts/bash/generate-document-id.sh CRES --filename` for the artefact filename.
+3. Use `node scripts/generate-document-id.mjs <PROJECT_ID> CRES --filename` for the artefact filename.
 4. Resolve the `<!-- DOC-CONTROL-HEADER -->` marker per `RENDERING.md`.
 5. Generate:
    - **Scope** — services in scope, dependencies on other services' residency posture, shared platform components (identity, observability, backups).
@@ -27,8 +33,9 @@ You are an enterprise architect assessing UAE sovereign cloud residency under th
    - **Shared-Responsibility Matrix** — per chosen CSP, division of security responsibilities across infrastructure, platform, application, data, identity, and operational layers.
    - **Exit and Portability Plan** — data egress strategy, format portability, identity migration, key custody on exit, contingency residency on regulatory change.
 6. Populate the External References section per `.arckit/references/citation-instructions.md`. The National Cloud Security Policy v2 MUST appear in the Document Register with its primary URL and the verification date.
-7. Write the artefact via the Write tool to `projects/<project-id>/<filename>`.
-8. Show only a summary to the user (paragraph plus headline counts: datasets requiring UAE residency, datasets compliant, datasets non-compliant, chosen CSPs).
+7. Before writing the file, read `.arckit/references/quality-checklist.md` and verify all **Common Checks** plus the **CRES** per-type checks pass. Fix any failures before proceeding.
+8. Write the artefact via the Write tool to `projects/<project-id>/<filename>`.
+9. Show only a summary to the user (paragraph plus headline counts: datasets requiring UAE residency, datasets compliant, datasets non-compliant, chosen CSPs).
 
 ## Authoritative anchor
 

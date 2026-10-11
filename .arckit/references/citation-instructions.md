@@ -32,6 +32,7 @@ Derive a short Source ID for each piece of source material. The same Source ID i
 | data-protection-impact-assessment.pdf | DPIA | **D**ata **P**rotection **I**mpact **A**ssessment |
 | nhs-digital-service-manual.pdf | NDSM | **N**HS **D**igital **S**ervice **M**anual |
 | cloud-hosting-strategy.pdf | CHS | **C**loud **H**osting **S**trategy |
+| oaa-standard-c208.pdf | OAS-C | **O**pen **A**gile **A**rchitecture **C**208 |
 
 ### MCP Queries
 
@@ -46,6 +47,14 @@ Use a fixed per-server prefix plus a sequential query index. One Source ID per *
 | DataCommons | DC | `DC-Q1` |
 
 For MCP servers not listed above, derive a short uppercase prefix from the server name (e.g., `linear-mcp` → `LIN`).
+
+### UK Tenders MCP sourcing
+
+Tender figures returned by the `uk-tenders` MCP server are sourced from official UK procurement notices (Find a Tender Service, Contracts Finder, Public Contracts Scotland, Sell2Wales, eTendersNI) and re-published verbatim under the **Open Government Licence v3.0**. Every notice record carries a `notice_url` pointing back to the source portal.
+
+- Every supplier figure, benchmark value, and award count cited in a TNDR artefact **must** carry a `notice_url` citation (e.g., `[TNDR-C1]` where the Document Register entry records the `notice_url`).
+- The artefact **must** include the attribution line: `Contains public sector information licensed under the Open Government Licence v3.0.`
+- The mandatory caveat — `Awarded value is not actual spend; figures are for market context and benchmarking, not the costed Economic Case.` — must also appear verbatim; it is not a citation but a data-quality disclaimer required by the OGL sourcing.
 
 ### Web URLs
 

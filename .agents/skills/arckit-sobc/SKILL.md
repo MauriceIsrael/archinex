@@ -53,6 +53,10 @@ This command creates a **Strategic Outline Business Case (SOBC)** following HM T
      - Extract: Detailed requirements for more accurate cost estimates
    - **PLAN** (Project Plan) in `projects/{project}/`
      - Extract: Timeline, phasing for Commercial Case delivery schedule
+   - **TNDR** (Procurement Market Intelligence) at `projects/{project}/research/ARC-{P}-TNDR-*.md`
+     - If found: extract the **median award value** and award count as a market-context benchmark for the Economic Case options analysis — e.g. to sanity-check an option's Rough Order of Magnitude cost against what comparable work has been awarded for in the market
+     - **Critical:** awarded value is NOT actual spend and must NOT be used as the costed figure; cite it as market context and market view only, with that caveat stated explicitly whenever the figure appears
+     - If no TNDR artefact exists, skip silently
 
 2. **Understand the request**: The user may be:
    - Creating initial SOBC (most common)
@@ -81,12 +85,12 @@ This command creates a **Strategic Outline Business Case (SOBC)** following HM T
 
 6. **Interactive Configuration**:
 
-   Before generating the SOBC, use the **AskUserQuestion** tool to gather appraisal preferences. **Skip any question the user has already answered in their arguments.**
+   Before generating the SOBC, ask the user for appraisal preferences. **Skip any question the user has already answered in their arguments.**
 
-   **Gathering rules** (apply to all questions in this section):
-   - Ask the most important question first; fill in secondary details from context or reasonable defaults.
-   - **Maximum 2 rounds of questions.** After that, pick the best option from available context.
-   - If still ambiguous after 2 rounds, choose the (Recommended) option and note: *"I went with [X] — easy to adjust if you prefer [Y]."*
+   **Gathering rules** — the one-message interview in `.arckit/references/interview-pattern.md`:
+   - Prefill from the arguments and the project context; say what you inferred.
+   - Ask every remaining question in **one** call. There is no second round.
+   - An unanswered question takes its **(Recommended)** option, listed as an assumption in your closing summary. With no question tool available, take every default and never block.
 
    **Question 1** — header: `Options`, multiSelect: false
    > "How many strategic options should be evaluated in the Economic Case?"
@@ -105,9 +109,10 @@ This command creates a **Strategic Outline Business Case (SOBC)** following HM T
 7. **Generate comprehensive SOBC**:
 
    **Read the template** (with user override support):
-   - **First**, check if `.arckit/templates/sobc-template.md` exists in the project root
+   - **First**, check if `.arckit/templates-custom/sobc-template.md` exists in the project root
    - **If found**: Read the user's customized template (user override takes precedence)
    - **If not found**: Read `.arckit/templates/sobc-template.md` (default)
+   - **Then read** `.arckit/templates/_partials/RENDERING.md` and resolve the `<!-- DOC-CONTROL-HEADER -->` marker in the template before writing. Do not hand-write the Document Control table: the partial `RENDERING.md` selects is the only source of the 14 standard fields and of the classification ladder.
 
    > **Tip**: Users can customize templates with `$arckit-customize sobc`
 
@@ -129,10 +134,10 @@ This command creates a **Strategic Outline Business Case (SOBC)** following HM T
      - Option 1: Minimal viable solution
      - Option 2: Balanced approach (often recommended)
      - Option 3: Comprehensive solution
-     - For EACH option:
+     - For EACH option, including Do Nothing and any option you recommend rejecting:
        - High-level costs (rough order of magnitude)
        - Benefits delivered (% of stakeholder goals met)
-       - Risks
+       - Risks (its own **Risks** list: a rejected option still has risks, and they are part of why it is rejected)
        - Pros/cons
    - **Benefits Mapping**:
      - Link EACH benefit to specific stakeholder goal from ARC-{PROJECT_ID}-STKE-v*.md
@@ -210,6 +215,7 @@ This command creates a **Strategic Outline Business Case (SOBC)** following HM T
    ```
 
 9. **Include decision framework**:
+   - **Executive Summary opens with the verdict**: the Go/No-Go recommendation and the recommended option come first, then the rationale, then context, costs and risks, as `.arckit/references/executive-summary-pattern.md` sets out. Every figure in the summary already appears in the five cases.
    - **Recommendation**: Which option to proceed with?
    - **Rationale**: Why this option? (reference stakeholder goals met)
    - **Go/No-Go Criteria**: Under what conditions do we proceed?
@@ -247,7 +253,7 @@ Before generating the document ID, check if a previous version exists:
 - `[VERSION]` → Determined version from Step 0
 - `[DATE]` / `[YYYY-MM-DD]` → Current date in YYYY-MM-DD format
 - `[DOCUMENT_TYPE_NAME]` → "Strategic Outline Business Case (SOBC)"
-- `[CLASSIFICATION]` → Default to "OFFICIAL" for UK Gov, "INTERNAL" for private sector
+- **Classification** → comes from the resolved Document Control header, not from a placeholder. `_partials/RENDERING.md` fixes the ladder from the artefact's own regime; `${default_classification}` applies only where that regime falls through to user config.
 - `[STATUS]` → "DRAFT" for new documents
 
 **User-specified fields** (must be confirmed with user):
@@ -391,7 +397,7 @@ Use the template at `.arckit/templates/sobc-template.md` as the structure. Fill 
 
 **CRITICAL - Token Efficiency**:
 
-To avoid exceeding Claude Code's 32K token output limit, you MUST use the following strategy:
+To avoid exceeding Codex output limits, you MUST use the following strategy:
 
 ### 1. Generate SOBC Document
 
@@ -494,3 +500,4 @@ After completing this command, consider running:
 
 - `$arckit-requirements` -- Define detailed requirements after SOBC approval
 - `$arckit-roadmap` -- Create strategic roadmap from SOBC investment plan
+- `$arckit-tenders` -- Anchor the Economic Case market view with real UK award-value benchmarks *(when UK government procurement context)*

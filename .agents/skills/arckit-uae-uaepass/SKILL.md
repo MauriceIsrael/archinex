@@ -5,6 +5,12 @@ description: "[COMMUNITY] Generate UAE Pass integration design (OIDC/OAuth flow,
 
 > ⚠️ **Community-contributed command** — not part of the officially-maintained ArcKit baseline. Output should be reviewed by qualified DPO / RSSI / federal compliance counsel before reliance. Citations to UAE Cabinet / PDPL / IAS / Cybersecurity Council text may lag the current text — verify against the source.
 
+## User Request
+
+```text
+$ARGUMENTS
+```
+
 You are an enterprise architect generating a UAE Pass integration design for a UAE federal entity service provider.
 
 ## Process
@@ -15,10 +21,10 @@ You are an enterprise architect generating a UAE Pass integration design for a U
    - `.arckit/templates/_partials/RENDERING.md`
 2. Read the template:
    - **First**, check `.arckit/templates-custom/uae-uaepass-template.md` (user override)
-   - **Then**, `.arckit/templates/uae-uaepass-template.md`
+   - **Then**, `.arckit/templates-custom/uae-uaepass-template.md`
    - **Fallback**, `.arckit/templates/uae-uaepass-template.md`
-3. Use `scripts/bash/create-project.sh --json <project-name>` if the project does not yet exist; otherwise locate it.
-4. Use `scripts/bash/generate-document-id.sh UPASS --filename` for the artefact filename.
+3. Use `scripts/bash/create-project.sh --json --name "<project-name>"` if the project does not yet exist; otherwise locate it.
+4. Use `node scripts/generate-document-id.mjs <PROJECT_ID> UPASS --filename` for the artefact filename.
 5. Resolve the `<!-- DOC-CONTROL-HEADER -->` marker per `RENDERING.md`.
 6. Generate the following sections:
    - **Scope** — which user journeys require UAE Pass authentication, in-scope user populations (citizens, residents, visitors), and the Service Provider category being onboarded.
@@ -28,8 +34,9 @@ You are an enterprise architect generating a UAE Pass integration design for a U
    - **Service Provider Onboarding Checklist** — TDRA / ICP onboarding artefacts (production credentials request, callback URL allow-list, branding pack, security review, go-live checklist).
    - **E-signature Audit Trail Design** — for journeys that use the Verified profile e-signature, describe how the signed artefact, the signer's UAE Pass identity, the timestamp, and the signature certificate chain are stored for non-repudiation. Cite the UAE Pass e-signature legal effect.
 7. Populate the External References section per `.arckit/references/citation-instructions.md`. The UAE Pass developer documentation MUST appear in the Document Register with its primary URL and the verification date.
-8. Write the artefact via the Write tool to `projects/<project-id>/<filename>`.
-9. Show only a summary to the user (one paragraph plus the headline profile selection per journey and any onboarding gaps flagged).
+8. Before writing the file, read `.arckit/references/quality-checklist.md` and verify all **Common Checks** plus the **UPASS** per-type checks pass. Fix any failures before proceeding.
+9. Write the artefact via the Write tool to `projects/<project-id>/<filename>`.
+10. Show only a summary to the user (one paragraph plus the headline profile selection per journey and any onboarding gaps flagged).
 
 ## Authoritative anchor
 
@@ -45,5 +52,5 @@ UAE Pass developer documentation (TDRA + ICP). Primary URL: <https://docs.uaepas
 
 After completing this command, consider running:
 
-- `$arckit-integration` -- UAE Pass OIDC endpoints and claim mapping feed the wider integration specification.
+- `$arckit-platform-design` -- UAE Pass OIDC endpoints and claim mapping feed the wider integration specification.
 - `$arckit-adr` -- Profile selection (Basic vs Verified) and e-signature mechanism are architecturally significant decisions that warrant an ADR.

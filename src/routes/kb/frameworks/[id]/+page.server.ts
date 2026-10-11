@@ -10,7 +10,12 @@ export const load: PageServerLoad = async ({ params, locals }) => {
   const user = locals.session!.user;
   const localExpert = await getKbExpertByUserId(user.id);
 
-  const res = await llmopsClient.getFrameworkIngestion(params.id, user.email);
+  const [res, me] = await Promise.all([
+    llmopsClient.getFrameworkIngestion(params.id, user.email),
+    // Droits de revue : le registre des responsables de LLMOps fait autorité (même adresse e-mail)
+    llmopsClient.getMe(user.email)
+  ]);
+  const registered = me.status === 'ok' ? me.data : undefined;
 
   if (res.status === 'unavailable') {
     throw error(503, 'Mode hors-ligne : service de référentiels indisponible');
@@ -28,9 +33,11 @@ export const load: PageServerLoad = async ({ params, locals }) => {
       role: user.role
     },
     expert: {
-      kbHandle: localExpert?.kbHandle || `@${user.email.split('@')[0]}`,
-      kbRoles: localExpert?.kbRoles || [],
-      ownedDomains: localExpert?.ownedDomains || []
+      kbHandle: registered?.handle || localExpert?.kbHandle || `@${user.email.split('@')[0]}`,
+      kbRoles: registered?.kb_roles?.length ? registered.kb_roles : localExpert?.kbRoles || [],
+      ownedDomains: registered?.owned_domains?.length ? registered.owned_domains : localExpert?.ownedDomains || [],
+      /** Responsable reconnu par LLMOps : sinon ses décisions seront refusées. */
+      registered: Boolean(registered)
     },
     ingestion: res.data
   };

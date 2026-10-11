@@ -18,7 +18,7 @@
   interface Props {
     data: {
       user: { id: string; name: string; email: string; role: string };
-      expert: { kbHandle: string; kbRoles: string[]; ownedDomains: string[] };
+      expert: { kbHandle: string; kbRoles: string[]; ownedDomains: string[]; registered?: boolean };
       ingestion: FrameworkIngestion;
     };
   }
@@ -74,8 +74,15 @@
   let pendingCount = $derived(ingestion.requirements.filter((r) => r.status === 'pending').length);
   let reviewedPercent = $derived(totalCount > 0 ? Math.round(((totalCount - pendingCount) / totalCount) * 100) : 0);
 
+  // Même règle que LLMOps : un mainteneur relit tous les domaines ; sinon il faut posséder le domaine (ou un parent).
+  const canReviewAll = $derived(data.expert.kbRoles.includes('kb:maintain'));
   function userOwnsDomain(domain: string): boolean {
-    return data.expert.ownedDomains.some((d) => d.toLowerCase() === domain.toLowerCase());
+    if (canReviewAll) return true;
+    const d = domain.toLowerCase();
+    return data.expert.ownedDomains.some((o) => {
+      const owned = o.toLowerCase();
+      return d === owned || d.startsWith(`${owned}/`) || d.startsWith(`${owned}-`);
+    });
   }
 
   async function updateRequirementReview(
@@ -286,6 +293,18 @@
 </script>
 
 <div class="space-y-6 max-w-7xl mx-auto px-4 py-6">
+  {#if !data.expert.registered}
+    <div class="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm" data-testid="not-registered-banner">
+      <strong>Lecture seule.</strong> Le compte <span class="font-mono">{data.user.email}</span> n'est pas un responsable déclaré dans LLMOps :
+      ses décisions seraient refusées. Connectez-vous avec le compte dont l'adresse figure dans le registre des responsables
+      (par exemple celui des mainteneurs pour relire tous les domaines).
+    </div>
+  {:else}
+    <p class="text-xs text-muted-foreground">
+      Vous relisez en tant que <span class="font-mono font-semibold">{data.expert.kbHandle}</span>
+      {#if canReviewAll}(mainteneur : tous les domaines){:else}(domaines : {data.expert.ownedDomains.join(', ') || 'aucun'}){/if}.
+    </p>
+  {/if}
   <!-- Fil d'Ariane & Titre -->
   <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border pb-5">
     <div>

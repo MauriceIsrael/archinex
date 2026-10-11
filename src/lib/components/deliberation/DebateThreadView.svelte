@@ -488,7 +488,7 @@
 
 	<!-- Modale de Signalement de Désaccord sur Verdict Doctrinal (Lot A9) -->
 	{#if feedbackArg}
-		<div class="fixed inset-0 bg-surface-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+		<div class="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 z-50">
 			<div class="bg-card text-card-foreground rounded-xl shadow-xl border max-w-lg w-full p-5 space-y-4">
 				<div class="flex items-center gap-2 text-indigo-600 dark:text-indigo-400">
 					<AlertTriangle class="h-5 w-5" />

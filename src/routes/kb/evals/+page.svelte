@@ -115,15 +115,15 @@
 
 <div class="space-y-8 max-w-7xl mx-auto px-4 py-6">
   <!-- En-tête -->
-  <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-surface-200 pb-5">
+  <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border pb-5">
     <div>
       <div class="flex items-center gap-3">
-        <div class="p-2 bg-primary-100 rounded-lg text-primary-700">
+        <div class="p-2 bg-primary/15 rounded-lg text-primary">
           <ShieldCheck class="w-6 h-6" />
         </div>
         <div>
-          <h1 class="text-2xl font-bold text-surface-900">Banc d'Évaluation & Rappel Doctrinal</h1>
-          <p class="text-sm text-surface-500">
+          <h1 class="text-2xl font-bold text-foreground">Banc d'Évaluation & Rappel Doctrinal</h1>
+          <p class="text-sm text-muted-foreground">
             Jeu de test <span class="font-mono font-semibold">check_option_v1</span>, annotation humaine experte et calcul du rappel réel (Porte G6 ≥ 80%).
           </p>
         </div>
@@ -131,7 +131,7 @@
     </div>
 
     <div class="flex items-center gap-3">
-      <span class="text-xs px-3 py-1.5 rounded-full bg-surface-100 border border-surface-300 font-mono text-surface-700">
+      <span class="text-xs px-3 py-1.5 rounded-full bg-muted border border-border font-mono text-muted-foreground">
         Acteur : <span class="font-semibold">{data.expert.kbHandle}</span>
       </span>
       {#if data.expert.canEvaluate}
@@ -156,24 +156,24 @@
   {/if}
 
   <!-- Onglets de Gouvernance des Évaluations -->
-  <div class="flex items-center gap-2 border-b border-surface-200 pb-3">
+  <div class="flex items-center gap-2 border-b border-border pb-3">
     <button
       onclick={() => (activeTab = 'options')}
-      class="px-4 py-2 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1.5 {activeTab === 'options' ? 'bg-primary-600 text-white shadow-sm' : 'bg-surface-100 hover:bg-surface-200 text-surface-700'}"
+      class="px-4 py-2 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1.5 {activeTab === 'options' ? 'bg-primary text-white shadow-sm' : 'bg-muted hover:bg-muted text-muted-foreground'}"
     >
       <ShieldCheck class="w-4 h-4" />
       <span>Vérification d'Options (Porte G6)</span>
     </button>
     <button
       onclick={() => (activeTab = 'similarity')}
-      class="px-4 py-2 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1.5 {activeTab === 'similarity' ? 'bg-primary-600 text-white shadow-sm' : 'bg-surface-100 hover:bg-surface-200 text-surface-700'}"
+      class="px-4 py-2 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1.5 {activeTab === 'similarity' ? 'bg-primary text-white shadow-sm' : 'bg-muted hover:bg-muted text-muted-foreground'}"
     >
       <Sliders class="w-4 h-4" />
       <span>Similarité FR/EN & Calibration (Contrat 1.11)</span>
     </button>
     <button
       onclick={() => (activeTab = 'feedback')}
-      class="px-4 py-2 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1.5 {activeTab === 'feedback' ? 'bg-primary-600 text-white shadow-sm' : 'bg-surface-100 hover:bg-surface-200 text-surface-700'}"
+      class="px-4 py-2 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1.5 {activeTab === 'feedback' ? 'bg-primary text-white shadow-sm' : 'bg-muted hover:bg-muted text-muted-foreground'}"
     >
       <MessagesSquare class="w-4 h-4" />
       <span>Boucle de Rétroaction ({feedbacks.length})</span>
@@ -184,14 +184,14 @@
     <SimilarityEvaluationPanel />
   {:else if activeTab === 'options'}
     <!-- Bloc de Déclenchement du Benchmark -->
-    <div class="bg-surface-50 border border-surface-200 rounded-xl p-6 shadow-sm">
+    <div class="bg-muted/50 border border-border rounded-xl p-6 shadow-sm">
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div>
-          <h2 class="text-lg font-bold text-surface-900 flex items-center gap-2">
-            <Sparkles class="w-5 h-5 text-primary-600" />
+          <h2 class="text-lg font-bold text-foreground flex items-center gap-2">
+            <Sparkles class="w-5 h-5 text-primary" />
             <span>Exécution du Benchmark (Porte G6)</span>
           </h2>
-          <p class="text-xs text-surface-600 mt-1 max-w-xl">
+          <p class="text-xs text-muted-foreground mt-1 max-w-xl">
             Évalue les moteurs de vérification d'options contre les cas de test. Le taux de rappel officiel est calculé strictement sur les annotations humaines pour garantir l'opposabilité.
           </p>
         </div>
@@ -200,7 +200,7 @@
         onclick={handleRunBenchmark}
         disabled={isRunningBenchmark || !dataset}
         data-testid="btn-run-benchmark"
-        class="px-5 py-2.5 bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white font-semibold text-sm rounded-lg shadow-sm flex items-center gap-2 transition-colors flex-shrink-0"
+        class="px-5 py-2.5 bg-primary hover:bg-primary/90 disabled:opacity-50 text-white font-semibold text-sm rounded-lg shadow-sm flex items-center gap-2 transition-colors flex-shrink-0"
       >
         {#if isRunningBenchmark}
           <RefreshCw class="w-4 h-4 animate-spin" />
@@ -221,10 +221,10 @@
 
     <!-- Résultats du Benchmark -->
     {#if benchmarkResult}
-      <div class="mt-6 pt-6 border-t border-surface-200">
+      <div class="mt-6 pt-6 border-t border-border">
         <div class="flex items-center justify-between mb-4">
-          <h3 class="text-sm font-bold text-surface-800">Résultats du Run ({benchmarkResult.run_id})</h3>
-          <span class="text-xs text-surface-500 font-mono">
+          <h3 class="text-sm font-bold text-foreground">Résultats du Run ({benchmarkResult.run_id})</h3>
+          <span class="text-xs text-muted-foreground font-mono">
             {new Date(benchmarkResult.executed_at).toLocaleTimeString()}
           </span>
         </div>
@@ -246,24 +246,24 @@
           </div>
 
           <!-- Précision -->
-          <div class="p-4 rounded-xl border border-surface-200 bg-white">
-            <div class="text-xs font-semibold uppercase tracking-wider text-surface-500">Précision Estimée</div>
-            <div class="text-3xl font-black text-surface-900 mt-1">{benchmarkResult.precision}%</div>
-            <div class="text-xs text-surface-500 mt-1">Conformité des prédictions émises</div>
+          <div class="p-4 rounded-xl border border-border bg-white">
+            <div class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Précision Estimée</div>
+            <div class="text-3xl font-black text-foreground mt-1">{benchmarkResult.precision}%</div>
+            <div class="text-xs text-muted-foreground mt-1">Conformité des prédictions émises</div>
           </div>
 
           <!-- Cas Humains Vérifiés -->
-          <div class="p-4 rounded-xl border border-surface-200 bg-white">
-            <div class="text-xs font-semibold uppercase tracking-wider text-surface-500">Cas Humains Validés</div>
-            <div class="text-3xl font-black text-surface-900 mt-1">{benchmarkResult.human_verified_cases}</div>
-            <div class="text-xs text-surface-500 mt-1">Sur {benchmarkResult.total_cases} cas totaux du jeu de test</div>
+          <div class="p-4 rounded-xl border border-border bg-white">
+            <div class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Cas Humains Validés</div>
+            <div class="text-3xl font-black text-foreground mt-1">{benchmarkResult.human_verified_cases}</div>
+            <div class="text-xs text-muted-foreground mt-1">Sur {benchmarkResult.total_cases} cas totaux du jeu de test</div>
           </div>
 
           <!-- Cas Conformes -->
-          <div class="p-4 rounded-xl border border-surface-200 bg-white">
-            <div class="text-xs font-semibold uppercase tracking-wider text-surface-500">Cas Réussis</div>
-            <div class="text-3xl font-black text-surface-900 mt-1">{benchmarkResult.passed_cases} / {benchmarkResult.total_cases}</div>
-            <div class="text-xs text-surface-500 mt-1">Correspondances statut attendu</div>
+          <div class="p-4 rounded-xl border border-border bg-white">
+            <div class="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Cas Réussis</div>
+            <div class="text-3xl font-black text-foreground mt-1">{benchmarkResult.passed_cases} / {benchmarkResult.total_cases}</div>
+            <div class="text-xs text-muted-foreground mt-1">Correspondances statut attendu</div>
           </div>
         </div>
       </div>
@@ -274,37 +274,37 @@
   <div class="space-y-4">
     <div class="flex items-center justify-between">
       <div>
-        <h2 class="text-lg font-bold text-surface-900">
-          Cas de Test du Banc d'Évaluation (<span class="font-mono text-primary-700">{dataset?.id || 'check_option_v1'}</span>)
+        <h2 class="text-lg font-bold text-foreground">
+          Cas de Test du Banc d'Évaluation (<span class="font-mono text-primary">{dataset?.id || 'check_option_v1'}</span>)
         </h2>
-        <p class="text-xs text-surface-500 mt-0.5">
+        <p class="text-xs text-muted-foreground mt-0.5">
           {dataset?.human_annotated_count || 0} cas annotés par un humain sur {dataset?.total_cases || 0} cas disponibles.
         </p>
       </div>
     </div>
 
     {#if !dataset || dataset.cases.length === 0}
-      <div class="text-center py-8 bg-surface-50 border border-surface-200 rounded-xl text-surface-500 text-sm">
+      <div class="text-center py-8 bg-muted/50 border border-border rounded-xl text-muted-foreground text-sm">
         Aucun cas de test présent dans le jeu de données.
       </div>
     {:else}
       <div class="grid grid-cols-1 gap-4">
         {#each dataset.cases as c (c.id)}
-          <div class="bg-white border border-surface-200 rounded-xl p-5 shadow-sm space-y-3">
+          <div class="bg-white border border-border rounded-xl p-5 shadow-sm space-y-3">
             <div class="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
               <div>
                 <div class="flex items-center gap-2 mb-1">
-                  <span class="px-2 py-0.5 text-xs font-mono font-bold bg-surface-100 text-surface-800 rounded">
+                  <span class="px-2 py-0.5 text-xs font-mono font-bold bg-muted text-foreground rounded">
                     {c.id}
                   </span>
-                  <span class="px-2 py-0.5 text-xs font-mono font-semibold bg-primary-50 text-primary-800 rounded border border-primary-200">
+                  <span class="px-2 py-0.5 text-xs font-mono font-semibold bg-primary/10 text-primary rounded border border-primary/30">
                     Règle : {c.rule_id}
                   </span>
-                  <span class="text-xs text-surface-500">
-                    Domaine : <strong class="text-surface-700">{c.domain}</strong>
+                  <span class="text-xs text-muted-foreground">
+                    Domaine : <strong class="text-muted-foreground">{c.domain}</strong>
                   </span>
                 </div>
-                <h3 class="text-base font-bold text-surface-900">{c.option_title}</h3>
+                <h3 class="text-base font-bold text-foreground">{c.option_title}</h3>
               </div>
 
               <div class="flex items-center gap-2">
@@ -327,17 +327,17 @@
               </div>
             </div>
 
-            <p class="text-xs text-surface-600 bg-surface-50 p-3 rounded-lg border border-surface-200">
+            <p class="text-xs text-muted-foreground bg-muted/50 p-3 rounded-lg border border-border">
               {c.option_summary}
             </p>
 
             {#if c.notes}
-              <div class="text-xs text-surface-700 italic bg-surface-100/60 p-2.5 rounded border border-surface-200">
+              <div class="text-xs text-muted-foreground italic bg-muted/60 p-2.5 rounded border border-border">
                 <strong>Note d'évaluation :</strong> {c.notes}
               </div>
             {/if}
 
-            <div class="pt-2 border-t border-surface-100 flex items-center justify-between text-xs text-surface-400">
+            <div class="pt-2 border-t border-border flex items-center justify-between text-xs text-muted-foreground">
               <div>
                 {#if c.annotated_by}
                   <span>Annoté par {c.annotated_by} le {new Date(c.annotated_at || '').toLocaleDateString()}</span>
@@ -349,9 +349,9 @@
               {#if data.expert.canEvaluate}
                 <button
                   onclick={() => openAnnotateModal(c)}
-                  class="px-3 py-1.5 text-xs font-semibold bg-surface-100 hover:bg-surface-200 text-surface-800 rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer"
+                  class="px-3 py-1.5 text-xs font-semibold bg-muted hover:bg-muted text-foreground rounded-lg flex items-center gap-1.5 transition-colors cursor-pointer"
                 >
-                  <Edit class="w-3.5 h-3.5 text-primary-600" />
+                  <Edit class="w-3.5 h-3.5 text-primary" />
                   <span>Annoter le cas</span>
                 </button>
               {/if}
@@ -363,14 +363,14 @@
   </div>
   {:else if activeTab === 'feedback'}
   <!-- Section 2 : Boucle de Retours Terrain depuis les Débats -->
-  <div class="space-y-4 pt-6 border-t border-surface-200">
+  <div class="space-y-4 pt-6 border-t border-border">
     <div class="flex items-center justify-between">
       <div>
-        <h2 class="text-lg font-bold text-surface-900 flex items-center gap-2">
+        <h2 class="text-lg font-bold text-foreground flex items-center gap-2">
           <MessagesSquare class="w-5 h-5 text-indigo-600" />
           <span>File de Retours Terrain sur les Verdicts</span>
         </h2>
-        <p class="text-xs text-surface-500 mt-0.5">
+        <p class="text-xs text-muted-foreground mt-0.5">
           Contestations et désaccords signalés par les architectes depuis les débats de projets, convertibles en nouveaux cas de test ou amendements.
         </p>
       </div>
@@ -380,21 +380,21 @@
     </div>
 
     {#if feedbacks.length === 0}
-      <div class="text-center py-8 bg-surface-50 border border-surface-200 rounded-xl text-surface-500 text-xs">
+      <div class="text-center py-8 bg-muted/50 border border-border rounded-xl text-muted-foreground text-xs">
         Aucun retour de débat enregistré. Pour contester un verdict, utilisez le bouton "Signaler un désaccord" dans l'espace Délibération.
       </div>
     {:else}
       <div class="space-y-3">
         {#each feedbacks as fb (fb.id)}
-          <div class="bg-white border border-surface-200 rounded-xl p-4 shadow-sm space-y-2">
+          <div class="bg-white border border-border rounded-xl p-4 shadow-sm space-y-2">
             <div class="flex items-center justify-between text-xs">
               <div class="flex items-center gap-2 font-mono">
-                <span class="font-bold text-surface-800">{fb.id}</span>
+                <span class="font-bold text-foreground">{fb.id}</span>
                 <span>•</span>
-                <span class="text-surface-500">Option : {fb.option_id}</span>
+                <span class="text-muted-foreground">Option : {fb.option_id}</span>
                 {#if fb.rule_id}
                   <span>•</span>
-                  <span class="text-primary-700 font-semibold">{fb.rule_id}</span>
+                  <span class="text-primary font-semibold">{fb.rule_id}</span>
                 {/if}
               </div>
 
@@ -403,14 +403,14 @@
               </span>
             </div>
 
-            <p class="text-xs text-surface-700 bg-surface-50 p-2.5 rounded border border-surface-200">
+            <p class="text-xs text-muted-foreground bg-muted/50 p-2.5 rounded border border-border">
               <strong>Motif du désaccord :</strong> {fb.disagree_rationale}
             </p>
 
-            <div class="flex items-center justify-between text-[11px] text-surface-400">
+            <div class="flex items-center justify-between text-[11px] text-muted-foreground">
               <span>Auteur : {fb.author_email || fb.reporter || 'Anonyme'} • {fb.created_at ? new Date(fb.created_at).toLocaleString() : ''}</span>
               {#if fb.converted_ref}
-                <span class="font-mono text-primary-700 font-semibold">Réf : {fb.converted_ref}</span>
+                <span class="font-mono text-primary font-semibold">Réf : {fb.converted_ref}</span>
               {/if}
             </div>
           </div>
@@ -422,23 +422,23 @@
 
   <!-- Modale d'Annotation d'un Cas -->
   {#if annotatingCase}
-    <div class="fixed inset-0 bg-surface-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-      <div class="bg-white rounded-xl shadow-xl border border-surface-200 max-w-lg w-full p-6 space-y-4">
-        <h3 class="text-lg font-bold text-surface-900">
+    <div class="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+      <div class="bg-white rounded-xl shadow-xl border border-border max-w-lg w-full p-6 space-y-4">
+        <h3 class="text-lg font-bold text-foreground">
           Annoter le cas : {annotatingCase.id}
         </h3>
-        <p class="text-xs text-surface-600 bg-surface-50 p-3 rounded border border-surface-200 font-mono">
+        <p class="text-xs text-muted-foreground bg-muted/50 p-3 rounded border border-border font-mono">
           {annotatingCase.option_title}
         </p>
 
         <div>
-          <label for="evalStatusSelect" class="block text-xs font-semibold text-surface-700 mb-1">
+          <label for="evalStatusSelect" class="block text-xs font-semibold text-muted-foreground mb-1">
             Statut Attendu (Vérité Terrain) *
           </label>
           <select
             id="evalStatusSelect"
             bind:value={editExpectedStatus}
-            class="w-full px-3 py-2 text-xs border border-surface-300 rounded-lg bg-white focus:ring-2 focus:ring-primary-500"
+            class="w-full px-3 py-2 text-xs border border-border rounded-lg bg-white focus:ring-2 focus:ring-primary"
           >
             <option value="supports">Conforme / Valide (supports)</option>
             <option value="violates">Non-conforme / Enfreint la règle (violates)</option>
@@ -446,7 +446,7 @@
         </div>
 
         <div>
-          <label for="evalNotesText" class="block text-xs font-semibold text-surface-700 mb-1">
+          <label for="evalNotesText" class="block text-xs font-semibold text-muted-foreground mb-1">
             Notes d'Évaluation Experte & Justification
           </label>
           <textarea
@@ -454,21 +454,21 @@
             bind:value={editNotes}
             rows="3"
             placeholder="Justifiez la décision d'annotation pour la traçabilité de l'évaluation..."
-            class="w-full px-3 py-2 text-xs border border-surface-300 rounded-lg focus:ring-2 focus:ring-primary-500"
+            class="w-full px-3 py-2 text-xs border border-border rounded-lg focus:ring-2 focus:ring-primary"
           ></textarea>
         </div>
 
-        <div class="flex items-center justify-end gap-3 pt-3 border-t border-surface-100">
+        <div class="flex items-center justify-end gap-3 pt-3 border-t border-border">
           <button
             onclick={() => (annotatingCase = null)}
-            class="px-4 py-2 text-xs font-semibold text-surface-600 hover:bg-surface-100 rounded-lg"
+            class="px-4 py-2 text-xs font-semibold text-muted-foreground hover:bg-muted rounded-lg"
           >
             Annuler
           </button>
           <button
             onclick={submitAnnotation}
             disabled={isSavingAnnotation}
-            class="px-4 py-2 text-xs font-semibold bg-primary-600 hover:bg-primary-700 disabled:opacity-50 text-white rounded-lg shadow-sm"
+            class="px-4 py-2 text-xs font-semibold bg-primary hover:bg-primary/90 disabled:opacity-50 text-white rounded-lg shadow-sm"
           >
             Enregistrer l'Annotation
           </button>

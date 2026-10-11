@@ -5,8 +5,7 @@
 
 import { prisma } from './prisma';
 import { getEnforcer } from './casbin';
-import { llmopsClient } from './llmops/client';
-import type { KbRole, KbOwner } from '$lib/types/llmops';
+import type { KbRole } from '$lib/types/llmops';
 import bcrypt from 'bcryptjs';
 import { randomBytes } from 'node:crypto';
 
@@ -33,6 +32,8 @@ export interface InviteExpertInput {
   kbHandle: string;
   kbRoles: KbRole[];
   ownedDomains: string[];
+  /** Mot de passe initial fixé par l'admin : compte actif tout de suite, sans lien d'activation. */
+  initialPassword?: string;
 }
 
 export interface UpdateExpertInput {
@@ -213,8 +214,8 @@ export async function getKbExpertByInvitationToken(token: string): Promise<KbExp
  */
 export async function inviteKbExpert(input: InviteExpertInput): Promise<{
   expert: KbExpertRecord;
-  invitationToken: string;
-  invitationUrl: string;
+  invitationToken: string | null;
+  invitationUrl: string | null;
 }> {
   const emailNorm = input.email.trim().toLowerCase();
   const handleNorm = normalizeKbHandle(input.kbHandle);
@@ -235,12 +236,12 @@ export async function inviteKbExpert(input: InviteExpertInput): Promise<{
     throw new Error(`Le handle KB ${handleNorm} est déjà attribué`);
   }
 
-  // Jeton unique valable 7 jours
-  const token = randomBytes(24).toString('hex');
-  const expiresAt = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-
-  // Mot de passe temporaire verrouillé
-  const tempPass = await bcrypt.hash(randomBytes(32).toString('hex'), 10);
+  // Mot de passe initial fixé par l'admin : compte actif d'emblée (aucun e-mail n'est nécessaire).
+  // Sinon, mot de passe verrouillé et jeton d'activation valable 7 jours.
+  const withPassword = Boolean(input.initialPassword);
+  const token = withPassword ? null : randomBytes(24).toString('hex');
+  const expiresAt = withPassword ? null : new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+  const tempPass = await bcrypt.hash(input.initialPassword || randomBytes(32).toString('hex'), 10);
 
   const newUser = await prisma.user.create({
     data: {
@@ -257,7 +258,7 @@ export async function inviteKbExpert(input: InviteExpertInput): Promise<{
           kbHandle: handleNorm,
           kbRoles: JSON.stringify(input.kbRoles.length > 0 ? input.kbRoles : ['kb:review']),
           ownedDomains: JSON.stringify(input.ownedDomains || []),
-          delegated: false,
+          delegated: withPassword,
           invitationToken: token,
           invitationExpiresAt: expiresAt,
           isActive: true
@@ -277,7 +278,7 @@ export async function inviteKbExpert(input: InviteExpertInput): Promise<{
   return {
     expert,
     invitationToken: token,
-    invitationUrl: `/invite?token=${token}`
+    invitationUrl: token ? `/invite?token=${token}` : null
   };
 }
 
@@ -331,25 +332,8 @@ export async function activateKbExpert(
 
   const expert = (await getKbExpertByUserId(profile.userId))!;
 
-  // Synchronisation avec LLMOps (marquage delegated: true)
-  try {
-    const allExperts = await listKbExperts();
-    const activeOwners: KbOwner[] = allExperts
-      .filter((e) => e.isActive && e.invitationStatus === 'active')
-      .map((e) => ({
-        handle: e.kbHandle,
-        name: e.name,
-        email: e.email,
-        roles: e.kbRoles,
-        domains: e.ownedDomains,
-        delegated: e.delegated
-      }));
-
-    await llmopsClient.updateOwners(activeOwners, expert.email);
-  } catch (err) {
-    console.warn('[KbProfile] Avertissement synchronisation LLMOps lors de l’activation :', err);
-    // Tolérance : ne pas faire échouer l'activation locale si LLMOps est offline / 503
-  }
+  // Pas de synchronisation vers LLMOps : son registre des responsables fait autorité, et PUT /api/knowledge/owners le
+  // remplace en entier (domaines compris) par la liste envoyée. Archinex lit ce registre, il ne l'écrit pas.
 
   return {
     success: true,
@@ -415,24 +399,8 @@ export async function updateKbExpert(
 
   const updatedExpert = (await getKbExpertByUserId(userId))!;
 
-  // Synchronisation avec LLMOps
-  try {
-    const allExperts = await listKbExperts();
-    const activeOwners: KbOwner[] = allExperts
-      .filter((e) => e.isActive && e.invitationStatus === 'active')
-      .map((e) => ({
-        handle: e.kbHandle,
-        name: e.name,
-        email: e.email,
-        roles: e.kbRoles,
-        domains: e.ownedDomains,
-        delegated: e.delegated
-      }));
-
-    await llmopsClient.updateOwners(activeOwners, actorEmail || updatedExpert.email);
-  } catch (err) {
-    console.warn('[KbProfile] Synchronisation LLMOps échouée lors de la mise à jour :', err);
-  }
+  // Pas de synchronisation vers LLMOps : son registre des responsables fait autorité, et PUT /api/knowledge/owners le
+  // remplace en entier (domaines compris) par la liste envoyée. Archinex lit ce registre, il ne l'écrit pas.
 
   return updatedExpert;
 }

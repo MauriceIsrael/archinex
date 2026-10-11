@@ -17,7 +17,9 @@
   let domainsInput = $state('security, cloud');
   let loading = $state(false);
   let errorMsg = $state('');
-  let createdInvitation = $state<{ token: string; url: string; handle: string } | null>(null);
+  let createdInvitation = $state<{ token: string | null; url: string | null; handle: string; email: string } | null>(null);
+  // Mot de passe initial fixé par l'admin : compte actif tout de suite (aucun e-mail n'est envoyé par Archinex).
+  let initialPassword = $state('');
 
   const availableRoles: { id: KbRole; label: string; desc: string }[] = [
     { id: 'kb:review', label: 'kb:review', desc: 'Revue et vote sur les candidats/règles' },
@@ -54,7 +56,8 @@
           email,
           kbHandle: kbHandle.startsWith('@') ? kbHandle : `@${kbHandle}`,
           kbRoles: selectedRoles,
-          ownedDomains: domains
+          ownedDomains: domains,
+          ...(initialPassword ? { initialPassword } : {})
         })
       });
 
@@ -65,8 +68,9 @@
 
       createdInvitation = {
         token: body.data.invitationToken,
-        url: window.location.origin + body.data.invitationUrl,
-        handle: body.data.expert.kbHandle
+        url: body.data.invitationUrl ? window.location.origin + body.data.invitationUrl : null,
+        handle: body.data.expert.kbHandle,
+        email: body.data.expert.email
       };
 
       onCreated();
@@ -85,11 +89,12 @@
     kbHandle = '';
     selectedRoles = ['kb:review'];
     domainsInput = 'security, cloud';
+    initialPassword = '';
     errorMsg = '';
   }
 
   function copyLink() {
-    if (createdInvitation) {
+    if (createdInvitation?.url) {
       navigator.clipboard.writeText(createdInvitation.url);
     }
   }
@@ -100,11 +105,25 @@
     <Dialog.Header>
       <Dialog.Title>Inviter un Expert KB</Dialog.Title>
       <Dialog.Description>
-        Créez un compte d'expertise souveraine. Un jeton d'activation à usage unique (valable 7 jours) sera généré.
+        Créez un compte d'expertise. Fixez un mot de passe initial pour un compte actif tout de suite, ou laissez vide
+        pour générer un lien d'activation à usage unique (valable 7 jours) à transmettre vous-même : Archinex n'envoie pas d'e-mail.
       </Dialog.Description>
     </Dialog.Header>
 
-    {#if createdInvitation}
+    {#if createdInvitation && !createdInvitation.url}
+      <div class="space-y-4 py-3">
+        <div class="rounded-lg border border-emerald-500/20 bg-emerald-500/10 p-4 text-emerald-900 dark:text-emerald-200">
+          <p class="font-semibold text-sm">Compte actif : {createdInvitation.handle}</p>
+          <p class="text-xs text-muted-foreground mt-1">
+            Connexion possible dès maintenant avec <strong>{createdInvitation.email}</strong> et le mot de passe initial.
+            Ses droits sur la base de connaissances viennent du registre des responsables de LLMOps (même adresse).
+          </p>
+        </div>
+        <div class="flex justify-end pt-2">
+          <Button onclick={handleClose}>Fermer</Button>
+        </div>
+      </div>
+    {:else if createdInvitation}
       <div class="space-y-4 py-3">
         <div class="rounded-lg border border-emerald-500/20 bg-emerald-500/10 p-4 text-emerald-900 dark:text-emerald-200">
           <p class="font-semibold text-sm">Expert invité avec succès !</p>
@@ -155,6 +174,11 @@
             <Label for="expert-domains">Domaines de compétence</Label>
             <Input id="expert-domains" bind:value={domainsInput} placeholder="security, cloud, resilience" />
           </div>
+        </div>
+
+        <div class="space-y-1.5">
+          <Label for="expert-initial-password">Mot de passe initial (facultatif, 6 caractères minimum)</Label>
+          <Input id="expert-initial-password" type="password" autocomplete="new-password" bind:value={initialPassword} placeholder="Vide : lien d'activation à transmettre" />
         </div>
 
         <div class="space-y-2 pt-1">

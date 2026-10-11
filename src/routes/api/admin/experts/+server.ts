@@ -11,7 +11,9 @@ const InviteExpertSchema = z.object({
   kbRoles: z
     .array(z.enum(['kb:review', 'kb:evaluate', 'kb:maintain', 'kb:admin']))
     .min(1, 'Au moins un rôle KB est requis'),
-  ownedDomains: z.array(z.string()).default([])
+  ownedDomains: z.array(z.string()).default([]),
+  // Mot de passe initial fixé par l'admin (facultatif) : compte actif sans lien d'activation
+  initialPassword: z.string().min(6, 'Le mot de passe initial doit comporter au moins 6 caractères').optional()
 });
 
 /**

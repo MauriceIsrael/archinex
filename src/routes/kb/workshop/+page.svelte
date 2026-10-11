@@ -27,9 +27,8 @@
     { type: 'pattern', label: 'Patron d’Architecture', desc: 'Solution éprouvée à problème récurrent' },
     { type: 'decision', label: 'Décision (ADR)', desc: 'Arbitrage technologique formel' },
     { type: 'control', label: 'Règle de Contrôle', desc: 'Clause de conformité vérifiable' },
-    { type: 'glossary', label: 'Terme du Glossaire', desc: 'Définition canonique sans ambiguïté' },
-    { type: 'rule', label: 'Règle Standard', desc: 'Exigence normative générale' },
-    { type: 'amendment', label: 'Amendement', desc: 'Évolution d’une règle existante' }
+    { type: 'glossary', label: 'Terme du Glossaire', desc: 'Définition canonique sans ambiguïté' }
+    // Types de la base LLMOps (pipelines/kb_candidates/model.py) : « rule » et « amendment » n'en sont pas.
   ];
 
   let selectedAssetType = $state<KbAssetType>('principle');
@@ -68,8 +67,9 @@
       const body = await res.json();
       if (res.ok && body.data) {
         currentTemplate = body.data;
-        title = body.data.title;
-        summary = body.data.skeleton;
+        // Les modèles LLMOps n'ont pas de titre : on garde celui saisi (sinon title vaut undefined et la page plante).
+        title = body.data.title || title;
+        summary = body.data.skeleton || '';
         whenPredicate = body.data.default_predicates?.when || '';
         expectPredicate = body.data.default_predicates?.expect || '';
         requiresInput = (body.data.default_predicates?.requires || []).join(', ');

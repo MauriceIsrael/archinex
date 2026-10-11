@@ -1801,7 +1801,7 @@ export class LLMOpsClient {
         const body = await res.json();
         return {
           status: 'ok',
-          data: body.data || body
+          data: normalizeFrameworkRequirement(body.data || body, (body.data || body).framework || '')
         };
       }
 

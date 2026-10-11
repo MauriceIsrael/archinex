@@ -165,10 +165,19 @@ function normalizeFrameworkRequirement(r: any, fwId: string): FrameworkRequireme
     domain: dom,
     status,
     mapped_assets: mapped,
-    amendment_notes: r.comment || r.amendment_notes,
-    rejection_reason: r.rejection_reason || r.comment,
+    amendment_notes: status === 'amended' ? r.comment || r.amendment_notes : r.amendment_notes,
+    rejection_reason: status === 'rejected' ? r.rejection_reason || r.comment : r.rejection_reason,
     reviewed_by: r.reviewer || r.reviewed_by,
-    reviewed_at: r.reviewed_at
+    reviewed_at: r.reviewed_at,
+    title_fr: r.title_fr || r.proposed_title_fr || undefined,
+    source_ref: r.source_ref || undefined,
+    in_kb: typeof r.in_kb === 'boolean' ? r.in_kb : undefined,
+    proposed_acceptance_criteria: Array.isArray(r.proposed_acceptance_criteria) ? r.proposed_acceptance_criteria : [],
+    proposed_links: Array.isArray(r.proposed_links) ? r.proposed_links : [],
+    proposed_title_fr: r.proposed_title_fr || undefined,
+    links_production_mode: r.links_production_mode || undefined,
+    acceptance_criteria: Array.isArray(r.acceptance_criteria) ? r.acceptance_criteria : [],
+    row_status: r.status || undefined
   };
 }
 

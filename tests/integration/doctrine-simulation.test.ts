@@ -41,8 +41,8 @@ describe('Integration: Doctrine Workshop, Live Simulation, Regression & Submissi
 
     const tmpl = tmplRes.data!;
     expect(tmpl.asset_type).toBe('principle');
-    expect(tmpl.default_predicates.when).toContain('données critiques');
-    expect(tmpl.default_predicates.expect).toContain('immuabilité');
+    expect(tmpl.default_predicates!.when).toContain('données critiques');
+    expect(tmpl.default_predicates!.expect).toContain('immuabilité');
   });
 
   it('2. Validation à blanc en direct avec analyse prévisionnelle des 7 contrôles', async () => {

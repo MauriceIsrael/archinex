@@ -17,5 +17,3 @@ export const CreateDecisionSchema = z.object({
 		})
 	).default([])
 });
-
-export type CreateDecisionDto = z.infer<typeof CreateDecisionSchema>;

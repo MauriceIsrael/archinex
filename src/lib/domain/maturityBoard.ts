@@ -47,20 +47,6 @@ export interface TransitionResult {
 	missingCriteria?: string[];
 }
 
-export type VisualGapType =
-	| 'G1_definition'
-	| 'G2_decomposition'
-	| 'G3_contradiction'
-	| 'G4_compliance'
-	| 'G5_competence';
-
-export interface VisualGap {
-	type: VisualGapType;
-	subject_id: string;
-	severity: 'low' | 'medium' | 'high' | 'critical';
-	description: string;
-}
-
 /**
  * Calcule la durée de stagnation en jours et lève l'alerte si >= 14 jours sous L3.
  */

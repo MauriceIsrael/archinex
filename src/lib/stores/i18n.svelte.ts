@@ -4,7 +4,6 @@
  * This module:
  * 1. Restores the user's saved locale from localStorage on startup (client-only).
  * 2. Exports `setLocale()` to change locale + persist the choice.
- * 3. Re-exports svelte-i18n's `locale` and `locales` stores for direct use in components.
  *
  * @usage
  * In components, import from svelte-i18n for reactive `$locale` / `$t()`:
@@ -22,7 +21,7 @@
  *  3. Add its display name to LanguageSwitcher.svelte's languageNames map
  */
 
-import { locale as i18nLocale, locales as i18nLocales } from 'svelte-i18n';
+import { locale as i18nLocale } from 'svelte-i18n';
 import { get } from 'svelte/store';
 
 const LOCALE_KEY = 'preferredLocale';
@@ -55,9 +54,3 @@ export function setLocale(newLocale: string): void {
   i18nLocale.set(newLocale);
   saveLocale(newLocale);
 }
-
-/**
- * The svelte-i18n locale store.
- * In components, use `$locale` for reactive access.
- */
-export { i18nLocale as locale, i18nLocales as availableLocales };

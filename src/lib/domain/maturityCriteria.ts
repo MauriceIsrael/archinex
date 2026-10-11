@@ -2,14 +2,6 @@ import type { MaturityLevel } from '$lib/types/epistemic';
 import type { Argument } from './debate';
 import { canDecideAlone } from './options';
 
-export type MaturityStep =
-	| 'L0_named'
-	| 'L1_framed'
-	| 'L2_decomposed'
-	| 'L3_decided'
-	| 'L4_specified'
-	| 'L5_archived';
-
 export interface MaturityCriterion {
 	id: string;
 	label: string;

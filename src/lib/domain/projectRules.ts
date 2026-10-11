@@ -69,8 +69,6 @@ export const ARCHINEX_FACT_VOCABULARY = [
 	'floor_control'
 ] as const;
 
-export type FactVocabularyKey = typeof ARCHINEX_FACT_VOCABULARY[number];
-
 /**
  * Règles de référence par défaut de la base de connaissances (K19).
  */

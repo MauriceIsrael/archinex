@@ -66,10 +66,3 @@ if (browser) {
     });
   });
 }
-
-/** Reset all preferences to factory defaults. */
-export function resetPreferences(): void {
-  preferences.themeOverride = defaults.themeOverride;
-  preferences.locale = defaults.locale;
-  preferences.sidebarCollapsed = defaults.sidebarCollapsed;
-}

@@ -15,6 +15,3 @@ export const CandidateInputSchema = z.object({
 export const SubmitCandidatesSchema = z.object({
 	candidates: z.array(CandidateInputSchema).min(1, 'Au moins un candidat doit être soumis.')
 });
-
-export type CandidateInput = z.infer<typeof CandidateInputSchema>;
-export type SubmitCandidatesInput = z.infer<typeof SubmitCandidatesSchema>;

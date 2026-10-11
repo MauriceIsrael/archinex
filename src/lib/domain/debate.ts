@@ -2,7 +2,6 @@ import type { ProductionMode, EpistemicConfidence } from '$lib/types/epistemic';
 
 export type Stance = 'support' | 'objection' | 'question' | 'verification' | 'synthesis';
 export type ArgumentResolution = 'open' | 'answered' | 'accepted_risk' | 'withdrawn';
-export type AgentRole = 'proposer' | 'challenger' | 'verifier' | 'synthesizer';
 
 export interface Argument {
 	id: string;
@@ -191,23 +190,6 @@ export function formatMaturityLevel(level?: string | null): string {
 		case 'L3_decided': return 'L3 · Décidé';
 		case 'L4_specified': return 'L4 · Spécifié';
 		case 'L5_archived': return 'L5 · Archivé';
-		default: return level;
-	}
-}
-
-/**
- * Libellé court en français pour un niveau de maturité.
- * Ex: 'L1_framed' -> 'Cadré'
- */
-export function formatMaturityLabel(level?: string | null): string {
-	if (!level) return 'Inconnu';
-	switch (level) {
-		case 'L0_named': return 'Nommé';
-		case 'L1_framed': return 'Cadré';
-		case 'L2_decomposed': return 'Décomposé';
-		case 'L3_decided': return 'Décidé';
-		case 'L4_specified': return 'Spécifié';
-		case 'L5_archived': return 'Archivé';
 		default: return level;
 	}
 }

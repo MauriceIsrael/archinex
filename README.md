@@ -140,11 +140,8 @@ archinex/
 ├── src/
 │   ├── lib/
 │   │   ├── components/deliberation/ # Composants Svelte 5 du Workbench
-│   │   │   ├── ContextualPostureSelector.svelte # Sélecteur des 3 postures
 │   │   │   ├── MaturityBoardTable.svelte        # Table 6 cols triée par déblocages
 │   │   │   ├── TelegraphicDraftView.svelte      # Brouillon-appât & Diff sensor
-│   │   │   ├── DialecticChatPanel.svelte        # Chat multi-canal & rappels ADR
-│   │   │   ├── PedagogicalFramingPanel.svelte   # Cadrage Posture 1 (3GPP, NIS2)
 │   │   │   ├── WhyInspector.svelte              # Inspecteur 5 facettes & DAG
 │   │   │   ├── FreezeSectionDialog.svelte       # Scellement SHA-256 de section
 │   │   │   └── ArtifactRegenerationHub.svelte   # Projections déterministes (No Doc Drift)

@@ -124,8 +124,8 @@
 
   async function handleAccept(req: FrameworkRequirement) {
     await updateRequirementReview(req.id, {
-      status: 'accepted',
-      mapped_assets: req.mapped_assets.length > 0 ? req.mapped_assets : ['CTRL-SEC-01']
+      // Acceptation telle que proposée : LLMOps reprend les liens et critères proposés de la ligne
+      status: 'accepted'
     });
   }
 

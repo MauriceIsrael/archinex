@@ -1742,7 +1742,9 @@ export class LLMOpsClient {
         else if (review.status === 'rejected' || (review.status as any) === 'not_applicable') decision = 'reject';
         else decision = review.status as any;
       }
-      const links = review.links ?? review.mapped_assets ?? [];
+      // Liens transmis seulement s'ils sont fournis : sinon LLMOps garde les liens proposés de la ligne.
+      const providedLinks = review.links ?? review.mapped_assets;
+      const links = providedLinks && providedLinks.length > 0 ? providedLinks : undefined;
       const comment = review.comment ?? review.amendment_notes ?? review.rejection_reason;
       const criteria = Array.isArray(review.acceptance_criteria)
         ? review.acceptance_criteria

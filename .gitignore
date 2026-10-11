@@ -45,3 +45,10 @@ test-results/
 tests/e2e/.auth/
 
 eval-results/
+
+# Private / local files
+Lulu.pdf
+**/Lulu.pdf
+
+# Base locale de la copie de travail
+prisma/dev-wt.db*

@@ -10,3 +10,5 @@ tests/
 ! .env.example
 *.log
 *.db
+Lulu.pdf
+**/Lulu.pdf

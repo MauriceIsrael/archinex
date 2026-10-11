@@ -24,8 +24,10 @@
   let showPassword = $state(false);
 
   const demoUsers = [
-    { label: 'Admin', email: 'admin@example.com', password: 'admin123', role: 'admin' },
-    { label: 'User', email: 'user@example.com', password: 'user123', role: 'user' },
+    // Comptes créés par `npm run db:reset` (prisma/seed-dev.ts)
+    { label: 'Admin', email: 'admin@archinex.local', password: 'admin123', role: 'admin' },
+    { label: 'Architecte', email: 'architect@archinex.local', password: 'user123', role: 'user' },
+    { label: 'Expert', email: 'expert@archinex.local', password: 'user123', role: 'user' },
   ];
 
   async function handleLogin(e: Event) {
@@ -105,7 +107,7 @@
               bind:value={email}
               required
               autocomplete="email"
-              placeholder="admin@example.com"
+              placeholder="admin@archinex.local"
               class="w-full rounded-md border border-input bg-background px-3 py-2 text-sm
                      ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring"
             />

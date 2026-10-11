@@ -542,7 +542,7 @@
 							<div class="space-y-1.5 mt-2">
 								{#each principles as pr, i}
 									<div class="flex items-center justify-between p-2 rounded-lg border bg-muted/20 text-xs">
-										<span class="flex-1 font-medium text-primary-800 dark:text-primary-300">⚖️ {pr}</span>
+										<span class="flex-1 font-medium text-primary dark:text-primary">⚖️ {pr}</span>
 										<button
 											type="button"
 											onclick={() => removePrinciple(i)}

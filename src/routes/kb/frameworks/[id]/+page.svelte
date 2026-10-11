@@ -287,26 +287,26 @@
 
 <div class="space-y-6 max-w-7xl mx-auto px-4 py-6">
   <!-- Fil d'Ariane & Titre -->
-  <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-surface-200 pb-5">
+  <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border pb-5">
     <div>
-      <div class="flex items-center gap-2 mb-2 text-xs font-semibold text-surface-500">
-        <a href="/kb/frameworks" class="hover:text-primary-600 flex items-center gap-1 transition-colors">
+      <div class="flex items-center gap-2 mb-2 text-xs font-semibold text-muted-foreground">
+        <a href="/kb/frameworks" class="hover:text-primary flex items-center gap-1 transition-colors">
           <ArrowLeft class="w-3.5 h-3.5" />
           <span>Tous les Référentiels</span>
         </a>
         <span>/</span>
-        <span class="text-surface-700">{ingestion.framework_id}</span>
+        <span class="text-muted-foreground">{ingestion.framework_id}</span>
       </div>
       <div class="flex items-center gap-3">
-        <h1 class="text-2xl font-bold text-surface-900">{ingestion.framework_name}</h1>
-        <span class="text-xs px-2.5 py-1 rounded bg-primary-100 text-primary-800 font-mono font-bold">
+        <h1 class="text-2xl font-bold text-foreground">{ingestion.framework_name}</h1>
+        <span class="text-xs px-2.5 py-1 rounded bg-primary/15 text-primary font-mono font-bold">
           v{ingestion.version}
         </span>
-        <span class="text-xs px-2.5 py-1 rounded bg-surface-100 text-surface-700 font-mono uppercase">
+        <span class="text-xs px-2.5 py-1 rounded bg-muted text-muted-foreground font-mono uppercase">
           {ingestion.file_format}
         </span>
       </div>
-      <p class="text-xs text-surface-500 mt-1">
+      <p class="text-xs text-muted-foreground mt-1">
         Fichier source : <span class="font-mono">{ingestion.file_name}</span> ({(ingestion.file_size_bytes / 1024).toFixed(1)} Ko)
       </p>
     </div>
@@ -393,9 +393,9 @@
 
   <!-- Statistiques & Jauge de Revue -->
   <div class="grid grid-cols-2 md:grid-cols-5 gap-3">
-    <div class="bg-surface-50 border border-surface-200 rounded-lg p-3 text-center">
-      <div class="text-xs text-surface-500 font-medium">Total Exigences</div>
-      <div class="text-xl font-bold text-surface-900 mt-1">{totalCount}</div>
+    <div class="bg-muted/50 border border-border rounded-lg p-3 text-center">
+      <div class="text-xs text-muted-foreground font-medium">Total Exigences</div>
+      <div class="text-xl font-bold text-foreground mt-1">{totalCount}</div>
     </div>
     <div class="bg-amber-50 border border-amber-200 rounded-lg p-3 text-center">
       <div class="text-xs text-amber-700 font-medium">En Attente</div>
@@ -416,12 +416,12 @@
   </div>
 
   <!-- Barre de progression globale -->
-  <div class="bg-white border border-surface-200 rounded-lg p-4">
+  <div class="bg-white border border-border rounded-lg p-4">
     <div class="flex items-center justify-between text-xs font-semibold mb-1.5">
-      <span class="text-surface-700">Taux d'Instruction Ligne par Ligne</span>
-      <span class="text-primary-700 font-bold">{reviewedPercent}% instruit</span>
+      <span class="text-muted-foreground">Taux d'Instruction Ligne par Ligne</span>
+      <span class="text-primary font-bold">{reviewedPercent}% instruit</span>
     </div>
-    <div class="w-full bg-surface-100 rounded-full h-3 overflow-hidden border border-surface-200 flex">
+    <div class="w-full bg-muted rounded-full h-3 overflow-hidden border border-border flex">
       <div style="width: {totalCount > 0 ? (acceptedCount / totalCount) * 100 : 0}%" class="bg-emerald-500 h-full" title="Acceptées"></div>
       <div style="width: {totalCount > 0 ? (amendedCount / totalCount) * 100 : 0}%" class="bg-sky-500 h-full" title="Amendées"></div>
       <div style="width: {totalCount > 0 ? (rejectedCount / totalCount) * 100 : 0}%" class="bg-rose-500 h-full" title="Rejetées"></div>
@@ -433,7 +433,7 @@
     <div class="flex items-center gap-2 overflow-x-auto w-full sm:w-auto">
       <button
         onclick={() => (statusFilter = 'all')}
-        class="px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors {statusFilter === 'all' ? 'bg-surface-900 text-white' : 'bg-surface-100 text-surface-700 hover:bg-surface-200'}"
+        class="px-3 py-1.5 text-xs font-semibold rounded-lg transition-colors {statusFilter === 'all' ? 'bg-foreground text-white' : 'bg-muted text-muted-foreground hover:bg-muted'}"
       >
         Toutes ({totalCount})
       </button>
@@ -468,7 +468,7 @@
         type="search"
         bind:value={searchQuery}
         placeholder="Rechercher par article, texte, tag..."
-        class="w-full px-3 py-1.5 text-xs border border-surface-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+        class="w-full px-3 py-1.5 text-xs border border-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-primary"
       />
     </div>
   </div>
@@ -477,22 +477,22 @@
   <div class="space-y-4">
     {#each filteredRequirements as req (req.id)}
       {@const isOwned = userOwnsDomain(req.domain)}
-      <div data-testid="framework-requirement-row" class="bg-white border border-surface-200 rounded-xl p-5 shadow-sm space-y-4">
+      <div data-testid="framework-requirement-row" class="bg-white border border-border rounded-xl p-5 shadow-sm space-y-4">
         <!-- Ligne supérieure : Section, Titre, Statut, Domaine -->
         <div class="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
           <div>
             <div class="flex items-center gap-2 mb-1">
-              <span class="px-2 py-0.5 text-xs font-bold font-mono bg-surface-100 text-surface-800 rounded">
+              <span class="px-2 py-0.5 text-xs font-bold font-mono bg-muted text-foreground rounded">
                 {req.section}
               </span>
-              <span class="text-xs px-2 py-0.5 rounded font-mono {isOwned ? 'bg-primary-50 text-primary-700 border border-primary-200' : 'bg-surface-100 text-surface-500'}">
+              <span class="text-xs px-2 py-0.5 rounded font-mono {isOwned ? 'bg-primary/10 text-primary border border-primary/30' : 'bg-muted text-muted-foreground'}">
                 Domaine : {req.domain}
               </span>
               {#if !isOwned}
-                <span class="text-xs text-surface-400 italic">(Lecture seule - domaine non possédé)</span>
+                <span class="text-xs text-muted-foreground italic">(Lecture seule - domaine non possédé)</span>
               {/if}
             </div>
-            <h3 class="text-base font-bold text-surface-900">{req.title}</h3>
+            <h3 class="text-base font-bold text-foreground">{req.title}</h3>
           </div>
 
           <div>
@@ -521,15 +521,15 @@
         </div>
 
         {#if req.title_fr || req.source_ref}
-          <p class="text-xs text-surface-600">
-            {#if req.title_fr}<span class="font-semibold text-surface-800">{req.title_fr}</span>{/if}
+          <p class="text-xs text-muted-foreground">
+            {#if req.title_fr}<span class="font-semibold text-foreground">{req.title_fr}</span>{/if}
             {#if req.source_ref}<span class="ml-2 font-mono">{req.source_ref}</span>{/if}
-            {#if req.in_kb}<span class="ml-2 px-1.5 py-0.5 rounded bg-surface-100 border text-[10px] font-semibold">déjà dans la base</span>{/if}
+            {#if req.in_kb}<span class="ml-2 px-1.5 py-0.5 rounded bg-muted border text-[10px] font-semibold">déjà dans la base</span>{/if}
           </p>
         {/if}
 
         <!-- Texte de l'exigence (texte légal, mot pour mot) -->
-        <p class="text-sm text-surface-700 bg-surface-50 p-3.5 rounded-lg border border-surface-200 leading-relaxed font-serif">
+        <p class="text-sm text-muted-foreground bg-muted/50 p-3.5 rounded-lg border border-border leading-relaxed font-serif">
           {req.text}
         </p>
 
@@ -550,12 +550,12 @@
 
         <!-- Liaisons doctrinales -->
         <div class="flex flex-wrap items-center gap-2">
-          <span class="text-xs font-semibold text-surface-500">Actifs Doctrinals Associés :</span>
+          <span class="text-xs font-semibold text-muted-foreground">Actifs Doctrinals Associés :</span>
           {#if req.mapped_assets.length === 0}
             <span class="text-xs text-amber-700 italic">Aucun actif associé (requis pour conformité)</span>
           {:else}
             {#each req.mapped_assets as assetId}
-              <span class="px-2.5 py-1 text-xs font-mono font-semibold rounded bg-primary-50 border border-primary-200 text-primary-800">
+              <span class="px-2.5 py-1 text-xs font-mono font-semibold rounded bg-primary/10 border border-primary/30 text-primary">
                 {assetId}
               </span>
             {/each}
@@ -591,8 +591,8 @@
               {#each activeSuggestions[req.id] as sugg}
                 <div class="p-2.5 bg-white border border-purple-100 rounded text-xs flex items-center justify-between gap-2 shadow-2xs">
                   <div>
-                    <div class="font-mono font-bold text-surface-900">{sugg.asset_id}</div>
-                    <div class="text-surface-600 text-[11px]">{sugg.title}</div>
+                    <div class="font-mono font-bold text-foreground">{sugg.asset_id}</div>
+                    <div class="text-muted-foreground text-[11px]">{sugg.title}</div>
                     <div class="text-purple-700 text-[10px] mt-0.5 italic">{sugg.rationale} ({Math.round(sugg.confidence * 100)}% conf.)</div>
                   </div>
                   {#if isOwned}
@@ -610,12 +610,12 @@
         {/if}
 
         <!-- Actions de Revue -->
-        <div class="pt-3 border-t border-surface-100 flex flex-wrap items-center justify-between gap-3">
+        <div class="pt-3 border-t border-border flex flex-wrap items-center justify-between gap-3">
           <div class="flex items-center gap-2">
             <button
               onclick={() => fetchLinkSuggestions(req)}
               disabled={loadingSuggestionsFor === req.id}
-              class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-surface-100 hover:bg-surface-200 text-surface-800 flex items-center gap-1.5 transition-colors disabled:opacity-50"
+              class="px-3 py-1.5 text-xs font-semibold rounded-lg bg-muted hover:bg-muted text-foreground flex items-center gap-1.5 transition-colors disabled:opacity-50"
             >
               {#if loadingSuggestionsFor === req.id}
                 <RefreshCw class="w-3.5 h-3.5 animate-spin" />
@@ -651,7 +651,7 @@
                 <span>Rejeter</span>
               </button>
             {:else}
-              <span class="text-xs text-surface-400 italic">
+              <span class="text-xs text-muted-foreground italic">
                 Décision réservée au propriétaire du domaine '{req.domain}'
               </span>
             {/if}
@@ -659,7 +659,7 @@
         </div>
 
         {#if req.reviewed_by}
-          <div class="text-[11px] text-surface-400 text-right">
+          <div class="text-[11px] text-muted-foreground text-right">
             Dernière revue par {req.reviewed_by} le {new Date(req.reviewed_at || '').toLocaleString()}
           </div>
         {/if}
@@ -669,17 +669,17 @@
 
   <!-- Modale d'Amendement -->
   {#if amendingReq}
-    <div class="fixed inset-0 bg-surface-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-      <div class="bg-white rounded-xl shadow-xl border border-surface-200 max-w-lg w-full p-6 space-y-4">
-        <h3 class="text-lg font-bold text-surface-900">
+    <div class="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+      <div class="bg-white rounded-xl shadow-xl border border-border max-w-lg w-full p-6 space-y-4">
+        <h3 class="text-lg font-bold text-foreground">
           Amender l'exigence : {amendingReq.section}
         </h3>
-        <p class="text-xs text-surface-600 font-serif bg-surface-50 p-3 rounded border border-surface-200">
+        <p class="text-xs text-muted-foreground font-serif bg-muted/50 p-3 rounded border border-border">
           {amendingReq.text}
         </p>
 
         <div>
-          <label for="amendAssetsInput" class="block text-xs font-semibold text-surface-700 mb-1">
+          <label for="amendAssetsInput" class="block text-xs font-semibold text-muted-foreground mb-1">
             Actifs Doctrinals Associés (séparés par virgule)
           </label>
           <input
@@ -687,12 +687,12 @@
             type="text"
             bind:value={amendmentMappedAssets}
             placeholder="Ex: CTRL-SEC-01, PRIN-RES-01, PAT-OUTBOX-02"
-            class="w-full px-3 py-2 text-xs border border-surface-300 rounded-lg focus:ring-2 focus:ring-sky-500 font-mono"
+            class="w-full px-3 py-2 text-xs border border-border rounded-lg focus:ring-2 focus:ring-sky-500 font-mono"
           />
         </div>
 
         <div>
-          <label for="amendCriteriaInput" class="block text-xs font-semibold text-surface-700 mb-1">
+          <label for="amendCriteriaInput" class="block text-xs font-semibold text-muted-foreground mb-1">
             Critères d'acceptation (un par ligne)
           </label>
           <textarea
@@ -700,12 +700,12 @@
             bind:value={amendmentCriteria}
             rows="5"
             placeholder="Ce qu'une architecture doit démontrer pour satisfaire l'exigence…"
-            class="w-full px-3 py-2 text-xs border border-surface-300 rounded-lg focus:ring-2 focus:ring-sky-500"
+            class="w-full px-3 py-2 text-xs border border-border rounded-lg focus:ring-2 focus:ring-sky-500"
           ></textarea>
         </div>
 
         <div>
-          <label for="amendNotesInput" class="block text-xs font-semibold text-surface-700 mb-1">
+          <label for="amendNotesInput" class="block text-xs font-semibold text-muted-foreground mb-1">
             Notes d'Amendement & Adaptation Opérationnelle
           </label>
           <textarea
@@ -713,14 +713,14 @@
             bind:value={amendmentNotes}
             rows="3"
             placeholder="Précisez la portée ou les adaptations doctrinales requises..."
-            class="w-full px-3 py-2 text-xs border border-surface-300 rounded-lg focus:ring-2 focus:ring-sky-500"
+            class="w-full px-3 py-2 text-xs border border-border rounded-lg focus:ring-2 focus:ring-sky-500"
           ></textarea>
         </div>
 
-        <div class="flex items-center justify-end gap-3 pt-3 border-t border-surface-100">
+        <div class="flex items-center justify-end gap-3 pt-3 border-t border-border">
           <button
             onclick={() => (amendingReq = null)}
-            class="px-4 py-2 text-xs font-semibold text-surface-600 hover:bg-surface-100 rounded-lg"
+            class="px-4 py-2 text-xs font-semibold text-muted-foreground hover:bg-muted rounded-lg"
           >
             Annuler
           </button>
@@ -737,20 +737,20 @@
 
   <!-- Modale de Rejet (Motif Obligatoire) -->
   {#if rejectingReq}
-    <div class="fixed inset-0 bg-surface-900/40 backdrop-blur-xs flex items-center justify-center p-4 z-50">
-      <div class="bg-white rounded-xl shadow-xl border border-surface-200 max-w-lg w-full p-6 space-y-4">
+    <div class="fixed inset-0 bg-black/40 backdrop-blur-xs flex items-center justify-center p-4 z-50">
+      <div class="bg-white rounded-xl shadow-xl border border-border max-w-lg w-full p-6 space-y-4">
         <div class="flex items-center gap-2 text-rose-700">
           <AlertTriangle class="w-5 h-5" />
-          <h3 class="text-lg font-bold text-surface-900">
+          <h3 class="text-lg font-bold text-foreground">
             Rejeter l'exigence : {rejectingReq.section}
           </h3>
         </div>
-        <p class="text-xs text-surface-600">
+        <p class="text-xs text-muted-foreground">
           Règle constitutionnelle IV : Tout rejet d'exigence réglementaire exige une justification circonstanciée obligatoire.
         </p>
 
         <div>
-          <label for="rejectionReasonInput" class="block text-xs font-semibold text-surface-700 mb-1">
+          <label for="rejectionReasonInput" class="block text-xs font-semibold text-muted-foreground mb-1">
             Motif Circonstancié du Rejet *
           </label>
           <textarea
@@ -758,14 +758,14 @@
             bind:value={rejectionReason}
             rows="4"
             placeholder="Justifiez pour quelle raison cette exigence ne s'applique pas ou fait l'objet d'un refus..."
-            class="w-full px-3 py-2 text-xs border border-surface-300 rounded-lg focus:ring-2 focus:ring-rose-500"
+            class="w-full px-3 py-2 text-xs border border-border rounded-lg focus:ring-2 focus:ring-rose-500"
           ></textarea>
         </div>
 
-        <div class="flex items-center justify-end gap-3 pt-3 border-t border-surface-100">
+        <div class="flex items-center justify-end gap-3 pt-3 border-t border-border">
           <button
             onclick={() => (rejectingReq = null)}
-            class="px-4 py-2 text-xs font-semibold text-surface-600 hover:bg-surface-100 rounded-lg"
+            class="px-4 py-2 text-xs font-semibold text-muted-foreground hover:bg-muted rounded-lg"
           >
             Annuler
           </button>

@@ -113,25 +113,25 @@
 
 <div class="space-y-8 max-w-7xl mx-auto px-4 py-6">
   <!-- En-tête -->
-  <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-surface-200 pb-5">
+  <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 border-b border-border pb-5">
     <div>
       <div class="flex items-center gap-3">
-        <div class="p-2 bg-primary-100 rounded-lg text-primary-700">
+        <div class="p-2 bg-primary/15 rounded-lg text-primary">
           <ShieldCheck class="w-6 h-6" />
         </div>
         <div>
-          <h1 class="text-2xl font-bold text-surface-900">Référentiels Réglementaires & Ingestion</h1>
-          <p class="text-sm text-surface-500">
+          <h1 class="text-2xl font-bold text-foreground">Référentiels Réglementaires & Ingestion</h1>
+          <p class="text-sm text-muted-foreground">
             Téléversement multi-format (.pdf, .html, .txt, .md, .docx), découpage en exigences et revue de conformité opposable.
           </p>
         </div>
       </div>
     </div>
     <div class="flex items-center gap-3">
-      <span class="text-xs px-3 py-1.5 rounded-full bg-surface-100 border border-surface-300 font-mono text-surface-700">
+      <span class="text-xs px-3 py-1.5 rounded-full bg-muted border border-border font-mono text-muted-foreground">
         Acteur : <span class="font-semibold">{data.expert.kbHandle}</span>
       </span>
-      <span class="text-xs px-3 py-1.5 rounded-full bg-primary-50 border border-primary-200 text-primary-800">
+      <span class="text-xs px-3 py-1.5 rounded-full bg-primary/10 border border-primary/30 text-primary">
         Domaines : {data.expert.ownedDomains.join(', ') || 'aucun'}
       </span>
     </div>
@@ -147,11 +147,11 @@
   {/if}
 
   <!-- Section de Téléversement Multi-Format -->
-  <div class="bg-surface-50 border border-surface-200 rounded-xl p-6 shadow-sm">
+  <div class="bg-muted/50 border border-border rounded-xl p-6 shadow-sm">
     <div class="flex items-center gap-2 mb-4">
-      <FileText class="w-5 h-5 text-primary-600" />
-      <h2 class="text-lg font-semibold text-surface-900">Téléverser un Nouveau Référentiel</h2>
-      <span class="text-xs px-2 py-0.5 rounded bg-surface-200 text-surface-700">Max 20 Mo</span>
+      <FileText class="w-5 h-5 text-primary" />
+      <h2 class="text-lg font-semibold text-foreground">Téléverser un Nouveau Référentiel</h2>
+      <span class="text-xs px-2 py-0.5 rounded bg-muted text-muted-foreground">Max 20 Mo</span>
     </div>
 
     {#if uploadError}
@@ -170,41 +170,41 @@
 
     <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
       <div>
-        <label for="frameworkIdInput" class="block text-xs font-semibold text-surface-600 mb-1">Identifiant Référentiel *</label>
+        <label for="frameworkIdInput" class="block text-xs font-semibold text-muted-foreground mb-1">Identifiant Référentiel *</label>
         <input
           id="frameworkIdInput"
           type="text"
           bind:value={frameworkId}
           placeholder="Ex: NIS2, ISO-27001, DORA"
-          class="w-full px-3 py-2 text-sm border border-surface-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+          class="w-full px-3 py-2 text-sm border border-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-primary"
         />
       </div>
       <div>
-        <label for="frameworkNameInput" class="block text-xs font-semibold text-surface-600 mb-1">Nom Complet</label>
+        <label for="frameworkNameInput" class="block text-xs font-semibold text-muted-foreground mb-1">Nom Complet</label>
         <input
           id="frameworkNameInput"
           type="text"
           bind:value={frameworkName}
           placeholder="Ex: Directive NIS2 (UE 2022/2555)"
-          class="w-full px-3 py-2 text-sm border border-surface-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+          class="w-full px-3 py-2 text-sm border border-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-primary"
         />
       </div>
       <div>
-        <label for="versionInput" class="block text-xs font-semibold text-surface-600 mb-1">Version / Révision</label>
+        <label for="versionInput" class="block text-xs font-semibold text-muted-foreground mb-1">Version / Révision</label>
         <input
           id="versionInput"
           type="text"
           bind:value={version}
           placeholder="Ex: 2022/2555 ou 2022"
-          class="w-full px-3 py-2 text-sm border border-surface-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+          class="w-full px-3 py-2 text-sm border border-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-primary"
         />
       </div>
       <div>
-        <label for="domainSelect" class="block text-xs font-semibold text-surface-600 mb-1">Domaine Responsable</label>
+        <label for="domainSelect" class="block text-xs font-semibold text-muted-foreground mb-1">Domaine Responsable</label>
         <select
           id="domainSelect"
           bind:value={selectedDomain}
-          class="w-full px-3 py-2 text-sm border border-surface-300 rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-primary-500"
+          class="w-full px-3 py-2 text-sm border border-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-primary"
         >
           <option value="security">Sécurité & Résilience</option>
           <option value="architecture">Architecture & Urbanisation</option>
@@ -215,9 +215,9 @@
       </div>
     </div>
 
-    <div class="flex flex-col sm:flex-row items-center gap-4 border-2 border-dashed border-surface-300 rounded-lg p-4 bg-white hover:border-primary-400 transition-colors">
+    <div class="flex flex-col sm:flex-row items-center gap-4 border-2 border-dashed border-border rounded-lg p-4 bg-white hover:border-primary/60 transition-colors">
       <div class="flex-1 text-center sm:text-left">
-        <label class="cursor-pointer inline-flex items-center gap-2 px-4 py-2 bg-surface-100 hover:bg-surface-200 text-surface-800 text-sm font-medium rounded-lg border border-surface-300 transition-colors">
+        <label class="cursor-pointer inline-flex items-center gap-2 px-4 py-2 bg-muted hover:bg-muted text-foreground text-sm font-medium rounded-lg border border-border transition-colors">
           <Upload class="w-4 h-4" />
           <span>Sélectionner un fichier</span>
           <input
@@ -228,16 +228,16 @@
             data-testid="framework-file-input"
           />
         </label>
-        <span class="ml-3 text-xs text-surface-500">
+        <span class="ml-3 text-xs text-muted-foreground">
           Formats acceptés : PDF, HTML, TXT, Markdown, Word DOCX (max 20 Mo)
         </span>
       </div>
 
       {#if selectedFile}
-        <div class="flex items-center gap-2 text-sm font-mono text-surface-700 bg-surface-100 px-3 py-1.5 rounded-lg border border-surface-300">
-          <FileText class="w-4 h-4 text-primary-600" />
+        <div class="flex items-center gap-2 text-sm font-mono text-muted-foreground bg-muted px-3 py-1.5 rounded-lg border border-border">
+          <FileText class="w-4 h-4 text-primary" />
           <span>{selectedFile.name}</span>
-          <span class="text-xs text-surface-500">({(selectedFile.size / 1024).toFixed(1)} Ko)</span>
+          <span class="text-xs text-muted-foreground">({(selectedFile.size / 1024).toFixed(1)} Ko)</span>
         </div>
       {/if}
 
@@ -245,7 +245,7 @@
         onclick={uploadFramework}
         disabled={isUploading || !selectedFile}
         data-testid="framework-upload-button"
-        class="px-5 py-2 bg-primary-600 hover:bg-primary-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-lg shadow-sm flex items-center gap-2 transition-colors"
+        class="px-5 py-2 bg-primary hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed text-white text-sm font-semibold rounded-lg shadow-sm flex items-center gap-2 transition-colors"
       >
         {#if isUploading}
           <RefreshCw class="w-4 h-4 animate-spin" />
@@ -261,19 +261,19 @@
   <!-- Référentiels Ingérés -->
   <div class="space-y-4">
     <div class="flex items-center justify-between">
-      <h2 class="text-lg font-bold text-surface-900 flex items-center gap-2">
+      <h2 class="text-lg font-bold text-foreground flex items-center gap-2">
         <span>Référentiels Ingérés</span>
-        <span class="text-xs px-2 py-0.5 rounded-full bg-primary-100 text-primary-800 font-normal">
+        <span class="text-xs px-2 py-0.5 rounded-full bg-primary/15 text-primary font-normal">
           {frameworksList.length}
         </span>
       </h2>
     </div>
 
     {#if frameworksList.length === 0}
-      <div class="text-center py-12 bg-surface-50 border border-surface-200 rounded-xl p-8">
-        <ShieldAlert class="w-12 h-12 mx-auto text-surface-400 mb-3" />
-        <h3 class="text-base font-semibold text-surface-700">Aucun référentiel ingéré pour l'instant</h3>
-        <p class="text-xs text-surface-500 mt-1 max-w-md mx-auto">
+      <div class="text-center py-12 bg-muted/50 border border-border rounded-xl p-8">
+        <ShieldAlert class="w-12 h-12 mx-auto text-muted-foreground mb-3" />
+        <h3 class="text-base font-semibold text-muted-foreground">Aucun référentiel ingéré pour l'instant</h3>
+        <p class="text-xs text-muted-foreground mt-1 max-w-md mx-auto">
           Téléversez vos directives réglementaires ou normes de conformité ci-dessus pour démarrer la revue ligne par ligne et l'alignement doctrinal.
         </p>
       </div>
@@ -281,20 +281,20 @@
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
         {#each frameworksList as fw (fw.id)}
           {@const percentReviewed = fw.total_requirements > 0 ? Math.round((fw.reviewed_requirements / fw.total_requirements) * 100) : 0}
-          <div data-testid="framework-card" class="bg-white border border-surface-200 rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between">
+          <div data-testid="framework-card" class="bg-white border border-border rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between">
             <div>
               <div class="flex items-start justify-between gap-2 mb-2">
-                <span class="px-2.5 py-1 text-xs font-bold rounded bg-primary-50 border border-primary-200 text-primary-800 uppercase font-mono">
+                <span class="px-2.5 py-1 text-xs font-bold rounded bg-primary/10 border border-primary/30 text-primary uppercase font-mono">
                   {fw.framework_id}
                 </span>
-                <span class="text-xs px-2 py-0.5 rounded bg-surface-100 text-surface-600 font-mono">
+                <span class="text-xs px-2 py-0.5 rounded bg-muted text-muted-foreground font-mono">
                   v{fw.version}
                 </span>
               </div>
-              <h3 class="text-base font-semibold text-surface-900 mb-1 leading-snug">
+              <h3 class="text-base font-semibold text-foreground mb-1 leading-snug">
                 {fw.framework_name}
               </h3>
-              <div class="flex items-center gap-2 text-xs text-surface-500 mb-4">
+              <div class="flex items-center gap-2 text-xs text-muted-foreground mb-4">
                 <FileCode class="w-3.5 h-3.5" />
                 <span class="truncate">{fw.file_name}</span>
                 <span>•</span>
@@ -304,26 +304,26 @@
               <!-- Jauge de progression -->
               <div class="space-y-1.5 mb-4">
                 <div class="flex items-center justify-between text-xs">
-                  <span class="text-surface-600 font-medium">Revue des exigences</span>
-                  <span class="font-bold text-surface-800">{fw.reviewed_requirements} / {fw.total_requirements} ({percentReviewed}%)</span>
+                  <span class="text-muted-foreground font-medium">Revue des exigences</span>
+                  <span class="font-bold text-foreground">{fw.reviewed_requirements} / {fw.total_requirements} ({percentReviewed}%)</span>
                 </div>
-                <div class="w-full bg-surface-100 rounded-full h-2 overflow-hidden border border-surface-200">
+                <div class="w-full bg-muted rounded-full h-2 overflow-hidden border border-border">
                   <div
-                    class="h-full rounded-full transition-all duration-300 {percentReviewed === 100 ? 'bg-emerald-500' : 'bg-primary-600'}"
+                    class="h-full rounded-full transition-all duration-300 {percentReviewed === 100 ? 'bg-emerald-500' : 'bg-primary'}"
                     style="width: {percentReviewed}%"
                   ></div>
                 </div>
               </div>
             </div>
 
-            <div class="pt-4 border-t border-surface-100 flex items-center justify-between mt-auto">
+            <div class="pt-4 border-t border-border flex items-center justify-between mt-auto">
               <span class="text-xs {percentReviewed === 100 ? 'text-emerald-700 font-semibold' : 'text-amber-700'}">
                 {percentReviewed === 100 ? '✓ Prêt pour déclaration' : `${fw.total_requirements - fw.reviewed_requirements} en attente`}
               </span>
               <a
                 href="/kb/frameworks/{fw.id}"
                 data-testid="framework-examine-link"
-                class="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-surface-900 hover:bg-surface-800 text-white transition-colors"
+                class="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-foreground hover:bg-foreground/90 text-white transition-colors"
               >
                 <span>Examiner</span>
                 <ChevronRight class="w-3.5 h-3.5" />

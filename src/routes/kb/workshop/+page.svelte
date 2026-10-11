@@ -42,10 +42,10 @@
   let rationale = $state<string>('Garantir l’opposabilité légale et la traçabilité des opérations sensibles.');
 
   // Prédicats testables
-  let whenPredicate = $state<string>(data.initialTemplate?.default_predicates.when || '');
-  let expectPredicate = $state<string>(data.initialTemplate?.default_predicates.expect || '');
-  let requiresInput = $state<string>((data.initialTemplate?.default_predicates.requires || []).join(', '));
-  let forbidsInput = $state<string>((data.initialTemplate?.default_predicates.forbids || []).join(', '));
+  let whenPredicate = $state<string>(data.initialTemplate?.default_predicates?.when || '');
+  let expectPredicate = $state<string>(data.initialTemplate?.default_predicates?.expect || '');
+  let requiresInput = $state<string>((data.initialTemplate?.default_predicates?.requires || []).join(', '));
+  let forbidsInput = $state<string>((data.initialTemplate?.default_predicates?.forbids || []).join(', '));
 
   // Résultats simulation & validation
   let isValidating = $state<boolean>(false);
@@ -70,10 +70,10 @@
         currentTemplate = body.data;
         title = body.data.title;
         summary = body.data.skeleton;
-        whenPredicate = body.data.default_predicates.when;
-        expectPredicate = body.data.default_predicates.expect;
-        requiresInput = (body.data.default_predicates.requires || []).join(', ');
-        forbidsInput = (body.data.default_predicates.forbids || []).join(', ');
+        whenPredicate = body.data.default_predicates?.when || '';
+        expectPredicate = body.data.default_predicates?.expect || '';
+        requiresInput = (body.data.default_predicates?.requires || []).join(', ');
+        forbidsInput = (body.data.default_predicates?.forbids || []).join(', ');
       }
     } catch {
       // Ignorer erreur réseau

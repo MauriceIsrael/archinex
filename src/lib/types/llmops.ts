@@ -397,7 +397,8 @@ export interface KbAssetTemplate {
   asset_type: KbAssetType;
   title: string;
   description: string;
-  default_predicates: TestablePredicates;
+  /** Absent des modèles servis par LLMOps (contrat 1.x : asset_type, fields, sections, next_id, skeleton, help). */
+  default_predicates?: TestablePredicates;
   fields: Array<{
     name: string;
     label: string;

@@ -37,8 +37,8 @@ describe('Contract: Doctrine Workshop, Templates, Validation & Simulation (Lot A
       expect(res.data!.asset_type).toBe(type);
       expect(res.data!.title).toBeDefined();
       expect(res.data!.default_predicates).toBeDefined();
-      expect(res.data!.default_predicates.when).toBeDefined();
-      expect(res.data!.default_predicates.expect).toBeDefined();
+      expect(res.data!.default_predicates!.when).toBeDefined();
+      expect(res.data!.default_predicates!.expect).toBeDefined();
       expect(res.data!.skeleton).toBeDefined();
     }
   });

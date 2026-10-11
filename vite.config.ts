@@ -17,7 +17,6 @@ export default defineConfig({
 			'echarts/charts',
 			'echarts/components',
 			'echarts/renderers',
-			'gridstack',
 			'casbin',
 			'casbin-prisma-adapter',
 			// Packages SSR découverts trop tard (prisma, jose)

@@ -114,7 +114,7 @@
       // Mise à jour locale
       const idx = ingestion.requirements.findIndex((r) => r.id === reqId);
       if (idx !== -1) {
-        ingestion.requirements[idx] = resData.data;
+        ingestion.requirements[idx] = { ...resData.data, framework_id: ingestion.requirements[idx].framework_id };
         ingestion.reviewed_requirements = ingestion.requirements.filter((r) => r.status !== 'pending').length;
       }
     } catch (err: any) {

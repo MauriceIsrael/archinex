@@ -1,7 +1,4 @@
 <script lang="ts">
-  import * as Card from '$lib/components/ui/card';
-  import { getContext } from 'svelte';
-  
   let { 
     value,
     change,
@@ -13,9 +10,6 @@
     trend?: 'up' | 'down' | 'neutral';
     icon?: any;
   } = $props();
-
-  // Les widgets peuvent récupérer le contexte de filtres s'ils ont besoin de refetch de la data
-  // const globalFilters = getContext('dashboardFilters');
 </script>
 
 <div class="h-full w-full flex flex-col justify-center p-4 md:p-6">

@@ -52,7 +52,3 @@ export function detectApplicableFrameworks(text: string): DetectedFramework[] {
 	}
 	return found.sort((a, b) => b.mentions - a.mentions);
 }
-
-export function frameworkLabel(code: string): string {
-	return REGULATORY_FRAMEWORKS.find((f) => f.code === code)?.label ?? code;
-}

@@ -87,10 +87,6 @@ export async function reconcileInterruptedRuns(): Promise<void> {
 	}
 }
 
-export function isRunActive(runId: string): boolean {
-	return state.active.has(runId);
-}
-
 /**
  * Doctrine LLMOps pertinente pour un sujet (le hub exige un sujet de recherche). Avec les référentiels cités par
  * le RFP, LLMOps y joint leurs contrôles actifs : l'instruction propose alors des options conformes.

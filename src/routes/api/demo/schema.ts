@@ -13,8 +13,6 @@ export const CreateItemSchema = z.object({
   name: z.string().min(1, 'Name is required').max(100, 'Name too long'),
 });
 
-export type CreateItemInput = z.infer<typeof CreateItemSchema>;
-
 export type Item = {
   id: string;
   name: string;

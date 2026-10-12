@@ -50,27 +50,3 @@ export const CreateTradeOffSchema = z.object({
 	sacrifices: z.string().min(1),
 	criterionIds: z.array(z.string()).default([])
 });
-
-export const RecordDecisionSchema = z.object({
-	id: z.string().min(1),
-	retainedOptionId: z.string().min(1),
-	rejected: z
-		.array(
-			z.object({
-				optionId: z.string().min(1),
-				reason: z.string().min(1)
-			})
-		)
-		.default([]),
-	rationale: z.string().min(1),
-	reversibility: z.enum(['reversible', 'costly', 'irreversible']),
-	acceptedViolations: z
-		.array(
-			z.object({
-				typedId: z.string().min(1),
-				justification: z.string().min(1)
-			})
-		)
-		.default([]),
-	kbCandidateIds: z.array(z.string()).default([])
-});

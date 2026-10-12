@@ -18,9 +18,3 @@ export interface WidgetDefinition {
   h?: number;
   hidden?: boolean;
 }
-
-export interface DashboardConfig {
-  widgets: WidgetDefinition[];
-  /** Optional global filters definition structure */
-  filtersDef?: Record<string, any>; 
-}

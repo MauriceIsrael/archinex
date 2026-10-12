@@ -83,7 +83,3 @@ export const toastSuccess = (msg: string, opts?: { duration?: number }) =>
   toast(msg, { variant: 'success', ...opts });
 export const toastError = (msg: string, opts?: { duration?: number }) =>
   toast(msg, { variant: 'error', ...opts });
-export const toastWarning = (msg: string, opts?: { duration?: number }) =>
-  toast(msg, { variant: 'warning', ...opts });
-export const toastInfo = (msg: string, opts?: { duration?: number }) =>
-  toast(msg, { variant: 'info', ...opts });

@@ -56,16 +56,6 @@ import type {
 
 export type DeliberationPosture = 'appropriation' | 'deliberation' | 'rendu';
 
-export interface DeliberationState {
-	activeSubjectId: string;
-	activePosture: DeliberationPosture;
-	currentRole: ArchitectRole;
-	isHuman: boolean;
-	subjects: MaturitySubject[];
-	drafts: Record<string, TelegraphicDraft>;
-	notificationLog: Array<{ id: string; timestamp: string; message: string; type: 'info' | 'success' | 'warning' }>;
-}
-
 class DeliberationStore {
 	engagements = $state<EngagementProfile[]>([]);
 	activeEngagementId = $state<string>('');

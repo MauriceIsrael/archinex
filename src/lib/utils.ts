@@ -34,11 +34,3 @@ export type WithoutChildrenOrChild<T> = Omit<T, "children" | "child">;
 
 /** Omit the `child` snippet prop. Used by shadcn-svelte components. */
 export type WithoutChild<T> = Omit<T, "child">;
-
-/** Parameters for fly-and-scale transition animations. */
-export type FlyAndScaleParams = {
-	y?: number;
-	x?: number;
-	start?: number;
-	duration?: number;
-};

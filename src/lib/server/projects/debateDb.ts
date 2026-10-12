@@ -50,25 +50,6 @@ export async function listArguments(
 	}));
 }
 
-export async function getArgument(argumentId: string): Promise<Argument | null> {
-	const a = await prisma.argument.findUnique({
-		where: { id: argumentId }
-	});
-	if (!a) return null;
-
-	return {
-		...a,
-		stance: a.stance as Stance,
-		confidence: a.confidence as EpistemicConfidence,
-		productionMode: a.productionMode as ProductionMode,
-		resolution: a.resolution as ArgumentResolution,
-		kbRefs: JSON.parse(a.kbRefs || '[]'),
-		resolvedAt: a.resolvedAt ? a.resolvedAt.toISOString() : null,
-		createdAt: a.createdAt.toISOString(),
-		updatedAt: a.updatedAt.toISOString()
-	};
-}
-
 export async function createArgument(
 	subjectId: string,
 	data: CreateArgumentData,

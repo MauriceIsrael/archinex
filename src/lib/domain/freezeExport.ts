@@ -247,8 +247,6 @@ export const SUITE_CONFIDENCE_LEVELS = [
 	'verified'
 ] as const;
 
-export type SuiteConfidenceLevel = (typeof SUITE_CONFIDENCE_LEVELS)[number];
-
 /**
  * Enveloppe un SealedSnapshot dans le format standard d'instantané scellé de la suite (A21).
  */

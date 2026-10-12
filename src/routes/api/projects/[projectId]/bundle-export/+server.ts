@@ -5,16 +5,13 @@ import type { ConfidentialityLevel } from '$lib/domain/engagementBundle';
 import { prisma } from '$lib/server/prisma';
 import { llmopsClient } from '$lib/server/llmops/client';
 import { isProjectCutOverToHub } from '$lib/server/projects/hubMigrationService';
+import { authorizeProjectAccess } from '$lib/server/projects/projectAccess';
 
 export const POST: RequestHandler = async (event) => {
-	// 1. Authentification stricte par session (jamais par en-tête)
-	const session = event.locals.session;
-	if (!session || !session.user) {
-		return json(
-			{ status: 'error', error: 'Non authentifié : session requise' },
-			{ status: 401 }
-		);
-	}
+	// 1. Authentification stricte par session et contrôle d'appartenance au projet (jamais par en-tête)
+	const auth = await authorizeProjectAccess(event, event.params.projectId);
+	if (auth.error) return auth.error;
+	const session = auth.session!;
 
 	// Un en-tête X-Actor-Email fourni par le client est explicitement ignoré
 	const actorHandle = session.user.name || session.user.email;

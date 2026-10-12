@@ -8,6 +8,7 @@ import {
 } from '$lib/server/projects/capitalizationDb';
 import { SubmitCandidatesSchema } from '$lib/schemas/capitalizationSchemas';
 import { UnauthorizedArbitrationError } from '$lib/server/projects/arbitrationDb';
+import { authorizeProjectAccess } from '$lib/server/projects/projectAccess';
 
 export const GET: RequestHandler = async (event) => {
 	const { subjectId } = event.params;
@@ -29,7 +30,9 @@ export const GET: RequestHandler = async (event) => {
 };
 
 export const POST: RequestHandler = async (event) => {
-	const { subjectId } = event.params;
+	const { projectId, subjectId } = event.params;
+	const auth = await authorizeProjectAccess(event, projectId);
+	if (auth.error) return auth.error;
 	const actor = getActorInfo(event);
 
 	let body: any;

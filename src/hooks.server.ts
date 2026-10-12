@@ -2,17 +2,6 @@ import { verifyAccessToken, verifyRefreshToken, signAccessToken, signRefreshToke
 import type { Handle } from '@sveltejs/kit';
 import type { Session } from './app.d.ts';
 import { prisma } from '$lib/server/prisma';
-import { getEnforcer } from '$lib/server/casbin';
-
-/**
- * Global Server Hook — Session Management & ABAC Context.
- *
- * Warm-up : Casbin est initialisé au démarrage du serveur (fire-and-forget)
- * pour éviter le coût d'initialisation sur la première requête utilisateur.
- */
-getEnforcer().catch((err) =>
-  console.warn('[Casbin Warm-up] Initialisation échouée :', err)
-);
 
 const SESSION_REQUIRED_PREFIXES = ['/api/knowledge/', '/api/frameworks/'];
 

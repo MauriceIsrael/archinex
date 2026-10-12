@@ -1,6 +1,7 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { getActorInfo } from '$lib/server/projects/actorHelper';
+import { authorizeProjectAccess } from '$lib/server/projects/projectAccess';
 import {
 	getProjectRules,
 	proposeLocalRule
@@ -23,6 +24,8 @@ export const GET: RequestHandler = async (event) => {
 
 export const POST: RequestHandler = async (event) => {
 	const { projectId } = event.params;
+	const auth = await authorizeProjectAccess(event, projectId);
+	if (auth.error) return auth.error;
 	const actor = getActorInfo(event);
 
 	let body: any;

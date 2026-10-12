@@ -2,10 +2,13 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { extractFactsForDecision, DEFAULT_ARCHINEX_VOCABULARY } from '$lib/server/agents/factExtractor';
 import { prisma } from '$lib/server/prisma';
+import { authorizeProjectAccess } from '$lib/server/projects/projectAccess';
 
 export const POST: RequestHandler = async (event) => {
 	const { params } = event;
 	const { projectId, subjectId } = params;
+	const auth = await authorizeProjectAccess(event, projectId);
+	if (auth.error) return auth.error;
 
 	let body: any = {};
 	try {

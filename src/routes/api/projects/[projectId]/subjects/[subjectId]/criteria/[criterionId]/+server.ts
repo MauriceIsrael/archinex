@@ -4,10 +4,13 @@ import { updateCriterion, deleteCriterion } from '$lib/server/projects/optionsDb
 import { ConcurrencyConflictError } from '$lib/server/projects/projectsDb';
 import { UpdateCriterionSchema } from '$lib/schemas/optionsApiSchemas';
 import { getActorFromEvent } from '$lib/server/projects/actorHelper';
+import { authorizeProjectAccess } from '$lib/server/projects/projectAccess';
 import { z } from 'zod';
 
 export const PATCH: RequestHandler = async (event) => {
 	const { params } = event;
+	const auth = await authorizeProjectAccess(event, params.projectId);
+	if (auth.error) return auth.error;
 	try {
 		const body = await event.request.json();
 		const parsed = UpdateCriterionSchema.safeParse(body);
@@ -40,6 +43,8 @@ const DeleteCriterionSchema = z.object({
 
 export const DELETE: RequestHandler = async (event) => {
 	const { params } = event;
+	const auth = await authorizeProjectAccess(event, params.projectId);
+	if (auth.error) return auth.error;
 	try {
 		let expectedVersion = 1;
 		const queryVer = event.url.searchParams.get('expectedVersion');

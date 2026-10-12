@@ -278,8 +278,15 @@ describe('Lot A29 Contract Tests: Agent proposeur, questions complémentaires (m
 			}
 		};
 
+		const testLocals = {
+			session: {
+				user: { id: 'user-architect-40', email: 'arch40@archinex.local', name: 'Architect 40', role: 'admin' }
+			}
+		};
+
 		// 1. Merge action
 		const mergeEvent = {
+			locals: testLocals,
 			params: { projectId: testProjectId, subjectId: testSubjectId },
 			request: new Request('http://localhost', {
 				method: 'POST',
@@ -300,6 +307,7 @@ describe('Lot A29 Contract Tests: Agent proposeur, questions complémentaires (m
 
 		// 2. Capitalization action (Signal vers K22 / K7)
 		const capitalizeEvent = {
+			locals: testLocals,
 			params: { projectId: testProjectId, subjectId: testSubjectId },
 			request: new Request('http://localhost', {
 				method: 'POST',

@@ -262,6 +262,11 @@ describe('Lot A5 Integration: KB Capitalization & Human-in-the-loop Gate (Porte 
 		candidateToSubmit.summary = 'Synthèse enrichie par l expert technique avant intégration KB.';
 
 		const fakeEvent: any = {
+			locals: {
+				session: {
+					user: { id: 'bob-infra', email: 'bob@archinex.local', name: 'Bob', role: 'user' }
+				}
+			},
 			params: { projectId: testProjectId, subjectId: testSubjectId },
 			request: {
 				url: `http://localhost/api/projects/${testProjectId}/subjects/${testSubjectId}/capitalization`,

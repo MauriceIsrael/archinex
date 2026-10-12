@@ -1,6 +1,5 @@
 import { redirect, error } from '@sveltejs/kit';
 import type { UserRole, Session } from '../../app.d.ts';
-import { checkPermission as casbinCheck } from '$lib/server/casbin';
 
 const ROLE_HIERARCHY: Record<UserRole, number> = {
   user: 1,
@@ -20,7 +19,7 @@ export function requireAuth(
 }
 
 /**
- * Ensure the user has at least the required role (legacy RBAC).
+ * Ensure the user has at least the required role.
  */
 export function requireRole(locals: App.Locals, requiredRole: UserRole): void {
   requireAuth(locals);
@@ -31,23 +30,3 @@ export function requireRole(locals: App.Locals, requiredRole: UserRole): void {
   }
 }
 
-/**
- * Generic ABAC/RBAC guard using Casbin.
- */
-export async function requirePermission(locals: App.Locals, obj: string, act: string) {
-  requireAuth(locals);
-  
-  const sub = {
-    id: locals.session!.user.id,
-    role: locals.session!.user.role,
-    ...locals.session!.user.attributes
-  };
-  
-  const resource = { type: obj };
-  
-  const allowed = await casbinCheck(sub, resource, act);
-  
-  if (!allowed) {
-    error(403, { message: `Permission denied: ${act} on ${obj}` });
-  }
-}

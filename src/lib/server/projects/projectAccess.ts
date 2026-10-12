@@ -7,18 +7,26 @@ import { prisma } from '../prisma';
  * l'e-mail est le seul lien fiable entre les deux (#61).
  */
 export async function authorizeProjectAccess(event: RequestEvent, projectId: string) {
-	const session = event.locals.session;
-	if (!session?.user) return { error: json({ status: 'error', error: 'Non authentifié : session requise' }, { status: 401 }) };
+	const session = event.locals?.session;
+	if (!session?.user) {
+		return { error: json({ status: 'error', error: 'Non authentifié : session requise' }, { status: 401 }) };
+	}
 	const project = await prisma.project.findUnique({ where: { id: projectId }, include: { members: true } });
-	if (!project) return { error: json({ status: 'error', error: `Projet ${projectId} introuvable` }, { status: 404 }) };
-	if (session.user.role === 'admin' || project.members.some((m) => m.userId === session.user.id)) return { session };
+	const engagement = await prisma.engagement.findUnique({ where: { id: projectId }, select: { participants: true } });
+	if (!project && !engagement) {
+		return { error: json({ status: 'error', error: `Projet ${projectId} introuvable` }, { status: 404 }) };
+	}
+	if (session.user.role === 'admin' || project?.members.some((m) => m.userId === session.user.id)) {
+		return { session, project };
+	}
 
 	const email = session.user.email?.toLowerCase();
-	if (email) {
-		const engagement = await prisma.engagement.findUnique({ where: { id: projectId }, select: { participants: true } });
+	if (email && engagement?.participants) {
 		try {
-			const participants = JSON.parse(engagement?.participants || '[]') as Array<{ email?: string }>;
-			if (participants.some((p) => p.email?.toLowerCase() === email)) return { session };
+			const participants = JSON.parse(engagement.participants || '[]') as Array<{ email?: string }>;
+			if (participants.some((p) => p.email?.toLowerCase() === email)) {
+				return { session, project };
+			}
 		} catch {
 			// participants illisibles : accès refusé ci-dessous
 		}

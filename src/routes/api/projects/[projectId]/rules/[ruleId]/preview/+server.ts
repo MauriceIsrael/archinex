@@ -1,9 +1,12 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { previewRuleAgainstProjectFacts } from '$lib/server/rules/projectRulesService';
+import { authorizeProjectAccess } from '$lib/server/projects/projectAccess';
 
 export const POST: RequestHandler = async (event) => {
 	const { projectId, ruleId } = event.params;
+	const auth = await authorizeProjectAccess(event, projectId);
+	if (auth.error) return auth.error;
 	const url = new URL(event.request.url);
 	const subjectId = url.searchParams.get('subjectId') || undefined;
 

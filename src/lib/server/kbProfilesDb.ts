@@ -4,7 +4,6 @@
  */
 
 import { prisma } from './prisma';
-import { getEnforcer } from './casbin';
 import type { KbRole } from '$lib/types/llmops';
 import bcrypt from 'bcryptjs';
 import { randomBytes } from 'node:crypto';
@@ -51,29 +50,6 @@ export function normalizeKbHandle(handle: string): string {
   const trimmed = handle.trim();
   if (trimmed.startsWith('@')) return trimmed.toLowerCase();
   return `@${trimmed.toLowerCase()}`;
-}
-
-/**
- * Synchronise les groupements Casbin d'un utilisateur avec ses rôles KB
- */
-export async function syncUserCasbinKbRoles(userId: string, kbRoles: KbRole[]): Promise<void> {
-  const ef = await getEnforcer();
-
-  // Supprimer les anciens groupements KB pour cet utilisateur
-  const currentGroups = await ef.getFilteredGroupingPolicy(0, userId);
-  for (const group of currentGroups) {
-    const role = group[1];
-    if (role.startsWith('kb:')) {
-      await ef.removeGroupingPolicy(userId, role);
-    }
-  }
-
-  // Ajouter les nouveaux groupements KB
-  for (const role of kbRoles) {
-    await ef.addGroupingPolicy(userId, role);
-  }
-
-  await ef.savePolicy();
 }
 
 /**
@@ -270,9 +246,6 @@ export async function inviteKbExpert(input: InviteExpertInput): Promise<{
     }
   });
 
-  // Habilitations Casbin
-  await syncUserCasbinKbRoles(newUser.id, input.kbRoles);
-
   const expert = (await getKbExpertByUserId(newUser.id))!;
 
   return {
@@ -376,7 +349,6 @@ export async function updateKbExpert(
 
   if (updates.kbRoles !== undefined) {
     dataToUpdateProfile.kbRoles = JSON.stringify(updates.kbRoles);
-    await syncUserCasbinKbRoles(userId, updates.kbRoles);
   }
 
   if (updates.ownedDomains !== undefined) {
@@ -409,10 +381,6 @@ export async function updateKbExpert(
  * Supprime un expert KB
  */
 export async function deleteKbExpert(userId: string): Promise<boolean> {
-  const ef = await getEnforcer();
-  await ef.removeFilteredGroupingPolicy(0, userId);
-  await ef.savePolicy();
-
   await prisma.user.delete({
     where: { id: userId }
   });

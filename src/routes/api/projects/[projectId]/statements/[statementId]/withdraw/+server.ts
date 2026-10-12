@@ -3,25 +3,14 @@ import type { RequestHandler } from './$types';
 import { prisma } from '$lib/server/prisma';
 import { llmopsClient, HubApiError } from '$lib/server/llmops/client';
 import { isProjectCutOverToHub, mapArchinexRoleToHubRole } from '$lib/server/projects/hubMigrationService';
+import { authorizeProjectAccess } from '$lib/server/projects/projectAccess';
 
 export const POST: RequestHandler = async (event) => {
-	const session = event.locals.session;
-	if (!session || !session.user) {
-		return json(
-			{ status: 'error', error: 'Non authentifié : session requise' },
-			{ status: 401 }
-		);
-	}
-
 	const { projectId, statementId } = event.params;
-	const project = await prisma.project.findUnique({
-		where: { id: projectId },
-		include: { members: true }
-	});
-
-	if (!project) {
-		return json({ status: 'error', error: `Projet ${projectId} introuvable` }, { status: 404 });
-	}
+	const auth = await authorizeProjectAccess(event, projectId);
+	if (auth.error) return auth.error;
+	const session = auth.session!;
+	const project = auth.project!;
 
 	if (isProjectCutOverToHub(project)) {
 		const strategy = typeof project.strategy === 'string' ? JSON.parse(project.strategy || '{}') : (project.strategy || {});

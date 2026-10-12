@@ -6,13 +6,10 @@ import {
   getKbExpertByUserId,
   activateKbExpert,
   updateKbExpert,
-  deleteKbExpert,
-  listKbExperts
+  deleteKbExpert
 } from '../../src/lib/server/kbProfilesDb';
-import { canUserPerformKbAction, hasKbRole } from '../../src/lib/auth/kbGuard.server';
-import { prisma } from '../../src/lib/server/prisma';
 
-describe('Contract: KB Expert Profiles, Roles & Casbin Habilitations (Lot A6)', () => {
+describe('Contract: KB Expert Profiles & Roles (Lot A6)', () => {
   const timestamp = Date.now();
   const testEmail = `expert.test.${timestamp}@archinex.local`;
   const testHandle = `@sec-test-${timestamp}`;
@@ -101,21 +98,15 @@ describe('Contract: KB Expert Profiles, Roles & Casbin Habilitations (Lot A6)', 
     );
   });
 
-  it('6. Casbin & Habilitations : l’expert activé détient ses rôles KB', async () => {
-    const hasReview = await hasKbRole(createdUserId, 'kb:review');
-    const hasMaintain = await hasKbRole(createdUserId, 'kb:maintain');
-    const hasAdmin = await hasKbRole(createdUserId, 'kb:admin');
-
-    expect(hasReview).toBe(true);
-    expect(hasMaintain).toBe(true);
-    expect(hasAdmin).toBe(false);
-
-    // L'administrateur a tous les droits
-    const adminCanReview = await canUserPerformKbAction({ id: 'any-admin', role: 'admin' }, 'kb:candidate', 'review');
-    expect(adminCanReview).toBe(true);
+  it('6. L’expert activé détient ses rôles KB et domaines enregistrés', async () => {
+    const expert = await getKbExpertByUserId(createdUserId);
+    expect(expert).not.toBeNull();
+    expect(expert!.kbRoles).toContain('kb:review');
+    expect(expert!.kbRoles).toContain('kb:maintain');
+    expect(expert!.kbRoles).not.toContain('kb:admin');
   });
 
-  it('7. updateKbExpert met à jour les rôles, domaines et synchronise Casbin', async () => {
+  it('7. updateKbExpert met à jour les rôles et domaines', async () => {
     const updated = await updateKbExpert(createdUserId, {
       kbRoles: ['kb:review', 'kb:evaluate'],
       ownedDomains: ['security', 'ai-governance']
@@ -124,21 +115,17 @@ describe('Contract: KB Expert Profiles, Roles & Casbin Habilitations (Lot A6)', 
     expect(updated.kbRoles).toEqual(['kb:review', 'kb:evaluate']);
     expect(updated.ownedDomains).toEqual(['security', 'ai-governance']);
 
-    const hasEval = await hasKbRole(createdUserId, 'kb:evaluate');
-    const hasMaintain = await hasKbRole(createdUserId, 'kb:maintain');
-
-    expect(hasEval).toBe(true);
-    expect(hasMaintain).toBe(false);
+    const reloaded = await getKbExpertByUserId(createdUserId);
+    expect(reloaded?.kbRoles).toContain('kb:evaluate');
+    expect(reloaded?.kbRoles).not.toContain('kb:maintain');
   });
 
-  it('8. Nettoyage : deleteKbExpert supprime le compte et révoque les règles Casbin', async () => {
+  it('8. Nettoyage : deleteKbExpert supprime le compte', async () => {
     const deleted = await deleteKbExpert(createdUserId);
     expect(deleted).toBe(true);
 
     const expert = await getKbExpertByUserId(createdUserId);
     expect(expert).toBeNull();
-
-    const hasReview = await hasKbRole(createdUserId, 'kb:review');
-    expect(hasReview).toBe(false);
   });
 });
+

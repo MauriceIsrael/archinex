@@ -9,6 +9,7 @@ import {
 } from '$lib/server/projects/arbitrationDb';
 import { CreateDecisionSchema } from '$lib/schemas/decisionApiSchemas';
 import { canDecideAlone } from '$lib/domain/options';
+import { authorizeProjectAccess } from '$lib/server/projects/projectAccess';
 
 export const GET: RequestHandler = async ({ params }) => {
 	const { subjectId } = params;
@@ -37,7 +38,9 @@ export const GET: RequestHandler = async ({ params }) => {
 };
 
 export const POST: RequestHandler = async (event) => {
-	const { subjectId } = event.params;
+	const { projectId, subjectId } = event.params;
+	const auth = await authorizeProjectAccess(event, projectId);
+	if (auth.error) return auth.error;
 	const actor = await resolveProjectActor(event, event.params.projectId!);
 
 	let body: any;

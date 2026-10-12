@@ -3,9 +3,12 @@ import type { RequestHandler } from './$types';
 import { updateQuestion, ConcurrencyConflictError } from '$lib/server/projects/projectsDb';
 import { UpdateQuestionSchema } from '$lib/schemas/projectApiSchemas';
 import { getActorFromEvent } from '$lib/server/projects/actorHelper';
+import { authorizeProjectAccess } from '$lib/server/projects/projectAccess';
 
 export const PATCH: RequestHandler = async (event) => {
 	const { params } = event;
+	const auth = await authorizeProjectAccess(event, params.projectId);
+	if (auth.error) return auth.error;
 	try {
 		const body = await event.request.json();
 		const parsed = UpdateQuestionSchema.safeParse(body);

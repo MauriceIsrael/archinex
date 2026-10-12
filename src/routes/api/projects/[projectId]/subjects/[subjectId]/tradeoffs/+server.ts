@@ -3,6 +3,7 @@ import type { RequestHandler } from './$types';
 import { listTradeOffs, createTradeOff } from '$lib/server/projects/optionsDb';
 import { CreateTradeOffSchema } from '$lib/schemas/optionsApiSchemas';
 import { getActorFromEvent } from '$lib/server/projects/actorHelper';
+import { authorizeProjectAccess } from '$lib/server/projects/projectAccess';
 
 export const GET: RequestHandler = async ({ params }) => {
 	try {
@@ -15,6 +16,8 @@ export const GET: RequestHandler = async ({ params }) => {
 
 export const POST: RequestHandler = async (event) => {
 	const { params } = event;
+	const auth = await authorizeProjectAccess(event, params.projectId);
+	if (auth.error) return auth.error;
 	try {
 		const body = await event.request.json();
 		const parsed = CreateTradeOffSchema.safeParse(body);

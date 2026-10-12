@@ -1,15 +1,11 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { simulateProjectMigration } from '$lib/server/projects/hubMigrationService';
+import { authorizeProjectAccess } from '$lib/server/projects/projectAccess';
 
 export const POST: RequestHandler = async (event) => {
-	const session = event.locals.session;
-	if (!session || !session.user) {
-		return json(
-			{ status: 'error', error: 'Non authentifié : session requise' },
-			{ status: 401 }
-		);
-	}
+	const auth = await authorizeProjectAccess(event, event.params.projectId);
+	if (auth.error) return auth.error;
 
 	try {
 		const report = await simulateProjectMigration(event.params.projectId);

@@ -1,9 +1,9 @@
 import { json } from '@sveltejs/kit';
 import { z } from 'zod';
 import type { RequestHandler } from './$types';
-import { prisma } from '$lib/server/prisma';
 import { sanitizeHandle } from '$lib/domain/bundleAssembly';
 import { decideRequirement } from '$lib/server/projects/requirementsDb';
+import { authorizeProjectAccess } from '$lib/server/projects/projectAccess';
 
 const DecisionSchema = z.object({
 	disposition: z.enum(['deliberated', 'evacuated', 'clarification_needed']),
@@ -15,14 +15,9 @@ const DecisionSchema = z.object({
  * Réponse : `needsSubject` = la clause est à délibérer mais aucun sujet ne la porte encore.
  */
 export const PATCH: RequestHandler = async (event) => {
-	const session = event.locals.session;
-	if (!session?.user) return json({ status: 'error', error: 'Non authentifié : session requise' }, { status: 401 });
-
-	const project = await prisma.project.findUnique({ where: { id: event.params.projectId }, include: { members: true } });
-	if (!project) return json({ status: 'error', error: `Projet ${event.params.projectId} introuvable` }, { status: 404 });
-	if (!project.members.some((m) => m.userId === session.user.id) && session.user.role !== 'admin') {
-		return json({ status: 'error', error: 'forbidden', reason: 'Réservé aux membres du projet' }, { status: 403 });
-	}
+	const auth = await authorizeProjectAccess(event, event.params.projectId);
+	if (auth.error) return auth.error;
+	const session = auth.session!;
 
 	let body: unknown;
 	try {

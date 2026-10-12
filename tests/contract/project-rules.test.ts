@@ -117,9 +117,16 @@ describe('Lot A30 Contract Tests: Règles du projet, désactivation justifiée, 
 		await prisma.project.deleteMany({ where: { id: testProjectId } });
 	});
 
+	const testLocals = {
+		session: {
+			user: { id: 'user-lead-41', email: 'lead41@archinex.local', name: 'Lead 41', role: 'admin' }
+		}
+	};
+
 	it('1. Rejette la désactivation d’une règle de référence sans justification obligatoire (HTTP 400)', async () => {
 		// Mock RequestEvent sans justification
 		const mockEvent = {
+			locals: testLocals,
 			params: { projectId: testProjectId, ruleId: 'DOC-HA-01' },
 			request: new Request('http://localhost', {
 				method: 'POST',
@@ -136,6 +143,7 @@ describe('Lot A30 Contract Tests: Règles du projet, désactivation justifiée, 
 
 	it('2. Rejette la désactivation d’une règle par un rôle non-décideur (HTTP 403)', async () => {
 		const mockEvent = {
+			locals: testLocals,
 			params: { projectId: testProjectId, ruleId: 'DOC-HA-01' },
 			request: new Request('http://localhost', {
 				method: 'POST',
@@ -150,6 +158,7 @@ describe('Lot A30 Contract Tests: Règles du projet, désactivation justifiée, 
 
 	it('3. Désactive une règle avec justification par un decider et la fait apparaître dans l’arbre de découverte', async () => {
 		const mockEvent = {
+			locals: testLocals,
 			params: { projectId: testProjectId, ruleId: 'DOC-HA-01' },
 			request: new Request('http://localhost', {
 				method: 'POST',
@@ -197,6 +206,7 @@ describe('Lot A30 Contract Tests: Règles du projet, désactivation justifiée, 
 
 	it('4. Rejette une règle locale contenant des clés hors du vocabulaire K18 (HTTP 400)', async () => {
 		const mockEvent = {
+			locals: testLocals,
 			params: { projectId: testProjectId },
 			request: new Request('http://localhost', {
 				method: 'POST',
@@ -281,6 +291,7 @@ describe('Lot A30 Contract Tests: Règles du projet, désactivation justifiée, 
 
 		// 2. Bob (même avec un rôle temporaire de decider) essaie d'affirmer sa propre règle -> Rejet K16
 		const mockSelfAffirmEvent = {
+			locals: testLocals,
 			params: { projectId: testProjectId, ruleId: proposedRule.id },
 			request: new Request('http://localhost', {
 				method: 'POST',
@@ -306,6 +317,7 @@ describe('Lot A30 Contract Tests: Règles du projet, désactivation justifiée, 
 		const distinctDeciderId = 'user-decider-alice';
 
 		const mockDistinctAffirmEvent = {
+			locals: testLocals,
 			params: { projectId: testProjectId, ruleId: localRule!.id },
 			request: new Request('http://localhost', {
 				method: 'POST',
@@ -350,6 +362,7 @@ describe('Lot A30 Contract Tests: Règles du projet, désactivation justifiée, 
 
 		// Appel endpoint propose-kb
 		const mockKbEvent = {
+			locals: testLocals,
 			params: { projectId: testProjectId, ruleId: localRule!.id },
 			request: new Request('http://localhost', {
 				method: 'POST',

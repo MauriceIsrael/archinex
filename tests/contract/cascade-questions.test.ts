@@ -216,8 +216,15 @@ describe('Lot A28 Contract Tests: Cascade de questions, sujets enfants & détect
 			}
 		};
 
+		const testLocals = {
+			session: {
+				user: { id: 'user-architect-39', email: 'arch39@archinex.local', name: 'Architect 39', role: 'admin' }
+			}
+		};
+
 		// 1. Attempt to close mandatory question without justification -> 400
 		const badRequestEvent = {
+			locals: testLocals,
 			params: { projectId: testProjectId, subjectId: testSubjectId },
 			request: new Request('http://localhost', {
 				method: 'POST',
@@ -237,6 +244,7 @@ describe('Lot A28 Contract Tests: Cascade de questions, sujets enfants & détect
 
 		// 2. Close with valid justification -> 200
 		const goodRequestEvent = {
+			locals: testLocals,
 			params: { projectId: testProjectId, subjectId: testSubjectId },
 			request: new Request('http://localhost', {
 				method: 'POST',

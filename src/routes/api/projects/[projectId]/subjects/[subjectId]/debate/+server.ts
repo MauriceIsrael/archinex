@@ -4,6 +4,7 @@ import { getLatestDebateRun } from '$lib/server/projects/debateDb';
 import { orchestrateDebate, invokeSpecificAgent } from '$lib/server/agents/debateOrchestrator';
 import { StartDebateSchema } from '$lib/schemas/debateApiSchemas';
 import { getActorInfo } from '$lib/server/projects/actorHelper';
+import { authorizeProjectAccess } from '$lib/server/projects/projectAccess';
 
 export const GET: RequestHandler = async ({ params }) => {
 	const { subjectId } = params;
@@ -16,8 +17,11 @@ export const GET: RequestHandler = async ({ params }) => {
 	}
 };
 
-export const POST: RequestHandler = async ({ params, request }) => {
-	const { subjectId } = params;
+export const POST: RequestHandler = async (event) => {
+	const { params, request } = event;
+	const { projectId, subjectId } = params;
+	const auth = await authorizeProjectAccess(event, projectId);
+	if (auth.error) return auth.error;
 	let body: any = {};
 
 	try {
@@ -26,7 +30,7 @@ export const POST: RequestHandler = async ({ params, request }) => {
 		// Pas bloquant
 	}
 
-	const actor = getActorInfo(request);
+	const actor = getActorInfo(event);
 
 	// Invocaton ciblée à la demande d'un seul agent (@challenger, @proposer, @verifier, @synthesizer)
 	if (body.agentRole && typeof body.agentRole === 'string') {

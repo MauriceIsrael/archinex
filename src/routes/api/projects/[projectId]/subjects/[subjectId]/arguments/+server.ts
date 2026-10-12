@@ -6,6 +6,7 @@ import { listArguments, createArgument } from '$lib/server/projects/debateDb';
 import { ensureSubjectExists } from '$lib/server/projects/projectsDb';
 import { CreateArgumentSchema } from '$lib/schemas/debateApiSchemas';
 import { getActorInfo } from '$lib/server/projects/actorHelper';
+import { authorizeProjectAccess } from '$lib/server/projects/projectAccess';
 import { doctrineService } from '$lib/server/doctrine/doctrineService';
 import { extractMentions } from '$lib/domain/debate';
 import { invokeSpecificAgent } from '$lib/server/agents/debateOrchestrator';
@@ -22,8 +23,11 @@ export const GET: RequestHandler = async ({ params, url }) => {
 	}
 };
 
-export const POST: RequestHandler = async ({ params, request }) => {
+export const POST: RequestHandler = async (event) => {
+	const { params, request } = event;
 	const { projectId, subjectId } = params;
+	const auth = await authorizeProjectAccess(event, projectId);
+	if (auth.error) return auth.error;
 	const body = await request.json();
 	const parsed = CreateArgumentSchema.safeParse(body);
 
@@ -31,7 +35,7 @@ export const POST: RequestHandler = async ({ params, request }) => {
 		return json({ message: 'Validation invalide', errors: parsed.error.format() }, { status: 400 });
 	}
 
-	const actor = getActorInfo(request);
+	const actor = getActorInfo(event);
 
 	// S'assurer de la présence du sujet dans la base relationnelle
 	const subject = await ensureSubjectExists(projectId, subjectId);

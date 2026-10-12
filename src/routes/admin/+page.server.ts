@@ -1,11 +1,10 @@
 import { requireRole } from '$lib/auth/guard.server';
 import { prisma } from '$lib/server/prisma';
-import { getEnforcer } from '$lib/server/casbin';
 import { listKbExperts } from '$lib/server/kbProfilesDb';
 import type { PageServerLoad } from './$types';
 
 /**
- * Admin Load — RBAC/ABAC protected user, expert and policy list.
+ * Admin Load — RBAC protected user and expert list.
  */
 export const load: PageServerLoad = async ({ locals }) => {
   // Enforce role
@@ -19,11 +18,6 @@ export const load: PageServerLoad = async ({ locals }) => {
   // Fetch KB experts
   const experts = await listKbExperts();
 
-  // Fetch Casbin policies
-  const ef = await getEnforcer();
-  const policies = await ef.getPolicy();
-  const groups = await ef.getGroupingPolicy();
-
   return {
     users: users.map((u) => ({
       id: u.id,
@@ -33,8 +27,7 @@ export const load: PageServerLoad = async ({ locals }) => {
       // @ts-ignore
       attributes: JSON.parse(u.attributes || '{}')
     })),
-    experts,
-    policies,
-    groups
+    experts
   };
 };
+

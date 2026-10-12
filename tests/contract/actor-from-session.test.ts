@@ -34,4 +34,33 @@ describe('Identité de l’acteur : session uniquement', () => {
     }
     expect(requiresSession('/login')).toBe(false);
   });
+
+  it('toutes les routes d’écriture sous /api/projects/[projectId] vérifient authorizeProjectAccess (#81)', () => {
+    const projectRoutes = walk('src/routes/api/projects/[projectId]').filter((p) => p.endsWith('+server.ts'));
+    const writeRoutes = projectRoutes.filter((p) => {
+      const content = readFileSync(p, 'utf-8');
+      return /export\s+const\s+(POST|PATCH|PUT|DELETE)\b/.test(content);
+    });
+    expect(writeRoutes.length).toBeGreaterThan(30);
+    const missingAuth = writeRoutes.filter((p) => {
+      const content = readFileSync(p, 'utf-8');
+      return !content.includes('authorizeProjectAccess') || !content.includes('auth.error');
+    });
+    expect(missingAuth).toEqual([]);
+  });
+
+  it('toutes les routes sous /api/admin vérifient requireRole (#81)', () => {
+    const adminRoutes = walk('src/routes/api/admin').filter((p) => p.endsWith('+server.ts'));
+    expect(adminRoutes.length).toBeGreaterThan(0);
+    const missingRole = adminRoutes.filter((p) => !readFileSync(p, 'utf-8').includes('requireRole'));
+    expect(missingRole).toEqual([]);
+  });
+
+  it('aucun garde mort (requirePermission, requireKbRole, requireKbPermission) ne subsiste dans src/ (#81)', () => {
+    const srcFiles = walk('src').filter((p) => p.endsWith('.ts') || p.endsWith('.svelte'));
+    const offenders = srcFiles.filter((p) =>
+      /\b(requirePermission|requireKbRole|requireKbPermission)\b/.test(readFileSync(p, 'utf-8'))
+    );
+    expect(offenders).toEqual([]);
+  });
 });

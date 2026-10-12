@@ -9,6 +9,7 @@ import {
 } from '$lib/server/projects/projectsDb';
 import { UpdateSubjectSchema } from '$lib/schemas/projectApiSchemas';
 import { getActorFromEvent } from '$lib/server/projects/actorHelper';
+import { authorizeProjectAccess } from '$lib/server/projects/projectAccess';
 import { z } from 'zod';
 
 export const GET: RequestHandler = async ({ params }) => {
@@ -25,6 +26,8 @@ export const GET: RequestHandler = async ({ params }) => {
 
 export const PATCH: RequestHandler = async (event) => {
 	const { params } = event;
+	const auth = await authorizeProjectAccess(event, params.projectId);
+	if (auth.error) return auth.error;
 	try {
 		const body = await event.request.json();
 		const parsed = UpdateSubjectSchema.safeParse(body);
@@ -65,6 +68,8 @@ const DeleteSubjectSchema = z.object({
 
 export const DELETE: RequestHandler = async (event) => {
 	const { params } = event;
+	const auth = await authorizeProjectAccess(event, params.projectId);
+	if (auth.error) return auth.error;
 	try {
 		let expectedVersion = 1;
 		const queryVer = event.url.searchParams.get('expectedVersion');

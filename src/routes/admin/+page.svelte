@@ -12,7 +12,6 @@
   import Settings from 'lucide-svelte/icons/settings';
 
   import AdminUserDialog from '$lib/components/admin/AdminUserDialog.svelte';
-  import AdminPolicyTable from '$lib/components/admin/AdminPolicyTable.svelte';
   import AdminKbExpertsTable from '$lib/components/admin/AdminKbExpertsTable.svelte';
 
   let { data } = $props();
@@ -59,7 +58,6 @@
     <Tabs.List>
       <Tabs.Trigger value="experts">Experts KB</Tabs.Trigger>
       <Tabs.Trigger value="users">{$t('admin.tabs.users')}</Tabs.Trigger>
-      <Tabs.Trigger value="permissions">{$t('admin.tabs.permissions')}</Tabs.Trigger>
     </Tabs.List>
 
     <!-- EXPERTS KB TAB (Lot A6) -->
@@ -116,11 +114,6 @@
           </div>
         </Card.Content>
       </Card.Root>
-    </Tabs.Content>
-
-    <!-- PERMISSIONS TAB -->
-    <Tabs.Content value="permissions">
-      <AdminPolicyTable policies={data.policies} groups={data.groups} users={data.users} />
     </Tabs.Content>
   </Tabs.Root>
 

@@ -1,11 +1,14 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { getActorInfo } from '$lib/server/projects/actorHelper';
+import { authorizeProjectAccess } from '$lib/server/projects/projectAccess';
 import { enableReferenceRule } from '$lib/server/rules/projectRulesService';
 import { UnauthorizedArbitrationError } from '$lib/server/projects/arbitrationDb';
 
 export const POST: RequestHandler = async (event) => {
 	const { projectId, ruleId } = event.params;
+	const auth = await authorizeProjectAccess(event, projectId);
+	if (auth.error) return auth.error;
 	const actor = getActorInfo(event);
 
 	try {

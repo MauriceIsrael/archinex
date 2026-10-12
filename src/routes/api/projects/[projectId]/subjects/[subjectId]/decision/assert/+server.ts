@@ -7,10 +7,13 @@ import { resolveProjectActor } from '$lib/server/projects/actorHelper';
 import { DEFAULT_ARCHINEX_VOCABULARY } from '$lib/server/agents/factExtractor';
 import { formatDecisionAffirmedMilestone } from '$lib/domain/debate';
 import { proposeAndPersistComplementaryQuestions } from '$lib/server/cascade/cascadeService';
+import { authorizeProjectAccess } from '$lib/server/projects/projectAccess';
 
 export const POST: RequestHandler = async (event) => {
 	const { params } = event;
 	const { projectId, subjectId } = params;
+	const auth = await authorizeProjectAccess(event, projectId);
+	if (auth.error) return auth.error;
 
 	// Rôle dans l'espace : fiche participant de la personne connectée (ou admin), pas son rôle applicatif.
 	const actor = await resolveProjectActor(event, projectId!);

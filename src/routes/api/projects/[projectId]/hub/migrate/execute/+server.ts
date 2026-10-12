@@ -1,16 +1,13 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { executeProjectMigration } from '$lib/server/projects/hubMigrationService';
+import { authorizeProjectAccess } from '$lib/server/projects/projectAccess';
 import type { HubConfidentiality } from '$lib/types/llmops';
 
 export const POST: RequestHandler = async (event) => {
-	const session = event.locals.session;
-	if (!session || !session.user) {
-		return json(
-			{ status: 'error', error: 'Non authentifié : session requise' },
-			{ status: 401 }
-		);
-	}
+	const auth = await authorizeProjectAccess(event, event.params.projectId);
+	if (auth.error) return auth.error;
+	const session = auth.session!;
 
 	try {
 		let body: Record<string, unknown> = {};

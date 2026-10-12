@@ -11,6 +11,9 @@ function getPrisma(): PrismaClient {
 		console.log('[Prisma Init] CWD:', process.cwd());
 		console.log('[Prisma Init] DATABASE_URL:', process.env.DATABASE_URL);
 		_prisma = new PrismaClient();
+		// Mode WAL + busy_timeout pour supporter les écritures concurrentes sans verrouiller SQLite
+		_prisma.$executeRawUnsafe('PRAGMA journal_mode = WAL;').catch(() => {});
+		_prisma.$executeRawUnsafe('PRAGMA busy_timeout = 5000;').catch(() => {});
 	}
 	return _prisma;
 }

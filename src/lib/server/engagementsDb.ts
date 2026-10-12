@@ -198,15 +198,17 @@ export async function saveEngagementToDb(profile: EngagementProfile): Promise<En
 		dialogueMessages: JSON.stringify(profile.dialogueMessages || [])
 	};
 
-	await prisma.engagement.upsert({
-		where: { id: profile.id },
-		create: data,
-		update: data
-	});
+	const proposalsToSeed: Array<{ subjectId: string; proposal: any }> = [];
 
-	// Synchronisation avec les tables relationnelles (Project, ProjectMember, Subject)
-	try {
-		await prisma.project.upsert({
+	// Synchronisation atomique de l'engagement et de ses tables relationnelles (Project, ProjectMember, Subject)
+	await prisma.$transaction(async (tx) => {
+		await tx.engagement.upsert({
+			where: { id: profile.id },
+			create: data,
+			update: data
+		});
+
+		await tx.project.upsert({
 			where: { id: profile.id },
 			create: {
 				id: profile.id,
@@ -234,7 +236,7 @@ export async function saveEngagementToDb(profile: EngagementProfile): Promise<En
 			for (const s of profile.subjects) {
 				const subjectId = s.id;
 				if (!subjectId) continue;
-				const existing = await prisma.subject.findUnique({ where: { id: subjectId }, select: { projectId: true, maturityLevel: true } });
+				const existing = await tx.subject.findUnique({ where: { id: subjectId }, select: { projectId: true, maturityLevel: true } });
 				if (existing && existing.projectId !== profile.id) {
 					// Un identifiant de sujet est global : ne jamais réécrire le sujet d'un autre projet.
 					console.warn(`[engagementsDb] Sujet ${subjectId} déjà rattaché au projet ${existing.projectId} : ignoré pour ${profile.id}.`);
@@ -243,7 +245,7 @@ export async function saveEngagementToDb(profile: EngagementProfile): Promise<En
 				const problemStatement = (s.problem_statement || (s as any).problemStatement || '').trim();
 				const proposal = s.proposal;
 				if (!existing) {
-					await prisma.subject.create({
+					await tx.subject.create({
 						data: {
 							id: subjectId,
 							projectId: profile.id,
@@ -264,13 +266,8 @@ export async function saveEngagementToDb(profile: EngagementProfile): Promise<En
 							version: 1
 						}
 					});
-					// Options, critères et évaluations proposés par le modèle : créés une seule fois, à la création du sujet.
 					if (proposal) {
-						try {
-							await seedSubjectProposal(subjectId, proposal);
-						} catch (err) {
-							console.warn(`[engagementsDb] Proposition non matérialisée pour ${subjectId} :`, err instanceof Error ? err.message : err);
-						}
+						proposalsToSeed.push({ subjectId, proposal });
 					}
 					continue;
 				}
@@ -279,7 +276,7 @@ export async function saveEngagementToDb(profile: EngagementProfile): Promise<En
 				const serverDecided = ['L3_decided', 'L4_specified', 'L5_archived'].includes(existing.maturityLevel);
 				const clientLevel = s.level || 'L0_named';
 				const clientDecided = ['L3_decided', 'L4_specified', 'L5_archived'].includes(clientLevel);
-				await prisma.subject.update({
+				await tx.subject.update({
 					where: { id: subjectId },
 					data: {
 						sectionRef: s.section_ref || '§0.0',
@@ -304,7 +301,7 @@ export async function saveEngagementToDb(profile: EngagementProfile): Promise<En
 			for (const p of profile.participants) {
 				const userId = p.id;
 				if (!userId) continue;
-				await prisma.projectMember.upsert({
+				await tx.projectMember.upsert({
 					where: {
 						projectId_userId: {
 							projectId: profile.id,
@@ -323,8 +320,11 @@ export async function saveEngagementToDb(profile: EngagementProfile): Promise<En
 				});
 			}
 		}
-	} catch (syncErr) {
-		console.warn(`[engagementsDb] Échec de la synchronisation relationnelle pour ${profile.id}:`, syncErr);
+	}, { timeout: 15000 });
+
+	// Matérialisation des propositions (options, critères, évaluations) après la création des sujets
+	for (const { subjectId, proposal } of proposalsToSeed) {
+		await seedSubjectProposal(subjectId, proposal);
 	}
 
 	// Sauvegarder également ses documents amonts s'il y en a

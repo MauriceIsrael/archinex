@@ -30,8 +30,7 @@ vite.config.ts.timestamp-*
 !.codex/config.toml
 
 # Generated DB and logs
-prisma/dev.db
-prisma/dev.db-journal
+prisma/dev.db*
 prisma/test-clean.db
 prisma/test-clean.db-journal
 prisma/test-playwright.db*

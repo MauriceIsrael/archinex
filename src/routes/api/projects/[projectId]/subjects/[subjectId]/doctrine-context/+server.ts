@@ -16,7 +16,8 @@ export const GET: RequestHandler = async ({ params }) => {
 			const docCtx = await doctrineService.getDoctrineContext({
 				topics: [subject.name],
 				domains: subject.domain ? [subject.domain] : [],
-				frameworks: await getApplicableFrameworks(subject.projectId)
+				frameworks: await getApplicableFrameworks(subject.projectId),
+				maxItems: 80
 			});
 			if (docCtx && Array.isArray(docCtx.items)) {
 				allowedKbRefs = docCtx.items.map((i: any) => i.id);

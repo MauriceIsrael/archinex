@@ -258,7 +258,9 @@ describe('Lot A4 Integration: Calculated Maturity & Human Arbitration Gate (Port
 		expect(ctx.maturityResult.level).toBe('L2_decomposed');
 		expect(ctx.maturityResult.readyForArbitration).toBe(false);
 		expect(ctx.maturityResult.blockers.some((b) => b.code === 'OPEN_OBJECTION')).toBe(true);
-		expect(ctx.maturityResult.blockers.some((b) => b.code === 'COVERAGE_INCOMPLETE')).toBe(true);
+		// Couverture incomplète : alerte, pas blocage (le blocage restant vient de l'objection ouverte)
+		expect(ctx.maturityResult.blockers.some((b) => b.code === 'COVERAGE_INCOMPLETE')).toBe(false);
+		expect(ctx.maturityResult.warnings.some((w) => w.code === 'COVERAGE_INCOMPLETE')).toBe(true);
 	});
 
 	it('5. Valide l’arbitrage opposable dès que les blocages sont levés par un expert du domaine', async () => {

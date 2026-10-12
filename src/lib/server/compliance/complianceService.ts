@@ -1,5 +1,7 @@
 import { prisma } from '../prisma';
 import { llmopsClient } from '../llmops/client';
+import { getProjectFrameworks } from '../projects/frameworksDb';
+import { coverageWarnings } from '$lib/domain/maturityRules';
 
 /**
  * Conformité réglementaire des options d'un sujet, jugée par LLMOps (POST /api/knowledge/check) contre les
@@ -24,6 +26,8 @@ export interface SubjectCompliance {
 	violations: ComplianceViolation[];
 	/** Règles applicables que LLMOps ne sait pas juger automatiquement (à vérifier par l'architecte). */
 	unassessedCount: number;
+	/** Référentiels applicables pas encore couverts par la base : alerte, jamais blocage. */
+	coverageWarnings: string[];
 }
 
 interface RawVerdict {
@@ -95,5 +99,6 @@ export async function checkSubjectCompliance(projectId: string, subjectId: strin
 		unassessedCount = Math.max(unassessedCount, verdicts.filter((v) => v.verdict === 'unassessed').length);
 		violations.push(...toViolations(option.id, verdicts));
 	}
-	return { frameworks, offline, violations, unassessedCount };
+	const coverage = await getProjectFrameworks(projectId).catch(() => ({ frameworks: [] }));
+	return { frameworks, offline, violations, unassessedCount, coverageWarnings: coverageWarnings(coverage.frameworks).map((w) => w.message) };
 }

@@ -74,7 +74,7 @@
 
 	// Conformité réglementaire des options (LLMOps, contre les référentiels de l'espace)
 	interface ComplianceViolation { optionId: string; typedId: string; message: string; validated: boolean; matchedTerms: string[] }
-	let compliance = $state<{ frameworks: string[]; offline: boolean; violations: ComplianceViolation[]; unassessedCount: number } | null>(null);
+	let compliance = $state<{ frameworks: string[]; offline: boolean; violations: ComplianceViolation[]; unassessedCount: number; coverageWarnings?: string[] } | null>(null);
 	let violationJustifications = $state<Record<string, string>>({});
 	const violationsOf = (optionId: string) => (compliance?.violations ?? []).filter((v) => v.optionId === optionId);
 
@@ -623,6 +623,10 @@
 						class="w-full rounded-md border bg-background px-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground"
 					></textarea>
 				</div>
+
+				{#each compliance?.coverageWarnings ?? [] as warning (warning)}
+					<p class="rounded-lg border border-amber-500/40 bg-amber-500/10 p-2 text-[11px]" data-testid="coverage-warning">{warning}</p>
+				{/each}
 
 				{#if violationsOf(selectedRetainedOptionId).length > 0}
 					<div class="space-y-2 rounded-lg border border-destructive/30 bg-destructive/5 p-2.5" data-testid="decision-violations">

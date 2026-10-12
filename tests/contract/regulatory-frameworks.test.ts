@@ -1,6 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { detectApplicableFrameworks } from '$lib/domain/regulatoryFrameworks';
 import { toViolations } from '$lib/server/compliance/complianceService';
+import { LLMOpsClient } from '$lib/server/llmops/client';
+import { coverageWarnings } from '$lib/domain/maturityRules';
+import { vi, afterEach } from 'vitest';
 
 describe('Référentiels réglementaires cités par un RFP', () => {
 	it('détecte les référentiels cités, du plus cité au moins cité, avec un extrait', () => {
@@ -31,5 +34,33 @@ describe('Verdicts de conformité LLMOps', () => {
 			{ optionId: 'opt-1', typedId: 'control:NIS2-ART21-2J', checkId: 'C1', message: 'MFA exigée.', matchedTerms: ['mot de passe seul'], sourceRef: null, validated: true },
 			{ optionId: 'opt-1', typedId: 'principle:P-001', checkId: 'C2', message: 'Non conforme à principle:P-001', matchedTerms: [], sourceRef: null, validated: false }
 		]);
+	});
+});
+
+describe('Couverture réglementaire lue dans LLMOps', () => {
+	afterEach(() => vi.unstubAllGlobals());
+
+	it('lit le format servi (coverage par référentiel) et en tire des alertes, pas des blocages', async () => {
+		vi.stubGlobal('fetch', vi.fn(async () => new Response(JSON.stringify({
+			status: 'ok',
+			engagement: 'lulu',
+			applicable_frameworks: ['CRA', 'NIS2'],
+			coverage: {
+				CRA: { status: 'partial', expected: 29, present: 0, validated: 0, missing_ids: ['CRA-ART14-1'] },
+				NIS2: { status: 'covered', expected: 19, present: 19, validated: 19, missing_ids: [] }
+			}
+		}), { status: 200, headers: { 'Content-Type': 'application/json' } })));
+
+		const cov = await new LLMOpsClient({ baseUrl: 'http://127.0.0.1:8123' }).getFrameworkCoverage('lulu');
+		expect(cov.offline).toBe(false);
+		expect(cov.overall_coverage).toBe('partial');
+		expect(cov.frameworks).toEqual([
+			{ name: 'CRA', required: true, status: 'partial', covered_count: 0, total_count: 29, missing_clauses: ['CRA-ART14-1'] },
+			{ name: 'NIS2', required: true, status: 'covered', covered_count: 19, total_count: 19, missing_clauses: [] }
+		]);
+
+		const warnings = coverageWarnings(cov.frameworks.map((f) => ({ frameworkId: f.name, name: f.name, status: f.status, validatedCount: f.covered_count, expectedCount: f.total_count })));
+		expect(warnings).toHaveLength(1);
+		expect(warnings[0].message).toContain('CRA (0 exigence(s) validée(s) sur 29)');
 	});
 });

@@ -331,7 +331,7 @@ describe('Lot A4 Contract: Maturity Rules & Arbitration Gate (computeMaturity)',
 		expect(res.blockers.some((b) => b.code === 'OPEN_BLOCKING_QUESTION')).toBe(true);
 	});
 
-	it('9. Détecte COVERAGE_INCOMPLETE si un référentiel requis n\'est pas "covered"', () => {
+	it('9. Un référentiel requis non couvert donne une ALERTE COVERAGE_INCOMPLETE, sans bloquer l\'arbitrage', () => {
 		const res = computeMaturity({
 			subject: baseSubject,
 			criteria: [crit1, crit2],
@@ -344,10 +344,12 @@ describe('Lot A4 Contract: Maturity Rules & Arbitration Gate (computeMaturity)',
 			]
 		});
 
-		expect(res.readyForArbitration).toBe(false);
-		const fwBlocker = res.blockers.find((b) => b.code === 'COVERAGE_INCOMPLETE');
-		expect(fwBlocker).toBeDefined();
-		expect(fwBlocker?.targetId).toBe('RGS_V2');
+		// Une base incomplète relève de sa maintenance (LLMOps), pas de l'architecte qui tranche
+		expect(res.readyForArbitration).toBe(true);
+		expect(res.blockers.some((b) => b.code === 'COVERAGE_INCOMPLETE')).toBe(false);
+		const warning = res.warnings.find((w) => w.code === 'COVERAGE_INCOMPLETE');
+		expect(warning?.targetId).toBe('RGS_V2');
+		expect(warning?.message).toContain('ne garantit pas la conformité');
 	});
 
 	it('10. Valide readyForArbitration: true quand toutes les exigences sont satisfaites', () => {

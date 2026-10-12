@@ -22,6 +22,9 @@ export interface FrameworkCoverageStatus {
 	frameworkId: string;
 	name?: string;
 	status: 'covered' | 'partial' | 'missing' | 'unknown';
+	/** Exigences attendues du référentiel actives et validées dans la base, et nombre attendu. */
+	validatedCount?: number;
+	expectedCount?: number;
 }
 
 export interface MaturityComputationInput {
@@ -42,10 +45,27 @@ export interface MaturityComputationInput {
 	decision?: Decision | null;
 }
 
+/** Alertes « vérification réglementaire incomplète » pour les référentiels applicables non couverts. */
+export function coverageWarnings(frameworks: FrameworkCoverageStatus[]): MaturityBlocker[] {
+	return frameworks
+		.filter((fw) => fw.status !== 'covered')
+		.map((fw) => {
+			const counts =
+				fw.expectedCount !== undefined ? ` (${fw.validatedCount ?? 0} exigence(s) validée(s) sur ${fw.expectedCount})` : '';
+			return {
+				code: 'COVERAGE_INCOMPLETE' as const,
+				message: `Vérification réglementaire incomplète : ${fw.name || fw.frameworkId}${counts}. L'absence d'alerte sur ce référentiel ne garantit pas la conformité.`,
+				targetId: fw.frameworkId
+			};
+		});
+}
+
 export interface MaturityComputationResult {
 	level: SubjectMaturity;
 	readyForArbitration: boolean;
 	blockers: MaturityBlocker[];
+	/** Alertes non bloquantes : à afficher au moment de trancher et dans le dossier. */
+	warnings: MaturityBlocker[];
 }
 
 /**
@@ -75,7 +95,8 @@ export function computeMaturity(input: MaturityComputationInput): MaturityComput
 				? currentLevel
 				: 'L3_decided',
 			readyForArbitration: false,
-			blockers: []
+			blockers: [],
+			warnings: []
 		};
 	}
 
@@ -204,24 +225,17 @@ export function computeMaturity(input: MaturityComputationInput): MaturityComput
 		}
 	}
 
-	// d. Couverture réglementaire du projet
-	if (input.requiredFrameworks && input.requiredFrameworks.length > 0) {
-		for (const fw of input.requiredFrameworks) {
-			if (fw.status !== 'covered') {
-				blockers.push({
-					code: 'COVERAGE_INCOMPLETE',
-					message: `Le référentiel réglementaire "${fw.name || fw.frameworkId}" est incomplet (statut: ${fw.status}, requis: "covered").`,
-					targetId: fw.frameworkId
-				});
-			}
-		}
-	}
+	// d. Couverture réglementaire du projet : ALERTE, pas blocage. Une base de connaissances incomplète relève de
+	// sa maintenance (LLMOps), pas de l'architecte qui tranche ; le blocage réglementaire porte sur les options jugées
+	// non conformes par une règle validée (écart à accepter et justifier, voir l'arbitrage).
+	const warnings = coverageWarnings(input.requiredFrameworks ?? []);
 
 	const readyForArbitration = level === 'L2_decomposed' && blockers.length === 0;
 
 	return {
 		level,
 		readyForArbitration,
-		blockers
+		blockers,
+		warnings
 	};
 }

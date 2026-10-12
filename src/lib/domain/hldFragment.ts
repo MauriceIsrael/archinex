@@ -41,6 +41,8 @@ export interface HldFragmentInput {
 	arguments: Argument[];
 	decision: Decision | null;
 	affirmedBy?: string | null;
+	/** Référentiels applicables pas encore couverts par la base de connaissances (alertes). */
+	coverageWarnings?: string[];
 	generatedAt: string;
 }
 
@@ -67,7 +69,7 @@ export interface HldFragment {
 	options: HldFragmentOption[];
 	singleOptionRationale?: string;
 	decision?: { retained: string; rationale: string; yStatement: string; reversibility: string };
-	consequences: { acceptedRisks: string[]; acceptedViolations: string[]; reversibility?: string };
+	consequences: { acceptedRisks: string[]; acceptedViolations: string[]; reversibility?: string; coverageWarnings: string[] };
 	openPoints: string[];
 	provenance: { modelProposedOptions: number; humanOptions: number; modelEvaluations: number; humanEvaluations: number };
 	generatedAt: string;
@@ -176,7 +178,8 @@ export function buildHldFragment(input: HldFragmentInput): HldFragment {
 		consequences: {
 			acceptedRisks,
 			acceptedViolations: (decision?.acceptedViolations ?? []).map((v) => `${v.typedId} : ${v.justification}`),
-			reversibility: decisionBlock?.reversibility
+			reversibility: decisionBlock?.reversibility,
+			coverageWarnings: input.coverageWarnings ?? []
 		},
 		openPoints,
 		provenance: {
@@ -234,6 +237,7 @@ export function renderHldFragmentMarkdown(f: HldFragment): string {
 		out.push(...f.consequences.acceptedViolations.map((v) => `- Écart accepté : ${v}`), ...f.consequences.acceptedRisks.map((r) => `- Risque accepté : ${r}`), '');
 	}
 	if (f.openPoints.length) out.push('### Points ouverts', '', ...f.openPoints.map((p) => `- ${p}`), '');
+	if (f.consequences.coverageWarnings.length) out.push('### Vérification réglementaire', '', ...f.consequences.coverageWarnings.map((w) => `- ${w}`), '');
 
 	out.push(
 		`_Provenance : ${f.provenance.modelProposedOptions} option(s) et ${f.provenance.modelEvaluations} évaluation(s) proposées par le modèle, ` +

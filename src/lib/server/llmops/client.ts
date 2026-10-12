@@ -1730,6 +1730,7 @@ export class LLMOpsClient {
       rejection_reason?: string;
       comment?: string;
       acceptance_criteria?: string | string[];
+      title_fr?: string;
     },
     actorEmail?: string
   ): Promise<{ status: 'ok' | 'error' | 'forbidden' | 'bad_request' | 'unavailable'; data?: FrameworkRequirement; error?: string }> {
@@ -1757,6 +1758,7 @@ export class LLMOpsClient {
         links,
         comment,
         acceptance_criteria: criteria,
+        ...(review.title_fr ? { title_fr: review.title_fr } : {}),
         status: review.status,
         mapped_assets: review.mapped_assets,
         amendment_notes: review.amendment_notes,

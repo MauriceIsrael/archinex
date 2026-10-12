@@ -24,7 +24,7 @@ export const POST: RequestHandler = async ({ cookies }) => {
     error(401, { message: 'Refresh token invalid or expired' });
   }
 
-  const user = getUserById(userId!);
+  const user = await getUserById(userId!);
   if (!user) {
     error(401, { message: 'User not found' });
   }

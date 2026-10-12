@@ -17,14 +17,15 @@ const VerifierOutputSchema = z.object({
 	)
 });
 
-/** Règles présentées au modèle : texte des plus pertinentes (au plus 15), identifiant seul pour les autres. */
+/** Règles présentées au modèle, toutes avec leur texte : pertinentes pour le sujet, puis imposées, puis le reste. */
 function describeRules(input: { allowedKbRefs: string[]; doctrine?: Array<{ id: string; title?: string; excerpt?: string; relevant?: boolean; required?: boolean }> }): string {
 	const byId = new Map((input.doctrine ?? []).map((d) => [d.id, d]));
-	const ordered = [...input.allowedKbRefs].sort((a, b) => Number(Boolean(byId.get(b)?.relevant)) - Number(Boolean(byId.get(a)?.relevant)));
+	const rank = (id: string) => (byId.get(id)?.relevant ? 0 : byId.get(id)?.required ? 1 : 2);
+	const ordered = [...input.allowedKbRefs].sort((a, b) => rank(a) - rank(b));
 	return ordered
-		.map((id, i) => {
+		.map((id) => {
 			const d = byId.get(id);
-			if (!d || i >= 15) return `- Règle [${id}]`;
+			if (!d) return `- Règle [${id}]`;
 			const tag = d.relevant ? ' (pertinente pour ce sujet)' : d.required ? ' (imposée par un référentiel déclaré)' : '';
 			const excerpt = (d.excerpt ?? '').replace(/\s+/g, ' ').trim().slice(0, 400);
 			return `- Règle [${id}]${tag} : ${d.title ?? ''}${excerpt ? ` — ${excerpt}` : ''}`;

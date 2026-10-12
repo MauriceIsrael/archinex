@@ -24,6 +24,9 @@ export interface OrchestrationResult {
 	newQuestionsCount: number;
 }
 
+/** Règles transmises au vérificateur : de quoi couvrir tous les contrôles des référentiels déclarés (CRA + NIS2 = 48). */
+const VERIFIER_MAX_RULES = 120;
+
 export async function orchestrateDebate(
 	subjectId: string,
 	options: {
@@ -59,7 +62,10 @@ export async function orchestrateDebate(
 		const docCtx = await doctrineService.getDoctrineContext({
 			topics: [subject.name],
 			domains: subject.domain ? [subject.domain] : [],
-			frameworks: await getApplicableFrameworks(subject.projectId)
+			frameworks: await getApplicableFrameworks(subject.projectId),
+			// Le vérificateur lit TOUS les contrôles imposés : un contrôle mal classé par la recherche ne doit pas lui échapper
+			maxItems: VERIFIER_MAX_RULES,
+			maxChars: VERIFIER_MAX_RULES * 400
 		});
 		if (docCtx && docCtx.items) {
 			allowedKbRefs = docCtx.items.map((r) => r.id);
@@ -265,7 +271,10 @@ export async function invokeSpecificAgent(
 		const docCtx = await doctrineService.getDoctrineContext({
 			topics: [subject.name],
 			domains: subject.domain ? [subject.domain] : [],
-			frameworks: await getApplicableFrameworks(subject.projectId)
+			frameworks: await getApplicableFrameworks(subject.projectId),
+			// Le vérificateur lit TOUS les contrôles imposés : un contrôle mal classé par la recherche ne doit pas lui échapper
+			maxItems: VERIFIER_MAX_RULES,
+			maxChars: VERIFIER_MAX_RULES * 400
 		});
 		if (docCtx && docCtx.items) {
 			allowedKbRefs = docCtx.items.map((r) => r.id);

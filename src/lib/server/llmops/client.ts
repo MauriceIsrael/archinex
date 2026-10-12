@@ -6,6 +6,11 @@
  */
 
 import type {
+  CheckClausesList,
+  CheckClauseRow,
+  CheckClauseDecision,
+  CheckClauseMatcher,
+  AssetClauseTrialVerdict,
   LLMOpsHealth,
   LLMOpsSnapshot,
   LLMOpsBoardItem,
@@ -647,6 +652,8 @@ export class LLMOpsClient {
       const url = `${this.baseUrl}/api/knowledge/check`;
       const bodyPayload = {
         ...params,
+        // Le juge de LLMOps lit title, description et statements : le résumé d'Archinex doit arriver en description
+        option: { ...params.option, description: params.option.summary },
         domain: params.domain || (params.domains && params.domains[0])
       };
       const res = await this.fetchWithTimeout(url, {
@@ -1706,6 +1713,82 @@ export class LLMOpsClient {
         status: 'unavailable',
         error: 'Mode hors-ligne : validation à blanc indisponible'
       };
+    }
+  }
+
+  /**
+   * Clauses vérifiables de la doctrine et leur statut propre (GET /api/knowledge/checks, contrat 1.26)
+   */
+  async listCheckClauses(
+    filters: { status?: string; framework?: string; type?: string; asset_id?: string },
+    actorEmail?: string
+  ): Promise<{ status: 'ok' | 'error' | 'unavailable'; data?: CheckClausesList; error?: string }> {
+    try {
+      const q = new URLSearchParams();
+      for (const [k, v] of Object.entries(filters)) if (v) q.set(k, v);
+      const res = await this.fetchWithTimeout(`${this.baseUrl}/api/knowledge/checks?${q.toString()}`, {
+        headers: this.getHeaders(undefined, actorEmail)
+      });
+      const body = await res.json().catch(() => ({}));
+      if (res.ok) return { status: 'ok', data: (body.data || body) as CheckClausesList };
+      if (res.status === 404) {
+        return { status: 'error', error: 'LLMOps ne connaît pas encore la décision par clause (contrat 1.26 requis)' };
+      }
+      return { status: 'error', error: body.reason || body.error || `Erreur HTTP ${res.status}` };
+    } catch {
+      return { status: 'unavailable', error: 'Mode hors-ligne : clauses vérifiables indisponibles' };
+    }
+  }
+
+  /**
+   * Décision sur une clause : valider, amender (valider une clause corrigée) ou rejeter (contrat 1.26).
+   * Le relecteur est la personne connectée (X-Actor-Email), jamais un champ du corps.
+   */
+  async decideCheckClause(
+    assetId: string,
+    checkId: string,
+    body: { decision: CheckClauseDecision; comment?: string; clause?: { kind?: string; when?: CheckClauseMatcher; expect?: CheckClauseMatcher; message?: string } },
+    actorEmail: string
+  ): Promise<{ status: 'ok' | 'forbidden' | 'invalid' | 'not_found' | 'error' | 'unavailable'; data?: CheckClauseRow; error?: string }> {
+    try {
+      const url = `${this.baseUrl}/api/knowledge/assets/${encodeURIComponent(assetId)}/checks/${encodeURIComponent(checkId)}`;
+      const res = await this.fetchWithTimeout(url, {
+        method: 'PATCH',
+        headers: { ...this.getHeaders(undefined, actorEmail), 'Content-Type': 'application/json' },
+        body: JSON.stringify(body)
+      });
+      const payload = await res.json().catch(() => ({}));
+      if (res.ok) return { status: 'ok', data: (payload.data || payload) as CheckClauseRow };
+      const error = payload.reason || payload.error?.message || payload.error || `Erreur HTTP ${res.status}`;
+      if (res.status === 403) return { status: 'forbidden', error };
+      if (res.status === 404) return { status: 'not_found', error };
+      if (res.status === 400) return { status: 'invalid', error };
+      return { status: 'error', error };
+    } catch {
+      return { status: 'unavailable', error: 'Mode hors-ligne : décision impossible' };
+    }
+  }
+
+  /**
+   * Essai des clauses d'un actif sur des options libres (POST /api/knowledge/checks/simulate, sans écriture).
+   * Renvoie, pour chaque option, les verdicts de l'actif avec les clauses proposées.
+   */
+  async tryAssetClauses(
+    assetId: string,
+    checks: unknown[],
+    options: Array<{ title: string; description?: string }>
+  ): Promise<{ status: 'ok' | 'error' | 'unavailable'; data?: Array<{ title: string; after: AssetClauseTrialVerdict[] }>; error?: string }> {
+    try {
+      const res = await this.fetchWithTimeout(`${this.baseUrl}/api/knowledge/checks/simulate`, {
+        method: 'POST',
+        headers: { ...this.getHeaders(), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ asset_id: assetId, checks, options, dataset: null })
+      });
+      const payload = await res.json().catch(() => ({}));
+      if (res.ok) return { status: 'ok', data: ((payload.data || payload).options || []) as Array<{ title: string; after: AssetClauseTrialVerdict[] }> };
+      return { status: 'error', error: payload.reason || payload.error || `Erreur HTTP ${res.status}` };
+    } catch {
+      return { status: 'unavailable', error: "Mode hors-ligne : essai impossible" };
     }
   }
 

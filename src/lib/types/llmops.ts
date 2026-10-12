@@ -1228,3 +1228,62 @@ export interface HubDecisionResult {
     asserted_at?: string;
   };
 }
+
+// ─────────────────────────────────────────────────────────────────────────────
+// CLAUSES VÉRIFIABLES : DÉCISION PAR CLAUSE (contrat LLMOps 1.26)
+// ─────────────────────────────────────────────────────────────────────────────
+
+export type CheckClauseStatus = 'draft' | 'validated' | 'rejected';
+export type CheckClauseDecision = 'validate' | 'amend' | 'reject';
+
+export interface CheckClauseMatcher {
+  terms_any?: string[];
+  terms_all?: string[];
+}
+
+export interface CheckClauseRow {
+  asset_id: string;
+  typed_id: string;
+  asset_type: string;
+  asset_title: string;
+  asset_title_fr?: string | null;
+  asset_status?: string | null;
+  framework?: string | null;
+  severity?: string | null;
+  domain: string[];
+  owner?: string | null;
+  source_ref?: string | null;
+  asset_excerpt: string;
+  revision: number;
+  check_id: string;
+  kind: 'requires' | 'forbids';
+  when: CheckClauseMatcher;
+  expect?: CheckClauseMatcher | null;
+  message?: string | null;
+  status: CheckClauseStatus;
+  review?: { by: string; at: string; decision: CheckClauseDecision; comment?: string } | null;
+  may_decide?: boolean;
+}
+
+export interface MandatoryControlWithoutClause {
+  asset_id: string;
+  asset_title: string;
+  asset_title_fr?: string | null;
+  framework?: string | null;
+  domain: string[];
+  source_ref?: string | null;
+  asset_excerpt: string;
+}
+
+export interface CheckClausesList {
+  clauses: CheckClauseRow[];
+  counts: Record<CheckClauseStatus, number>;
+  mandatory_without_clause: MandatoryControlWithoutClause[];
+  pending_publication: number;
+}
+
+export interface AssetClauseTrialVerdict {
+  check_id: string;
+  verdict: 'supports' | 'violates';
+  matched_terms: string[];
+}

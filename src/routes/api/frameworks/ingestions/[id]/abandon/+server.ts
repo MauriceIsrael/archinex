@@ -3,10 +3,8 @@ import { llmopsClient } from '$lib/server/llmops/client';
 import type { RequestHandler } from './$types';
 
 export const POST: RequestHandler = async ({ params, request, locals }) => {
-  const actorEmail =
-    locals.session?.user?.email ||
-    request.headers.get('x-actor-email') ||
-    undefined;
+  // L'identité vient de la session, jamais d'un en-tête fourni par le navigateur
+  const actorEmail = locals.session?.user?.email || undefined;
 
   let body: Record<string, any> = {};
   try {

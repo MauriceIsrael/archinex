@@ -13,7 +13,7 @@ export const PATCH: RequestHandler = async ({ params, request, locals }) => {
     return json({ status: 'error', error: 'Format JSON invalide' }, { status: 400 });
   }
 
-  const { status, mapped_assets, amendment_notes, rejection_reason, acceptance_criteria } = body || {};
+  const { status, mapped_assets, amendment_notes, rejection_reason, acceptance_criteria, title_fr } = body || {};
 
   if (!status || !['pending', 'accepted', 'amended', 'rejected'].includes(status)) {
     return json(
@@ -32,7 +32,7 @@ export const PATCH: RequestHandler = async ({ params, request, locals }) => {
   const result = await llmopsClient.reviewFrameworkRequirement(
     params.id,
     params.reqId,
-    { status, mapped_assets, amendment_notes, rejection_reason, acceptance_criteria },
+    { status, mapped_assets, amendment_notes, rejection_reason, acceptance_criteria, title_fr },
     actorEmail
   );
 

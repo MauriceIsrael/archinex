@@ -38,6 +38,18 @@
   let amendmentNotes = $state('');
   let amendmentMappedAssets = $state('');
   let amendmentCriteria = $state('');
+  let amendmentTitleFr = $state('');
+
+  /**
+   * Présentation du texte légal : LLMOps place l'introduction du paragraphe après le point (« > Context: … »)
+   * et garde les énumérations (a), (b)… sur une ligne. On affiche l'introduction d'abord, et un sous-point par ligne.
+   */
+  function legalParts(text: string): { context: string; body: string[] } {
+    const [main, context = ''] = (text || '').split(/\s*>\s*Context:\s*/);
+    // Un sous-point commence après « : » ou « ; » (et non sur « point (a) and … » au milieu d'une phrase)
+    const body = main.split(/(?<=[:;])\s+(?=\((?:[a-z]|[ivx]+)\)\s)/).map((s) => s.trim()).filter(Boolean);
+    return { context: context.trim(), body };
+  }
 
   // Modale de rejet (motif obligatoire)
   let rejectingReq = $state<FrameworkRequirement | null>(null);
@@ -132,6 +144,7 @@
   function openAmendModal(req: FrameworkRequirement) {
     amendingReq = req;
     amendmentNotes = req.amendment_notes || '';
+    amendmentTitleFr = req.title_fr || req.proposed_title_fr || '';
     amendmentMappedAssets = req.mapped_assets.join(', ');
     // Point de départ : critères déjà retenus, sinon ceux proposés (une ligne par critère)
     amendmentCriteria = (req.acceptance_criteria?.length ? req.acceptance_criteria : req.proposed_acceptance_criteria ?? []).join('\n');
@@ -148,7 +161,8 @@
       status: 'amended',
       mapped_assets: mapped,
       amendment_notes: amendmentNotes,
-      acceptance_criteria: amendmentCriteria.split('\n').map((c) => c.trim()).filter(Boolean)
+      acceptance_criteria: amendmentCriteria.split('\n').map((c) => c.trim()).filter(Boolean),
+      ...(amendmentTitleFr.trim() ? { title_fr: amendmentTitleFr.trim() } : {})
     });
 
     amendingReq = null;
@@ -496,6 +510,7 @@
   <div class="space-y-4">
     {#each filteredRequirements as req (req.id)}
       {@const isOwned = userOwnsDomain(req.domain)}
+      {@const parts = legalParts(req.text)}
       <div data-testid="framework-requirement-row" class="bg-white border border-border rounded-xl p-5 shadow-sm space-y-4">
         <!-- Ligne supérieure : Section, Titre, Statut, Domaine -->
         <div class="flex flex-col sm:flex-row sm:items-start justify-between gap-2">
@@ -549,7 +564,12 @@
 
         <!-- Texte de l'exigence (texte légal, mot pour mot) -->
         <p class="text-sm text-muted-foreground bg-muted/50 p-3.5 rounded-lg border border-border leading-relaxed font-serif">
-          {req.text}
+          {#if parts.context}
+            <span class="block mb-2 text-xs italic text-muted-foreground">{parts.context}</span>
+          {/if}
+          {#each parts.body as line, i (i)}
+            <span class="block {i > 0 ? 'mt-1.5 pl-4' : ''}">{line}</span>
+          {/each}
         </p>
 
         <!-- Critères d'acceptation : retenus par l'expert, sinon proposés -->
@@ -707,6 +727,17 @@
             bind:value={amendmentMappedAssets}
             placeholder="Ex: CTRL-SEC-01, PRIN-RES-01, PAT-OUTBOX-02"
             class="w-full px-3 py-2 text-xs border border-border rounded-lg focus:ring-2 focus:ring-sky-500 font-mono"
+          />
+        </div>
+
+        <div>
+          <label for="amendTitleFrInput" class="block text-xs font-semibold text-muted-foreground mb-1">Titre français</label>
+          <input
+            id="amendTitleFrInput"
+            type="text"
+            bind:value={amendmentTitleFr}
+            placeholder="Titre court en français (ex. Authentification multifacteur et communications sécurisées)"
+            class="w-full mb-3 px-3 py-2 text-xs border border-border rounded-lg focus:ring-2 focus:ring-sky-500"
           />
         </div>
 

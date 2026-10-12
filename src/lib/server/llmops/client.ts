@@ -342,7 +342,7 @@ export class LLMOpsClient {
     throw new HubApiError(res.status, code, reason, errBody);
   }
 
-  private async fetchWithTimeout(url: string, options: RequestInit = {}): Promise<Response> {
+  protected async fetchWithTimeout(url: string, options: RequestInit = {}): Promise<Response> {
     if (!this.isLocalNetworkUrl(url)) {
       console.warn(`🔒 [Air-Gap Souverain] Blocage d'exfiltration : tentative de connexion vers un cloud externe (${url}) bloquée net. Les données du RFP restent confinées à votre réseau local.`);
       throw new Error(`Air-Gap Security: External cloud access prohibited (${url}). Working in local network only.`);
@@ -987,6 +987,190 @@ export class LLMOpsClient {
       updated_count: 0,
       offline: true
     };
+  }
+
+  /**
+   * Met à jour ou inscrit explicitement une seule personne/handle dans le registre des propriétaires LLMOps
+   * en fusionnant avec l'état courant de GET /api/knowledge/owners (sans écraser les autres entrées ni les domaines).
+   */
+  async upsertOwnerInRegistry(
+    input: {
+      handle: string;
+      email: string | null;
+      roles: KbRole[];
+      delegated?: boolean;
+      domains?: string[];
+      previousHandle?: string;
+    },
+    actorEmail?: string
+  ): Promise<{
+    success: boolean;
+    handle: string;
+    owners_count: number;
+    domains_count: number;
+    offline?: boolean;
+    error?: string;
+  }> {
+    const targetHandle = input.handle.trim().startsWith('@')
+      ? input.handle.trim().toLowerCase()
+      : `@${input.handle.trim().toLowerCase()}`;
+    const targetEmail = input.email ? input.email.trim().toLowerCase() : null;
+    const prevHandle = input.previousHandle
+      ? input.previousHandle.trim().startsWith('@')
+        ? input.previousHandle.trim().toLowerCase()
+        : `@${input.previousHandle.trim().toLowerCase()}`
+      : null;
+
+    try {
+      const current = await this.getOwners(actorEmail);
+      if (current.offline) {
+        return {
+          success: false,
+          handle: targetHandle,
+          owners_count: 0,
+          domains_count: 0,
+          offline: true,
+          error: 'Serveur LLMOps injoignable : impossible de lire ou modifier le registre des responsables.'
+        };
+      }
+
+      const ownersMap = new Map<
+        string,
+        { handle: string; email: string | null; roles: KbRole[]; delegated: boolean }
+      >();
+      for (const o of current.owners || []) {
+        const h = o.handle.trim().toLowerCase();
+        // Si une autre entrée possédait déjà cet e-mail, on le libère pour éviter le doublon d'e-mail côté LLMOps
+        const sameEmail = targetEmail && o.email && o.email.trim().toLowerCase() === targetEmail;
+        ownersMap.set(h, {
+          handle: h,
+          email: sameEmail && h !== targetHandle ? null : o.email || null,
+          roles: Array.isArray(o.roles) && o.roles.length > 0 ? o.roles : ['kb:review'],
+          delegated: sameEmail && h !== targetHandle ? false : Boolean(o.delegated)
+        });
+      }
+
+      if (prevHandle && prevHandle !== targetHandle && ownersMap.has(prevHandle)) {
+        const prevEntry = ownersMap.get(prevHandle)!;
+        if (prevEntry.email && (!targetEmail || prevEntry.email.toLowerCase() === targetEmail)) {
+          ownersMap.set(prevHandle, {
+            ...prevEntry,
+            email: null,
+            delegated: false
+          });
+        }
+      }
+
+      const cleanRoles: KbRole[] =
+        Array.isArray(input.roles) && input.roles.length > 0 ? input.roles : ['kb:review'];
+
+      ownersMap.set(targetHandle, {
+        handle: targetHandle,
+        email: targetEmail,
+        roles: cleanRoles,
+        delegated: input.delegated ?? Boolean(targetEmail)
+      });
+
+      const domainsMap: Record<string, string> = { ...(current.domains || {}) };
+      let defaultOwner = current.default_owner || '@maintainers';
+      if (!ownersMap.has(defaultOwner)) {
+        defaultOwner = targetHandle;
+      }
+
+      if (input.domains !== undefined) {
+        const wantedDomains = new Set(
+          input.domains.map((d) => d.trim().toLowerCase()).filter((d) => d.length > 0)
+        );
+        // Retirer les domaines qui pointaient vers targetHandle mais ne sont plus souhaités
+        for (const [dom, h] of Object.entries(domainsMap)) {
+          if (h.toLowerCase() === targetHandle && !wantedDomains.has(dom.toLowerCase())) {
+            if (defaultOwner !== targetHandle && ownersMap.has(defaultOwner)) {
+              domainsMap[dom] = defaultOwner;
+            } else {
+              delete domainsMap[dom];
+            }
+          }
+        }
+        // Assigner les domaines souhaités à targetHandle
+        for (const dom of wantedDomains) {
+          domainsMap[dom] = targetHandle;
+        }
+      }
+
+      const cleanOwners = Array.from(ownersMap.values());
+      const payload = {
+        owners: cleanOwners,
+        domains: domainsMap,
+        default_owner: defaultOwner
+      };
+
+      // Si l'acteur courant possède déjà kb:admin dans le registre LLMOps, propager X-Actor-Email ;
+      // sinon utiliser le scope kb:admin du jeton de service (amorçage autorisé par le contrat LLMOps).
+      const actorIsKbAdminInRegistry = Boolean(
+        actorEmail &&
+          (current.owners || []).some(
+            (o) =>
+              o.email &&
+              o.email.toLowerCase() === actorEmail.toLowerCase() &&
+              Array.isArray(o.roles) &&
+              o.roles.includes('kb:admin')
+          )
+      );
+
+      const url = `${this.baseUrl}/api/knowledge/owners`;
+      let res = await this.fetchWithTimeout(url, {
+        method: 'PUT',
+        headers: this.getHeaders(undefined, actorIsKbAdminInRegistry ? actorEmail : undefined),
+        body: JSON.stringify(payload)
+      });
+
+      if (res.status === 403 && actorIsKbAdminInRegistry) {
+        res = await this.fetchWithTimeout(url, {
+          method: 'PUT',
+          headers: this.getHeaders(undefined, undefined),
+          body: JSON.stringify(payload)
+        });
+      }
+
+      if (res.status === 503) {
+        return {
+          success: false,
+          handle: targetHandle,
+          owners_count: 0,
+          domains_count: 0,
+          error: 'Base de gouvernance LLMOps indisponible (503)'
+        };
+      }
+
+      if (res.ok) {
+        const body = await res.json();
+        const resPayload = body.data || body;
+        return {
+          success: true,
+          handle: targetHandle,
+          owners_count: resPayload.owners ?? cleanOwners.length,
+          domains_count: resPayload.domains ?? Object.keys(domainsMap).length
+        };
+      }
+
+      const errBody = await res.json().catch(() => ({}));
+      return {
+        success: false,
+        handle: targetHandle,
+        owners_count: 0,
+        domains_count: 0,
+        error: errBody.error || errBody.reason || `HTTP ${res.status}`
+      };
+    } catch {
+      return {
+        success: false,
+        handle: targetHandle,
+        owners_count: 0,
+        domains_count: 0,
+        offline: true,
+        error: 'Serveur LLMOps injoignable'
+      };
+    }
   }
 
   // ─────────────────────────────────────────────────────────────────────────────

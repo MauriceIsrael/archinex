@@ -120,12 +120,16 @@
 	});
 
 	// Doctrine applicable au sujet, telle que LLMOps la sélectionne (référentiels déclarés de l'espace compris)
-	interface DoctrineItem { id: string; type: string; title: string; status?: string; confidence?: string; excerpt?: string; source_ref?: string; relevance?: number; framework?: string; required?: boolean }
+	interface DoctrineItem { id: string; type: string; title: string; status?: string; confidence?: string; excerpt?: string; source_ref?: string; relevance?: number; framework?: string; required?: boolean; relevant?: boolean; relevance_method?: string }
 	let doctrineItems = $state<DoctrineItem[]>([]);
 	let isLoadingDoctrine = $state(false);
 	let doctrineLoadedFor = '';
 	// Pertinent pour le sujet : relevé par la recherche, ou non imposé par un référentiel déclaré
-	const relevantDoctrine = $derived(doctrineItems.filter((i) => !i.required || (i.relevance ?? 0) > 0.1));
+	// LLMOps (recherche sémantique) marque ce qui est pertinent ; sinon, heuristique sur la pertinence lexicale
+	const relevantDoctrine = $derived(
+		doctrineItems.filter((i) => (typeof i.relevant === 'boolean' ? i.relevant : !i.required || (i.relevance ?? 0) > 0.1))
+	);
+	const searchMethod = $derived(doctrineItems.find((i) => i.relevance_method)?.relevance_method);
 	const requiredByFramework = $derived.by(() => {
 		const groups = new Map<string, DoctrineItem[]>();
 		for (const i of doctrineItems.filter((x) => x.required && !relevantDoctrine.includes(x))) {
@@ -333,7 +337,7 @@
 				<!-- 3. Références à la base doctrinale -->
 				<div class="space-y-3 text-xs">
 					<div class="flex items-center justify-between pb-1 border-b text-muted-foreground font-semibold">
-						<span>Doctrine applicable (LLMOps)</span>
+						<span>Doctrine applicable (LLMOps){#if searchMethod} · recherche {searchMethod === 'lexical' ? 'par mots-clés' : searchMethod === 'semantic' ? 'sémantique' : 'hybride'}{/if}</span>
 						<span class="font-mono text-[10px]">{isLoadingDoctrine ? '…' : `${doctrineItems.length} élément(s)`}</span>
 					</div>
 					{#if !isLoadingDoctrine && doctrineItems.length === 0}

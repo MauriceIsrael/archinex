@@ -1,5 +1,4 @@
 import { json, error, type RequestHandler } from '@sveltejs/kit';
-import { PDFParse } from 'pdf-parse';
 
 export const POST: RequestHandler = async ({ request }) => {
 	const body = await request.json().catch(() => ({}));
@@ -44,6 +43,7 @@ export const POST: RequestHandler = async ({ request }) => {
 		if (contentType.includes('application/pdf') || parsedUrl.pathname.toLowerCase().endsWith('.pdf')) {
 			const arrayBuffer = await res.arrayBuffer();
 			try {
+				const { PDFParse } = await import('pdf-parse');
 				const parser = new PDFParse({ data: Buffer.from(arrayBuffer) });
 				const pdfResult = await parser.getText();
 				text = (pdfResult.text || '').trim();

@@ -1,5 +1,4 @@
 import { json, error, type RequestHandler } from '@sveltejs/kit';
-import { PDFParse } from 'pdf-parse';
 
 export const POST: RequestHandler = async ({ request }) => {
 	try {
@@ -41,6 +40,7 @@ export const POST: RequestHandler = async ({ request }) => {
 
 		if (isPdf) {
 			try {
+				const { PDFParse } = await import('pdf-parse');
 				const parser = new PDFParse({ data: buffer });
 				const pdfResult = await parser.getText();
 				pagesCount = pdfResult.total || (pdfResult.pages ? pdfResult.pages.length : 1);

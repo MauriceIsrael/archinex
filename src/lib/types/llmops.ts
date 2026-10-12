@@ -488,6 +488,15 @@ export interface FrameworkRequirement {
   row_status?: string;
 }
 
+export type FrameworkIngestionStatus =
+  | 'reviewing'
+  | 'partially_applied'
+  | 'applied'
+  | 'abandoned'
+  | 'processing'
+  | 'ready'
+  | 'failed';
+
 export interface FrameworkIngestion {
   id: string;
   framework_id: string;
@@ -497,11 +506,38 @@ export interface FrameworkIngestion {
   file_format: FrameworkIngestionFormat;
   file_size_bytes: number;
   created_at: string;
-  status: 'processing' | 'ready' | 'failed';
+  created_by?: string;
+  status: FrameworkIngestionStatus;
   total_requirements: number;
   total?: number;
   reviewed_requirements: number;
+  decided?: number;
   requirements: FrameworkRequirement[];
+  abandoned_by?: string | null;
+  abandoned_at?: string | null;
+  abandon_reason?: string | null;
+}
+
+export interface ComplianceFrameworkOverview {
+  framework: string;
+  version: string;
+  title: string;
+  jurisdiction?: string;
+  description?: string;
+  control_count: number;
+  status: 'covered' | 'partial' | 'missing' | 'unknown';
+  expected: number | null;
+  present: number;
+  validated: number;
+  provisional: number;
+  declared_by: string | null;
+  declared_at: string | null;
+  validated_controls?: Array<{
+    id: string;
+    validated_by: string[];
+    validated_at?: string | null;
+  }>;
+  applied_ingestion_id?: string | null;
 }
 
 export interface FrameworkLinkSuggestion {

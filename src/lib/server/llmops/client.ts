@@ -43,6 +43,7 @@ import type {
   FrameworkRequirementStatus,
   FrameworkLinkSuggestionResult,
   CoverageDeclarationResult,
+  ComplianceFrameworkOverview,
   EvalTestCase,
   EvalDataset,
   EvalBenchmarkRunResult,
@@ -214,11 +215,16 @@ function normalizeFrameworkIngestion(item: any): FrameworkIngestion {
     file_format: item.file_format || 'txt',
     file_size_bytes: item.file_size_bytes || 0,
     created_at: item.created_at || new Date().toISOString(),
+    created_by: item.created_by,
     status: item.status || 'ready',
     total_requirements: total,
     total,
     reviewed_requirements: reviewed,
-    requirements: reqs
+    decided: item.decided ?? reviewed,
+    requirements: reqs,
+    abandoned_by: item.abandoned_by ?? null,
+    abandoned_at: item.abandoned_at ?? null,
+    abandon_reason: item.abandon_reason ?? null
   };
 }
 
@@ -1564,13 +1570,111 @@ export class LLMOpsClient {
   }
 
   /**
+   * Vue d'ensemble des référentiels de conformité opposables et de leur couverture (GET /api/compliance/frameworks)
+   */
+  async getComplianceFrameworks(): Promise<{
+    status: 'ok' | 'error' | 'unavailable';
+    data: ComplianceFrameworkOverview[];
+    error?: string;
+  }> {
+    try {
+      const url = `${this.baseUrl}/api/compliance/frameworks`;
+      const res = await this.fetchWithTimeout(url, { headers: this.getHeaders() });
+      if (res.ok) {
+        const body = await res.json();
+        const rawList = Array.isArray(body.data)
+          ? body.data
+          : Array.isArray(body.frameworks)
+            ? body.frameworks
+            : Array.isArray(body)
+              ? body
+              : [];
+        const byFw = new Map<string, ComplianceFrameworkOverview>();
+        for (const item of rawList) {
+          if (!item || typeof item !== 'object') continue;
+          const fw = String(item.framework || item.name || item.id || '').trim();
+          if (!fw) continue;
+          const statusRaw = String(item.status || 'unknown').toLowerCase();
+          const status: ComplianceFrameworkOverview['status'] =
+            statusRaw === 'covered' || statusRaw === 'partial' || statusRaw === 'missing'
+              ? statusRaw
+              : 'unknown';
+          const present = Number(item.present ?? item.control_count ?? 0);
+          const validated = Number(item.validated ?? item.covered_count ?? 0);
+          const expected =
+            item.expected !== undefined && item.expected !== null
+              ? Number(item.expected)
+              : item.total_count !== undefined && item.total_count !== null
+                ? Number(item.total_count)
+                : null;
+          const provisional =
+            item.provisional !== undefined
+              ? Number(item.provisional)
+              : Math.max(0, present - validated);
+          const validatedControls = Array.isArray(item.validated_controls)
+            ? item.validated_controls.map((vc: any) => ({
+                id: String(vc.id || ''),
+                validated_by: Array.isArray(vc.validated_by) ? vc.validated_by.map(String) : [],
+                validated_at: vc.validated_at ?? null
+              }))
+            : [];
+
+          const existing = byFw.get(fw);
+          if (!existing) {
+            byFw.set(fw, {
+              framework: fw,
+              version: String(item.version || '1.0'),
+              title: String(item.title || item.framework_name || fw),
+              jurisdiction: item.jurisdiction ? String(item.jurisdiction) : undefined,
+              description: item.description ? String(item.description) : undefined,
+              control_count: Number(item.control_count ?? present),
+              status,
+              expected,
+              present,
+              validated,
+              provisional,
+              declared_by: item.declared_by ?? null,
+              declared_at: item.declared_at ?? null,
+              validated_controls: validatedControls
+            });
+          } else {
+            existing.control_count += Number(item.control_count ?? 0);
+            if (!existing.version.includes(String(item.version || ''))) {
+              existing.version = `${existing.version}, ${item.version}`;
+            }
+          }
+        }
+        return {
+          status: 'ok',
+          data: Array.from(byFw.values())
+        };
+      }
+      return {
+        status: 'error',
+        data: [],
+        error: `Erreur HTTP ${res.status} lors du chargement des référentiels de conformité`
+      };
+    } catch {
+      return {
+        status: 'unavailable',
+        data: [],
+        error: 'Mode hors-ligne : référentiels de conformité indisponibles'
+      };
+    }
+  }
+
+  /**
    * Liste des référentiels réglementaires ingérés (GET /api/frameworks/ingestions)
    */
   async listFrameworkIngestions(
-    actorEmail?: string
+    actorEmail?: string,
+    status?: string
   ): Promise<{ status: 'ok' | 'error' | 'unavailable'; data?: FrameworkIngestion[]; error?: string }> {
     try {
-      const url = `${this.baseUrl}/api/frameworks/ingestions`;
+      const q = new URLSearchParams();
+      if (status && status.trim()) q.set('status', status.trim());
+      const qs = q.toString();
+      const url = `${this.baseUrl}/api/frameworks/ingestions${qs ? `?${qs}` : ''}`;
       const res = await this.fetchWithTimeout(url, {
         headers: this.getHeaders(undefined, actorEmail)
       });
@@ -1587,15 +1691,68 @@ export class LLMOpsClient {
           data: rawList.map(normalizeFrameworkIngestion)
         };
       }
+      const errBody = await res.json().catch(() => ({}));
       return {
         status: 'error',
-        error: `Erreur HTTP ${res.status} lors de la récupération des référentiels`
+        error: errBody.error || errBody.reason || `Erreur HTTP ${res.status} lors de la récupération des référentiels`
       };
     } catch {
       return {
         status: 'unavailable',
         error: 'Mode hors-ligne : référentiels réglementaires indisponibles'
       };
+    }
+  }
+
+  /**
+   * Abandon d'une ingestion de référentiel (POST /api/frameworks/ingestions/:id/abandon)
+   */
+  async abandonFrameworkIngestion(
+    ingestionId: string | number,
+    reason: string,
+    actorEmail?: string
+  ): Promise<{
+    status: 'ok' | 'error' | 'forbidden' | 'conflict' | 'bad_request' | 'unavailable';
+    data?: FrameworkIngestion;
+    error?: string;
+  }> {
+    if (!reason || !reason.trim()) {
+      return {
+        status: 'bad_request',
+        error: 'Un motif d’abandon (reason) est requis.'
+      };
+    }
+    try {
+      const url = `${this.baseUrl}/api/frameworks/ingestions/${encodeURIComponent(String(ingestionId))}/abandon`;
+      const res = await this.fetchWithTimeout(url, {
+        method: 'POST',
+        headers: this.getHeaders(undefined, actorEmail),
+        body: JSON.stringify({ reason: reason.trim() })
+      });
+
+      if (res.status === 403) {
+        const body = await res.json().catch(() => ({}));
+        return { status: 'forbidden', error: body.error || body.reason || 'Action réservée aux mainteneurs' };
+      }
+      if (res.status === 409) {
+        const body = await res.json().catch(() => ({}));
+        return {
+          status: 'conflict',
+          error: body.error || body.reason || 'Conflit d’état : impossible d’abandonner une ingestion déjà appliquée'
+        };
+      }
+      if (res.status === 400) {
+        const body = await res.json().catch(() => ({}));
+        return { status: 'bad_request', error: body.error || body.reason || 'Requête invalide' };
+      }
+      if (res.ok) {
+        const body = await res.json();
+        return { status: 'ok', data: normalizeFrameworkIngestion(body.data || body) };
+      }
+      const body = await res.json().catch(() => ({}));
+      return { status: 'error', error: body.error || body.reason || `Erreur HTTP ${res.status}` };
+    } catch {
+      return { status: 'unavailable', error: 'Mode hors-ligne : abandon d’ingestion indisponible' };
     }
   }
 

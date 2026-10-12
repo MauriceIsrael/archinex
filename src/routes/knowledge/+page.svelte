@@ -36,10 +36,18 @@
   // Engagement sélectionné pour l'éclairage (par défaut, l'engagement actif dans deliberationStore)
   let selectedEngagementId = $state<string>(deliberationStore.activeEngagementId);
   let filterOnlyMatched = $state(false);
-  let searchQuery = $state('');
+  let searchQuery = $state<string>((data as any).initialFramework || '');
   
   // Mode d'affichage : 'stacked' (3 graphes empilés), 'combined' (3 colonnes), 'table' (catalogue)
-  let viewMode = $state<'stacked' | 'combined' | 'table'>('stacked');
+  let viewMode = $state<'stacked' | 'combined' | 'table'>((data as any).initialFramework ? 'table' : 'stacked');
+
+  const uniqueControlFrameworks = $derived.by(() => {
+    const fws = new Set<string>();
+    for (const c of snapshot.controls || []) {
+      if (c.framework) fws.add(c.framework);
+    }
+    return Array.from(fws);
+  });
 
   // Nœud sélectionné pour le formulaire non-modal
   let selectedNode = $state<KnowledgeTreeNode | null>(null);
@@ -435,6 +443,21 @@
             </div>
           </div>
 
+          {#if widget.id === 'controls' && uniqueControlFrameworks.length > 0}
+            <div class="flex flex-wrap items-center gap-2 text-xs">
+              <span class="text-muted-foreground font-medium">Référentiels (couverture sur /kb/frameworks) :</span>
+              {#each uniqueControlFrameworks as fw (fw)}
+                <a
+                  href="/kb/frameworks#framework-{fw}"
+                  data-testid="knowledge-framework-pill"
+                  class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full bg-violet-500/10 hover:bg-violet-500/20 text-violet-400 border border-violet-500/20 font-mono text-[11px] font-semibold transition-colors"
+                >
+                  <span>{fw}</span>
+                </a>
+              {/each}
+            </div>
+          {/if}
+
           <!-- Zone du Graphique ECharts Pleine Largeur partant de la gauche -->
           <div class="relative rounded-xl border border-border/60 bg-muted/10 p-2 overflow-hidden">
             <KnowledgeTreeChart
@@ -552,6 +575,7 @@
                 <th class="p-3">ID Contrôle</th>
                 <th class="p-3">Référentiel</th>
                 <th class="p-3">Titre de l'Exigence</th>
+                <th class="p-3">Validation</th>
                 <th class="p-3">Sévérité</th>
                 <th class="p-3">Alignement Projet</th>
                 <th class="p-3 text-right">Action</th>
@@ -561,11 +585,37 @@
               {#each filteredControls as ctrl}
                 {@const match = matchResult.controlMatches.get(ctrl.id)}
                 {@const isMatched = match?.isMatched}
+                {@const validators = Array.isArray(ctrl.validated_by) ? ctrl.validated_by : []}
                 <tr class="hover:bg-muted/20 transition-colors {isMatched ? 'bg-violet-500/5' : ''}">
                   <td class="p-3 font-mono font-bold text-foreground">{ctrl.id}</td>
-                  <td class="p-3 font-semibold text-violet-400">{ctrl.framework} {ctrl.version || ''}</td>
+                  <td class="p-3 font-semibold">
+                    <a
+                      href="/kb/frameworks#framework-{ctrl.framework}"
+                      data-testid="control-framework-link"
+                      class="text-violet-400 hover:underline font-mono"
+                    >
+                      {ctrl.framework} {ctrl.version || ''}
+                    </a>
+                  </td>
                   <td class="p-3 font-medium text-foreground max-w-md truncate" title={ctrl.title}>
                     {ctrl.title}
+                  </td>
+                  <td class="p-3">
+                    {#if validators.length > 0}
+                      <span
+                        data-testid="control-validation-badge"
+                        class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-500 font-semibold text-[11px]"
+                      >
+                        Validé par {validators.join(', ')}
+                      </span>
+                    {:else}
+                      <span
+                        data-testid="control-validation-badge"
+                        class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-500 font-semibold text-[11px]"
+                      >
+                        Provisoire
+                      </span>
+                    {/if}
                   </td>
                   <td class="p-3">
                     <span class="px-2 py-0.5 rounded text-[11px] font-medium {ctrl.severity === 'mandatory' ? 'bg-rose-500/10 text-rose-500' : 'bg-muted text-muted-foreground'}">

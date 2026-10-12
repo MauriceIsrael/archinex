@@ -207,7 +207,37 @@
           {#if rawData?.framework}
             <div class="p-2.5 rounded-lg border border-border bg-card">
               <span class="text-muted-foreground text-[10px] block">Référentiel</span>
-              <span class="font-medium text-foreground">{rawData.framework} {rawData.version || ''}</span>
+              <a
+                href="/kb/frameworks#framework-{rawData.framework}"
+                data-testid="control-framework-link"
+                class="font-semibold text-primary hover:underline inline-flex items-center gap-1"
+              >
+                <span>{rawData.framework} {rawData.version || ''}</span>
+                <ExternalLink class="h-3 w-3 shrink-0" />
+              </a>
+            </div>
+          {/if}
+
+          {#if node.category === 'control'}
+            {@const validators = Array.isArray(rawData?.validated_by) ? rawData.validated_by : []}
+            <div class="p-2.5 rounded-lg border border-border bg-card col-span-2">
+              <span class="text-muted-foreground text-[10px] block">État de validation doctrinale</span>
+              {#if validators.length > 0}
+                <span
+                  data-testid="control-validation-badge"
+                  class="mt-0.5 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 font-semibold text-[11px]"
+                >
+                  <CheckCircle2 class="h-3 w-3 shrink-0" />
+                  <span>Validé par {validators.join(', ')}</span>
+                </span>
+              {:else}
+                <span
+                  data-testid="control-validation-badge"
+                  class="mt-0.5 inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/15 text-amber-600 font-semibold text-[11px]"
+                >
+                  <span>Provisoire</span>
+                </span>
+              {/if}
             </div>
           {/if}
 

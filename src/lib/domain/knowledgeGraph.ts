@@ -40,6 +40,8 @@ export interface KnowledgeControl {
   domain: string;
   severity?: 'mandatory' | 'recommended' | 'optional' | string;
   implemented_by?: string[];
+  validated_by?: string[];
+  validated_at?: string | null;
   [key: string]: unknown;
 }
 
@@ -645,10 +647,18 @@ export function buildTreeLegendSeries(
         });
       }
 
+      const validatedCount = controls.filter(
+        (c) => Array.isArray(c.validated_by) && c.validated_by.length > 0
+      ).length;
+      const statusSuffix =
+        validatedCount > 0 ? `${validatedCount}/${controls.length} validés` : `${controls.length} provisoires`;
+
       return {
-        name: `${fw} (${controls.length} règles)`,
+        name: `${fw} (${controls.length} règles · ${statusSuffix})`,
+        id: fw,
         category: 'framework' as const,
         typeLabel: 'Référentiel de Conformité',
+        raw: { framework: fw, controls_count: controls.length, validated_count: validatedCount },
         match: {
           isMatched: fwMatched,
           score: fwMatched ? 90 : 0,

@@ -10,13 +10,19 @@
   import ShieldAlert from 'lucide-svelte/icons/shield-alert';
   import FileCode from 'lucide-svelte/icons/file-code';
   import ChevronRight from 'lucide-svelte/icons/chevron-right';
-  import type { FrameworkIngestion } from '$lib/types/llmops';
+  import ChevronDown from 'lucide-svelte/icons/chevron-down';
+  import ExternalLink from 'lucide-svelte/icons/external-link';
+  import Ban from 'lucide-svelte/icons/ban';
+  import Filter from 'lucide-svelte/icons/filter';
+  import type { ComplianceFrameworkOverview, FrameworkIngestion } from '$lib/types/llmops';
 
   interface Props {
     data: {
       user: { id: string; name: string; email: string; role: string };
       expert: { kbHandle: string; kbRoles: string[]; ownedDomains: string[] };
       frameworks: FrameworkIngestion[];
+      complianceFrameworks?: ComplianceFrameworkOverview[];
+      statusFilter?: string;
       offline: boolean;
       error?: string;
     };
@@ -25,6 +31,11 @@
   let { data }: Props = $props();
 
   let frameworksList = $state<FrameworkIngestion[]>(data.frameworks || []);
+  let complianceFrameworks = $state<ComplianceFrameworkOverview[]>(data.complianceFrameworks || []);
+  let statusFilter = $state<string>(data.statusFilter || 'all');
+  let isFiltering = $state(false);
+  let historyOpen = $state(false);
+
   let isUploading = $state(false);
   let uploadError = $state<string | null>(null);
   let uploadSuccess = $state<string | null>(null);
@@ -34,6 +45,120 @@
   let frameworkName = $state('');
   let version = $state('1.0');
   let selectedDomain = $state('security');
+
+  // État d'abandon d'une ingestion
+  let abandoningId = $state<string | null>(null);
+  let abandonReason = $state('');
+  let isAbandoning = $state(false);
+  let abandonError = $state<string | null>(null);
+
+  const filteredIngestions = $derived.by(() => {
+    if (statusFilter === 'all') return frameworksList;
+    return frameworksList.filter((fw) => fw.status === statusFilter);
+  });
+
+  function coverageStatusBadge(status: ComplianceFrameworkOverview['status']) {
+    if (status === 'covered') {
+      return {
+        label: 'Couvert',
+        classes: 'bg-emerald-500/15 text-emerald-700 border-emerald-500/30'
+      };
+    }
+    if (status === 'partial') {
+      return {
+        label: 'Partiel',
+        classes: 'bg-amber-500/15 text-amber-700 border-amber-500/30'
+      };
+    }
+    if (status === 'missing') {
+      return {
+        label: 'Absent',
+        classes: 'bg-rose-500/15 text-rose-700 border-rose-500/30'
+      };
+    }
+    return {
+      label: 'Non évalué',
+      classes: 'bg-muted text-muted-foreground border-border'
+    };
+  }
+
+  function ingestionStatusBadge(status: string) {
+    switch (status) {
+      case 'applied':
+        return { label: 'Appliquée', classes: 'bg-emerald-500/15 text-emerald-700 border-emerald-500/30' };
+      case 'partially_applied':
+        return { label: 'Partiellement appliquée', classes: 'bg-blue-500/15 text-blue-700 border-blue-500/30' };
+      case 'abandoned':
+        return { label: 'Abandonnée', classes: 'bg-rose-500/15 text-rose-700 border-rose-500/30' };
+      case 'reviewing':
+      default:
+        return { label: 'En revue', classes: 'bg-amber-500/15 text-amber-700 border-amber-500/30' };
+    }
+  }
+
+  async function handleStatusFilterChange(newStatus: string) {
+    statusFilter = newStatus;
+    isFiltering = true;
+    try {
+      const qs = newStatus !== 'all' ? `?status=${encodeURIComponent(newStatus)}` : '';
+      const res = await fetch(`/api/frameworks/ingestions${qs}`, {
+        headers: { 'X-Actor-Email': data.user.email }
+      });
+      if (res.ok) {
+        const body = await res.json();
+        if (Array.isArray(body.data)) {
+          frameworksList = body.data;
+        }
+      }
+    } catch {
+      // Garde le filtrage local en cas d'erreur réseau
+    } finally {
+      isFiltering = false;
+    }
+  }
+
+  function openAbandonForm(id: string) {
+    abandoningId = id;
+    abandonReason = '';
+    abandonError = null;
+  }
+
+  function cancelAbandon() {
+    abandoningId = null;
+    abandonReason = '';
+    abandonError = null;
+  }
+
+  async function confirmAbandon(id: string) {
+    if (!abandonReason.trim()) {
+      abandonError = 'Veuillez saisir un motif d’abandon.';
+      return;
+    }
+    isAbandoning = true;
+    abandonError = null;
+    try {
+      const res = await fetch(`/api/frameworks/ingestions/${encodeURIComponent(id)}/abandon`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Actor-Email': data.user.email
+        },
+        body: JSON.stringify({ reason: abandonReason.trim() })
+      });
+      const resData = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        abandonError = resData.error || `Erreur HTTP ${res.status}`;
+      } else if (resData.data) {
+        frameworksList = frameworksList.map((fw) => (fw.id === id ? resData.data : fw));
+        abandoningId = null;
+        abandonReason = '';
+      }
+    } catch (err: any) {
+      abandonError = err.message || 'Erreur réseau lors de l’abandon.';
+    } finally {
+      isAbandoning = false;
+    }
+  }
 
   function handleFileSelect(event: Event) {
     const input = event.target as HTMLInputElement;
@@ -99,6 +224,7 @@
         uploadSuccess = `Référentiel '${item.framework_name || item.framework}' ingéré avec succès (${item.total_requirements || item.requirements?.length || 0} exigences extraites).`;
         const existing = Array.isArray(frameworksList) ? frameworksList : [];
         frameworksList = [item, ...existing];
+        historyOpen = true;
         selectedFile = null;
         frameworkId = '';
         frameworkName = '';
@@ -120,9 +246,9 @@
           <ShieldCheck class="w-6 h-6" />
         </div>
         <div>
-          <h1 class="text-2xl font-bold text-foreground">Référentiels Réglementaires & Ingestion</h1>
+          <h1 class="text-2xl font-bold text-foreground">Référentiels Réglementaires & Couverture Opposable</h1>
           <p class="text-sm text-muted-foreground">
-            Téléversement multi-format (.pdf, .html, .txt, .md, .docx), découpage en exigences et revue de conformité opposable.
+            Vue d'ensemble de la couverture réglementaire par référentiel, déclaration d'opposabilité et gestion des ingestions.
           </p>
         </div>
       </div>
@@ -146,7 +272,127 @@
     </div>
   {/if}
 
-  <!-- Section de Téléversement Multi-Format -->
+  <!-- 1. Vue d'ensemble par référentiel opposable -->
+  <section class="space-y-4" data-testid="compliance-frameworks-overview">
+    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
+      <div>
+        <h2 class="text-lg font-bold text-foreground flex items-center gap-2">
+          <span>Vue d'ensemble des Référentiels Opposables</span>
+          <span class="text-xs px-2 py-0.5 rounded-full bg-primary/15 text-primary font-normal">
+            {complianceFrameworks.length}
+          </span>
+        </h2>
+        <p class="text-xs text-muted-foreground">
+          État de couverture réglementaire consolidé dans la base de connaissances (exigences validées par les experts vs contrôles provisoires).
+        </p>
+      </div>
+      <a
+        href="/knowledge#widget-controls"
+        class="inline-flex items-center gap-1.5 text-xs font-semibold text-primary hover:underline"
+      >
+        <span>Explorer l'arbre des contrôles sur /knowledge</span>
+        <ExternalLink class="w-3.5 h-3.5" />
+      </a>
+    </div>
+
+    {#if complianceFrameworks.length === 0}
+      <div class="p-6 bg-muted/40 border border-border rounded-xl text-center text-xs text-muted-foreground">
+        Aucun référentiel de conformité recensé dans le snapshot actif.
+      </div>
+    {:else}
+      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        {#each complianceFrameworks as cf (cf.framework)}
+          {@const badge = coverageStatusBadge(cf.status)}
+          <div
+            id="framework-{cf.framework}"
+            data-testid="compliance-framework-row"
+            class="bg-card border border-border rounded-xl p-5 shadow-xs flex flex-col justify-between gap-4 scroll-mt-20"
+          >
+            <div class="space-y-2.5">
+              <div class="flex items-start justify-between gap-2">
+                <div class="flex items-center gap-2">
+                  <span class="px-2.5 py-1 text-xs font-bold rounded bg-primary/10 border border-primary/30 text-primary font-mono">
+                    {cf.framework}
+                  </span>
+                  <span class="text-[11px] px-2 py-0.5 rounded bg-muted text-muted-foreground font-mono">
+                    {cf.version}
+                  </span>
+                </div>
+                <span class="px-2.5 py-0.5 text-xs font-semibold rounded-full border {badge.classes}">
+                  {badge.label}
+                </span>
+              </div>
+
+              <h3 class="text-sm font-bold text-foreground leading-snug">
+                {cf.title}
+              </h3>
+
+              <!-- Métriques exigences validées / attendues -->
+              <div class="p-3 rounded-lg bg-muted/40 border border-border space-y-1.5 text-xs">
+                <div class="flex items-center justify-between">
+                  <span class="text-muted-foreground">Exigences validées / attendues :</span>
+                  <span class="font-mono font-bold text-foreground">
+                    {cf.validated} / {cf.expected ?? '—'}
+                  </span>
+                </div>
+                <div class="flex items-center justify-between text-[11px]">
+                  <span class="text-muted-foreground">Contrôles actifs en base :</span>
+                  <span class="font-mono text-foreground">
+                    {cf.present} actif{cf.present > 1 ? 's' : ''}
+                    {#if cf.provisional > 0}
+                      <span class="text-amber-600">({cf.provisional} provisoire{cf.provisional > 1 ? 's' : ''})</span>
+                    {/if}
+                  </span>
+                </div>
+              </div>
+
+              <!-- Déclaration de couverture -->
+              <div class="text-[11px] text-muted-foreground">
+                {#if cf.declared_by}
+                  <div class="flex items-center gap-1.5 text-emerald-700 font-medium">
+                    <CheckCircle class="w-3.5 h-3.5 shrink-0" />
+                    <span>
+                      Couverture déclarée par <strong class="font-mono">{cf.declared_by}</strong>
+                      {#if cf.declared_at}
+                        le {new Date(cf.declared_at).toLocaleDateString('fr-FR')}
+                      {/if}
+                    </span>
+                  </div>
+                {:else}
+                  <span>Aucune déclaration de couverture formelle enregistrée.</span>
+                {/if}
+              </div>
+            </div>
+
+            <!-- Liens croisés vers /knowledge et vers l'ingestion appliquée -->
+            <div class="pt-3 border-t border-border flex flex-wrap items-center justify-between gap-2 text-xs">
+              <a
+                href="/knowledge?framework={encodeURIComponent(cf.framework)}#widget-controls"
+                data-testid="framework-knowledge-link"
+                class="inline-flex items-center gap-1 font-semibold text-primary hover:underline"
+              >
+                <span>Contrôles actifs ({cf.present})</span>
+                <ExternalLink class="w-3 h-3" />
+              </a>
+
+              {#if cf.applied_ingestion_id}
+                <a
+                  href="/kb/frameworks/{cf.applied_ingestion_id}"
+                  data-testid="framework-applied-ingestion-link"
+                  class="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-emerald-500/10 text-emerald-700 hover:bg-emerald-500/20 font-semibold transition-colors"
+                >
+                  <span>Ingestion #{cf.applied_ingestion_id}</span>
+                  <ChevronRight class="w-3 h-3" />
+                </a>
+              {/if}
+            </div>
+          </div>
+        {/each}
+      </div>
+    {/if}
+  </section>
+
+  <!-- 2. Section de Téléversement Multi-Format -->
   <div class="bg-muted/50 border border-border rounded-xl p-6 shadow-sm">
     <div class="flex items-center gap-2 mb-4">
       <FileText class="w-5 h-5 text-primary" />
@@ -258,80 +504,188 @@
     </div>
   </div>
 
-  <!-- Référentiels Ingérés -->
-  <div class="space-y-4">
-    <div class="flex items-center justify-between">
-      <h2 class="text-lg font-bold text-foreground flex items-center gap-2">
-        <span>Référentiels Ingérés</span>
-        <span class="text-xs px-2 py-0.5 rounded-full bg-primary/15 text-primary font-normal">
-          {frameworksList.length}
+  <!-- 3. Historique des ingestions (replié par défaut, filtrable par statut, action Abandonner) -->
+  <details
+    bind:open={historyOpen}
+    data-testid="ingestions-history-section"
+    class="group bg-card border border-border rounded-xl shadow-xs overflow-hidden"
+  >
+    <summary
+      data-testid="ingestions-history-summary"
+      class="cursor-pointer list-none p-5 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-muted/30 hover:bg-muted/50 transition-colors"
+    >
+      <div class="flex items-center gap-2.5">
+        <ChevronDown class="w-4 h-4 text-muted-foreground transition-transform group-open:rotate-180" />
+        <h2 class="text-base font-bold text-foreground">
+          Historique des Ingestions
+        </h2>
+        <span class="text-xs px-2 py-0.5 rounded-full bg-primary/15 text-primary font-semibold">
+          {filteredIngestions.length} / {frameworksList.length}
         </span>
-      </h2>
+      </div>
+      <span class="text-xs text-muted-foreground">
+        Cliquez pour déplier les lots d'ingestion, filtrer par statut ou abandonner une ingestion obsolète
+      </span>
+    </summary>
+
+    <div class="p-5 space-y-5 border-t border-border">
+      <!-- Barre de filtre par statut -->
+      <div class="flex flex-wrap items-center justify-between gap-3">
+        <div class="flex flex-wrap items-center gap-1.5" role="group" aria-label="Filtrer par statut d'ingestion">
+          <span class="text-xs font-semibold text-muted-foreground flex items-center gap-1 mr-1">
+            <Filter class="w-3.5 h-3.5" />
+            Statut :
+          </span>
+          {#each [
+            { id: 'all', label: 'Toutes' },
+            { id: 'reviewing', label: 'En revue' },
+            { id: 'partially_applied', label: 'Partiellement appliquées' },
+            { id: 'applied', label: 'Appliquées' },
+            { id: 'abandoned', label: 'Abandonnées' }
+          ] as tab}
+            <button
+              type="button"
+              data-testid="ingestion-filter-{tab.id}"
+              onclick={() => handleStatusFilterChange(tab.id)}
+              disabled={isFiltering}
+              class="px-3 py-1 rounded-lg text-xs font-semibold border transition-colors {statusFilter === tab.id ? 'bg-primary text-white border-primary' : 'bg-muted/50 text-muted-foreground border-border hover:text-foreground'}"
+            >
+              {tab.label}
+            </button>
+          {/each}
+        </div>
+      </div>
+
+      {#if filteredIngestions.length === 0}
+        <div class="text-center py-10 bg-muted/30 border border-border rounded-xl p-6">
+          <ShieldAlert class="w-10 h-10 mx-auto text-muted-foreground mb-2" />
+          <h3 class="text-sm font-semibold text-muted-foreground">Aucune ingestion pour ce filtre</h3>
+          <p class="text-xs text-muted-foreground mt-1 max-w-md mx-auto">
+            Téléversez une directive réglementaire ci-dessus ou changez le filtre de statut.
+          </p>
+        </div>
+      {:else}
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          {#each filteredIngestions as fw (fw.id)}
+            {@const percentReviewed = fw.total_requirements > 0 ? Math.round((fw.reviewed_requirements / fw.total_requirements) * 100) : 0}
+            {@const stBadge = ingestionStatusBadge(fw.status)}
+            <div data-testid="framework-card" class="bg-white border border-border rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between">
+              <div>
+                <div class="flex items-start justify-between gap-2 mb-2">
+                  <div class="flex items-center gap-1.5">
+                    <span class="px-2.5 py-1 text-xs font-bold rounded bg-primary/10 border border-primary/30 text-primary uppercase font-mono">
+                      {fw.framework_id}
+                    </span>
+                    <span class="text-xs px-2 py-0.5 rounded bg-muted text-muted-foreground font-mono">
+                      v{fw.version}
+                    </span>
+                  </div>
+                  <span class="px-2 py-0.5 text-[11px] font-semibold rounded-full border {stBadge.classes}">
+                    {stBadge.label}
+                  </span>
+                </div>
+                <h3 class="text-base font-semibold text-foreground mb-1 leading-snug">
+                  {fw.framework_name}
+                </h3>
+                <div class="flex items-center gap-2 text-xs text-muted-foreground mb-4">
+                  <FileCode class="w-3.5 h-3.5" />
+                  <span class="truncate">{fw.file_name}</span>
+                  <span>•</span>
+                  <span class="uppercase font-mono">{fw.file_format}</span>
+                </div>
+
+                <!-- Jauge de progression -->
+                <div class="space-y-1.5 mb-4">
+                  <div class="flex items-center justify-between text-xs">
+                    <span class="text-muted-foreground font-medium">Revue des exigences</span>
+                    <span class="font-bold text-foreground">{fw.reviewed_requirements} / {fw.total_requirements} ({percentReviewed}%)</span>
+                  </div>
+                  <div class="w-full bg-muted rounded-full h-2 overflow-hidden border border-border">
+                    <div
+                      class="h-full rounded-full transition-all duration-300 {percentReviewed === 100 ? 'bg-emerald-500' : 'bg-primary'}"
+                      style="width: {percentReviewed}%"
+                    ></div>
+                  </div>
+                </div>
+
+                {#if fw.status === 'abandoned' && fw.abandon_reason}
+                  <div class="mb-3 p-2.5 rounded-lg bg-rose-50 border border-rose-200 text-xs text-rose-800 space-y-0.5">
+                    <div class="font-semibold">Motif d'abandon : {fw.abandon_reason}</div>
+                    {#if fw.abandoned_by}
+                      <div class="text-[11px] text-rose-600">Par {fw.abandoned_by}</div>
+                    {/if}
+                  </div>
+                {/if}
+
+                {#if abandoningId === fw.id}
+                  <div class="mb-3 p-3 rounded-lg bg-rose-50/70 border border-rose-200 space-y-2" data-testid="abandon-ingestion-form">
+                    <label for="abandon-reason-{fw.id}" class="block text-xs font-semibold text-rose-900">
+                      Motif d'abandon obligatoire *
+                    </label>
+                    <input
+                      id="abandon-reason-{fw.id}"
+                      data-testid="abandon-reason-input"
+                      type="text"
+                      bind:value={abandonReason}
+                      placeholder="Ex: Doublon, mauvaise version du PDF..."
+                      class="w-full px-2.5 py-1.5 text-xs border border-rose-300 rounded bg-white text-foreground focus:outline-none focus:ring-2 focus:ring-rose-500"
+                    />
+                    {#if abandonError}
+                      <p class="text-[11px] text-rose-700 font-medium">{abandonError}</p>
+                    {/if}
+                    <div class="flex items-center justify-end gap-2 pt-1">
+                      <button
+                        type="button"
+                        onclick={cancelAbandon}
+                        class="px-2.5 py-1 text-xs font-medium rounded border border-border bg-white text-muted-foreground hover:text-foreground"
+                      >
+                        Annuler
+                      </button>
+                      <button
+                        type="button"
+                        data-testid="confirm-abandon-button"
+                        disabled={isAbandoning}
+                        onclick={() => confirmAbandon(fw.id)}
+                        class="px-2.5 py-1 text-xs font-semibold rounded bg-rose-600 hover:bg-rose-700 text-white disabled:opacity-50"
+                      >
+                        {isAbandoning ? 'Abandon...' : 'Confirmer l’abandon'}
+                      </button>
+                    </div>
+                  </div>
+                {/if}
+              </div>
+
+              <div class="pt-4 border-t border-border flex items-center justify-between gap-2 mt-auto">
+                <span class="text-xs {percentReviewed === 100 ? 'text-emerald-700 font-semibold' : 'text-amber-700'}">
+                  {percentReviewed === 100 ? '✓ Prêt pour déclaration' : `${fw.total_requirements - fw.reviewed_requirements} en attente`}
+                </span>
+                <div class="flex items-center gap-2">
+                  {#if fw.status === 'reviewing' || fw.status === 'ready'}
+                    <button
+                      type="button"
+                      data-testid="framework-abandon-button"
+                      onclick={() => openAbandonForm(fw.id)}
+                      class="inline-flex items-center gap-1 text-xs font-semibold px-2.5 py-1.5 rounded-lg border border-rose-300 text-rose-700 hover:bg-rose-50 transition-colors"
+                      title="Abandonner cette ingestion obsolète"
+                    >
+                      <Ban class="w-3.5 h-3.5" />
+                      <span>Abandonner</span>
+                    </button>
+                  {/if}
+                  <a
+                    href="/kb/frameworks/{fw.id}"
+                    data-testid="framework-examine-link"
+                    class="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-foreground hover:bg-foreground/90 text-white transition-colors"
+                  >
+                    <span>Examiner</span>
+                    <ChevronRight class="w-3.5 h-3.5" />
+                  </a>
+                </div>
+              </div>
+            </div>
+          {/each}
+        </div>
+      {/if}
     </div>
-
-    {#if frameworksList.length === 0}
-      <div class="text-center py-12 bg-muted/50 border border-border rounded-xl p-8">
-        <ShieldAlert class="w-12 h-12 mx-auto text-muted-foreground mb-3" />
-        <h3 class="text-base font-semibold text-muted-foreground">Aucun référentiel ingéré pour l'instant</h3>
-        <p class="text-xs text-muted-foreground mt-1 max-w-md mx-auto">
-          Téléversez vos directives réglementaires ou normes de conformité ci-dessus pour démarrer la revue ligne par ligne et l'alignement doctrinal.
-        </p>
-      </div>
-    {:else}
-      <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {#each frameworksList as fw (fw.id)}
-          {@const percentReviewed = fw.total_requirements > 0 ? Math.round((fw.reviewed_requirements / fw.total_requirements) * 100) : 0}
-          <div data-testid="framework-card" class="bg-white border border-border rounded-xl p-5 shadow-sm hover:shadow-md transition-shadow flex flex-col justify-between">
-            <div>
-              <div class="flex items-start justify-between gap-2 mb-2">
-                <span class="px-2.5 py-1 text-xs font-bold rounded bg-primary/10 border border-primary/30 text-primary uppercase font-mono">
-                  {fw.framework_id}
-                </span>
-                <span class="text-xs px-2 py-0.5 rounded bg-muted text-muted-foreground font-mono">
-                  v{fw.version}
-                </span>
-              </div>
-              <h3 class="text-base font-semibold text-foreground mb-1 leading-snug">
-                {fw.framework_name}
-              </h3>
-              <div class="flex items-center gap-2 text-xs text-muted-foreground mb-4">
-                <FileCode class="w-3.5 h-3.5" />
-                <span class="truncate">{fw.file_name}</span>
-                <span>•</span>
-                <span class="uppercase font-mono">{fw.file_format}</span>
-              </div>
-
-              <!-- Jauge de progression -->
-              <div class="space-y-1.5 mb-4">
-                <div class="flex items-center justify-between text-xs">
-                  <span class="text-muted-foreground font-medium">Revue des exigences</span>
-                  <span class="font-bold text-foreground">{fw.reviewed_requirements} / {fw.total_requirements} ({percentReviewed}%)</span>
-                </div>
-                <div class="w-full bg-muted rounded-full h-2 overflow-hidden border border-border">
-                  <div
-                    class="h-full rounded-full transition-all duration-300 {percentReviewed === 100 ? 'bg-emerald-500' : 'bg-primary'}"
-                    style="width: {percentReviewed}%"
-                  ></div>
-                </div>
-              </div>
-            </div>
-
-            <div class="pt-4 border-t border-border flex items-center justify-between mt-auto">
-              <span class="text-xs {percentReviewed === 100 ? 'text-emerald-700 font-semibold' : 'text-amber-700'}">
-                {percentReviewed === 100 ? '✓ Prêt pour déclaration' : `${fw.total_requirements - fw.reviewed_requirements} en attente`}
-              </span>
-              <a
-                href="/kb/frameworks/{fw.id}"
-                data-testid="framework-examine-link"
-                class="inline-flex items-center gap-1.5 text-xs font-semibold px-3 py-1.5 rounded-lg bg-foreground hover:bg-foreground/90 text-white transition-colors"
-              >
-                <span>Examiner</span>
-                <ChevronRight class="w-3.5 h-3.5" />
-              </a>
-            </div>
-          </div>
-        {/each}
-      </div>
-    {/if}
-  </div>
+  </details>
 </div>

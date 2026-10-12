@@ -9,7 +9,12 @@ export default defineConfig({
 		// Les specs Playwright se lancent avec `npm run test:e2e:browser`, pas avec vitest.
 		exclude: ['**/node_modules/**', 'tests/e2e/browser/**'],
 		environment: 'node',
-		globals: true
+		globals: true,
+		// Les tests ne parlent jamais au LLMOps de développement (127.0.0.1:8000) : adresse injoignable, comme en CI.
+		// Les tests « réels » se lancent explicitement contre un serveur dédié (LLMOPS_LIVE_URL).
+		env: {
+			LLMOPS_BASE_URL: 'http://127.0.0.1:1'
+		}
 	},
 	resolve: {
 		alias: {

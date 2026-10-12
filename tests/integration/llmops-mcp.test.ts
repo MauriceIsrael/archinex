@@ -26,14 +26,13 @@ import { loadEnv } from 'vite';
 // vitest ne charge pas .env : on y lit les variables LLMOPS_* (jeton du serveur local), sans écraser l'environnement.
 const fileEnv = loadEnv('test', process.cwd(), 'LLMOPS_');
 const IS_REMOTE_ENABLED = process.env.RUN_REMOTE_MCP_TESTS === 'true';
+// Opt-in, comme les autres tests réels : jamais le LLMOps de développement par défaut.
+//   LLMOPS_LIVE_URL=http://127.0.0.1:8099 npx vitest run tests/integration/llmops-mcp.test.ts
 const BASE_URL =
-	process.env.LLMOPS_BASE_URL ??
-	fileEnv.LLMOPS_BASE_URL ??
-	(IS_REMOTE_ENABLED
-		? 'https://llmops-mcp-server-344571265365.europe-west1.run.app'
-		: 'http://127.0.0.1:8000');
+	process.env.LLMOPS_LIVE_URL ??
+	(IS_REMOTE_ENABLED ? 'https://llmops-mcp-server-344571265365.europe-west1.run.app' : undefined);
 
-const TOKEN = process.env.LLMOPS_AUTH_TOKEN ?? process.env.LLMOPS_TOKEN ?? fileEnv.LLMOPS_AUTH_TOKEN ?? 'demo-local-sovereign-2026';
+const TOKEN = process.env.LLMOPS_LIVE_TOKEN ?? fileEnv.LLMOPS_AUTH_TOKEN ?? 'demo-local-sovereign-2026';
 const ENGAGEMENT = process.env.LLMOPS_ENGAGEMENT ?? 'nordwave-mcx-2027';
 const TIMEOUT_MS = 15_000;
 

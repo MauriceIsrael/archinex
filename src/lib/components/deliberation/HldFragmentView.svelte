@@ -208,6 +208,15 @@
 			</div>
 		{/if}
 
+		{#if fragment.consequences.coverageWarnings?.length}
+			<div class="space-y-1">
+				<h4 class="font-bold text-foreground">Vérification réglementaire</h4>
+				{#each fragment.consequences.coverageWarnings as warning (warning)}
+					<p class="rounded-lg border border-amber-500/40 bg-amber-500/10 p-2">{warning}</p>
+				{/each}
+			</div>
+		{/if}
+
 		{#if fragment.openPoints.length}
 			<div class="space-y-1">
 				<h4 class="font-bold text-foreground">Points ouverts</h4>

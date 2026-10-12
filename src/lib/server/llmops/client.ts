@@ -691,8 +691,24 @@ export class LLMOpsClient {
       const res = await this.fetchWithTimeout(url, { headers: this.getHeaders(remoteEng) });
       if (res.ok) {
         const body = await res.json();
-        const data = (body.data || body) as FrameworkCoverage;
-        return { ...data, offline: false };
+        const data = body.data || body;
+        // Format servi par LLMOps : { applicable_frameworks, coverage: { NIS2: { status, expected, validated, missing_ids } } }
+        if (data && typeof data.coverage === 'object' && data.coverage !== null) {
+          const frameworks = Object.entries(data.coverage as Record<string, any>).map(([name, c]) => ({
+            name,
+            required: true,
+            status: (['covered', 'partial', 'missing'].includes(c?.status) ? c.status : 'unknown') as FrameworkStatus['status'],
+            covered_count: c?.validated ?? 0,
+            total_count: c?.expected ?? 0,
+            missing_clauses: Array.isArray(c?.missing_ids) ? c.missing_ids : []
+          }));
+          const overall: FrameworkCoverage['overall_coverage'] = frameworks.length === 0
+            ? 'unknown'
+            : frameworks.every((f) => f.status === 'covered') ? 'covered'
+            : frameworks.some((f) => f.status === 'missing') ? 'missing' : 'partial';
+          return { frameworks, overall_coverage: overall, checked_at: new Date().toISOString(), offline: false };
+        }
+        return { ...(data as FrameworkCoverage), frameworks: data?.frameworks ?? [], offline: false };
       }
     } catch {
       // Live unreachable -> fallback offline

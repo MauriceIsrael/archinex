@@ -2,6 +2,8 @@ import { prisma } from '../prisma';
 import { getSubjectArbitrationContext } from './arbitrationDb';
 import { buildHldFragment, renderHldFragmentMarkdown, type HldFragment } from '$lib/domain/hldFragment';
 import { requirementBundleId } from '$lib/domain/requirementAudit';
+import { coverageWarnings } from '$lib/domain/maturityRules';
+import { getProjectFrameworks } from './frameworksDb';
 
 const parseIds = (raw: string | null | undefined): string[] => {
 	try {
@@ -72,6 +74,7 @@ export async function loadHldFragment(projectId: string, subjectId: string): Pro
 		arguments: ctx.arguments,
 		decision: ctx.decision,
 		affirmedBy,
+		coverageWarnings: coverageWarnings((await getProjectFrameworks(projectId).catch(() => ({ frameworks: [] }))).frameworks).map((w) => w.message),
 		generatedAt: new Date().toISOString()
 	});
 	return { fragment, markdown: renderHldFragmentMarkdown(fragment) };

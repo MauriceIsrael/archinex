@@ -7,7 +7,6 @@
   import Menu from 'lucide-svelte/icons/menu';
   import LayoutDashboard from 'lucide-svelte/icons/layout-dashboard';
   import Users from 'lucide-svelte/icons/users';
-  import Settings from 'lucide-svelte/icons/settings';
   import PanelLeftClose from 'lucide-svelte/icons/panel-left-close';
   import PanelLeftOpen from 'lucide-svelte/icons/panel-left-open';
   import Shield from 'lucide-svelte/icons/shield';
@@ -63,7 +62,6 @@
     { href: '/deliberation', labelKey: 'nav.deliberation', icon: GitBranch,       adminOnly: false },
     { href: '/knowledge',    labelKey: 'nav.knowledge',    icon: Network,         adminOnly: false },
     { href: '/users',        labelKey: 'nav.users',        icon: Users,           adminOnly: false },
-    { href: '/settings',     labelKey: 'nav.settings',     icon: Settings,        adminOnly: false },
   ];
 
   const adminMenuItems = [

@@ -119,6 +119,42 @@
 		}
 	});
 
+	// Doctrine applicable au sujet, telle que LLMOps la sélectionne (référentiels déclarés de l'espace compris)
+	interface DoctrineItem { id: string; type: string; title: string; status?: string; confidence?: string; excerpt?: string; source_ref?: string; relevance?: number; framework?: string; required?: boolean }
+	let doctrineItems = $state<DoctrineItem[]>([]);
+	let isLoadingDoctrine = $state(false);
+	let doctrineLoadedFor = '';
+	// Pertinent pour le sujet : relevé par la recherche, ou non imposé par un référentiel déclaré
+	const relevantDoctrine = $derived(doctrineItems.filter((i) => !i.required || (i.relevance ?? 0) > 0.1));
+	const requiredByFramework = $derived.by(() => {
+		const groups = new Map<string, DoctrineItem[]>();
+		for (const i of doctrineItems.filter((x) => x.required && !relevantDoctrine.includes(x))) {
+			const key = i.framework || 'Référentiel';
+			groups.set(key, [...(groups.get(key) ?? []), i]);
+		}
+		return [...groups.entries()];
+	});
+
+	$effect(() => {
+		if (subjectId && projectId && activeTab === 'kb' && doctrineLoadedFor !== subjectId) {
+			loadDoctrine();
+		}
+	});
+
+	async function loadDoctrine() {
+		if (!projectId || !subjectId) return;
+		isLoadingDoctrine = true;
+		doctrineLoadedFor = subjectId;
+		try {
+			const res = await fetch(`/api/projects/${projectId}/subjects/${subjectId}/doctrine-context`);
+			doctrineItems = res.ok ? ((await res.json()).items ?? []) : [];
+		} catch {
+			doctrineItems = [];
+		} finally {
+			isLoadingDoctrine = false;
+		}
+	}
+
 	async function loadTreeData() {
 		if (!projectId || !subjectId) return;
 		isLoadingTree = true;
@@ -297,7 +333,46 @@
 				<!-- 3. Références à la base doctrinale -->
 				<div class="space-y-3 text-xs">
 					<div class="flex items-center justify-between pb-1 border-b text-muted-foreground font-semibold">
-						<span>Règles doctrinales mobilisées</span>
+						<span>Doctrine applicable (LLMOps)</span>
+						<span class="font-mono text-[10px]">{isLoadingDoctrine ? '…' : `${doctrineItems.length} élément(s)`}</span>
+					</div>
+					{#if !isLoadingDoctrine && doctrineItems.length === 0}
+						<div class="p-3 rounded-lg border border-dashed text-center text-muted-foreground">
+							Aucune doctrine applicable renvoyée par LLMOps (base vide pour ce sujet, ou LLMOps injoignable).
+						</div>
+					{/if}
+					{#if relevantDoctrine.length}
+						<div class="space-y-1.5">
+							<p class="text-[11px] font-semibold text-foreground">Pertinente pour ce sujet</p>
+							{#each relevantDoctrine as item (item.id)}
+								<div class="rounded-lg border bg-card/60 p-2">
+									<div class="flex items-center gap-2">
+										<span class="font-mono font-bold">{item.id}</span>
+										<span class="text-[10px] text-muted-foreground">{item.type}{item.confidence ? ` · ${item.confidence}` : ''}</span>
+									</div>
+									<p class="text-foreground">{item.title}</p>
+								</div>
+							{/each}
+						</div>
+					{/if}
+					{#each requiredByFramework as [framework, items] (framework)}
+						<details class="rounded-lg border bg-muted/20 p-2">
+							<summary class="cursor-pointer font-semibold">
+								Contrôles {framework} imposés par les référentiels déclarés ({items.length})
+							</summary>
+							<p class="mt-1 text-[10px] text-muted-foreground">
+								Joints à tout sujet de l'espace : LLMOps ne les a pas reliés spécifiquement à celui-ci.
+							</p>
+							<ul class="mt-1.5 space-y-1">
+								{#each items as item (item.id)}
+									<li><span class="font-mono font-semibold">{item.id}</span> — {item.title}</li>
+								{/each}
+							</ul>
+						</details>
+					{/each}
+
+					<div class="flex items-center justify-between pt-2 pb-1 border-b text-muted-foreground font-semibold">
+						<span>Règles doctrinales mobilisées dans le débat</span>
 						<span class="font-mono text-[10px]">{citedKbRefs.length} identifiée(s)</span>
 					</div>
 

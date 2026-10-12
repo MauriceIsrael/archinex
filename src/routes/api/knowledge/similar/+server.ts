@@ -28,6 +28,25 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
   // Anonymisation stricte avant traitement sémantique
   const cleanText = anonymizeSubjectText(query_text.trim());
+
+  // LLMOps encode le texte avec son modèle de référence (contrat 1.25) : pas d'encodeur côté Archinex.
+  if (typeof body.model !== 'string') {
+    const serverSide = await llmopsClient.searchSimilarKnowledge(
+      {
+        query_text: cleanText,
+        subject_fingerprint: computeSubjectFingerprint(cleanText),
+        types,
+        domains,
+        top_k: typeof top_k === 'number' ? top_k : 10
+      },
+      actorEmail
+    );
+    if (serverSide.status === 'ok' && serverSide.data) {
+      return json({ status: 'ok', data: serverSide.data });
+    }
+    // LLMOps antérieur à la 1.25 ou modèle absent : repli sur l'encodeur local ci-dessous
+  }
+
   let encoder;
   let vector: number[];
   try {

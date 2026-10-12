@@ -739,8 +739,9 @@ export interface EmbeddingDeposit {
 }
 
 export interface SimilarKnowledgeRequest {
-  model: string;
-  vector: number[];
+  /** Absents : LLMOps encode query_text avec son modèle de référence (contrat 1.25). */
+  model?: string;
+  vector?: number[];
   query_text?: string;
   types?: string[];
   domains?: string[];

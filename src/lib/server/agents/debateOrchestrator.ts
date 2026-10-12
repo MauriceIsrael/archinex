@@ -54,6 +54,7 @@ export async function orchestrateDebate(
 
 	// Récupération de la doctrine autorisée pour ce sujet
 	let allowedKbRefs: string[] = [];
+	let doctrine: Array<{ id: string; title?: string; excerpt?: string; relevant?: boolean; required?: boolean }> = [];
 	try {
 		const docCtx = await doctrineService.getDoctrineContext({
 			topics: [subject.name],
@@ -62,6 +63,7 @@ export async function orchestrateDebate(
 		});
 		if (docCtx && docCtx.items) {
 			allowedKbRefs = docCtx.items.map((r) => r.id);
+			doctrine = docCtx.items as typeof doctrine;
 		}
 	} catch (err) {
 		console.warn('[Orchestrator] Doctrine indisponible :', (err as any).message);
@@ -126,6 +128,7 @@ export async function orchestrateDebate(
 					subject: { id: subject.id, name: subject.name, sectionRef: subject.sectionRef },
 					options: opts,
 					allowedKbRefs,
+					doctrine,
 					round
 				});
 
@@ -257,6 +260,7 @@ export async function invokeSpecificAgent(
 
 	// Récupération de la doctrine autorisée pour ce sujet
 	let allowedKbRefs: string[] = [];
+	let doctrine: Array<{ id: string; title?: string; excerpt?: string; relevant?: boolean; required?: boolean }> = [];
 	try {
 		const docCtx = await doctrineService.getDoctrineContext({
 			topics: [subject.name],
@@ -265,6 +269,7 @@ export async function invokeSpecificAgent(
 		});
 		if (docCtx && docCtx.items) {
 			allowedKbRefs = docCtx.items.map((r) => r.id);
+			doctrine = docCtx.items as typeof doctrine;
 		}
 	} catch (err) {
 		console.warn('[Orchestrator] Doctrine indisponible :', (err as any).message);
@@ -319,6 +324,7 @@ export async function invokeSpecificAgent(
 				subject: { id: subject.id, name: subject.name, sectionRef: subject.sectionRef },
 				options: opts,
 				allowedKbRefs,
+				doctrine,
 				round: currentRound
 			});
 			for (const arg of verifierArgs) {

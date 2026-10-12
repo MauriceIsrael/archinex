@@ -17,10 +17,27 @@ const VerifierOutputSchema = z.object({
 	)
 });
 
+/** Règles présentées au modèle : texte des plus pertinentes (au plus 15), identifiant seul pour les autres. */
+function describeRules(input: { allowedKbRefs: string[]; doctrine?: Array<{ id: string; title?: string; excerpt?: string; relevant?: boolean; required?: boolean }> }): string {
+	const byId = new Map((input.doctrine ?? []).map((d) => [d.id, d]));
+	const ordered = [...input.allowedKbRefs].sort((a, b) => Number(Boolean(byId.get(b)?.relevant)) - Number(Boolean(byId.get(a)?.relevant)));
+	return ordered
+		.map((id, i) => {
+			const d = byId.get(id);
+			if (!d || i >= 15) return `- Règle [${id}]`;
+			const tag = d.relevant ? ' (pertinente pour ce sujet)' : d.required ? ' (imposée par un référentiel déclaré)' : '';
+			const excerpt = (d.excerpt ?? '').replace(/\s+/g, ' ').trim().slice(0, 400);
+			return `- Règle [${id}]${tag} : ${d.title ?? ''}${excerpt ? ` — ${excerpt}` : ''}`;
+		})
+		.join('\n');
+}
+
 export async function runVerifierAgent(input: {
 	subject: { id: string; name: string; sectionRef: string };
 	options: Option[];
 	allowedKbRefs: string[];
+	/** Règles de la doctrine (LLMOps), pertinentes pour le sujet d'abord : intitulé et extrait pour juger sur le texte. */
+	doctrine?: Array<{ id: string; title?: string; excerpt?: string; relevant?: boolean; required?: boolean }>;
 	round: number;
 }): Promise<CreateArgumentData[]> {
 	if (input.options.length === 0 || input.allowedKbRefs.length === 0) {
@@ -37,7 +54,7 @@ Réponds STRICTEMENT par un JSON valide :
 
 	const userMessage = `Sujet : ${input.subject.sectionRef} ${input.subject.name}
 Règles doctrinales applicables :
-${input.allowedKbRefs.map((r) => `- Règle [${r}]`).join('\n')}
+${describeRules(input)}
 
 Options à vérifier :
 ${input.options.map((o) => `[ID: ${o.id}] Titre: ${o.title}\nRésumé: ${o.summary}`).join('\n\n')}

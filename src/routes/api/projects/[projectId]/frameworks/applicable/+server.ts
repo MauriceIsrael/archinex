@@ -16,6 +16,7 @@ export const GET: RequestHandler = async (event) => {
 	return json({
 		status: 'ok',
 		applicable: await getApplicableFrameworks(projectId),
+		requirementsDossier: sources.length > 0,
 		detected: text ? detectApplicableFrameworks(text) : [],
 		catalogue: REGULATORY_FRAMEWORKS.map((f) => ({ code: f.code, label: f.label }))
 	});

@@ -81,6 +81,29 @@ describe('Banc de Test Boîte Noire — Adaptateur Archinex (Jalon J3)', () => {
 		expect(result.bundle.checksum).toMatch(/^sha256:[a-f0-9]{64}$/);
 	});
 
+	it('Déterminisme & Sceau immuable : deux exécutions identiques avec la même date de référence produisent le même checksum exact (Issue #48)', async () => {
+		const run1 = await runBenchmarkCase(rfpCase, {
+			mode: 's2',
+			iteration: 1,
+			modelId: 'qwen2.5-coder:14b',
+			referenceDate: '2026-01-01T00:00:00.000Z'
+		});
+		const run2 = await runBenchmarkCase(rfpCase, {
+			mode: 's2',
+			iteration: 1,
+			modelId: 'qwen2.5-coder:14b',
+			referenceDate: '2026-01-01T00:00:00.000Z'
+		});
+
+		expect(run1.bundle.checksum).toBe(run2.bundle.checksum);
+
+		// Vérifie l'attribution au modèle plutôt qu'à un handle fictif (@system-autonomous)
+		for (const stmt of run1.bundle.data.statements) {
+			expect(stmt.provenance.by).toEqual(['@model-qwen2.5-coder:14b']);
+			expect(stmt.provenance.at).toBe('2026-01-01T00:00:00.000Z');
+		}
+	});
+
 	it('Mode S3 (Assisté) : rejoue les fixtures d\'experts, arbitre les décisions et scelle le dossier affirmé', async () => {
 		const result = await runBenchmarkCase(rfpCase, {
 			mode: 's3',
@@ -176,5 +199,13 @@ describe('Banc de Test Boîte Noire — Adaptateur Archinex (Jalon J3)', () => {
 		expect(summaryS3.case_id).toBe('TC-CONTRA-001');
 		expect(summaryS3.expert_interactions).toBe(3);
 		expect(summaryS3.checksum).toBe(bundleS3.checksum);
+	}, 40000);
+
+	it('Déterminisme (#48) : provenance @model-<id>, pas d horloge, checksum identique entre deux exécutions', async () => {
+		const a = await runBenchmarkCase(rfpCase, { mode: 's2', modelId: 'test-model' });
+		const b = await runBenchmarkCase(rfpCase, { mode: 's2', modelId: 'test-model' });
+		expect(a.bundle.checksum).toBe(b.bundle.checksum);
+		expect(JSON.stringify(a.bundle)).not.toContain('system-autonomous');
+		expect(JSON.stringify(a.bundle)).toContain('@model-test-model');
 	});
 });

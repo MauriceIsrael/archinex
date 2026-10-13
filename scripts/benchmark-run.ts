@@ -12,7 +12,9 @@
  *   --expert-fixture <path>   Fichier JSON contenant les réponses d'experts annotées (pour S3)
  *   --case-id <id>            Identifiant du cas de test (défaut: extrait du fichier ou TC-001)
  *   --summary-out <path>      Fichier JSON pour le rapport de métriques (RunArtifact)
- *   --verify                  Vérifie immédiatement la validité du bundle scellé
+ *   --model-id <id>           Modèle producteur (provenance @model-<id>, défaut: unspecified)
+  --reference-date <iso>    Date de référence déterministe (défaut: constante, jamais l'horloge)
+  --verify                  Vérifie immédiatement la validité du bundle scellé
  *   --help                    Affiche l'aide
  */
 
@@ -45,6 +47,8 @@ Options :
   --expert-fixture <path>   Fixture de sollicitations d'experts rejouées (requis pour S3)
   --case-id <id>            Identifiant du cas de test (ex: TC-CONTRA-001)
   --summary-out <path>      Chemin où écrire le résumé d'exécution RunArtifact
+  --model-id <id>           Modèle producteur (provenance @model-<id>, défaut: unspecified)
+  --reference-date <iso>    Date de référence déterministe (défaut: constante, jamais l'horloge)
   --verify                  Vérifie la conformité cryptographique du bundle
   --help                    Affiche cette aide
 `);
@@ -125,7 +129,9 @@ async function main() {
 	// 3. Exécution du cas
 	const result = await runBenchmarkCase(caseInput, {
 		mode: modeArg as 's2' | 's3',
-		expertFixtures
+		expertFixtures,
+		modelId: getArg('--model-id'),
+		referenceDate: getArg('--reference-date')
 	});
 
 	// 4. Sauvegarde de l'EngagementBundle

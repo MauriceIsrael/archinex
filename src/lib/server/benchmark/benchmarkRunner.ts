@@ -68,6 +68,10 @@ export interface BenchmarkRunOptions {
 	expertFixtures?: ExpertActionFixture[];
 	pins?: BundlePins;
 	clientLabel?: string;
+	/** Identifiant du modèle producteur (ex: "qwen2.5-coder:14b") ; devient le handle @model-<id>. */
+	modelId?: string;
+	/** Date de référence ISO déterministe (jamais l'horloge) pour garantir un checksum reproductible. */
+	referenceDate?: string;
 }
 
 export interface BenchmarkRunResult {
@@ -89,6 +93,9 @@ export interface BenchmarkRunResult {
 	bundle: EngagementBundle;
 }
 
+/** Date de référence par défaut : constante, pour que deux exécutions identiques scellent le même checksum. */
+export const DEFAULT_REFERENCE_DATE = '2026-01-01T00:00:00.000Z';
+
 // ─── Moteur d'Exécution par Lot ──────────────────────────────────────────────
 
 export async function runBenchmarkCase(
@@ -99,6 +106,8 @@ export async function runBenchmarkCase(
 	const mode = options.mode;
 	const iteration = options.iteration ?? 1;
 	const fixtures = options.expertFixtures ?? [];
+	const modelHandle = `@model-${(options.modelId ?? 'unspecified').trim().replace(/\s+/g, '-')}`;
+	const referenceDate = options.referenceDate ?? DEFAULT_REFERENCE_DATE;
 
 	// 1. Découpage du RFP en clauses élémentaires
 	const clauses = shredRfpTextToClauses(input.rfp_text);
@@ -165,8 +174,8 @@ export async function runBenchmarkCase(
 			value: r.clause_ref,
 			provenance: {
 				basis: 'ai_proposal',
-				by: ['@system-autonomous'],
-				at: new Date().toISOString()
+				by: [modelHandle],
+				at: referenceDate
 			}
 		};
 	});
@@ -218,8 +227,8 @@ export async function runBenchmarkCase(
 				rationale: 'Généré de façon autonome en attente d\'arbitrage contradictoire.',
 				provenance: {
 					basis: 'ai_proposal',
-					by: ['@system-autonomous'],
-					at: new Date().toISOString()
+					by: [modelHandle],
+					at: referenceDate
 				}
 			});
 			subj.decision_ids.push(decId);
@@ -283,7 +292,7 @@ export async function runBenchmarkCase(
 					provenance: {
 						basis: 'human_validation',
 						by: [fixture.actor],
-						at: new Date().toISOString()
+						at: referenceDate
 					}
 				});
 				subj.decision_ids.push(decId);
@@ -295,7 +304,7 @@ export async function runBenchmarkCase(
 						matched_ref: `ADR-${subj.id}`,
 						outcome: fixture.assumptions.every((a) => a.status === 'holds') ? 'reused' : 'reused_with_exception',
 						by: fixture.actor,
-						at: new Date().toISOString(),
+						at: referenceDate,
 						comment: fixture.rationale ?? null,
 						assumptions: fixture.assumptions
 					});
@@ -310,7 +319,7 @@ export async function runBenchmarkCase(
 						s.provenance = {
 							basis: 'human_validation',
 							by: [fixture.actor],
-							at: new Date().toISOString()
+							at: referenceDate
 						};
 					});
 			} else {
@@ -330,6 +339,7 @@ export async function runBenchmarkCase(
 			confidentiality: input.confidentiality ?? 'internal',
 			client_label: options.clientLabel ?? 'Client Benchmark'
 		},
+		createdAt: referenceDate,
 		pins: options.pins ?? {
 			llmops_contract_version: '1.24',
 			kb: {

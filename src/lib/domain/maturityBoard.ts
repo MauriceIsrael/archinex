@@ -1,4 +1,5 @@
 import type { MaturityLevel, ArchitectRole } from '$lib/types/epistemic';
+import { explainActionRefusal } from '$lib/domain/spaceActor';
 
 export interface MaturitySubject {
 	id: string;
@@ -139,7 +140,7 @@ export function canTransitionMaturity(
 			return {
 				allowed: false,
 				code: 'LEAD_ARCHITECT_ROLE_REQUIRED',
-				reason: 'Seul le Lead Architect peut homologuer (L4) ou archiver (L5) une décision architecturale.'
+				reason: explainActionRefusal('homologate', actor.role, { targetLevel })
 			};
 		}
 	}

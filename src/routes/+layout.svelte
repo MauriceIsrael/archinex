@@ -38,6 +38,7 @@
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
   import '$lib/i18n';
+  import { deliberationStore } from '$lib/stores/deliberationStore.svelte';
   import type { PageData } from './$types';
 
   let { children, data }: { children: Snippet; data: PageData } = $props();
@@ -53,6 +54,14 @@
   // Session shorthand
   const session = $derived(data.session);
   const isAdmin = $derived(hasRole(session, 'admin'));
+
+  $effect(() => {
+    if (session?.user) {
+      deliberationStore.setCurrentUser(session.user);
+    } else {
+      deliberationStore.setCurrentUser(null);
+    }
+  });
 
   /**
    * Navigation items.

@@ -297,7 +297,7 @@
 										{/if}
 										<span>Habilitation Lead Architect pour Scellement</span>
 									</div>
-									<span class="font-mono font-bold text-foreground">{deliberationStore.currentRole}</span>
+									<span class="font-medium text-foreground text-xs">{deliberationStore.userSpaceRoleInfo.roleLabel}</span>
 								</div>
 							</div>
 

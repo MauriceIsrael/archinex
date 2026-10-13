@@ -2,6 +2,7 @@
 	import { untrack } from 'svelte';
 	import type { Option, Decision } from '$lib/domain/options';
 	import type { ExtractedFact } from '$lib/server/agents/factExtractor';
+	import { explainActionRefusal, getRoleLabel } from '$lib/domain/spaceActor';
 	import {
 		Gavel,
 		CheckCircle2,
@@ -456,8 +457,7 @@
 				<div>
 					<strong>Séparation des pouvoirs (K16) : Auto-validation interdite.</strong>
 					<p class="text-[11px] text-amber-800 dark:text-amber-300 mt-0.5">
-						Vous êtes l'auteur de cette proposition de décision. Conformément à la gouvernance opposable,
-						seul un <strong>décideur distinct</strong> (rôle decider ou lead_architect) peut prononcer l'affirmation.
+						{explainActionRefusal('affirm', sessionUser.role, { isAuthor: true })}
 					</p>
 				</div>
 			</div>
@@ -467,7 +467,7 @@
 				<div class="flex items-center gap-1.5 text-[11px] text-muted-foreground">
 					<UserCheck class="h-3.5 w-3.5 text-primary" />
 					<span>
-						En tant que <strong>{sessionUser.role}</strong> distinct de l'auteur, vous êtes habilité à affirmer.
+						En tant que <strong>{getRoleLabel(sessionUser.role)}</strong> distinct de l'auteur, vous êtes habilité à affirmer.
 					</span>
 				</div>
 
@@ -485,7 +485,7 @@
 		{:else}
 			<div class="p-2.5 rounded-lg bg-muted text-xs text-muted-foreground flex items-center gap-2">
 				<Info class="h-3.5 w-3.5 shrink-0" />
-				<span>En attente d'affirmation par un décideur qualifié (rôle decider ou lead_architect requis).</span>
+				<span>{explainActionRefusal('affirm', sessionUser.role)}</span>
 			</div>
 		{/if}
 

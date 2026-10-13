@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { deliberationStore } from '$lib/stores/deliberationStore.svelte';
 	import type { EngagementProfile } from '$lib/domain/engagements';
+	import { resolveUserSpaceRole } from '$lib/domain/spaceActor';
 	import {
 		X,
 		FolderKanban,
@@ -169,6 +170,7 @@
 					{#each displayedEngagements as eng (eng.id)}
 						{@const isCurrentActive = deliberationStore.activeEngagementId === eng.id}
 						{@const isArchived = eng.status === 'archived'}
+						{@const roleInfo = resolveUserSpaceRole(eng, deliberationStore.currentUser)}
 
 						<div
 							class="p-4 rounded-xl border transition-all space-y-3 {isCurrentActive
@@ -215,6 +217,16 @@
 											{/if}
 											<span class="rounded bg-muted text-muted-foreground px-1.5 py-0.5 text-[10px] font-mono">
 												{eng.badge}
+											</span>
+											<span
+												class="rounded px-2 py-0.5 text-[10px] font-medium border {roleInfo.isAssigned
+													? 'bg-primary/10 text-primary border-primary/25 font-semibold'
+													: roleInfo.isAdmin
+														? 'bg-amber-500/10 text-amber-800 dark:text-amber-300 border-amber-500/25'
+														: 'bg-muted text-muted-foreground border-border'}"
+												title={roleInfo.privilegesSummary}
+											>
+												{roleInfo.displayText}
 											</span>
 										</div>
 

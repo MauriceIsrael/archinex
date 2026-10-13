@@ -24,10 +24,17 @@
 		Archive,
 		RotateCcw
 	} from 'lucide-svelte';
+	import { page } from '$app/stores';
 
 	let { onOpenGuide }: { onOpenGuide: () => void } = $props();
 	let isCreateWorkspaceOpen = $state(false);
 	let isInviteDialogOpen = $state(false);
+
+	$effect(() => {
+		if ($page.data?.session?.user) {
+			deliberationStore.setCurrentUser($page.data.session.user);
+		}
+	});
 
 	const activeEngagement = $derived(deliberationStore.activeEngagement);
 	const activeDoc = $derived(deliberationStore.activeDocument);
@@ -251,7 +258,39 @@
 					{/if}
 				</button>
 
-				<!-- Rôle d'architecte actif -->
+				<!-- 4. Rôle contextuel de l'utilisateur dans l'espace (#61) -->
+				<div
+					data-testid="contextual-space-role"
+					class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border text-xs font-semibold shadow-2xs {deliberationStore.userSpaceRoleInfo.isAssigned
+						? 'bg-primary/10 text-primary border-primary/25'
+						: deliberationStore.userSpaceRoleInfo.isAdmin
+							? 'bg-amber-500/10 text-amber-800 dark:text-amber-300 border-amber-500/30'
+							: 'bg-muted/80 text-muted-foreground border-border'}"
+					title={deliberationStore.userSpaceRoleInfo.privilegesSummary}
+				>
+					<UserCheck class="h-3.5 w-3.5 shrink-0" />
+					<span>
+						Vous êtes : <strong class="font-bold">{deliberationStore.userSpaceRoleInfo.roleLabel}</strong>
+					</span>
+					{#if deliberationStore.currentRole !== deliberationStore.userSpaceRoleInfo.role}
+						<span
+							class="text-[10px] font-mono px-1.5 py-0.2 rounded bg-amber-500/20 text-amber-800 dark:text-amber-200"
+							title="Rôle actif simulé différemment de votre attribution réelle dans l'espace"
+						>
+							Simulé
+						</span>
+						<button
+							type="button"
+							onclick={() => deliberationStore.syncRoleWithWorkspace()}
+							class="p-0.5 hover:text-foreground text-muted-foreground rounded cursor-pointer ml-0.5"
+							title="Rétablir mon rôle attribué dans l'espace"
+						>
+							<RotateCcw class="h-3 w-3" />
+						</button>
+					{/if}
+				</div>
+
+				<!-- Rôle d'architecte actif (Simulation / Expérimentation) -->
 				<div class="flex items-center gap-1.5">
 					<label for="header-role-select" class="sr-only">Rôle actif</label>
 					<select

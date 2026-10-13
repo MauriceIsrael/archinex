@@ -93,6 +93,69 @@
 		...DEFAULT_PARTICIPANTS.map((p) => ({ ...p }))
 	]);
 
+	let registeredUsers = $state<Array<{ id: string; name: string; email: string; role: string }>>([]);
+	let selectedUserToAdd = $state<string>('');
+
+	async function loadRegisteredUsers() {
+		try {
+			const res = await fetch('/api/users');
+			if (res.ok) {
+				const data = await res.json();
+				if (Array.isArray(data.users)) {
+					registeredUsers = data.users;
+				}
+			}
+		} catch {}
+	}
+
+	$effect(() => {
+		if (open && deliberationStore.currentUser) {
+			const u = deliberationStore.currentUser;
+			if (participants.length > 0 && participants[0].id === 'part-lead') {
+				participants[0] = {
+					...participants[0],
+					id: u.id,
+					name: u.name || u.email,
+					email: u.email,
+					role: 'lead_architect',
+					isLead: true
+				};
+			}
+		}
+	});
+
+	$effect(() => {
+		if (open && currentStep === 4 && registeredUsers.length === 0) {
+			loadRegisteredUsers();
+		}
+	});
+
+	function addRegisteredUserAsParticipant() {
+		if (!selectedUserToAdd) return;
+		const user = registeredUsers.find((u) => u.id === selectedUserToAdd);
+		if (!user) return;
+		if (participants.some((p) => (p.email && p.email.toLowerCase() === user.email.toLowerCase()) || p.id === user.id)) {
+			selectedUserToAdd = '';
+			return;
+		}
+		participants = [
+			...participants,
+			{
+				id: user.id,
+				name: user.name || user.email.split('@')[0],
+				email: user.email,
+				role: user.role === 'admin' ? 'lead_architect' : 'domain_architect',
+				isLead: false
+			}
+		];
+		selectedUserToAdd = '';
+	}
+
+	function removeParticipant(idx: number) {
+		if (participants[idx]?.isLead) return;
+		participants = participants.filter((_, i) => i !== idx);
+	}
+
 	// Step 5 : Sujets initiaux
 	let initialSubjects = $state<InitialSubjectInput[]>([]);
 
@@ -703,6 +766,39 @@
 							</button>
 						</div>
 
+						<!-- Sélecteur de compte depuis l'annuaire existant (#61) -->
+						{#if registeredUsers.length > 0}
+							<div class="p-3 rounded-xl border bg-muted/20 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs">
+								<div class="space-y-0.5">
+									<strong class="font-bold text-foreground">Associer un compte existant de l'annuaire</strong>
+									<p class="text-[11px] text-muted-foreground">
+										Rattache un utilisateur déjà inscrit comme participant à cet espace
+									</p>
+								</div>
+								<div class="flex items-center gap-2">
+									<select
+										bind:value={selectedUserToAdd}
+										class="rounded-lg border bg-background px-2.5 py-1.5 text-xs font-medium"
+									>
+										<option value="">Sélectionner un compte...</option>
+										{#each registeredUsers as u}
+											<option value={u.id}>
+												{u.name || u.email} ({u.email})
+											</option>
+										{/each}
+									</select>
+									<button
+										type="button"
+										onclick={addRegisteredUserAsParticipant}
+										disabled={!selectedUserToAdd}
+										class="px-3 py-1.5 rounded-lg bg-primary text-primary-foreground font-semibold text-xs hover:bg-primary/90 transition-colors disabled:opacity-50 cursor-pointer"
+									>
+										Ajouter
+									</button>
+								</div>
+							</div>
+						{/if}
+
 						<div class="space-y-2.5">
 							{#each participants as p, idx}
 								<div class="p-3 rounded-xl border bg-card flex flex-col sm:flex-row sm:items-center justify-between gap-3">
@@ -737,6 +833,16 @@
 											<option value="security_architect">Architecte Sécurité NIS2</option>
 											<option value="domain_architect">Architecte Métier</option>
 										</select>
+										{#if !p.isLead}
+											<button
+												type="button"
+												onclick={() => removeParticipant(idx)}
+												class="p-1 text-muted-foreground hover:text-destructive transition-colors"
+												title="Retirer ce participant"
+											>
+												<Trash2 class="h-3.5 w-3.5" />
+											</button>
+										{/if}
 									</div>
 								</div>
 							{/each}

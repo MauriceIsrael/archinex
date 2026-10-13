@@ -59,6 +59,8 @@ export interface FreezeGatingResult {
 	reason?: string;
 }
 
+import { explainActionRefusal } from '$lib/domain/spaceActor';
+
 /**
  * Vérifie rigoureusement la barrière d'homologation avant gel d'une section :
  * 1. Niveau >= L3_decided.
@@ -76,7 +78,7 @@ export function canFreezeSection(
 		return {
 			allowed: false,
 			code: 'ROLE_NOT_AUTHORIZED',
-			reason: 'Seul le Lead Architect est habilité à sceller officiellement une section pour homologation.'
+			reason: explainActionRefusal('freeze', actorRole)
 		};
 	}
 

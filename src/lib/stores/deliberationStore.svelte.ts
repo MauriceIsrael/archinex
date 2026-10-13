@@ -53,6 +53,13 @@ import type {
 	LLMOpsBoardItem,
 	LLMOpsStatement
 } from '$lib/types/llmops';
+import {
+	resolveUserSpaceRole,
+	explainActionRefusal,
+	getRoleLabel,
+	ARCHITECT_ROLE_LABELS,
+	type SpaceRoleInfo
+} from '$lib/domain/spaceActor';
 
 export type DeliberationPosture = 'appropriation' | 'deliberation' | 'rendu';
 
@@ -126,6 +133,24 @@ class DeliberationStore {
 	activePosture = $state<DeliberationPosture>('deliberation');
 	deliberationViewMode = $state<'board' | 'conversation'>('board');
 	currentRole = $state<ArchitectRole>('lead_architect');
+	currentUser = $state<{ id: string; email: string; name?: string; role?: string } | null>(null);
+
+	get userSpaceRoleInfo(): SpaceRoleInfo {
+		const eng = this.activeEngagement;
+		return resolveUserSpaceRole(eng, this.currentUser);
+	}
+
+	setCurrentUser(user: { id: string; email: string; name?: string; role?: string } | null) {
+		this.currentUser = user;
+		this.syncRoleWithWorkspace();
+	}
+
+	syncRoleWithWorkspace() {
+		const info = this.userSpaceRoleInfo;
+		if (info && info.role) {
+			this.currentRole = info.role;
+		}
+	}
 	isHuman = $state<boolean>(true);
 	subjects = $state<MaturitySubject[]>([]);
 	drafts = $state<Record<string, TelegraphicDraft>>({});
@@ -214,6 +239,7 @@ class DeliberationStore {
 		}
 
 		this.activeEngagementId = targetId;
+		this.syncRoleWithWorkspace();
 		if (typeof window !== 'undefined') {
 			try {
 				localStorage.setItem('archinex:activeEngagementId', targetId);
@@ -1314,7 +1340,14 @@ class DeliberationStore {
 		if (!subject || !draft) {
 			return { allowed: false, code: 'MATURITY_INSUFFICIENT', reason: 'Section ou brouillon introuvable' };
 		}
-		return canFreezeSection(subject, draft, this.statements, this.currentRole);
+		const res = canFreezeSection(subject, draft, this.statements, this.currentRole);
+		if (!res.allowed && res.code === 'ROLE_NOT_AUTHORIZED') {
+			return {
+				...res,
+				reason: explainActionRefusal('freeze', this.currentRole)
+			};
+		}
+		return res;
 	}
 
 	/**

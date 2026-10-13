@@ -70,6 +70,9 @@
 			success: boolean;
 			invitation: { id: string; token: string; email: string };
 			inviteUrl: string;
+			sent: boolean;
+			simulated: boolean;
+			reason?: string;
 			preview: { text: string; html: string };
 		}>('/api/invite', {
 			method: 'POST',

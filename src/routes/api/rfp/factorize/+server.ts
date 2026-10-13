@@ -29,10 +29,7 @@ export const GET: RequestHandler = async () => {
 			status: 'error',
 			available: false,
 			defaultModel: localLlmClient.getDefaultModel(),
-			models: [
-				{ id: 'ministral:latest', name: 'ministral:latest (Raisonnement 14B)' },
-				{ id: 'qwen2.5-coder:14b', name: 'qwen2.5-coder:14b (Structure 14B)' }
-			],
+			models: [],
 			defaultSystemPrompt: buildSystemPrompt(),
 			error: msg
 		});

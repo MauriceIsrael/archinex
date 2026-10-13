@@ -25,16 +25,24 @@ npm install
 ```
 
 ### 2.2 Configuration Locale (`.env`)
+Consultez le guide dédié [Guide d'Installation & Initialisation (`docs/fresh-install.md`)](file:///c:/Users/Momo/Documents/Dev/archinex/docs/fresh-install.md) pour le détail complet de chaque variable.
+
 ```bash
 DATABASE_URL="file:./dev.db"
 JWT_SECRET="archinex-super-secret-key-change-in-production"
-GEMINI_API_KEY="votre-cle-api-pour-les-agents-ia"
+
+# LLM Souverain local (Ollama) ou API Anthropic
+LLM_PROVIDER="auto"
+LLM_LOCAL_ENDPOINT="http://localhost:11434"
+# ANTHROPIC_API_KEY="sk-ant-..."
+# ANTHROPIC_BASE_URL="https://api.anthropic.com"
 ```
 
 ### 2.3 Initialisation de la Base de Données
 ```bash
 npx prisma db push
 npx prisma db seed
+# Ou réinitialisation complète : npm run db:reset
 ```
 
 ### 2.4 Lancement du Serveur de Développement

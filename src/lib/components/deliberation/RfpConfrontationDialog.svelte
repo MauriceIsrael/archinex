@@ -307,11 +307,8 @@
 	});
 
 	// Modèles et configuration locale (LLM Local)
-	let availableModels = $state<LocalLlmModel[]>([
-		{ id: 'ministral:latest', name: 'ministral:latest (Ministral 14B Reasoning - 256k)' },
-		{ id: 'qwen2.5-coder:14b', name: 'qwen2.5-coder:14b (Qwen 14.8B Coder)' }
-	]);
-	let selectedModel = $state<string>('ministral:latest');
+	let availableModels = $state<LocalLlmModel[]>([]);
+	let selectedModel = $state<string>('');
 	let serverEndpoint = $state<string>('http://localhost:11434');
 	let serverAvailable = $state<boolean>(true);
 	let showPromptSettings = $state<boolean>(false);
@@ -326,11 +323,20 @@
 				.then((data) => {
 					if (data.models && data.models.length > 0) {
 						availableModels = data.models;
-						if (data.defaultModel) selectedModel = data.defaultModel;
+						if (data.defaultModel && data.models.some((m: LocalLlmModel) => m.id === data.defaultModel)) {
+							selectedModel = data.defaultModel;
+						} else {
+							selectedModel = data.models[0].id;
+						}
+					} else {
+						availableModels = [];
+						if (data.defaultModel) {
+							selectedModel = data.defaultModel;
+						}
 					}
 					if (data.serverEndpoint) serverEndpoint = data.serverEndpoint;
 					if (data.defaultSystemPrompt) defaultSystemPrompt = data.defaultSystemPrompt;
-					serverAvailable = data.available ?? true;
+					serverAvailable = data.available ?? (availableModels.length > 0);
 				})
 				.catch(() => {
 					serverAvailable = false;
@@ -942,16 +948,31 @@
 								<!-- Sélecteur de Modèle -->
 								<div class="flex items-center gap-2">
 									<span class="text-[11px] text-muted-foreground">Modèle d'Architecture :</span>
-									<select
-										bind:value={selectedModel}
-										class="rounded-lg border bg-background px-2.5 py-1 text-xs font-mono font-bold text-foreground"
-									>
-										{#each availableModels as m}
-											<option value={m.id}>{m.name || m.id}</option>
-										{/each}
-									</select>
+									{#if availableModels.length > 0}
+										<select
+											bind:value={selectedModel}
+											class="rounded-lg border bg-background px-2.5 py-1 text-xs font-mono font-bold text-foreground"
+										>
+											{#each availableModels as m}
+												<option value={m.id}>{m.name || m.id}</option>
+											{/each}
+										</select>
+									{:else}
+										<input
+											type="text"
+											bind:value={selectedModel}
+											placeholder="ex: llama3.1, mistral..."
+											class="rounded-lg border bg-background px-2.5 py-1 text-xs font-mono font-bold text-foreground w-44"
+										/>
+									{/if}
 								</div>
 							</div>
+
+							{#if availableModels.length === 0}
+								<div class="text-[11px] text-amber-500 bg-amber-500/10 px-2.5 py-1.5 rounded-lg border border-amber-500/20">
+									Aucun modèle détecté automatiquement sur {serverEndpoint}. Vous pouvez saisir le nom du modèle ou démarrer Ollama (`ollama serve`).
+								</div>
+							{/if}
 
 							<!-- Dépliant : Directives et Prompt Modifiable -->
 							<div class="border-t pt-2">
@@ -1018,10 +1039,10 @@
 							>
 								{#if isFactorizing}
 									<RefreshCw class="h-4 w-4 animate-spin" />
-									<span>Factorisation en cours ({selectedModel})...</span>
+									<span>Factorisation en cours{selectedModel ? ` (${selectedModel})` : ''}...</span>
 								{:else}
 									<Sparkles class="h-4 w-4 text-amber-300" />
-									<span>Factoriser en 8-12 Sujets d'Architecture ({selectedModel.toLowerCase().startsWith('claude') ? 'Claude Anthropic' : 'LLM Souverain'} - {selectedModel})</span>
+									<span>Factoriser en 8-12 Sujets d'Architecture{selectedModel ? ` (${selectedModel.toLowerCase().startsWith('claude') ? 'Claude Anthropic' : 'LLM Souverain'} - ${selectedModel})` : ''}</span>
 								{/if}
 							</button>
 
@@ -1030,7 +1051,7 @@
 									<div class="flex items-center justify-between text-xs">
 										<span class="font-bold text-foreground flex items-center gap-1.5">
 											<RefreshCw class="h-3.5 w-3.5 animate-spin text-primary" />
-											Inférence LLM en cours ({selectedModel})
+											Inférence LLM en cours{selectedModel ? ` (${selectedModel})` : ''}
 										</span>
 										<span class="font-mono text-xs font-semibold px-2 py-0.5 rounded bg-primary/10 text-primary">
 											{factorizeSeconds}s écoulées

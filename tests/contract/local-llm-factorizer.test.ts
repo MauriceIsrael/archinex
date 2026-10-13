@@ -642,6 +642,67 @@ describe('Local LLM Souverain & Factorisation de RFP', () => {
 			expect(sonnet?.contextLength).toBe(1000000);
 		});
 
+		it('ne falsifie pas la liste des modèles avec des valeurs en dur si le serveur local est injoignable', async () => {
+			const deadClient = new LocalLlmClient({
+				endpoint: 'http://127.0.0.1:59999',
+				provider: 'local'
+			});
+
+			const spyFetch = vi.spyOn(globalThis, 'fetch').mockRejectedValue(new Error('ECONNREFUSED'));
+			try {
+				const models = await deadClient.getAvailableModels();
+				expect(models).toEqual([]);
+				expect(models.some((m) => m.id.includes('ministral'))).toBe(false);
+				expect(models.some((m) => m.id.includes('qwen'))).toBe(false);
+
+				const health = await deadClient.checkHealth();
+				expect(health.available).toBe(false);
+				expect(health.models).toEqual([]);
+			} finally {
+				spyFetch.mockRestore();
+			}
+		});
+
+		it('supporte ANTHROPIC_BASE_URL pour interroger un proxy souverain entreprise', async () => {
+			const origBaseUrl = process.env.ANTHROPIC_BASE_URL;
+			process.env.ANTHROPIC_BASE_URL = 'http://gateway.corp.local:8080/anthropic';
+
+			let calledUrl = '';
+			const spyFetch = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+				calledUrl = String(input);
+				return new Response(
+					JSON.stringify({
+						data: [
+							{
+								id: 'claude-custom-proxy',
+								display_name: 'Claude Corporate Proxy',
+								max_input_tokens: 200000
+							}
+						]
+					}),
+					{ status: 200, headers: { 'Content-Type': 'application/json' } }
+				);
+			});
+
+			try {
+				const proxyClient = new LocalLlmClient({
+					anthropicApiKey: 'sk-ant-corp-key',
+					provider: 'anthropic'
+				});
+
+				const models = await proxyClient.getAvailableModels();
+				expect(calledUrl).toBe('http://gateway.corp.local:8080/anthropic/v1/models');
+				expect(models.some((m) => m.id === 'claude-custom-proxy')).toBe(true);
+			} finally {
+				spyFetch.mockRestore();
+				if (origBaseUrl !== undefined) {
+					process.env.ANTHROPIC_BASE_URL = origBaseUrl;
+				} else {
+					delete process.env.ANTHROPIC_BASE_URL;
+				}
+			}
+		});
+
 		it('route vers l API Anthropic Messages avec extraction du prompt system et entêtes corrects', async () => {
 			const claudeClient = new LocalLlmClient({
 				anthropicApiKey: 'sk-ant-live-dummy-key',

@@ -62,9 +62,9 @@ export class LocalLlmClient {
 		this.anthropicModel = config.anthropicModel || process.env.ANTHROPIC_MODEL || 'claude-sonnet-5-5';
 
 		const hasAnthropic = Boolean(this.anthropicApiKey) && this.provider !== 'local';
-		const localDefault = process.env.LLM_LOCAL_MODEL || 'ministral:latest';
+		const localDefault = process.env.LLM_LOCAL_MODEL || '';
 
-		this.defaultModel = config.defaultModel || (hasAnthropic ? this.anthropicModel : localDefault);
+		this.defaultModel = config.defaultModel || (hasAnthropic ? this.anthropicModel : (localDefault || ''));
 		this.timeoutMs = config.timeoutMs || parseInt(process.env.LLM_LOCAL_TIMEOUT_MS || '180000', 10);
 		this.temperature = config.temperature ?? 0.2;
 	}
@@ -162,23 +162,13 @@ export class LocalLlmClient {
 			};
 		}
 
-		try {
-			return {
-				available: true,
-				endpoint: this.endpoint,
-				models,
-				provider: 'local'
-			};
-		} catch (err: unknown) {
-			const msg = err instanceof Error ? err.message : 'Injoignable';
-			return {
-				available: false,
-				endpoint: this.endpoint,
-				models: [],
-				provider: 'local',
-				error: msg
-			};
-		}
+		return {
+			available: models.length > 0,
+			endpoint: this.endpoint,
+			models,
+			provider: 'local',
+			error: models.length === 0 ? `Aucun modèle détecté sur le serveur d'inférence ${this.endpoint}` : undefined
+		};
 	}
 
 	/**
@@ -192,7 +182,8 @@ export class LocalLlmClient {
 			try {
 				const controller = new AbortController();
 				const timer = setTimeout(() => controller.abort(), 4000);
-				const res = await fetch('https://api.anthropic.com/v1/models', {
+				const baseUrl = (process.env.ANTHROPIC_BASE_URL?.trim() || 'https://api.anthropic.com').replace(/\/+$/, '');
+				const res = await fetch(`${baseUrl}/v1/models`, {
 					headers: {
 						'x-api-key': this.anthropicApiKey,
 						'anthropic-version': '2023-06-01'
@@ -321,14 +312,12 @@ export class LocalLlmClient {
 				}
 			} catch {
 				clearTimeout(timer);
-				// Fallback si la requête réseau échoue mais qu'on sait que le serveur local dispose de ces modèles
-				if (models.length === 0) {
-					models.push(
-						{ id: 'ministral:latest', name: 'ministral:latest (Ministral 14B Reasoning)' },
-						{ id: 'qwen2.5-coder:14b', name: 'qwen2.5-coder:14b (Qwen 14.8B Coder)' }
-					);
-				}
+				// Ollama inaccessible ou échec réseau : on ne falsifie pas la liste des modèles avec des valeurs hardcodées
 			}
+		}
+
+		if (!this.defaultModel && models.length > 0) {
+			this.defaultModel = models[0].id;
 		}
 
 		return models;
@@ -503,8 +492,14 @@ export class LocalLlmClient {
 	}
 
 	private getAnthropic(): Anthropic {
+		const baseURL = process.env.ANTHROPIC_BASE_URL?.trim() || undefined;
 		// fetch résolu à l'appel : les tests peuvent substituer globalThis.fetch.
-		this.anthropic ??= new Anthropic({ apiKey: this.anthropicApiKey, maxRetries: 4, fetch: (...args) => globalThis.fetch(...args) });
+		this.anthropic ??= new Anthropic({
+			apiKey: this.anthropicApiKey,
+			baseURL,
+			maxRetries: 4,
+			fetch: (...args) => globalThis.fetch(...args)
+		});
 		return this.anthropic;
 	}
 

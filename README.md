@@ -95,15 +95,23 @@ npm install
 # 2. Configurer les variables d'environnement
 cp .env.example .env
 
-# 3. Initialiser la base SQLite de développement
+# 3. Initialiser le schéma SQLite puis charger les données initiales (comptes démo & exemples)
 npx prisma db push
 npx prisma db seed
+# Astuce : `npm run db:reset` permet de réinitialiser complètement la base à tout moment
 
 # 4. Lancer le serveur de développement
 npm run dev
 ```
 
-Rendez-vous sur [http://localhost:5173/deliberation](http://localhost:5173/deliberation) pour accéder au Workbench de Délibération.
+Rendez-vous sur [http://localhost:5173/login](http://localhost:5173/login) pour vous connecter avec les comptes de démonstration pré-configurés :
+- **Lead Architect / Admin** : `admin@archinex.local` / `admin123`
+- **Architecte Domaine** : `architect@archinex.local` / `user123`
+- **Expert Sécurité & Cloud** : `expert@archinex.local` / `user123`
+
+Consultez le **[Guide d'Installation & Initialisation (`docs/fresh-install.md`)](file:///c:/Users/Momo/Documents/Dev/archinex/docs/fresh-install.md)** pour le détail complet des variables d'environnement (`.env`), l'introspection dynamique des modèles LLM et la configuration de l'API Anthropic Messages.
+
+Accédez directement au Workbench : [http://localhost:5173/deliberation](http://localhost:5173/deliberation).
 
 ---
 

@@ -6,7 +6,7 @@ deux côtés (`tests/contract/hub-parity-live.test.ts`, contre un vrai Hub), et 
 
 ## Ce que le Hub porte, et si le contenu coïncide
 
-Le même état est monté deux fois : dans la base d'Archinex (dossier scellé par l'assemblage) et dans un vrai Hub 1.28 (par les gestes
+Le même état est monté deux fois : dans la base d'Archinex (dossier scellé par l'assemblage) et dans un vrai Hub 1.30 (par les gestes
 du Hub : proposer, puis affirmer par une autre personne).
 
 | Section du dossier | État | Ce qui est comparé |
@@ -26,7 +26,7 @@ du Hub : proposer, puis affirmer par une autre personne).
 Sur ce que le Hub porte : **aucun écart de contenu**. La liste des sections absentes est figée par le test : si le Hub en gagne
 une, le test échoue et ce tableau doit suivre.
 
-## La couverture déclarée exigence → contrôle (K17, contrat 1.28)
+## La couverture déclarée exigence → contrôle (K17, contrat 1.30)
 
 Le Hub n'apparie aucun texte et ne vérifie rien. Il énonce une **chaîne de déclarations**, lisible dans son instantané :
 exigence ← sujet qui la porte ← décision du sujet → élément de la base que la décision cite → contrôle que cet élément met en œuvre
@@ -60,7 +60,7 @@ d'architecture, le document source. Chacun est un lot côté Hub avec son propre
 ## Relancer la mesure
 
 ```bash
-# dans LLMOps (branche portant le contrat 1.28) : un serveur de contrat avec les jetons arx-token (eng:delegate) et
+# dans LLMOps (branche portant le contrat 1.30) : un serveur de contrat avec les jetons arx-token (eng:delegate) et
 # suite-token (eng:service), sur le port 8099
 LLMOPS_LIVE_URL=http://127.0.0.1:8099 npx vitest run \
   tests/contract/hub-requirements-live.test.ts \

@@ -4,7 +4,7 @@
  *
  *   LLMOPS_LIVE_URL=http://127.0.0.1:8099 npx vitest run tests/contract/hub-compliance-live.test.ts
  *
- * (serveur de contrat de LLMOps ≥ 1.28 avec les jetons arx-token = eng:delegate et suite-token = eng:service)
+ * (serveur de contrat de LLMOps ≥ 1.30 avec les jetons arx-token = eng:delegate et suite-token = eng:service)
  */
 import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 

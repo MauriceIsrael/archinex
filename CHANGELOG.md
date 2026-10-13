@@ -8,7 +8,7 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
-### Couverture déclarée exigence → contrôle (K17, contrat 1.28 du Hub)
+### Couverture déclarée exigence → contrôle (K17, contrat 1.30 du Hub)
 - **Constat** : l'export d'Archinex n'a jamais calculé la section `compliance` (elle valait toujours `[]` hors banc d'essai). K17 n'est donc pas
   un transfert à retirer d'Archinex mais une capacité nouvelle du Hub, que la matrice de traçabilité lit désormais.
 - Une décision envoyée au Hub porte `based_on` : les références de la base de connaissances de l'**option retenue**. Le Hub en tire,

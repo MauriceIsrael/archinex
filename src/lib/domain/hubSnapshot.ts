@@ -1,5 +1,5 @@
 /**
- * Instantané d'engagement émis par le Hub (K11, schéma `engagement_snapshot` 1.7, contrat 1.28).
+ * Instantané d'engagement émis par le Hub (K11, schéma `engagement_snapshot` 1.7, contrat 1.30).
  *
  * Archinex le LIT : le Hub est l'émetteur unique de l'instantané d'un projet basculé. On ne le re-scelle pas et on ne le
  * complète pas. La lecture vérifie le sceau (même profil canonical-json v1 que le Hub) avant toute utilisation, et ne
@@ -53,7 +53,7 @@ export interface HubSnapshotDecision {
 }
 
 /**
- * Couverture DÉCLARÉE exigence → contrôle (K17, contrat 1.28) : une chaîne exigence ← sujet ← décision → actif → contrôle, jamais
+ * Couverture DÉCLARÉE exigence → contrôle (K17, contrat 1.30) : une chaîne exigence ← sujet ← décision → actif → contrôle, jamais
  * une vérification. `allocated` : une décision affirmée la soutient ; `proposed` : seules des décisions proposées.
  */
 export interface HubSnapshotCompliance {

@@ -69,55 +69,21 @@
 	let projectType = $state<EngagementType>('project_rfp');
 	let badge = $state('');
 	let description = $state('');
-	let targetDate = $state('2027-12-31');
-	let budget = $state('1.5 M€');
+	let targetDate = $state('');
+	let budget = $state('');
 
 	// Step 2 : Stratégie
-	let objectives = $state<string[]>([
-		'Disponibilité continue 99.999% sans point unique de défaillance',
-		'Souveraineté logicielle & matérielle (100% On-Premise / Local)',
-		'Conformité stricte Directive NIS2 & Doctrine ANSSI'
-	]);
+	let objectives = $state<string[]>([]);
 	let newObjective = $state('');
 
-	let principles = $state<string[]>([
-		'Sécurité Zero-Trust par défaut à tous les étages',
-		'Anti-blabla : concision formelle et chiffrage des conséquences matérielles',
-		'Validation humaine obligatoire sur tout énoncé vérifié'
-	]);
+	let principles = $state<string[]>([]);
 	let newPrinciple = $state('');
 
-	let constraints = $state<string[]>([
-		'Hébergement exclusivement en France / Union Européenne',
-		'Plafond budgétaire infrastructure non dépassable'
-	]);
+	let constraints = $state<string[]>([]);
 	let newConstraint = $state('');
 
 	// Step 3 : Docs Amonts
-	let upstreamDocs = $state<UpstreamDocInput[]>([
-		{
-			title: 'CCTP Lot 1 · Cahier des Charges Principal & Spécifications',
-			category: 'cctp',
-			categoryLabel: 'CCTP Contractuel',
-			sourceOrAuthor: 'Maîtrise d\'Ouvrage Client',
-			version: 'v1.0',
-			pageCount: 120,
-			summary: 'Exigences contractuelles d\'infrastructure, de résilience et de haute disponibilité pour la plateforme cible.',
-			keyIdeas: [
-				'Réseau souverain dédié aux flux critiques.',
-				'Séparation étanche des plans de contrôle et usagers.'
-			],
-			clauses: [
-				{
-					clauseRef: 'Art. 2.1.1',
-					title: 'Redondance active-active',
-					text: 'L\'ensemble des composants nodaux doit fonctionner en mode actif-actif sans perte de paquets lors d\'une bascule.',
-					criticality: 'bloquant',
-					impactSummary: 'Conditionne le choix de l\'orchestrateur et des répartiteurs'
-				}
-			]
-		}
-	]);
+	let upstreamDocs = $state<UpstreamDocInput[]>([]);
 
 	// Sélecteur de standards transverses du patrimoine commun
 	let selectedStandards = $state<string[]>(['DOC-EXT-03', 'DOC-EXT-04']);
@@ -128,35 +94,7 @@
 	]);
 
 	// Step 5 : Sujets initiaux
-	let initialSubjects = $state<InitialSubjectInput[]>([
-		{
-			sectionRef: '§1.1',
-			name: 'Cadrage Stratégique & Exigences Globales',
-			waitingForRole: 'lead_architect',
-			effort: 'M',
-			initialRetenu: ['Validation formelle des principes directeurs'],
-			initialHypothesis: 'Périmètre validé par le comité d\'architecture',
-			initialQuestion: 'Quels sont les jalons de validation du comité de direction ?'
-		},
-		{
-			sectionRef: '§2.1',
-			name: 'Socle d\'Infrastructure & Résilience N+1',
-			waitingForRole: 'infra_expert_architect',
-			effort: 'L',
-			initialRetenu: ['Architecture hautement disponible N+1'],
-			initialHypothesis: 'Hébergement souverain sans dépendance externe',
-			initialQuestion: 'Quelle matrice de compatibilité matérielle minimale ?'
-		},
-		{
-			sectionRef: '§3.1',
-			name: 'Sécurité Zero-Trust & Homologation ANSSI/NIS2',
-			waitingForRole: 'security_architect',
-			effort: 'M',
-			initialRetenu: ['Chiffrement systématique au repos et en transit'],
-			initialHypothesis: 'Conformité NIS2 et guide d\'hygiène ANSSI',
-			initialQuestion: 'Quelles exigences de chiffrement pour les flux d\'administration ?'
-		}
-	]);
+	let initialSubjects = $state<InitialSubjectInput[]>([]);
 
 	// Application d'un préset
 	function applyPreset(presetId: string) {
@@ -168,8 +106,8 @@
 		projectType = p.type;
 		badge = p.badge || '';
 		description = p.description;
-		targetDate = p.strategy.targetDate || '2027-12-31';
-		budget = p.strategy.budget || '1.5 M€';
+		targetDate = p.strategy.targetDate || '';
+		budget = p.strategy.budget || '';
 		objectives = [...p.strategy.objectives];
 		principles = [...p.strategy.principles];
 		constraints = [...p.strategy.constraints];

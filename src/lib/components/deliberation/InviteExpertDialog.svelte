@@ -70,6 +70,9 @@
 			success: boolean;
 			invitation: { id: string; token: string; email: string };
 			inviteUrl: string;
+			sent: boolean;
+			simulated: boolean;
+			reason?: string;
 			preview: { text: string; html: string };
 		}>('/api/invite', {
 			method: 'POST',
@@ -90,7 +93,11 @@
 			return;
 		}
 
-		toast(`Invitation par mail envoyée à ${email.trim()} !`, { variant: 'success' });
+		if (res?.sent) {
+			toast(`Invitation par mail envoyée à ${email.trim()} !`, { variant: 'success' });
+		} else {
+			toast(`Invitation créée pour ${email.trim()}, mais aucun e-mail n'a été envoyé (SMTP non configuré). Copiez le lien et transmettez-le manuellement.`, { variant: 'warning' });
+		}
 
 		sentInvitation = {
 			email: email.trim(),

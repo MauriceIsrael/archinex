@@ -46,6 +46,9 @@ export const POST: RequestHandler = async ({ request, url, locals }) => {
 		success: true,
 		invitation,
 		inviteUrl: dispatch.inviteUrl,
+		sent: dispatch.sent,
+		simulated: dispatch.simulated,
+		reason: dispatch.reason,
 		preview: dispatch.preview
 	});
 };

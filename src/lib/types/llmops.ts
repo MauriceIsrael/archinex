@@ -978,11 +978,50 @@ export interface HubAuditEvent {
 export interface HubSubjectInput {
   name: string;
   definition?: string;
+  /** Contrat 1.27 : exigences que le sujet porte (elles doivent exister dans l'engagement). */
+  requirement_ids?: string[];
 }
 
 export interface HubSubjectResult {
   created: boolean;
   subject: string;
+  requirement_ids?: string[];
+}
+
+/* ---- Contract 1.27: decision on a requirement, requirements carried by a subject ------------------ */
+
+export type HubRequirementDispositionValue = 'deliberated' | 'evacuated' | 'clarification_needed';
+
+export interface HubRequirementDispositionInput {
+  disposition: HubRequirementDispositionValue;
+  /** Motif d'une évacuation, ou question au donneur d'ordre (12 caractères au moins) ; facultatif si « à délibérer ». */
+  reason?: string;
+}
+
+export interface HubRequirementDisposition {
+  value: HubRequirementDispositionValue;
+  reason: string;
+  status: 'proposed' | 'active';
+  author: string;
+  validated_by: string;
+  validated_at: string;
+}
+
+export interface HubRequirementDecisionResult {
+  created?: boolean;
+  requirement: {
+    id: string;
+    section: string | null;
+    category: string | null;
+    criticality: string | null;
+    status: string | null;
+    disposition?: HubRequirementDisposition;
+  };
+}
+
+export interface HubCarryRequirementsResult {
+  subject: string;
+  requirement_ids: string[];
 }
 
 export interface HubMaturityInput {
@@ -1182,6 +1221,8 @@ export class HubApiError extends Error {
   reason?: string;
   argument?: string;
   problems?: Array<{ code: string; path?: string; message?: string }>;
+  /** Corps de la réponse d'erreur du Hub, pour les détails propres à un code (ex. `subjects` de `carried_by_subject`). */
+  details?: Record<string, unknown>;
 
   constructor(status: number, code: string, reason?: string, details?: any) {
     super(reason || code);
@@ -1191,6 +1232,7 @@ export class HubApiError extends Error {
     this.reason = reason;
     this.argument = details?.argument;
     this.problems = details?.problems;
+    this.details = details && typeof details === 'object' ? details : undefined;
   }
 }
 

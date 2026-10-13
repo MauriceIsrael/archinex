@@ -18,7 +18,6 @@ import {
 	type BundleSubject,
 	type ConfidentialityLevel,
 	type EngagementBundle,
-	type HubSnapshotPin,
 	type SourceDocument
 } from './engagementBundle';
 import { effectiveRequirementState, requirementBundleId, sourceBundleId } from './requirementAudit';
@@ -96,11 +95,6 @@ export interface AssemblyStatement {
 }
 
 export interface AssemblyInput {
-	/**
-	 * Engagement basculé sur le Hub : les faits engagés (décisions, énoncés) sont ceux du Hub, scellés par lui.
-	 * Le dossier d'Archinex ne porte alors que le processus (exigences, sujets, lacunes) et épingle ce snapshot.
-	 */
-	factsFromHub?: HubSnapshotPin;
 	project: { id: string; title: string; language?: string };
 	confidentiality: ConfidentialityLevel;
 	subjects: AssemblySubject[];
@@ -161,15 +155,13 @@ export function assembleEngagementBundle(input: AssemblyInput): EngagementBundle
 	const decisions: BundleDecision[] = [];
 	const gaps: BundleGap[] = [];
 
-	const hubFacts = Boolean(input.factsFromHub);
-
 	for (const sub of [...input.subjects].sort((a, b) => cmp(a.sectionRef, b.sectionRef) || cmp(a.id, b.id))) {
 		// L'ancien niveau L5 se projette sur L4 (vocabulaire de la suite).
 		const maturity = sub.maturityLevel === 'L5_archived' ? 'L4_specified' : sub.maturityLevel || 'L0_named';
 		const refs = [...new Set(sub.requirementRefs)].sort(
 			(a, b) => (positionOf.get(a) ?? Infinity) - (positionOf.get(b) ?? Infinity) || cmp(a, b)
 		);
-		const hasDecision = !hubFacts && Boolean(sub.decision);
+		const hasDecision = Boolean(sub.decision);
 
 		subjects.push({
 			id: sub.id,
@@ -177,15 +169,12 @@ export function assembleEngagementBundle(input: AssemblyInput): EngagementBundle
 			domains: [sub.domain || 'architecture'],
 			maturity,
 			// Un sujet n'est « décidé » que si une décision enregistrée existe : jamais d'après son seul niveau.
-			// Sur un engagement basculé (`hasDecision` faux), la décision est un fait du Hub, pas d'Archinex.
 			status: hasDecision ? 'decided' : 'open',
 			requirement_ids: refs,
 			decision_ids: hasDecision ? [sub.decision!.id] : []
 		});
 
-		if (hubFacts) {
-			// Rien à dire des décisions : elles vivent dans le snapshot du Hub épinglé.
-		} else if (sub.decision) {
+		if (sub.decision) {
 			const d = sub.decision;
 			const title = (id: string) => sub.options.find((o) => o.id === id)?.title ?? id;
 			decisions.push({
@@ -244,7 +233,6 @@ export function assembleEngagementBundle(input: AssemblyInput): EngagementBundle
 	// ── Énoncés ─────────────────────────────────────────────────────────────────────────────────
 	const statements: BundleStatement[] = [];
 	for (const st of [...input.statements].sort((a, b) => cmp(a.id, b.id))) {
-		if (hubFacts) break;
 		const isHuman = st.productionMode === 'human-authored';
 		if (!st.subjectId) {
 			gaps.push({
@@ -287,7 +275,6 @@ export function assembleEngagementBundle(input: AssemblyInput): EngagementBundle
 		decisions,
 		statements,
 		gaps,
-		pins: input.factsFromHub ? { hub_snapshot: input.factsFromHub } : undefined,
 		sourceRevision: input.sourceRevision ?? 'main',
 		createdAt: input.now.toISOString()
 	});

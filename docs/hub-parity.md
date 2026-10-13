@@ -18,7 +18,7 @@ du Hub : proposer, puis affirmer par une autre personne).
 | `gaps` | partielle | le Hub ne calcule que G1 et G2 ; les lacunes d'exigence (à qualifier, à clarifier) sont du processus d'Archinex |
 | `conflicts`, `kb_references` | **non éprouvées par ce scénario** | comptées seulement ; le scénario n'en contient pas, ce n'est donc pas « couvert » |
 | `source_documents` | **absente du Hub** | empreinte et version du RFP source |
-| `compliance` | **non éprouvée par ce scénario** | le Hub porte la couverture *déclarée* exigence → contrôle depuis le contrat **1.28** (K17) ; **l'export d'Archinex n'a jamais calculé cette section** (elle vaut `[]`), il n'y a donc rien à comparer ni à retirer. Voir ci-dessous |
+| `compliance` | **non éprouvée par ce scénario** | le Hub porte la couverture *déclarée* exigence → contrôle depuis le contrat **1.30** (K17) ; **l'export d'Archinex n'a jamais calculé cette section** (elle vaut `[]`), il n'y a donc rien à comparer ni à retirer. Voir ci-dessous |
 | `architecture` | **absente du Hub** | éléments et relations |
 | `reuse_log` | **absente du Hub** | confirmations de réutilisation, hypothèse par hypothèse |
 | `glossary` | **absente du Hub** | glossaire |

@@ -124,7 +124,7 @@ describe.skipIf(!LIVE)('Parité dossier d\'Archinex / instantané du Hub (scéna
 	});
 
 	it('les sections que le Hub ne porte pas encore sont exactement celles-ci (liste fermée, à tenir à jour)', () => {
-		expect(report.absentInHub.sort()).toEqual(['architecture', 'compliance', 'glossary', 'reuse_log', 'source_documents']);
+		expect(report.absentInHub.sort()).toEqual(['architecture', 'glossary', 'reuse_log', 'source_documents']);
 	});
 
 	it('exigences, sujets, décisions et énoncés sont couverts', () => {
@@ -134,7 +134,8 @@ describe.skipIf(!LIVE)('Parité dossier d\'Archinex / instantané du Hub (scéna
 
 	it('ce que ce scénario n\'éprouve pas est dit comme tel (jamais « couverte » sur zéro élément)', () => {
 		const notExercised = report.sections.filter((s) => s.status === 'not_exercised').map((s) => s.section).sort();
-		expect(notExercised).toEqual(['conflicts', 'kb_references']);
+		// Le scénario ne cite aucun élément de la base : aucune couverture n'est déclarée, rien n'est comparé (couvert par hub-compliance-live).
+		expect(notExercised).toEqual(['compliance', 'conflicts', 'kb_references']);
 	});
 
 	it('la matrice de traçabilité dit la même chose des exigences décidées, depuis l\'un ou l\'autre artefact', () => {

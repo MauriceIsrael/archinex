@@ -52,14 +52,15 @@ function snapshot(change: (d: HubEngagementSnapshot['data']) => void = () => {})
 	} as unknown as HubEngagementSnapshot['data'];
 	change(data);
 	const checksum = `sha256:${universalSha256(canonicalJson(data))}`;
-	return { schemaVersion: '1.6', snapshotId: `eng-eng-x-${checksum.slice(7, 19)}`, sourceSystem: 'knowledge-hub', emitter: 'knowledge-hub', createdAt: '2026-10-03T12:00:00Z', sourceRevision: 'test', checksum, data };
+	return { schemaVersion: '1.7', snapshotId: `eng-eng-x-${checksum.slice(7, 19)}`, sourceSystem: 'knowledge-hub', emitter: 'knowledge-hub', createdAt: '2026-10-03T12:00:00Z', sourceRevision: 'test', checksum, data };
 }
 
 describe('Parité dossier / instantané du Hub', () => {
 	it('un même état des deux côtés : aucun écart de contenu, sections absentes listées', () => {
 		const r = compareBundleWithHubSnapshot(bundle(), snapshot());
 		expect(r.differences).toEqual([]);
-		expect(r.absentInHub.sort()).toEqual(['architecture', 'compliance', 'glossary', 'reuse_log', 'source_documents']);
+		expect(r.absentInHub.sort()).toEqual(['architecture', 'glossary', 'reuse_log', 'source_documents']);
+		expect(r.sections.find((x) => x.section === 'compliance')).toMatchObject({ inBundle: 0, inHub: 0, status: 'not_exercised' });
 	});
 
 	it.each([
@@ -112,5 +113,30 @@ describe('Lecture d\'un instantané du Hub', () => {
 		expect(md).toMatch(/Six postes.*Évacuée.*proposé, en attente d'affirmation.*@carl/);
 		expect(md).toMatch(/Sans décision\..*Sans décision.*non décidé/);
 		expect(renderTraceabilityView(viewFromHubSnapshot(snap))).toBe(md);
+	});
+
+	const link = (over: Record<string, unknown> = {}) => ({
+		id: `CMP:${hubRequirementId(R1)}:SNC-REQ-02`, requirement_id: hubRequirementId(R1), control_ref: 'SNC-REQ-02', framework: 'SecNumCloud',
+		control_version: '3.2', status: 'allocated', assertion_level: 'asserted', basis: 'declared_by_decision', decision_ids: ['D-1'],
+		via_assets: ['decision:ADR-0007'], ...over
+	});
+
+	it('la matrice montre les contrôles DÉCLARÉS par les décisions, jamais comme vérifiés', () => {
+		const snap = snapshot((d) => { d.compliance = [link(), link({ id: 'CMP:x:NIS2-ART21-2C', control_ref: 'NIS2-ART21-2C', status: 'proposed', assertion_level: 'proposed' })] as never; });
+		expect(hubSnapshotProblems(snap)).toEqual([]);
+		const md = renderTraceabilityView(viewFromHubSnapshot(snap));
+		expect(md).toContain('Contrôles déclarés');
+		expect(md).toMatch(/Autonomie de 30 jours.*`NIS2-ART21-2C` \(décision proposée\); `SNC-REQ-02` \(décision affirmée\)/);
+		expect(md).not.toMatch(/vérifi/i);
+		expect(compareBundleWithHubSnapshot(bundle(), snap).sections.find((x) => x.section === 'compliance')).toMatchObject({ inBundle: 0, inHub: 2, status: 'partial' });
+	});
+
+	it.each([
+		['un statut « verified »', { status: 'verified' }, /statut « verified » inattendu/],
+		['un fondement qui n\'est pas une décision', { basis: 'text_match' }, /fondement « text_match » inattendu/]
+	])('refuse un instantané qui porte %s (le Hub ne vérifie rien)', (_n, over, expected) => {
+		const snap = snapshot((d) => { d.compliance = [link(over)] as never; });
+		expect(hubSnapshotProblems(snap).join(' ')).toMatch(expected as RegExp);
+		expect(() => requireVerifiedHubSnapshot(snap)).toThrow(/refusé/);
 	});
 });

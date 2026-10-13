@@ -1,5 +1,5 @@
 /**
- * Instantané d'engagement émis par le Hub (K11, schéma `engagement_snapshot` 1.6, contrat 1.27).
+ * Instantané d'engagement émis par le Hub (K11, schéma `engagement_snapshot` 1.7, contrat 1.28).
  *
  * Archinex le LIT : le Hub est l'émetteur unique de l'instantané d'un projet basculé. On ne le re-scelle pas et on ne le
  * complète pas. La lecture vérifie le sceau (même profil canonical-json v1 que le Hub) avant toute utilisation, et ne
@@ -52,6 +52,23 @@ export interface HubSnapshotDecision {
 	validated_at: string;
 }
 
+/**
+ * Couverture DÉCLARÉE exigence → contrôle (K17, contrat 1.28) : une chaîne exigence ← sujet ← décision → actif → contrôle, jamais
+ * une vérification. `allocated` : une décision affirmée la soutient ; `proposed` : seules des décisions proposées.
+ */
+export interface HubSnapshotCompliance {
+	id: string;
+	requirement_id: string;
+	control_ref: string;
+	framework: string;
+	control_version: string;
+	status: 'allocated' | 'proposed';
+	assertion_level: 'asserted' | 'proposed';
+	basis: 'declared_by_decision';
+	decision_ids: string[];
+	via_assets: string[];
+}
+
 export interface HubSnapshotGap {
 	id: string;
 	kind: string;
@@ -76,6 +93,8 @@ export interface HubEngagementSnapshot {
 		subjects: HubSnapshotSubject[];
 		decisions: HubSnapshotDecision[];
 		gaps: HubSnapshotGap[];
+		/** Absent tant qu'aucune décision ne déclare de lien. */
+		compliance?: HubSnapshotCompliance[];
 		[other: string]: unknown;
 	};
 }
@@ -106,6 +125,15 @@ export function hubSnapshotProblems(env: unknown): string[] {
 	if (e.checksum !== expected) out.push('le sceau ne correspond pas au contenu (checksum)');
 	else if (e.snapshotId !== `eng-${d.engagement.id}-${expected.slice('sha256:'.length, 'sha256:'.length + 12)}`) {
 		out.push('l\'identifiant de l\'instantané ne dérive pas de son sceau');
+	}
+	// Le Hub ne vérifie rien (D2) : une couverture « vérifiée », ou tirée d'une autre base que la décision, n'est pas de lui.
+	const compliance = d.compliance;
+	if (compliance !== undefined && !Array.isArray(compliance)) out.push('data.compliance n\'est pas une liste');
+	else {
+		for (const row of compliance ?? []) {
+			if (row.status !== 'allocated' && row.status !== 'proposed') out.push(`conformité ${row.id} : statut « ${String(row.status)} » inattendu (le Hub ne vérifie rien)`);
+			else if (row.basis !== 'declared_by_decision') out.push(`conformité ${row.id} : fondement « ${String(row.basis)} » inattendu`);
+		}
 	}
 	// Le Hub ne livre jamais d'adresse e-mail : s'il y en a une, l'instantané n'est pas celui qu'il a émis.
 	if (/[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+\.[A-Za-z0-9.-]+/.test(JSON.stringify(d))) out.push('une adresse e-mail figure dans l\'instantané');

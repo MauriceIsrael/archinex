@@ -128,7 +128,7 @@ describe.skipIf(!LIVE)('Hub réel 1.27 : décisions sur les exigences d\'un proj
 		// Le sceau du Hub (Python) est recalculé ici (TypeScript) : les deux profils canoniques coïncident à l'octet.
 		expect(hubSnapshotProblems(env)).toEqual([]);
 		const snap = requireVerifiedHubSnapshot(env);
-		expect(snap.schemaVersion).toBe('1.6');
+		expect(snap.schemaVersion).toBe('1.7');
 		expect(snap.checksum).toBe(issued.snapshotRef.checksum);
 
 		const byId = new Map(snap.data.requirements.map((r) => [r.id, r]));

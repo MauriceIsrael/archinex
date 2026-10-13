@@ -1319,6 +1319,8 @@ export interface HubDecisionInput {
   reversibility: 'reversible' | 'costly' | 'irreversible';
   consequences?: string[];
   accepted_violations?: Array<{ typed_id: string; justification: string }>;
+  /** Éléments de la base de connaissances dont la décision s'appuie (identifiant typé ou nu) : c'est ce qui permet au Hub d'établir la couverture exigence → contrôle (K17). */
+  based_on?: Array<{ id: string }>;
   facts: HubDecisionFactInput[];
   idempotency_key?: string;
 }

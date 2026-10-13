@@ -20,6 +20,8 @@ export interface TraceRow {
 	subjects: string[];
 	decisions: string[];
 	gaps: string[];
+	/** Contrôles que des décisions DÉCLARENT couvrir (jamais « vérifiés »). */
+	controls: string[];
 	disposition: string | null;
 	assertionLevel: string | null;
 }
@@ -69,13 +71,13 @@ export function renderTraceabilityView(view: TraceabilityView): string {
 		out.push('');
 		out.push(group.subline);
 		out.push('');
-		out.push('| Exigence | Criticité | État | Niveau | Qui · quand | Sujet(s) | Décision(s) | Lacune |');
-		out.push('| --- | --- | --- | --- | --- | --- | --- | --- |');
+		out.push('| Exigence | Criticité | État | Niveau | Qui · quand | Sujet(s) | Décision(s) | Contrôles déclarés | Lacune |');
+		out.push('| --- | --- | --- | --- | --- | --- | --- | --- | --- |');
 		for (const r of group.rows) {
 			out.push(
 				`| \`${r.id}\` ${cell(r.title, 60)}${r.detail ? ` — ${cell(r.detail, 120)}` : ''} ` +
 					`| ${r.criticality} | ${r.state} | ${r.level} | ${r.who} ` +
-					`| ${r.subjects.join('; ') || '—'} | ${r.decisions.join('; ') || '—'} | ${r.gaps.join('; ') || '—'} |`
+					`| ${r.subjects.join('; ') || '—'} | ${r.decisions.join('; ') || '—'} | ${r.controls.join('; ') || '—'} | ${r.gaps.join('; ') || '—'} |`
 			);
 		}
 		out.push('');
@@ -129,6 +131,10 @@ export function viewFromBundle(bundle: EngagementBundle): TraceabilityView {
 					subjects: subs.map((s) => cell(s.title, 50)),
 					decisions: decs.map((x) => cell(x!.decision, 60)),
 					gaps: (gapsOf.get(r.id) ?? []).map((g) => `${g.kind}${g.blocking ? ' (bloquante)' : ''}`),
+					controls: d.compliance
+						.filter((c) => c.requirement_id === r.id)
+						.map((c) => `\`${c.control_ref}\` (${c.assertion_level === 'asserted' ? 'décision affirmée' : 'décision proposée'})`)
+						.sort(),
 					disposition: r.disposition ?? null,
 					assertionLevel: r.assertion_level ?? null
 				};
@@ -186,6 +192,10 @@ export function viewFromHubSnapshot(env: HubEngagementSnapshot): TraceabilityVie
 			subjects: subjects.map((s) => cell(s, 50)),
 			decisions: subjects.flatMap((s) => assertedBySubject.get(s) ?? []).map((x) => cell(x, 60)),
 			gaps: [],
+			controls: (d.compliance ?? [])
+				.filter((c) => c.requirement_id === r.id)
+				.map((c) => `\`${c.control_ref}\` (${c.status === 'allocated' ? 'décision affirmée' : 'décision proposée'})`)
+				.sort(),
 			disposition: disp ? disp.value : null,
 			assertionLevel: disp ? disp.assertion_level : null
 		};

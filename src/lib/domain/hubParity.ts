@@ -118,7 +118,7 @@ export function compareBundleWithHubSnapshot(bundle: EngagementBundle, hub: HubE
 		counted('conflicts', b.conflicts.length, ((h as unknown as { conflicts?: unknown[] }).conflicts ?? []).length, 'conflits entre énoncés : comptés, contenu non comparé'),
 		counted('kb_references', b.kb_references.length, ((h as unknown as { kb_references?: unknown[] }).kb_references ?? []).length, 'références de la base de connaissance : comptées, contenu non comparé'),
 		absent('source_documents', b.source_documents.length, "le Hub ne tient pas le document source : l'empreinte du RFP et sa version ne figurent que dans le dossier"),
-		absent('compliance', b.compliance.length, 'matrice exigence → contrôle (K17 : pas encore au Hub)'),
+		counted('compliance', b.compliance.length, h.compliance?.length ?? 0, "couverture déclarée exigence → contrôle (K17, contrat 1.28) : le Hub la tire des décisions qui citent la base ; l'export d'Archinex n'en calcule pas, rien à comparer"),
 		absent('architecture', b.architecture.elements.length + b.architecture.relations.length, "éléments et relations d'architecture : pas au Hub"),
 		absent('reuse_log', b.reuse_log.length, 'journal des réutilisations confirmées, hypothèse par hypothèse : pas au Hub'),
 		absent('glossary', b.glossary.length, 'glossaire : pas au Hub')

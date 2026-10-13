@@ -667,6 +667,11 @@
 							Le résultat final remplacera cet aperçu automatiquement ; l'import n'est possible qu'une fois l'analyse terminée.
 						</div>
 					{/if}
+					{#if factorizationResponse.status === 'fallback' || factorizationResponse.errorDetail}
+						<div class="p-3 rounded-xl border border-destructive/40 bg-destructive/10 text-destructive text-xs" role="alert">
+							<strong>⚠️ Repli heuristique (moteur IA indisponible) :</strong> ces sujets n'ont pas été produits par le moteur IA mais par des règles déterministes de secours. Vérifiez-les attentivement ou relancez la factorisation.
+						</div>
+					{/if}
 					<RfpFactorizationReview
 						subjects={factorizationResponse.subjects}
 						clauses={shredRfpTextToClauses(rfpText)}

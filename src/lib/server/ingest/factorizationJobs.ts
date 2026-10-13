@@ -265,8 +265,13 @@ export async function computeFactorization(
 	}
 	if (isGrandContext && directPassAllowed && !req.forceAudit) {
 		const result = await factorizeRfpWithLocalLlm(directRequest, kb);
-		console.log(`🏁 [Factorisation] Passe directe terminée en ${elapsed()}s (${result.subjects.length} sujets).`);
-		return { runStatus: 'ok', engine: 'direct', httpStatus: 200, body: { ...result }, result };
+		if (result.status === 'fallback' || result.errorDetail) {
+			console.warn(`⚠️ Repli heuristique (moteur IA indisponible) — passe directe en ${elapsed()}s (${result.subjects.length} sujets).`);
+		} else {
+			console.log(`🏁 [Factorisation] Passe directe terminée en ${elapsed()}s (${result.subjects.length} sujets).`);
+		}
+		const isFallback = result.status === 'fallback' || Boolean(result.errorDetail);
+		return { runStatus: isFallback ? 'partial' : 'ok', engine: 'direct', httpStatus: 200, body: { ...result }, result };
 	}
 
 	// Gros RFP, modèles locaux ou forceAudit : audit en étapes (tri, contrôles, cartographie, instruction).
@@ -308,6 +313,10 @@ export async function computeFactorization(
 	const direct = await factorizeRfpWithLocalLlm(directRequest, kb);
 	const auditNote = `L'audit des exigences n'a pas abouti (${audit.warnings.join(' ') || 'modèle indisponible'}).`;
 	const result = { ...direct, warning: [auditNote, direct.warning].filter(Boolean).join(' ') };
-	console.log(`🏁 [Factorisation] Repli terminé en ${elapsed()}s.`);
+	if (direct.status === 'fallback' || direct.errorDetail) {
+		console.warn(`⚠️ Repli heuristique (moteur IA indisponible) — terminé en ${elapsed()}s.`);
+	} else {
+		console.log(`🏁 [Factorisation] Repli terminé en ${elapsed()}s.`);
+	}
 	return { runStatus: 'partial', engine: 'fallback', httpStatus: 200, body: { ...result }, result };
 }

@@ -38,16 +38,7 @@ export interface EngagementIdentity {
 	client_label: string;
 }
 
-/** Snapshot du Hub qui détient les faits engagés (décisions, énoncés) d'un engagement basculé. */
-export interface HubSnapshotPin {
-	engagement_id: string;
-	snapshot_id: string;
-	/** `sha256:<64 hex>` */
-	checksum: string;
-}
-
 export interface BundlePins {
-	hub_snapshot?: HubSnapshotPin;
 	llmops_contract_version?: string;
 	kb?: {
 		snapshot_id: string;

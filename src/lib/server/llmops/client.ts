@@ -90,6 +90,9 @@ import type {
   HubAnswerInput,
   HubRequirementItem,
   HubRequirementsInput,
+  HubRequirementDispositionInput,
+  HubRequirementDecisionResult,
+  HubCarryRequirementsResult,
   HubRequirementsResult,
   HubArbitrateConflictInput,
   HubConflictResult,
@@ -3600,6 +3603,64 @@ export class LLMOpsClient {
       body: JSON.stringify(input)
     });
     return this.parseOrThrow<HubRequirementsResult>(res);
+  }
+
+  // --- Contract 1.27: decision on a requirement, requirements carried by a subject ---------------------
+
+  async proposeRequirementDisposition(
+    engagementId: string,
+    requirementId: string,
+    input: HubRequirementDispositionInput,
+    actorEmail?: string
+  ): Promise<HubRequirementDecisionResult> {
+    const url = `${this.baseUrl}/api/engagements/${encodeURIComponent(engagementId)}/requirements/${encodeURIComponent(requirementId)}/disposition`;
+    const res = await this.fetchWithTimeout(url, {
+      method: 'POST',
+      headers: this.getHeaders(engagementId, actorEmail),
+      body: JSON.stringify(input)
+    });
+    return this.parseOrThrow<HubRequirementDecisionResult>(res);
+  }
+
+  async assertRequirementDisposition(
+    engagementId: string,
+    requirementId: string,
+    actorEmail?: string
+  ): Promise<HubRequirementDecisionResult> {
+    const url = `${this.baseUrl}/api/engagements/${encodeURIComponent(engagementId)}/requirements/${encodeURIComponent(requirementId)}/disposition/assert`;
+    const res = await this.fetchWithTimeout(url, {
+      method: 'POST',
+      headers: this.getHeaders(engagementId, actorEmail)
+    });
+    return this.parseOrThrow<HubRequirementDecisionResult>(res);
+  }
+
+  async withdrawRequirementDisposition(
+    engagementId: string,
+    requirementId: string,
+    actorEmail?: string
+  ): Promise<HubRequirementDecisionResult> {
+    const url = `${this.baseUrl}/api/engagements/${encodeURIComponent(engagementId)}/requirements/${encodeURIComponent(requirementId)}/disposition/withdraw`;
+    const res = await this.fetchWithTimeout(url, {
+      method: 'POST',
+      headers: this.getHeaders(engagementId, actorEmail)
+    });
+    return this.parseOrThrow<HubRequirementDecisionResult>(res);
+  }
+
+  async carrySubjectRequirements(
+    engagementId: string,
+    subjectName: string,
+    input: { add?: string[]; remove?: string[] },
+    actorEmail?: string
+  ): Promise<HubCarryRequirementsResult> {
+    const url = `${this.baseUrl}/api/engagements/${encodeURIComponent(engagementId)}/subjects/${encodeURIComponent(subjectName)}/requirements`;
+    const res = await this.fetchWithTimeout(url, {
+      method: 'POST',
+      headers: this.getHeaders(engagementId, actorEmail),
+      body: JSON.stringify(input)
+    });
+    return this.parseOrThrow<HubCarryRequirementsResult>(res);
   }
 
   async arbitrateConflict(

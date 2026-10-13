@@ -18,7 +18,6 @@ const errors = (v: ReturnType<typeof compile>) => (v.errors ?? []).map((e) => `$
 const SHA = sourceSha256('RFP intégral');
 const rid = (ref: string) => requirementBundleId(SHA, ref);
 const T0 = new Date('2026-10-01T08:00:00Z');
-const HUB = { engagement_id: 'eng-1', snapshot_id: 'eng-eng-1-0123456789ab', checksum: `sha256:${'a'.repeat(64)}` };
 
 function input(): AssemblyInput {
 	return {
@@ -72,40 +71,5 @@ describe('Conformité au schéma 1.1', () => {
 		v10(example);
 		expect(errors(v10)).toEqual([]);
 		expect(verifyEngagementBundle(example)).toEqual([]);
-	});
-
-	it('mode Hub : faits laissés au Hub, snapshot épinglé, dossier conforme et vérifié', () => {
-		const b = assembleEngagementBundle({ ...input(), factsFromHub: HUB });
-		v11(b);
-		expect(errors(v11)).toEqual([]);
-		expect(verifyEngagementBundle(b)).toEqual([]);
-		expect(b.data.pins.hub_snapshot).toEqual(HUB);
-		expect(b.data.decisions).toEqual([]);
-		expect(b.data.statements).toEqual([]);
-		// Archinex ne dit plus « décidé » : c'est un fait du Hub.
-		expect(b.data.subjects[0].status).toBe('open');
-		expect(b.data.subjects[0].decision_ids).toEqual([]);
-		// Le processus reste dans le dossier.
-		expect(b.data.requirements).toHaveLength(4);
-		expect(b.data.gaps.some((g) => g.kind === 'requirement_unqualified')).toBe(true);
-		expect(b.data.gaps.some((g) => g.kind === 'decided_without_decision')).toBe(false);
-	});
-
-	it('mode Hub : le sceau dépend du snapshot épinglé', () => {
-		const a = assembleEngagementBundle({ ...input(), factsFromHub: HUB });
-		const b = assembleEngagementBundle({ ...input(), factsFromHub: { ...HUB, checksum: `sha256:${'b'.repeat(64)}` } });
-		const again = assembleEngagementBundle({ ...input(), factsFromHub: HUB, now: new Date('2031-01-01T00:00:00Z') });
-		expect(a.checksum).not.toBe(b.checksum);
-		expect(a.checksum).toBe(again.checksum);
-	});
-
-	it('refuse un snapshot Hub dont l\'empreinte est mal formée', () => {
-		const b = assembleEngagementBundle({ ...input(), factsFromHub: { ...HUB, checksum: 'sha256:court' } });
-		expect(verifyEngagementBundle(b).map((p) => p.path)).toContain('/data/pins/hub_snapshot/checksum');
-	});
-
-	it('la matrice de traçabilité se génère aussi depuis un dossier en mode Hub', () => {
-		const md = renderTraceabilityMatrix(assembleEngagementBundle({ ...input(), factsFromHub: HUB }));
-		expect(md).toMatch(/R-1.*À délibérer/);
 	});
 });

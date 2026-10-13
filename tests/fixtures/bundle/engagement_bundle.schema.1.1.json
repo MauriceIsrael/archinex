@@ -2,7 +2,7 @@
   "$schema": "http://json-schema.org/draft-07/schema#",
   "$id": "https://github.com/MauriceIsrael/LLMOps/schemas/engagement_bundle.schema.1.1.json",
   "title": "EngagementBundle",
-  "description": "PROPOSED 1.1 (Archinex). Delta from 1.0: requirements carry the audit of the RFP clauses (disposition, reason, assertion level, provenance); gaps are typed by `kind` with four new kinds; pins.kb and pins.llmops_contract_version are optional (an engagement may use no knowledge base); pins.hub_snapshot references the Hub snapshot that holds the committed facts when the engagement is cut over to the Hub (Hub = committed facts, Archinex = process). 1.0 documents remain verifiable. Same sealing: checksum = sha256 of `data` under canonical-json profile v1. PROPOSED contract, owner to be confirmed (the producer, not the knowledge hub: the hub holds no programme data). Sealed, versioned outcome of an engagement (requirements, subjects, validated decisions with their assumptions, compliance matrix, architecture model) from which documents, diagrams and decision cards are DERIVED. Every claim carries its epistemic status; a generator may only write as fact what has assertion_level 'asserted'. Sealed as a suite ExternalSnapshotEnvelope: checksum = sha256 of `data` under the suite canonical-json profile v1. Rules JSON Schema cannot express (identifiers resolve, levels derive from statuses, reuse is backed by a confirmation, no e-mail addresses...) are checked by pipelines/bundle/verify.py. Plan: docs/plans/PLAN-IMPLEMENTATION-Bundle-Engagement.md.",
+  "description": "PROPOSED 1.1 (Archinex). Delta from 1.0: requirements carry the audit of the RFP clauses (disposition, reason, assertion level, provenance); gaps are typed by `kind` with four new kinds; pins.kb and pins.llmops_contract_version are optional (an engagement may use no knowledge base); 1.0 documents remain verifiable. Same sealing: checksum = sha256 of `data` under canonical-json profile v1. PROPOSED contract, owner to be confirmed (the producer, not the knowledge hub: the hub holds no programme data). Sealed, versioned outcome of an engagement (requirements, subjects, validated decisions with their assumptions, compliance matrix, architecture model) from which documents, diagrams and decision cards are DERIVED. Every claim carries its epistemic status; a generator may only write as fact what has assertion_level 'asserted'. Sealed as a suite ExternalSnapshotEnvelope: checksum = sha256 of `data` under the suite canonical-json profile v1. Rules JSON Schema cannot express (identifiers resolve, levels derive from statuses, reuse is backed by a confirmation, no e-mail addresses...) are checked by pipelines/bundle/verify.py. Plan: docs/plans/PLAN-IMPLEMENTATION-Bundle-Engagement.md.",
   "type": "object",
   "additionalProperties": false,
   "properties": {
@@ -213,28 +213,6 @@
                 "version"
               ],
               "description": "Model that proposed similarity, if any (recorded for reproducibility)."
-            },
-            "hub_snapshot": {
-              "type": "object",
-              "additionalProperties": false,
-              "properties": {
-                "engagement_id": {
-                  "type": "string"
-                },
-                "snapshot_id": {
-                  "type": "string"
-                },
-                "checksum": {
-                  "type": "string",
-                  "pattern": "^sha256:[0-9a-f]{64}$"
-                }
-              },
-              "required": [
-                "engagement_id",
-                "snapshot_id",
-                "checksum"
-              ],
-              "description": "Hub snapshot that holds the committed facts (decisions, statements) of a cut-over engagement."
             }
           }
         },

@@ -24,14 +24,26 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 - API : `POST/GET /api/projects/{id}/requirements`, `PATCH /api/projects/{id}/requirements/{SRC-xxxx:clause}`
   (l'auteur est celui de la session).
 - Correctif : `sanitizeHandle` est idempotent (un handle `@nom` n'était plus reconnu et devenait `@lead-architect`).
-- Contrat `EngagementBundle` **1.1** (décision du propriétaire) : exigences auditées, lacunes typées par `kind`, `pins.hub_snapshot`.
+- Contrat `EngagementBundle` **1.1** (décision du propriétaire) : exigences auditées, lacunes typées par `kind`.
   Le schéma proposé est dans `tests/fixtures/bundle/engagement_bundle.schema.1.1.json` et les dossiers produits y sont validés
   (ajv) par les tests. La validation a révélé des écarts de l'ancien export avec le schéma 1.0 de la suite, corrigés :
   décisions (`title`, `rationale`, `alternatives` objets), énoncés (`predicate`), `sha256` des sources, statuts de sujet.
   Les dossiers 1.0 restent vérifiables. **À soumettre à la suite** (le schéma 1.0 y est figé).
-- Source de vérité : **Hub pour les faits engagés, Archinex pour le processus**. Pour un projet basculé, l'export demande
-  son snapshot au Hub puis scelle un dossier de processus qui l'épingle ; il ne porte ni décision ni énoncé.
 - Limite connue : la décision humaine clause par clause n'a pas encore d'écran (API seulement).
+
+### Le Hub, émetteur unique de l'instantané d'un projet basculé (archinex#34, contrat LLMOps 1.27)
+- Une exigence évacuée par une personne, avec son motif, est un **fait engagé** : pour un projet basculé elle s'enregistre
+  dans le Hub (proposée par un membre, affirmée par un décideur distinct), jamais en local. La proposition brute du modèle
+  reste dans Archinex. Routes : `PATCH …/requirements/{id}` (propose), `POST …/assert`, `POST …/withdraw`.
+- Migration vers le Hub : reprise des exigences auditées (par 500, jamais tronquées) et du rattachement des sujets ; une
+  décision déjà prise n'est pas reprise au nom du lot, le rapport la liste pour être réaffirmée.
+- **Archinex n'émet plus rien pour un projet basculé** : l'export réconcilie puis rend la référence de l'instantané du Hub. Le
+  « mode Hub » de la PR #47 (dossier de processus épinglant le Hub) est retiré, ainsi que `pins.hub_snapshot` du contrat 1.1.
+- `GET /api/projects/{id}/traceability-matrix` : matrice produite depuis l'artefact scellé qui fait foi (instantané du Hub,
+  sceau revérifié ici ; sinon dossier local vérifié). Un même modèle de lecture, un seul rendu.
+- Parité dossier d'Archinex / instantané du Hub mesurée sur un scénario réel : [`docs/hub-parity.md`](docs/hub-parity.md).
+- Identifiants d'exigence acceptés par le Hub (`hubRequirementId`) : déterministes, injectifs.
+- Bug relevé, non corrigé ici : la route d'affirmation d'une décision d'un projet basculé n'atteint jamais le Hub (#103).
 ### Rapport d'audit lisible et protocole du jalon J0
 - Rapport Markdown de l'audit : pourquoi ces sujets (tension relevée sur chaque clause), ce que devient chaque autre
   clause, ce qu'il faut relire en priorité, comparaison avec une référence. Chaque clause y figure exactement une fois.

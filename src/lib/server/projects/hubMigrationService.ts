@@ -8,11 +8,16 @@
  * - Handles uniques au format @handle (^[a-z0-9][a-z0-9._-]{0,62}$).
  * - Aucun e-mail dans les textes transmis (rejet code EMAIL).
  * - Rien ne naît affirmé : un énoncé repris sans valideur distinct reste 'proposed'.
+ * - Les exigences auditées d'un RFP sont reprises avec les sujets qui les portent. Une décision déjà prise sur une clause
+ *   n'est PAS reprise au nom du lot : le rapport la liste, un décideur du Hub l'affirme à nouveau.
  * - Bascule explicite du système d'enregistrement (systemOfRecord: 'hub').
  */
 
 import { prisma } from '../prisma';
 import { llmopsClient, type LLMOpsClient } from '../llmops/client';
+import { listRequirementSources } from './requirementsDb';
+import { requirementBundleId } from '$lib/domain/requirementAudit';
+import { hubRequirementIdMap } from '$lib/domain/hubRequirementId';
 import type {
 	HubConfidentiality,
 	HubConfidence,
@@ -66,7 +71,7 @@ export function isProjectCutOverToHub(project: { strategy?: any }): boolean {
 }
 
 export interface MigrationProblem {
-	code: 'EMAIL' | 'INVALID_CONFIDENCE' | 'INVALID_ID' | 'SELF_VALIDATION' | 'UNMAPPED_ROLE' | 'SCHEMA' | 'DANGLING';
+	code: 'EMAIL' | 'INVALID_CONFIDENCE' | 'INVALID_ID' | 'SELF_VALIDATION' | 'UNMAPPED_ROLE' | 'SCHEMA' | 'DANGLING' | 'TEXT_TOO_LONG';
 	path: string;
 	entityId: string;
 	reason: string;
@@ -87,6 +92,29 @@ export interface AcceptedStatementMigration {
 	verbatim?: string;
 }
 
+/** Le Hub refuse un texte d'exigence de plus de 4000 caractères : on ne tronque pas, on refuse la migration. */
+export const HUB_MAX_REQUIREMENT_TEXT = 4000;
+
+export interface AcceptedRequirementMigration {
+	id: string;
+	text: string;
+	section?: string;
+	category?: string;
+	criticality?: string;
+	/** Identifiant du dossier scellé (`SRC-xxxx:clause`) quand l'exigence vient d'un audit de RFP. */
+	bundleId?: string;
+}
+
+/** Décision humaine déjà prise sur une clause, non reprise au nom du lot : un décideur du Hub doit la re-proposer et l'affirmer. */
+export interface DispositionToReassert {
+	requirementId: string;
+	hubRequirementId: string;
+	disposition: string;
+	reason: string | null;
+	decidedBy: string;
+	decidedAt: string;
+}
+
 export interface MigrationSimulationReport {
 	projectId: string;
 	engagementId: string;
@@ -102,11 +130,13 @@ export interface MigrationSimulationReport {
 	};
 	accepted: {
 		members: HubMember[];
-		subjects: Array<{ name: string; definition?: string; level: HubMaturityInput['level'] }>;
+		subjects: Array<{ name: string; definition?: string; level: HubMaturityInput['level']; requirementIds?: string[] }>;
 		statements: AcceptedStatementMigration[];
 		questions: Array<{ id: string; question: string; subject?: string; section?: string }>;
-		requirements: Array<{ id: string; text: string; section?: string }>;
+		requirements: AcceptedRequirementMigration[];
 	};
+	/** Décisions sur des clauses à réaffirmer dans le Hub (rien n'est affirmé au nom du lot). */
+	dispositionsToReassert: DispositionToReassert[];
 	rejected: MigrationProblem[];
 }
 
@@ -201,7 +231,7 @@ export async function simulateProjectMigration(projectId: string): Promise<Migra
 	}
 
 	// 2. Validation des sujets
-	const acceptedSubjects: Array<{ name: string; definition?: string; level: HubMaturityInput['level'] }> = [];
+	const acceptedSubjects: Array<{ name: string; definition?: string; level: HubMaturityInput['level']; requirementIds?: string[] }> = [];
 	for (const s of project.subjects) {
 		const sName = s.name.trim();
 		if (EMAIL_REGEX.test(sName)) {
@@ -230,10 +260,12 @@ export async function simulateProjectMigration(projectId: string): Promise<Migra
 			level = 'L4_specified';
 		}
 
+		const refs = parseRefs(s.requirementRefs);
 		acceptedSubjects.push({
 			name: sName,
 			definition: def || undefined,
-			level
+			level,
+			...(refs.length > 0 ? { requirementIds: refs } : {})
 		});
 	}
 
@@ -359,7 +391,7 @@ export async function simulateProjectMigration(projectId: string): Promise<Migra
 	}
 
 	// 5. Exigences issues de strategy.objectives ou constraints
-	const acceptedRequirements: Array<{ id: string; text: string; section?: string }> = [];
+	const acceptedRequirements: AcceptedRequirementMigration[] = [];
 	const rawObjectives = Array.isArray(strategy.objectives) ? strategy.objectives : [];
 	const rawConstraints = Array.isArray(strategy.constraints) ? strategy.constraints : [];
 	const combinedReqs = [...rawObjectives, ...rawConstraints];
@@ -385,6 +417,70 @@ export async function simulateProjectMigration(projectId: string): Promise<Migra
 		}
 	});
 
+	// 6. Exigences auditées d'un RFP : reprises avec leurs identifiants Hub, jamais tronquées
+	const dispositionsToReassert: DispositionToReassert[] = [];
+	const hubIdOf = new Map<string, string>();
+	try {
+		const sources = await listRequirementSources(projectId);
+		const bundleIds = sources.flatMap((src) => src.requirements.map((r) => requirementBundleId(src.sha256, r.clauseRef)));
+		for (const [bundleId, hubId] of hubRequirementIdMap(bundleIds)) hubIdOf.set(bundleId, hubId);
+		for (const src of sources) {
+			for (const r of src.requirements) {
+				const bundleId = requirementBundleId(src.sha256, r.clauseRef);
+				const hubId = hubIdOf.get(bundleId)!;
+				const problem = [
+					[r.text.length > HUB_MAX_REQUIREMENT_TEXT, 'TEXT_TOO_LONG', `Le texte de la clause ${r.clauseRef} dépasse ${HUB_MAX_REQUIREMENT_TEXT} caractères : le Hub ne le tronque pas`],
+					[EMAIL_REGEX.test(r.text) || EMAIL_REGEX.test(r.title), 'EMAIL', `La clause ${r.clauseRef} contient une adresse e-mail proscrite`]
+				].find(([bad]) => bad) as [boolean, MigrationProblem['code'], string] | undefined;
+				if (problem) {
+					rejected.push({ code: problem[1], path: `requirements.${bundleId}`, entityId: bundleId, reason: problem[2] });
+					continue;
+				}
+				acceptedRequirements.push({
+					id: hubId,
+					text: r.text,
+					section: r.clauseRef,
+					category: r.category ?? 'general',
+					criticality: r.criticality,
+					bundleId
+				});
+				if (r.decidedDisposition && r.decidedBy && r.decidedAt) {
+					dispositionsToReassert.push({
+						requirementId: bundleId,
+						hubRequirementId: hubId,
+						disposition: r.decidedDisposition,
+						reason: r.decidedReason,
+						decidedBy: r.decidedBy,
+						decidedAt: r.decidedAt.toISOString()
+					});
+				}
+			}
+		}
+	} catch (e) {
+		const message = e instanceof Error ? e.message : String(e);
+		rejected.push({ code: 'INVALID_ID', path: 'requirements', entityId: projectId, reason: message });
+	}
+
+	// Un sujet ne peut porter qu'une exigence reprise : une référence inconnue est un rejet, pas une omission silencieuse
+	const knownHubIds = new Set(acceptedRequirements.map((r) => r.id));
+	for (const s of acceptedSubjects) {
+		if (!s.requirementIds) continue;
+		const mapped: string[] = [];
+		for (const ref of s.requirementIds) {
+			const hubId = hubIdOf.get(ref);
+			if (hubId && knownHubIds.has(hubId)) mapped.push(hubId);
+			else {
+				rejected.push({
+					code: 'DANGLING',
+					path: `subjects.${s.name}.requirementRefs`,
+					entityId: ref,
+					reason: `Le sujet « ${s.name} » porte l'exigence ${ref}, qui n'est pas reprise`
+				});
+			}
+		}
+		s.requirementIds = mapped;
+	}
+
 	const ok = rejected.length === 0;
 
 	return {
@@ -407,8 +503,18 @@ export async function simulateProjectMigration(projectId: string): Promise<Migra
 			questions: acceptedQuestions,
 			requirements: acceptedRequirements
 		},
+		dispositionsToReassert,
 		rejected
 	};
+}
+
+function parseRefs(raw: string | null | undefined): string[] {
+	try {
+		const v = JSON.parse(raw || '[]');
+		return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [];
+	} catch {
+		return [];
+	}
 }
 
 /**
@@ -461,24 +567,34 @@ export async function executeProjectMigration(
 	// Étape 3 : Synchronisation intégrale des membres
 	await client.setEngagementMembers(engagementId, report.accepted.members, actorEmail);
 
-	// Étape 4 : Ingestion des exigences
-	if (report.accepted.requirements.length > 0) {
+	// Étape 4 : Ingestion des exigences (500 au plus par appel côté Hub)
+	for (let i = 0; i < report.accepted.requirements.length; i += 500) {
 		await client.addRequirements(
 			engagementId,
 			{
-				requirements: report.accepted.requirements.map((r) => ({
+				requirements: report.accepted.requirements.slice(i, i + 500).map((r) => ({
 					id: r.id,
 					text: r.text,
-					section: r.section || 'general'
+					section: r.section || 'general',
+					...(r.category ? { category: r.category } : {}),
+					...(r.criticality ? { criticality: r.criticality } : {})
 				}))
 			},
 			actorEmail
 		);
 	}
 
-	// Étape 5 : Ingestion des sujets
+	// Étape 5 : Ingestion des sujets, avec les exigences qu'ils portent (contrat 1.27)
 	for (const s of report.accepted.subjects) {
-		await client.addSubject(engagementId, { name: s.name, definition: s.definition }, actorEmail);
+		await client.addSubject(
+			engagementId,
+			{
+				name: s.name,
+				definition: s.definition,
+				...(s.requirementIds && s.requirementIds.length > 0 ? { requirement_ids: s.requirementIds } : {})
+			},
+			actorEmail
+		);
 	}
 
 	// Étape 6 : Ingestion des questions

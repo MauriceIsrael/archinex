@@ -796,12 +796,13 @@ export class LLMOpsClient {
             'Vérifiez la file des candidats avant de la renvoyer.'
         );
       }
-      // Serveur injoignable : la candidature n'a PAS atteint le hub. Ne jamais fabriquer d'identifiant
-      // (CAND-LOCAL-…) qui ferait croire à une proposition enregistrée : l'appelant doit réessayer plus tard.
-      throw new Error(
-        'Erreur HTTP : LLMOps est injoignable ; la candidature n’a pas été transmise à la base de connaissances. ' +
-          'Réessayez lorsque le serveur sera disponible.'
-      );
+      // Serveur injoignable (connexion refusée) -> mise en attente locale avec statut explicite.
+      // Ne jamais fabriquer un faux identifiant de hub (CAND-LOCAL-…) qui ferait croire
+      // que la candidature a été attribuée et enregistrée par le hub de connaissances (#54).
+      return {
+        candidate_id: '',
+        status: 'pending_dispatch'
+      };
     }
   }
 

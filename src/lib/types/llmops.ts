@@ -211,7 +211,7 @@ export interface KbCandidate {
   };
   target_asset_ref?: string;
   accepted_violation_justification?: string;
-  status?: 'proposed' | 'in_review' | 'accepted' | 'rejected' | 'promoted' | 'published' | 'checks_failed';
+  status?: 'proposed' | 'in_review' | 'accepted' | 'rejected' | 'promoted' | 'published' | 'checks_failed' | 'pending_dispatch';
   published?: { snapshot_id: string; at: string };
   promoted_at?: string;
   promoted_by?: string;

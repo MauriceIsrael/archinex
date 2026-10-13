@@ -46,13 +46,22 @@ export function getActorFromEvent(event: RequestEvent): ActorInfo {
  */
 export async function resolveProjectActor(event: RequestEvent, projectId: string): Promise<ActorInfo> {
 	const actor = getActorFromEvent(event);
-	const email = event.locals?.session?.user?.email?.toLowerCase();
-	if (!email || event.request.headers.get('x-user-role') || actor.role === 'admin') return actor;
+	const sessionUser = event.locals?.session?.user;
+	const email = sessionUser?.email?.toLowerCase();
+	const userId = sessionUser?.id;
+	if (event.request.headers.get('x-user-role') || actor.role === 'admin') return actor;
 	try {
 		const engagement = await prisma.engagement.findUnique({ where: { id: projectId }, select: { participants: true } });
-		const participants = JSON.parse(engagement?.participants || '[]') as Array<{ email?: string; role?: string }>;
-		const me = participants.find((p) => p.email?.toLowerCase() === email);
+		const participants = JSON.parse(engagement?.participants || '[]') as Array<{ id?: string; email?: string; role?: string }>;
+		const me = participants.find((p) => (email && p.email?.toLowerCase() === email) || (userId && p.id === userId));
 		if (me?.role) return { ...actor, role: me.role };
+
+		if (userId) {
+			const member = await prisma.projectMember.findUnique({
+				where: { projectId_userId: { projectId, userId } }
+			});
+			if (member?.role) return { ...actor, role: member.role };
+		}
 	} catch {
 		// participants illisibles : on garde le rôle de session
 	}

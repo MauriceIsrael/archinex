@@ -95,6 +95,62 @@ export const POST: RequestHandler = async ({ request, cookies, locals }) => {
 		}
 	}
 
+	// Rattacher explicitement le compte aux participants de l'espace et à ProjectMember (#61)
+	if (invitation.projectId) {
+		try {
+			const eng = await prisma.engagement.findUnique({
+				where: { id: invitation.projectId },
+				select: { participants: true }
+			});
+			if (eng) {
+				const participants = JSON.parse(eng.participants || '[]') as any[];
+				const existingIdx = participants.findIndex(
+					(p) =>
+						(p.email && p.email.toLowerCase() === email) ||
+						(p.id && p.id === user.id)
+				);
+				const partObj = {
+					id: user.id,
+					name: user.name,
+					email: user.email,
+					role: invitation.expertRole || 'infra_expert_architect',
+					isLead: invitation.expertRole === 'lead_architect'
+				};
+				if (existingIdx !== -1) {
+					participants[existingIdx] = { ...participants[existingIdx], ...partObj };
+				} else {
+					participants.push(partObj);
+				}
+				await prisma.engagement.update({
+					where: { id: invitation.projectId },
+					data: { participants: JSON.stringify(participants) }
+				});
+			}
+
+			await prisma.projectMember
+				.upsert({
+					where: {
+						projectId_userId: {
+							projectId: invitation.projectId,
+							userId: user.id
+						}
+					},
+					create: {
+						projectId: invitation.projectId,
+						userId: user.id,
+						role: invitation.expertRole || 'infra_expert_architect',
+						domains: '[]'
+					},
+					update: {
+						role: invitation.expertRole || 'infra_expert_architect'
+					}
+				})
+				.catch(() => {});
+		} catch {
+			// Non bloquant
+		}
+	}
+
 	// 3. Marquer l'invitation comme acceptée
 	updateInvitationStatus(invitation.id, 'accepted');
 

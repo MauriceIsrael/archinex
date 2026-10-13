@@ -6,6 +6,7 @@
 		TransitionCheck
 	} from '$lib/domain/maturityCriteria';
 	import { formatMaturityLevel } from '$lib/domain/debate';
+	import { explainActionRefusal } from '$lib/domain/spaceActor';
 	import {
 		Check,
 		Lock,
@@ -67,6 +68,9 @@
 		if (!report || !targetStep) return null;
 		return report.transitions[targetStep.level] || null;
 	});
+
+	const isLeadRole = $derived(userRole === 'lead_architect' || userRole === 'Lead Architect' || userRole === 'admin');
+	const requiresLead = $derived(targetStep?.level === 'L4_specified' || targetStep?.level === 'L5_archived');
 
 	function handleStepClick(level: MaturityLevel) {
 		inspectedLevel = level;
@@ -257,15 +261,25 @@
 							{targetTransition.missingReasons.length} critère(s) non satisfait(s)
 						</span>
 						{#if isHumanUser}
-							<button
-								type="button"
-								onclick={() => targetStep && onTransition(targetStep.level)}
-								class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs transition-colors cursor-pointer shadow-2xs"
-								title="L'architecte humain valide le passage au jalon supérieur par autorité d'arbitrage souverain"
-							>
-								<span>Franchir le jalon {targetStep?.short} (Arbitrage humain)</span>
-								<ArrowRight class="h-3 w-3" />
-							</button>
+							{#if requiresLead && !isLeadRole}
+								<div
+									class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-destructive/10 text-destructive text-[11px] font-medium border border-destructive/25"
+									title={explainActionRefusal('homologate', userRole, { targetLevel: targetStep?.short })}
+								>
+									<ShieldAlert class="h-3.5 w-3.5 shrink-0" />
+									<span>Homologation réservée au Lead Architect</span>
+								</div>
+							{:else}
+								<button
+									type="button"
+									onclick={() => targetStep && onTransition(targetStep.level)}
+									class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs transition-colors cursor-pointer shadow-2xs"
+									title="L'architecte humain valide le passage au jalon supérieur par autorité d'arbitrage souverain"
+								>
+									<span>Franchir le jalon {targetStep?.short} (Arbitrage humain)</span>
+									<ArrowRight class="h-3 w-3" />
+								</button>
+							{/if}
 						{/if}
 					</div>
 				{/if}
@@ -318,8 +332,18 @@
 				{/each}
 			</div>
 
-			<!-- Explication en clair du refus de transition -->
-			{#if !targetTransition.allowed && targetTransition.unblockHint}
+			<!-- Explication en clair du refus de transition (#61) -->
+			{#if requiresLead && !isLeadRole}
+				<div class="p-2.5 rounded-lg bg-amber-500/10 border border-amber-500/30 text-xs text-amber-900 dark:text-amber-200 flex items-start gap-2">
+					<ShieldAlert class="h-4 w-4 text-amber-600 dark:text-amber-400 mt-0.5 shrink-0" />
+					<div class="space-y-0.5">
+						<strong>Homologation bloquée :</strong>
+						<p class="text-[11px] text-amber-800 dark:text-amber-300">
+							{explainActionRefusal('homologate', userRole, { targetLevel: targetStep?.short })}
+						</p>
+					</div>
+				</div>
+			{:else if !targetTransition.allowed && targetTransition.unblockHint}
 				<div class="p-2 rounded bg-muted/60 text-[11px] text-muted-foreground flex items-center justify-between">
 					<span>ℹ️ {targetTransition.unblockHint}</span>
 					<span class="font-mono text-[10px]">canTransitionMaturity refusé</span>

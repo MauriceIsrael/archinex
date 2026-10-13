@@ -4,6 +4,7 @@
 	import { goto } from '$app/navigation';
 	import CreateWorkspaceDialog from '$lib/components/deliberation/CreateWorkspaceDialog.svelte';
 	import WorkspaceManagerDialog from '$lib/components/deliberation/WorkspaceManagerDialog.svelte';
+	import { resolveUserSpaceRole } from '$lib/domain/spaceActor';
 	import {
 		FolderPlus,
 		FolderKanban,
@@ -217,6 +218,7 @@
 			{#each displayedEngagements as eng}
 				{@const isActive = deliberationStore.activeEngagementId === eng.id}
 				{@const isArchived = eng.status === 'archived'}
+				{@const roleInfo = resolveUserSpaceRole(eng, deliberationStore.currentUser)}
 				<div class="rounded-xl border bg-card p-5 flex flex-col justify-between space-y-4 shadow-2xs hover:shadow-sm transition-all {isActive ? 'border-primary ring-2 ring-primary/20' : isArchived ? 'opacity-75 border-dashed border-border hover:opacity-100' : 'border-border'}">
 					<div class="space-y-3">
 						<!-- En-tête de carte -->
@@ -230,6 +232,16 @@
 										Archivé
 									</span>
 								{/if}
+								<span
+									class="text-[10px] font-medium px-2 py-0.5 rounded border {roleInfo.isAssigned
+										? 'bg-primary/10 text-primary border-primary/25 font-semibold'
+										: roleInfo.isAdmin
+											? 'bg-amber-500/10 text-amber-800 dark:text-amber-300 border-amber-500/25'
+											: 'bg-muted text-muted-foreground border-border'}"
+									title={roleInfo.privilegesSummary}
+								>
+									{roleInfo.displayText}
+								</span>
 							</div>
 
 							{#if isActive}

@@ -3,6 +3,9 @@ import type { RequestHandler } from './$types';
 import { prisma } from '$lib/server/prisma';
 import { llmopsClient } from '$lib/server/llmops/client';
 import { isProjectCutOverToHub } from '$lib/server/projects/hubMigrationService';
+import { recordDecisionInHub, toHubFacts } from '$lib/server/projects/hubDecisions';
+import { hubErrorResponse } from '$lib/server/projects/hubErrors';
+import type { HubFactVocabulary } from '$lib/domain/hubFactVocabulary';
 import { resolveProjectActor } from '$lib/server/projects/actorHelper';
 import { DEFAULT_ARCHINEX_VOCABULARY } from '$lib/server/agents/factExtractor';
 import { formatDecisionAffirmedMilestone } from '$lib/domain/debate';
@@ -97,10 +100,22 @@ export const POST: RequestHandler = async (event) => {
 	// 1. Un fait décoché (selected === false) n'est pas affirmé
 	// 2. Un fait dont la clé est hors du vocabulaire autorisé est strictement écarté
 	const rawFacts = Array.isArray(body.facts) ? body.facts : [];
+	// Projet basculé : le vocabulaire est celui du Hub (clés typées) ; le Hub refuse toute autre clé.
+	const isHubCutover = isProjectCutOverToHub(project);
+	let hubVocabulary: HubFactVocabulary | null = null;
+	if (isHubCutover) {
+		try {
+			hubVocabulary = await llmopsClient.getFactVocabulary();
+		} catch (err) {
+			return hubErrorResponse(err);
+		}
+	}
 	const allowedVocabularySet = new Set(
-		Array.isArray(body.allowedVocabularyKeys) && body.allowedVocabularyKeys.length > 0
-			? body.allowedVocabularyKeys
-			: DEFAULT_ARCHINEX_VOCABULARY
+		hubVocabulary
+			? hubVocabulary.keys.map((k) => k.key)
+			: Array.isArray(body.allowedVocabularyKeys) && body.allowedVocabularyKeys.length > 0
+				? body.allowedVocabularyKeys
+				: DEFAULT_ARCHINEX_VOCABULARY
 	);
 
 	const affirmedFacts = rawFacts.filter(
@@ -132,53 +147,23 @@ export const POST: RequestHandler = async (event) => {
 		});
 	}
 
-	// Si le projet a basculé vers le Hub (A23 / #34), enregistrement et affirmation dans le Hub
-	const isHubCutover = isProjectCutOverToHub(project);
-	if (isHubCutover) {
-		const strat = typeof project.strategy === 'string' ? JSON.parse(project.strategy || '{}') : (project.strategy || {});
-		const engagementId = strat.hubEngagementId || project.shortName || project.id;
-
+	// Projet basculé (A23 / #34) : le Hub est le système d'enregistrement de la décision. Il la reçoit proposée par son auteur,
+	// l'affirme au nom de la personne connectée, puis avance le sujet à L3. S'il refuse, nous refusons : rien n'est écrit en local
+	// et aucune erreur n'est avalée (#103).
+	if (isHubCutover && hubVocabulary) {
 		try {
-			// Ingestion de la décision proposée avec les faits (si pas déjà créée)
-			await llmopsClient.addDecision(
-				engagementId,
-				{
-					id: decision.id,
-					subject: subject.name,
-					retained_option: decision.retainedOptionId,
-					rationale: decision.rationale,
-					reversibility: decision.reversibility as any,
-					facts: affirmedFacts.map((f: any) => ({
-						key: f.key,
-						value: f.value,
-						source_excerpt: f.source_excerpt
-					})),
-					author: decision.arbiterId
-				},
-				actorEmail,
-				`prop-${idempotencyKey}`
-			).catch(() => null);
-
-			// Affirmation formelle dans le Hub
-			await llmopsClient.assertDecision(
-				engagementId,
-				decision.id,
-				actorEmail,
-				idempotencyKey
+			await recordDecisionInHub(
+				project,
+				subject,
+				decision,
+				toHubFacts(
+					affirmedFacts.map((f: any) => ({ key: f.key, value: String(f.value), source_excerpt: f.source_excerpt })),
+					hubVocabulary
+				),
+				actorEmail
 			);
-		} catch (hubErr: any) {
-			if (hubErr.status === 409 || hubErr.code === 'self_validation') {
-				return json(
-					{
-						error: 'self_validation',
-						message:
-							hubErr.reason ||
-							"Auto-validation refusée par le Hub (K16) : L'auteur ne peut pas valider sa propre décision."
-					},
-					{ status: 409 }
-				);
-			}
-			console.warn('[Hub Decision Assert] Erreur Hub (mode résilient) :', hubErr.message);
+		} catch (err) {
+			return hubErrorResponse(err);
 		}
 	}
 

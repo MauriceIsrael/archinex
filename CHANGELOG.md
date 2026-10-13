@@ -8,6 +8,25 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Décision d'un projet basculé : elle atteint enfin le Hub (#103)
+- **Cause** : la route `…/decision/assert` d'un projet basculé envoyait au Hub `retained_option` (un identifiant d'option
+  d'Archinex), que le Hub refuse en 400 (`'decision' is required`), puis **avalait l'erreur** et écrivait la décision comme
+  affirmée en local. Le faux Hub du test acceptait n'importe quelle forme : il validait le bug.
+- **Corrigé** : le Hub reçoit le **texte** de l'option retenue et des options écartées, la décision **proposée au nom de son
+  auteur** (identifié par son e-mail), puis **affirmée par la personne connectée** avec l'identifiant renvoyé par le Hub ;
+  le sujet passe à L3 dans le Hub, qui est le système d'enregistrement de sa maturité. Clé d'idempotence stable.
+- **Aucune erreur du Hub n'est avalée** : si le Hub refuse (ou est injoignable), la route refuse avec le code et la raison du
+  Hub, et **rien n'est écrit en local** (sujet à L2, pas d'événement, pas d'énoncé).
+- **Vocabulaire des faits** : le Hub ne reconnaît que le sien (`topology.dc_count`, `data.rpo_target_s`…), avec des valeurs
+  typées ; celui d'Archinex (`resilience_mode`, `site_count`…) n'en recoupait aucune clé. Pour un projet basculé,
+  l'extraction et l'affirmation utilisent le vocabulaire du Hub (lu dans son instantané) ; « 2 » devient 2 quand c'est sans
+  ambiguïté, sinon la valeur est refusée avec sa clé (422 `FACT_VALUE`), jamais devinée.
+- Types alignés sur le contrat (`HubDecisionInput.decision`, `rejected`) : le compilateur attrape désormais la mauvaise forme.
+- Test du parcours contre un **vrai Hub** (`tests/contract/hub-decision-live.test.ts`) ; le faux Hub de
+  `decision-survey-card.test.ts` applique maintenant le contrat du Hub.
+- Limite connue : les faits cochés à l'affirmation sont enregistrés dans la proposition faite au nom de l'auteur ; le Hub les
+  attribue donc à l'auteur, alors que c'est la personne qui affirme qui les a choisis.
+
 ### Dossier scellé déterministe, avec les exigences du RFP
 - L'audit clause par clause est désormais **enregistré** (tables `RequirementSource` / `Requirement`) au lieu d'être
   perdu à la confirmation de l'import. La proposition du modèle et la décision humaine sont deux jeux de colonnes

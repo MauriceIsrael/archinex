@@ -1240,21 +1240,21 @@ export class HubApiError extends Error {
 
 export interface HubDecisionFactInput {
   key: string;
-  value: string;
-  source_excerpt?: string;
+  /** Typée selon le vocabulaire du Hub : entier, booléen, valeur d'énumération ou durée en secondes. */
+  value: string | number | boolean;
+  source_excerpt: string;
 }
 
+/** Corps de `POST /api/engagements/{id}/decisions` (contrat 1.19, K16). `decision` est le TEXTE de l'option retenue. */
 export interface HubDecisionInput {
-  id?: string;
   subject: string;
-  retained_option: string;
-  rejected_options?: Array<{ option: string; reason: string }>;
+  decision: string;
+  rejected?: Array<{ option: string; reason: string }>;
   rationale: string;
   reversibility: 'reversible' | 'costly' | 'irreversible';
   consequences?: string[];
   accepted_violations?: Array<{ typed_id: string; justification: string }>;
   facts: HubDecisionFactInput[];
-  author?: string;
   idempotency_key?: string;
 }
 
@@ -1262,13 +1262,14 @@ export interface HubDecisionResult {
   decision: {
     id: string;
     subject: string;
-    retained_option: string;
-    status: 'proposed' | 'active' | 'asserted';
+    decision: string;
+    status: 'proposed' | 'active' | 'withdrawn' | 'superseded';
     facts: HubDecisionFactInput[];
     author?: string;
     validated_by?: string;
-    asserted_at?: string;
+    validated_at?: string;
   };
+  created?: boolean;
 }
 
 // ─────────────────────────────────────────────────────────────────────────────

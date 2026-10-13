@@ -796,14 +796,14 @@ export class LLMOpsClient {
             'Vérifiez la file des candidats avant de la renvoyer.'
         );
       }
-      // Serveur injoignable (connexion refusée) -> repli hors-ligne uniquement
+      // Serveur injoignable (connexion refusée) -> mise en attente locale avec statut explicite.
+      // Ne jamais fabriquer un faux identifiant de hub (CAND-LOCAL-…) qui ferait croire
+      // que la candidature a été attribuée et enregistrée par le hub de connaissances (#54).
+      return {
+        candidate_id: '',
+        status: 'pending_dispatch'
+      };
     }
-
-    const localId = `CAND-LOCAL-${Date.now().toString(36).toUpperCase()}`;
-    return {
-      candidate_id: localId,
-      status: 'in_review'
-    };
   }
 
   /**

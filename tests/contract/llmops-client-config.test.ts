@@ -111,9 +111,10 @@ describe('Soumission lente : aucun identifiant factice', () => {
     );
   });
 
-  it('serveur injoignable : le repli hors-ligne existant est conservé', async () => {
+  it('serveur injoignable : état d’attente explicite, jamais de faux identifiant CAND-LOCAL (#54)', async () => {
     const res = await new LLMOpsClient({ baseUrl: 'http://127.0.0.1:1' }).submitCandidate(candidate, 'a@example.org');
-    expect(res.candidate_id).toMatch(/^CAND-LOCAL-/);
+    expect(res.candidate_id).not.toMatch(/^CAND-LOCAL-/);
+    expect(res.status).toBe('pending_dispatch');
   });
 });
 

@@ -98,7 +98,12 @@
 			}
 
 			const result = await res.json();
-			successMessage = `${result.submitted?.length || preparedCandidates.length} candidat(s) transmis avec succès au Knowledge Hub LLMOps (Porte G4).`;
+			const allPending = result.submitted?.length > 0 && result.submitted.every((s: any) => s.status === 'pending_dispatch');
+			if (allPending) {
+				successMessage = `${result.submitted.length} candidat(s) enregistrés en local (en attente d'envoi à LLMOps).`;
+			} else {
+				successMessage = `${result.submitted?.length || preparedCandidates.length} candidat(s) transmis avec succès au Knowledge Hub LLMOps (Porte G4).`;
+			}
 			preparedCandidates = [];
 			isPrepared = false;
 			await loadSubmittedCandidates();
@@ -336,9 +341,13 @@
 								<span class="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-rose-500/15 text-rose-700 border border-rose-500/30" title={cand.rejection_reason || 'Rejeté'}>
 									<XCircle class="w-3 h-3 text-rose-600" /> Rejeté
 								</span>
-							{:else}
+							{:else if cand.status === 'pending_dispatch'}
 								<span class="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-amber-500/15 text-amber-700 border border-amber-500/30">
-									<Clock class="w-3 h-3 text-amber-600" /> En cours d'examen
+									<Clock class="w-3 h-3 text-amber-600" /> En attente d'envoi
+								</span>
+							{:else}
+								<span class="inline-flex items-center gap-1 text-[11px] font-semibold px-2.5 py-0.5 rounded-full bg-blue-500/15 text-blue-700 border border-blue-500/30">
+									<Clock class="w-3 h-3 text-blue-600" /> En cours d'examen
 								</span>
 							{/if}
 						</div>

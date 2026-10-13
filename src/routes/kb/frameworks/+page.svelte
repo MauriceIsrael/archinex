@@ -15,6 +15,10 @@
   import Ban from 'lucide-svelte/icons/ban';
   import Filter from 'lucide-svelte/icons/filter';
   import type { ComplianceFrameworkOverview, FrameworkIngestion } from '$lib/types/llmops';
+  import {
+    lookupDefaultFrameworkVersion,
+    isGenericFrameworkVersion
+  } from '$lib/domain/regulatoryFrameworks';
 
   interface Props {
     data: {
@@ -43,7 +47,7 @@
   let selectedFile = $state<File | null>(null);
   let frameworkId = $state('');
   let frameworkName = $state('');
-  let version = $state('1.0');
+  let version = $state('');
   let selectedDomain = $state('security');
 
   // État d'abandon d'une ingestion
@@ -160,6 +164,17 @@
     }
   }
 
+  function tryAutofillVersion() {
+    if (!version || isGenericFrameworkVersion(version)) {
+      const auto =
+        lookupDefaultFrameworkVersion(frameworkId, complianceFrameworks) ||
+        lookupDefaultFrameworkVersion(frameworkName, complianceFrameworks);
+      if (auto) {
+        version = auto;
+      }
+    }
+  }
+
   function handleFileSelect(event: Event) {
     const input = event.target as HTMLInputElement;
     if (input.files && input.files[0]) {
@@ -173,6 +188,11 @@
       }
       if (!frameworkName) {
         frameworkName = nameWithoutExt;
+      }
+      tryAutofillVersion();
+      if (!version || isGenericFrameworkVersion(version)) {
+        const auto = lookupDefaultFrameworkVersion(nameWithoutExt, complianceFrameworks);
+        if (auto) version = auto;
       }
     }
   }
@@ -192,6 +212,17 @@
     const ext = selectedFile.name.split('.').pop()?.toLowerCase();
     if (!ext || !validExtensions.includes(ext)) {
       uploadError = 'Format non supporté. Formats acceptés : .pdf, .html, .txt, .md, .docx';
+      return;
+    }
+
+    // Pré-remplir la version légale si non renseignée
+    if (!version || isGenericFrameworkVersion(version)) {
+      tryAutofillVersion();
+    }
+
+    // Refuser toute version générique (1.0, vide, etc.) (#93)
+    if (!version.trim() || isGenericFrameworkVersion(version)) {
+      uploadError = `La version « ${version || ''} » est générique ou non renseignée. Veuillez renseigner la version officielle du référentiel (ex: 2022/2555 pour NIS2, 2024/2847 pour CRA).`;
       return;
     }
 
@@ -228,6 +259,7 @@
         selectedFile = null;
         frameworkId = '';
         frameworkName = '';
+        version = '';
       }
     } catch (err: any) {
       uploadError = err.message || 'Erreur réseau lors du téléversement.';
@@ -421,6 +453,7 @@
           id="frameworkIdInput"
           type="text"
           bind:value={frameworkId}
+          oninput={tryAutofillVersion}
           placeholder="Ex: NIS2, ISO-27001, DORA"
           class="w-full px-3 py-2 text-sm border border-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-primary"
         />
@@ -431,17 +464,18 @@
           id="frameworkNameInput"
           type="text"
           bind:value={frameworkName}
+          oninput={tryAutofillVersion}
           placeholder="Ex: Directive NIS2 (UE 2022/2555)"
           class="w-full px-3 py-2 text-sm border border-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-primary"
         />
       </div>
       <div>
-        <label for="versionInput" class="block text-xs font-semibold text-muted-foreground mb-1">Version / Révision</label>
+        <label for="versionInput" class="block text-xs font-semibold text-muted-foreground mb-1">Version / Révision (officielle) *</label>
         <input
           id="versionInput"
           type="text"
           bind:value={version}
-          placeholder="Ex: 2022/2555 ou 2022"
+          placeholder="Ex: 2022/2555 (NIS2), 2024/2847 (CRA)"
           class="w-full px-3 py-2 text-sm border border-border rounded-lg bg-white focus:outline-none focus:ring-2 focus:ring-primary"
         />
       </div>

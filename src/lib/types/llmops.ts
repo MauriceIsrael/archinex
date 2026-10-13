@@ -486,6 +486,8 @@ export interface FrameworkRequirement {
   acceptance_criteria?: string[];
   /** Avancement de la ligne côté LLMOps : pending | decided | applied | failed. */
   row_status?: string;
+  /** Clauses vérifiables du contrôle associées à cette exigence (contrat 1.26, #93). */
+  checks?: CheckClauseRow[];
 }
 
 export type FrameworkIngestionStatus =

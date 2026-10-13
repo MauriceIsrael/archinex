@@ -12,7 +12,9 @@
     FrameworkRequirement,
     FrameworkRequirementStatus,
     FrameworkLinkSuggestion,
-    CoverageDeclarationResult
+    CoverageDeclarationResult,
+    CheckClauseRow,
+    CheckClauseDecision
   } from '$lib/types/llmops';
 
   interface Props {
@@ -20,6 +22,7 @@
       user: { id: string; name: string; email: string; role: string };
       expert: { kbHandle: string; kbRoles: string[]; ownedDomains: string[]; registered?: boolean };
       ingestion: FrameworkIngestion;
+      clauses?: CheckClauseRow[];
     };
   }
 
@@ -32,6 +35,99 @@
   // Suggestions IA en cours
   let loadingSuggestionsFor = $state<string | null>(null);
   let activeSuggestions = $state<Record<string, FrameworkLinkSuggestion[]>>({});
+
+  // --- Décisions sur les clauses vérifiables (#93) ---
+  let clauseFeedback = $state<Record<string, { ok: boolean; text: string }>>({});
+  let clauseBusy = $state<string | null>(null);
+  let editingClause = $state<{ reqId: string; clause: CheckClauseRow } | null>(null);
+  let rejectingClause = $state<{ reqId: string; clause: CheckClauseRow } | null>(null);
+  let clauseComment = $state('');
+  let draftWhen = $state('');
+  let draftExpect = $state('');
+  let draftMessage = $state('');
+
+  const splitLines = (text: string) => text.split(/\r?\n|,/).map((t) => t.trim()).filter(Boolean);
+
+  function startAmendClause(req: FrameworkRequirement, clause: CheckClauseRow) {
+    editingClause = { reqId: req.id, clause };
+    rejectingClause = null;
+    clauseComment = '';
+    draftWhen = (clause.when.terms_any ?? []).join('\n');
+    draftExpect = (clause.expect?.terms_any ?? []).join('\n');
+    draftMessage = clause.message ?? '';
+  }
+
+  function startRejectClause(req: FrameworkRequirement, clause: CheckClauseRow) {
+    rejectingClause = { reqId: req.id, clause };
+    editingClause = null;
+    clauseComment = '';
+  }
+
+  function getAmendedClausePayload(clause: CheckClauseRow) {
+    return {
+      kind: clause.kind,
+      when: { ...clause.when, terms_any: splitLines(draftWhen) },
+      ...(clause.kind === 'requires' ? { expect: { ...(clause.expect ?? {}), terms_any: splitLines(draftExpect) } } : {}),
+      message: draftMessage.trim()
+    };
+  }
+
+  async function decideClause(
+    req: FrameworkRequirement,
+    clause: CheckClauseRow,
+    decision: CheckClauseDecision
+  ) {
+    const assetId = clause.asset_id || req.id;
+    const checkId = clause.check_id;
+    const clauseKey = `${assetId}/${checkId}`;
+    clauseBusy = clauseKey;
+
+    try {
+      const res = await fetch(`/api/kb/clauses/${encodeURIComponent(assetId)}/${encodeURIComponent(checkId)}`, {
+        method: 'PATCH',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Actor-Email': data.user.email
+        },
+        body: JSON.stringify({
+          decision,
+          ...(decision !== 'validate' ? { comment: clauseComment } : {}),
+          ...(decision === 'amend' ? { clause: getAmendedClausePayload(clause) } : {})
+        })
+      });
+
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        clauseFeedback = {
+          ...clauseFeedback,
+          [clauseKey]: { ok: false, text: body.error || `Erreur HTTP ${res.status}` }
+        };
+        return;
+      }
+
+      const updated = body.data as CheckClauseRow;
+      if (req.checks) {
+        req.checks = req.checks.map((c) => (c.check_id === checkId ? { ...c, ...updated } : c));
+      }
+
+      editingClause = null;
+      rejectingClause = null;
+      clauseComment = '';
+
+      const verb = decision === 'reject' ? 'rejetée' : decision === 'amend' ? 'amendée et validée' : 'validée';
+      clauseFeedback = {
+        ...clauseFeedback,
+        [clauseKey]: { ok: true, text: `Clause ${verb} avec succès.` }
+      };
+    } catch (err: any) {
+      clauseFeedback = {
+        ...clauseFeedback,
+        [clauseKey]: { ok: false, text: err.message || 'Erreur réseau' }
+      };
+    } finally {
+      clauseBusy = null;
+    }
+  }
 
   // Modale d'amendement
   let amendingReq = $state<FrameworkRequirement | null>(null);
@@ -586,6 +682,193 @@
             <ul class="list-disc pl-5 text-purple-900">{#each req.proposed_acceptance_criteria as c (c)}<li>{c}</li>{/each}</ul>
           </div>
         {/if}
+
+        <!-- Clauses Vérifiables du Contrôle (checks:) (#93) -->
+        <div class="p-3.5 bg-slate-50 border border-slate-200 rounded-lg space-y-3" data-testid="requirement-clauses-block">
+          <div class="flex items-center justify-between">
+            <span class="text-xs font-bold text-slate-800 flex items-center gap-1.5">
+              <ShieldCheck class="w-4 h-4 text-primary" />
+              <span>Clauses vérifiables (checks) — {req.checks?.length ?? 0}</span>
+            </span>
+            <span class="text-[10px] text-muted-foreground font-mono">
+              Règles bloquantes (« exige / interdit »)
+            </span>
+          </div>
+
+          {#if !req.checks || req.checks.length === 0}
+            <p class="text-xs text-muted-foreground italic" data-testid="no-clauses-msg">
+              Aucune clause vérifiable associée à cette exigence.
+            </p>
+          {:else}
+            <div class="space-y-3">
+              {#each req.checks as clause (clause.check_id)}
+                {@const k = `${clause.asset_id || req.id}/${clause.check_id}`}
+                <div class="p-3 bg-white border border-slate-200 rounded-lg space-y-2 shadow-2xs" data-testid="clause-row-{clause.check_id}">
+                  <!-- En-tête de clause : Type (exige/interdit), Identifiant, Statut, Relecteur -->
+                  <div class="flex flex-wrap items-center justify-between gap-2">
+                    <div class="flex items-center gap-2">
+                      <span class="text-xs font-bold px-2 py-0.5 rounded {clause.kind === 'forbids' ? 'bg-destructive/15 text-destructive' : 'bg-primary/15 text-primary'}">
+                        {clause.kind === 'forbids' ? 'Interdit' : 'Exige'}
+                      </span>
+                      <span class="font-mono text-xs font-semibold text-foreground">{clause.check_id}</span>
+                      <span class="text-xs px-2 py-0.5 rounded font-semibold {clause.status === 'validated' ? 'bg-emerald-100 text-emerald-700 border border-emerald-300' : clause.status === 'rejected' ? 'bg-rose-100 text-rose-700 border border-rose-300 line-through' : 'bg-amber-100 text-amber-700 border border-amber-300'}">
+                        {clause.status === 'validated' ? 'Validée' : clause.status === 'rejected' ? 'Rejetée' : 'Brouillon'}
+                      </span>
+                    </div>
+
+                    {#if clause.review}
+                      <span class="text-[11px] text-muted-foreground">
+                        {clause.review.decision === 'reject' ? 'Rejetée' : clause.review.decision === 'amend' ? 'Amendée' : 'Validée'} par {clause.review.by} {clause.review.comment ? `(« ${clause.review.comment} »)` : ''}
+                      </span>
+                    {/if}
+                  </div>
+
+                  {#if editingClause && editingClause.clause.check_id === clause.check_id}
+                    <!-- Formulaire d'amendement de la clause -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs pt-2 border-t border-slate-100">
+                      <label class="space-y-1">
+                        <span class="font-semibold text-slate-700">Déclencheur (when) : si l'option cite (un terme par ligne)</span>
+                        <textarea bind:value={draftWhen} rows="3" class="w-full rounded border border-border bg-white p-2 font-mono text-xs"></textarea>
+                      </label>
+                      {#if clause.kind === 'requires'}
+                        <label class="space-y-1">
+                          <span class="font-semibold text-slate-700">Termes attendus (expect) : doit alors citer l'un de (un terme par ligne)</span>
+                          <textarea bind:value={draftExpect} rows="3" class="w-full rounded border border-border bg-white p-2 font-mono text-xs"></textarea>
+                        </label>
+                      {/if}
+                      <label class="space-y-1 md:col-span-2">
+                        <span class="font-semibold text-slate-700">Message affiché à l'architecte</span>
+                        <input bind:value={draftMessage} class="w-full rounded border border-border bg-white p-1.5 text-xs" />
+                      </label>
+                      <label class="space-y-1 md:col-span-2">
+                        <span class="font-semibold text-slate-700">Motif de l'amendement (obligatoire)</span>
+                        <input bind:value={clauseComment} placeholder="Ex: Précision des termes techniques exigés..." class="w-full rounded border border-border bg-white p-1.5 text-xs" />
+                      </label>
+                    </div>
+                  {:else}
+                    <!-- Détails de la clause : Déclencheurs, Termes attendus, Message -->
+                    <div class="text-xs space-y-1.5 text-slate-700">
+                      <p>
+                        <span class="text-muted-foreground font-semibold">Déclencheur :</span>
+                        <span>Se déclenche si l'option mentionne {clause.when.terms_all?.length ? 'tous ces termes' : "l'un de ces termes"} :</span>
+                        {#each [...(clause.when.terms_any ?? []), ...(clause.when.terms_all ?? [])] as term}
+                          <span class="inline-block text-[11px] font-mono px-1.5 py-0.5 m-0.5 rounded bg-slate-100 border border-slate-200 text-slate-800">{term}</span>
+                        {/each}
+                      </p>
+                      {#if clause.kind === 'requires' && clause.expect}
+                        <p>
+                          <span class="text-muted-foreground font-semibold">Termes attendus :</span>
+                          <span>Doit obligatoirement mentionner l'un de :</span>
+                          {#each [...(clause.expect.terms_any ?? []), ...(clause.expect.terms_all ?? [])] as term}
+                            <span class="inline-block text-[11px] font-mono px-1.5 py-0.5 m-0.5 rounded bg-primary/10 border border-primary/20 text-primary">{term}</span>
+                          {/each}
+                        </p>
+                      {/if}
+                      {#if clause.message}
+                        <p class="italic text-slate-600 bg-slate-50 p-2 rounded border border-slate-100">
+                          « {clause.message} »
+                        </p>
+                      {/if}
+                    </div>
+                  {/if}
+
+                  {#if rejectingClause && rejectingClause.clause.check_id === clause.check_id}
+                    <div class="pt-2 border-t border-slate-100 space-y-1.5">
+                      <label for="clauseRejectInput-{clause.check_id}" class="text-xs font-semibold text-rose-800 block">
+                        Motif du rejet de la clause (obligatoire) :
+                      </label>
+                      <input
+                        id="clauseRejectInput-{clause.check_id}"
+                        bind:value={clauseComment}
+                        placeholder="Ex: Règle inadaptée au contexte réglementaire..."
+                        class="w-full rounded border border-rose-300 bg-rose-50/50 p-1.5 text-xs text-rose-900"
+                      />
+                    </div>
+                  {/if}
+
+                  <!-- Actions sur la clause (décision explicite) -->
+                  <div class="pt-2 border-t border-slate-100 flex flex-wrap items-center justify-between gap-2">
+                    <div class="flex items-center gap-2">
+                      {#if isOwned}
+                        {#if editingClause && editingClause.clause.check_id === clause.check_id}
+                          <button
+                            onclick={() => decideClause(req, clause, 'amend')}
+                            disabled={clauseBusy === k || !clauseComment.trim()}
+                            data-testid="btn-confirm-amend-clause"
+                            class="px-2.5 py-1 text-xs font-semibold rounded bg-sky-600 hover:bg-sky-700 text-white transition-colors disabled:opacity-50"
+                          >
+                            Valider la clause amendée
+                          </button>
+                          <button
+                            onclick={() => (editingClause = null)}
+                            class="px-2.5 py-1 text-xs font-semibold rounded border border-border text-foreground hover:bg-muted transition-colors"
+                          >
+                            Annuler
+                          </button>
+                        {:else if rejectingClause && rejectingClause.clause.check_id === clause.check_id}
+                          <button
+                            onclick={() => decideClause(req, clause, 'reject')}
+                            disabled={clauseBusy === k || !clauseComment.trim()}
+                            data-testid="btn-confirm-reject-clause"
+                            class="px-2.5 py-1 text-xs font-semibold rounded bg-rose-600 hover:bg-rose-700 text-white transition-colors disabled:opacity-50"
+                          >
+                            Confirmer le rejet
+                          </button>
+                          <button
+                            onclick={() => (rejectingClause = null)}
+                            class="px-2.5 py-1 text-xs font-semibold rounded border border-border text-foreground hover:bg-muted transition-colors"
+                          >
+                            Annuler
+                          </button>
+                        {:else}
+                          {#if clause.status !== 'validated'}
+                            <button
+                              onclick={() => decideClause(req, clause, 'validate')}
+                              disabled={clauseBusy === k}
+                              data-testid="btn-validate-clause"
+                              class="px-2.5 py-1 text-xs font-semibold rounded bg-emerald-600 hover:bg-emerald-700 text-white flex items-center gap-1 shadow-2xs transition-colors disabled:opacity-50"
+                            >
+                              <Check class="w-3 h-3" />
+                              <span>Valider la clause</span>
+                            </button>
+                          {/if}
+                          <button
+                            onclick={() => startAmendClause(req, clause)}
+                            data-testid="btn-amend-clause"
+                            class="px-2.5 py-1 text-xs font-semibold rounded border border-border text-foreground hover:bg-muted flex items-center gap-1 transition-colors"
+                          >
+                            <Edit class="w-3 h-3" />
+                            <span>Amender la clause</span>
+                          </button>
+                          {#if clause.status !== 'rejected'}
+                            <button
+                              onclick={() => startRejectClause(req, clause)}
+                              data-testid="btn-reject-clause"
+                              class="px-2.5 py-1 text-xs font-semibold rounded border border-rose-300 text-rose-700 hover:bg-rose-50 flex items-center gap-1 transition-colors"
+                            >
+                              <X class="w-3 h-3" />
+                              <span>Rejeter la clause</span>
+                            </button>
+                          {/if}
+                        {/if}
+                      {:else}
+                        <span class="text-[11px] text-muted-foreground italic">
+                          Décision sur les clauses réservée au propriétaire du domaine
+                        </span>
+                      {/if}
+                    </div>
+
+                    {#if clauseFeedback[k]}
+                      <span class="text-xs {clauseFeedback[k].ok ? 'text-emerald-600' : 'text-rose-600'}" data-testid="clause-feedback">
+                        {clauseFeedback[k].text}
+                      </span>
+                    {/if}
+                  </div>
+                </div>
+              {/each}
+            </div>
+          {/if}
+        </div>
 
         <!-- Liaisons doctrinales -->
         <div class="flex flex-wrap items-center gap-2">

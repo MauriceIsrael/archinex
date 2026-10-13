@@ -25,6 +25,41 @@ export const load: PageServerLoad = async ({ params, locals }) => {
     throw error(404, `Référentiel '${params.id}' introuvable`);
   }
 
+  // Récupération des clauses vérifiables pour ce référentiel (contrat 1.26, #93)
+  let clausesList: any[] = [];
+  try {
+    const clausesRes = await llmopsClient.listCheckClauses(
+      { framework: res.data.framework_id },
+      user.email
+    );
+    clausesList = clausesRes.status === 'ok' ? (clausesRes.data?.clauses || []) : [];
+
+    if (clausesList.length > 0) {
+      const clausesByAsset = new Map<string, any[]>();
+      for (const c of clausesList) {
+        const list = clausesByAsset.get(c.asset_id) || [];
+        list.push(c);
+        clausesByAsset.set(c.asset_id, list);
+      }
+
+      for (const req of res.data.requirements) {
+        if (!req.checks || req.checks.length === 0) {
+          const direct = clausesByAsset.get(req.id) || [];
+          const fromMapped = req.mapped_assets.flatMap((a) => clausesByAsset.get(a) || []);
+          const merged = [...direct, ...fromMapped];
+          const seen = new Set<string>();
+          req.checks = merged.filter((c) => {
+            if (seen.has(c.check_id)) return false;
+            seen.add(c.check_id);
+            return true;
+          });
+        }
+      }
+    }
+  } catch {
+    // Non bloquant si LLMOps ne supporte pas encore les clauses sur cette instance
+  }
+
   return {
     user: {
       id: user.id,
@@ -39,6 +74,7 @@ export const load: PageServerLoad = async ({ params, locals }) => {
       /** Responsable reconnu par LLMOps : sinon ses décisions seront refusées. */
       registered: Boolean(registered)
     },
-    ingestion: res.data
+    ingestion: res.data,
+    clauses: clausesList
   };
 };

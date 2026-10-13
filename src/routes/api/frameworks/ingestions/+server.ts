@@ -1,5 +1,9 @@
 import { json } from '@sveltejs/kit';
 import { llmopsClient } from '$lib/server/llmops/client';
+import {
+  lookupDefaultFrameworkVersion,
+  isGenericFrameworkVersion
+} from '$lib/domain/regulatoryFrameworks';
 import type { RequestHandler } from './$types';
 
 export const GET: RequestHandler = async ({ url, locals }) => {
@@ -31,7 +35,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
   let framework_id = '';
   let framework_name = '';
-  let version = '1.0';
+  let version = '';
   let domain = 'security';
   let file_name = '';
   let file_format = 'txt';
@@ -45,7 +49,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
     framework_id = (formData.get('framework_id') as string) || '';
     framework_name = (formData.get('framework_name') as string) || '';
-    version = (formData.get('version') as string) || '1.0';
+    version = (formData.get('version') as string) || '';
     domain = (formData.get('domain') as string) || 'security';
 
     if (file) {
@@ -85,7 +89,7 @@ export const POST: RequestHandler = async ({ request, locals }) => {
       const body = await request.json();
       framework_id = body.framework_id || '';
       framework_name = body.framework_name || '';
-      version = body.version || '1.0';
+      version = body.version || '';
       domain = body.domain || 'security';
       file_name = body.file_name || '';
       file_format = body.file_format || 'txt';
@@ -113,6 +117,33 @@ export const POST: RequestHandler = async ({ request, locals }) => {
       { status: 'error', error: 'L’identifiant du référentiel (framework_id) ou un fichier est requis' },
       { status: 400 }
     );
+  }
+
+  // Refuser les versions manifestement génériques (#93)
+  if (version && isGenericFrameworkVersion(version)) {
+    return json(
+      {
+        status: 'error',
+        error: `La version « ${version} » est générique. Renseignez la version officielle du référentiel (ex: 2022/2555 pour NIS2, 2024/2847 pour CRA).`
+      },
+      { status: 400 }
+    );
+  }
+
+  // Pré-remplir la version selon le catalogue si non spécifiée
+  if (!version) {
+    const autoVer = lookupDefaultFrameworkVersion(framework_id) || lookupDefaultFrameworkVersion(framework_name);
+    if (autoVer && !isGenericFrameworkVersion(autoVer)) {
+      version = autoVer;
+    } else {
+      return json(
+        {
+          status: 'error',
+          error: 'La version du référentiel est requise. Renseignez la version officielle (ex: 2022/2555 pour NIS2, 2024/2847 pour CRA).'
+        },
+        { status: 400 }
+      );
+    }
   }
 
   const result = await llmopsClient.ingestFramework(

@@ -1,5 +1,9 @@
 import { describe, it, expect } from 'vitest';
-import { detectApplicableFrameworks } from '$lib/domain/regulatoryFrameworks';
+import {
+	detectApplicableFrameworks,
+	isGenericFrameworkVersion,
+	lookupDefaultFrameworkVersion
+} from '$lib/domain/regulatoryFrameworks';
 import { toViolations } from '$lib/server/compliance/complianceService';
 import { LLMOpsClient } from '$lib/server/llmops/client';
 import { coverageWarnings } from '$lib/domain/maturityRules';
@@ -64,3 +68,45 @@ describe('Couverture réglementaire lue dans LLMOps', () => {
 		expect(warnings[0].message).toContain('CRA (0 exigence(s) validée(s) sur 29)');
 	});
 });
+
+describe('Versions officielles et détection des versions génériques (#93)', () => {
+	it('identifie les versions génériques à refuser', () => {
+		expect(isGenericFrameworkVersion('1.0')).toBe(true);
+		expect(isGenericFrameworkVersion('1')).toBe(true);
+		expect(isGenericFrameworkVersion('1.0.0')).toBe(true);
+		expect(isGenericFrameworkVersion('v1')).toBe(true);
+		expect(isGenericFrameworkVersion('v1.0')).toBe(true);
+		expect(isGenericFrameworkVersion('latest')).toBe(true);
+		expect(isGenericFrameworkVersion('draft')).toBe(true);
+		expect(isGenericFrameworkVersion('')).toBe(true);
+		expect(isGenericFrameworkVersion(null)).toBe(true);
+		expect(isGenericFrameworkVersion(undefined)).toBe(true);
+
+		// Versions légales authentiques autorisées
+		expect(isGenericFrameworkVersion('2022/2555')).toBe(false);
+		expect(isGenericFrameworkVersion('2024/2847')).toBe(false);
+		expect(isGenericFrameworkVersion('2016/679')).toBe(false);
+		expect(isGenericFrameworkVersion('2022')).toBe(false);
+		expect(isGenericFrameworkVersion('3.2')).toBe(false);
+	});
+
+	it('pré-remplit la version officielle selon le catalogue ou complianceFrameworks', () => {
+		expect(lookupDefaultFrameworkVersion('NIS2')).toBe('2022/2555');
+		expect(lookupDefaultFrameworkVersion('nis2')).toBe('2022/2555');
+		expect(lookupDefaultFrameworkVersion('Directive NIS 2')).toBe('2022/2555');
+		expect(lookupDefaultFrameworkVersion('CRA')).toBe('2024/2847');
+		expect(lookupDefaultFrameworkVersion('Cyber Resilience Act')).toBe('2024/2847');
+		expect(lookupDefaultFrameworkVersion('RGPD')).toBe('2016/679');
+		expect(lookupDefaultFrameworkVersion('SecNumCloud')).toBe('3.2');
+		expect(lookupDefaultFrameworkVersion('ISO27001')).toBe('2022');
+
+		// Avec liste issue de GET /api/compliance/frameworks
+		const compliance = [
+			{ framework: 'CUSTOM-SEC', version: '2025-v2', title: 'Custom Sec' },
+			{ framework: 'NIS2', version: '2022/2555', title: 'NIS 2' }
+		];
+		expect(lookupDefaultFrameworkVersion('CUSTOM-SEC', compliance)).toBe('2025-v2');
+		expect(lookupDefaultFrameworkVersion('INCONNU')).toBeUndefined();
+	});
+});
+

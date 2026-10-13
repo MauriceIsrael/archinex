@@ -186,7 +186,29 @@ function normalizeFrameworkRequirement(r: any, fwId: string): FrameworkRequireme
     proposed_title_fr: r.proposed_title_fr || undefined,
     links_production_mode: r.links_production_mode || undefined,
     acceptance_criteria: Array.isArray(r.acceptance_criteria) ? r.acceptance_criteria : [],
-    row_status: r.status || undefined
+    row_status: r.status || undefined,
+    checks: Array.isArray(r.checks)
+      ? r.checks.map((c: any) => ({
+          asset_id: c.asset_id || reqId,
+          typed_id: c.typed_id || `control:${c.asset_id || reqId}`,
+          asset_type: c.asset_type || 'control',
+          asset_title: c.asset_title || r.title || reqId,
+          asset_title_fr: c.asset_title_fr || r.title_fr,
+          framework: c.framework || fwId,
+          severity: c.severity || 'mandatory',
+          domain: Array.isArray(c.domain) ? c.domain : [dom],
+          asset_excerpt: c.asset_excerpt || r.legal_text || r.text || '',
+          revision: c.revision ?? 1,
+          check_id: c.check_id || c.id || `${reqId}-C1`,
+          kind: c.kind || 'requires',
+          when: c.when || { terms_any: [] },
+          expect: c.expect || null,
+          message: c.message || null,
+          status: c.status || 'draft',
+          review: c.review || null,
+          may_decide: typeof c.may_decide === 'boolean' ? c.may_decide : true
+        }))
+      : undefined
   };
 }
 

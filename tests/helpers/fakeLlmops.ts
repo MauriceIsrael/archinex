@@ -45,7 +45,8 @@ import type {
   SimilarityRun,
   SimilarityZone,
   SimilarityFamily,
-  SimilarityRelation
+  SimilarityRelation,
+  CheckClauseRow
 } from '../../src/lib/types/llmops';
 
 export interface FakeLlmopsState {
@@ -62,6 +63,7 @@ export interface FakeLlmopsState {
   statements: LLMOpsStatement[];
   conflicts: LLMOpsConflict[];
   frameworkIngestions: Record<string, FrameworkIngestion>;
+  checkClauses: CheckClauseRow[];
   evalDatasets: Record<string, EvalDataset>;
   verdictFeedbacks: VerdictFeedbackItem[];
   publications: KbPublication[];
@@ -523,7 +525,44 @@ export function createDefaultFakeState(): FakeLlmopsState {
             status: 'accepted',
             mapped_assets: ['CTRL-SEC-01', 'PRIN-RES-01'],
             reviewed_by: 'expert@archinex.local',
-            reviewed_at: new Date(now.getTime() - 24 * 3600 * 1000).toISOString()
+            reviewed_at: new Date(now.getTime() - 24 * 3600 * 1000).toISOString(),
+            checks: [
+              {
+                asset_id: 'req-nis2-01',
+                typed_id: 'control:req-nis2-01',
+                asset_type: 'control',
+                asset_title: 'Mesures de gestion des risques de cybersécurité',
+                framework: 'NIS2',
+                severity: 'mandatory',
+                domain: ['security'],
+                asset_excerpt: 'Les entités essentielles et importantes prennent des mesures...',
+                revision: 1,
+                check_id: 'NIS2-ART21-1-C1',
+                kind: 'requires',
+                when: { terms_any: ['analyse de risques', 'mesures techniques'] },
+                expect: { terms_any: ['state of the art', 'proportionate', 'politique formelle'] },
+                message: 'NIS2 Art. 21(1): les mesures doivent être proportionnées et fondées sur une analyse de risques.',
+                status: 'draft',
+                may_decide: true
+              },
+              {
+                asset_id: 'req-nis2-01',
+                typed_id: 'control:req-nis2-01',
+                asset_type: 'control',
+                asset_title: 'Mesures de gestion des risques de cybersécurité',
+                framework: 'NIS2',
+                severity: 'mandatory',
+                domain: ['security'],
+                asset_excerpt: 'Les entités essentielles et importantes prennent des mesures...',
+                revision: 1,
+                check_id: 'NIS2-ART21-1-C2',
+                kind: 'forbids',
+                when: { terms_any: ['aucun contrôle de sécurité', 'absence de gouvernance'] },
+                message: 'NIS2 Art. 21(1): une absence de mesures de sécurité est interdite.',
+                status: 'draft',
+                may_decide: true
+              }
+            ]
           },
           {
             id: 'req-nis2-02',
@@ -658,6 +697,60 @@ export function createDefaultFakeState(): FakeLlmopsState {
       'toy-bow': createSeedPendingEmbeddings()
     },
     reuseConfirmations: [],
+    checkClauses: [
+      {
+        asset_id: 'req-nis2-01',
+        typed_id: 'control:req-nis2-01',
+        asset_type: 'control',
+        asset_title: 'Mesures de gestion des risques de cybersécurité',
+        framework: 'NIS2',
+        severity: 'mandatory',
+        domain: ['security'],
+        asset_excerpt: 'Les entités essentielles et importantes prennent des mesures...',
+        revision: 1,
+        check_id: 'NIS2-ART21-1-C1',
+        kind: 'requires',
+        when: { terms_any: ['analyse de risques', 'mesures techniques'] },
+        expect: { terms_any: ['state of the art', 'proportionate', 'politique formelle'] },
+        message: 'NIS2 Art. 21(1): les mesures doivent être proportionnées et fondées sur une analyse de risques.',
+        status: 'draft',
+        may_decide: true
+      },
+      {
+        asset_id: 'req-nis2-01',
+        typed_id: 'control:req-nis2-01',
+        asset_type: 'control',
+        asset_title: 'Mesures de gestion des risques de cybersécurité',
+        framework: 'NIS2',
+        severity: 'mandatory',
+        domain: ['security'],
+        asset_excerpt: 'Les entités essentielles et importantes prennent des mesures...',
+        revision: 1,
+        check_id: 'NIS2-ART21-1-C2',
+        kind: 'forbids',
+        when: { terms_any: ['aucun contrôle de sécurité', 'absence de gouvernance'] },
+        message: 'NIS2 Art. 21(1): une absence de mesures de sécurité est interdite.',
+        status: 'draft',
+        may_decide: true
+      },
+      {
+        asset_id: 'NIS2-ART21-2C',
+        typed_id: 'control:NIS2-ART21-2C',
+        asset_type: 'control',
+        asset_title: 'Continuité des activités et gestion de crise',
+        framework: 'NIS2',
+        severity: 'mandatory',
+        domain: ['security'],
+        asset_excerpt: 'Business continuity, such as backup management...',
+        revision: 2,
+        check_id: 'NIS2-ART21-2C-C1',
+        kind: 'forbids',
+        when: { terms_any: ['no backup', 'without backup', 'sans sauvegarde'] },
+        message: 'NIS2 Art. 21(2)(c): business continuity needs backups segregated from production.',
+        status: 'draft',
+        may_decide: true
+      }
+    ],
     similarityDatasets: {
       similarity_v1: {
         cases: createSeedSimilarityCases(),
@@ -2304,6 +2397,82 @@ export async function startFakeLlmopsServer(initialState?: Partial<FakeLlmopsSta
             }
           ]
         }
+      });
+    }
+
+    // GET /api/knowledge/checks (contrat 1.26, #93)
+    if (pathname === '/api/knowledge/checks' && method === 'GET') {
+      const qStatus = parsedUrl.searchParams.get('status');
+      const qFramework = parsedUrl.searchParams.get('framework');
+      const qAssetId = parsedUrl.searchParams.get('asset_id');
+
+      let clauses = [...(state.checkClauses || [])];
+      if (qStatus) clauses = clauses.filter((c) => c.status === qStatus);
+      if (qFramework) clauses = clauses.filter((c) => c.framework?.toUpperCase() === qFramework.toUpperCase());
+      if (qAssetId) clauses = clauses.filter((c) => c.asset_id === qAssetId);
+
+      const counts = {
+        draft: (state.checkClauses || []).filter((c) => c.status === 'draft').length,
+        validated: (state.checkClauses || []).filter((c) => c.status === 'validated').length,
+        rejected: (state.checkClauses || []).filter((c) => c.status === 'rejected').length
+      };
+
+      return json(200, {
+        status: 'ok',
+        data: {
+          clauses,
+          counts,
+          mandatory_without_clause: [],
+          pending_publication: 0
+        }
+      });
+    }
+
+    // PATCH /api/knowledge/assets/:assetId/checks/:checkId (contrat 1.26, #93)
+    const clausePatchMatch = pathname.match(/^\/api\/knowledge\/assets\/([^/]+)\/checks\/([^/]+)$/);
+    if (clausePatchMatch && method === 'PATCH') {
+      const assetId = decodeURIComponent(clausePatchMatch[1]);
+      const checkId = decodeURIComponent(clausePatchMatch[2]);
+      const actorEmail = (req.headers['x-actor-email'] as string) || '';
+
+      const clause = (state.checkClauses || []).find(
+        (c) => c.check_id === checkId || (c.asset_id === assetId && c.check_id === checkId)
+      );
+      if (!clause) {
+        return json(404, { status: 'not_found', error: `Clause introuvable : ${checkId}` });
+      }
+
+      const { decision, comment, clause: amended } = body || {};
+      if (!['validate', 'amend', 'reject'].includes(decision)) {
+        return json(400, { status: 'invalid', error: "Décision invalide : doit valoir 'validate', 'amend' ou 'reject'" });
+      }
+      if (decision !== 'validate' && (!comment || !comment.trim())) {
+        return json(400, { status: 'invalid', error: 'Un commentaire est obligatoire pour amender ou rejeter une clause.' });
+      }
+
+      if (decision === 'validate') {
+        clause.status = 'validated';
+      } else if (decision === 'reject') {
+        clause.status = 'rejected';
+      } else if (decision === 'amend') {
+        clause.status = 'validated';
+        if (amended) {
+          if (amended.when) clause.when = amended.when;
+          if (amended.expect) clause.expect = amended.expect;
+          if (amended.message) clause.message = amended.message;
+        }
+      }
+
+      clause.review = {
+        by: actorEmail || '@expert',
+        at: new Date().toISOString(),
+        decision,
+        comment: comment || undefined
+      };
+
+      return json(200, {
+        status: 'ok',
+        data: clause
       });
     }
 

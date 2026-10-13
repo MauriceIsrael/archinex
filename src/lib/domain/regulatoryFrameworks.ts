@@ -7,21 +7,85 @@
 export interface RegulatoryFrameworkDef {
 	code: string;
 	label: string;
+	defaultVersion: string;
 	patterns: RegExp[];
 }
 
 export const REGULATORY_FRAMEWORKS: RegulatoryFrameworkDef[] = [
-	{ code: 'NIS2', label: 'Directive NIS 2 (UE) 2022/2555', patterns: [/\bNIS\s?2\b/i, /2022\/2555/] },
-	{ code: 'RGPD', label: 'RGPD (UE) 2016/679', patterns: [/\bRGPD\b/, /\bGDPR\b/, /2016\/679/, /general data protection regulation/i, /règlement général sur la protection des données/i] },
-	{ code: 'CRA', label: 'Cyber Resilience Act (UE) 2024/2847', patterns: [/cyber resilience act/i, /2024\/2847/] },
-	{ code: 'DORA', label: 'DORA (UE) 2022/2554', patterns: [/\bDORA\b/, /2022\/2554/, /digital operational resilience/i] },
-	{ code: 'CER', label: 'Directive CER (UE) 2022/2557', patterns: [/2022\/2557/, /resilience of critical entities/i, /résilience des entités critiques/i] },
-	{ code: 'SecNumCloud', label: 'SecNumCloud (ANSSI)', patterns: [/secnumcloud/i] },
-	{ code: 'ISO27001', label: 'ISO/IEC 27001', patterns: [/ISO(?:\/IEC)?\s?27001/i] },
-	{ code: 'ISO27005', label: 'ISO/IEC 27005', patterns: [/ISO(?:\/IEC)?\s?27005/i] },
-	{ code: 'ISO22301', label: 'ISO 22301', patterns: [/ISO\s?22301/i] },
-	{ code: 'ISO14001', label: 'ISO 14001', patterns: [/ISO\s?14001/i] }
+	{ code: 'NIS2', label: 'Directive NIS 2 (UE) 2022/2555', defaultVersion: '2022/2555', patterns: [/\bNIS\s?2\b/i, /2022\/2555/] },
+	{ code: 'RGPD', label: 'RGPD (UE) 2016/679', defaultVersion: '2016/679', patterns: [/\bRGPD\b/, /\bGDPR\b/, /2016\/679/, /general data protection regulation/i, /règlement général sur la protection des données/i] },
+	{ code: 'CRA', label: 'Cyber Resilience Act (UE) 2024/2847', defaultVersion: '2024/2847', patterns: [/cyber resilience act/i, /2024\/2847/] },
+	{ code: 'DORA', label: 'DORA (UE) 2022/2554', defaultVersion: '2022/2554', patterns: [/\bDORA\b/, /2022\/2554/, /digital operational resilience/i] },
+	{ code: 'CER', label: 'Directive CER (UE) 2022/2557', defaultVersion: '2022/2557', patterns: [/2022\/2557/, /resilience of critical entities/i, /résilience des entités critiques/i] },
+	{ code: 'SecNumCloud', label: 'SecNumCloud (ANSSI)', defaultVersion: '3.2', patterns: [/secnumcloud/i] },
+	{ code: 'ISO27001', label: 'ISO/IEC 27001', defaultVersion: '2022', patterns: [/ISO(?:\/IEC)?\s?27001/i] },
+	{ code: 'ISO27005', label: 'ISO/IEC 27005', defaultVersion: '2022', patterns: [/ISO(?:\/IEC)?\s?27005/i] },
+	{ code: 'ISO22301', label: 'ISO 22301', defaultVersion: '2019', patterns: [/ISO\s?22301/i] },
+	{ code: 'ISO14001', label: 'ISO 14001', defaultVersion: '2015', patterns: [/ISO\s?14001/i] }
 ];
+
+/**
+ * Versions manifestement génériques à rejeter lors du téléversement d'un référentiel (#93).
+ */
+export const GENERIC_FRAMEWORK_VERSIONS = [
+	'1.0',
+	'1',
+	'1.0.0',
+	'v1',
+	'v1.0',
+	'v1.0.0',
+	'0.1',
+	'0.0.1',
+	'latest',
+	'draft',
+	'brouillon',
+	'default'
+];
+
+/**
+ * Détermine si une chaîne de version est manifestement générique ou vide.
+ */
+export function isGenericFrameworkVersion(version: string | undefined | null): boolean {
+	if (!version) return true;
+	const norm = version.trim().toLowerCase();
+	return !norm || GENERIC_FRAMEWORK_VERSIONS.includes(norm);
+}
+
+/**
+ * Recherche la version par défaut / officielle d'un référentiel d'après son code, son libellé ou un texte.
+ * Vérifie d'abord complianceFrameworks si fourni (issus de GET /api/compliance/frameworks),
+ * puis le catalogue REGULATORY_FRAMEWORKS.
+ */
+export function lookupDefaultFrameworkVersion(
+	frameworkCodeOrName: string,
+	complianceFrameworks?: Array<{ framework: string; version: string }>
+): string | undefined {
+	if (!frameworkCodeOrName) return undefined;
+	const trimmed = frameworkCodeOrName.trim();
+	const upper = trimmed.toUpperCase();
+
+	// 1. Recherche dans complianceFrameworks
+	if (complianceFrameworks && complianceFrameworks.length > 0) {
+		const found = complianceFrameworks.find(
+			(cf) => cf.framework.toUpperCase() === upper || cf.version.toUpperCase() === upper
+		);
+		if (found?.version && !isGenericFrameworkVersion(found.version)) {
+			return found.version;
+		}
+	}
+
+	// 2. Recherche directe par code
+	const byCode = REGULATORY_FRAMEWORKS.find((f) => f.code.toUpperCase() === upper);
+	if (byCode) return byCode.defaultVersion;
+
+	// 3. Recherche par libellé ou patterns regex
+	const byPattern = REGULATORY_FRAMEWORKS.find(
+		(f) => f.label.toUpperCase() === upper || f.patterns.some((p) => p.test(trimmed))
+	);
+	if (byPattern) return byPattern.defaultVersion;
+
+	return undefined;
+}
 
 export interface DetectedFramework {
 	code: string;

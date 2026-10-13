@@ -56,7 +56,8 @@ describe('Expert Email Invitations & Account Activation Contract', () => {
 		expect(inv).not.toBeNull();
 
 		const result = await sendInvitationEmail(inv!, 'http://localhost:5173');
-		expect(result.sent).toBe(true);
+		expect(result.sent).toBe(false);
+		expect(result.simulated).toBe(true);
 		expect(result.inviteUrl).toBe(`http://localhost:5173/invite?token=${createdToken}`);
 		expect(result.recipient).toBe(testEmail);
 		expect(result.subject).toContain('Refonte Télécom Critique 2027');

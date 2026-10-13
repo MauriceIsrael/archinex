@@ -1,8 +1,13 @@
 import type { Invitation } from './invitations';
 
 export interface EmailDispatchResult {
+	/** true uniquement si un transport réel a effectivement remis le message. */
 	sent: boolean;
+	/** true si aucun SMTP n'est configuré : rien n'a été expédié, le lien est à transmettre manuellement. */
+	simulated: boolean;
 	method: 'simulated' | 'smtp';
+	/** Motif lorsque le message n'a pas été expédié. */
+	reason?: string;
 	messageId: string;
 	recipient: string;
 	subject: string;
@@ -108,12 +113,22 @@ Archinex · Plateforme de Délibération & Gouvernance d'Architecture
 
 	const messageId = `msg_${Date.now()}_${Math.random().toString(36).substring(2, 8)}@archinex.local`;
 
-	// Mode souverain local (envoi simulé immédiat avec journalisation)
-	console.log(`[Archinex Mailer] Invitation email dispatched to ${invitation.email} for project "${projectName}" (token: ${invitation.token})`);
+	const smtpConfigured = Boolean(process.env.SMTP_HOST || process.env.SMTP_URL);
+
+	// Aucun transport SMTP n'est implémenté : même configuré, on ne prétend jamais avoir envoyé.
+	const reason = smtpConfigured
+		? "SMTP configuré mais aucun transport n'est disponible : e-mail non expédié."
+		: 'Aucun SMTP configuré (SMTP_HOST) : e-mail simulé, non expédié.';
+	const isProd = process.env.NODE_ENV === 'production';
+	// Le lien contient le jeton (secret) : jamais journalisé en clair en production.
+	const linkSuffix = isProd ? '' : `, lien : ${inviteUrl}`;
+	console.warn(`[Archinex Mailer] ${reason} Destinataire : ${invitation.email}, projet "${projectName}"${linkSuffix}`);
 
 	return {
-		sent: true,
-		method: 'simulated',
+		sent: false,
+		simulated: !smtpConfigured,
+		method: smtpConfigured ? 'smtp' : 'simulated',
+		reason,
 		messageId,
 		recipient: invitation.email,
 		subject,

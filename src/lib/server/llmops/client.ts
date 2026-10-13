@@ -796,14 +796,13 @@ export class LLMOpsClient {
             'Vérifiez la file des candidats avant de la renvoyer.'
         );
       }
-      // Serveur injoignable (connexion refusée) -> repli hors-ligne uniquement
+      // Serveur injoignable : la candidature n'a PAS atteint le hub. Ne jamais fabriquer d'identifiant
+      // (CAND-LOCAL-…) qui ferait croire à une proposition enregistrée : l'appelant doit réessayer plus tard.
+      throw new Error(
+        'Erreur HTTP : LLMOps est injoignable ; la candidature n’a pas été transmise à la base de connaissances. ' +
+          'Réessayez lorsque le serveur sera disponible.'
+      );
     }
-
-    const localId = `CAND-LOCAL-${Date.now().toString(36).toUpperCase()}`;
-    return {
-      candidate_id: localId,
-      status: 'in_review'
-    };
   }
 
   /**

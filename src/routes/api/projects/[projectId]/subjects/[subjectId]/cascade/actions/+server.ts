@@ -110,12 +110,13 @@ export const POST: RequestHandler = async (event) => {
 
 			return json({ status: 'ok', candidateId: candidateRes.candidate_id });
 		} catch (err: any) {
-			const fallbackId = `cand-local-${Date.now()}`;
-			return json({
-				status: 'ok',
-				candidateId: fallbackId,
-				message: 'Candidature enregistrée en local (signal de capitalisation K7/K22)'
-			});
+			return json(
+				{
+					status: 'error',
+					error: err?.message || 'La candidature n’a pas pu être transmise à LLMOps.'
+				},
+				{ status: 502 }
+			);
 		}
 	}
 

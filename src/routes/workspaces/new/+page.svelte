@@ -57,15 +57,9 @@
 			if (!detectedFrameworks.some((d) => d.code === fw.code)) detectedFrameworks = [...detectedFrameworks, fw];
 			if (!applicableFrameworks.includes(fw.code)) applicableFrameworks = [...applicableFrameworks, fw.code];
 		}
-		// Les exemples non modifiés laissent la place au RFP : ils ne doivent pas finir dans le projet.
-		const isUntouched = (current: unknown, example: unknown) => JSON.stringify(current) === JSON.stringify(example);
-		upstreamDocs = isUntouched($state.snapshot(upstreamDocs), EXAMPLE_UPSTREAM_DOCS)
-			? [result.document]
-			: [...upstreamDocs, result.document];
+		upstreamDocs = [...upstreamDocs, result.document];
 		if (result.initialSubjects && result.initialSubjects.length > 0) {
-			initialSubjects = isUntouched($state.snapshot(initialSubjects), EXAMPLE_SUBJECTS)
-				? result.initialSubjects
-				: [...initialSubjects, ...result.initialSubjects];
+			initialSubjects = [...initialSubjects, ...result.initialSubjects];
 		}
 		if (!title.trim()) title = result.document.title;
 		rfpImportSummary = {
@@ -107,57 +101,21 @@
 	let projectType = $state<EngagementType>('project_rfp');
 	let badge = $state('');
 	let description = $state('');
-	let targetDate = $state('2027-12-31');
-	let budget = $state('1.8 M€');
+	let targetDate = $state('');
+	let budget = $state('');
 
 	// Étape 2 : Stratégie
-	let objectives = $state<string[]>([
-		'Disponibilité continue 99.999% sans point unique de défaillance',
-		'Souveraineté logicielle & matérielle (100% On-Premise / Local)',
-		'Conformité stricte Directive NIS2 & Doctrine ANSSI'
-	]);
+	let objectives = $state<string[]>([]);
 	let newObjective = $state('');
 
-	let principles = $state<string[]>([
-		'Sécurité Zero-Trust par défaut à tous les étages',
-		'Anti-blabla : concision formelle et chiffrage des conséquences matérielles',
-		'Validation humaine obligatoire sur tout énoncé vérifié'
-	]);
+	let principles = $state<string[]>([]);
 	let newPrinciple = $state('');
 
-	let constraints = $state<string[]>([
-		'Hébergement exclusivement en France / Union Européenne',
-		'Plafond budgétaire infrastructure non dépassable'
-	]);
+	let constraints = $state<string[]>([]);
 	let newConstraint = $state('');
 
 	// Étape 3 : Docs Amonts
-	// Exemple affiché tant qu'aucun document réel n'est versé ; remplacé par le premier RFP importé.
-	const EXAMPLE_UPSTREAM_DOCS: UpstreamDocInput[] = [
-		{
-			title: 'CCTP Lot 1 · Cahier des Charges Principal & Spécifications',
-			category: 'cctp',
-			categoryLabel: 'CCTP Contractuel',
-			sourceOrAuthor: 'Maîtrise d\'Ouvrage Client',
-			version: 'v1.0',
-			pageCount: 120,
-			summary: 'Exigences contractuelles d\'infrastructure, de résilience et de haute disponibilité pour la plateforme cible.',
-			keyIdeas: [
-				'Réseau souverain dédié aux flux critiques.',
-				'Séparation étanche des plans de contrôle et usagers.'
-			],
-			clauses: [
-				{
-					clauseRef: 'Art. 2.1.1',
-					title: 'Redondance active-active',
-					text: 'L\'ensemble des composants nodaux doit fonctionner en mode actif-actif sans perte de paquets lors d\'une bascule.',
-					criticality: 'bloquant',
-					impactSummary: 'Conditionne le choix de l\'orchestrateur et des répartiteurs'
-				}
-			]
-		}
-	];
-	let upstreamDocs = $state<UpstreamDocInput[]>(structuredClone(EXAMPLE_UPSTREAM_DOCS));
+	let upstreamDocs = $state<UpstreamDocInput[]>([]);
 
 	let selectedStandards = $state<string[]>(['DOC-EXT-03', 'DOC-EXT-04']);
 
@@ -167,37 +125,7 @@
 	]);
 
 	// Étape 5 : Sujets initiaux
-	// Exemples affichés tant qu'aucun sujet réel n'est fourni ; remplacés par les sujets d'un RFP importé.
-	const EXAMPLE_SUBJECTS: InitialSubjectInput[] = [
-		{
-			sectionRef: '§1.1',
-			name: 'Cadrage Stratégique & Exigences Globales',
-			waitingForRole: 'lead_architect',
-			effort: 'M',
-			initialRetenu: ['Validation formelle des principes directeurs'],
-			initialHypothesis: 'Périmètre validé par le comité d\'architecture',
-			initialQuestion: 'Quels sont les jalons de validation du comité de direction ?'
-		},
-		{
-			sectionRef: '§2.1',
-			name: 'Socle d\'Infrastructure & Résilience N+1',
-			waitingForRole: 'infra_expert_architect',
-			effort: 'L',
-			initialRetenu: ['Architecture hautement disponible N+1'],
-			initialHypothesis: 'Hébergement souverain sans dépendance externe',
-			initialQuestion: 'Quelle matrice de compatibilité matérielle minimale ?'
-		},
-		{
-			sectionRef: '§3.1',
-			name: 'Sécurité Zero-Trust & Homologation ANSSI/NIS2',
-			waitingForRole: 'security_architect',
-			effort: 'M',
-			initialRetenu: ['Chiffrement systématique au repos et en transit'],
-			initialHypothesis: 'Conformité NIS2 et guide d\'hygiène ANSSI',
-			initialQuestion: 'Quelles exigences de chiffrement pour les flux d\'administration ?'
-		}
-	];
-	let initialSubjects = $state<InitialSubjectInput[]>(structuredClone(EXAMPLE_SUBJECTS));
+	let initialSubjects = $state<InitialSubjectInput[]>([]);
 
 	function applyPreset(presetId: string) {
 		const found = WORKSPACE_PRESETS.find((p) => p.id === presetId);
@@ -208,8 +136,8 @@
 		projectType = p.type;
 		badge = p.badge || '';
 		description = p.description;
-		targetDate = p.strategy.targetDate || '2027-12-31';
-		budget = p.strategy.budget || '1.8 M€';
+		targetDate = p.strategy.targetDate || '';
+		budget = p.strategy.budget || '';
 		objectives = [...p.strategy.objectives];
 		principles = [...p.strategy.principles];
 		constraints = [...p.strategy.constraints];

@@ -20,6 +20,7 @@
   import FileText from 'lucide-svelte/icons/file-text';
   import CheckCircle from 'lucide-svelte/icons/check-circle';
   import Database from 'lucide-svelte/icons/database';
+  import ShieldCheck from 'lucide-svelte/icons/shield-check';
 
 
   import { Button } from '$lib/components/ui/button';
@@ -211,6 +212,10 @@
             <DropdownMenu.Item onclick={() => goto('/kb/workshop')} class="cursor-pointer">
               <Sparkles class="mr-2 h-4 w-4 text-primary" />
               Atelier de Doctrine
+            </DropdownMenu.Item>
+            <DropdownMenu.Item onclick={() => goto('/kb/clauses')} class="cursor-pointer">
+              <ShieldCheck class="mr-2 h-4 w-4 text-primary" />
+              Clauses vérifiables
             </DropdownMenu.Item>
             <DropdownMenu.Item onclick={() => goto('/kb/frameworks')} class="cursor-pointer">
               <FileText class="mr-2 h-4 w-4 text-primary" />

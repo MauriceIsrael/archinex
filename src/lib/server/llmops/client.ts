@@ -106,6 +106,7 @@ import type {
 } from './types';
 
 import { HubApiError } from '$lib/types/llmops';
+import { parseHubFactVocabulary, type HubFactVocabulary } from '$lib/domain/hubFactVocabulary';
 export { HubApiError };
 
 export interface LLMOpsClientConfig {
@@ -3701,6 +3702,12 @@ export class LLMOpsClient {
   }
 
   // --- Decisions & Machine-Readable Facts (K16 & K18) -----------------------
+
+  /** Vocabulaire des faits du Hub (K18), tel que le porte son instantané de connaissance scellé. */
+  async getFactVocabulary(): Promise<HubFactVocabulary> {
+    const { data } = await this.getLatestSnapshot();
+    return parseHubFactVocabulary(data);
+  }
 
   async addDecision(
     engagementId: string,

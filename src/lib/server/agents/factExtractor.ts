@@ -49,6 +49,8 @@ export async function extractFactsForDecision(input: {
 	retainedOptionTitle: string;
 	retainedOptionSummary?: string;
 	allowedVocabularyKeys?: string[];
+	/** Type attendu de la valeur de chaque clé (vocabulaire du Hub) : « nombre entier ≥ 1 », « une de ces valeurs exactes : … ». */
+	keyHints?: Record<string, string>;
 }): Promise<ExtractedFact[]> {
 	const allowedKeys =
 		input.allowedVocabularyKeys && input.allowedVocabularyKeys.length > 0
@@ -60,9 +62,9 @@ export async function extractFactsForDecision(input: {
 	const systemPrompt = `Tu es l'agent Synthesizer d'Archinex, spécialisé dans l'extraction de faits d'architecture machine-lisibles (K18).
 Ton rôle : analyser la décision prise et extraire des faits structurés.
 RÈGLE D'OR ABSOLUE : Tu n'as le droit d'utiliser QUE les clés exactes de la liste suivante :
-${allowedKeys.map((k) => `- "${k}"`).join('\n')}
+${allowedKeys.map((k) => `- "${k}"${input.keyHints?.[k] ? ` — valeur : ${input.keyHints[k]}` : ''}`).join('\n')}
 
-TOUTE AUTRE CLÉ EST STRICTEMENT INTERDITE ET SERA REJETÉE. Si aucune information ne correspond à une clé, n'invente rien.
+${input.keyHints ? "La valeur de chaque fait respecte EXACTEMENT le type indiqué à côté de sa clé (un nombre s'écrit en chiffres, une énumération reprend la valeur exacte). Si le texte ne permet pas de la donner ainsi, n'écris pas le fait.\n" : ''}TOUTE AUTRE CLÉ EST STRICTEMENT INTERDITE ET SERA REJETÉE. Si aucune information ne correspond à une clé, n'invente rien.
 Réponds STRICTEMENT par un JSON valide :
 {
   "facts": [

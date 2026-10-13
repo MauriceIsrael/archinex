@@ -56,6 +56,7 @@ import type {
   VerdictFeedbackItem,
   KbHealthMetrics,
   KbPublication,
+  AssetHistoryResponse,
   KbCampaign,
   EmbeddingPendingItem,
   EmbeddingDeposit,
@@ -438,8 +439,9 @@ export class LLMOpsClient {
         const data = (await res.json()) as LLMOpsSnapshot;
         return { data, source: 'live' };
       }
-    } catch {
-      // Fallback
+    } catch (err: unknown) {
+      const orig = err instanceof Error ? ` (${err.message})` : '';
+      throw new Error(`LLMOps injoignable (${this.baseUrl}) : aucun instantané scellé disponible${orig}`);
     }
 
     throw new Error(`LLMOps injoignable (${this.baseUrl}) : aucun instantané scellé disponible.`);
@@ -1746,12 +1748,14 @@ export class LLMOpsClient {
    * Clauses vérifiables de la doctrine et leur statut propre (GET /api/knowledge/checks, contrat 1.26)
    */
   async listCheckClauses(
-    filters: { status?: string; framework?: string; type?: string; asset_id?: string },
+    filters: { status?: string; framework?: string; type?: string; asset_id?: string } = {},
     actorEmail?: string
   ): Promise<{ status: 'ok' | 'error' | 'unavailable'; data?: CheckClausesList; error?: string }> {
     try {
       const q = new URLSearchParams();
-      for (const [k, v] of Object.entries(filters)) if (v) q.set(k, v);
+      if (filters) {
+        for (const [k, v] of Object.entries(filters)) if (v) q.set(k, v);
+      }
       const res = await this.fetchWithTimeout(`${this.baseUrl}/api/knowledge/checks?${q.toString()}`, {
         headers: this.getHeaders(undefined, actorEmail)
       });
@@ -2880,18 +2884,47 @@ export class LLMOpsClient {
    * Sinon (LLMOps réel), l'historique est dérivé des candidats 'published' et de /health.
    */
   async listKbPublications(
-    actorEmail?: string
+    optionsOrActorEmail?:
+      | string
+      | {
+          entry_type?: string;
+          type?: string;
+          framework?: string;
+          actorEmail?: string;
+        },
+    maybeActorEmail?: string
   ): Promise<{ status: 'ok' | 'error' | 'unavailable'; data?: KbPublication[]; error?: string }> {
+    const isOptions = typeof optionsOrActorEmail === 'object' && optionsOrActorEmail !== null;
+    const actorEmail = isOptions
+      ? optionsOrActorEmail.actorEmail
+      : typeof optionsOrActorEmail === 'string'
+        ? optionsOrActorEmail
+        : maybeActorEmail;
+    const queryParams = new URLSearchParams();
+    if (isOptions) {
+      if (optionsOrActorEmail.entry_type) queryParams.set('entry_type', optionsOrActorEmail.entry_type);
+      if (optionsOrActorEmail.type) queryParams.set('type', optionsOrActorEmail.type);
+      if (optionsOrActorEmail.framework) queryParams.set('framework', optionsOrActorEmail.framework);
+    }
+    const queryString = queryParams.toString() ? `?${queryParams.toString()}` : '';
+
     try {
-      const url = `${this.baseUrl}/api/knowledge/publications`;
+      const url = `${this.baseUrl}/api/knowledge/publications${queryString}`;
       const res = await this.fetchWithTimeout(url, {
         headers: this.getHeaders(undefined, actorEmail)
       });
       if (res.ok) {
         const body = await res.json();
+        const pubs = Array.isArray(body)
+          ? body
+          : Array.isArray(body.publications)
+            ? body.publications
+            : Array.isArray(body.data)
+              ? body.data
+              : [];
         return {
           status: 'ok',
-          data: body.data || body
+          data: pubs
         };
       }
     } catch {
@@ -2972,6 +3005,46 @@ export class LLMOpsClient {
       return {
         status: 'unavailable',
         error: 'Mode hors-ligne : historique des publications indisponible'
+      };
+    }
+  }
+
+  /**
+   * Récupère l'historique successif d'un actif (Contrat 1.27 / Archinex #95 / LLMOps #108).
+   * Appelle GET /api/knowledge/assets/{id}/history
+   */
+  async getAssetHistory(
+    assetId: string,
+    actorEmail?: string
+  ): Promise<{ status: 'ok' | 'not_found' | 'error' | 'unavailable'; data?: AssetHistoryResponse; error?: string }> {
+    try {
+      const url = `${this.baseUrl}/api/knowledge/assets/${encodeURIComponent(assetId)}/history`;
+      const res = await this.fetchWithTimeout(url, {
+        headers: this.getHeaders(undefined, actorEmail)
+      });
+      if (res.status === 404) {
+        const body = await res.json().catch(() => ({}));
+        return {
+          status: 'not_found',
+          error: body.detail || body.error || 'Actif introuvable'
+        };
+      }
+      if (res.ok) {
+        const body = await res.json();
+        return {
+          status: 'ok',
+          data: body.data || body
+        };
+      }
+      const body = await res.json().catch(() => ({}));
+      return {
+        status: 'error',
+        error: body.detail || body.error || `Erreur HTTP ${res.status}`
+      };
+    } catch (err: unknown) {
+      return {
+        status: 'unavailable',
+        error: err instanceof Error ? err.message : 'Service LLMOps indisponible'
       };
     }
   }

@@ -4,10 +4,13 @@ import type { KnowledgeSnapshot } from '$lib/domain/knowledgeGraph';
 
 export const load: PageServerLoad = async ({ url }) => {
   const initialFramework = url.searchParams.get('framework') || '';
+  const initialTab = url.searchParams.get('tab') || '';
   try {
-    const [result, complianceRes] = await Promise.all([
+    const [result, complianceRes, clausesRes, publicationsRes] = await Promise.all([
       llmopsClient.getLatestSnapshot(),
-      llmopsClient.getComplianceFrameworks()
+      llmopsClient.getComplianceFrameworks(),
+      llmopsClient.listCheckClauses(),
+      llmopsClient.listKbPublications()
     ]);
 
     const snapshot = result.data as unknown as KnowledgeSnapshot;
@@ -41,7 +44,10 @@ export const load: PageServerLoad = async ({ url }) => {
     return {
       snapshot,
       source: result.source,
-      initialFramework
+      initialFramework,
+      checkClauses: clausesRes.data?.clauses || [],
+      publications: publicationsRes.data || [],
+      initialTab
     };
   } catch (err: unknown) {
     const errorMsg = err instanceof Error ? err.message : 'Impossible de charger le snapshot de connaissances';
@@ -55,6 +61,9 @@ export const load: PageServerLoad = async ({ url }) => {
       } as KnowledgeSnapshot,
       source: 'offline-error',
       initialFramework,
+      checkClauses: [],
+      publications: [],
+      initialTab,
       error: errorMsg
     };
   }

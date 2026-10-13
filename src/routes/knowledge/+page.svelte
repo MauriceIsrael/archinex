@@ -25,21 +25,247 @@
     X,
     PanelRightOpen,
     PanelRightClose,
-    Check
+    Check,
+    ShieldCheck,
+    History,
+    Database,
+    AlertTriangle,
+    XCircle,
+    Info,
+    ExternalLink,
+    Calendar,
+    UserCheck
   } from 'lucide-svelte';
+  import type { CheckClauseRow, KbPublication } from '$lib/types/llmops';
 
   let { data }: { data: PageData } = $props();
 
   const snapshot: KnowledgeSnapshot = $derived(data.snapshot);
   const source = $derived(data.source);
+  const checkClauses: CheckClauseRow[] = $derived((data as any).checkClauses || []);
+  const publications: KbPublication[] = $derived((data as any).publications || []);
+
+  const isBaseEmpty = $derived.by(() => {
+    return (!snapshot.assets || snapshot.assets.length === 0) && (!snapshot.controls || snapshot.controls.length === 0);
+  });
 
   // Engagement sélectionné pour l'éclairage (par défaut, l'engagement actif dans deliberationStore)
   let selectedEngagementId = $state<string>(deliberationStore.activeEngagementId);
   let filterOnlyMatched = $state(false);
   let searchQuery = $state<string>((data as any).initialFramework || '');
   
-  // Mode d'affichage : 'stacked' (3 graphes empilés), 'combined' (3 colonnes), 'table' (catalogue)
-  let viewMode = $state<'stacked' | 'combined' | 'table'>((data as any).initialFramework ? 'table' : 'stacked');
+  // Mode d'affichage : 'opposable' | 'journal' | 'stacked' | 'combined' | 'table'
+  let viewMode = $state<'opposable' | 'journal' | 'stacked' | 'combined' | 'table'>(
+    (data as any).initialTab === 'journal' ? 'journal' :
+    (data as any).initialTab === 'table' ? 'table' :
+    (data as any).initialTab === 'stacked' ? 'stacked' :
+    'opposable'
+  );
+
+  // Filtres pour la vue Opposable
+  let opposableDomain = $state<string>('');
+  let opposableType = $state<string>('');
+  let opposableFramework = $state<string>((data as any).initialFramework || '');
+  let opposableStatus = $state<string>('');
+  let opposableSearch = $state<string>('');
+
+  // Filtres pour le Journal
+  let journalEntryPath = $state<string>('');
+  let journalSearch = $state<string>('');
+
+  const clausesByAssetId = $derived.by(() => {
+    const map = new Map<string, CheckClauseRow[]>();
+    for (const cl of checkClauses) {
+      const list = map.get(cl.asset_id) || [];
+      list.push(cl);
+      map.set(cl.asset_id, list);
+    }
+    return map;
+  });
+
+  const uniqueDomains = $derived.by(() => {
+    const set = new Set<string>();
+    for (const a of snapshot.assets || []) {
+      if (a.domain) set.add(a.domain);
+    }
+    for (const c of snapshot.controls || []) {
+      if (c.domain) set.add(c.domain);
+    }
+    return Array.from(set).sort();
+  });
+
+  const uniqueFrameworks = $derived.by(() => {
+    const set = new Set<string>();
+    for (const c of snapshot.controls || []) {
+      if (c.framework) set.add(c.framework);
+    }
+    for (const a of snapshot.assets || []) {
+      if ((a as any).framework) set.add((a as any).framework);
+    }
+    return Array.from(set).sort();
+  });
+
+  interface OpposableAssetItem {
+    id: string;
+    title: string;
+    type: string;
+    domain: string;
+    framework?: string;
+    clauses: CheckClauseRow[];
+    badge: 'bloque' | 'avertit' | 'rejetée' | 'informe';
+    summary?: string;
+  }
+
+  const allOpposableItems = $derived.by(() => {
+    const items: OpposableAssetItem[] = [];
+
+    for (const a of snapshot.assets || []) {
+      const assetClauses = clausesByAssetId.get(a.id) || [];
+      let badge: 'bloque' | 'avertit' | 'rejetée' | 'informe' = 'informe';
+      if (assetClauses.length > 0) {
+        if (assetClauses.some((c) => c.status === 'validated')) {
+          badge = 'bloque';
+        } else if (assetClauses.some((c) => c.status === 'draft')) {
+          badge = 'avertit';
+        } else if (assetClauses.every((c) => c.status === 'rejected')) {
+          badge = 'rejetée';
+        }
+      }
+      items.push({
+        id: a.id,
+        title: a.title,
+        type: a.type,
+        domain: a.domain || 'général',
+        framework: (a as any).framework,
+        clauses: assetClauses,
+        badge,
+        summary: a.summary
+      });
+    }
+
+    for (const c of snapshot.controls || []) {
+      const ctrlClauses = clausesByAssetId.get(c.id) || [];
+      let badge: 'bloque' | 'avertit' | 'rejetée' | 'informe' = 'informe';
+      if (ctrlClauses.length > 0) {
+        if (ctrlClauses.some((cl) => cl.status === 'validated')) {
+          badge = 'bloque';
+        } else if (ctrlClauses.some((cl) => cl.status === 'draft')) {
+          badge = 'avertit';
+        } else if (ctrlClauses.every((cl) => cl.status === 'rejected')) {
+          badge = 'rejetée';
+        }
+      }
+      items.push({
+        id: c.id,
+        title: c.title,
+        type: 'control',
+        domain: c.domain || 'conformité',
+        framework: c.framework,
+        clauses: ctrlClauses,
+        badge,
+        summary: c.text
+      });
+    }
+
+    return items;
+  });
+
+  const filteredOpposableItems = $derived.by(() => {
+    return allOpposableItems.filter((item) => {
+      if (opposableDomain && item.domain !== opposableDomain) return false;
+      if (opposableType && item.type !== opposableType) return false;
+      if (opposableFramework) {
+        if (opposableFramework === '__transverse__') {
+          if (item.framework) return false;
+        } else if (item.framework !== opposableFramework) {
+          return false;
+        }
+      }
+      if (opposableStatus) {
+        if (opposableStatus === 'bloque' && item.badge !== 'bloque') return false;
+        if (opposableStatus === 'avertit' && item.badge !== 'avertit') return false;
+        if (opposableStatus === 'rejetee' && item.badge !== 'rejetée') return false;
+        if (opposableStatus === 'informe' && item.badge !== 'informe') return false;
+      }
+      if (opposableSearch.trim()) {
+        const q = opposableSearch.toLowerCase();
+        const matchesId = item.id.toLowerCase().includes(q);
+        const matchesTitle = item.title.toLowerCase().includes(q);
+        const matchesClause = item.clauses.some((c) => (c.message || '').toLowerCase().includes(q));
+        if (!matchesId && !matchesTitle && !matchesClause) return false;
+      }
+      return true;
+    });
+  });
+
+  const groupedOpposable = $derived.by(() => {
+    const map = new Map<string, OpposableAssetItem[]>();
+    for (const item of filteredOpposableItems) {
+      const fwKey = item.framework || 'Transverse / Socle Commun';
+      const list = map.get(fwKey) || [];
+      list.push(item);
+      map.set(fwKey, list);
+    }
+    return Array.from(map.entries());
+  });
+
+  const filteredPublications = $derived.by(() => {
+    return publications.filter((pub) => {
+      if (journalEntryPath && pub.entry_path?.type !== journalEntryPath) return false;
+      if (journalSearch.trim()) {
+        const q = journalSearch.toLowerCase();
+        const matchesId = pub.snapshot_id.toLowerCase().includes(q);
+        const matchesChangelog = (pub.changelog || '').toLowerCase().includes(q);
+        const matchesAuthor = (pub.published_by || '').toLowerCase().includes(q);
+        const matchesReviewers = (pub.reviewers || []).some((r) => r.toLowerCase().includes(q));
+        if (!matchesId && !matchesChangelog && !matchesAuthor && !matchesReviewers) return false;
+      }
+      return true;
+    });
+  });
+
+  function getBadgeConfig(badge: 'bloque' | 'avertit' | 'rejetée' | 'informe') {
+    switch (badge) {
+      case 'bloque':
+        return {
+          label: 'bloque',
+          class: 'bg-rose-500/15 text-rose-600 dark:text-rose-400 border-rose-500/30',
+          dot: 'bg-rose-500'
+        };
+      case 'avertit':
+        return {
+          label: 'avertit',
+          class: 'bg-amber-500/15 text-amber-600 dark:text-amber-400 border-amber-500/30',
+          dot: 'bg-amber-500'
+        };
+      case 'rejetée':
+        return {
+          label: 'rejetée',
+          class: 'bg-zinc-500/15 text-zinc-600 dark:text-zinc-400 border-zinc-500/30',
+          dot: 'bg-zinc-500'
+        };
+      case 'informe':
+      default:
+        return {
+          label: 'informe',
+          class: 'bg-sky-500/15 text-sky-600 dark:text-sky-400 border-sky-500/30',
+          dot: 'bg-sky-500'
+        };
+    }
+  }
+
+  function formatDate(d?: string | null) {
+    if (!d) return '—';
+    try {
+      return new Date(d).toLocaleDateString('fr-FR', {
+        year: 'numeric',
+        month: 'short',
+        day: 'numeric'
+      });
+    } catch {
+      return d;
+    }
+  }
 
   const uniqueControlFrameworks = $derived.by(() => {
     const fws = new Set<string>();
@@ -273,28 +499,42 @@
   <!-- BARRE D'OUTILS & SÉLECTEUR DE MODE DE DISPOSITION                         -->
   <!-- ═════════════════════════════════════════════════════════════════════════ -->
   <div class="flex flex-col md:flex-row items-stretch md:items-center justify-between gap-3 bg-card border border-border p-3.5 rounded-xl shadow-2xs">
-    <!-- Onglets de vue (Empilé vs Combiné vs Grille) -->
+    <!-- Onglets de vue (Opposable vs Journal vs Empilé vs Combiné vs Catalogue) -->
     <div class="flex flex-wrap items-center gap-1 bg-muted p-1 rounded-lg">
+      <button
+        onclick={() => (viewMode = 'opposable')}
+        class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all {viewMode === 'opposable' ? 'bg-card text-foreground shadow-xs' : 'text-muted-foreground hover:text-foreground'}"
+      >
+        <ShieldCheck class="h-3.5 w-3.5 text-rose-500" />
+        Doctrine Opposable
+      </button>
+      <button
+        onclick={() => (viewMode = 'journal')}
+        class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all {viewMode === 'journal' ? 'bg-card text-foreground shadow-xs' : 'text-muted-foreground hover:text-foreground'}"
+      >
+        <History class="h-3.5 w-3.5 text-emerald-500" />
+        Journal ({publications.length})
+      </button>
       <button
         onclick={() => (viewMode = 'stacked')}
         class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all {viewMode === 'stacked' ? 'bg-card text-foreground shadow-xs' : 'text-muted-foreground hover:text-foreground'}"
       >
         <Rows3 class="h-3.5 w-3.5 text-primary" />
-        3 Graphes Dédiés (Pleine Largeur)
+        3 Graphes
       </button>
       <button
         onclick={() => (viewMode = 'combined')}
         class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all {viewMode === 'combined' ? 'bg-card text-foreground shadow-xs' : 'text-muted-foreground hover:text-foreground'}"
       >
         <Columns3 class="h-3.5 w-3.5 text-violet-500" />
-        Vue Combinée (3 Colonnes)
+        Vue Combinée
       </button>
       <button
         onclick={() => (viewMode = 'table')}
         class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all {viewMode === 'table' ? 'bg-card text-foreground shadow-xs' : 'text-muted-foreground hover:text-foreground'}"
       >
         <ListFilter class="h-3.5 w-3.5" />
-        Catalogue Détaillé ({snapshot.assets.length + (snapshot.controls?.length || 0)})
+        Catalogue ({snapshot.assets.length + (snapshot.controls?.length || 0)})
       </button>
     </div>
 
@@ -344,9 +584,389 @@
   </div>
 
   <!-- ═════════════════════════════════════════════════════════════════════════ -->
+  <!-- ÉTAT SOCLE VIDE EXPLICITE (Archinex #95)                                   -->
+  <!-- ═════════════════════════════════════════════════════════════════════════ -->
+  {#if isBaseEmpty}
+    <div data-testid="empty-base-state" class="rounded-2xl border border-dashed border-border bg-card p-10 sm:p-14 text-center space-y-4 max-w-2xl mx-auto my-8">
+      <div class="p-4 rounded-2xl bg-muted/60 text-muted-foreground w-16 h-16 mx-auto flex items-center justify-center">
+        <Database class="h-8 w-8 text-primary" />
+      </div>
+      <div class="space-y-2">
+        <h2 class="text-xl font-bold text-foreground">Socle de doctrine vide</h2>
+        <p class="text-sm text-muted-foreground leading-relaxed">
+          Aucun actif d'architecture (principes, patrons, ADRs) ni contrôle réglementaire n'a encore été publié dans cette base de connaissances.
+        </p>
+      </div>
+      <div class="flex flex-wrap items-center justify-center gap-3 pt-2">
+        <a
+          href="/kb/workshop"
+          class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-primary text-primary-foreground text-xs font-semibold hover:bg-primary/90 transition-colors shadow-xs"
+        >
+          <Sparkles class="h-4 w-4" />
+          <span>Ouvrir l'Atelier de Doctrine</span>
+        </a>
+        <a
+          href="/frameworks"
+          class="inline-flex items-center gap-2 px-4 py-2 rounded-xl border border-border bg-muted/30 hover:bg-muted text-xs font-semibold text-foreground transition-colors"
+        >
+          <Shield class="h-4 w-4" />
+          <span>Ingérer un Référentiel</span>
+        </a>
+      </div>
+    </div>
+
+  <!-- ═════════════════════════════════════════════════════════════════════════ -->
+  <!-- VUE « OPPOSABLE » : DOCTRINE OPPOSABLE & CLAUSES (Archinex #95)            -->
+  <!-- ═════════════════════════════════════════════════════════════════════════ -->
+  {:else if viewMode === 'opposable'}
+    <div class="space-y-6">
+      <!-- Barre de filtres de la doctrine opposable -->
+      <div class="rounded-2xl border border-border bg-card p-4 shadow-2xs space-y-3">
+        <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-3">
+          <!-- Recherche textuelle -->
+          <div class="relative flex-1 sm:max-w-md">
+            <Search class="absolute left-3 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+            <input
+              type="text"
+              bind:value={opposableSearch}
+              placeholder="Rechercher par identifiant, titre ou clause..."
+              class="w-full text-xs pl-9 pr-3 py-2 rounded-xl border border-border bg-background text-foreground focus:ring-2 focus:ring-primary focus:outline-none"
+            />
+          </div>
+
+          <div class="flex flex-wrap items-center gap-2">
+            <!-- Filtre Référentiel -->
+            <select
+              bind:value={opposableFramework}
+              class="text-xs bg-background border border-border rounded-xl px-3 py-2 text-foreground focus:ring-2 focus:ring-primary focus:outline-none"
+            >
+              <option value="">Tous les référentiels</option>
+              <option value="__transverse__">Transverse (Sans référentiel)</option>
+              {#each uniqueFrameworks as fw}
+                <option value={fw}>{fw}</option>
+              {/each}
+            </select>
+
+            <!-- Filtre Type d'actif -->
+            <select
+              bind:value={opposableType}
+              class="text-xs bg-background border border-border rounded-xl px-3 py-2 text-foreground focus:ring-2 focus:ring-primary focus:outline-none"
+            >
+              <option value="">Tous les types</option>
+              <option value="control">Contrôle réglementaire</option>
+              <option value="principle">Principe d'architecture</option>
+              <option value="pattern">Patron (Pattern)</option>
+              <option value="decision">Décision (ADR)</option>
+            </select>
+
+            <!-- Filtre Domaine -->
+            <select
+              bind:value={opposableDomain}
+              class="text-xs bg-background border border-border rounded-xl px-3 py-2 text-foreground focus:ring-2 focus:ring-primary focus:outline-none"
+            >
+              <option value="">Tous les domaines</option>
+              {#each uniqueDomains as dom}
+                <option value={dom}>{dom}</option>
+              {/each}
+            </select>
+          </div>
+        </div>
+
+        <!-- Filtres rapides par statut de clause (Badges bloque / avertit / rejetée / informe) -->
+        <div class="flex flex-wrap items-center gap-2 pt-2 border-t border-border/60">
+          <span class="text-xs font-semibold text-muted-foreground mr-1">Opposabilité :</span>
+          
+          <button
+            onclick={() => (opposableStatus = '')}
+            class="px-2.5 py-1 rounded-lg text-xs font-semibold transition-all {opposableStatus === '' ? 'bg-primary text-primary-foreground shadow-2xs' : 'bg-muted/40 hover:bg-muted text-muted-foreground'}"
+          >
+            Tous ({allOpposableItems.length})
+          </button>
+
+          <button
+            onclick={() => (opposableStatus = 'bloque')}
+            class="px-2.5 py-1 rounded-lg text-xs font-semibold border transition-all {opposableStatus === 'bloque' ? 'bg-rose-500 text-white border-rose-600' : 'bg-rose-500/10 hover:bg-rose-500/20 text-rose-500 border-rose-500/30'}"
+          >
+            <span class="inline-block w-2 h-2 rounded-full bg-rose-500 mr-1"></span>
+            bloque ({allOpposableItems.filter((i) => i.badge === 'bloque').length})
+          </button>
+
+          <button
+            onclick={() => (opposableStatus = 'avertit')}
+            class="px-2.5 py-1 rounded-lg text-xs font-semibold border transition-all {opposableStatus === 'avertit' ? 'bg-amber-500 text-white border-amber-600' : 'bg-amber-500/10 hover:bg-amber-500/20 text-amber-500 border-amber-500/30'}"
+          >
+            <span class="inline-block w-2 h-2 rounded-full bg-amber-500 mr-1"></span>
+            avertit ({allOpposableItems.filter((i) => i.badge === 'avertit').length})
+          </button>
+
+          <button
+            onclick={() => (opposableStatus = 'rejetee')}
+            class="px-2.5 py-1 rounded-lg text-xs font-semibold border transition-all {opposableStatus === 'rejetee' ? 'bg-zinc-600 text-white border-zinc-700' : 'bg-zinc-500/10 hover:bg-zinc-500/20 text-zinc-400 border-zinc-500/30'}"
+          >
+            <span class="inline-block w-2 h-2 rounded-full bg-zinc-500 mr-1"></span>
+            rejetée ({allOpposableItems.filter((i) => i.badge === 'rejetée').length})
+          </button>
+
+          <button
+            onclick={() => (opposableStatus = 'informe')}
+            class="px-2.5 py-1 rounded-lg text-xs font-semibold border transition-all {opposableStatus === 'informe' ? 'bg-sky-500 text-white border-sky-600' : 'bg-sky-500/10 hover:bg-sky-500/20 text-sky-500 border-sky-500/30'}"
+          >
+            <span class="inline-block w-2 h-2 rounded-full bg-sky-500 mr-1"></span>
+            informe ({allOpposableItems.filter((i) => i.badge === 'informe').length})
+          </button>
+        </div>
+      </div>
+
+      <!-- Groupement par Référentiel -->
+      {#if groupedOpposable.length === 0}
+        <div class="rounded-2xl border border-dashed border-border bg-card p-10 text-center space-y-2">
+          <p class="text-sm font-semibold text-foreground">Aucun actif ne correspond aux filtres sélectionnés</p>
+          <p class="text-xs text-muted-foreground">Modifiez ou réinitialisez les critères de recherche.</p>
+        </div>
+      {:else}
+        <div class="space-y-8">
+          {#each groupedOpposable as [fwName, items]}
+            <section class="rounded-2xl border border-border bg-card p-5 sm:p-6 shadow-xs space-y-4">
+              <!-- Entête du groupe de référentiel -->
+              <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-border">
+                <div class="flex items-center gap-3">
+                  <div class="p-2 rounded-xl bg-primary/10 text-primary">
+                    <Shield class="h-5 w-5" />
+                  </div>
+                  <div>
+                    <div class="flex items-center gap-2">
+                      <h2 class="text-base sm:text-lg font-bold text-foreground">
+                        {fwName}
+                      </h2>
+                      <span class="px-2 py-0.5 rounded-full text-xs font-mono font-medium bg-muted text-muted-foreground border border-border">
+                        {items.length} actif{items.length > 1 ? 's' : ''}
+                      </span>
+                    </div>
+                    <p class="text-xs text-muted-foreground">
+                      Clauses opposables vérifiées dans le moteur de conformité
+                    </p>
+                  </div>
+                </div>
+
+                <!-- Lien couverture réglementaire (#90) -->
+                {#if fwName !== 'Transverse / Socle Commun'}
+                  <a
+                    href="/frameworks?framework={fwName}"
+                    class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-border bg-muted/30 hover:bg-muted text-xs font-medium text-foreground transition-colors self-start sm:self-center"
+                  >
+                    <ExternalLink class="h-3.5 w-3.5 text-violet-500" />
+                    <span>Couverture {fwName} (#90)</span>
+                  </a>
+                {/if}
+              </div>
+
+              <!-- Grille des actifs -->
+              <div class="grid grid-cols-1 xl:grid-cols-2 gap-4">
+                {#each items as item}
+                  {@const badgeCfg = getBadgeConfig(item.badge)}
+                  <div class="rounded-xl border border-border bg-muted/15 p-4 space-y-3 hover:border-primary/40 transition-colors flex flex-col justify-between">
+                    <div class="space-y-2.5">
+                      <!-- Entête carte actif -->
+                      <div class="flex items-start justify-between gap-2">
+                        <div class="space-y-1 min-w-0">
+                          <div class="flex items-center gap-2 flex-wrap">
+                            <a
+                              href="/knowledge/{item.id}"
+                              class="font-mono text-xs font-bold text-primary hover:underline flex items-center gap-1"
+                            >
+                              <span>{item.id}</span>
+                              <ExternalLink class="h-3 w-3 opacity-60" />
+                            </a>
+                            <span class="px-1.5 py-0.5 rounded text-[10px] uppercase font-semibold bg-muted text-muted-foreground">
+                              {item.type}
+                            </span>
+                            <span class="px-1.5 py-0.5 rounded text-[10px] bg-muted/60 text-muted-foreground">
+                              {item.domain}
+                            </span>
+                          </div>
+                          <h3 class="text-sm font-bold text-foreground line-clamp-2" title={item.title}>
+                            {item.title}
+                          </h3>
+                        </div>
+
+                        <!-- Badge Opposable -->
+                        <span class="px-2.5 py-1 rounded-full border text-xs font-bold uppercase tracking-wider flex items-center gap-1.5 shrink-0 {badgeCfg.class}">
+                          <span class="w-1.5 h-1.5 rounded-full {badgeCfg.dot}"></span>
+                          <span>{badgeCfg.label}</span>
+                        </span>
+                      </div>
+
+                      <!-- Clauses associées -->
+                      {#if item.clauses.length > 0}
+                        <div class="space-y-2 pt-2 border-t border-border/50">
+                          {#each item.clauses as cl}
+                            {@const clBadge = getBadgeConfig(cl.status === 'validated' ? 'bloque' : cl.status === 'draft' ? 'avertit' : 'rejetée')}
+                            <div class="text-xs p-2.5 rounded-lg bg-background border border-border/60 space-y-1.5">
+                              <div class="flex items-center justify-between gap-2">
+                                <span class="font-mono font-semibold text-foreground text-[11px]">
+                                  {cl.check_id} ({cl.kind})
+                                </span>
+                                <span class="px-2 py-0.2 rounded-full border text-[10px] font-bold uppercase {clBadge.class}">
+                                  {clBadge.label}
+                                </span>
+                              </div>
+                              {#if cl.message}
+                                <p class="text-muted-foreground text-[11px]">
+                                  « {cl.message} »
+                                </p>
+                              {/if}
+                              <div class="text-[10px] font-mono text-muted-foreground flex items-center gap-2 flex-wrap">
+                                <span>when: {cl.when?.terms_any?.join(' | ') || JSON.stringify(cl.when)}</span>
+                                {#if cl.expect}
+                                  <span class="text-emerald-500">expect: {cl.expect?.terms_any?.join(' | ') || JSON.stringify(cl.expect)}</span>
+                                {/if}
+                              </div>
+                            </div>
+                          {/each}
+                        </div>
+                      {:else}
+                        <p class="text-[11px] text-muted-foreground italic pt-2 border-t border-border/50">
+                          Aucune clause de contrôle (actif purement informatif).
+                        </p>
+                      {/if}
+                    </div>
+
+                    <!-- Lien bas de carte vers la fiche d'actif -->
+                    <div class="pt-2 border-t border-border/40 flex items-center justify-between text-xs">
+                      <span class="text-muted-foreground text-[11px]">
+                        {item.clauses.length} clause{item.clauses.length > 1 ? 's' : ''}
+                      </span>
+                      <a
+                        href="/knowledge/{item.id}"
+                        class="text-primary hover:underline font-semibold flex items-center gap-1"
+                      >
+                        <span>Fiche d'actif & historique →</span>
+                      </a>
+                    </div>
+                  </div>
+                {/each}
+              </div>
+            </section>
+          {/each}
+        </div>
+      {/if}
+    </div>
+
+  <!-- ═════════════════════════════════════════════════════════════════════════ -->
+  <!-- VUE « JOURNAL » : HISTORIQUE DES PUBLICATIONS (Archinex #95)              -->
+  <!-- ═════════════════════════════════════════════════════════════════════════ -->
+  {:else if viewMode === 'journal'}
+    <div class="space-y-6">
+      <!-- Filtres du journal -->
+      <div class="rounded-2xl border border-border bg-card p-4 shadow-2xs flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div class="relative flex-1 sm:max-w-md">
+          <Search class="absolute left-3 top-2.5 h-3.5 w-3.5 text-muted-foreground" />
+          <input
+            type="text"
+            bind:value={journalSearch}
+            placeholder="Rechercher un instantané, un changelog, un relecteur..."
+            class="w-full text-xs pl-9 pr-3 py-2 rounded-xl border border-border bg-background text-foreground focus:ring-2 focus:ring-primary focus:outline-none"
+          />
+        </div>
+
+        <div class="flex items-center gap-2">
+          <span class="text-xs font-semibold text-muted-foreground whitespace-nowrap">Vecteur d'entrée :</span>
+          <select
+            bind:value={journalEntryPath}
+            class="text-xs bg-background border border-border rounded-xl px-3 py-2 text-foreground focus:ring-2 focus:ring-primary focus:outline-none"
+          >
+            <option value="">Tous les vecteurs</option>
+            <option value="framework_ingestion">Ingestion Réglementaire</option>
+            <option value="doctrine_workshop">Atelier de Doctrine</option>
+            <option value="amendment">Amendement d'Expert</option>
+            <option value="initial_baseline">Socle Initial (Baseline)</option>
+          </select>
+        </div>
+      </div>
+
+      <!-- Frise chronologique des publications -->
+      {#if filteredPublications.length === 0}
+        <div class="rounded-2xl border border-dashed border-border bg-card p-10 text-center space-y-2">
+          <p class="text-sm font-semibold text-foreground">Aucune publication trouvée</p>
+          <p class="text-xs text-muted-foreground">Aucun instantané scellé ne correspond aux filtres.</p>
+        </div>
+      {:else}
+        <div class="relative pl-6 space-y-8 before:absolute before:left-2 before:top-3 before:bottom-3 before:w-0.5 before:bg-border">
+          {#each filteredPublications as pub}
+            <div class="relative space-y-3 group">
+              <!-- Point sur la timeline -->
+              <div class="absolute -left-6 top-1.5 h-4 w-4 rounded-full border-2 border-background bg-primary ring-4 ring-primary/20"></div>
+
+              <div class="rounded-2xl border border-border bg-card p-5 sm:p-6 shadow-xs space-y-3">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pb-2 border-b border-border">
+                  <div class="flex items-center gap-2 flex-wrap">
+                    <span class="font-mono text-xs font-bold text-primary px-2.5 py-0.5 rounded-lg bg-primary/10 border border-primary/20">
+                      {pub.snapshot_id}
+                    </span>
+                    <span class="text-xs font-bold px-2 py-0.5 rounded-lg bg-muted text-foreground border border-border">
+                      {pub.version}
+                    </span>
+                    {#if pub.entry_path}
+                      <span class="text-xs font-semibold px-2 py-0.5 rounded-lg bg-violet-500/10 text-violet-400 border border-violet-500/20">
+                        {pub.entry_path.type === 'framework_ingestion' ? `Ingestion ${pub.entry_path.framework || ''}` : pub.entry_path.type === 'initial_baseline' ? 'Socle Initial' : pub.entry_path.type}
+                      </span>
+                    {/if}
+                  </div>
+
+                  <div class="text-xs font-mono text-muted-foreground flex items-center gap-1.5">
+                    <Calendar class="h-3.5 w-3.5" />
+                    <span>{formatDate(pub.published_at || pub.date)}</span>
+                  </div>
+                </div>
+
+                <!-- Changelog -->
+                <p class="text-sm font-medium text-foreground leading-relaxed">
+                  {pub.changelog || 'Publication officielle de la doctrine.'}
+                </p>
+
+                <!-- Métriques de publication -->
+                <div class="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs pt-1">
+                  <div class="p-2 rounded-lg bg-muted/30 border border-border/50">
+                    <span class="text-muted-foreground block text-[10px]">Actifs au total</span>
+                    <span class="font-bold text-foreground text-sm">{pub.assets_count}</span>
+                  </div>
+                  <div class="p-2 rounded-lg bg-muted/30 border border-border/50">
+                    <span class="text-muted-foreground block text-[10px]">Ajoutés</span>
+                    <span class="font-bold text-emerald-500 text-sm">+{pub.assets_added?.length || 0}</span>
+                  </div>
+                  <div class="p-2 rounded-lg bg-muted/30 border border-border/50">
+                    <span class="text-muted-foreground block text-[10px]">Révisés</span>
+                    <span class="font-bold text-amber-500 text-sm">~{pub.assets_revised?.length || 0}</span>
+                  </div>
+                  <div class="p-2 rounded-lg bg-muted/30 border border-border/50">
+                    <span class="text-muted-foreground block text-[10px]">Retirés</span>
+                    <span class="font-bold text-zinc-500 text-sm">-{pub.assets_removed?.length || 0}</span>
+                  </div>
+                </div>
+
+                <!-- Relecteurs & Empreinte -->
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 pt-2 border-t border-border/50 text-[11px] text-muted-foreground">
+                  <div class="flex items-center gap-2">
+                    <UserCheck class="h-3.5 w-3.5 text-emerald-500" />
+                    <span>Relecteurs / Valideurs : {pub.reviewers?.join(', ') || pub.published_by}</span>
+                  </div>
+                  {#if pub.entry_path?.source_sha256}
+                    <div class="font-mono text-[10px] text-muted-foreground/80 truncate max-w-xs" title={pub.entry_path.source_sha256}>
+                      SHA-256 : {pub.entry_path.source_sha256.slice(0, 16)}...
+                    </div>
+                  {/if}
+                </div>
+              </div>
+            </div>
+          {/each}
+        </div>
+      {/if}
+    </div>
+
+  <!-- ═════════════════════════════════════════════════════════════════════════ -->
   <!-- BARRE DE NAVIGATION RAPIDE PAR ANCRES (EN MODE EMPILÉ)                    -->
   <!-- ═════════════════════════════════════════════════════════════════════════ -->
-  {#if viewMode === 'stacked'}
+  {:else if viewMode === 'stacked'}
     <div class="flex flex-wrap items-center gap-2 p-2 rounded-xl bg-muted/20 border border-border text-xs">
       <span class="text-muted-foreground text-[11px] font-medium px-2">Accès rapide aux arbres :</span>
       <button
@@ -382,12 +1002,8 @@
         </span>
       </button>
     </div>
-  {/if}
 
-  <!-- ═════════════════════════════════════════════════════════════════════════ -->
-  <!-- 1. VUE EMPILÉE : GRAPHE PLEINE LARGEUR + FORMULAIRE NON-MODAL FIXE        -->
-  <!-- ═════════════════════════════════════════════════════════════════════════ -->
-  {#if viewMode === 'stacked'}
+    <!-- 1. VUE EMPILÉE : GRAPHE PLEINE LARGEUR + FORMULAIRE NON-MODAL FIXE -->
     <div class="space-y-8 min-w-0">
       {#each stackedWidgets as widget}
         <section

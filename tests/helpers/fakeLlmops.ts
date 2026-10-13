@@ -673,7 +673,15 @@ export function createDefaultFakeState(): FakeLlmopsState {
         sha256_checksum: '8f4c2e6b9a1d3f5e7c8b0a2d4e6f8a1b3c5d7e9f0a2b4c6d8e0f1a3b5c7d9e1f',
         changelog: "Publication initiale du référentiel d'architecture souveraine et résiliente.",
         assets_count: 60,
-        storage_persistent: true
+        storage_persistent: true,
+        entry_path: {
+          type: 'initial_baseline',
+          description: "Socle initial de référence"
+        },
+        reviewers: ['expert@archinex.local', 'maintainer@archinex.local'],
+        assets_added: ['P-001', 'P-002'],
+        assets_revised: [],
+        assets_removed: []
       }
     ],
     campaigns: [
@@ -2478,9 +2486,74 @@ export async function startFakeLlmopsServer(initialState?: Partial<FakeLlmopsSta
 
     // GET /api/knowledge/publications
     if (pathname === '/api/knowledge/publications' && method === 'GET') {
+      const entryType = parsedUrl.searchParams.get('entry_type');
+      const framework = parsedUrl.searchParams.get('framework');
+      let filtered = state.publications;
+      if (entryType) {
+        filtered = filtered.filter((p) => p.entry_path?.type === entryType);
+      }
+      if (framework) {
+        filtered = filtered.filter((p) => (p.entry_path?.framework || '').toLowerCase() === framework.toLowerCase());
+      }
       return json(200, {
         status: 'ok',
-        data: state.publications
+        count: filtered.length,
+        publications: filtered,
+        data: filtered
+      });
+    }
+
+    // GET /api/knowledge/assets/:assetId/history
+    const assetHistoryMatch = pathname.match(/^\/api\/knowledge\/assets\/([^/]+)\/history$/);
+    if (assetHistoryMatch && method === 'GET') {
+      const assetId = decodeURIComponent(assetHistoryMatch[1]);
+      const foundAsset = SEED_KB_ASSETS.find((a) => a.ref === assetId);
+      if (!foundAsset) {
+        return json(404, {
+          status: 'not_found',
+          error: `Actif introuvable: ${assetId}`
+        });
+      }
+
+      const isFramework = assetId.startsWith('CRA-') || assetId.startsWith('NIS2-');
+      const entryPath = isFramework
+        ? {
+            type: 'framework_ingestion',
+            framework: assetId.startsWith('CRA-') ? 'CRA' : 'NIS2',
+            version: '2024/0284(COD)',
+            source_name: `${assetId.startsWith('CRA-') ? 'CRA' : 'NIS2'}.txt`,
+            source_sha256: '3551fbf856d2e65ffc445a87ede903f0da097e27edddf1f1a781597ef0396302'
+          }
+        : {
+            type: 'initial_baseline',
+            description: 'Socle initial de doctrine d’entreprise'
+          };
+
+      const assetHistory = {
+        status: 'ok',
+        asset_id: assetId,
+        title: foundAsset.title,
+        asset_type: foundAsset.type,
+        domain: foundAsset.domain,
+        entry_path: entryPath,
+        initial_date: '2026-09-13',
+        validators: ['expert@archinex.local', 'maintainer@archinex.local'],
+        revisions: [
+          {
+            revision: 1,
+            date: '2026-09-13',
+            snapshot_id: 'snapshot-2026-09-13-06f3455',
+            author: 'expert@archinex.local',
+            reviewers: ['maintainer@archinex.local'],
+            change_summary: `Création initiale de l’actif ${assetId}`
+          }
+        ],
+        clause_decisions: []
+      };
+
+      return json(200, {
+        status: 'ok',
+        data: assetHistory
       });
     }
 

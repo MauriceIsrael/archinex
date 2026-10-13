@@ -713,6 +713,24 @@ export interface KbHealthMetrics {
   }>;
 }
 
+export type PublicationEntryType =
+  | 'framework_ingestion'
+  | 'doctrine_workshop'
+  | 'amendment'
+  | 'initial_baseline'
+  | string;
+
+export interface PublicationEntryPath {
+  type: PublicationEntryType;
+  description?: string;
+  framework?: string;
+  version?: string;
+  source_name?: string;
+  source_sha256?: string;
+  workshop?: string;
+  ingested_at?: string;
+}
+
 export interface KbPublication {
   id: string;
   snapshot_id: string;
@@ -726,6 +744,51 @@ export interface KbPublication {
   published?: string[];
   published_candidates?: string[];
   warnings?: string[];
+  date?: string;
+  entry_path?: PublicationEntryPath;
+  reviewers?: string[];
+  assets_added?: string[];
+  assets_revised?: string[];
+  assets_removed?: string[];
+  clause_decisions?: any[];
+}
+
+export interface AssetRevision {
+  revision: number;
+  date: string;
+  snapshot_id?: string;
+  author: string;
+  reviewers: string[];
+  change_summary: string;
+}
+
+export interface AssetClauseDecision {
+  check_id: string;
+  at: string;
+  by: string;
+  decision: 'validate' | 'reject' | string;
+  comment?: string;
+  previous_status?: string;
+}
+
+export interface AssetHistoryResponse {
+  status: 'ok' | 'not_found' | 'error';
+  asset_id: string;
+  typed_id?: string;
+  title: string;
+  asset_type?: string;
+  status_doctrine?: string;
+  confidence?: string;
+  framework?: string;
+  domain?: string | string[];
+  entry_path: PublicationEntryPath;
+  initial_date: string;
+  validators: string[];
+  current_snapshot_id?: string;
+  revisions: AssetRevision[];
+  clause_decisions?: AssetClauseDecision[];
+  clauses?: any[];
+  checks_status?: string;
 }
 
 export interface KbCampaign {

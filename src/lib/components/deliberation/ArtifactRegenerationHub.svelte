@@ -15,12 +15,33 @@
 		activeSubject ? deliberationStore.getProjections(activeSubject.id) : null
 	);
 
-	function handleRegenerate() {
+	$effect(() => {
+		if (activeSubject?.id) {
+			const pId = deliberationStore.activeEngagement?.id || deliberationStore.activeEngagementId;
+			if (pId && !deliberationStore.frozenSnapshots[activeSubject.id]) {
+				void deliberationStore.fetchFrozenSnapshot(activeSubject.id, pId);
+			}
+		}
+	});
+
+	async function handleRegenerate() {
+		if (!activeSubject) return;
 		isRegenerating = true;
-		setTimeout(() => {
+		try {
+			const pId = deliberationStore.activeEngagement?.id || deliberationStore.activeEngagementId;
+			if (pId) {
+				await Promise.all([
+					deliberationStore.refreshSubjectFromServer(activeSubject.id, pId),
+					deliberationStore.fetchFrozenSnapshot(activeSubject.id, pId)
+				]);
+			}
+			lastSyncTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+			deliberationStore.logNotification('Projections et modèles resynchronisés depuis la délibération.', 'success');
+		} catch (err: any) {
+			deliberationStore.logNotification(`Erreur lors de la régénération : ${err?.message || err}`, 'warning');
+		} finally {
 			isRegenerating = false;
-			lastSyncTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-		}, 250);
+		}
 	}
 
 	function getCurrentContent(): string {

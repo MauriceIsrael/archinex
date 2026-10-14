@@ -79,3 +79,68 @@ export async function loadHldFragment(projectId: string, subjectId: string): Pro
 	});
 	return { fragment, markdown: renderHldFragmentMarkdown(fragment) };
 }
+
+export interface ProjectHldDossier {
+	projectId: string;
+	projectTitle: string;
+	markdown: string;
+	fragments: HldFragment[];
+	generatedAt: string;
+}
+
+/**
+ * Assemble l'ensemble des fragments HLD des sujets d'un projet pour produire le dossier de conception complet.
+ */
+export async function loadProjectHldDossier(projectId: string): Promise<ProjectHldDossier> {
+	const project = await prisma.project.findUnique({
+		where: { id: projectId },
+		include: {
+			subjects: {
+				orderBy: { sectionRef: 'asc' }
+			}
+		}
+	});
+
+	if (!project) throw new Error(`NOT_FOUND: projet ${projectId}`);
+
+	const fragments: HldFragment[] = [];
+	const fragmentMds: string[] = [];
+
+	for (const subj of project.subjects) {
+		try {
+			const { fragment, markdown } = await loadHldFragment(projectId, subj.id);
+			fragments.push(fragment);
+			fragmentMds.push(markdown);
+		} catch {
+			// Sujet incomplet ou non migré, on ignore
+		}
+	}
+
+	const now = new Date().toISOString();
+	const out: string[] = [
+		`# Dossier de Conception d'Architecture (HLD) — ${project.title}`,
+		'',
+		`> Document de conception unifié produit à partir des délibérations et des décisions enregistrées. Zéro dérive documentaire garantie.`,
+		'',
+		'| Métadonnées du Dossier | Valeur |',
+		'|---|---|',
+		`| **Projet** | ${project.title} (\`${project.id}\`) |`,
+		`| **Type d'Engagement** | ${project.type} |`,
+		`| **Sujets d'Architecture Instruits** | ${fragments.length} / ${project.subjects.length} |`,
+		`| **Généré le** | ${now.slice(0, 10)} |`,
+		'',
+		'---',
+		'',
+		'## Fragments de Conception par Section (Modèle ADR ArcKit)',
+		'',
+		fragmentMds.join('\n\n---\n\n')
+	];
+
+	return {
+		projectId,
+		projectTitle: project.title,
+		markdown: out.join('\n'),
+		fragments,
+		generatedAt: now
+	};
+}

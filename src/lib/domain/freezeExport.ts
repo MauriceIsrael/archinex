@@ -7,7 +7,8 @@ import {
 	generateMermaidDiagram,
 	generateStructurizrDSL,
 	generateSysMLv2,
-	generateConfigJSON
+	generateConfigJSON,
+	type ProjectionContext
 } from '$lib/domain/artifactProjections';
 
 /**
@@ -149,6 +150,7 @@ export function freezeSectionAndGenerateSnapshot(params: {
 	authorRole: ArchitectRole;
 	/** Horodatage du scellement (injectable pour les tests) ; par défaut l'instant courant. */
 	now?: Date;
+	context?: ProjectionContext;
 }): SealedSnapshot {
 	const externalRefs = convertRefsToImmutable(params.draft.retenu || []);
 
@@ -159,10 +161,10 @@ export function freezeSectionAndGenerateSnapshot(params: {
 	const sealedAt = (params.now ?? new Date()).toISOString();
 
 	const projections = {
-		mermaid: generateMermaidDiagram(params.subject, params.draft, sectionStatements),
-		structurizrDSL: generateStructurizrDSL(params.subject, params.draft, sectionStatements),
-		sysmlV2: generateSysMLv2(params.subject, params.draft, sectionStatements),
-		configJSON: generateConfigJSON(params.subject, params.draft, sectionStatements, sealedAt)
+		mermaid: generateMermaidDiagram(params.subject, params.draft, sectionStatements, params.context),
+		structurizrDSL: generateStructurizrDSL(params.subject, params.draft, sectionStatements, params.context),
+		sysmlV2: generateSysMLv2(params.subject, params.draft, sectionStatements, params.context),
+		configJSON: generateConfigJSON(params.subject, params.draft, sectionStatements, sealedAt, params.context)
 	};
 
 

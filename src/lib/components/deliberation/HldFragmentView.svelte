@@ -68,6 +68,24 @@
 		setTimeout(() => (copied = false), 1500);
 	}
 
+	async function downloadFullDossier() {
+		if (!projectId) return;
+		try {
+			const res = await fetch(`/api/projects/${encodeURIComponent(projectId)}/hld-dossier`);
+			if (!res.ok) throw new Error('Erreur lors du chargement du dossier');
+			const data = await res.json();
+			const url = URL.createObjectURL(new Blob([data.dossier.markdown], { type: 'text/markdown;charset=utf-8' }));
+			const a = document.createElement('a');
+			a.href = url;
+			a.download = `dossier-hld-${projectId}.md`;
+			a.click();
+			setTimeout(() => URL.revokeObjectURL(url), 1000);
+			deliberationStore.logNotification('Dossier de conception HLD complet exporté.', 'success');
+		} catch (err: any) {
+			deliberationStore.logNotification(`Erreur export dossier HLD : ${err?.message || err}`, 'warning');
+		}
+	}
+
 	const scoreClass = (s: number) =>
 		s > 0 ? 'text-emerald-700 dark:text-emerald-300' : s < 0 ? 'text-destructive' : 'text-muted-foreground';
 	const statusClass = {
@@ -96,9 +114,13 @@
 				{#if copied}<Check class="h-3.5 w-3.5" />{:else}<Copy class="h-3.5 w-3.5" />{/if}
 				<span>Copier (Markdown)</span>
 			</button>
-			<button type="button" onclick={download} disabled={!fragment} class="inline-flex items-center gap-1 rounded-lg bg-primary text-primary-foreground px-2.5 py-1.5 font-semibold hover:opacity-90 disabled:opacity-50 cursor-pointer">
+			<button type="button" onclick={download} disabled={!fragment} class="inline-flex items-center gap-1 rounded-lg bg-primary text-primary-foreground px-2.5 py-1.5 font-semibold hover:opacity-90 disabled:opacity-50 cursor-pointer" title="Télécharger le fragment HLD (.md)">
 				<Download class="h-3.5 w-3.5" />
-				<span>.md</span>
+				<span>Fragment .md</span>
+			</button>
+			<button type="button" onclick={downloadFullDossier} class="inline-flex items-center gap-1 rounded-lg border border-primary/30 bg-primary/5 text-primary hover:bg-primary/10 px-2.5 py-1.5 font-semibold cursor-pointer" title="Télécharger le dossier complet HLD rassemblant tous les fragments du projet">
+				<Download class="h-3.5 w-3.5" />
+				<span>Dossier complet .md</span>
 			</button>
 		</div>
 	</div>

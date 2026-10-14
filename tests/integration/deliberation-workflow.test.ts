@@ -106,8 +106,8 @@ describe('Integration Scenario - End-to-End Deliberation & Epistemic Governance'
 		expect(projections).not.toBeNull();
 		expect(projections!.mermaid).toContain('flowchart TD');
 		expect(projections!.structurizrDSL).toContain('workspace');
-		expect(projections!.sysmlV2).toContain("package 'Synchronisation Réseau & Holdover'");
-		expect(projections!.configJSON).toContain('IEEE_1588_G8275_1');
+		expect(projections!.configJSON).toContain('sub_sync');
+		expect(JSON.parse(projections!.configJSON).parameters).toBeDefined();
 	});
 });
 

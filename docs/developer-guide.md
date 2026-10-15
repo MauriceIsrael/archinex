@@ -71,6 +71,8 @@ npm run build
 npm run verify
 ```
 
+Pour repartir d'une base **propre** (copie neuve, base SQLite neuve, tests « live » contre un Hub, écarts connus), voir [`docs/testing.md`](testing.md).
+
 ### Organisation des Tests (`tests/`)
 - `tests/contract/epistemic-statement.test.ts` : Validation des enveloppes et rejet des combinaisons interdites (`verified × llm-derived`).
 - `tests/contract/telegraphic-draft.test.ts` : Rendu télégraphique et conformité au filtre anti-blabla.

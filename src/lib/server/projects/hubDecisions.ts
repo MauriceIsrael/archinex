@@ -68,6 +68,16 @@ async function arbiterEmail(arbiterId: string): Promise<string> {
 	return user.email.toLowerCase();
 }
 
+/**
+ * Éléments de la base de connaissances que l'option retenue cite : la décision s'en réclame. Le Hub les résout dans son instantané
+ * épinglé et en tire les contrôles qu'ils mettent en œuvre (K17) ; une référence qu'il ne connaît pas est signalée par lui, pas écartée ici.
+ */
+export function citedKnowledge(raw: string | null | undefined): Array<{ id: string }> {
+	const refs = parseJson<unknown[]>(raw, []);
+	const ids = refs.filter((r): r is string => typeof r === 'string' && r.trim().length > 0).map((r) => r.trim());
+	return [...new Set(ids)].sort().map((id) => ({ id }));
+}
+
 /** Faits sélectionnés → faits du Hub : clé du vocabulaire, valeur typée, extrait source. Une valeur qui ne se convertit pas est refusée. */
 export function toHubFacts(selected: SelectedFact[], vocabulary: HubFactVocabulary): HubDecisionFactInput[] {
 	const byKey = new Map(vocabulary.keys.map((k) => [k.key, k]));
@@ -106,7 +116,7 @@ export async function recordDecisionInHub(
 	// Le Hub parle de TEXTES d'options ; Archinex garde des identifiants.
 	const rejected = parseJson<Array<{ optionId: string; reason: string }>>(decision.rejected, []);
 	const ids = [decision.retainedOptionId, ...rejected.map((r) => r.optionId)];
-	const options = await prisma.option.findMany({ where: { id: { in: ids }, subjectId: subject.id }, select: { id: true, title: true } });
+	const options = await prisma.option.findMany({ where: { id: { in: ids }, subjectId: subject.id }, select: { id: true, title: true, kbRefs: true } });
 	const titleOf = new Map(options.map((o) => [o.id, o.title]));
 	const missing = ids.filter((id) => !titleOf.has(id));
 	if (missing.length > 0) {
@@ -127,6 +137,7 @@ export async function recordDecisionInHub(
 			reversibility: decision.reversibility as 'reversible' | 'costly' | 'irreversible',
 			rejected: rejected.map((r) => ({ option: titleOf.get(r.optionId)!, reason: r.reason })),
 			accepted_violations: violations.map((v) => ({ typed_id: (v.typedId ?? v.typed_id)!, justification: v.justification })),
+			based_on: citedKnowledge(options.find((o) => o.id === decision.retainedOptionId)?.kbRefs),
 			facts
 		},
 		author, // la décision est celle de son auteur ; la personne qui l'affirme est une autre

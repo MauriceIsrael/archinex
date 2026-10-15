@@ -330,12 +330,12 @@
                   </div>
                 </div>
 
-                {#if clause.validated_by}
+                {#if clause.status === 'validated' && clause.review?.by}
                   <div class="mt-2 text-xs text-slate-500 flex items-center gap-1.5">
                     <UserCheck class="w-3.5 h-3.5 text-slate-400" />
-                    <span>Validé par <strong>{clause.validated_by}</strong></span>
-                    {#if clause.validated_at}
-                      <span>le {clause.validated_at}</span>
+                    <span>Validé par <strong>{clause.review.by}</strong></span>
+                    {#if clause.review.at}
+                      <span>le {clause.review.at}</span>
                     {/if}
                   </div>
                 {/if}

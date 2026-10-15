@@ -1,5 +1,5 @@
 /**
- * Instantané d'engagement émis par le Hub (K11, schéma `engagement_snapshot` 1.7, contrat 1.30).
+ * Instantané d'engagement émis par le Hub (K11, schéma `engagement_snapshot` 1.7, contrat 1.31).
  *
  * Archinex le LIT : le Hub est l'émetteur unique de l'instantané d'un projet basculé. On ne le re-scelle pas et on ne le
  * complète pas. La lecture vérifie le sceau (même profil canonical-json v1 que le Hub) avant toute utilisation, et ne
@@ -53,20 +53,27 @@ export interface HubSnapshotDecision {
 }
 
 /**
- * Couverture DÉCLARÉE exigence → contrôle (K17, contrat 1.30) : une chaîne exigence ← sujet ← décision → actif → contrôle, jamais
- * une vérification. `allocated` : une décision affirmée la soutient ; `proposed` : seules des décisions proposées.
+ * Couverture exigence → contrôle calculée par le Hub (K17, contrat 1.31) : DÉCLARATIVE, jamais une vérification.
+ * `allocated` : une décision affirmée cite le contrôle ou un actif qui le met en œuvre ; `proposed` : seule une décision proposée
+ * le fait ; `uncovered` : aucune. Un contrôle que la base épinglée ne connaît pas figure dans `unresolved`, il n'est pas inventé.
  */
-export interface HubSnapshotCompliance {
-	id: string;
+export type HubComplianceStatus = 'allocated' | 'proposed' | 'uncovered';
+
+export interface HubSnapshotComplianceItem {
 	requirement_id: string;
-	control_ref: string;
+	control_id: string;
 	framework: string;
-	control_version: string;
-	status: 'allocated' | 'proposed';
-	assertion_level: 'asserted' | 'proposed';
-	basis: 'declared_by_decision';
-	decision_ids: string[];
-	via_assets: string[];
+	severity: string;
+	status: HubComplianceStatus;
+	decisions: string[];
+	assets: string[];
+}
+
+export interface HubSnapshotCompliance {
+	origin: 'knowledge-hub';
+	kb_snapshot: { snapshot_id: string; checksum: string } | null;
+	items: HubSnapshotComplianceItem[];
+	unresolved: Array<{ requirement_id: string; control_id: string }>;
 }
 
 export interface HubSnapshotGap {
@@ -93,8 +100,8 @@ export interface HubEngagementSnapshot {
 		subjects: HubSnapshotSubject[];
 		decisions: HubSnapshotDecision[];
 		gaps: HubSnapshotGap[];
-		/** Absent tant qu'aucune décision ne déclare de lien. */
-		compliance?: HubSnapshotCompliance[];
+		/** Présente dans les instantanés 1.7 (contrat 1.31) ; absente des plus anciens. */
+		compliance?: HubSnapshotCompliance;
 		[other: string]: unknown;
 	};
 }
@@ -126,13 +133,19 @@ export function hubSnapshotProblems(env: unknown): string[] {
 	else if (e.snapshotId !== `eng-${d.engagement.id}-${expected.slice('sha256:'.length, 'sha256:'.length + 12)}`) {
 		out.push('l\'identifiant de l\'instantané ne dérive pas de son sceau');
 	}
-	// Le Hub ne vérifie rien (D2) : une couverture « vérifiée », ou tirée d'une autre base que la décision, n'est pas de lui.
+	// Le Hub ne vérifie rien (D2) : une couverture « vérifiée », ou d'une autre origine que le Hub, n'est pas de lui.
+	// Un instantané plus ancien n'a pas cette section : ce n'est pas un défaut.
 	const compliance = d.compliance;
-	if (compliance !== undefined && !Array.isArray(compliance)) out.push('data.compliance n\'est pas une liste');
-	else {
-		for (const row of compliance ?? []) {
-			if (row.status !== 'allocated' && row.status !== 'proposed') out.push(`conformité ${row.id} : statut « ${String(row.status)} » inattendu (le Hub ne vérifie rien)`);
-			else if (row.basis !== 'declared_by_decision') out.push(`conformité ${row.id} : fondement « ${String(row.basis)} » inattendu`);
+	if (compliance !== undefined) {
+		if (!compliance || typeof compliance !== 'object' || !Array.isArray(compliance.items)) {
+			out.push('data.compliance n\'a pas la forme {origin, kb_snapshot, items, unresolved}');
+		} else {
+			if (compliance.origin !== 'knowledge-hub') out.push(`conformité : origine « ${String(compliance.origin)} » inattendue (le Hub seul l\'émet)`);
+			for (const item of compliance.items) {
+				if (!['allocated', 'proposed', 'uncovered'].includes(item.status)) {
+					out.push(`conformité ${item.requirement_id} → ${item.control_id} : statut « ${String(item.status)} » inattendu (le Hub ne vérifie rien)`);
+				}
+			}
 		}
 	}
 	// Le Hub ne livre jamais d'adresse e-mail : s'il y en a une, l'instantané n'est pas celui qu'il a émis.

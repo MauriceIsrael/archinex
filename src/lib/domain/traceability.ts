@@ -43,6 +43,13 @@ export interface TraceabilityView {
 	groups: TraceGroup[];
 }
 
+/** Ce que le Hub DÉCLARE d'un contrôle visé par une exigence : une couverture par décision, jamais une vérification. */
+const COVERAGE_LABEL: Record<string, string> = {
+	allocated: 'décision affirmée',
+	proposed: 'décision proposée',
+	uncovered: 'aucune décision'
+};
+
 const STATE_LABEL: Record<string, string> = {
 	deliberated: 'À délibérer',
 	evacuated: 'Évacuée',
@@ -192,9 +199,9 @@ export function viewFromHubSnapshot(env: HubEngagementSnapshot): TraceabilityVie
 			subjects: subjects.map((s) => cell(s, 50)),
 			decisions: subjects.flatMap((s) => assertedBySubject.get(s) ?? []).map((x) => cell(x, 60)),
 			gaps: [],
-			controls: (d.compliance ?? [])
+			controls: (d.compliance?.items ?? [])
 				.filter((c) => c.requirement_id === r.id)
-				.map((c) => `\`${c.control_ref}\` (${c.status === 'allocated' ? 'décision affirmée' : 'décision proposée'})`)
+				.map((c) => `\`${c.control_id}\` (${COVERAGE_LABEL[c.status] ?? c.status})`)
 				.sort(),
 			disposition: disp ? disp.value : null,
 			assertionLevel: disp ? disp.assertion_level : null

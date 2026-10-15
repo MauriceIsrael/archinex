@@ -115,27 +115,44 @@ describe('Lecture d\'un instantané du Hub', () => {
 		expect(renderTraceabilityView(viewFromHubSnapshot(snap))).toBe(md);
 	});
 
-	const link = (over: Record<string, unknown> = {}) => ({
-		id: `CMP:${hubRequirementId(R1)}:SNC-REQ-02`, requirement_id: hubRequirementId(R1), control_ref: 'SNC-REQ-02', framework: 'SecNumCloud',
-		control_version: '3.2', status: 'allocated', assertion_level: 'asserted', basis: 'declared_by_decision', decision_ids: ['D-1'],
-		via_assets: ['decision:ADR-0007'], ...over
+	// Forme réellement émise par le Hub (contrat 1.31) : un objet, pas une liste.
+	const section = (items: Array<Record<string, unknown>> = [], over: Record<string, unknown> = {}) => ({
+		origin: 'knowledge-hub',
+		kb_snapshot: { snapshot_id: 'snapshot-2026-10-12-7393586', checksum: 'sha256:' + 'a'.repeat(64) },
+		items,
+		unresolved: [],
+		...over
+	});
+	const item = (over: Record<string, unknown> = {}) => ({
+		requirement_id: hubRequirementId(R1), control_id: 'SNC-REQ-02', framework: 'SecNumCloud', severity: 'mandatory',
+		status: 'allocated', decisions: ['D-1'], assets: ['ADR-0007'], ...over
 	});
 
-	it('la matrice montre les contrôles DÉCLARÉS par les décisions, jamais comme vérifiés', () => {
-		const snap = snapshot((d) => { d.compliance = [link(), link({ id: 'CMP:x:NIS2-ART21-2C', control_ref: 'NIS2-ART21-2C', status: 'proposed', assertion_level: 'proposed' })] as never; });
+	it('la matrice montre les contrôles que le Hub DÉCLARE couverts (ou non) par les décisions, jamais comme vérifiés', () => {
+		const snap = snapshot((d) => {
+			d.compliance = section([item(), item({ control_id: 'NIS2-ART21-2C', status: 'proposed' }), item({ control_id: 'ISO-22301-BCP', status: 'uncovered', decisions: [], assets: [] })]) as never;
+		});
 		expect(hubSnapshotProblems(snap)).toEqual([]);
 		const md = renderTraceabilityView(viewFromHubSnapshot(snap));
 		expect(md).toContain('Contrôles déclarés');
-		expect(md).toMatch(/Autonomie de 30 jours.*`NIS2-ART21-2C` \(décision proposée\); `SNC-REQ-02` \(décision affirmée\)/);
+		expect(md).toMatch(/Autonomie de 30 jours.*`ISO-22301-BCP` \(aucune décision\); `NIS2-ART21-2C` \(décision proposée\); `SNC-REQ-02` \(décision affirmée\)/);
 		expect(md).not.toMatch(/vérifi/i);
-		expect(compareBundleWithHubSnapshot(bundle(), snap).sections.find((x) => x.section === 'compliance')).toMatchObject({ inBundle: 0, inHub: 2, status: 'partial' });
+		expect(compareBundleWithHubSnapshot(bundle(), snap).sections.find((x) => x.section === 'compliance')).toMatchObject({ inBundle: 0, inHub: 3, status: 'partial' });
+	});
+
+	it('un instantané sans section de conformité (Hub plus ancien) se lit sans problème', () => {
+		const snap = snapshot();
+		expect(snap.data.compliance).toBeUndefined();
+		expect(hubSnapshotProblems(snap)).toEqual([]);
+		expect(renderTraceabilityView(viewFromHubSnapshot(snap))).toContain('Contrôles déclarés');
 	});
 
 	it.each([
-		['un statut « verified »', { status: 'verified' }, /statut « verified » inattendu/],
-		['un fondement qui n\'est pas une décision', { basis: 'text_match' }, /fondement « text_match » inattendu/]
-	])('refuse un instantané qui porte %s (le Hub ne vérifie rien)', (_n, over, expected) => {
-		const snap = snapshot((d) => { d.compliance = [link(over)] as never; });
+		['un statut « verified »', section([item({ status: 'verified' })]), /statut « verified » inattendu/],
+		['une origine qui n\'est pas le Hub', section([item()], { origin: 'architecture-studio' }), /origine « architecture-studio » inattendue/],
+		['l\'ancienne forme en liste', [item()], /n'a pas la forme/]
+	])('refuse un instantané qui porte %s (le Hub ne vérifie rien)', (_n, compliance, expected) => {
+		const snap = snapshot((d) => { d.compliance = compliance as never; });
 		expect(hubSnapshotProblems(snap).join(' ')).toMatch(expected as RegExp);
 		expect(() => requireVerifiedHubSnapshot(snap)).toThrow(/refusé/);
 	});

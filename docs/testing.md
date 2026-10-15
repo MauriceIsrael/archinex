@@ -60,7 +60,7 @@ LLMOPS_LIVE_URL=http://127.0.0.1:8099 npx vitest run \
   tests/integration/llmops-mcp.test.ts
 ```
 
-Les tests `hub-*-live` ont besoin d'un Hub dont le contrat est celui de leur lot (la couverture K17 : contrat 1.30) et des jetons
+Les tests `hub-*-live` ont besoin d'un Hub au contrat 1.31 ou plus (la couverture K17) et des jetons
 `arx-token` / `suite-token` du serveur de contrat. Un Hub plus ancien fait échouer les assertions de version, c'est attendu.
 
 ## Écarts connus (à corriger, pas à ignorer)
@@ -82,5 +82,4 @@ Les 22 tests `hub-*-live` et les autres tests live passent.
 ## Dernier état connu
 
 Sur la branche de ce document : 109 fichiers, 803 tests ; 707 réussis, 0 échec, 96 ignorés (les suites « live » ci-dessus).
-Les 22 tests `hub-*-live` ont été rejoués contre un serveur de contrat du Hub au contrat 1.30 : 22 réussis. Le serveur de contrat
-*du dépôt* du Hub (avec les jetons ci-dessus) a été vérifié avec 19 d'entre eux ; les 3 autres exigent le lot K17 du Hub.
+Les 22 tests `hub-*-live` ont été rejoués contre le serveur de contrat du dépôt du Hub (`main`, contrat 1.31) : 22 réussis.

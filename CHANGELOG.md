@@ -8,17 +8,20 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
-### Couverture déclarée exigence → contrôle (K17, contrat 1.30 du Hub)
-- **Constat** : l'export d'Archinex n'a jamais calculé la section `compliance` (elle valait toujours `[]` hors banc d'essai). K17 n'est donc pas
-  un transfert à retirer d'Archinex mais une capacité nouvelle du Hub, que la matrice de traçabilité lit désormais.
-- Une décision envoyée au Hub porte `based_on` : les références de la base de connaissances de l'**option retenue**. Le Hub en tire,
-  dans son instantané de connaissances épinglé, les contrôles que ces éléments mettent en œuvre et les déclare couverts pour les
-  exigences que le sujet porte (`allocated` si la décision est affirmée, `proposed` sinon ; jamais « vérifié »).
+### Couverture exigence → contrôle (K17, contrat 1.31 du Hub)
+- **Constat** : l'export d'Archinex n'a jamais calculé la section `compliance` (elle valait toujours `[]` hors banc d'essai). K17 n'est
+  donc pas un transfert à retirer d'Archinex mais une capacité du Hub, que la matrice de traçabilité lit désormais.
+- Une décision envoyée au Hub porte `based_on` : les références de la base de connaissances de l'**option retenue**. Le Hub les confronte
+  aux contrôles rapprochés de chaque exigence (`allocated` / `proposed` / `uncovered`, déclaratif, jamais « vérifié »).
 - La matrice de traçabilité d'un projet basculé gagne une colonne « Contrôles déclarés ».
-- Lecture de l'instantané (schéma 1.7) : un statut autre que `allocated`/`proposed`, ou une ligne qui n'est pas fondée sur une décision,
-  fait **refuser** l'instantané.
-- Parité : `compliance` n'est plus « absente du Hub » ; le scénario n'en éprouve rien (Archinex ne calcule pas cette section).
+- Lecture de l'instantané (schéma 1.7) : un statut inconnu ou une origine autre que le Hub fait **refuser** l'instantané ; un instantané
+  sans section se lit normalement.
+- **Limite** : une exigence créée par l'API d'écriture n'a pas de contrôle rapproché ; la section est donc vide pour un projet d'Archinex
+  tant que le Hub ne l'accepte ou ne le calcule pas (voir `docs/hub-parity.md`).
+- Parité : `compliance` n'est plus « absente du Hub » ; le scénario n'en éprouve rien.
 - Test du parcours contre un vrai Hub : `tests/contract/hub-compliance-live.test.ts`.
+- Correction de #108 (explorateur de doctrine), qui rendait `main` rouge : « Validé par » lisait des champs inexistants
+  (`validated_by`) au lieu de `review.by` / `review.at` ; le test construisait le client avec de mauvais arguments.
 
 ### Décision d'un projet basculé : elle atteint enfin le Hub (#103)
 - **Cause** : la route `…/decision/assert` d'un projet basculé envoyait au Hub `retained_option` (un identifiant d'option

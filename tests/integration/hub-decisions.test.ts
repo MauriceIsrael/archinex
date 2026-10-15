@@ -57,8 +57,8 @@ describe('Décision d\'un projet basculé : envoi au Hub', () => {
 		await prisma.subject.create({ data: { id: SID, projectId: PID, sectionRef: '§1', name: 'Autonomie', maturityLevel: 'L2_decomposed' } });
 		await prisma.option.createMany({
 			data: [
-				{ id: `${SID}-a`, subjectId: SID, title: 'Horloge locale', summary: 'a', origin: 'human', author: 'x', productionMode: 'human-authored' },
-				{ id: `${SID}-b`, subjectId: SID, title: 'Distribution réseau', summary: 'b', origin: 'human', author: 'x', productionMode: 'human-authored' }
+				{ id: `${SID}-a`, subjectId: SID, title: 'Horloge locale', summary: 'a', origin: 'human', author: 'x', productionMode: 'human-authored', kbRefs: JSON.stringify(['pattern:PAT-001', 'ADR-0007', 'ADR-0007', '  ', 42]) },
+				{ id: `${SID}-b`, subjectId: SID, title: 'Distribution réseau', summary: 'b', origin: 'human', author: 'x', productionMode: 'human-authored', kbRefs: JSON.stringify(['ADR-0001']) }
 			]
 		});
 	});
@@ -78,6 +78,7 @@ describe('Décision d\'un projet basculé : envoi au Hub', () => {
 			reversibility: 'costly',
 			rejected: [{ option: 'Distribution réseau', reason: 'Dépend du transport' }],
 			accepted_violations: [{ typed_id: 'principle:P-009', justification: 'Pilote seulement.' }],
+			based_on: [{ id: 'ADR-0007' }, { id: 'pattern:PAT-001' }], // références de l'option RETENUE, dédoublonnées, triées
 			facts: FACTS
 		});
 		expect(JSON.stringify(body)).not.toContain(SID); // aucun identifiant d'Archinex
@@ -87,6 +88,13 @@ describe('Décision d\'un projet basculé : envoi au Hub', () => {
 		// L'affirmation utilise l'identifiant RENVOYÉ PAR LE HUB, au nom d'une autre personne.
 		expect(calls[2].args).toEqual(['eng-hubdec', 'D-abc123', 'bob.decider@exemple.org']);
 		expect(calls[3].args).toEqual(['eng-hubdec', 'Autonomie', 'L3_decided', 'bob.decider@exemple.org']);
+	});
+
+	it('ne cite pas la base de connaissances quand l\'option retenue n\'en cite rien (aucun lien exigence → contrôle déclaré)', async () => {
+		await prisma.option.update({ where: { id: `${SID}-a` }, data: { kbRefs: '[]' } });
+		const { client, calls } = fakeClient();
+		await recordDecisionInHub(project, subjectRow, decisionRow(), [], 'bob.decider@exemple.org', client);
+		expect((calls.find((c) => c.fn === 'addDecision')!.args[1] as { based_on: unknown[] }).based_on).toEqual([]);
 	});
 
 	it('un rejeu sur une décision déjà affirmée au Hub n\'affirme pas deux fois', async () => {

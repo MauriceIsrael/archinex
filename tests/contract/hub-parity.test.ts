@@ -52,14 +52,15 @@ function snapshot(change: (d: HubEngagementSnapshot['data']) => void = () => {})
 	} as unknown as HubEngagementSnapshot['data'];
 	change(data);
 	const checksum = `sha256:${universalSha256(canonicalJson(data))}`;
-	return { schemaVersion: '1.6', snapshotId: `eng-eng-x-${checksum.slice(7, 19)}`, sourceSystem: 'knowledge-hub', emitter: 'knowledge-hub', createdAt: '2026-10-03T12:00:00Z', sourceRevision: 'test', checksum, data };
+	return { schemaVersion: '1.7', snapshotId: `eng-eng-x-${checksum.slice(7, 19)}`, sourceSystem: 'knowledge-hub', emitter: 'knowledge-hub', createdAt: '2026-10-03T12:00:00Z', sourceRevision: 'test', checksum, data };
 }
 
 describe('Parité dossier / instantané du Hub', () => {
 	it('un même état des deux côtés : aucun écart de contenu, sections absentes listées', () => {
 		const r = compareBundleWithHubSnapshot(bundle(), snapshot());
 		expect(r.differences).toEqual([]);
-		expect(r.absentInHub.sort()).toEqual(['architecture', 'compliance', 'glossary', 'reuse_log', 'source_documents']);
+		expect(r.absentInHub.sort()).toEqual(['architecture', 'glossary', 'reuse_log', 'source_documents']);
+		expect(r.sections.find((x) => x.section === 'compliance')).toMatchObject({ inBundle: 0, inHub: 0, status: 'not_exercised' });
 	});
 
 	it.each([
@@ -112,5 +113,47 @@ describe('Lecture d\'un instantané du Hub', () => {
 		expect(md).toMatch(/Six postes.*Évacuée.*proposé, en attente d'affirmation.*@carl/);
 		expect(md).toMatch(/Sans décision\..*Sans décision.*non décidé/);
 		expect(renderTraceabilityView(viewFromHubSnapshot(snap))).toBe(md);
+	});
+
+	// Forme réellement émise par le Hub (contrat 1.31) : un objet, pas une liste.
+	const section = (items: Array<Record<string, unknown>> = [], over: Record<string, unknown> = {}) => ({
+		origin: 'knowledge-hub',
+		kb_snapshot: { snapshot_id: 'snapshot-2026-10-12-7393586', checksum: 'sha256:' + 'a'.repeat(64) },
+		items,
+		unresolved: [],
+		...over
+	});
+	const item = (over: Record<string, unknown> = {}) => ({
+		requirement_id: hubRequirementId(R1), control_id: 'SNC-REQ-02', framework: 'SecNumCloud', severity: 'mandatory',
+		status: 'allocated', decisions: ['D-1'], assets: ['ADR-0007'], ...over
+	});
+
+	it('la matrice montre les contrôles que le Hub DÉCLARE couverts (ou non) par les décisions, jamais comme vérifiés', () => {
+		const snap = snapshot((d) => {
+			d.compliance = section([item(), item({ control_id: 'NIS2-ART21-2C', status: 'proposed' }), item({ control_id: 'ISO-22301-BCP', status: 'uncovered', decisions: [], assets: [] })]) as never;
+		});
+		expect(hubSnapshotProblems(snap)).toEqual([]);
+		const md = renderTraceabilityView(viewFromHubSnapshot(snap));
+		expect(md).toContain('Contrôles déclarés');
+		expect(md).toMatch(/Autonomie de 30 jours.*`ISO-22301-BCP` \(aucune décision\); `NIS2-ART21-2C` \(décision proposée\); `SNC-REQ-02` \(décision affirmée\)/);
+		expect(md).not.toMatch(/vérifi/i);
+		expect(compareBundleWithHubSnapshot(bundle(), snap).sections.find((x) => x.section === 'compliance')).toMatchObject({ inBundle: 0, inHub: 3, status: 'partial' });
+	});
+
+	it('un instantané sans section de conformité (Hub plus ancien) se lit sans problème', () => {
+		const snap = snapshot();
+		expect(snap.data.compliance).toBeUndefined();
+		expect(hubSnapshotProblems(snap)).toEqual([]);
+		expect(renderTraceabilityView(viewFromHubSnapshot(snap))).toContain('Contrôles déclarés');
+	});
+
+	it.each([
+		['un statut « verified »', section([item({ status: 'verified' })]), /statut « verified » inattendu/],
+		['une origine qui n\'est pas le Hub', section([item()], { origin: 'architecture-studio' }), /origine « architecture-studio » inattendue/],
+		['l\'ancienne forme en liste', [item()], /n'a pas la forme/]
+	])('refuse un instantané qui porte %s (le Hub ne vérifie rien)', (_n, compliance, expected) => {
+		const snap = snapshot((d) => { d.compliance = compliance as never; });
+		expect(hubSnapshotProblems(snap).join(' ')).toMatch(expected as RegExp);
+		expect(() => requireVerifiedHubSnapshot(snap)).toThrow(/refusé/);
 	});
 });

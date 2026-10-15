@@ -163,7 +163,7 @@
         framework: c.framework,
         clauses: ctrlClauses,
         badge,
-        summary: c.text
+        summary: typeof c.text === 'string' ? c.text : undefined
       });
     }
 

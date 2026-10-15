@@ -8,7 +8,7 @@ describe('Archinex #95 & LLMOps #108 - Explorateur de doctrine complet & histori
   let client: LLMOpsClient;
 
   beforeEach(() => {
-    client = new LLMOpsClient(FAKE_BASE, 'test-token');
+    client = new LLMOpsClient({ baseUrl: FAKE_BASE, authToken: 'test-token' });
   });
 
   describe('1. LLMOps Client - Publications & Asset History (Contrat 1.27)', () => {

@@ -2,6 +2,7 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { exportEngagementBundle } from '$lib/server/bundleExportService';
 import type { ConfidentialityLevel } from '$lib/domain/engagementBundle';
+import { exportOscalCompliance } from '$lib/domain/oscalExport';
 import { prisma } from '$lib/server/prisma';
 import { llmopsClient } from '$lib/server/llmops/client';
 import { isProjectCutOverToHub } from '$lib/server/projects/hubMigrationService';
@@ -66,6 +67,12 @@ export const POST: RequestHandler = async (event) => {
 			confidentiality,
 			actorHandle
 		});
+
+		const format = event.url.searchParams.get('format');
+		if (format === 'oscal') {
+			const oscal = exportOscalCompliance(result.bundle);
+			return json(oscal);
+		}
 
 		return json({
 			status: 'ok',

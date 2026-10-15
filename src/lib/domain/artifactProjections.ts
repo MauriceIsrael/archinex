@@ -2,13 +2,40 @@ import type { MaturitySubject } from '$lib/domain/maturityBoard';
 import type { TelegraphicDraft } from '$lib/domain/telegraphic';
 import type { Statement } from '$lib/types/epistemic';
 
+export interface ProjectionActor {
+	name: string;
+	role?: string;
+	description?: string;
+}
+
+export interface ProjectionDecision {
+	retainedOptionId?: string;
+	retainedOptionTitle?: string;
+	rationale?: string;
+	reversibility?: string;
+	decidedAt?: string;
+	arbiterId?: string;
+	arbiterRole?: string;
+}
+
+export interface ProjectionContext {
+	projectName?: string;
+	enterpriseName?: string;
+	actors?: ProjectionActor[];
+	decision?: ProjectionDecision | null;
+	options?: Array<{ id: string; title: string; summary?: string; status?: string }>;
+	requirements?: Array<{ clauseRef: string; title: string }>;
+	sealSha256?: string;
+}
+
 /**
  * Génère le diagramme d'architecture Mermaid normalisé à partir des faits prouvés (No Doc Drift).
  */
 export function generateMermaidDiagram(
 	subject: MaturitySubject,
 	draft: TelegraphicDraft,
-	statements: Statement[]
+	statements: Statement[],
+	context?: ProjectionContext
 ): string {
 	const relevantStatements = statements.filter(
 		(s) => s.section === subject.section_ref || s.triplet.subject === subject.id
@@ -19,7 +46,12 @@ export function generateMermaidDiagram(
 		`    subgraph "${subject.section_ref} · ${subject.name}"`
 	];
 
-	if (relevantStatements.length === 0) {
+	if (context?.decision?.retainedOptionTitle) {
+		const safeOpt = context.decision.retainedOptionTitle.replace(/["[\]()]/g, '');
+		lines.push(`        OPT["⭐ Option Retenue : ${safeOpt}"]`);
+	}
+
+	if (relevantStatements.length === 0 && !context?.decision) {
 		lines.push('        A["Architecture en cours de délibération"]');
 	} else {
 		relevantStatements.forEach((stmt, idx) => {
@@ -39,6 +71,10 @@ export function generateMermaidDiagram(
 				});
 			}
 		});
+
+		if (context?.decision?.retainedOptionTitle && relevantStatements.length > 0) {
+			lines.push(`        OPT --> N_0`);
+		}
 	}
 
 	lines.push('    end');
@@ -46,36 +82,58 @@ export function generateMermaidDiagram(
 }
 
 /**
- * Génère la spécification C4 au format Structurizr DSL (.dsl).
+ * Génère la spécification C4 au format Structurizr DSL (.dsl) dynamique et contextualisée.
  */
 export function generateStructurizrDSL(
 	subject: MaturitySubject,
 	draft: TelegraphicDraft,
-	statements: Statement[]
+	statements: Statement[],
+	context?: ProjectionContext
 ): string {
 	const relevantStatements = statements.filter(
 		(s) => s.section === subject.section_ref || s.triplet.subject === subject.id
 	);
 
+	const enterpriseName = context?.enterpriseName || context?.projectName || 'Organisation';
+	const primaryActor = context?.actors && context.actors.length > 0
+		? context.actors[0]
+		: { name: 'Utilisateur du Système', description: `Interagit avec ${subject.name}` };
+
 	const elements: string[] = [];
+
+	if (context?.decision?.retainedOptionTitle) {
+		const safeTitle = context.decision.retainedOptionTitle.replace(/"/g, '\\"');
+		const safeRat = (context.decision.rationale || 'Option retenue').replace(/"/g, '\\"');
+		elements.push(`            retained_option = container "${safeTitle}" "${safeRat}" "Architecture Retenue"`);
+	}
+
 	relevantStatements.forEach((s) => {
 		const safeId = s.id.replace(/[^a-zA-Z0-9_]/g, '_');
 		const safeDesc = String(s.triplet.value).replace(/"/g, '\\"');
 		elements.push(`            ${safeId} = container "${s.triplet.predicate}" "${safeDesc}" "Verified Architecture"`);
 	});
 
-	return `workspace "${subject.name}" "Projeté sans dérive depuis Archinex" {
+	if (elements.length === 0) {
+		elements.push(`            c_default = container "Socle Architectural" "En cours de spécification" "Verified Architecture"`);
+	}
+
+	const safeActorName = primaryActor.name.replace(/"/g, '\\"');
+	const safeActorDesc = (primaryActor.description || 'Interagit avec le système').replace(/"/g, '\\"');
+	const safeEnterprise = enterpriseName.replace(/"/g, '\\"');
+	const safeSubject = subject.name.replace(/"/g, '\\"');
+
+	return `workspace "${safeSubject}" "Projeté sans dérive depuis Archinex" {
     model {
-        user = person "Opérateur Réseau" "Supervise les communications critiques"
-        enterprise "Infrastructure Critiques" {
-            system = softwareSystem "${subject.name}" {
+        user = person "${safeActorName}" "${safeActorDesc}"
+        enterprise "${safeEnterprise}" {
+            system = softwareSystem "${safeSubject}" {
 ${elements.join('\n')}
             }
         }
-        user -> system "Opère via protocole sécurisé"
+        user -> system "Utilise les services du système"
     }
     views {
-        systemContext system "Context_${subject.id}" {
+        systemContext system "Context_${subject.id.replace(/[^a-zA-Z0-9_]/g, '_')}" {
             include *
             autoLayout lr
         }
@@ -89,13 +147,25 @@ ${elements.join('\n')}
 export function generateSysMLv2(
 	subject: MaturitySubject,
 	draft: TelegraphicDraft,
-	statements: Statement[]
+	statements: Statement[],
+	context?: ProjectionContext
 ): string {
 	const relevantStatements = statements.filter(
 		(s) => s.section === subject.section_ref || s.triplet.subject === subject.id
 	);
 
 	const parts: string[] = [];
+
+	if (context?.decision?.retainedOptionTitle) {
+		const safeTitle = context.decision.retainedOptionTitle.replace(/[^a-zA-Z0-9_]/g, '_');
+		parts.push(`    part def Opt_${safeTitle} {`);
+		parts.push(`        doc /* Option retenue : ${context.decision.retainedOptionTitle.replace(/"/g, '\\"')} */`);
+		if (context.decision.reversibility) {
+			parts.push(`        attribute reversibility : String = "${context.decision.reversibility}";`);
+		}
+		parts.push(`    }`);
+	}
+
 	relevantStatements.forEach((s) => {
 		const safeName = s.triplet.predicate.replace(/[^a-zA-Z0-9_]/g, '_');
 		parts.push(`    part def ${safeName} {`);
@@ -104,6 +174,14 @@ export function generateSysMLv2(
 		parts.push(`    }`);
 	});
 
+	if (context?.requirements && context.requirements.length > 0) {
+		context.requirements.forEach((r) => {
+			const safeClause = r.clauseRef.replace(/[^a-zA-Z0-9_]/g, '_');
+			parts.push(`    // Exigence couverte : ${r.clauseRef} - ${r.title.replace(/"/g, '\\"')}`);
+			parts.push(`    // satisfy requirement req_${safeClause};`);
+		});
+	}
+
 	return `package '${subject.name}' {
     doc /* Projeté sans doc drift depuis Archinex snapshot scellé */
 ${parts.join('\n')}
@@ -111,34 +189,59 @@ ${parts.join('\n')}
 }
 
 /**
- * Génère la configuration opérationnelle JSON (No Doc Drift).
+ * Génère la configuration opérationnelle JSON dynamique à partir des faits prouvés et de la décision (No Doc Drift).
  */
 export function generateConfigJSON(
 	subject: MaturitySubject,
 	draft: TelegraphicDraft,
 	statements: Statement[],
 	/** Horodatage de génération : à fournir pour une projection reproductible (le gel y passe l'instant du scellement). */
-	generatedAt: string = new Date().toISOString()
+	generatedAt: string = new Date().toISOString(),
+	context?: ProjectionContext
 ): string {
-	const holdoverStmt = statements.find((s) => s.triplet.predicate.includes('holdover'));
-	const powerStmt = statements.find((s) => s.triplet.predicate.includes('power'));
+	const relevantStatements = statements.filter(
+		(s) => s.section === subject.section_ref || s.triplet.subject === subject.id
+	);
+
+	const parameters: Record<string, unknown> = {};
+	for (const stmt of relevantStatements) {
+		const key = stmt.triplet.predicate.replace(/[^a-zA-Z0-9_]/g, '_');
+		let val: any = stmt.triplet.value;
+		if (typeof val === 'string') {
+			if (val.toLowerCase() === 'true') val = true;
+			else if (val.toLowerCase() === 'false') val = false;
+			else if (/^-?\d+(\.\d+)?$/.test(val)) val = Number(val);
+		}
+		parameters[key] = val;
+	}
 
 	const config = {
-		profile: 'IEEE_1588_G8275_1',
-		sectionRef: subject.section_ref,
-		subjectId: subject.id,
-		parameters: {
-			domainNumber: 24,
-			clockClass: holdoverStmt ? 6 : 7,
-			holdoverSpec: holdoverStmt ? String(holdoverStmt.triplet.value) : '24h',
-			powerRedundancy: powerStmt ? String(powerStmt.triplet.value) : 'Single_feed',
-			transport: 'Ethernet_Multicast',
-			twoStepFlag: true
+		subject: {
+			id: subject.id,
+			sectionRef: subject.section_ref,
+			name: subject.name,
+			maturityLevel: subject.level
 		},
+		decision: context?.decision
+			? {
+					retainedOptionId: context.decision.retainedOptionId,
+					retainedOptionTitle: context.decision.retainedOptionTitle,
+					rationale: context.decision.rationale,
+					reversibility: context.decision.reversibility,
+					decidedAt: context.decision.decidedAt,
+					arbiterRole: context.decision.arbiterRole
+				}
+			: null,
+		parameters: Object.keys(parameters).length > 0 ? parameters : {
+			status: subject.level,
+			verifiedStatementsCount: relevantStatements.length
+		},
+		coveredRequirements: context?.requirements?.map((r) => r.clauseRef) ?? [],
 		provenance: {
 			sealedEngine: 'Archinex Deliberation Workbench',
 			generatedAt,
-			enforcedTruth: true
+			enforcedTruth: true,
+			sealSha256: context?.sealSha256
 		}
 	};
 
@@ -151,26 +254,39 @@ export function generateConfigJSON(
 export function generateStructurizrVisualMermaid(
 	subject: MaturitySubject,
 	draft: TelegraphicDraft,
-	statements: Statement[]
+	statements: Statement[],
+	context?: ProjectionContext
 ): string {
 	const relevantStatements = statements.filter(
 		(s) => s.section === subject.section_ref || s.triplet.subject === subject.id
 	);
+
+	const enterpriseName = context?.enterpriseName || context?.projectName || 'Organisation';
+	const primaryActor = context?.actors && context.actors.length > 0
+		? context.actors[0]
+		: { name: 'Utilisateur', description: 'Consomme les services du système' };
 
 	const lines: string[] = [
 		'flowchart TB',
 		'    classDef person fill:#08427b,stroke:#073b6e,color:#fff,font-weight:bold',
 		'    classDef system fill:#1168bd,stroke:#0b4884,color:#fff,font-weight:bold',
 		'    classDef container fill:#438dd5,stroke:#2e6295,color:#fff',
+		'    classDef retained fill:#2b8a3e,stroke:#1b5e20,color:#fff,font-weight:bold',
 		'',
-		'    user["👤 Opérateur Réseau<br/><small>[Personne]</small><br/>Supervise les flux"]:::person',
+		`    user["👤 ${primaryActor.name}<br/><small>[Personne]</small><br/>${primaryActor.description || ''}"]:::person`,
 		'',
-		`    subgraph Enterprise["🏢 Entreprise : Infrastructure Critique"]`,
+		`    subgraph Enterprise["🏢 Entreprise : ${enterpriseName}"]`,
 		`        subgraph SysBound["Système : ${subject.name}"]`,
 		`            direction TB`
 	];
 
-	if (relevantStatements.length === 0) {
+	if (context?.decision?.retainedOptionTitle) {
+		const safeOpt = context.decision.retainedOptionTitle.replace(/["[\]()]/g, '');
+		const safeRat = (context.decision.rationale || '').slice(0, 50).replace(/["[\]()]/g, '');
+		lines.push(`            c_opt["⭐ ${safeOpt}<br/><small>[Option Retenue · Arbitrée]</small><br/>${safeRat}"]:::retained`);
+	}
+
+	if (relevantStatements.length === 0 && !context?.decision) {
 		lines.push(`            c_default["⚙️ Composant Architectural<br/><small>[Container]</small><br/>En cours de délibération"]:::container`);
 	} else {
 		relevantStatements.forEach((s, idx) => {
@@ -182,7 +298,7 @@ export function generateStructurizrVisualMermaid(
 	lines.push('        end');
 	lines.push('    end');
 	lines.push('');
-	lines.push('    user -->|"Supervision sécurisée mTLS"| SysBound');
+	lines.push('    user -->|"Supervision / Utilisation sécurisée"| SysBound');
 
 	return lines.join('\n');
 }
@@ -193,7 +309,8 @@ export function generateStructurizrVisualMermaid(
 export function generateSysMLVisualMermaid(
 	subject: MaturitySubject,
 	draft: TelegraphicDraft,
-	statements: Statement[]
+	statements: Statement[],
+	context?: ProjectionContext
 ): string {
 	const relevantStatements = statements.filter(
 		(s) => s.section === subject.section_ref || s.triplet.subject === subject.id
@@ -206,6 +323,10 @@ export function generateSysMLVisualMermaid(
 		`        +section: "${subject.section_ref}"`,
 		`        +status: "${subject.level}"`
 	];
+
+	if (context?.decision?.retainedOptionTitle) {
+		lines.push(`        +retainedOption: "${context.decision.retainedOptionTitle.replace(/"/g, '')}"`);
+	}
 
 	relevantStatements.forEach((s) => {
 		const safePred = s.triplet.predicate.replace(/[^a-zA-Z0-9_]/g, '_');

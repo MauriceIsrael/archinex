@@ -2,6 +2,7 @@
 	import { deliberationStore } from '$lib/stores/deliberationStore.svelte';
 	import { ShieldCheck, ShieldAlert, Lock, CheckCircle2, X, Download, Copy, ExternalLink, Hash } from 'lucide-svelte';
 	import { formatMaturityLevel } from '$lib/domain/debate';
+	import { exportOscalCompliance } from '$lib/domain/oscalExport';
 
 	const activeSubject = $derived(deliberationStore.activeSubject);
 	const activeDraft = $derived(deliberationStore.activeDraft);
@@ -48,6 +49,12 @@
 	let copySuccess = $state(false);
 	let copySnapshotRefSuccess = $state(false);
 
+	$effect(() => {
+		if (isOpen && activeSubject?.id && !existingSnapshot) {
+			void deliberationStore.fetchFrozenSnapshot(activeSubject.id);
+		}
+	});
+
 	function handleClose() {
 		deliberationStore.closeFreezeDialog();
 	}
@@ -55,6 +62,22 @@
 	function handleFreeze() {
 		if (!activeSubject) return;
 		deliberationStore.freezeSection(activeSubject.id);
+	}
+
+	function downloadOscalPlan() {
+		if (!exportedBundleResult?.bundle) return;
+		try {
+			const oscalSsp = exportOscalCompliance(exportedBundleResult.bundle);
+			const blob = new Blob([JSON.stringify(oscalSsp, null, 2)], { type: 'application/json' });
+			const url = URL.createObjectURL(blob);
+			const a = document.createElement('a');
+			a.href = url;
+			a.download = `oscal-ssp-${exportedBundleResult.snapshotRef.snapshotId}.json`;
+			a.click();
+			URL.revokeObjectURL(url);
+		} catch (err: any) {
+			deliberationStore.logNotification(`Erreur export OSCAL: ${err.message}`, 'warning');
+		}
 	}
 
 	async function handleExportBundle() {
@@ -422,7 +445,7 @@
 									</div>
 								</div>
 
-								<div class="flex items-center gap-2 pt-1">
+								<div class="flex flex-wrap items-center gap-2 pt-1">
 									<button
 										type="button"
 										onclick={downloadExportedBundle}
@@ -430,6 +453,16 @@
 									>
 										<Download class="h-3.5 w-3.5" />
 										<span>Télécharger engagement-bundle.json</span>
+									</button>
+
+									<button
+										type="button"
+										onclick={downloadOscalPlan}
+										class="inline-flex items-center gap-1.5 rounded-md border border-input bg-background px-3 py-1.5 text-xs font-semibold hover:bg-muted text-foreground transition-colors"
+										title="Télécharger le Plan de Sécurité Système NIST OSCAL v1.0.0 (JSON)"
+									>
+										<ShieldCheck class="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />
+										<span>Télécharger OSCAL SSP (JSON)</span>
 									</button>
 
 									<button

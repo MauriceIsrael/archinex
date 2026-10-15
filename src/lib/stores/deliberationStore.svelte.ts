@@ -31,7 +31,8 @@ import {
 	generateStructurizrVisualMermaid,
 	generateSysMLv2,
 	generateSysMLVisualMermaid,
-	generateConfigJSON
+	generateConfigJSON,
+	type ProjectionContext
 } from '$lib/domain/artifactProjections';
 import {
 	type CorpusDocument,
@@ -1355,7 +1356,7 @@ class DeliberationStore {
 	 */
 	freezeSection(
 		subjectId: string,
-		authorName: string = 'M. Israel'
+		authorName?: string
 	): { success: boolean; snapshot?: SealedSnapshot; error?: string } {
 		const subject = this.subjects.find((s) => s.id === subjectId);
 		const draft = this.drafts[subjectId];
@@ -1370,12 +1371,22 @@ class DeliberationStore {
 			return { success: false, error: err };
 		}
 
+		const resolvedAuthorName =
+			authorName ||
+			this.currentUser?.name ||
+			this.currentUser?.email ||
+			this.activeEngagement?.participants?.find((p) => p.isLead)?.name ||
+			'Lead Architect';
+
+		const context = this.getProjectionContext(subjectId);
+
 		const snapshot = freezeSectionAndGenerateSnapshot({
 			subject,
 			draft,
 			statements: this.statements,
-			authorName,
-			authorRole: this.currentRole
+			authorName: resolvedAuthorName,
+			authorRole: this.currentRole,
+			context
 		});
 
 		this.frozenSnapshots[subjectId] = snapshot;
@@ -1397,9 +1408,60 @@ class DeliberationStore {
 			this.drafts[subjectId].maturity = 'L5_archived';
 		}
 
+		// Persistance serveur asynchrone pour audit immuable
+		const pId = this.activeEngagement?.id || this.activeEngagementId;
+		if (typeof window !== 'undefined' && pId) {
+			fetch(`/api/projects/${encodeURIComponent(pId)}/subjects/${encodeURIComponent(subjectId)}/freeze`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ snapshot, authorName: resolvedAuthorName })
+			}).catch((err) => console.warn('[Archinex] Erreur sync freeze serveur:', err));
+		}
+
 		const msg = `🔒 Section ${subject.section_ref} (${subject.name}) scellée avec succès. Empreinte SHA-256: ${snapshot.sealSha256.substring(0, 12)}...`;
 		this.logNotification(msg, 'success');
 		return { success: true, snapshot };
+	}
+
+	/**
+	 * Construit le contexte de projection dynamique (projet, participants, décision).
+	 */
+	getProjectionContext(subjectId: string): ProjectionContext {
+		const eng = this.activeEngagement;
+		const subject = this.subjects.find((s) => s.id === subjectId);
+		return {
+			projectName: eng?.title || 'Engagement Archinex',
+			enterpriseName: eng?.title || 'Organisation',
+			actors: (eng?.participants || []).map((p) => ({
+				name: p.name,
+				role: p.role,
+				description: p.isLead ? 'Architecte Référent' : `Expert (${p.role})`
+			})),
+			requirements: (subject?.requirement_ids || []).map((id) => ({
+				clauseRef: id.split(':').pop() || id,
+				title: id
+			})),
+			sealSha256: this.frozenSnapshots[subjectId]?.sealSha256
+		};
+	}
+
+	/**
+	 * Charge le snapshot scellé d'une section depuis le serveur si elle a déjà été homologuée.
+	 */
+	async fetchFrozenSnapshot(subjectId: string, projectId = this.activeEngagement?.id || this.activeEngagementId) {
+		if (!projectId || !subjectId || typeof window === 'undefined') return null;
+		try {
+			const res = await fetch(`/api/projects/${encodeURIComponent(projectId)}/subjects/${encodeURIComponent(subjectId)}/freeze`);
+			if (!res.ok) return null;
+			const data = await res.json();
+			if (data?.snapshot) {
+				this.frozenSnapshots[subjectId] = data.snapshot;
+				return data.snapshot;
+			}
+		} catch {
+			// mode hors-ligne / test
+		}
+		return null;
 	}
 
 	/**
@@ -1415,13 +1477,15 @@ class DeliberationStore {
 		);
 
 		const sealedAt = this.frozenSnapshots[subjectId]?.sealedAt;
+		const context = this.getProjectionContext(subjectId);
+
 		return {
-			mermaid: generateMermaidDiagram(subject, draft, sectionStatements),
-			structurizrDSL: generateStructurizrDSL(subject, draft, sectionStatements),
-			structurizrVisual: generateStructurizrVisualMermaid(subject, draft, sectionStatements),
-			sysmlV2: generateSysMLv2(subject, draft, sectionStatements),
-			sysmlVisual: generateSysMLVisualMermaid(subject, draft, sectionStatements),
-			configJSON: generateConfigJSON(subject, draft, sectionStatements, sealedAt)
+			mermaid: generateMermaidDiagram(subject, draft, sectionStatements, context),
+			structurizrDSL: generateStructurizrDSL(subject, draft, sectionStatements, context),
+			structurizrVisual: generateStructurizrVisualMermaid(subject, draft, sectionStatements, context),
+			sysmlV2: generateSysMLv2(subject, draft, sectionStatements, context),
+			sysmlVisual: generateSysMLVisualMermaid(subject, draft, sectionStatements, context),
+			configJSON: generateConfigJSON(subject, draft, sectionStatements, sealedAt, context)
 		};
 	}
 

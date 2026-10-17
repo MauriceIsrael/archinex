@@ -10,12 +10,10 @@
 	import HldFragmentView from '$lib/components/deliberation/HldFragmentView.svelte';
 	import WhyInspector from '$lib/components/deliberation/WhyInspector.svelte';
 	import FreezeSectionDialog from '$lib/components/deliberation/FreezeSectionDialog.svelte';
-	import DecisionGuideModal from '$lib/components/deliberation/DecisionGuideModal.svelte';
 	import { deliberationStore } from '$lib/stores/deliberationStore.svelte';
 	import { Layers, MessagesSquare } from 'lucide-svelte';
 
 	let { data } = $props();
-	let isDecisionGuideOpen = $state<boolean>(false);
 
 	onMount(() => {
 		// Synchronisation non-bloquante en arrière-plan (Stale-While-Revalidate) :
@@ -35,7 +33,7 @@
 	<!-- EN-TÊTE SUPÉRIEUR : SÉLECTEUR DE PROJET & 3 GRANDS ONGLETS DE PHASE       -->
 	<!-- ═════════════════════════════════════════════════════════════════════════ -->
 	{#if deliberationStore.deliberationViewMode === 'board' || deliberationStore.activePosture !== 'deliberation'}
-		<ProjectEngagementHeader onOpenGuide={() => (isDecisionGuideOpen = true)} />
+		<ProjectEngagementHeader />
 	{/if}
 
 	<!-- ═════════════════════════════════════════════════════════════════════════ -->
@@ -119,8 +117,7 @@
 		</div>
 	{/if}
 
-	<!-- Modales d'Inspection, Scellement & Guide Décisionnel -->
+	<!-- Modales d'Inspection & Scellement -->
 	<WhyInspector />
 	<FreezeSectionDialog />
-	<DecisionGuideModal bind:isOpen={isDecisionGuideOpen} />
 </div>

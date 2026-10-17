@@ -40,7 +40,12 @@ const UpdateAccountSchema = z.object({
   email: z.string().email().optional(),
   role: z.enum(['admin', 'user']).optional(),
   isActive: z.boolean().optional(),
-  newPassword: z.string().optional(),
+  newPassword: z
+    .string()
+    .refine((val) => !val || val.trim().length >= 6, {
+      message: 'Le mot de passe doit comporter au moins 6 caractères'
+    })
+    .optional(),
   regenerateActivationLink: z.boolean().optional(),
   workspaceRoles: z.record(z.string(), ArchitectRoleOrNoneEnum.nullable()).optional(),
   enableKbReview: z.boolean().optional(),

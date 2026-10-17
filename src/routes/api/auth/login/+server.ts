@@ -7,7 +7,7 @@ import bcrypt from 'bcryptjs';
 /**
  * Login Handler — DB-backed authentication with bcrypt.
  */
-export const POST: RequestHandler = async ({ request, cookies }) => {
+export const POST: RequestHandler = async ({ request, cookies, url }) => {
   try {
     const { email, password } = await request.json();
 
@@ -44,20 +44,22 @@ export const POST: RequestHandler = async ({ request, cookies }) => {
 
     const refreshToken = await signRefreshToken(user.id);
 
+    const isSecure = process.env.NODE_ENV === 'production' && url.protocol === 'https:';
+
     // 4. Set cookies
     cookies.set('accessToken', accessToken, {
       path: '/',
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      secure: isSecure,
+      sameSite: 'lax',
       maxAge: 60 * 15, // 15 mins
     });
 
     cookies.set('refreshToken', refreshToken, {
       path: '/',
       httpOnly: true,
-      secure: process.env.NODE_ENV === 'production',
-      sameSite: 'strict',
+      secure: isSecure,
+      sameSite: 'lax',
       maxAge: 60 * 60 * 24 * 7, // 7 days
     });
 

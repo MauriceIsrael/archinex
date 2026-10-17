@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { browser } from '$app/environment';
   import { apiFetch } from '$lib/api/fetch';
   import { toast } from '$lib/toast/index.svelte';
   import { goto } from '$app/navigation';
@@ -13,8 +14,8 @@
 
   let { data }: { data: PageData } = $props();
 
-  // Redirect if already logged in
-  if (data.session) {
+  // Redirect if already logged in (client-side)
+  if (browser && data.session) {
     goto('/');
   }
 
@@ -47,8 +48,7 @@
     }
 
     toast('Welcome back!', { variant: 'success' });
-    await goto('/');
-    window.location.reload();
+    window.location.href = '/';
   }
 
   function fillDemo(user: typeof demoUsers[0]) {

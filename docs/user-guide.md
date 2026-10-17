@@ -8,10 +8,11 @@
 
 Le **Workbench de Délibération Archinex** permet à une équipe d'ingénierie système et d'architecture de converger rapidement sur des dossiers complexes (CCTP, RFP, cahiers des charges) en éliminant les pertes de temps documentaires et les faux consensus.
 
-L'interface est structurée autour de 3 zones opérationnelles :
-1. **En-tête & Sélecteur de Posture** : Détermine le mode de travail individuel de l'architecte (Appropriation, Délibération ou Rendu).
-2. **Tableau de Maturité (Vue d'ensemble)** : Priorisation stricte par le nombre de sujets débloqués en aval et état d'avancement L0→L5.
-3. **Workbench de Délibération (Un sujet = Une conversation)** : Disposition sur 3 colonnes :
+L'interface est structurée autour de zones opérationnelles claires :
+1. **En-tête supérieur global** : Présent sur toutes les pages de l'application, il regroupe la **pastille de connectivité LLMOps** (mode live ou local souverain, avec resynchronisation à la demande), le **menu d'aide méthodologique** (accès direct au guide « Comment décider ? »), ainsi que les sélecteurs de langue et de thème.
+2. **En-tête de Projet & Sélecteur de Posture** : Dédié au cadrage opérationnel, il affiche les espaces de travail actifs (Blueprint, RFP, projets) et permet de basculer instantanément entre les 3 phases de travail (*Phase 1 : Appropriation*, *Phase 2 : Délibération*, *Phase 3 : Rendu*).
+3. **Tableau de Maturité (Vue d'ensemble)** : Priorisation stricte par le nombre de sujets débloqués en aval et état d'avancement L0→L5.
+4. **Workbench de Délibération (Un sujet = Une conversation)** : Disposition sur 3 colonnes :
    - À gauche : **Liste des Sujets**, navigation fluide de type messagerie/conversations.
    - Au centre : **Fil du Sujet**, fil dialectique structuré distinguant sans ambiguïté les agents IA (à gauche, bordure pointillée, badge IA) des humains (à droite, bulle pleine, rôle), avec objections ouvertes épinglées en tête.
    - À droite : **Dossier de Consultation (repliable)**, accès en lecture seule au brouillon télégraphique, à la matrice d'options multi-critères et aux références doctrinales.

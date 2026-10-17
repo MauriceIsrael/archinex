@@ -14,15 +14,7 @@
 		Archive,
 		RotateCcw
 	} from 'lucide-svelte';
-	import { page } from '$app/stores';
-
 	let isCreateWorkspaceOpen = $state(false);
-
-	$effect(() => {
-		if ($page.data?.session?.user) {
-			deliberationStore.setCurrentUser($page.data.session.user);
-		}
-	});
 
 	const activeEngagement = $derived(deliberationStore.activeEngagement);
 

@@ -1,6 +1,6 @@
 <script lang="ts">
   import '../app.css';
-  import type { Snippet } from 'svelte';
+  import { type Snippet, untrack } from 'svelte';
   import { get } from 'svelte/store';
   
   // Granular Lucide imports for better dev performance
@@ -56,11 +56,10 @@
   const isAdmin = $derived(hasRole(session, 'admin'));
 
   $effect(() => {
-    if (session?.user) {
-      deliberationStore.setCurrentUser(session.user);
-    } else {
-      deliberationStore.setCurrentUser(null);
-    }
+    const user = session?.user ?? null;
+    untrack(() => {
+      deliberationStore.setCurrentUser(user);
+    });
   });
 
   /**
@@ -79,11 +78,13 @@
   ];
 
   async function handleLogout() {
-    await apiFetch('/api/auth/logout', { method: 'POST' });
-    // In scripts, use get(t) instead of $t subscription
+    try {
+      await apiFetch('/api/auth/logout', { method: 'POST' });
+    } catch {
+      // Ignore network errors on logout
+    }
     toast(get(t)('feedback.signedOut'), { variant: 'default' });
-    await goto('/login');
-    window.location.reload();
+    window.location.href = '/logout';
   }
 
   // Dark mode — reads preferences.themeOverride + system media query
@@ -156,6 +157,27 @@
             {/each}
           {/if}
 
+          {#if session}
+            <div class="mt-6 border-t pt-4">
+              <div class="mb-3 px-3">
+                <p class="text-sm font-medium">{session.user.name}</p>
+                <p class="text-xs text-muted-foreground truncate">{session.user.email}</p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                class="w-full justify-start text-destructive hover:text-destructive gap-2"
+                onclick={() => {
+                  sidebarOpen = false;
+                  handleLogout();
+                }}
+              >
+                <LogOut class="h-4 w-4" />
+                {$t('auth.signOut')}
+              </Button>
+            </div>
+          {/if}
+
         </nav>
       </Sheet.Content>
     </Sheet.Root>
@@ -187,18 +209,22 @@
         <DropdownMenu.Root>
           <DropdownMenu.Trigger>
             {#snippet child({ props })}
-              <button
+              <Button
+                variant="ghost"
+                size="icon"
                 {...props}
-                class="ml-2 rounded-full ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
+                class="ml-2 rounded-full p-0 h-9 w-9 ring-offset-background focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring focus-visible:ring-offset-2"
                 aria-label={$t('a11y.userMenu')}
               >
                 <Avatar.Root class="h-9 w-9 border-2 border-border">
-                  <Avatar.Image src={session.user.image} alt={session.user.name} />
+                  {#if session.user.image}
+                    <Avatar.Image src={session.user.image} alt={session.user.name} />
+                  {/if}
                   <Avatar.Fallback class="text-xs font-medium">
                     {session.user.name.slice(0, 2).toUpperCase()}
                   </Avatar.Fallback>
                 </Avatar.Root>
-              </button>
+              </Button>
             {/snippet}
           </DropdownMenu.Trigger>
           <DropdownMenu.Content align="end" class="w-56">
@@ -238,7 +264,7 @@
               <Database class="mr-2 h-4 w-4 text-primary" />
               Tableau de Bord & Publication
             </DropdownMenu.Item>
-            <DropdownMenu.Item onclick={handleLogout} class="text-destructive focus:text-destructive cursor-pointer">
+            <DropdownMenu.Item onSelect={handleLogout} onclick={handleLogout} class="text-destructive focus:text-destructive cursor-pointer">
               <LogOut class="mr-2 h-4 w-4" />
               {$t('auth.signOut')}
             </DropdownMenu.Item>

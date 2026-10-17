@@ -143,6 +143,10 @@
     savingLocal = true;
 
     try {
+      if (newPassword.trim().length > 0 && newPassword.trim().length < 6) {
+        throw new Error('Le mot de passe doit comporter au moins 6 caractères.');
+      }
+
       const domains = domainsInput
         .split(',')
         .map((s) => s.trim().toLowerCase())
@@ -171,13 +175,16 @@
         throw new Error(body.message || 'Échec de la mise à jour du compte');
       }
 
+      const pwdChanged = Boolean(newPassword.trim());
       newPassword = '';
       if (body.data?.invitationUrl) {
         generatedLink = window.location.origin + body.data.invitationUrl;
-      } else if (newPassword) {
+      } else if (pwdChanged) {
         generatedLink = null;
       }
-      successMsg = 'Modifications du compte et des rôles par espace enregistrées.';
+      successMsg = pwdChanged
+        ? 'Compte et nouveau mot de passe enregistrés avec succès.'
+        : 'Modifications du compte et des rôles par espace enregistrées.';
       onUpdated();
     } catch (err: any) {
       errorMsg = err.message || 'Erreur lors de la sauvegarde';
@@ -319,13 +326,14 @@
 
           <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
             <div class="space-y-1.5">
-              <Label for="sheet-new-password">Nouveau mot de passe (facultatif)</Label>
+              <Label for="sheet-new-password">Nouveau mot de passe (min. 6 caractères)</Label>
               <Input
                 id="sheet-new-password"
                 type="password"
                 autocomplete="new-password"
+                minlength={6}
                 bind:value={newPassword}
-                placeholder="Laisser vide pour conserver l'actuel"
+                placeholder="Au moins 6 caractères (ou vide pour conserver l'actuel)"
               />
             </div>
 

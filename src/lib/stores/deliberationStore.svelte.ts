@@ -142,6 +142,12 @@ class DeliberationStore {
 	}
 
 	setCurrentUser(user: { id: string; email: string; name?: string; role?: string } | null) {
+		if (
+			(!this.currentUser && !user) ||
+			(this.currentUser && user && this.currentUser.id === user.id && this.currentUser.role === user.role)
+		) {
+			return;
+		}
 		this.currentUser = user;
 		this.syncRoleWithWorkspace();
 	}

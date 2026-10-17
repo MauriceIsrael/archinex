@@ -734,8 +734,12 @@ export async function updateCentralizedAccount(
   if (input.role !== undefined) {
     userUpdateData.role = input.role === 'admin' ? 'admin' : 'user';
   }
-  if (input.newPassword && input.newPassword.trim().length >= 6) {
-    userUpdateData.passwordHash = await bcrypt.hash(input.newPassword.trim(), 10);
+  if (input.newPassword !== undefined && input.newPassword.trim().length > 0) {
+    const trimmedPwd = input.newPassword.trim();
+    if (trimmedPwd.length < 6) {
+      throw new Error('Le mot de passe doit comporter au moins 6 caractères.');
+    }
+    userUpdateData.passwordHash = await bcrypt.hash(trimmedPwd, 10);
   }
 
   const currentAttrs = parseJsonSafe<Record<string, any>>(user.attributes, {});

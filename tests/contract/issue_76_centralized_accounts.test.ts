@@ -103,7 +103,7 @@ describe('Issue #76 — Gestion centralisée des comptes (compte, rôle applicat
     });
   });
 
-  it('1. Supprime les utilisateurs fictifs en dur de /users et redirige /users vers /admin', async () => {
+  it('1. Supprime les utilisateurs fictifs en dur de /users et charge les comptes réels', async () => {
     const svelteSource = readFileSync(
       resolve(process.cwd(), 'src/routes/users/+page.svelte'),
       'utf-8'
@@ -112,13 +112,11 @@ describe('Issue #76 — Gestion centralisée des comptes (compte, rôle applicat
     expect(svelteSource).not.toContain('Bob Smith');
     expect(svelteSource).not.toContain('Charlie Brown');
 
-    let redirectedTo = '';
-    try {
-      await (usersPageLoad as any)({});
-    } catch (err: any) {
-      redirectedTo = err?.location || '';
-    }
-    expect(redirectedTo).toBe('/admin');
+    const result = await (usersPageLoad as any)({
+      locals: { session: { user: { id: 'admin-1', role: 'admin' } } }
+    });
+    expect(result).toHaveProperty('users');
+    expect(Array.isArray(result.users)).toBe(true);
   });
 
   it('2. Détecte les responsables du registre LLMOps sans adresse e-mail (ex: @data-protection-officer) et la couverture par domaine', async () => {

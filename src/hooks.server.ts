@@ -112,3 +112,10 @@ export const handle: Handle = async ({ event, resolve }) => {
   const response = await resolve(event);
   return response;
 };
+
+export const handleError = ({ error, event }: { error: unknown; event: any }) => {
+  console.error('[SvelteKit Server Error]', error, 'URL:', event.url.href);
+  return {
+    message: error instanceof Error ? error.message : 'Internal Error'
+  };
+};

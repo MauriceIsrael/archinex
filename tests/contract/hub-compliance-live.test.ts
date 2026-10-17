@@ -120,7 +120,10 @@ describe.skipIf(!LIVE)('K17 : la couverture déclarée exigence → contrôle, d
 
 		const issued = await arx.exportEngagementSnapshot(ENG, ADA.user.email);
 		const snap = requireVerifiedHubSnapshot(await suite.getEngagementExport(ENG, issued.snapshotRef.snapshotId));
-		expect(snap.schemaVersion).toBe('1.7');
+		// Le schéma de l'instantané s'enrichit à chaque contrat (1.7 : conformité, 1.8 : lignes déclarées par les décisions…) :
+		// on exige la famille 1.x et le minimum dont ce test a besoin, pas une version exacte qui périme à chaque contrat du Hub.
+		expect(snap.schemaVersion).toMatch(/^1\.\d+$/);
+		expect(Number(snap.schemaVersion.split('.')[1])).toBeGreaterThanOrEqual(7);
 
 		// Ce qu'Archinex envoie : les références de l'option RETENUE (pas celles de l'option écartée), telles quelles.
 		const decision = snap.data.decisions.find((d) => d.subject === 'Reprise après sinistre')! as unknown as { based_on: Array<{ id: string }> };

@@ -309,7 +309,7 @@ export function verifyEngagementBundle(bundle: EngagementBundle): BundleProblem[
 	});
 
 	// 3. Références KB citées listées dans data.kb_references
-	const listedKbRefs = new Set((data.kb_references || []).map((k) => k.ref));
+	const listedKbRefs = new Set((data.kb_references || []).map((k) => k.ref || k.id).filter(Boolean));
 	const citedKbRefs: Array<{ where: string; ref: string }> = [];
 
 	(data.decisions || []).forEach((d, i) => {

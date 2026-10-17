@@ -8,6 +8,11 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Adaptateur de Benchmark S3 : Enregistrement de `kb_references` sur `confirm_reuse` (archinex-benchmark#1)
+- **Constat** : En mode $S_3$ (assisté), lorsqu'un expert confirmait le réemploi d'une décision antérieure (`action: "confirm_reuse"`), `benchmarkRunner.ts` ajoutait l'entrée correspondante dans `data.reuse_log` (`matched_ref`), mais omettait d'inscrire la référence dans `data.kb_references` et de la passer à `buildEngagementBundle`. Le vérificateur `verifyEngagementBundle` rejetait alors le bundle scellé avec l'erreur `[KB_REF_UNLISTED]`.
+- **Correction** : Inscription automatique de `matched_ref` dans `kbReferences` lors du traitement de `confirm_reuse`, transmission de `kbReferences` à `buildEngagementBundle`, et tolérance `k.ref || k.id` dans `bundleVerifier.ts`.
+- **Vérification** : Nouveau test de contrat dans `tests/contract/benchmark-adapter.test.ts` (7/7 passés).
+
 ### Tests live : les quatre anciens échecs, expliqués
 - Jeton par défaut de `llmops-mcp` aligné sur celui du serveur de contrat (`contract-service-token`) ; délai explicite pour le test A14
   (banc de similarité, ~5 s). Les autres causes (révision d'ADR-0001, engagement de démonstration absent) étaient dans le serveur de

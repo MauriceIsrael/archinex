@@ -203,6 +203,8 @@ export interface BundleArchitecture {
 
 export interface KbReference {
 	ref: string;
+	id?: string;
+	kind?: string;
 	version?: string | null;
 	citable: boolean;
 	confidence?: string;

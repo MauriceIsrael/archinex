@@ -10,7 +10,12 @@
     "users": "Users",
     "settings": "Settings",
     "language": "Language",
+    "help": "Help",
     "admin": "Administration"
+  },
+  "help": {
+    "title": "Help & Methodology",
+    "decisionGuide": "How to decide?"
   },
   "sidebar": {
     "collapse": "Collapse sidebar",

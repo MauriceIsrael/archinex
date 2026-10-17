@@ -167,11 +167,11 @@
 					<div class="rounded-lg bg-background/80 p-2.5 text-xs space-y-1.5 border">
 						<div class="flex items-center gap-1.5 font-medium text-foreground">
 							<span class="text-muted-foreground">Où :</span>
-							<span>En-tête supérieur droit de la page</span>
+							<span>Fil de Délibération (Brouillon) ou Phase 3 (Rendu & Homologation)</span>
 						</div>
 						<div class="flex items-center gap-1.5 font-medium text-foreground">
 							<span class="text-muted-foreground">Bouton :</span>
-							<span class="rounded bg-emerald-600 text-white px-1.5 py-0.5 font-mono text-[11px]">Sceller Section</span>
+							<span class="rounded bg-emerald-600 text-white px-1.5 py-0.5 font-mono text-[11px]">Sceller cette section</span>
 						</div>
 						<div class="text-[11px] text-muted-foreground pt-1 border-t">
 							⚡ <strong>Effet :</strong> Vérifie le gating (0 question bloquante), fige le texte avec une empreinte SHA-256 et exporte les livrables d'architecture (Mermaid, SysML, Structurizr).

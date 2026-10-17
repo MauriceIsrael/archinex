@@ -6,6 +6,7 @@
   import Edit from 'lucide-svelte/icons/edit';
   import X from 'lucide-svelte/icons/x';
   import FlaskConical from 'lucide-svelte/icons/flask-conical';
+  import Sparkles from 'lucide-svelte/icons/sparkles';
   import { invalidateAll } from '$app/navigation';
   import type { CheckClauseRow, CheckClausesList, CheckClauseDecision, AssetClauseTrialVerdict } from '$lib/types/llmops';
 
@@ -134,10 +135,18 @@
   }
 
   // --- Essai sur une option ---------------------------------------------------------------------
+  interface TrialSemanticInfo {
+    cosine: number | null;
+    zone: string | null;
+    assetRef: string;
+    suggestedTerms: string[];
+    topMatch?: { ref: string; title: string; cosine: number };
+  }
+
   let trying = $state<string | null>(null);
   let trialTitle = $state('');
   let trialDescription = $state('');
-  let trial = $state<Record<string, { verdicts: AssetClauseTrialVerdict[]; error?: string }>>({});
+  let trial = $state<Record<string, { verdicts: AssetClauseTrialVerdict[]; semantic?: TrialSemanticInfo | null; error?: string }>>({});
 
   function assetChecks(r: CheckClauseRow) {
     // Toutes les clauses de l'actif, la clause essayée dans sa version en cours d'amendement le cas échéant
@@ -160,7 +169,12 @@
         body: JSON.stringify({ checks: assetChecks(r), option: { title: trialTitle, description: trialDescription } })
       });
       const body = await res.json().catch(() => ({}));
-      trial = { ...trial, [k]: res.ok ? { verdicts: body.data ?? [] } : { verdicts: [], error: body.error || `Erreur HTTP ${res.status}` } };
+      trial = {
+        ...trial,
+        [k]: res.ok
+          ? { verdicts: body.data ?? [], semantic: body.semantic }
+          : { verdicts: [], error: body.error || `Erreur HTTP ${res.status}` }
+      };
     } finally {
       busy = null;
     }
@@ -168,7 +182,19 @@
 
   function trialVerdict(r: CheckClauseRow) {
     const t = trial[key(r)];
-    return t ? { error: t.error, verdict: t.verdicts.find((v) => v.check_id === r.check_id) } : null;
+    return t ? { error: t.error, verdict: t.verdicts.find((v) => v.check_id === r.check_id), semantic: t.semantic } : null;
+  }
+
+  function addSuggestedTerm(r: CheckClauseRow, term: string) {
+    const k = key(r);
+    if (editing !== k) {
+      startAmend(r);
+    }
+    const currentLines = lines(draftWhen);
+    if (!currentLines.includes(term.toLowerCase())) {
+      currentLines.push(term.toLowerCase());
+      draftWhen = currentLines.join('\n');
+    }
   }
 
   // --- Publication --------------------------------------------------------------------------------
@@ -360,13 +386,57 @@
                   {#if tv}
                     {#if tv.error}
                       <p class="text-xs text-destructive">{tv.error}</p>
-                    {:else if tv.verdict}
-                      <p class="text-sm {tv.verdict.verdict === 'violates' ? 'text-destructive' : 'text-emerald-600'}" data-testid="trial-verdict">
-                        {tv.verdict.verdict === 'violates' ? 'Viole la clause' : 'Respecte la clause'}
-                        {#if tv.verdict.matched_terms.length}(termes reconnus : {tv.verdict.matched_terms.join(', ')}){/if}
-                      </p>
                     {:else}
-                      <p class="text-sm text-muted-foreground" data-testid="trial-verdict">La clause ne s'applique pas à cette option.</p>
+                      {#if tv.verdict}
+                        <p class="text-sm font-medium {tv.verdict.verdict === 'violates' ? 'text-destructive' : 'text-emerald-600'}" data-testid="trial-verdict">
+                          {tv.verdict.verdict === 'violates' ? '⚠️ Viole la clause' : '✅ Respecte la clause'}
+                          {#if tv.verdict.matched_terms.length}
+                            <span class="text-xs font-normal text-muted-foreground block mt-0.5">Termes reconnus : <strong class="text-foreground">{tv.verdict.matched_terms.join(', ')}</strong></span>
+                          {/if}
+                        </p>
+                      {:else}
+                        <p class="text-sm text-muted-foreground" data-testid="trial-verdict">
+                          La clause déterministe ne s'applique pas à cette option (aucun terme <code>when</code> reconnu).
+                        </p>
+                      {/if}
+
+                      {#if tv.semantic}
+                        <div class="mt-2.5 pt-2 border-t border-border/60 text-xs space-y-1.5 bg-muted/40 p-2 rounded">
+                          <div class="flex items-center justify-between gap-2">
+                            <span class="font-medium text-muted-foreground flex items-center gap-1">
+                              <Sparkles class="w-3.5 h-3.5 text-indigo-500" /> Proximité vectorielle (cosinus) :
+                            </span>
+                            {#if typeof tv.semantic.cosine === 'number'}
+                              <span class="font-mono font-semibold px-1.5 py-0.5 rounded text-[11px] {tv.semantic.cosine >= 0.8 ? 'bg-emerald-500/15 text-emerald-600' : tv.semantic.cosine >= 0.65 ? 'bg-amber-500/15 text-amber-600' : 'bg-muted text-muted-foreground'}">
+                                {(tv.semantic.cosine * 100).toFixed(1)} % ({tv.semantic.zone || (tv.semantic.cosine >= 0.8 ? 'forte' : tv.semantic.cosine >= 0.65 ? 'possible' : 'faible')})
+                              </span>
+                            {:else}
+                              <span class="text-muted-foreground italic">Non calculée pour cet actif</span>
+                            {/if}
+                          </div>
+
+                          {#if (!tv.verdict || tv.verdict.verdict !== 'violates') && typeof tv.semantic.cosine === 'number' && tv.semantic.cosine >= 0.65}
+                            <div class="text-[11px] text-amber-800 dark:text-amber-300 bg-amber-500/10 p-2 rounded space-y-1 border border-amber-500/20">
+                              <p>💡 <strong>Rapprochement sémantique détecté :</strong> Le sens global est proche ({(tv.semantic.cosine * 100).toFixed(1)}%), mais la règle formelle exige des mots-clés stricts.</p>
+                              {#if tv.semantic.suggestedTerms && tv.semantic.suggestedTerms.length > 0}
+                                <div class="flex flex-wrap items-center gap-1 pt-1">
+                                  <span class="text-muted-foreground">Mots-clés suggérés de votre phrase :</span>
+                                  {#each tv.semantic.suggestedTerms as term}
+                                    <button
+                                      type="button"
+                                      onclick={() => addSuggestedTerm(r, term)}
+                                      class="font-mono text-[10px] px-1.5 py-0.5 rounded bg-amber-500/20 hover:bg-amber-500/30 text-amber-900 dark:text-amber-100 cursor-pointer font-medium border border-amber-500/30"
+                                      title="Cliquer pour ajouter ce terme aux conditions 'when' de la clause"
+                                    >
+                                      + {term}
+                                    </button>
+                                  {/each}
+                                </div>
+                              {/if}
+                            </div>
+                          {/if}
+                        </div>
+                      {/if}
                     {/if}
                   {/if}
                 </div>

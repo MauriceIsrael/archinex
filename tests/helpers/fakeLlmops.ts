@@ -2826,34 +2826,32 @@ export async function startFakeLlmopsServer(initialState?: Partial<FakeLlmopsSta
     // POST /api/knowledge/similar
     if (pathname === '/api/knowledge/similar' && method === 'POST') {
       const { model, vector, query_text, types, domains, top_k, subject_fingerprint } = body;
-      if (!model || !Array.isArray(vector)) {
+      const targetModel = model || Object.keys(state.embeddings)[0] || 'default-model';
+      const modelStore = state.embeddings[targetModel] || { items: {} };
+
+      if (!query_text && (!model || !Array.isArray(vector))) {
         return json(400, {
           status: 'error',
-          error: 'model and vector array are required'
+          error: 'model and vector array are required when query_text is absent'
         });
       }
-      if (vector.length !== 128) {
+      if (vector && Array.isArray(vector) && vector.length !== 128) {
         return json(400, {
           status: 'error',
           error: 'vector dimension mismatch'
         });
       }
 
-      const modelStore = state.embeddings[model];
-      if (!modelStore || Object.keys(modelStore.items).length === 0) {
-        return json(400, {
-          status: 'error',
-          error: 'no vector stored yet for the model'
-        });
-      }
-
       const results: SimilarKnowledgeItem[] = [];
+      const dummyVector = new Array(128).fill(0.1);
+      const queryVec = Array.isArray(vector) ? vector : dummyVector;
+
       for (const item of Object.values(modelStore.items)) {
         if (types && Array.isArray(types) && !types.includes(item.type)) {
           continue;
         }
 
-        const vecScore = Math.max(0.0, cosineSimilarity(vector, item.vector));
+        const vecScore = Math.max(0.0, cosineSimilarity(queryVec, item.vector || dummyVector));
         const scores: Record<string, number> = { vector: Math.round(vecScore * 10000) / 10000 };
         if (query_text) {
           scores.lexical = 0.85;

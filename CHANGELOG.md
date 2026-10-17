@@ -8,6 +8,11 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Adaptateur de Benchmark S3 : Enregistrement de `kb_references` sur `confirm_reuse` (archinex-benchmark#1)
+- **Constat** : En mode $S_3$ (assisté), lorsqu'un expert confirmait le réemploi d'une décision antérieure (`action: "confirm_reuse"`), `benchmarkRunner.ts` ajoutait l'entrée correspondante dans `data.reuse_log` (`matched_ref`), mais omettait d'inscrire la référence dans `data.kb_references` et de la passer à `buildEngagementBundle`. Le vérificateur `verifyEngagementBundle` rejetait alors le bundle scellé avec l'erreur `[KB_REF_UNLISTED]`.
+- **Correction** : Inscription automatique de `matched_ref` dans `kbReferences` lors du traitement de `confirm_reuse`, transmission de `kbReferences` à `buildEngagementBundle`, et tolérance `k.ref || k.id` dans `bundleVerifier.ts`.
+- **Vérification** : Nouveau test de contrat dans `tests/contract/benchmark-adapter.test.ts` (7/7 passés).
+
 ### Ergonomie du Workbench de Délibération & Contrôles Globaux de l'Application (#114)
 - **Pastille de connectivité LLMOps globale** : déplacée depuis l'en-tête de délibération vers l'en-tête supérieur permanent de l'application (`+layout.svelte`, à côté des contrôles de langue et de thème). Elle affiche l'état temps réel (Connecté au Hub en direct, mode Local souverain, ou synchronisation en cours) et permet de relancer la synchronisation d'un simple clic depuis n'importe quel écran.
 - **Menu d'aide global & guide méthodologique** : intégration d'une icône d'aide discrète `?` dans l'en-tête global donnant accès à la modale « Comment décider ? » (guide des niveaux de maturité L0→L5 et leviers d'arbitrage) sur l'ensemble des pages.

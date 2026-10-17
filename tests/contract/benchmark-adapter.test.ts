@@ -208,4 +208,46 @@ describe('Banc de Test Boîte Noire — Adaptateur Archinex (Jalon J3)', () => {
 		expect(JSON.stringify(a.bundle)).not.toContain('system-autonomous');
 		expect(JSON.stringify(a.bundle)).toContain('@model-test-model');
 	});
+
+	it('Mode S3 avec confirm_reuse : enregistre la référence dans kb_references et réussit la vérification [KB_REF_UNLISTED] (archinex-benchmark#1)', async () => {
+		const reuseFixture: ExpertActionFixture[] = [
+			{
+				sectionRef: 'Art. 1.1',
+				topic: 'Hébergement Souverain',
+				match: 'Souverain',
+				actor: '@lead-architect',
+				action: 'confirm_reuse',
+				matched_ref: 'ADR-TRANSVERSE-06',
+				selected_option: 'Réemploi socle souverain',
+				decision: 'Réemploi validé du socle d’hébergement souverain',
+				rationale: 'Toutes les hypothèses de souveraineté tiennent.',
+				assumptions: [
+					{
+						text: 'Le fournisseur est qualifié SecNumCloud 3.2.',
+						status: 'holds'
+					}
+				]
+			}
+		];
+
+		const result = await runBenchmarkCase(rfpCase, {
+			mode: 's3',
+			iteration: 1,
+			expertFixtures: reuseFixture
+		});
+
+		// reuse_log doit contenir l'entrée avec matched_ref
+		expect(result.bundle.data.reuse_log).toHaveLength(1);
+		expect(result.bundle.data.reuse_log[0].matched_ref).toBe('ADR-TRANSVERSE-06');
+		expect(result.bundle.data.reuse_log[0].outcome).toBe('reused');
+
+		// kb_references doit obligatoirement lister 'ADR-TRANSVERSE-06'
+		const listedRefs = result.bundle.data.kb_references.map((r) => r.ref);
+		expect(listedRefs).toContain('ADR-TRANSVERSE-06');
+
+		// La vérification instrumentale ne doit lever AUCUN problème [KB_REF_UNLISTED]
+		const problems = verifyEngagementBundle(result.bundle);
+		const kbProblems = problems.filter((p) => p.code === 'KB_REF_UNLISTED');
+		expect(kbProblems).toHaveLength(0);
+	});
 });

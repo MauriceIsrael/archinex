@@ -20,7 +20,8 @@ import {
 	type BundleRequirement,
 	type BundlePins,
 	type ConfidentialityLevel,
-	type ReuseLogEntry
+	type ReuseLogEntry,
+	type KbReference
 } from '$lib/domain/engagementBundle';
 import { sealEngagementBundle, verifyEngagementBundle } from '$lib/domain/bundleVerifier';
 
@@ -52,6 +53,8 @@ export interface ExpertActionFixture {
 	decision?: string;
 	/** Motivation ou justification opposable */
 	rationale?: string;
+	/** Référence de la décision ou règle réutilisée (ex: "ADR-SUB-1", "ADR-06") */
+	matched_ref?: string;
 	/** Hypothèses de réutilisation jugées (D8) */
 	assumptions?: Array<{
 		text: string;
@@ -205,6 +208,7 @@ export async function runBenchmarkCase(
 
 	const decisions: BundleDecision[] = [];
 	const reuseLog: ReuseLogEntry[] = [];
+	const kbReferences: KbReference[] = [];
 
 	let expertInteractions = 0;
 	let expertUnanswered = 0;
@@ -298,16 +302,31 @@ export async function runBenchmarkCase(
 				subj.decision_ids.push(decId);
 
 				// Traitement des hypothèses de réutilisation D8
-				if (fixture.action === 'confirm_reuse' && fixture.assumptions) {
-					reuseLog.push({
-						id: `REUSE-${subj.id}`,
-						matched_ref: `ADR-${subj.id}`,
-						outcome: fixture.assumptions.every((a) => a.status === 'holds') ? 'reused' : 'reused_with_exception',
-						by: fixture.actor,
-						at: referenceDate,
-						comment: fixture.rationale ?? null,
-						assumptions: fixture.assumptions
-					});
+				if (fixture.action === 'confirm_reuse') {
+					const refId = fixture.matched_ref || `ADR-${subj.id}`;
+					if (fixture.assumptions) {
+						reuseLog.push({
+							id: `REUSE-${subj.id}`,
+							matched_ref: refId,
+							outcome: fixture.assumptions.every((a) => a.status === 'holds') ? 'reused' : 'reused_with_exception',
+							by: fixture.actor,
+							at: referenceDate,
+							comment: fixture.rationale ?? null,
+							assumptions: fixture.assumptions
+						});
+					}
+
+					if (!kbReferences.some((r) => r.ref === refId || r.id === refId)) {
+						kbReferences.push({
+							ref: refId,
+							id: refId,
+							kind: 'prior_decision',
+							version: '1.0.0',
+							citable: true,
+							confidence: 'verified',
+							title: `Prior validated ADR for ${subj.title}`
+						});
+					}
 				}
 
 				// Mise à jour des énoncés du sujet en statut validé / affirmé par l'expert
@@ -362,7 +381,8 @@ export async function runBenchmarkCase(
 		statements,
 		conflicts,
 		gaps,
-		reuseLog
+		reuseLog,
+		kbReferences
 	});
 
 	// Sceau cryptographique canonique canonical-json v1

@@ -63,15 +63,18 @@ LLMOPS_LIVE_URL=http://127.0.0.1:8099 npx vitest run \
 Les tests `hub-*-live` ont besoin d'un Hub au contrat 1.31 ou plus (la couverture K17) et des jetons
 `arx-token` / `suite-token` du serveur de contrat. Un Hub plus ancien fait échouer les assertions de version, c'est attendu.
 
+Le jeton par défaut des tests live est celui du serveur de contrat (`contract-service-token`) ; `LLMOPS_LIVE_TOKEN` le remplace
+pour un autre serveur. `llmops-mcp` lit l'engagement `nordwave-mcx-2027`, que le serveur de contrat fournit depuis la PR
+LLMOps#129 (`[contrat —]`) : contre un serveur plus ancien, les trois tests `get_board` répondent `count: 0` et échouent, c'est attendu.
+
 ## Écarts connus (à corriger, pas à ignorer)
 
-Rejoués contre un serveur de contrat du Hub, quatre des anciens tests live échouent :
+Aucun test live connu en échec contre un serveur de contrat au contrat 1.35 incluant LLMOps#129 (9 fichiers, 1 test ignoré). Le test A14
+(banc de similarité, ~5 s) a un délai explicite de 60 s : il dépassait les 5 s par défaut de vitest.
 
-- `llmops-live-a9-a11` : « publication » et « santé après publication » (le Hub répond 500, `VersionLedgerError` sur ADR-0001 :
-  le contenu d'un actif aurait changé sans nouvelle révision). Cause **non établie** : défaut du Hub, ou artefact du serveur de test.
-- `llmops-mcp` : l'ouverture SSE est refusée en 401 (jeton), deux tests.
-
-Les 22 tests `hub-*-live` et les autres tests live passent.
+Historique : quatre anciens tests live échouaient (A11 « publication » et « santé après publication » : le serveur de contrat
+réécrivait ADR-0001 sans relever sa révision, ce que le registre des versions du Hub refuse ; `llmops-mcp` : jeton par défaut inconnu
+du serveur de contrat, donc SSE en 401, puis engagement de démonstration absent).
 
 ## Ce qui n'est pas mesuré
 

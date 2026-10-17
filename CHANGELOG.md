@@ -8,6 +8,11 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Tests live : les quatre anciens échecs, expliqués
+- Jeton par défaut de `llmops-mcp` aligné sur celui du serveur de contrat (`contract-service-token`) ; délai explicite pour le test A14
+  (banc de similarité, ~5 s). Les autres causes (révision d'ADR-0001, engagement de démonstration absent) étaient dans le serveur de
+  contrat du Hub : LLMOps#129. `docs/testing.md` mis à jour.
+
 ### Couverture exigence → contrôle (K17, contrat 1.31 du Hub)
 - **Constat** : l'export d'Archinex n'a jamais calculé la section `compliance` (elle valait toujours `[]` hors banc d'essai). K17 n'est
   donc pas un transfert à retirer d'Archinex mais une capacité du Hub, que la matrice de traçabilité lit désormais.

@@ -32,7 +32,7 @@ const BASE_URL =
 	process.env.LLMOPS_LIVE_URL ??
 	(IS_REMOTE_ENABLED ? 'https://llmops-mcp-server-344571265365.europe-west1.run.app' : undefined);
 
-const TOKEN = process.env.LLMOPS_LIVE_TOKEN ?? fileEnv.LLMOPS_AUTH_TOKEN ?? 'demo-local-sovereign-2026';
+const TOKEN = process.env.LLMOPS_LIVE_TOKEN ?? fileEnv.LLMOPS_AUTH_TOKEN ?? 'contract-service-token';
 const ENGAGEMENT = process.env.LLMOPS_ENGAGEMENT ?? 'nordwave-mcx-2027';
 const TIMEOUT_MS = 15_000;
 

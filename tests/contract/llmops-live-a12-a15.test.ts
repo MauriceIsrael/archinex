@@ -148,5 +148,5 @@ describe.skipIf(!LIVE)('Contrat réel LLMOps — A12 à A15 (serveur vivant)', (
     expect(runRes.status, JSON.stringify(runRes)).toBe('ok');
     expect(runRes.data?.id).toBeDefined();
     expect(runRes.data?.cases).toBe(cases.length);
-  });
+  }, 60_000); // le banc prend ~5 s : au-dessus du délai par défaut de vitest (5 s)
 });

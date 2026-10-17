@@ -13,6 +13,12 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 - **Correction** : Inscription automatique de `matched_ref` dans `kbReferences` lors du traitement de `confirm_reuse`, transmission de `kbReferences` à `buildEngagementBundle`, et tolérance `k.ref || k.id` dans `bundleVerifier.ts`.
 - **Vérification** : Nouveau test de contrat dans `tests/contract/benchmark-adapter.test.ts` (7/7 passés).
 
+### Ergonomie du Workbench de Délibération & Contrôles Globaux de l'Application (#114)
+- **Pastille de connectivité LLMOps globale** : déplacée depuis l'en-tête de délibération vers l'en-tête supérieur permanent de l'application (`+layout.svelte`, à côté des contrôles de langue et de thème). Elle affiche l'état temps réel (Connecté au Hub en direct, mode Local souverain, ou synchronisation en cours) et permet de relancer la synchronisation d'un simple clic depuis n'importe quel écran.
+- **Menu d'aide global & guide méthodologique** : intégration d'une icône d'aide discrète `?` dans l'en-tête global donnant accès à la modale « Comment décider ? » (guide des niveaux de maturité L0→L5 et leviers d'arbitrage) sur l'ensemble des pages.
+- **Épuration du bandeau Délibération & HLD** : suppression des boutons redondants ou anachroniques issus des anciens prototypes (simulateur de rôle d'architecte déconnecté du RBAC réel, faux bouton de bascule « Opérateur humain / Agent IA », doublon d'invitation d'expert déjà géré dans la mini-app `/users`, et bouton « Sceller » hors contexte déplacé là où le scellement s'opère réellement).
+- **Aération visuelle** : le sélecteur de projets et d'engagements s'étend désormais sur une grille fluide occupant toute la largeur disponible.
+
 ### Tests live : les quatre anciens échecs, expliqués
 - Jeton par défaut de `llmops-mcp` aligné sur celui du serveur de contrat (`contract-service-token`) ; délai explicite pour le test A14
   (banc de similarité, ~5 s). Les autres causes (révision d'ADR-0001, engagement de démonstration absent) étaient dans le serveur de

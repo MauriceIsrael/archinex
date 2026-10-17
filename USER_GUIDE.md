@@ -15,6 +15,12 @@ Le système utilise une gestion de session sécurisée avec hachage **bcrypt**.
   - `contributor` : Participe aux débats, évalue les options et propose des alternatives.
   - `viewer` : Consultation seule du tableau de maturité et des dossiers.
 
+### 1.1 Contrôles de Navigation & Indicateurs Globaux
+L'en-tête supérieur de l'application est accessible en permanence depuis n'importe quelle page :
+- **Pastille de connectivité LLMOps** : Affiche l'état de synchronisation avec le Knowledge Hub (`Connecté`, `Local` ou `En synchronisation...`). Cliquez dessus à tout moment pour forcer une resynchronisation ou tester la liaison distante.
+- **Menu d'aide méthodologique** : L'icône `?` ouvre l'accès direct au guide interactif *« Comment décider ? »*, explicitant les 4 leviers de décision formelle (L2→L3, Diff, Porte G4, Scellement L5).
+- **Préférences** : Sélecteur de langue (Français / Anglais / Espagnol) et sélecteur de thème (Clair / Sombre / Système).
+
 ---
 
 ## 2. Déroulé d'un Projet de Co-Conception

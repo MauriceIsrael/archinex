@@ -5,6 +5,9 @@
  * Conforme à CONTRAT-KH-API-V1 et ADR-0015.
  */
 
+import fs from 'node:fs';
+import path from 'node:path';
+
 import type {
   CheckClausesList,
   CheckClauseRow,
@@ -143,6 +146,7 @@ const OPERATION_TIMEOUTS: Array<{ method?: string; pattern: RegExp; ms: number }
   { method: 'POST', pattern: /\/api\/knowledge\/similarity-evals\/[^/]+\/runs$/, ms: 60_000 },
   { method: 'POST', pattern: /\/api\/engagements\/[^/]+\/exports$/, ms: 60_000 },
   { pattern: /\/api\/knowledge\/health$/, ms: 30_000 },
+  { pattern: /\/snapshot(\/|$)/, ms: LLMOPS_GOVERNANCE_TIMEOUT_MS },
   { pattern: /\/api\/(knowledge|frameworks|engagements)(\/|$)/, ms: LLMOPS_GOVERNANCE_TIMEOUT_MS }
 ];
 
@@ -260,6 +264,54 @@ function normalizeFrameworkIngestion(item: any): FrameworkIngestion {
   };
 }
 
+function resolveDefaultAuthToken(): string {
+  if (process.env.LLMOPS_AUTH_TOKEN) return process.env.LLMOPS_AUTH_TOKEN;
+
+  try {
+    const envPath = path.resolve(process.cwd(), '.env');
+    if (fs.existsSync(envPath)) {
+      const lines = fs.readFileSync(envPath, 'utf-8').split(/\r?\n/);
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (trimmed.startsWith('LLMOPS_AUTH_TOKEN=')) {
+          const val = trimmed.slice('LLMOPS_AUTH_TOKEN='.length).replace(/^["']|["']$/g, '').trim();
+          if (val) return val;
+        }
+      }
+    }
+  } catch {}
+
+  try {
+    const tokenPath = path.resolve(process.cwd(), '../LLMOps/.llmops-local-service-token');
+    if (fs.existsSync(tokenPath)) {
+      const val = fs.readFileSync(tokenPath, 'utf-8').trim();
+      if (val) return val;
+    }
+  } catch {}
+
+  return 'demo-local-sovereign-2026';
+}
+
+function resolveDefaultBaseUrl(): string {
+  if (process.env.LLMOPS_BASE_URL) return process.env.LLMOPS_BASE_URL;
+
+  try {
+    const envPath = path.resolve(process.cwd(), '.env');
+    if (fs.existsSync(envPath)) {
+      const lines = fs.readFileSync(envPath, 'utf-8').split(/\r?\n/);
+      for (const line of lines) {
+        const trimmed = line.trim();
+        if (trimmed.startsWith('LLMOPS_BASE_URL=')) {
+          const val = trimmed.slice('LLMOPS_BASE_URL='.length).replace(/^["']|["']$/g, '').trim();
+          if (val) return val;
+        }
+      }
+    }
+  } catch {}
+
+  return 'http://127.0.0.1:8000';
+}
+
 export class LLMOpsClient {
   private baseUrl: string;
   private authToken: string;
@@ -267,14 +319,15 @@ export class LLMOpsClient {
   private timeoutMs: number | undefined;
   private allowedHosts: string[];
 
-  constructor(config: LLMOpsClientConfig = {}) {
+  constructor(config: LLMOpsClientConfig | string = {}, maybeAuthToken?: string) {
+    const conf: LLMOpsClientConfig = typeof config === 'string' ? { baseUrl: config, authToken: maybeAuthToken } : config;
     // Par défaut, le client fonctionne STRICTEMENT en réseau local souverain (127.0.0.1:8000 ou mode hors-ligne scellé).
     // Tout appel vers GCP Cloud Run ou un cloud externe est rigoureusement bloqué pour garantir l'étanchéité absolue des RFP.
-    this.baseUrl = (config.baseUrl || process.env.LLMOPS_BASE_URL || 'http://127.0.0.1:8000').replace(/\/+$/, '');
-    this.authToken = config.authToken || process.env.LLMOPS_AUTH_TOKEN || 'demo-local-sovereign-2026';
-    this.defaultEngagement = config.defaultEngagement || process.env.LLMOPS_ENGAGEMENT || 'default-project';
-    this.timeoutMs = config.timeoutMs || (Number(process.env.LLMOPS_TIMEOUT_MS) || undefined);
-    this.allowedHosts = (config.allowedHosts ?? (process.env.LLMOPS_ALLOWED_HOSTS || '').split(','))
+    this.baseUrl = (conf.baseUrl || resolveDefaultBaseUrl()).replace(/\/+$/, '');
+    this.authToken = conf.authToken || resolveDefaultAuthToken();
+    this.defaultEngagement = conf.defaultEngagement || process.env.LLMOPS_ENGAGEMENT || 'default-project';
+    this.timeoutMs = conf.timeoutMs || (Number(process.env.LLMOPS_TIMEOUT_MS) || undefined);
+    this.allowedHosts = (conf.allowedHosts ?? (process.env.LLMOPS_ALLOWED_HOSTS || '').split(','))
       .map((h) => h.trim())
       .filter(Boolean);
   }

@@ -31,6 +31,7 @@ export interface DecisionRow {
 	reversibility: string;
 	arbiterId: string;
 	acceptedViolations: string;
+	portability?: 'project_specific' | 'reusable_product_capability' | 'reusable_architecture_doctrine';
 }
 
 export interface SubjectRow {
@@ -128,6 +129,14 @@ export async function recordDecisionInHub(
 	await client.addSubject(engagementId, { name: subject.name.trim(), definition: subject.problemStatement || undefined }, asserterEmail);
 
 	const violations = parseJson<Array<{ typedId?: string; typed_id?: string; justification: string }>>(decision.acceptedViolations, []);
+	const portabilityEntry = violations.find((v) => (v.typedId ?? v.typed_id ?? '').startsWith('PORTABILITY:'));
+	const portability = decision.portability ?? (portabilityEntry ? ((portabilityEntry.typedId ?? portabilityEntry.typed_id)!.replace('PORTABILITY:', '') as any) : 'project_specific');
+	const harvestable = portability !== 'project_specific';
+
+	const realViolations = violations.filter(
+		(v) => !(v.typedId ?? v.typed_id ?? '').startsWith('COMPLIANCE_STATUS:') && !(v.typedId ?? v.typed_id ?? '').startsWith('PORTABILITY:')
+	);
+
 	const proposed = await client.addDecision(
 		engagementId,
 		{
@@ -135,8 +144,10 @@ export async function recordDecisionInHub(
 			decision: titleOf.get(decision.retainedOptionId)!,
 			rationale: decision.rationale,
 			reversibility: decision.reversibility as 'reversible' | 'costly' | 'irreversible',
+			portability,
+			harvestable,
 			rejected: rejected.map((r) => ({ option: titleOf.get(r.optionId)!, reason: r.reason })),
-			accepted_violations: violations.map((v) => ({ typed_id: (v.typedId ?? v.typed_id)!, justification: v.justification })),
+			accepted_violations: realViolations.map((v) => ({ typed_id: (v.typedId ?? v.typed_id)!, justification: v.justification })),
 			based_on: citedKnowledge(options.find((o) => o.id === decision.retainedOptionId)?.kbRefs),
 			facts
 		},

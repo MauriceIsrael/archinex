@@ -7,35 +7,36 @@ import {
 } from '$lib/domain/capitalization';
 import type { Decision, Option } from '$lib/domain/options';
 
+const mockOptions: Option[] = [
+	{
+		id: 'opt-cloud-native',
+		subjectId: 'subj-storage',
+		title: 'Solution Cloud Native Distribuée',
+		summary: 'Architecture distribuée sur Kubernetes avec Ceph.',
+		origin: 'human',
+		kbRefs: [], // Aucun antécédent doctrinal
+		status: 'retained',
+		author: 'Alice Lead',
+		role: 'lead_architect',
+		productionMode: 'human-authored',
+		version: 1
+	},
+	{
+		id: 'opt-legacy-san',
+		subjectId: 'subj-storage',
+		title: 'SAN Fibre Channel Externe',
+		summary: 'Baie SAN propriétaire en datacenter.',
+		origin: 'human',
+		kbRefs: ['RULE-SAN-01'],
+		status: 'rejected',
+		author: 'Bob Infra',
+		role: 'domain_expert',
+		productionMode: 'human-authored',
+		version: 1
+	}
+];
+
 describe('Lot A5 - Domain Capitalization & KB Candidate Generation Contract', () => {
-	const mockOptions: Option[] = [
-		{
-			id: 'opt-cloud-native',
-			subjectId: 'subj-storage',
-			title: 'Solution Cloud Native Distribuée',
-			summary: 'Architecture distribuée sur Kubernetes avec Ceph.',
-			origin: 'human',
-			kbRefs: [], // Aucun antécédent doctrinal
-			status: 'retained',
-			author: 'Alice Lead',
-			role: 'lead_architect',
-			productionMode: 'human-authored',
-			version: 1
-		},
-		{
-			id: 'opt-legacy-san',
-			subjectId: 'subj-storage',
-			title: 'SAN Fibre Channel Externe',
-			summary: 'Baie SAN propriétaire en datacenter.',
-			origin: 'human',
-			kbRefs: ['RULE-SAN-01'],
-			status: 'rejected',
-			author: 'Bob Infra',
-			role: 'domain_expert',
-			productionMode: 'human-authored',
-			version: 1
-		}
-	];
 
 	it('génère un candidat new_asset et un candidat rex si l option retenue n a pas de kbRefs', () => {
 		const decision: Decision = {
@@ -238,5 +239,102 @@ describe('Lot A5 - Anonymization Engine Contract', () => {
 		expect(clean.suggested_change).toBe('Adopter pour [CLIENT]');
 		expect(clean.rationale).toBe('Décidé par [PARTICIPANT] sur [SITE]');
 		expect(clean.author).toBe('[PARTICIPANT]');
+	});
+
+	describe('Issue #120 : Qualification de la portabilité et filtrage du moissonnage', () => {
+		it('exclut automatiquement les décisions project_specific de la génération de candidats KB', () => {
+			const decision: Decision = {
+				id: 'dec-specific-1',
+				subjectId: 'subj-specific',
+				retainedOptionId: 'opt-cloud-native',
+				rejected: [],
+				rationale: 'Exclusion contractuelle propre au périmètre CFL sur LUMICC.',
+				reversibility: 'irreversible',
+				portability: 'project_specific',
+				arbiterId: 'alice-architect',
+				arbiterRole: 'lead_architect',
+				decidedAt: new Date().toISOString(),
+				acceptedViolations: [],
+				kbCandidateIds: [],
+				version: 1
+			};
+
+			const candidates = buildKbCandidates({
+				decision,
+				subject: { id: 'subj-specific', name: 'Dépendance CFL FRMCS', domain: 'telecom' },
+				options: mockOptions,
+				engagement: 'lumicc-lot1',
+				author: 'Alice Lead',
+				authorRole: 'lead_architect'
+			});
+
+			expect(candidates).toHaveLength(0);
+		});
+
+		it('génère des candidats marqués harvestable: true pour une décision reusable_product_capability', () => {
+			const decision: Decision = {
+				id: 'dec-product-1',
+				subjectId: 'subj-product',
+				retainedOptionId: 'opt-cloud-native',
+				rejected: [],
+				rationale: 'Capacité native de rechargement UDR < 15 min.',
+				reversibility: 'reversible',
+				portability: 'reusable_product_capability',
+				arbiterId: 'alice-architect',
+				arbiterRole: 'lead_architect',
+				decidedAt: new Date().toISOString(),
+				acceptedViolations: [],
+				kbCandidateIds: [],
+				version: 1
+			};
+
+			const candidates = buildKbCandidates({
+				decision,
+				subject: { id: 'subj-product', name: 'Capacité Cœur UDR', domain: 'telecom' },
+				options: mockOptions,
+				engagement: 'lumicc-lot1',
+				author: 'Alice Lead',
+				authorRole: 'lead_architect'
+			});
+
+			expect(candidates.length).toBeGreaterThan(0);
+			for (const cand of candidates) {
+				expect(cand.harvestable).toBe(true);
+				expect(cand.portability).toBe('reusable_product_capability');
+			}
+		});
+
+		it('génère des candidats marqués harvestable: true pour une décision reusable_architecture_doctrine', () => {
+			const decision: Decision = {
+				id: 'dec-doctrine-1',
+				subjectId: 'subj-doctrine',
+				retainedOptionId: 'opt-cloud-native',
+				rejected: [],
+				rationale: 'Doctrine de synchronisation PTP G.8275.1 avec oscillateur Rubidium.',
+				reversibility: 'costly',
+				portability: 'reusable_architecture_doctrine',
+				arbiterId: 'alice-architect',
+				arbiterRole: 'lead_architect',
+				decidedAt: new Date().toISOString(),
+				acceptedViolations: [],
+				kbCandidateIds: [],
+				version: 1
+			};
+
+			const candidates = buildKbCandidates({
+				decision,
+				subject: { id: 'subj-doctrine', name: 'Synchronisation GNSS PTP', domain: 'infrastructure' },
+				options: mockOptions,
+				engagement: 'lumicc-lot1',
+				author: 'Alice Lead',
+				authorRole: 'lead_architect'
+			});
+
+			expect(candidates.length).toBeGreaterThan(0);
+			for (const cand of candidates) {
+				expect(cand.harvestable).toBe(true);
+				expect(cand.portability).toBe('reusable_architecture_doctrine');
+			}
+		});
 	});
 });

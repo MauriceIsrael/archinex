@@ -136,3 +136,14 @@ Pour garantir qu'aucun dossier ne s'appuie sur une doctrine réglementaire obsol
 - Un **badge d'alerte orange** (`data-testid="kb-clauses-health-alert"`) s'affiche automatiquement dès lors qu'une exigence dans le périmètre possède des clauses en attente de test ou non publiées.
 - L'indicateur est visible sur le tableau de bord d'accueil, la console KB (`/kb/dashboard`) et le panneau des référentiels applicables de chaque engagement.
 
+### 4.7 Qualification de Portabilité des Décisions & Moissonnage LLMOps (Issue #120)
+Lors de l'arbitrage humain d'un sujet (Porte G3), le Lead Architect qualifie expressément la portée de réemploi de chaque décision :
+- **`Spécifique au contrat / projet` (`project_specific`)** : Arbitrage dicté par des contraintes locales ou contractuelles exclusives. **Cette décision est formellement exclue du moissonnage général (`harvestable: false`)** afin d'éviter toute pollution de la doctrine globale.
+- **`Capacité produit réutilisable` (`reusable_product_capability`)** : Solution générique ou composant logiciel réemployable sur d'autres projets. Éligible au moissonnage (`harvestable: true`).
+- **`Doctrine d'architecture transverse` (`reusable_architecture_doctrine`)** : Principe d'ingénierie ou règle de conception à intégrer dans la base doctrinale pérenne. Éligible au moissonnage (`harvestable: true`).
+
+**Mécanismes de protection :**
+- Le générateur de candidats de capitalisation (`buildKbCandidates`) bloque systématiquement les décisions à portée projet.
+- La transmission vers le Hub LLMOps (`recordDecisionInHub`) enrichit l'enregistrement des attributs `portability` et `harvestable`.
+- Un badge visuel spécifique matérialise la qualification de portabilité retenue dans la carte de décision.
+

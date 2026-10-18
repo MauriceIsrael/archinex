@@ -79,7 +79,9 @@ describe('Décision d\'un projet basculé : envoi au Hub', () => {
 			rejected: [{ option: 'Distribution réseau', reason: 'Dépend du transport' }],
 			accepted_violations: [{ typed_id: 'principle:P-009', justification: 'Pilote seulement.' }],
 			based_on: [{ id: 'ADR-0007' }, { id: 'pattern:PAT-001' }], // références de l'option RETENUE, dédoublonnées, triées
-			facts: FACTS
+			facts: FACTS,
+			portability: 'project_specific',
+			harvestable: false
 		});
 		expect(JSON.stringify(body)).not.toContain(SID); // aucun identifiant d'Archinex
 		expect(body).not.toHaveProperty('retained_option');

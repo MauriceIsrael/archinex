@@ -131,7 +131,7 @@
 						</span>
 					</div>
 					<p class="text-xs text-muted-foreground leading-relaxed">
-						Une fois le sujet arbitré, les décisions et dérogations deviennent des candidats anonymisés pour la base de connaissances. Rien n'est transmis sans votre action explicite.
+						Chaque décision est qualifiée en portabilité (<em>Spécifique Contrat</em>, <em>Capacité Produit</em>, <em>Doctrine Réutilisable</em>). Seules les décisions réutilisables sont éligibles au moissonnage ; les décisions contractuelles spécifiques en sont formellement exclues pour préserver l'intégrité de la doctrine.
 					</p>
 					<div class="rounded-lg bg-background/80 p-2.5 text-xs space-y-1.5 border">
 						<div class="flex items-center gap-1.5 font-medium text-foreground">
@@ -143,7 +143,7 @@
 							<span class="rounded bg-indigo-600 text-white px-1.5 py-0.5 font-mono text-[11px]">Transmettre à LLMOps (Porte G4)</span>
 						</div>
 						<div class="text-[11px] text-muted-foreground pt-1 border-t">
-							⚡ <strong>Effet :</strong> Les candidats arrivent dans la boîte de revue des experts du Knowledge Hub ; ils réenrichissent les prochains projets une fois acceptés.
+							⚡ <strong>Effet :</strong> Les candidats arrivent dans la boîte de revue des experts du Knowledge Hub ; ils réenrichissent les prochains projets une fois acceptés. Les décisions <code>project_specific</code> sont automatiquement filtrées à la source.
 						</div>
 					</div>
 				</div>

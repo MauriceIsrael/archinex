@@ -44,6 +44,7 @@
 	let reversibility = $state<'reversible' | 'costly' | 'irreversible'>('costly');
 	let complianceStatus = $state<'Compliant' | 'Partially compliant' | 'Non-compliant'>('Compliant');
 	let complianceRationale = $state('');
+	let portability = $state<'project_specific' | 'reusable_product_capability' | 'reusable_architecture_doctrine'>('project_specific');
 	let rejectionReasons = $state<Record<string, string>>({});
 	let isSubmitting = $state(false);
 	let errorMessage = $state('');
@@ -66,6 +67,7 @@
 			reversibility = decision.reversibility;
 			complianceStatus = (decision.complianceStatus as any) || 'Compliant';
 			complianceRationale = decision.complianceRationale || '';
+			portability = decision.portability || 'project_specific';
 		} else if (safeOptions.length > 0 && !selectedOptionId) {
 			selectedOptionId = safeOptions[0].id;
 		}
@@ -111,6 +113,7 @@
 					reversibility,
 					complianceStatus,
 					complianceRationale: complianceRationale.trim() || undefined,
+					portability,
 					acceptedViolations: []
 				})
 			});
@@ -221,6 +224,9 @@
 						</span>
 						<span class="px-2 py-0.5 rounded-full text-[11px] font-bold {decision.complianceStatus === 'Compliant' ? 'bg-emerald-500/15 text-emerald-700 border border-emerald-500/30' : decision.complianceStatus === 'Partially compliant' ? 'bg-amber-500/15 text-amber-700 border border-amber-500/30' : 'bg-rose-500/15 text-rose-700 border border-rose-500/30'}" data-testid="decision-compliance-badge">
 							{decision.complianceStatus || 'Compliant'}
+						</span>
+						<span class="px-2 py-0.5 rounded-full text-[11px] font-bold {decision.portability === 'reusable_product_capability' ? 'bg-blue-500/15 text-blue-700 border border-blue-500/30' : decision.portability === 'reusable_architecture_doctrine' ? 'bg-purple-500/15 text-purple-700 border border-purple-500/30' : 'bg-muted text-muted-foreground border border-border'}" data-testid="decision-portability-badge">
+							{decision.portability === 'reusable_product_capability' ? 'Capacité Produit' : decision.portability === 'reusable_architecture_doctrine' ? 'Doctrine Réutilisable' : 'Spécifique Contrat'}
 						</span>
 					</div>
 					<p class="text-foreground text-xs mt-1 italic">
@@ -400,6 +406,44 @@
 						></textarea>
 					</div>
 				{/if}
+			</div>
+
+			<!-- 5. Portabilité & Capitalisation (Harvesting) -->
+			<div class="p-3.5 rounded-lg border bg-muted/15 space-y-3" data-testid="decision-portability-section">
+				<div class="flex items-center justify-between">
+					<div class="block text-xs font-semibold text-foreground uppercase tracking-wider">
+						5. Portabilité &amp; Capitalisation (Harvesting)
+					</div>
+					<span class="text-[10px] text-muted-foreground font-mono">
+						Filtrage à la source vers la doctrine générale LLMOps
+					</span>
+				</div>
+
+				<div class="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+					<label class="flex items-center gap-2 p-2.5 rounded-lg border cursor-pointer transition-colors {portability === 'project_specific' ? 'border-primary bg-primary/10' : 'border-border/50 bg-background'}">
+						<input type="radio" value="project_specific" bind:group={portability} data-testid="portability-project-specific" />
+						<div>
+							<strong class="text-foreground block">Spécifique Contrat</strong>
+							<span class="text-[10px] text-muted-foreground">Exclu du moissonnage global (cantonné au projet)</span>
+						</div>
+					</label>
+
+					<label class="flex items-center gap-2 p-2.5 rounded-lg border cursor-pointer transition-colors {portability === 'reusable_product_capability' ? 'border-primary bg-primary/10' : 'border-border/50 bg-background'}">
+						<input type="radio" value="reusable_product_capability" bind:group={portability} data-testid="portability-product-capability" />
+						<div>
+							<strong class="text-foreground block">Capacité Produit</strong>
+							<span class="text-[10px] text-muted-foreground">Limite ou capacité standard produit (moissonnable)</span>
+						</div>
+					</label>
+
+					<label class="flex items-center gap-2 p-2.5 rounded-lg border cursor-pointer transition-colors {portability === 'reusable_architecture_doctrine' ? 'border-primary bg-primary/10' : 'border-border/50 bg-background'}">
+						<input type="radio" value="reusable_architecture_doctrine" bind:group={portability} data-testid="portability-architecture-doctrine" />
+						<div>
+							<strong class="text-foreground block">Doctrine Réutilisable</strong>
+							<span class="text-[10px] text-muted-foreground">Pattern d'architecture souverain (moissonnable)</span>
+						</div>
+					</label>
+				</div>
 			</div>
 
 			{#if errorMessage}

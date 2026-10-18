@@ -15,6 +15,9 @@ export const CreateDecisionSchema = z
 		reversibility: z.enum(['reversible', 'costly', 'irreversible']),
 		complianceStatus: z.enum(['Compliant', 'Partially compliant', 'Non-compliant']).default('Compliant'),
 		complianceRationale: z.string().optional(),
+		portability: z
+			.enum(['project_specific', 'reusable_product_capability', 'reusable_architecture_doctrine'])
+			.default('project_specific'),
 		acceptedViolations: z
 			.array(
 				z.object({

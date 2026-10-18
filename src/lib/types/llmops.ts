@@ -218,6 +218,8 @@ export interface KbCandidate {
   rejection_reason?: string;
   author: string;
   author_role?: string;
+  portability?: 'project_specific' | 'reusable_product_capability' | 'reusable_architecture_doctrine';
+  harvestable?: boolean;
   production_mode: 'human-authored' | 'llm-proposed-human-approved' | 'llm-derived';
   created_at?: string;
   updated_at?: string;
@@ -1317,6 +1319,8 @@ export interface HubDecisionInput {
   rejected?: Array<{ option: string; reason: string }>;
   rationale: string;
   reversibility: 'reversible' | 'costly' | 'irreversible';
+  portability?: 'project_specific' | 'reusable_product_capability' | 'reusable_architecture_doctrine';
+  harvestable?: boolean;
   consequences?: string[];
   accepted_violations?: Array<{ typed_id: string; justification: string }>;
   /** Éléments de la base de connaissances dont la décision s'appuie (identifiant typé ou nu) : c'est ce qui permet au Hub d'établir la couverture exigence → contrôle (K17). */

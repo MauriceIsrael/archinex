@@ -75,6 +75,7 @@ export interface Decision {
 	reversibility: DecisionReversibility;
 	complianceStatus?: 'Compliant' | 'Partially compliant' | 'Non-compliant' | 'Provisional';
 	complianceRationale?: string;
+	portability?: 'project_specific' | 'reusable_product_capability' | 'reusable_architecture_doctrine';
 	arbiterId: string;
 	arbiterRole: string;
 	decidedAt: string; // ISO date

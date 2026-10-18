@@ -35,6 +35,7 @@ export interface CreateDecisionInput {
 	reversibility: 'reversible' | 'costly' | 'irreversible';
 	complianceStatus?: 'Compliant' | 'Partially compliant' | 'Non-compliant';
 	complianceRationale?: string;
+	portability?: 'project_specific' | 'reusable_product_capability' | 'reusable_architecture_doctrine';
 	acceptedViolations?: Array<{ typedId: string; justification: string }>;
 }
 
@@ -173,8 +174,11 @@ export async function getSubjectArbitrationContext(subjectId: string): Promise<{
 		const complianceEntry = acceptedViolationsFromDecision.find((v) =>
 			v.typedId.startsWith('COMPLIANCE_STATUS:')
 		);
+		const portabilityEntry = acceptedViolationsFromDecision.find((v) =>
+			v.typedId.startsWith('PORTABILITY:')
+		);
 		const realViolations = acceptedViolationsFromDecision.filter(
-			(v) => !v.typedId.startsWith('COMPLIANCE_STATUS:')
+			(v) => !v.typedId.startsWith('COMPLIANCE_STATUS:') && !v.typedId.startsWith('PORTABILITY:')
 		);
 		const complianceStatus: 'Compliant' | 'Partially compliant' | 'Non-compliant' = complianceEntry
 			? (complianceEntry.typedId.replace('COMPLIANCE_STATUS:', '') as any)
@@ -182,6 +186,10 @@ export async function getSubjectArbitrationContext(subjectId: string): Promise<{
 				? 'Partially compliant'
 				: 'Compliant';
 		const complianceRationale = complianceEntry?.justification || undefined;
+		const portability: 'project_specific' | 'reusable_product_capability' | 'reusable_architecture_doctrine' =
+			portabilityEntry
+				? (portabilityEntry.typedId.replace('PORTABILITY:', '') as any)
+				: 'project_specific';
 
 		parsedDecision = {
 			id: subject.decision.id,
@@ -192,6 +200,7 @@ export async function getSubjectArbitrationContext(subjectId: string): Promise<{
 			reversibility: subject.decision.reversibility as any,
 			complianceStatus,
 			complianceRationale,
+			portability,
 			arbiterId: subject.decision.arbiterId,
 			arbiterRole: subject.decision.arbiterRole,
 			decidedAt: subject.decision.decidedAt.toISOString(),
@@ -305,6 +314,12 @@ export async function recordArbitrationDecision(
 		violationsToStore.push({
 			typedId: `COMPLIANCE_STATUS:${data.complianceStatus}`,
 			justification: data.complianceRationale || ''
+		});
+	}
+	if (data.portability) {
+		violationsToStore.push({
+			typedId: `PORTABILITY:${data.portability}`,
+			justification: ''
 		});
 	}
 

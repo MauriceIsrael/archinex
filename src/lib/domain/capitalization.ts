@@ -37,7 +37,16 @@ export interface AnonymizationContext {
  */
 export function buildKbCandidates(input: BuildKbCandidatesInput): KbCandidate[] {
 	const { decision, subject, options, engagement, author, authorRole = 'lead_architect' } = input;
+
+	// Issue #120: Une décision qualifiée 'project_specific' (spécifique au contrat / lotissement)
+	// reste cantonnée au projet et ne doit JAMAIS générer de candidat au moissonnage global LLMOps.
+	if (decision.portability === 'project_specific') {
+		return [];
+	}
+
 	const candidates: KbCandidate[] = [];
+	const portability = decision.portability;
+	const harvestable = portability === 'reusable_product_capability' || portability === 'reusable_architecture_doctrine';
 
 	const retainedOption = options.find((o) => o.id === decision.retainedOptionId);
 	const rejectedDetails = decision.rejected
@@ -66,6 +75,8 @@ export function buildKbCandidates(input: BuildKbCandidatesInput): KbCandidate[] 
 			},
 			author,
 			author_role: authorRole,
+			portability,
+			harvestable,
 			production_mode: 'human-authored',
 			status: 'in_review'
 		});
@@ -91,6 +102,8 @@ export function buildKbCandidates(input: BuildKbCandidatesInput): KbCandidate[] 
 			},
 			author,
 			author_role: authorRole,
+			portability,
+			harvestable,
 			production_mode: 'human-authored',
 			status: 'in_review'
 		});
@@ -112,6 +125,8 @@ export function buildKbCandidates(input: BuildKbCandidatesInput): KbCandidate[] 
 		},
 		author,
 		author_role: authorRole,
+		portability,
+		harvestable,
 		production_mode: 'human-authored',
 		status: 'in_review'
 	});

@@ -8,6 +8,18 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Portabilité des Décisions & Filtrage du Moissonnage (#120)
+- **Qualification de portabilité à l'arbitrage** : Ajout d'une dimension de portabilité lors de l'enregistrement d'une décision d'arbitrage (`CreateDecisionSchema`, `ArbitrationPanel.svelte`) :
+  - `project_specific` (Spécifique au contrat / projet) : décision liée aux contraintes singulières du client ou du contrat, exclue du moissonnage général (`harvestable: false`).
+  - `reusable_product_capability` (Capacité produit réutilisable) : solution générique ou capacité technique réemployable, éligible au moissonnage LLMOps (`harvestable: true`).
+  - `reusable_architecture_doctrine` (Doctrine d'architecture transverse) : règle d'ingénierie ou principe général à capitaliser dans la doctrine transverse (`harvestable: true`).
+- **Garde-fou au moissonnage & transmission au Hub** :
+  - `buildKbCandidates` (`capitalization.ts`) filtre immédiatement les décisions `project_specific` et renvoie une liste vide afin d'empêcher toute pollution de la doctrine globale par des spécificités contractuelles.
+  - `recordDecisionInHub` (`hubDecisions.ts`) propage explicitement les propriétés `portability` et `harvestable` au Hub LLMOps.
+  - Badge visuel contextuel affiché dans la carte de décision de l'arbitrage.
+- **Pédagogie & Guide de décision** : Intégration dans `DecisionGuideModal.svelte` des explications sur la qualification de portabilité et la protection de la doctrine globale.
+- **Tests** : Tests de contrat dans `tests/contract/decision-portability.test.ts` et `tests/contract/capitalization.test.ts`, et mise à jour des tests d'intégration du Hub.
+
 ### Matrice de Conformité de Base Standardisée (#118)
 - **Statuts de conformité unifiés** : Support natif des positions de conformité `Compliant`, `Partially compliant`, `Non-compliant` et `Provisional` sur les décisions d'arbitrage et les exigences sources.
 - **Règle de justification substantielle** : Obligation stricte de renseigner une réserve / justification explicite (au moins 5 caractères) dès lors qu'un arbitrage est `Partially compliant` ou `Non-compliant`. Contrôles appliqués dans les schémas Zod (`CreateDecisionSchema`), la base de données (`arbitrationDb.ts`) et la vérification de bundle (`bundleVerifier.ts`).

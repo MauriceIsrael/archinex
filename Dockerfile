@@ -7,13 +7,14 @@ WORKDIR /app
 RUN apk add --no-cache python3 make g++
 
 COPY package*.json ./
+COPY scripts/patch-adapter-node.mjs ./scripts/
 RUN npm ci --legacy-peer-deps
 
 COPY . .
 
 # Generate Prisma Client & Build SvelteKit application
 ENV DATABASE_URL="file:/app/prisma/dev.db"
-RUN npx prisma generate
+RUN npx svelte-kit sync && npx prisma generate
 RUN npm run build
 RUN npm prune --production --legacy-peer-deps
 
@@ -33,6 +34,9 @@ ENV JWT_SECRET="archinex-super-secret-production-jwt-key-2026"
 COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/node_modules ./node_modules
 COPY --from=builder /app/prisma ./prisma
+COPY --from=builder /app/prisma.config.ts ./
+COPY --from=builder /app/src/generated ./src/generated
+COPY --from=builder /app/src/lib/server/dbUrl.ts /app/src/lib/server/prismaFactory.ts ./src/lib/server/
 COPY --from=builder /app/build ./build
 COPY docker-entrypoint.sh ./
 

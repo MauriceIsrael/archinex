@@ -8,7 +8,7 @@ mkdir -p /app/prisma
 
 # Push Prisma schema to SQLite database and seed initial data
 echo "📦 Running Prisma DB push..."
-npx prisma db push --skip-generate --accept-data-loss
+npx prisma db push --accept-data-loss
 
 echo "🌱 Running Seed..."
 npx tsx prisma/seed.ts || true

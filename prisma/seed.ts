@@ -1,7 +1,7 @@
-import { PrismaClient } from '@prisma/client';
+import { createPrismaClient } from '../src/lib/server/prismaFactory';
 import bcrypt from 'bcryptjs';
 
-const prisma = new PrismaClient();
+const prisma = createPrismaClient();
 
 async function main() {
   console.log('🌱 [seed] Initialisation de la base Archinex...');

@@ -51,3 +51,6 @@ Lulu.pdf
 
 # Base locale de la copie de travail
 prisma/dev-wt.db*
+
+# Generated Prisma client (Prisma 7)
+/src/generated/prisma

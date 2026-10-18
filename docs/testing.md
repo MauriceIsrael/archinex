@@ -1,6 +1,6 @@
 # Tests : repartir d'une base propre
 
-`npm run verify` (denylist, tests, types Svelte, build) est la porte qualité, et c'est ce que lance la CI. Ce document dit comment
+`npm run verify` (denylist, tests, types Svelte, build) est la porte qualité, et c'est ce que lance la CI (sur chaque PR et sur `main`, pas sur chaque push d'une branche sans PR : ouvrir la PR, en brouillon au besoin). Ce document dit comment
 obtenir un résultat **reproductible**, ce que `verify` ne lance **pas**, et comment lire les écarts connus.
 
 ## Les règles

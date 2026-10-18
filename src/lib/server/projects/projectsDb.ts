@@ -1,6 +1,6 @@
 import { prisma } from '../prisma';
 import { executeRetractionCascade, type RetractionCascadeResult } from './retractionCascade';
-import type { Prisma } from '@prisma/client';
+import type { Prisma } from '../../../generated/prisma/client';
 
 export class ConcurrencyConflictError extends Error {
 	statusCode = 409;

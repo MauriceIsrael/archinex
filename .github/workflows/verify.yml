@@ -37,7 +37,7 @@ jobs:
         run: npm ci
 
       - name: Créer la base SQLite et générer le client Prisma
-        run: npx prisma db push
+        run: npx prisma generate && npx prisma db push
 
       - name: Vérifier (denylist, tests, types, build)
         run: npm run verify

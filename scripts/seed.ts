@@ -1,10 +1,10 @@
 import { readFileSync, existsSync, readdirSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { PrismaClient } from '@prisma/client';
+import { createPrismaClient, type PrismaClient } from '../src/lib/server/prismaFactory';
 import type { EngagementProfile } from '../src/lib/domain/engagements';
 import type { CorpusDocument } from '../src/lib/domain/corpus';
 
-const globalPrisma = new PrismaClient();
+const globalPrisma = createPrismaClient();
 
 function readJsonFile<T>(path: string): T | null {
 	if (!existsSync(path)) return null;

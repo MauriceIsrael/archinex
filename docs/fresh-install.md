@@ -18,6 +18,7 @@ npm install
 cp .env.example .env
 
 # 3. Initialiser le schéma puis injecter les données initiales
+npx prisma generate
 npx prisma db push
 npx prisma db seed
 
@@ -52,6 +53,8 @@ Le fichier `.env` configure l'accès aux bases de données locales, aux clés de
 ## 3. Pourquoi `npx prisma db seed` après `prisma db push` ?
 
 Les développeurs se demandent souvent pourquoi deux commandes sont nécessaires lors d'une nouvelle installation :
+
+0. **`npx prisma generate`** : depuis Prisma 7, `db push` ne génère plus le client ; cette commande le produit dans `src/generated/prisma` (ignoré par git).
 
 1. **`npx prisma db push`** :
    - Analyse le fichier `prisma/schema.prisma`.

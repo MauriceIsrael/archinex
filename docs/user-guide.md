@@ -154,3 +154,15 @@ Pour évaluer objectivement la valeur ajoutée des capacités d'ingestion et d'�
 - L'option `--elicit` (ou `elicit: true`) active le moteur dialectique `elicitSubjectDetails` pour enrichir les sujets de critères pondérés et d'options multi-critères.
 - L'outil en ligne de commande `scripts/benchmark-run.ts` expose les indicateurs de compression du bruit et de traitement des gaps dans son fichier d'artefact (`--summary-out`).
 
+### 4.9 Export d'Architecture HLD & Projections C4/Mermaid du Bundle (Issue #122)
+Lors de l'assemblage et du scellement de l'Engagement Bundle (`assembleEngagementBundle`), le modèle d'architecture est automatiquement projeté et structuré dans `data.architecture` :
+- **Éléments & Relations canoniques** :
+  - Les sujets de délibération, leurs options d'architecture et les faits techniques (`Statement`) sont traduits en composants (`system`, `component`, `datastore`, `network`, `interface`) et relations (`uses`, `depends_on`, `data_flow`, `deploys_to`, `protects`, `contains`).
+  - Chaque élément ou relation conserve sa traçabilité complète vers les décisions d'arbitrage (`decision_ids`), son niveau d'affirmation (`asserted` ou `proposed`) et sa provenance.
+- **Projections Multi-Formats Déterministes** :
+  - Projections C4 / Mermaid (`flowchart TD`), Structurizr DSL (`workspace { ... }`) et SysML v2 (`package ...`).
+  - Disponibles au niveau global dans `data.architecture.projections` et par sujet dans `data.subjects[i].projections` (ainsi que dans `data.architecture.projections.by_subject`).
+  - Génération déterministe garantissant la stricte reproductibilité du sceau SHA-256 d'intégrité de l'engagement.
+- **Vérification d'intégrité et de conformité** :
+  - Le vérificateur opposable `verifyEngagementBundle` contrôle la validité des genres d'éléments, l'absence de circularité dans les frontières (`CIRCULAR_BOUNDARY`) et la résolution complète des identifiants cités dans les projections.
+

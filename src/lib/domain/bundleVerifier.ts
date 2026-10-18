@@ -284,14 +284,53 @@ export function verifyEngagementBundle(bundle: EngagementBundle): BundleProblem[
 		if (g.requirement_id) mustResolve(g.requirement_id, 'requirements', `/data/gaps/${i}/requirement_id`);
 	});
 
+	const ELEMENT_KINDS = ['actor', 'system', 'component', 'datastore', 'network', 'interface', 'boundary'];
+	const RELATION_KINDS = ['uses', 'depends_on', 'data_flow', 'deploys_to', 'protects', 'contains'];
+
 	(arch.elements || []).forEach((e, i) => {
-		if (e.boundary_id) mustResolve(e.boundary_id, 'elements', `/data/architecture/elements/${i}/boundary_id`);
+		if (e.kind && !ELEMENT_KINDS.includes(e.kind)) {
+			out.push({
+				code: 'ELEMENT_KIND_INVALID',
+				path: `/data/architecture/elements/${i}/kind`,
+				message: `'${e.kind}' is not one of ${ELEMENT_KINDS.join(', ')}`
+			});
+		}
+		if (e.boundary_id) {
+			if (e.boundary_id === e.id) {
+				out.push({
+					code: 'CIRCULAR_BOUNDARY',
+					path: `/data/architecture/elements/${i}/boundary_id`,
+					message: `element '${e.id}' cannot be its own boundary`
+				});
+			}
+			mustResolve(e.boundary_id, 'elements', `/data/architecture/elements/${i}/boundary_id`);
+		}
 	});
 
 	(arch.relations || []).forEach((rel, i) => {
+		if (rel.kind && !RELATION_KINDS.includes(rel.kind)) {
+			out.push({
+				code: 'RELATION_KIND_INVALID',
+				path: `/data/architecture/relations/${i}/kind`,
+				message: `'${rel.kind}' is not one of ${RELATION_KINDS.join(', ')}`
+			});
+		}
 		mustResolve(rel.from, 'elements', `/data/architecture/relations/${i}/from`);
 		mustResolve(rel.to, 'elements', `/data/architecture/relations/${i}/to`);
 	});
+
+	if (arch.projections?.by_subject) {
+		const subjectIds = ids['subjects'] || new Set();
+		for (const subId of Object.keys(arch.projections.by_subject)) {
+			if (!subjectIds.has(subId)) {
+				out.push({
+					code: 'DANGLING_REF',
+					path: `/data/architecture/projections/by_subject/${subId}`,
+					message: `'${subId}' is not in subjects`
+				});
+			}
+		}
+	}
 
 	CLAIM_COLLECTIONS.forEach((name) => {
 		(collections[name] || []).forEach((it, i) => {

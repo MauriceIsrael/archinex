@@ -396,6 +396,27 @@
                     "question"
                   ]
                 }
+              },
+              "projections": {
+                "type": "object",
+                "additionalProperties": false,
+                "properties": {
+                  "mermaid": {
+                    "type": "string"
+                  },
+                  "structurizr_dsl": {
+                    "type": "string"
+                  },
+                  "structurizrDSL": {
+                    "type": "string"
+                  },
+                  "sysml_v2": {
+                    "type": "string"
+                  },
+                  "sysmlV2": {
+                    "type": "string"
+                  }
+                }
               }
             },
             "required": [
@@ -789,9 +810,54 @@
                   "provenance"
                 ]
               }
+            },
+            "projections": {
+            "type": "object",
+            "additionalProperties": false,
+            "properties": {
+              "mermaid": {
+                "type": "string"
+              },
+              "structurizr_dsl": {
+                "type": "string"
+              },
+              "structurizrDSL": {
+                "type": "string"
+              },
+              "sysml_v2": {
+                "type": "string"
+              },
+              "sysmlV2": {
+                "type": "string"
+              },
+              "by_subject": {
+                "type": "object",
+                "additionalProperties": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "properties": {
+                    "mermaid": {
+                      "type": "string"
+                    },
+                    "structurizr_dsl": {
+                      "type": "string"
+                    },
+                    "structurizrDSL": {
+                      "type": "string"
+                    },
+                    "sysml_v2": {
+                      "type": "string"
+                    },
+                    "sysmlV2": {
+                      "type": "string"
+                    }
+                  }
+                }
+              }
             }
-          },
-          "required": [],
+          }
+        },
+        "required": [],
           "description": "Model from which diagrams are drawn (components, flows, boundaries). Every diagram element is traceable to decisions and carries its assertion level."
         },
         "kb_references": {

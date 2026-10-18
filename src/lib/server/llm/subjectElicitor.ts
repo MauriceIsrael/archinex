@@ -20,6 +20,7 @@ import {
 } from '$lib/domain/options';
 import { localLlmClient } from './localLlmClient';
 import type { KbItemSummary } from './rfpFactorizer';
+import type { LlmPort } from '$lib/server/ingest/arckitRequirementsPipeline';
 
 export interface ElicitationRequest {
 	subjectId: string;
@@ -31,6 +32,7 @@ export interface ElicitationRequest {
 	existingConflicts?: TelegraphicConflict[];
 	clausesText?: string;
 	model?: string;
+	llm?: LlmPort;
 }
 
 export interface ElicitedCriterion {
@@ -190,14 +192,16 @@ Procède à l'élicitation approfondie avec au moins 3 critères pondérés, 3 o
  */
 export async function elicitSubjectDetails(
 	req: ElicitationRequest,
-	kbStandards: KbItemSummary[] = []
+	kbStandards: KbItemSummary[] = [],
+	llm?: LlmPort
 ): Promise<ElicitationResult> {
 	const model = req.model || 'ministral:latest';
+	const client = llm ?? req.llm ?? localLlmClient;
 
 	try {
 		const { systemPrompt, userMessage } = buildElicitationPrompt(req, kbStandards);
 
-		const rawContent = await localLlmClient.chat({
+		const rawContent = await client.chat({
 			model,
 			messages: [
 				{ role: 'system', content: systemPrompt },

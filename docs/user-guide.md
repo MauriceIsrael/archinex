@@ -147,3 +147,10 @@ Lors de l'arbitrage humain d'un sujet (Porte G3), le Lead Architect qualifie exp
 - La transmission vers le Hub LLMOps (`recordDecisionInHub`) enrichit l'enregistrement des attributs `portability` et `harvestable`.
 - Un badge visuel spécifique matérialise la qualification de portabilité retenue dans la carte de décision.
 
+### 4.8 Banc d'Évaluation & Pipeline ArcKit (Issue #121)
+Pour évaluer objectivement la valeur ajoutée des capacités d'ingestion et d'élicitation sans interface graphique (Benchmark LUMICC) :
+- L'adaptateur de banc de test en boîte noire `benchmarkRunner.ts` supporte le paramètre `pipeline: 'arckit'`.
+- Il exécute le pipeline d'audit complet (`runRequirementsAudit`) : classification des clauses, application des invariants déterministes (repêchage automatique des exigences dures), évacuation des commodités hors du périmètre de délibération, et factorisation des clauses en sujets d'architecture ciblés (`BundleSubject`).
+- L'option `--elicit` (ou `elicit: true`) active le moteur dialectique `elicitSubjectDetails` pour enrichir les sujets de critères pondérés et d'options multi-critères.
+- L'outil en ligne de commande `scripts/benchmark-run.ts` expose les indicateurs de compression du bruit et de traitement des gaps dans son fichier d'artefact (`--summary-out`).
+

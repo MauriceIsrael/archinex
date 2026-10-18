@@ -8,6 +8,19 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Pipeline ArcKit pour le Benchmark LUMICC (#121)
+- **Support natif du pipeline ArcKit dans `benchmarkRunner.ts`** :
+  - Ajout de l'option `pipeline?: 'deterministic' | 'arckit'` dans `BenchmarkRunOptions`.
+  - Intégration de `runRequirementsAudit` : classement par lots, application stricte des invariants déterministes (repêchage des clauses bloquantes en `to_qualify`, exclusion des commodités `evacuated` des sujets de délibération, conversion des clarifications en `gaps` opposables).
+  - Factorisation $N \text{ clauses} \to K \text{ sujets}$ (`FactorizedArchitecturalSubject`) convertis en `BundleSubject`s canoniques avec questions initiales et d'experts.
+  - Option `elicit?: boolean` permettant de déclencher l'élicitation multi-critères approfondie via `elicitSubjectDetails` (génération de critères pondérés, d'options et de questions expertes).
+  - Injection du client LLM via `llm?: LlmPort` pour permettre des bancs d'évaluation hors-ligne reproductibles ou en local souverain.
+- **Enrichissement de `BenchmarkRunResult`** :
+  - Exposition des rapports `arckitReport: ArcKitAuditReport` et `factorizedSubjects: FactorizedArchitecturalSubject[]` pour mesurer le ratio de compression du bruit, le repêchage des faux négatifs dangereux et la complétude d'architecture.
+- **Outil CLI `scripts/benchmark-run.ts`** :
+  - Nouvelles options en ligne de commande : `--pipeline <deterministic|arckit>` et `--elicit`, avec enrichissement du rapport d'artefact `--summary-out`.
+- **Tests** : 3 tests de contrat dédiés dans `tests/contract/benchmark-arckit-pipeline.test.ts`.
+
 ### Portabilité des Décisions & Filtrage du Moissonnage (#120)
 - **Qualification de portabilité à l'arbitrage** : Ajout d'une dimension de portabilité lors de l'enregistrement d'une décision d'arbitrage (`CreateDecisionSchema`, `ArbitrationPanel.svelte`) :
   - `project_specific` (Spécifique au contrat / projet) : décision liée aux contraintes singulières du client ou du contrat, exclue du moissonnage général (`harvestable: false`).

@@ -1,0 +1,121 @@
+{
+  "_description": "Analyse de référence indépendante du RFP LUMICC Section 4 (NOC). Auteur établi : Architecte Référent Indépendant. Rédigé et figé AVANT le lancement de la mesure, conformément aux directives de docs/jalon-j0.md.",
+  "author": "Architecte Référent Indépendant",
+  "date": "2026-10-18",
+  "status": "fige_avant_mesure",
+  "source": "examples/lumicc-noc/rfp-section4-noc.md",
+  "hardPoints": [
+    {
+      "id": "HP-01-MEDIATION-OAM",
+      "name": "Médiation O&M Multi-Constructeurs : NRM Unifié & YANG vs Passerelles EMS Propriétaires MNO",
+      "coveredClauseRefs": [
+        "REQ-Lot1-201",
+        "REQ-Lot1-211",
+        "REQ-Lot1-239",
+        "REQ-Lot1-240",
+        "REQ-Lot1-241",
+        "REQ-Lot1-242",
+        "REQ-Lot1-243",
+        "REQ-Lot1-248",
+        "REQ-Lot1-249",
+        "REQ-Lot1-250",
+        "REQ-Lot1-252",
+        "REQ-Lot1-253",
+        "REQ-Lot1-254"
+      ]
+    },
+    {
+      "id": "HP-02-JAMMING-GNSS",
+      "name": "Résilience Déni GNSS 30j & Détection de Brouillage RF vs Périmètre Logiciel NOC",
+      "coveredClauseRefs": [
+        "REQ-Lot1-223",
+        "REQ-Lot1-224",
+        "REQ-Lot1-225",
+        "REQ-Lot1-226",
+        "REQ-Lot1-227",
+        "REQ-Lot1-228",
+        "REQ-Lot1-229"
+      ]
+    },
+    {
+      "id": "HP-03-AUTOMATION-SMO",
+      "name": "Orchestration SMO & Auto-Remédiation vs Barrière Opérateur Human-in-the-Loop",
+      "coveredClauseRefs": [
+        "REQ-Lot1-196",
+        "REQ-Lot1-197",
+        "REQ-Lot1-215",
+        "REQ-Lot1-216",
+        "REQ-Lot1-246",
+        "REQ-Lot1-247",
+        "REQ-Lot1-263"
+      ]
+    },
+    {
+      "id": "HP-04-GEORED-BACKUP-NOC",
+      "name": "Géo-redondance Haute Disponibilité & Basculement Salle de Repli NOC Physique",
+      "coveredClauseRefs": [
+        "REQ-Lot1-191",
+        "REQ-Lot1-192",
+        "REQ-Lot1-268",
+        "REQ-Lot1-271",
+        "REQ-Lot1-281",
+        "REQ-Lot1-282"
+      ]
+    },
+    {
+      "id": "HP-05-HYPERVISOR-MULTI-TENANT",
+      "name": "Hyperviseur & Tableaux de Bord Multi-Organisations vs Cloisonnement MNO/Autorité",
+      "coveredClauseRefs": [
+        "REQ-Lot1-206",
+        "REQ-Lot1-236",
+        "REQ-Lot1-237",
+        "REQ-Lot1-238",
+        "REQ-Lot1-279"
+      ]
+    }
+  ],
+  "clarifications": [
+    {
+      "clauseRefs": [
+        "REQ-Lot1-206",
+        "REQ-Lot1-250"
+      ],
+      "question": "Quel niveau contractuel d'exposition des compteurs temps réel les opérateurs commerciaux du Lot 3 acceptent-ils de fournir au NOC LUMICC ?"
+    },
+    {
+      "clauseRefs": [
+        "REQ-Lot1-227",
+        "REQ-Lot1-228"
+      ],
+      "question": "Les contre-mesures physiques actives de brouillage RF incombent-elles au titulaire du Lot 1 ou relèvent-elles de l'infrastructure radio des Lots 2 et 3 ?"
+    },
+    {
+      "clauseRefs": [
+        "REQ-Lot1-247"
+      ],
+      "question": "Le moteur de politiques et d'intentions SMO doit-il exécuter des actions directes en boucle fermée ou se limiter à des recommandations avec validation humaine ?"
+    }
+  ],
+  "missedAnglesListB": [
+    {
+      "id": "B-01",
+      "angle": "Surcoût imprévu de développement d'adaptateurs propriétaires pour l'EMS d'un constructeur tiers refusant les interfaces YANG standard (avenant +280 k€).",
+      "foundBySystem": null
+    },
+    {
+      "id": "B-02",
+      "angle": "Perte de visibilité sur les alarmes du RAN partagé commercial lors d'une coupure de liaison IPsec avec l'OSS MNO (absence de tamponnage local).",
+      "foundBySystem": null
+    },
+    {
+      "id": "B-03",
+      "angle": "Conflit opérationnel suite à l'exécution automatique non supervisée d'un playbook ayant coupé des cellules radio actives.",
+      "foundBySystem": null
+    },
+    {
+      "id": "B-04",
+      "angle": "Retard de livraison des travaux de climatisation et aménagement physique de la salle de repli NOC (REQ-Lot1-282).",
+      "foundBySystem": null
+    }
+  ]
+}

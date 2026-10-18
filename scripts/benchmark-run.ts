@@ -9,6 +9,8 @@
  *   --rfp <path>              Fichier texte brut ou JSON du cas RFP
  *   --output <path>           Chemin où sauvegarder l'EngagementBundle scellé
  *   --mode <s2|s3>            Mode d'exécution (défaut: s2, ou s3 si --expert-fixture est spécifié)
+ *   --pipeline <mode>         Pipeline d'ingestion ('deterministic' | 'arckit', défaut: deterministic)
+ *   --elicit                  Active l'élicitation multi-critères approfondie (elicitSubjectDetails)
  *   --expert-fixture <path>   Fichier JSON contenant les réponses d'experts annotées (pour S3)
  *   --case-id <id>            Identifiant du cas de test (défaut: extrait du fichier ou TC-001)
  *   --summary-out <path>      Fichier JSON pour le rapport de métriques (RunArtifact)
@@ -44,6 +46,8 @@ Options :
   --rfp <path>              Chemin vers le texte du RFP ou le cas JSON (requis)
   --output <path>           Chemin de sortie pour l'EngagementBundle (requis)
   --mode <s2|s3>            Mode S2 (autonome) ou S3 (assisté)
+  --pipeline <mode>         Pipeline d'ingestion ('deterministic' | 'arckit', défaut: deterministic)
+  --elicit                  Active l'élicitation multi-critères approfondie (elicitSubjectDetails)
   --expert-fixture <path>   Fixture de sollicitations d'experts rejouées (requis pour S3)
   --case-id <id>            Identifiant du cas de test (ex: TC-CONTRA-001)
   --summary-out <path>      Chemin où écrire le résumé d'exécution RunArtifact
@@ -127,8 +131,13 @@ async function main() {
 	}
 
 	// 3. Exécution du cas
+	const pipelineArg = (getArg('--pipeline')?.toLowerCase() as 'deterministic' | 'arckit') || 'deterministic';
+	const elicitArg = hasFlag('--elicit');
+
 	const result = await runBenchmarkCase(caseInput, {
 		mode: modeArg as 's2' | 's3',
+		pipeline: pipelineArg,
+		elicit: elicitArg,
 		expertFixtures,
 		modelId: getArg('--model-id'),
 		referenceDate: getArg('--reference-date')
@@ -154,7 +163,17 @@ async function main() {
 			expert_interactions: result.expert_interactions,
 			expert_unanswered: result.expert_unanswered,
 			wall_seconds: result.wall_seconds,
-			checksum: result.bundle.checksum
+			checksum: result.bundle.checksum,
+			pipeline: pipelineArg,
+			arckit: result.arckitReport
+				? {
+						totalCount: result.arckitReport.totalCount,
+						evacuatedCount: result.arckitReport.evacuatedCount,
+						deliberatedCount: result.arckitReport.deliberatedCount,
+						clarificationCount: result.arckitReport.clarificationCount,
+						toQualifyCount: result.arckitReport.toQualifyCount
+					}
+				: undefined
 		};
 		writeFileSync(resolvedSummary, JSON.stringify(artifactData, null, 2), 'utf-8');
 	}

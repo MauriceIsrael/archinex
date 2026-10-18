@@ -21,9 +21,18 @@ import {
 	type BundlePins,
 	type ConfidentialityLevel,
 	type ReuseLogEntry,
-	type KbReference
+	type KbReference,
+	type OpenQuestion
 } from '$lib/domain/engagementBundle';
 import { sealEngagementBundle, verifyEngagementBundle } from '$lib/domain/bundleVerifier';
+import {
+	runRequirementsAudit,
+	type ArcKitAuditReport,
+	type LlmPort
+} from '$lib/server/ingest/arckitRequirementsPipeline';
+import { elicitSubjectDetails } from '$lib/server/llm/subjectElicitor';
+import type { FactorizedArchitecturalSubject } from '$lib/domain/factorization';
+import type { KbItemSummary } from '$lib/server/llm/rfpFactorizer';
 
 // ─── Interfaces du Banc de Test ──────────────────────────────────────────────
 
@@ -66,6 +75,14 @@ export interface ExpertActionFixture {
 
 export interface BenchmarkRunOptions {
 	mode: 's2' | 's3';
+	/** Pipeline de cadrage : déterministe synchrone (défaut) ou ArcKit (audit d'exigences + factorisation). */
+	pipeline?: 'deterministic' | 'arckit';
+	/** Patrimoine de doctrine réglementaire ou standards KB optionnels pour ancrer l'audit et l'élicitation. */
+	kbStandards?: KbItemSummary[];
+	/** Client LLM injecté (permet de simuler les réponses du modèle dans les tests sans dépendance réseau). */
+	llm?: LlmPort;
+	/** Si true, force l'élicitation multi-critères approfondie via elicitSubjectDetails sur les sujets. */
+	elicit?: boolean;
 	iteration?: number;
 	manifestId?: string;
 	expertFixtures?: ExpertActionFixture[];
@@ -94,6 +111,10 @@ export interface BenchmarkRunResult {
 	wall_seconds: number;
 	raw_text: string;
 	bundle: EngagementBundle;
+	/** Rapport d'audit des exigences ArcKit (disponible si pipeline === 'arckit'). */
+	arckitReport?: ArcKitAuditReport;
+	/** Sujets d'architecture factorisés et instruits par ArcKit (disponible si pipeline === 'arckit'). */
+	factorizedSubjects?: FactorizedArchitecturalSubject[];
 }
 
 /** Date de référence par défaut : constante, pour que deux exécutions identiques scellent le même checksum. */
@@ -107,6 +128,7 @@ export async function runBenchmarkCase(
 ): Promise<BenchmarkRunResult> {
 	const startTime = performance.now();
 	const mode = options.mode;
+	const pipeline = options.pipeline ?? 'deterministic';
 	const iteration = options.iteration ?? 1;
 	const fixtures = options.expertFixtures ?? [];
 	const modelHandle = `@model-${(options.modelId ?? 'unspecified').trim().replace(/\s+/g, '-')}`;
@@ -115,96 +137,302 @@ export async function runBenchmarkCase(
 	// 1. Découpage du RFP en clauses élémentaires
 	const clauses = shredRfpTextToClauses(input.rfp_text);
 
-	// 2. Confrontation avec le patrimoine de doctrine et détection des contradictions
-	const confrontationResult = confrontClausesWithKnowledgeBase(clauses, []);
-	const confrontations = confrontationResult.confrontations;
-
-	// 3. Modélisation des exigences (BundleRequirement)
-	// Toutes les clauses soumises au banc sont rattachées aux sujets pour délibération (disposition: 'deliberated')
-	const requirements: BundleRequirement[] = confrontations.map((c, idx) => ({
-		id: `REQ-${idx + 1}`,
-		source_document_id: 'DOC-RFP',
-		clause_ref: c.clauseRef,
-		title: c.title,
-		text: c.text,
-		language: input.language ?? 'fr',
-		criticality: c.criticality,
-		disposition: 'deliberated',
-		assertion_level: 'proposed'
-	}));
-
-	// 4. Initialisation des sujets d'architecture
-	const subjects: BundleSubject[] = confrontationResult.suggestedInitialSubjects.map((s, idx) => {
-		const subjId = `SUB-${idx + 1}`;
-		return {
-			id: subjId,
-			title: s.name,
-			domains: ['architecture', 'compliance'],
-			maturity: 'L1_framed',
-			status: 'open' as const,
-			requirement_ids: requirements.filter((r) => r.clause_ref === s.sectionRef).map((r) => r.id),
-			decision_ids: [],
-			open_questions: s.initialQuestion
-				? [{ id: `Q-${subjId}-1`, text: s.initialQuestion, status: 'open' }]
-				: []
-		};
-	});
-
-	// Si aucune clause n'a généré de sujet (RFP simple ou général), en créer un par défaut
-	if (subjects.length === 0) {
-		subjects.push({
-			id: 'SUB-1',
-			title: input.title || 'Instruction générale du RFP',
-			domains: ['architecture'],
-			maturity: 'L1_framed',
-			status: 'open',
-			requirement_ids: requirements.map((r) => r.id),
-			decision_ids: [],
-			open_questions: [{ id: 'Q-SUB-1-1', text: 'Quelles sont les cibles d\'architecture à retenir ?', status: 'open' }]
-		});
-	}
-
-	// 5. Modélisation des énoncés auditables (BundleStatement) liés aux exigences et sujets
-	const statements: BundleStatement[] = requirements.map((r, idx) => {
-		const parentSubj = subjects.find((s) => s.requirement_ids.includes(r.id)) ?? subjects[0];
-		return {
-			id: `STMT-${idx + 1}`,
-			subject_id: parentSubj.id,
-			epistemic_status: 'ai_proposed',
-			assertion_level: 'proposed',
-			text: r.text,
-			predicate: r.title || `Exigence ${r.clause_ref}`,
-			value: r.clause_ref,
-			provenance: {
-				basis: 'ai_proposal',
-				by: [modelHandle],
-				at: referenceDate
-			}
-		};
-	});
-
-	// 6. Modélisation des conflits et manques initiaux (pointant vers les statements valides)
+	let requirements: BundleRequirement[] = [];
+	let subjects: BundleSubject[] = [];
+	let statements: BundleStatement[] = [];
 	const conflicts: BundleConflict[] = [];
 	const gaps: BundleGap[] = [];
 
-	confrontations.forEach((c, idx) => {
-		if (c.status === 'conflict') {
-			conflicts.push({
-				id: `CONF-${idx + 1}`,
-				kind: 'contradiction',
-				status: 'open',
-				statement_ids: [`STMT-${idx + 1}`],
-				description: c.rationale || `Contradiction sur l'exigence "${c.title}"`
+	let arckitReport: ArcKitAuditReport | undefined;
+	let factorizedSubjects: FactorizedArchitecturalSubject[] | undefined;
+
+	if (pipeline === 'arckit') {
+		// ─── Pipeline ArcKit (runRequirementsAudit + elicitSubjectDetails) ─────────
+		const auditResult = await runRequirementsAudit(clauses, {
+			llm: options.llm,
+			model: options.modelId,
+			kbStandards: options.kbStandards,
+			largeContext: true
+		});
+		arckitReport = auditResult.report;
+		factorizedSubjects = auditResult.subjects;
+
+		// 1. Modélisation des exigences auditées
+		requirements = arckitReport.requirements.map((r, idx) => ({
+			id: `REQ-${idx + 1}`,
+			source_document_id: 'DOC-RFP',
+			clause_ref: r.clauseRef,
+			title: r.title,
+			text: r.text,
+			language: input.language ?? 'fr',
+			criticality: r.criticality,
+			category: r.category,
+			disposition: r.disposition,
+			disposition_reason:
+				r.disposition === 'evacuated'
+					? r.evacuationReason
+					: r.disposition === 'deliberated'
+						? r.deliberationReason
+						: r.disposition === 'to_qualify'
+							? r.qualifyReason
+							: undefined,
+			clarification_question: r.clarificationQuestion,
+			assertion_level: 'proposed'
+		}));
+
+		// 2. Modélisation des sujets factorisés (BundleSubject)
+		subjects = factorizedSubjects.map((s, idx) => {
+			const subjId = `SUB-${idx + 1}`;
+			const coveredReqs = requirements.filter(
+				(r) => r.disposition === 'deliberated' && s.coveredClauseRefs.includes(r.clause_ref)
+			);
+			const open_questions: OpenQuestion[] = [];
+			if (s.seed?.initialQuestion) {
+				open_questions.push({ id: `Q-${subjId}-1`, text: s.seed.initialQuestion, status: 'open' });
+			}
+			(s.seed?.expertQuestions ?? []).forEach((qText) => {
+				open_questions.push({ id: `Q-${subjId}-${open_questions.length + 1}`, text: qText, status: 'open' });
 			});
-		} else if (c.status === 'gap') {
-			gaps.push({
-				id: `GAP-${idx + 1}`,
-				kind: 'uncovered_requirement',
-				description: `[${c.clauseRef}] ${c.rationale || `Écart non couvert par la doctrine : "${c.title}"`}`,
-				blocking: c.criticality === 'bloquant'
+
+			return {
+				id: subjId,
+				title: s.name,
+				domains: ['architecture', 'compliance'],
+				maturity: 'L1_framed',
+				status: 'open' as const,
+				requirement_ids: coveredReqs.map((r) => r.id),
+				decision_ids: [],
+				open_questions
+			};
+		});
+
+		// Si aucun sujet généré, fallback
+		if (subjects.length === 0) {
+			const deliberatedOnly = requirements.filter((r) => r.disposition === 'deliberated');
+			subjects.push({
+				id: 'SUB-1',
+				title: input.title || 'Instruction générale du RFP',
+				domains: ['architecture'],
+				maturity: 'L1_framed',
+				status: 'open',
+				requirement_ids: deliberatedOnly.map((r) => r.id),
+				decision_ids: [],
+				open_questions: [{ id: 'Q-SUB-1-1', text: 'Quelles sont les cibles d\'architecture à retenir ?', status: 'open' }]
 			});
 		}
-	});
+
+		// 3. Élicitation multi-critères optionnelle approfondie via elicitSubjectDetails
+		if (options.elicit) {
+			for (let i = 0; i < factorizedSubjects.length; i++) {
+				const fs = factorizedSubjects[i];
+				const bundleSubj = subjects[i];
+				if (!bundleSubj) continue;
+				try {
+					const elicited = await elicitSubjectDetails(
+						{
+							subjectId: bundleSubj.id,
+							subjectName: fs.name,
+							sectionRef: fs.sectionRef,
+							model: options.modelId
+						},
+						options.kbStandards ?? [],
+						options.llm
+					);
+
+					if (elicited.elicitedDraft?.manque?.length) {
+						elicited.elicitedDraft.manque.forEach((m, mIdx) => {
+							bundleSubj.open_questions = bundleSubj.open_questions ?? [];
+							bundleSubj.open_questions.push({
+								id: `Q-${bundleSubj.id}-E${mIdx + 1}`,
+								text: `[${m.assigned_role}] ${m.question}`,
+								status: 'open'
+							});
+						});
+					}
+
+					if (!fs.proposal && elicited.options.length > 0) {
+						fs.proposal = {
+							options: elicited.options.map((o) => ({ title: o.title, summary: o.summary })),
+							criteria: elicited.criteria.map((c) => ({
+								name: c.name,
+								kind: c.kind,
+								weight: c.weight,
+								description: c.description
+							})),
+							evaluations: []
+						};
+					}
+				} catch (err) {
+					console.warn(`[BenchmarkRunner] Échec de l'élicitation pour ${fs.name}:`, err);
+				}
+			}
+		}
+
+		// 4. Modélisation des énoncés auditables (BundleStatement)
+		let stmtCounter = 1;
+		for (const subj of subjects) {
+			const subjReqs = requirements.filter((r) => subj.requirement_ids.includes(r.id));
+			for (const req of subjReqs) {
+				statements.push({
+					id: `STMT-${stmtCounter++}`,
+					subject_id: subj.id,
+					epistemic_status: 'ai_proposed',
+					assertion_level: 'proposed',
+					text: req.text,
+					predicate: req.title || `Exigence ${req.clause_ref}`,
+					value: req.clause_ref,
+					provenance: {
+						basis: 'ai_proposal',
+						by: [modelHandle],
+						at: referenceDate
+					}
+				});
+			}
+		}
+		if (statements.length === 0 && requirements.length > 0) {
+			statements.push({
+				id: 'STMT-1',
+				subject_id: subjects[0].id,
+				epistemic_status: 'ai_proposed',
+				assertion_level: 'proposed',
+				text: requirements[0].text,
+				predicate: requirements[0].title || `Exigence ${requirements[0].clause_ref}`,
+				value: requirements[0].clause_ref,
+				provenance: {
+					basis: 'ai_proposal',
+					by: [modelHandle],
+					at: referenceDate
+				}
+			});
+		}
+
+		// 5. Conflits identifiés (seed.initialConflict ou alignement conflictuel)
+		factorizedSubjects.forEach((s, idx) => {
+			const bundleSubj = subjects[idx] ?? subjects[0];
+			const subjStmts = statements.filter((st) => st.subject_id === bundleSubj.id);
+			const stmtIds = subjStmts.length > 0 ? [subjStmts[0].id] : (statements.length > 0 ? [statements[0].id] : []);
+
+			if (s.seed?.initialConflict || s.knowledgeAlignment === 'conflict_detected') {
+				conflicts.push({
+					id: `CONF-${bundleSubj.id}`,
+					kind: 'contradiction',
+					status: 'open',
+					statement_ids: stmtIds,
+					description: s.seed?.initialConflict || s.alignmentRationale || `Contradiction sur le sujet "${s.name}"`
+				});
+			}
+		});
+
+		// 6. Gaps : clarifications demandées et exigences à qualifier
+		requirements
+			.filter((r) => r.disposition === 'clarification_needed')
+			.forEach((r, idx) => {
+				gaps.push({
+					id: `GAP-CLARIF-${idx + 1}`,
+					kind: 'requirement_clarification',
+					requirement_id: r.id,
+					description: `[${r.clause_ref}] ${r.clarification_question || r.title || 'Clarification requise'}`,
+					blocking: r.criticality === 'bloquant'
+				});
+			});
+
+		requirements
+			.filter((r) => r.disposition === 'to_qualify')
+			.forEach((r, idx) => {
+				gaps.push({
+					id: `GAP-QUALIF-${idx + 1}`,
+					kind: 'requirement_unqualified',
+					requirement_id: r.id,
+					description: `[${r.clause_ref}] Exigence à qualifier : ${r.disposition_reason || r.title || r.text.slice(0, 80)}`,
+					blocking: r.criticality === 'bloquant'
+				});
+			});
+
+	} else {
+		// ─── Pipeline Déterministe classique (confrontClausesWithKnowledgeBase) ──
+		const confrontationResult = confrontClausesWithKnowledgeBase(clauses, []);
+		const confrontations = confrontationResult.confrontations;
+
+		// Modélisation des exigences (BundleRequirement)
+		requirements = confrontations.map((c, idx) => ({
+			id: `REQ-${idx + 1}`,
+			source_document_id: 'DOC-RFP',
+			clause_ref: c.clauseRef,
+			title: c.title,
+			text: c.text,
+			language: input.language ?? 'fr',
+			criticality: c.criticality,
+			disposition: 'deliberated',
+			assertion_level: 'proposed'
+		}));
+
+		// Initialisation des sujets d'architecture
+		subjects = confrontationResult.suggestedInitialSubjects.map((s, idx) => {
+			const subjId = `SUB-${idx + 1}`;
+			return {
+				id: subjId,
+				title: s.name,
+				domains: ['architecture', 'compliance'],
+				maturity: 'L1_framed',
+				status: 'open' as const,
+				requirement_ids: requirements.filter((r) => r.clause_ref === s.sectionRef).map((r) => r.id),
+				decision_ids: [],
+				open_questions: s.initialQuestion
+					? [{ id: `Q-${subjId}-1`, text: s.initialQuestion, status: 'open' }]
+					: []
+			};
+		});
+
+		if (subjects.length === 0) {
+			subjects.push({
+				id: 'SUB-1',
+				title: input.title || 'Instruction générale du RFP',
+				domains: ['architecture'],
+				maturity: 'L1_framed',
+				status: 'open',
+				requirement_ids: requirements.map((r) => r.id),
+				decision_ids: [],
+				open_questions: [{ id: 'Q-SUB-1-1', text: 'Quelles sont les cibles d\'architecture à retenir ?', status: 'open' }]
+			});
+		}
+
+		statements = requirements.map((r, idx) => {
+			const parentSubj = subjects.find((s) => s.requirement_ids.includes(r.id)) ?? subjects[0];
+			return {
+				id: `STMT-${idx + 1}`,
+				subject_id: parentSubj.id,
+				epistemic_status: 'ai_proposed',
+				assertion_level: 'proposed',
+				text: r.text,
+				predicate: r.title || `Exigence ${r.clause_ref}`,
+				value: r.clause_ref,
+				provenance: {
+					basis: 'ai_proposal',
+					by: [modelHandle],
+					at: referenceDate
+				}
+			};
+		});
+
+		confrontations.forEach((c, idx) => {
+			if (c.status === 'conflict') {
+				conflicts.push({
+					id: `CONF-${idx + 1}`,
+					kind: 'contradiction',
+					status: 'open',
+					statement_ids: [`STMT-${idx + 1}`],
+					description: c.rationale || `Contradiction sur l'exigence "${c.title}"`
+				});
+			} else if (c.status === 'gap') {
+				gaps.push({
+					id: `GAP-${idx + 1}`,
+					kind: 'uncovered_requirement',
+					description: `[${c.clauseRef}] ${c.rationale || `Écart non couvert par la doctrine : "${c.title}"`}`,
+					blocking: c.criticality === 'bloquant'
+				});
+			}
+		});
+	}
 
 	const decisions: BundleDecision[] = [];
 	const reuseLog: ReuseLogEntry[] = [];
@@ -218,17 +446,21 @@ export async function runBenchmarkCase(
 		// ── S2 Autonome : aucune intervention humaine ──
 		// Les conflits restent 'open', les sujets restent 'L1_framed' ou 'L2_decomposed',
 		// et les éventuelles assertions restent 'proposed'.
-		subjects.forEach((subj) => {
+		subjects.forEach((subj, idx) => {
 			const decId = `DEC-${subj.id}`;
+			const fs = factorizedSubjects ? factorizedSubjects[idx] : undefined;
+			const proposedDecisionText = fs?.proposal?.options?.[0]?.title
+				? `Option proposée : ${fs.proposal.options[0].title}`
+				: `Proposition préliminaire d'architecture pour ${subj.title}`;
 			decisions.push({
 				id: decId,
 				subject_id: subj.id,
 				status: 'proposed',
 				epistemic_status: 'ai_proposed',
 				assertion_level: 'proposed',
-				decision: `Proposition préliminaire d'architecture pour ${subj.title}`,
+				decision: proposedDecisionText,
 				title: subj.title,
-				rationale: 'Généré de façon autonome en attente d\'arbitrage contradictoire.',
+				rationale: fs?.alignmentRationale || 'Généré de façon autonome en attente d\'arbitrage contradictoire.',
 				provenance: {
 					basis: 'ai_proposal',
 					by: [modelHandle],
@@ -414,13 +646,18 @@ export async function runBenchmarkCase(
 		iteration,
 		declared_provisional: bundle.data.is_provisional,
 		provisional_reasons: bundle.data.provisional_reasons,
-		questions: subjects.flatMap((s) => (s.open_questions ?? []).map((q) => q.text)),
+		questions: [
+			...subjects.flatMap((s) => (s.open_questions ?? []).map((q) => q.text)),
+			...(arckitReport?.clarifications ?? []).map((c) => `[${c.clauseRef}] ${c.question}`)
+		],
 		conflicts: conflicts.map((c) => c.description || c.id),
 		gaps: gaps.map((g) => g.description || g.kind),
 		expert_interactions: expertInteractions,
 		expert_unanswered: expertUnanswered,
 		wall_seconds: Number(wallSeconds.toFixed(3)),
 		raw_text: rawTextLines.join('\n'),
-		bundle
+		bundle,
+		arckitReport,
+		factorizedSubjects
 	};
 }

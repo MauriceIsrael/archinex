@@ -100,22 +100,23 @@
     {
       "id": "B-01",
       "angle": "Surcoût imprévu de développement d'adaptateurs propriétaires pour l'EMS d'un constructeur tiers refusant les interfaces YANG standard (avenant +280 k€).",
-      "foundBySystem": null
+      "foundBySystem": "Retrouvé (SUBJ-03 & SUBJ-04 : NRM unifié vs EMS propriétaire)"
     },
     {
       "id": "B-02",
       "angle": "Perte de visibilité sur les alarmes du RAN partagé commercial lors d'une coupure de liaison IPsec avec l'OSS MNO (absence de tamponnage local).",
-      "foundBySystem": null
+      "foundBySystem": "Retrouvé (SUBJ-05 : Supervision RAN partagé MNO & questions sur repli)"
     },
     {
       "id": "B-03",
       "angle": "Conflit opérationnel suite à l'exécution automatique non supervisée d'un playbook ayant coupé des cellules radio actives.",
-      "foundBySystem": null
+      "foundBySystem": "Retrouvé (SUBJ-08 : Boucle fermée graduée vs approbation humaine 4-yeux)"
     },
     {
       "id": "B-04",
       "angle": "Retard de livraison des travaux de climatisation et aménagement physique de la salle de repli NOC (REQ-Lot1-282).",
-      "foundBySystem": null
+      "foundBySystem": "Retrouvé (SUBJ-01 : Autonomie > 72h, HVAC & contraintes physiques salle de repli)"
     }
   ]
 }
+

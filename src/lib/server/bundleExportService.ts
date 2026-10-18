@@ -74,6 +74,8 @@ export async function exportEngagementBundle(
 						retainedOptionId: s.decision.retainedOptionId,
 						rejected: parseJsonArray<{ optionId: string; reason: string }>(s.decision.rejected),
 						rationale: s.decision.rationale,
+						complianceStatus: extractCompliancePosition(s.decision.acceptedViolations).status,
+						complianceRationale: extractCompliancePosition(s.decision.acceptedViolations).rationale,
 						arbiterId: s.decision.arbiterId,
 						decidedAt: s.decision.decidedAt
 					}
@@ -147,3 +149,33 @@ function parseJsonArray<T>(raw: string | null | undefined): T[] {
 		return [];
 	}
 }
+
+function extractCompliancePosition(rawAcceptedViolations: string | null | undefined): {
+	status: 'Compliant' | 'Partially compliant' | 'Non-compliant' | 'Provisional';
+	rationale?: string;
+} {
+	const list = parseJsonArray<{ typedId: string; justification: string }>(rawAcceptedViolations);
+	const entry = list.find((v) => v.typedId.startsWith('COMPLIANCE_STATUS:'));
+	if (entry) {
+		const status = entry.typedId.replace('COMPLIANCE_STATUS:', '') as
+			| 'Compliant'
+			| 'Partially compliant'
+			| 'Non-compliant';
+		return {
+			status,
+			rationale: entry.justification || undefined
+		};
+	}
+	const realViolations = list.filter((v) => !v.typedId.startsWith('COMPLIANCE_STATUS:'));
+	if (realViolations.length > 0) {
+		return {
+			status: 'Partially compliant',
+			rationale: realViolations.map((v) => `${v.typedId}: ${v.justification}`).join(' ; ')
+		};
+	}
+	return {
+		status: 'Compliant',
+		rationale: undefined
+	};
+}
+

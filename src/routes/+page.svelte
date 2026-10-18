@@ -8,6 +8,7 @@
 	import TeamMonopolizationCard from '$lib/components/dashboard/TeamMonopolizationCard.svelte';
 	import KnowledgeGrowthChart from '$lib/components/dashboard/KnowledgeGrowthChart.svelte';
 	import EpistemicAlertsCard from '$lib/components/dashboard/EpistemicAlertsCard.svelte';
+	import KbClausesHealthBanner from '$lib/components/dashboard/KbClausesHealthBanner.svelte';
 	import {
 		Compass,
 		FolderPlus,
@@ -186,6 +187,11 @@
 			</div>
 		</div>
 	</div>
+
+	<!-- ═════════════════════════════════════════════════════════════════════════ -->
+	<!-- 0. INDICATEUR DE SANTÉ DES CONTRÔLES & CLAUSES KB (CHECKS:)               -->
+	<!-- ═════════════════════════════════════════════════════════════════════════ -->
+	<KbClausesHealthBanner health={data.kbClausesHealth} />
 
 	<!-- ═════════════════════════════════════════════════════════════════════════ -->
 	<!-- 1. BANDEAU DE SYNTHÈSE EXÉCUTIVE (KPIS CLÉS)                               -->

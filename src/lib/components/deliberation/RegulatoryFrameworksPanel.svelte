@@ -2,6 +2,8 @@
 	import { deliberationStore } from '$lib/stores/deliberationStore.svelte';
 	import { page } from '$app/state';
 	import { Scale } from 'lucide-svelte';
+	import KbClausesHealthBanner from '$lib/components/dashboard/KbClausesHealthBanner.svelte';
+	import { rescopeKbClausesHealth, type KbClausesHealthSummary } from '$lib/domain/kbClausesHealth';
 
 	interface Detected { code: string; label: string; mentions: number; excerpt: string }
 	const projectId = $derived(deliberationStore.activeEngagement?.id);
@@ -11,10 +13,15 @@
 	let selected = $state<string[]>([]);
 	let saved = $state<string[]>([]);
 	let requirementsDossier = $state(true);
+	let baseClausesHealth = $state<KbClausesHealthSummary | null>(null);
 	let isSaving = $state(false);
 	let isRepairing = $state(false);
 	// Retour affiché dans le panneau : une notification fugace ne suffit pas à comprendre un refus.
 	let feedback = $state<{ kind: 'ok' | 'warning' | 'error'; text: string } | null>(null);
+
+	const activeClausesHealth = $derived(
+		baseClausesHealth ? rescopeKbClausesHealth(baseClausesHealth, selected) : null
+	);
 
 	async function load(pId: string) {
 		const res = await fetch(`/api/projects/${encodeURIComponent(pId)}/frameworks/applicable`);
@@ -24,6 +31,7 @@
 		detected = data.detected ?? [];
 		saved = data.applicable ?? [];
 		requirementsDossier = data.requirementsDossier !== false;
+		baseClausesHealth = data.clausesHealth ?? null;
 		// Rien de déclaré : les référentiels cités par le RFP sont proposés, cochés, en attente de confirmation.
 		selected = saved.length > 0 ? [...saved] : detected.map((d) => d.code);
 	}
@@ -120,6 +128,10 @@
 			</button>
 		</div>
 
+		{#if activeClausesHealth && !activeClausesHealth.offline}
+			<KbClausesHealthBanner health={activeClausesHealth} compact={true} />
+		{/if}
+
 		{#if feedback}
 			<p
 				class="rounded-lg border p-2 {feedback.kind === 'ok' ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-800 dark:text-emerald-200' : feedback.kind === 'warning' ? 'border-amber-500/30 bg-amber-500/10' : 'border-destructive/30 bg-destructive/10 text-destructive'}"
@@ -143,15 +155,35 @@
 		<div class="grid sm:grid-cols-2 lg:grid-cols-3 gap-1.5">
 			{#each catalogue as fw (fw.code)}
 				{@const d = detected.find((x) => x.code === fw.code)}
+				{@const fwStats = activeClausesHealth?.byFramework?.[fw.code.toUpperCase()]}
 				<label class="flex items-start gap-2 p-2 rounded-lg border cursor-pointer {selected.includes(fw.code) ? 'border-primary/40 bg-primary/5' : ''}" title={d?.excerpt}>
 					<input type="checkbox" class="mt-0.5" checked={selected.includes(fw.code)} onchange={() => toggle(fw.code)} />
 					<span>
 						<span class="font-semibold text-foreground">{fw.label}</span>
 						{#if d}<span class="block text-[10px] text-emerald-700 dark:text-emerald-300">Cité {d.mentions} fois par le RFP</span>{/if}
 						{#if saved.includes(fw.code)}<span class="block text-[10px] text-muted-foreground">Déclaré</span>{/if}
+						{#if fwStats && !activeClausesHealth?.offline}
+							{#if fwStats.activeControlsCount > 0}
+								<span
+									class="block text-[10px] font-medium {fwStats.isFullyValidated
+										? 'text-emerald-700 dark:text-emerald-300'
+										: 'text-amber-700 dark:text-amber-300'}"
+								>
+									{fwStats.validatedControlsCount}/{fwStats.activeControlsCount} ctrl actif{fwStats.activeControlsCount > 1 ? 's' : ''} · {fwStats.validatedClausesCount} clause{fwStats.validatedClausesCount > 1 ? 's' : ''} checks: validée{fwStats.validatedClausesCount > 1 ? 's' : ''}
+									{#if fwStats.unvalidatedControlsCount > 0}
+										({fwStats.unvalidatedControlsCount} draft/none)
+									{/if}
+								</span>
+							{:else if selected.includes(fw.code)}
+								<span class="block text-[10px] font-medium text-amber-700 dark:text-amber-300">
+									0 contrôle actif / aucune clause checks: publiée
+								</span>
+							{/if}
+						{/if}
 					</span>
 				</label>
 			{/each}
 		</div>
 	</section>
 {/if}
+

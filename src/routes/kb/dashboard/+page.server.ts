@@ -1,6 +1,7 @@
 import { requireAuth } from '$lib/auth/guard.server';
 import { getKbExpertByUserId } from '$lib/server/kbProfilesDb';
 import { llmopsClient } from '$lib/server/llmops/client';
+import { computeKbClausesHealth } from '$lib/domain/kbClausesHealth';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals }) => {
@@ -9,15 +10,23 @@ export const load: PageServerLoad = async ({ locals }) => {
   const user = locals.session!.user;
   const localExpert = await getKbExpertByUserId(user.id);
 
-  const [healthRes, publicationsRes, campaignsRes] = await Promise.all([
+  const [healthRes, publicationsRes, campaignsRes, clausesRes, frameworksRes] = await Promise.all([
     llmopsClient.getKbHealth(user.email),
     llmopsClient.listKbPublications(user.email),
-    llmopsClient.listKbCampaigns(user.email)
+    llmopsClient.listKbCampaigns(user.email),
+    llmopsClient.listCheckClauses({}, user.email).catch(() => null),
+    llmopsClient.getComplianceFrameworks().catch(() => null)
   ]);
 
   const kbRoles = localExpert?.kbRoles || [];
   const canPublish =
     kbRoles.includes('kb:admin') || kbRoles.includes('kb:maintain') || user.role === 'admin';
+
+  const offline = healthRes.status === 'unavailable';
+  const clausesHealth = computeKbClausesHealth(clausesRes?.data ?? null, {
+    frameworksOverview: frameworksRes?.data,
+    offline: offline || (!clausesRes?.data && !frameworksRes?.data)
+  });
 
   return {
     user: {
@@ -35,6 +44,8 @@ export const load: PageServerLoad = async ({ locals }) => {
     health: healthRes.data,
     publications: publicationsRes.data || [],
     campaigns: campaignsRes.data || [],
-    offline: healthRes.status === 'unavailable'
+    clausesHealth,
+    offline
   };
 };
+

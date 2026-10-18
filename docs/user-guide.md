@@ -116,3 +116,23 @@ L'information stockée dans Archinex (exigences sources `ExtractedClause`, sujet
 2. **Fiches ADR (Architecture Decision Records)** : Synthèses standardisées reliant les exigences sources, le dilemme, les options écartées et le choix retenu.
 3. **Matrice de Traçabilité des Exigences (RTM)** : Tableau 100% reliant chaque clause du RFP (y compris celles évacuées) à son traitement architectural.
 4. **Dossier d'Architecture Générale & Technique (HLD / DLD)** : Compilation structurée des sections ayant franchi les jalons L3 et L4.
+5. **Matrice de Conformité de Base (`ComplianceMatrix`)** : Tableau exhaustif reliant chaque exigence source à son statut de conformité standardisé, sa réserve éventuelle et sa décision d'arbitrage.
+
+### 4.5 Matrice de Conformité & Arbitrage Réglementaire (Issue #118)
+Pour chaque sujet d'architecture instruit, l'arbitre ou le Lead Architect formalise sa décision en qualifiant la posture de conformité :
+- **`Compliant` (Conforme)** : L'architecture retenue répond intégralement à l'exigence ou au contrôle réglementaire.
+- **`Partially compliant` (Partiellement conforme)** : Réponse partielle, réserve technique ou dispense accordée. **Une justification ou réserve explicite d'au moins 5 caractères est obligatoirement requise**.
+- **`Non-compliant` (Non conforme / Écarté)** : Non-respect assumé ou arbitrage négatif. **Une justification explicite d'au moins 5 caractères est obligatoirement requise**.
+- **`Provisional` (Provisoire)** : En attente de délibération, question ouverte bloquante ou conflit non arbitré.
+
+**Accès & Exploitation :**
+- Dans l'onglet **« Matrice de Conformité »** du Hub d'Artefacts : consultation directe de la synthèse exécutive (taux de conformité pondéré, décompte par statut) et du tableau opposable.
+- Bouton **`Télécharger CSV`** : génération d'un export tableur conforme RFC 4180 avec BOM UTF-8 (compatible Excel et LibreOffice).
+- Endpoint REST dédié : `GET /api/projects/{projectId}/compliance-matrix?format=markdown|csv|json`.
+
+### 4.6 Indicateur de Santé des Clauses Réglementaires KB (Issue #119)
+Pour garantir qu'aucun dossier ne s'appuie sur une doctrine réglementaire obsolète ou non éprouvée :
+- Le bandeau **`KbClausesHealthBanner`** analyse en temps réel les clauses de vérification (`checks:`) associées aux contrôles KB actifs.
+- Un **badge d'alerte orange** (`data-testid="kb-clauses-health-alert"`) s'affiche automatiquement dès lors qu'une exigence dans le périmètre possède des clauses en attente de test ou non publiées.
+- L'indicateur est visible sur le tableau de bord d'accueil, la console KB (`/kb/dashboard`) et le panneau des référentiels applicables de chaque engagement.
+

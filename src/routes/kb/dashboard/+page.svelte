@@ -1,6 +1,7 @@
 <script lang="ts">
   import type { PageData } from './$types';
   import { toast } from '$lib/toast/index.svelte';
+  import KbClausesHealthBanner from '$lib/components/dashboard/KbClausesHealthBanner.svelte';
   import {
     Shield,
     AlertTriangle,
@@ -246,6 +247,11 @@
         </div>
       </div>
     </div>
+  {/if}
+
+  <!-- Indicateur de santé des clauses checks: -->
+  {#if data.clausesHealth && !data.offline}
+    <KbClausesHealthBanner health={data.clausesHealth} />
   {/if}
 
   <!-- KPIs de Santé & Gouvernance -->

@@ -594,6 +594,65 @@ export function verifyEngagementBundle(bundle: EngagementBundle): BundleProblem[
 		}
 	});
 
+	// 7 ter. Statuts de conformité standardisés : toute position partiellement ou non conforme requiert une justification explicite
+	const VALID_COMPLIANCE_STATUSES = ['Compliant', 'Partially compliant', 'Non-compliant', 'Provisional'];
+
+	(data.requirements || []).forEach((r, i) => {
+		if (r.compliance_status) {
+			const where = `/data/requirements/${i}/compliance_status`;
+			if (!VALID_COMPLIANCE_STATUSES.includes(r.compliance_status)) {
+				out.push({
+					code: 'COMPLIANCE_STATUS_INVALID',
+					path: where,
+					message: `'${r.compliance_status}' is not one of ${VALID_COMPLIANCE_STATUSES.join(', ')}`
+				});
+			} else if (
+				(r.compliance_status === 'Partially compliant' || r.compliance_status === 'Non-compliant') &&
+				!(r.compliance_rationale || r.disposition_reason || '').trim()
+			) {
+				out.push({
+					code: 'COMPLIANCE_UNJUSTIFIED',
+					path: `/data/requirements/${i}`,
+					message: `a '${r.compliance_status}' compliance status requires an explicit compliance_rationale or disposition_reason`
+				});
+			}
+		}
+	});
+
+	(data.decisions || []).forEach((d, i) => {
+		let status = d.compliance_status;
+		let rationale = d.compliance_rationale;
+		if (!status && d.consequences) {
+			for (const c of d.consequences) {
+				if (c.startsWith('compliance_status:')) {
+					status = c.replace('compliance_status:', '') as any;
+				} else if (c.startsWith('compliance_rationale:')) {
+					rationale = c.replace('compliance_rationale:', '');
+				}
+			}
+		}
+
+		if (status) {
+			const where = `/data/decisions/${i}/compliance_status`;
+			if (!VALID_COMPLIANCE_STATUSES.includes(status)) {
+				out.push({
+					code: 'COMPLIANCE_STATUS_INVALID',
+					path: where,
+					message: `'${status}' is not one of ${VALID_COMPLIANCE_STATUSES.join(', ')}`
+				});
+			} else if (
+				(status === 'Partially compliant' || status === 'Non-compliant') &&
+				!(rationale || d.rationale || '').trim()
+			) {
+				out.push({
+					code: 'COMPLIANCE_UNJUSTIFIED',
+					path: `/data/decisions/${i}`,
+					message: `a '${status}' compliance status requires an explicit compliance_rationale`
+				});
+			}
+		}
+	});
+
 	// 8. Vie privée : aucun e-mail
 	const allStrings = walkStrings(bundle);
 	for (const { path, text } of allStrings) {

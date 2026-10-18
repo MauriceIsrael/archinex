@@ -94,6 +94,14 @@ export interface OpenQuestion {
 	status?: string;
 }
 
+export interface SubjectProjections {
+	mermaid?: string;
+	structurizr_dsl?: string;
+	structurizrDSL?: string;
+	sysml_v2?: string;
+	sysmlV2?: string;
+}
+
 export interface BundleSubject {
 	id: string;
 	title: string;
@@ -103,6 +111,7 @@ export interface BundleSubject {
 	requirement_ids: string[];
 	decision_ids: string[];
 	open_questions?: OpenQuestion[];
+	projections?: SubjectProjections;
 }
 
 export interface BundleDecision {
@@ -186,6 +195,8 @@ export interface BundleElement {
 	id: string;
 	name: string;
 	kind: string;
+	description?: string;
+	technology?: string;
 	boundary_id?: string;
 	decision_ids?: string[];
 	epistemic_status?: EpistemicStatus;
@@ -198,15 +209,27 @@ export interface BundleRelation {
 	from: string;
 	to: string;
 	kind: string;
+	label?: string;
+	protocol?: string;
 	decision_ids?: string[];
 	epistemic_status?: EpistemicStatus;
 	assertion_level?: AssertionLevel;
 	provenance?: ProvenanceInfo;
 }
 
+export interface BundleArchitectureProjections {
+	mermaid?: string;
+	structurizr_dsl?: string;
+	structurizrDSL?: string;
+	sysml_v2?: string;
+	sysmlV2?: string;
+	by_subject?: Record<string, SubjectProjections>;
+}
+
 export interface BundleArchitecture {
 	elements: BundleElement[];
 	relations: BundleRelation[];
+	projections?: BundleArchitectureProjections;
 }
 
 export interface KbReference {

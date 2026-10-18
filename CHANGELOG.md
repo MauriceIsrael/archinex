@@ -8,6 +8,20 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Export d'Architecture HLD & Projections C4/Mermaid dans l'Engagement Bundle (#122)
+- **Peuplement automatique du modèle d'architecture (`data.architecture`)** :
+  - `assembleEngagementBundle` extrait et synthétise les éléments (`BundleElement`) et relations (`BundleRelation`) à partir des sujets, options retenues et statements formalisés.
+  - Classification canonique des composants (`actor`, `system`, `component`, `datastore`, `network`, `interface`, `boundary`) et des relations (`uses`, `depends_on`, `data_flow`, `deploys_to`, `protects`, `contains`).
+  - Détermination temporelle déterministe via `findEarliestStoredIsoDate` pour garantir l'absence d'aléa ou de fuite de l'horloge d'assemblage dans le corps des données d'architecture.
+- **Génération de projections formelles (Mermaid, Structurizr C4 DSL, SysML v2)** :
+  - Projections locales par sujet dans `data.subjects[i].projections` et consolidées dans `data.architecture.projections.by_subject`.
+  - Projections globales d'ensemble dans `data.architecture.projections` (`mermaid`, `structurizr_dsl` / `structurizrDSL`, `sysml_v2` / `sysmlV2`).
+- **Conformité & Intégrité du Bundle** :
+  - Extension du schéma JSON `engagement_bundle.schema.1.1.json` validée avec Ajv.
+  - Contrôles de validation stricts dans `bundleVerifier.ts` : vérification des catégories d'éléments (`ELEMENT_KIND_INVALID`), des types de relations (`RELATION_KIND_INVALID`), détection des frontières circulaires (`CIRCULAR_BOUNDARY`) et validation des références de sujets (`DANGLING_REF`).
+  - Déterminisme cryptographique absolu du sceau SHA-256 sans dérive, insensible à l'ordre des collections en entrée.
+- **Tests** : 5 tests de contrat d'export d'architecture dans `tests/contract/bundle-architecture-export.test.ts`.
+
 ### Pipeline ArcKit pour le Benchmark LUMICC (#121)
 - **Support natif du pipeline ArcKit dans `benchmarkRunner.ts`** :
   - Ajout de l'option `pipeline?: 'deterministic' | 'arckit'` dans `BenchmarkRunOptions`.

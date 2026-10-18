@@ -11,16 +11,30 @@
 
 import {
 	buildEngagementBundle,
+	type BundleArchitecture,
+	type BundleArchitectureProjections,
 	type BundleDecision,
+	type BundleElement,
 	type BundleGap,
+	type BundleRelation,
 	type BundleRequirement,
 	type BundleStatement,
 	type BundleSubject,
 	type ConfidentialityLevel,
 	type EngagementBundle,
-	type SourceDocument
+	type SourceDocument,
+	type SubjectProjections
 } from './engagementBundle';
 import { effectiveRequirementState, requirementBundleId, sourceBundleId } from './requirementAudit';
+import {
+	generateMermaidDiagram,
+	generateStructurizrDSL,
+	generateSysMLv2,
+	type ProjectionContext
+} from './artifactProjections';
+import type { Statement } from '$lib/types/epistemic';
+import type { MaturitySubject } from '$lib/domain/maturityBoard';
+import type { TelegraphicDraft } from '$lib/domain/telegraphic';
 
 const cmp = (a: string, b: string) => (a < b ? -1 : a > b ? 1 : 0);
 
@@ -102,12 +116,175 @@ export interface AssemblyInput {
 	subjects: AssemblySubject[];
 	statements: AssemblyStatement[];
 	sources: AssemblySource[];
+	architecture?: BundleArchitecture;
 	sourceRevision?: string;
 	/** Heure de l'export : n'apparaît que HORS de `data` (donc hors du sceau). */
 	now: Date;
 }
 
 const DECIDED_MATURITIES = ['L3_decided', 'L4_specified', 'L5_archived'];
+
+function findEarliestStoredIsoDate(input: AssemblyInput): string {
+	let earliest: number | null = null;
+	for (const src of input.sources) {
+		for (const r of src.requirements) {
+			if (r.proposedAt) {
+				const t = r.proposedAt.getTime();
+				if (earliest === null || t < earliest) earliest = t;
+			}
+			if (r.decidedAt) {
+				const t = r.decidedAt.getTime();
+				if (earliest === null || t < earliest) earliest = t;
+			}
+		}
+	}
+	for (const st of input.statements) {
+		if (st.createdAt) {
+			const t = st.createdAt.getTime();
+			if (earliest === null || t < earliest) earliest = t;
+		}
+	}
+	for (const sub of input.subjects) {
+		if (sub.decision?.decidedAt) {
+			const t = sub.decision.decidedAt.getTime();
+			if (earliest === null || t < earliest) earliest = t;
+		}
+	}
+	return earliest !== null ? new Date(earliest).toISOString() : '1970-01-01T00:00:00.000Z';
+}
+
+function classifyElementKind(predicate: string, value: string): 'datastore' | 'network' | 'interface' | 'component' {
+	const text = `${predicate} ${value}`.toLowerCase().replace(/[_.-]/g, ' ');
+	if (
+		/\b(db|database|storage|store|stockage|sql|nosql|s3|volume|disque|base|postgres|postgresql|mongo|redis|replication)\b/i.test(text)
+	) {
+		return 'datastore';
+	}
+	if (
+		/\b(network|reseau|flux|vlan|tcp|udp|ip|lan|wan|dmz|subnetwork|vpn|switch|router)\b/i.test(text)
+	) {
+		return 'network';
+	}
+	if (
+		/\b(api|interface|service|endpoint|rest|grpc|port|gateway|ingress|egress)\b/i.test(text)
+	) {
+		return 'interface';
+	}
+	return 'component';
+}
+
+function classifyRelationKind(predicate: string): 'uses' | 'depends_on' | 'data_flow' | 'deploys_to' | 'protects' | 'contains' {
+	const lower = predicate.toLowerCase();
+	if (lower === 'uses' || lower === 'utilise') return 'uses';
+	if (lower === 'depends_on' || lower === 'depend_de') return 'depends_on';
+	if (lower === 'data_flow' || lower === 'flux' || lower === 'transmet') return 'data_flow';
+	if (lower === 'deploys_to' || lower === 'deploie_sur' || lower === 'hosts') return 'deploys_to';
+	if (lower === 'protects' || lower === 'protege' || lower === 'securise') return 'protects';
+	if (lower === 'contains' || lower === 'contient') return 'contains';
+	return 'depends_on';
+}
+
+function generateGlobalMermaid(elements: BundleElement[], relations: BundleRelation[]): string {
+	const lines = ['flowchart TD'];
+	const systems = elements.filter((e) => e.kind === 'system' || e.kind === 'boundary');
+	const components = elements.filter((e) => e.kind !== 'system' && e.kind !== 'boundary');
+
+	for (const sys of systems) {
+		const children = components.filter((c) => c.boundary_id === sys.id);
+		const safeSysId = sys.id.replace(/[^a-zA-Z0-9_]/g, '_');
+		lines.push(`    subgraph ${safeSysId}["${sys.name.replace(/["[\]()]/g, '')}"]`);
+		for (const child of children) {
+			const safeChildId = child.id.replace(/[^a-zA-Z0-9_]/g, '_');
+			const safeName = child.name.replace(/["[\]()]/g, '');
+			lines.push(`        ${safeChildId}["${safeName}"]`);
+		}
+		if (children.length === 0) {
+			lines.push(`        ${safeSysId}_node["${sys.name.replace(/["[\]()]/g, '')}"]`);
+		}
+		lines.push('    end');
+	}
+
+	for (const comp of components) {
+		if (!comp.boundary_id || !systems.some((s) => s.id === comp.boundary_id)) {
+			const safeId = comp.id.replace(/[^a-zA-Z0-9_]/g, '_');
+			const safeName = comp.name.replace(/["[\]()]/g, '');
+			lines.push(`    ${safeId}["${safeName}"]`);
+		}
+	}
+
+	for (const rel of relations) {
+		const safeFrom = rel.from.replace(/[^a-zA-Z0-9_]/g, '_');
+		const safeTo = rel.to.replace(/[^a-zA-Z0-9_]/g, '_');
+		const safeLabel = (rel.label || rel.kind).replace(/["[\]()]/g, '');
+		lines.push(`    ${safeFrom} -->|"${safeLabel}"| ${safeTo}`);
+	}
+
+	return lines.join('\n');
+}
+
+function generateGlobalStructurizr(projectName: string, elements: BundleElement[], relations: BundleRelation[]): string {
+	const systems = elements.filter((e) => e.kind === 'system' || e.kind === 'boundary');
+	const components = elements.filter((e) => e.kind !== 'system' && e.kind !== 'boundary');
+	const lines: string[] = [
+		`workspace "${projectName.replace(/"/g, '\\"')}" "Architecture globale scellée Archinex" {`,
+		'    model {',
+		'        user = person "Utilisateur" "Utilisateur du système"',
+		`        enterprise "${projectName.replace(/"/g, '\\"')}" {`
+	];
+
+	for (const sys of systems) {
+		const safeSysId = sys.id.replace(/[^a-zA-Z0-9_]/g, '_');
+		const safeSysName = sys.name.replace(/"/g, '\\"');
+		lines.push(`            ${safeSysId} = softwareSystem "${safeSysName}" {`);
+		const children = components.filter((c) => c.boundary_id === sys.id);
+		for (const child of children) {
+			const safeChildId = child.id.replace(/[^a-zA-Z0-9_]/g, '_');
+			const safeChildName = child.name.replace(/"/g, '\\"');
+			const safeDesc = (child.description || child.kind).replace(/"/g, '\\"');
+			lines.push(`                ${safeChildId} = container "${safeChildName}" "${safeDesc}" "${child.kind}"`);
+		}
+		lines.push('            }');
+	}
+
+	lines.push('        }');
+	if (systems.length > 0) {
+		lines.push(`        user -> ${systems[0].id.replace(/[^a-zA-Z0-9_]/g, '_')} "Utilise"`);
+	}
+
+	for (const rel of relations) {
+		const safeFrom = rel.from.replace(/[^a-zA-Z0-9_]/g, '_');
+		const safeTo = rel.to.replace(/[^a-zA-Z0-9_]/g, '_');
+		const safeLabel = (rel.label || rel.kind).replace(/"/g, '\\"');
+		lines.push(`        ${safeFrom} -> ${safeTo} "${safeLabel}"`);
+	}
+
+	lines.push('    }');
+	lines.push('    views {');
+	lines.push('        systemLandscape landscape "Architecture_Globale" {');
+	lines.push('            include *');
+	lines.push('            autoLayout lr');
+	lines.push('        }');
+	lines.push('    }');
+	lines.push('}');
+	return lines.join('\n');
+}
+
+function generateGlobalSysMLv2(projectName: string, elements: BundleElement[], relations: BundleRelation[]): string {
+	const lines: string[] = [
+		`package '${projectName.replace(/'/g, "\\'")}' {`,
+		"    doc /* Modèle d'architecture globale scellé Archinex */"
+	];
+	for (const el of elements) {
+		const safeId = el.id.replace(/[^a-zA-Z0-9_]/g, '_');
+		const safeName = el.name.replace(/"/g, '\\"');
+		lines.push(`    part def ${safeId} {`);
+		lines.push(`        attribute name : String = "${safeName}";`);
+		lines.push(`        attribute kind : String = "${el.kind}";`);
+		lines.push('    }');
+	}
+	lines.push('}');
+	return lines.join('\n');
+}
 
 export function assembleEngagementBundle(input: AssemblyInput): EngagementBundle {
 	const language = input.project.language ?? 'fr';
@@ -157,13 +334,100 @@ export function assembleEngagementBundle(input: AssemblyInput): EngagementBundle
 	const decisions: BundleDecision[] = [];
 	const gaps: BundleGap[] = [];
 
-	for (const sub of [...input.subjects].sort((a, b) => cmp(a.sectionRef, b.sectionRef) || cmp(a.id, b.id))) {
+	const bySubjectProjections: Record<string, SubjectProjections> = {};
+	const sortedSubjects = [...input.subjects].sort((a, b) => cmp(a.sectionRef, b.sectionRef) || cmp(a.id, b.id));
+
+	for (const sub of sortedSubjects) {
 		// L'ancien niveau L5 se projette sur L4 (vocabulaire de la suite).
 		const maturity = sub.maturityLevel === 'L5_archived' ? 'L4_specified' : sub.maturityLevel || 'L0_named';
 		const refs = [...new Set(sub.requirementRefs)].sort(
 			(a, b) => (positionOf.get(a) ?? Infinity) - (positionOf.get(b) ?? Infinity) || cmp(a, b)
 		);
 		const hasDecision = Boolean(sub.decision);
+
+		const subjectAssemblyStatements = [...input.statements]
+			.filter((st) => st.subjectId === sub.id)
+			.sort((a, b) => cmp(a.id, b.id));
+		const matSubject: MaturitySubject = {
+			id: sub.id,
+			section_ref: sub.sectionRef,
+			name: sub.name,
+			level: (sub.maturityLevel === 'L5_archived' ? 'L4_specified' : sub.maturityLevel || 'L0_named') as any,
+			blocking_count: 0,
+			unlocks_count: 0,
+			waiting_for_role: 'lead_architect',
+			relative_effort: 'M',
+			last_transition_date: sub.decision ? sub.decision.decidedAt.toISOString() : '2026-10-01T08:00:00.000Z',
+			stall_days: 0,
+			is_stalled: false,
+			dependent_subject_ids: []
+		};
+
+		const draft: TelegraphicDraft = {
+			section_id: sub.sectionRef,
+			subject: sub.name,
+			maturity: matSubject.level as any,
+			is_provisional: sub.maturityLevel === 'L0_named' || sub.maturityLevel === 'L1_framed' || sub.maturityLevel === 'L2_decomposed',
+			retenu: sub.decision ? [sub.options.find((o) => o.id === sub.decision!.retainedOptionId)?.title ?? sub.decision.retainedOptionId] : [],
+			suppose: [],
+			conflit: [],
+			manque: sub.questions.filter((q) => q.status === 'open').map((q) => ({ id: q.id, question: q.text, assigned_role: 'lead_architect' }))
+		};
+
+		const mappedStatements: Statement[] = subjectAssemblyStatements.map((st) => ({
+			id: st.id,
+			section: sub.sectionRef,
+			triplet: {
+				subject: sub.id,
+				predicate: st.predicate,
+				value: st.value,
+				...(st.unit ? { unit: st.unit } : {})
+			},
+			justification: { basedOn: [] },
+			authority: {
+				author: sanitizeHandle(st.author),
+				role: 'lead_architect',
+				productionMode: st.productionMode as any
+			},
+			maturity: {
+				subjectLevel: matSubject.level as any,
+				confidence: 'verified'
+			},
+			revisability: { antecedents: [] },
+			status: 'active',
+			createdAt: st.createdAt.toISOString(),
+			updatedAt: st.createdAt.toISOString()
+		}));
+
+		const projContext: ProjectionContext = {
+			projectName: input.project.title,
+			decision: sub.decision
+				? {
+						retainedOptionId: sub.decision.retainedOptionId,
+						retainedOptionTitle: sub.options.find((o) => o.id === sub.decision!.retainedOptionId)?.title ?? sub.decision.retainedOptionId,
+						rationale: sub.decision.rationale,
+						decidedAt: sub.decision.decidedAt.toISOString(),
+						arbiterId: sanitizeHandle(sub.decision.arbiterId),
+						arbiterRole: 'lead_architect'
+					}
+				: null,
+			options: [...sub.options].sort((a, b) => cmp(a.id, b.id)).map((o) => ({ id: o.id, title: o.title })),
+			requirements: refs.map((rid) => ({ clauseRef: rid, title: rid }))
+		};
+
+		const mermaid = generateMermaidDiagram(matSubject, draft, mappedStatements, projContext);
+		const structurizrDSL = generateStructurizrDSL(matSubject, draft, mappedStatements, projContext);
+		const sysmlV2 = generateSysMLv2(matSubject, draft, mappedStatements, projContext);
+
+		const subjectProjections: SubjectProjections = {
+			mermaid,
+			structurizr_dsl: structurizrDSL,
+			structurizrDSL,
+			sysml_v2: sysmlV2,
+			sysmlV2
+		};
+
+		bySubjectProjections[sub.id] = subjectProjections;
 
 		subjects.push({
 			id: sub.id,
@@ -173,7 +437,8 @@ export function assembleEngagementBundle(input: AssemblyInput): EngagementBundle
 			// Un sujet n'est « décidé » que si une décision enregistrée existe : jamais d'après son seul niveau.
 			status: hasDecision ? 'decided' : 'open',
 			requirement_ids: refs,
-			decision_ids: hasDecision ? [sub.decision!.id] : []
+			decision_ids: hasDecision ? [sub.decision!.id] : [],
+			projections: subjectProjections
 		});
 
 		if (sub.decision) {
@@ -272,6 +537,162 @@ export function assembleEngagementBundle(input: AssemblyInput): EngagementBundle
 
 	gaps.sort((a, b) => cmp(a.id, b.id));
 
+	// ── Modèle d'architecture déterministe (éléments, relations, projections) ────────────────────
+	let architecture: BundleArchitecture;
+	if (input.architecture && (input.architecture.elements.length > 0 || input.architecture.relations.length > 0)) {
+		architecture = input.architecture;
+	} else if (input.subjects.length > 0 || input.statements.length > 0) {
+		const elements: BundleElement[] = [];
+		const relations: BundleRelation[] = [];
+		const fallbackIsoDate = findEarliestStoredIsoDate(input);
+		const subjectMap = new Map(input.subjects.map((s) => [s.id, s]));
+
+		for (const sub of sortedSubjects) {
+			const subElemId = `elem-sys-${sub.id}`;
+			const hasDecision = Boolean(sub.decision);
+			const subStatements = input.statements.filter((st) => st.subjectId === sub.id);
+			const earliestSubDate = sub.decision
+				? sub.decision.decidedAt.toISOString()
+				: subStatements.length > 0
+				? new Date(Math.min(...subStatements.map((s) => s.createdAt.getTime()))).toISOString()
+				: fallbackIsoDate;
+
+			elements.push({
+				id: subElemId,
+				name: sub.name,
+				kind: 'system',
+				description: `Système ${sub.name} (${sub.sectionRef})`,
+				decision_ids: hasDecision ? [sub.decision!.id] : [],
+				epistemic_status: hasDecision ? 'validated' : 'ai_proposed',
+				assertion_level: hasDecision ? 'asserted' : 'proposed',
+				provenance: {
+					basis: hasDecision ? 'human_validation' : 'ai_proposal',
+					by: [hasDecision ? sanitizeHandle(sub.decision!.arbiterId) : '@model-archinex'],
+					at: earliestSubDate
+				}
+			});
+
+			if (sub.decision) {
+				const d = sub.decision;
+				const optTitle = sub.options.find((o) => o.id === d.retainedOptionId)?.title ?? d.retainedOptionId;
+				const optElemId = `elem-opt-${sub.id}-${d.retainedOptionId}`;
+
+				elements.push({
+					id: optElemId,
+					name: optTitle,
+					kind: 'component',
+					boundary_id: subElemId,
+					description: d.rationale || `Option retenue pour ${sub.name}`,
+					decision_ids: [d.id],
+					epistemic_status: 'validated',
+					assertion_level: 'asserted',
+					provenance: {
+						basis: 'human_validation',
+						by: [sanitizeHandle(d.arbiterId)],
+						at: d.decidedAt.toISOString()
+					}
+				});
+
+				relations.push({
+					id: `rel-contains-${sub.id}-${d.retainedOptionId}`,
+					from: subElemId,
+					to: optElemId,
+					kind: 'contains',
+					label: 'Contient',
+					decision_ids: [d.id],
+					epistemic_status: 'validated',
+					assertion_level: 'asserted',
+					provenance: {
+						basis: 'human_validation',
+						by: [sanitizeHandle(d.arbiterId)],
+						at: d.decidedAt.toISOString()
+					}
+				});
+			}
+		}
+
+		for (const st of [...input.statements].sort((a, b) => cmp(a.id, b.id))) {
+			if (!st.subjectId || !subjectMap.has(st.subjectId)) continue;
+			const sub = subjectMap.get(st.subjectId)!;
+			const isHuman = st.productionMode === 'human-authored';
+			const stmtElemId = `elem-stmt-${st.id}`;
+			const kind = classifyElementKind(st.predicate, st.value);
+			const subElemId = `elem-sys-${sub.id}`;
+
+			elements.push({
+				id: stmtElemId,
+				name: `${st.predicate}: ${st.value}${st.unit ? ' ' + st.unit : ''}`,
+				kind,
+				boundary_id: subElemId,
+				decision_ids: sub.decision ? [sub.decision.id] : [],
+				epistemic_status: isHuman ? 'validated' : 'ai_proposed',
+				assertion_level: isHuman ? 'asserted' : 'proposed',
+				provenance: {
+					basis: isHuman ? 'human_validation' : 'ai_proposal',
+					by: [isHuman ? sanitizeHandle(st.author) : modelHandle(st.author)],
+					at: st.createdAt.toISOString()
+				}
+			});
+
+			if (sub.decision) {
+				const optElemId = `elem-opt-${sub.id}-${sub.decision.retainedOptionId}`;
+				const relKind = classifyRelationKind(st.predicate);
+				relations.push({
+					id: `rel-use-${sub.id}-${sub.decision.retainedOptionId}-${st.id}`,
+					from: optElemId,
+					to: stmtElemId,
+					kind: relKind,
+					label: st.predicate,
+					decision_ids: [sub.decision.id],
+					epistemic_status: isHuman ? 'validated' : 'ai_proposed',
+					assertion_level: isHuman ? 'asserted' : 'proposed',
+					provenance: {
+						basis: isHuman ? 'human_validation' : 'ai_proposal',
+						by: [isHuman ? sanitizeHandle(st.author) : modelHandle(st.author)],
+						at: st.createdAt.toISOString()
+					}
+				});
+			} else {
+				relations.push({
+					id: `rel-contains-${sub.id}-${st.id}`,
+					from: subElemId,
+					to: stmtElemId,
+					kind: 'contains',
+					label: st.predicate,
+					epistemic_status: isHuman ? 'validated' : 'ai_proposed',
+					assertion_level: isHuman ? 'asserted' : 'proposed',
+					provenance: {
+						basis: isHuman ? 'human_validation' : 'ai_proposal',
+						by: [isHuman ? sanitizeHandle(st.author) : modelHandle(st.author)],
+						at: st.createdAt.toISOString()
+					}
+				});
+			}
+		}
+
+		elements.sort((a, b) => cmp(a.id, b.id));
+		relations.sort((a, b) => cmp(a.id, b.id));
+
+		const globalMermaid = generateGlobalMermaid(elements, relations);
+		const globalStructurizr = generateGlobalStructurizr(input.project.title, elements, relations);
+		const globalSysML = generateGlobalSysMLv2(input.project.title, elements, relations);
+
+		architecture = {
+			elements,
+			relations,
+			projections: {
+				mermaid: globalMermaid,
+				structurizr_dsl: globalStructurizr,
+				structurizrDSL: globalStructurizr,
+				sysml_v2: globalSysML,
+				sysmlV2: globalSysML,
+				by_subject: bySubjectProjections
+			}
+		};
+	} else {
+		architecture = { elements: [], relations: [] };
+	}
+
 	return buildEngagementBundle({
 		engagement: {
 			id: input.project.id,
@@ -286,6 +707,7 @@ export function assembleEngagementBundle(input: AssemblyInput): EngagementBundle
 		decisions,
 		statements,
 		gaps,
+		architecture,
 		sourceRevision: input.sourceRevision ?? 'main',
 		createdAt: input.now.toISOString()
 	});

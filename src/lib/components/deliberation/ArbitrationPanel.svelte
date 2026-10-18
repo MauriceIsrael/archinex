@@ -42,6 +42,8 @@
 	let selectedOptionId = $state('');
 	let rationale = $state('');
 	let reversibility = $state<'reversible' | 'costly' | 'irreversible'>('costly');
+	let complianceStatus = $state<'Compliant' | 'Partially compliant' | 'Non-compliant'>('Compliant');
+	let complianceRationale = $state('');
 	let rejectionReasons = $state<Record<string, string>>({});
 	let isSubmitting = $state(false);
 	let errorMessage = $state('');
@@ -62,6 +64,8 @@
 			selectedOptionId = decision.retainedOptionId;
 			rationale = decision.rationale;
 			reversibility = decision.reversibility;
+			complianceStatus = (decision.complianceStatus as any) || 'Compliant';
+			complianceRationale = decision.complianceRationale || '';
 		} else if (safeOptions.length > 0 && !selectedOptionId) {
 			selectedOptionId = safeOptions[0].id;
 		}
@@ -77,6 +81,14 @@
 		}
 		if (rationale.trim().length < 10) {
 			errorMessage = 'La motivation de l’arbitrage doit comporter au moins 10 caractères.';
+			return;
+		}
+		if (
+			(complianceStatus === 'Partially compliant' || complianceStatus === 'Non-compliant') &&
+			complianceRationale.trim().length < 5
+		) {
+			errorMessage =
+				'Une justification ou réserve explicite (au moins 5 caractères) est obligatoire lorsque vous retenez « Partially compliant » ou « Non-compliant ».';
 			return;
 		}
 
@@ -97,6 +109,8 @@
 					rejected,
 					rationale,
 					reversibility,
+					complianceStatus,
+					complianceRationale: complianceRationale.trim() || undefined,
 					acceptedViolations: []
 				})
 			});
@@ -200,15 +214,23 @@
 				</div>
 
 				<div class="p-3 rounded-lg bg-background/80 border border-border/60 space-y-1">
-					<span class="text-muted-foreground block text-[11px] font-medium uppercase tracking-wider">Réversibilité & Rationale</span>
-					<div class="flex items-center gap-2">
+					<span class="text-muted-foreground block text-[11px] font-medium uppercase tracking-wider">Position de Conformité & Réversibilité</span>
+					<div class="flex items-center gap-2 flex-wrap">
 						<span class="px-2 py-0.5 rounded-full font-mono text-[11px] font-semibold {decision.reversibility === 'reversible' ? 'bg-emerald-500/10 text-emerald-700' : decision.reversibility === 'costly' ? 'bg-amber-500/10 text-amber-700' : 'bg-rose-500/10 text-rose-700'}">
 							{decision.reversibility}
+						</span>
+						<span class="px-2 py-0.5 rounded-full text-[11px] font-bold {decision.complianceStatus === 'Compliant' ? 'bg-emerald-500/15 text-emerald-700 border border-emerald-500/30' : decision.complianceStatus === 'Partially compliant' ? 'bg-amber-500/15 text-amber-700 border border-amber-500/30' : 'bg-rose-500/15 text-rose-700 border border-rose-500/30'}" data-testid="decision-compliance-badge">
+							{decision.complianceStatus || 'Compliant'}
 						</span>
 					</div>
 					<p class="text-foreground text-xs mt-1 italic">
 						"{decision.rationale}"
 					</p>
+					{#if decision.complianceRationale}
+						<p class="text-xs text-amber-800 dark:text-amber-200 bg-amber-500/10 p-2 rounded border border-amber-500/20 mt-1">
+							<strong>Réserve de conformité :</strong> {decision.complianceRationale}
+						</p>
+					{/if}
 				</div>
 			</div>
 
@@ -323,6 +345,61 @@
 						</label>
 					</div>
 				</div>
+			</div>
+
+			<!-- 4. Position de Conformité Standardisée (Matrice de Conformité) -->
+			<div class="p-3.5 rounded-lg border bg-muted/15 space-y-3" data-testid="compliance-position-section">
+				<div class="flex items-center justify-between">
+					<div class="block text-xs font-semibold text-foreground uppercase tracking-wider">
+						4. Position de Conformité Standardisée
+					</div>
+					<span class="text-[10px] text-muted-foreground font-mono">
+						Alimente la matrice de conformité opposable
+					</span>
+				</div>
+
+				<div class="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+					<label class="flex items-center gap-2 p-2.5 rounded-lg border cursor-pointer transition-colors {complianceStatus === 'Compliant' ? 'border-emerald-500 bg-emerald-500/10' : 'border-border/50 bg-background'}">
+						<input type="radio" value="Compliant" bind:group={complianceStatus} />
+						<div>
+							<strong class="text-emerald-700 dark:text-emerald-300 block">Compliant</strong>
+							<span class="text-[10px] text-muted-foreground">Conforme aux exigences</span>
+						</div>
+					</label>
+
+					<label class="flex items-center gap-2 p-2.5 rounded-lg border cursor-pointer transition-colors {complianceStatus === 'Partially compliant' ? 'border-amber-500 bg-amber-500/10' : 'border-border/50 bg-background'}">
+						<input type="radio" value="Partially compliant" bind:group={complianceStatus} />
+						<div>
+							<strong class="text-amber-700 dark:text-amber-300 block">Partially compliant</strong>
+							<span class="text-[10px] text-muted-foreground">Réserve ou écart accepté</span>
+						</div>
+					</label>
+
+					<label class="flex items-center gap-2 p-2.5 rounded-lg border cursor-pointer transition-colors {complianceStatus === 'Non-compliant' ? 'border-rose-500 bg-rose-500/10' : 'border-border/50 bg-background'}">
+						<input type="radio" value="Non-compliant" bind:group={complianceStatus} />
+						<div>
+							<strong class="text-rose-700 dark:text-rose-300 block">Non-compliant</strong>
+							<span class="text-[10px] text-muted-foreground">Non-respect assumé</span>
+						</div>
+					</label>
+				</div>
+
+				{#if complianceStatus === 'Partially compliant' || complianceStatus === 'Non-compliant'}
+					<div class="space-y-1.5 pt-1">
+						<label for="compliance-rationale" class="text-xs font-semibold text-amber-800 dark:text-amber-200 flex items-center justify-between">
+							<span>Justification / Réserve architecturale obligatoire :</span>
+							<span class="text-[10px] font-normal text-muted-foreground">Au moins 5 caractères requis</span>
+						</label>
+						<textarea
+							id="compliance-rationale"
+							rows="2"
+							placeholder="Précisez la réserve, la condition suspensive ou le motif d'écart acceptable..."
+							bind:value={complianceRationale}
+							class="w-full text-xs p-2.5 rounded-lg border border-amber-500/40 bg-background focus:outline-none focus:ring-1 focus:ring-amber-500 resize-none"
+							data-testid="compliance-rationale-input"
+						></textarea>
+					</div>
+				{/if}
 			</div>
 
 			{#if errorMessage}

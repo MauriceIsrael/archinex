@@ -8,6 +8,21 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Matrice de Conformité de Base Standardisée (#118)
+- **Statuts de conformité unifiés** : Support natif des positions de conformité `Compliant`, `Partially compliant`, `Non-compliant` et `Provisional` sur les décisions d'arbitrage et les exigences sources.
+- **Règle de justification substantielle** : Obligation stricte de renseigner une réserve / justification explicite (au moins 5 caractères) dès lors qu'un arbitrage est `Partially compliant` ou `Non-compliant`. Contrôles appliqués dans les schémas Zod (`CreateDecisionSchema`), la base de données (`arbitrationDb.ts`) et la vérification de bundle (`bundleVerifier.ts`).
+- **Export et Visualisation multi-formats** :
+  - Route d'API dédiée `/api/projects/[projectId]/compliance-matrix` proposant les formats `markdown` (tableau opposable structuré), `csv` (tableur RFC 4180 avec BOM UTF-8) et `json` (modèle typé).
+  - Onglet dédié « Matrice de Conformité » dans le Hub d'Artefacts (`ArtifactRegenerationHub.svelte`) avec synthèse exécutive (taux de conformité pondéré, répartition des statuts) et bouton d'export direct en CSV.
+- **Intégrité de schéma** : Respect strict du schéma de bundle 1.1 sans altération de contrat fermé (`additionalProperties: false`).
+- **Tests** : 8 tests de contrat validant les règles de conformité, l'exportation et la compatibilité de bundle dans `tests/contract/compliance-matrix.test.ts`.
+
+### Indicateur d'Alerte sur les Clauses KB non Validées ou non Publiées (#119)
+- **Bannière d'alerte et santé de doctrine** : Composant réutilisable `KbClausesHealthBanner.svelte` informant l'architecte du volume de contrôles KB actifs, du nombre de clauses vérifiables (`checks:`) validées et de la proportion de clauses en attente de test ou de publication.
+- **Badge d'alerte contextuel** : Affichage d'un badge d'avertissement explicite (`data-testid="kb-clauses-health-alert"`) lorsqu'au moins une clause en attente est détectée, avec renvoi direct vers la console KB.
+- **Intégration transverse** : Déployé sur la page d'accueil des projets (`+page.svelte`), le tableau de bord de la base de connaissances (`/kb/dashboard/+page.svelte`) et le panneau des référentiels réglementaires applicables (`RegulatoryFrameworksPanel.svelte`).
+- **Tests** : 5 tests de contrat validant les calculs de santé et le filtrage contextuel dans `tests/contract/kb-clauses-health-alert.test.ts`.
+
 ### Adaptateur de Benchmark S3 : Enregistrement de `kb_references` sur `confirm_reuse` (archinex-benchmark#1)
 - **Constat** : En mode $S_3$ (assisté), lorsqu'un expert confirmait le réemploi d'une décision antérieure (`action: "confirm_reuse"`), `benchmarkRunner.ts` ajoutait l'entrée correspondante dans `data.reuse_log` (`matched_ref`), mais omettait d'inscrire la référence dans `data.kb_references` et de la passer à `buildEngagementBundle`. Le vérificateur `verifyEngagementBundle` rejetait alors le bundle scellé avec l'erreur `[KB_REF_UNLISTED]`.
 - **Correction** : Inscription automatique de `matched_ref` dans `kbReferences` lors du traitement de `confirm_reuse`, transmission de `kbReferences` à `buildEngagementBundle`, et tolérance `k.ref || k.id` dans `bundleVerifier.ts`.

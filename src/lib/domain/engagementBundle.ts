@@ -79,6 +79,10 @@ export interface BundleRequirement {
 	/** Motif de l'évacuation, tension à délibérer ou raison de l'indécision. */
 	disposition_reason?: string;
 	clarification_question?: string;
+	/** Statut de conformité standardisé (Compliant, Partially compliant, Non-compliant, Provisional). */
+	compliance_status?: 'Compliant' | 'Partially compliant' | 'Non-compliant' | 'Provisional';
+	/** Justification ou réserve explicite accompagnant le statut de conformité. */
+	compliance_rationale?: string;
 	/** `asserted` : décidé par un humain. `proposed` : proposé par le modèle. `open` : non qualifié. */
 	assertion_level?: AssertionLevel;
 	provenance?: ProvenanceInfo;
@@ -110,6 +114,8 @@ export interface BundleDecision {
 	decision: string;
 	title: string;
 	rationale: string;
+	compliance_status?: 'Compliant' | 'Partially compliant' | 'Non-compliant' | 'Provisional';
+	compliance_rationale?: string;
 	alternatives?: Array<{ title: string; rejected_because?: string }>;
 	consequences?: string[];
 	provenance: ProvenanceInfo;
@@ -138,6 +144,8 @@ export interface BundleCompliance {
 	epistemic_status: EpistemicStatus;
 	assertion_level: AssertionLevel;
 	implementation_statement: string;
+	compliance_status?: 'Compliant' | 'Partially compliant' | 'Non-compliant' | 'Provisional';
+	compliance_rationale?: string;
 	decision_ids: string[];
 	provenance: ProvenanceInfo;
 }

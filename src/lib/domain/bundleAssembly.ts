@@ -75,6 +75,8 @@ export interface AssemblySubject {
 		retainedOptionId: string;
 		rejected: Array<{ optionId: string; reason: string }>;
 		rationale: string;
+		complianceStatus?: 'Compliant' | 'Partially compliant' | 'Non-compliant' | 'Provisional';
+		complianceRationale?: string;
 		arbiterId: string;
 		decidedAt: Date;
 	} | null;
@@ -177,6 +179,14 @@ export function assembleEngagementBundle(input: AssemblyInput): EngagementBundle
 		if (sub.decision) {
 			const d = sub.decision;
 			const title = (id: string) => sub.options.find((o) => o.id === id)?.title ?? id;
+			const consequences: string[] = [];
+			if (d.complianceStatus) {
+				consequences.push(`compliance_status:${d.complianceStatus}`);
+			}
+			if (d.complianceRationale) {
+				consequences.push(`compliance_rationale:${d.complianceRationale}`);
+			}
+
 			decisions.push({
 				id: d.id,
 				subject_id: sub.id,
@@ -186,6 +196,7 @@ export function assembleEngagementBundle(input: AssemblyInput): EngagementBundle
 				decision: `Option retenue : ${title(d.retainedOptionId)}`,
 				title: title(d.retainedOptionId),
 				rationale: d.rationale,
+				...(consequences.length > 0 ? { consequences } : {}),
 				alternatives: [...d.rejected]
 					.sort((x, y) => cmp(x.optionId, y.optionId))
 					.map((r) => ({ title: title(r.optionId), rejected_because: r.reason })),

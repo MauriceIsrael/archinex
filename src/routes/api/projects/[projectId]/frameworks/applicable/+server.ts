@@ -4,21 +4,46 @@ import { prisma } from '$lib/server/prisma';
 import { authorizeProjectAccess } from '$lib/server/projects/projectAccess';
 import { getApplicableFrameworks, pushApplicableFrameworks } from '$lib/server/compliance/complianceService';
 import { detectApplicableFrameworks, REGULATORY_FRAMEWORKS } from '$lib/domain/regulatoryFrameworks';
+import { llmopsClient } from '$lib/server/llmops/client';
+import { computeKbClausesHealth } from '$lib/domain/kbClausesHealth';
 
 /** Référentiels déclarés pour l'espace, et ceux que cite le dossier d'exigences enregistré (proposition). */
 export const GET: RequestHandler = async (event) => {
 	const projectId = event.params.projectId!;
-	const sources = await prisma.requirementSource.findMany({
-		where: { projectId },
-		select: { requirements: { select: { title: true, text: true } } }
-	});
+	const userEmail = event.locals.session?.user?.email;
+
+	const [sources, applicable, clausesRes, frameworksRes] = await Promise.all([
+		prisma.requirementSource.findMany({
+			where: { projectId },
+			select: { requirements: { select: { title: true, text: true } } }
+		}),
+		getApplicableFrameworks(projectId),
+		llmopsClient.listCheckClauses({}, userEmail).catch(() => null),
+		llmopsClient.getComplianceFrameworks().catch(() => null)
+	]);
+
 	const text = sources.flatMap((s) => s.requirements.map((r) => `${r.title} ${r.text}`)).join('\n');
+	const detected = text ? detectApplicableFrameworks(text) : [];
+	const effectiveScoped = applicable.length > 0 ? applicable : detected.map((d) => d.code);
+
+	const offline =
+		!clausesRes ||
+		clausesRes.status === 'unavailable' ||
+		(!clausesRes.data && (!frameworksRes || frameworksRes.status === 'unavailable'));
+
+	const clausesHealth = computeKbClausesHealth(clausesRes?.data ?? null, {
+		applicableFrameworks: effectiveScoped,
+		frameworksOverview: frameworksRes?.data,
+		offline
+	});
+
 	return json({
 		status: 'ok',
-		applicable: await getApplicableFrameworks(projectId),
+		applicable,
 		requirementsDossier: sources.length > 0,
-		detected: text ? detectApplicableFrameworks(text) : [],
-		catalogue: REGULATORY_FRAMEWORKS.map((f) => ({ code: f.code, label: f.label }))
+		detected,
+		catalogue: REGULATORY_FRAMEWORKS.map((f) => ({ code: f.code, label: f.label })),
+		clausesHealth
 	});
 };
 
@@ -44,3 +69,4 @@ export const PUT: RequestHandler = async (event) => {
 	const llmops = await pushApplicableFrameworks(projectId, frameworks);
 	return json({ status: 'ok', applicable: frameworks, llmops });
 };
+

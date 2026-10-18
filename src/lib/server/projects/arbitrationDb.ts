@@ -33,6 +33,8 @@ export interface CreateDecisionInput {
 	rejected: Array<{ optionId: string; reason: string }>;
 	rationale: string;
 	reversibility: 'reversible' | 'costly' | 'irreversible';
+	complianceStatus?: 'Compliant' | 'Partially compliant' | 'Non-compliant';
+	complianceRationale?: string;
 	acceptedViolations?: Array<{ typedId: string; justification: string }>;
 }
 
@@ -168,6 +170,19 @@ export async function getSubjectArbitrationContext(subjectId: string): Promise<{
 
 	if (subject.decision) {
 		acceptedViolationsFromDecision = JSON.parse(subject.decision.acceptedViolations || '[]');
+		const complianceEntry = acceptedViolationsFromDecision.find((v) =>
+			v.typedId.startsWith('COMPLIANCE_STATUS:')
+		);
+		const realViolations = acceptedViolationsFromDecision.filter(
+			(v) => !v.typedId.startsWith('COMPLIANCE_STATUS:')
+		);
+		const complianceStatus: 'Compliant' | 'Partially compliant' | 'Non-compliant' = complianceEntry
+			? (complianceEntry.typedId.replace('COMPLIANCE_STATUS:', '') as any)
+			: realViolations.length > 0
+				? 'Partially compliant'
+				: 'Compliant';
+		const complianceRationale = complianceEntry?.justification || undefined;
+
 		parsedDecision = {
 			id: subject.decision.id,
 			subjectId: subject.decision.subjectId,
@@ -175,10 +190,12 @@ export async function getSubjectArbitrationContext(subjectId: string): Promise<{
 			rejected: JSON.parse(subject.decision.rejected || '[]'),
 			rationale: subject.decision.rationale,
 			reversibility: subject.decision.reversibility as any,
+			complianceStatus,
+			complianceRationale,
 			arbiterId: subject.decision.arbiterId,
 			arbiterRole: subject.decision.arbiterRole,
 			decidedAt: subject.decision.decidedAt.toISOString(),
-			acceptedViolations: acceptedViolationsFromDecision,
+			acceptedViolations: realViolations,
 			kbCandidateIds: JSON.parse(subject.decision.kbCandidateIds || '[]'),
 			version: subject.decision.version
 		};
@@ -283,6 +300,14 @@ export async function recordArbitrationDecision(
 	const decidedAt = new Date();
 	const decidesAlone = canDecideAlone(actor.role);
 
+	const violationsToStore = [...(data.acceptedViolations || [])];
+	if (data.complianceStatus) {
+		violationsToStore.push({
+			typedId: `COMPLIANCE_STATUS:${data.complianceStatus}`,
+			justification: data.complianceRationale || ''
+		});
+	}
+
 	const created = await prisma.$transaction(async (tx) => {
 		// 1. Enregistrement de la décision
 		const decisionRecord = await tx.decision.upsert({
@@ -297,7 +322,7 @@ export async function recordArbitrationDecision(
 				arbiterId: actor.userId,
 				arbiterRole: actor.role,
 				decidedAt,
-				acceptedViolations: JSON.stringify(data.acceptedViolations || []),
+				acceptedViolations: JSON.stringify(violationsToStore),
 				kbCandidateIds: '[]',
 				version: 1
 			},
@@ -309,7 +334,7 @@ export async function recordArbitrationDecision(
 				arbiterId: actor.userId,
 				arbiterRole: actor.role,
 				decidedAt,
-				acceptedViolations: JSON.stringify(data.acceptedViolations || []),
+				acceptedViolations: JSON.stringify(violationsToStore),
 				version: { increment: 1 }
 			}
 		});
@@ -379,10 +404,12 @@ export async function recordArbitrationDecision(
 		rejected: JSON.parse(created.rejected),
 		rationale: created.rationale,
 		reversibility: created.reversibility as any,
+		complianceStatus: data.complianceStatus || 'Compliant',
+		complianceRationale: data.complianceRationale,
 		arbiterId: created.arbiterId,
 		arbiterRole: created.arbiterRole,
 		decidedAt: created.decidedAt.toISOString(),
-		acceptedViolations: JSON.parse(created.acceptedViolations),
+		acceptedViolations: data.acceptedViolations || [],
 		kbCandidateIds: JSON.parse(created.kbCandidateIds),
 		version: created.version
 	};

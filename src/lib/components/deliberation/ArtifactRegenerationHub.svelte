@@ -1,14 +1,16 @@
 <script lang="ts">
 	import { deliberationStore } from '$lib/stores/deliberationStore.svelte';
 	import MermaidViewer from './MermaidViewer.svelte';
-	import { RefreshCw, Download, Copy, Check, Terminal, FileCode, Layers, Cpu, ShieldCheck } from 'lucide-svelte';
+	import { RefreshCw, Download, Copy, Check, Terminal, FileCode, Layers, Cpu, ShieldCheck, Scale, FileSpreadsheet } from 'lucide-svelte';
 
-	type TabType = 'mermaid' | 'structurizr' | 'sysml' | 'config';
+	type TabType = 'mermaid' | 'structurizr' | 'sysml' | 'config' | 'compliance';
 
 	let activeTab = $state<TabType>('mermaid');
 	let copied = $state(false);
 	let isRegenerating = $state(false);
 	let lastSyncTime = $state<string>(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
+	let complianceMarkdown = $state<string>('');
+	let isLoadingCompliance = $state(false);
 
 	const activeSubject = $derived(deliberationStore.activeSubject);
 	const projections = $derived(
@@ -24,6 +26,22 @@
 		}
 	});
 
+	async function loadComplianceMatrix() {
+		const pId = deliberationStore.activeEngagement?.id || deliberationStore.activeEngagementId;
+		if (!pId) return;
+		isLoadingCompliance = true;
+		try {
+			const res = await fetch(`/api/projects/${encodeURIComponent(pId)}/compliance-matrix?format=markdown`);
+			if (res.ok) {
+				complianceMarkdown = await res.text();
+			}
+		} catch {
+			// fallback
+		} finally {
+			isLoadingCompliance = false;
+		}
+	}
+
 	async function handleRegenerate() {
 		if (!activeSubject) return;
 		isRegenerating = true;
@@ -32,7 +50,8 @@
 			if (pId) {
 				await Promise.all([
 					deliberationStore.refreshSubjectFromServer(activeSubject.id, pId),
-					deliberationStore.fetchFrozenSnapshot(activeSubject.id, pId)
+					deliberationStore.fetchFrozenSnapshot(activeSubject.id, pId),
+					loadComplianceMatrix()
 				]);
 			}
 			lastSyncTime = new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', second: '2-digit' });
@@ -45,6 +64,7 @@
 	}
 
 	function getCurrentContent(): string {
+		if (activeTab === 'compliance') return complianceMarkdown;
 		if (!projections) return '';
 		switch (activeTab) {
 			case 'mermaid':
@@ -85,6 +105,9 @@
 				filename = `${activeSubject?.id || 'arch'}_config.json`;
 				mimeType = 'application/json';
 				break;
+			case 'compliance':
+				filename = `${activeSubject?.id || 'arch'}_matrice_conformite.md`;
+				break;
 		}
 
 		const blob = new Blob([content], { type: mimeType });
@@ -94,6 +117,12 @@
 		a.download = filename;
 		a.click();
 		URL.revokeObjectURL(url);
+	}
+
+	function downloadCsv() {
+		const pId = deliberationStore.activeEngagement?.id || deliberationStore.activeEngagementId;
+		if (!pId) return;
+		window.open(`/api/projects/${encodeURIComponent(pId)}/compliance-matrix?format=csv`, '_blank');
 	}
 </script>
 
@@ -187,11 +216,38 @@
 				<Cpu class="h-3.5 w-3.5" />
 				<span>Configuration JSON</span>
 			</button>
+
+			<button
+				type="button"
+				onclick={() => {
+					activeTab = 'compliance';
+					void loadComplianceMatrix();
+				}}
+				class="px-3 py-1.5 font-semibold rounded-lg transition-colors flex items-center gap-1.5 whitespace-nowrap {activeTab === 'compliance'
+					? 'bg-primary text-primary-foreground shadow-2xs'
+					: 'text-muted-foreground hover:text-foreground hover:bg-muted/60'}"
+				data-testid="tab-compliance-matrix"
+			>
+				<Scale class="h-3.5 w-3.5" />
+				<span>Matrice de Conformité</span>
+			</button>
 		</div>
 
 		<!-- Actions Copier / Exporter -->
 		<div class="flex items-center gap-1.5 self-end sm:self-auto text-xs">
 			<span class="text-[10px] text-muted-foreground mr-2 font-mono">Synchro : {lastSyncTime}</span>
+			{#if activeTab === 'compliance'}
+				<button
+					type="button"
+					onclick={downloadCsv}
+					class="inline-flex items-center gap-1 rounded border border-emerald-500/40 bg-emerald-500/10 text-emerald-800 dark:text-emerald-200 px-2.5 py-1 text-xs font-medium hover:bg-emerald-500/20 transition-colors"
+					data-testid="export-compliance-csv-btn"
+				>
+					<FileSpreadsheet class="h-3 w-3" />
+					<span>Export CSV</span>
+				</button>
+			{/if}
+
 			<button
 				type="button"
 				onclick={copyToClipboard}
@@ -212,7 +268,7 @@
 				class="inline-flex items-center gap-1 rounded border border-input bg-background px-2.5 py-1 text-xs font-medium hover:bg-muted transition-colors"
 			>
 				<Download class="h-3 w-3" />
-				<span>Exporter</span>
+				<span>Exporter {activeTab === 'compliance' ? 'Markdown' : ''}</span>
 			</button>
 		</div>
 	</div>
@@ -283,6 +339,66 @@
 						<span class="font-mono text-[10px] text-emerald-600 dark:text-emerald-400">JSON Formaté</span>
 					</div>
 					<pre class="rounded-lg bg-muted/80 p-4 font-mono text-xs text-foreground overflow-x-auto max-h-96 leading-relaxed border shadow-inner">{projections.configJSON}</pre>
+				</div>
+			{:else if activeTab === 'compliance'}
+				<div class="space-y-3" data-testid="compliance-matrix-view">
+					<div class="flex items-center justify-between text-xs font-bold text-muted-foreground">
+						<div class="flex items-center gap-2">
+							<Scale class="h-4 w-4 text-primary" />
+							<span>Matrice de Conformité de base de l'Engagement :</span>
+						</div>
+						<div class="flex items-center gap-2">
+							<button
+								type="button"
+								onclick={loadComplianceMatrix}
+								class="inline-flex items-center gap-1 text-[11px] text-primary hover:underline"
+							>
+								<RefreshCw class="h-3 w-3 {isLoadingCompliance ? 'animate-spin' : ''}" />
+								<span>Actualiser</span>
+							</button>
+						</div>
+					</div>
+
+					{#if isLoadingCompliance}
+						<div class="p-6 text-center text-xs text-muted-foreground">
+							Génération et calcul de la matrice de conformité opposable...
+						</div>
+					{:else if complianceMarkdown}
+						<pre class="rounded-lg bg-muted/80 p-4 font-mono text-xs text-foreground overflow-x-auto max-h-[500px] leading-relaxed border shadow-inner whitespace-pre-wrap">{complianceMarkdown}</pre>
+					{:else}
+						<div class="p-6 text-center text-xs text-muted-foreground border rounded-lg">
+							Aucune donnée de conformité disponible pour cet engagement.
+						</div>
+					{/if}
+				</div>
+			{/if}
+		</div>
+	{:else if activeTab === 'compliance'}
+		<div class="space-y-3" data-testid="compliance-matrix-view">
+			<div class="flex items-center justify-between text-xs font-bold text-muted-foreground">
+				<div class="flex items-center gap-2">
+					<Scale class="h-4 w-4 text-primary" />
+					<span>Matrice de Conformité de base de l'Engagement :</span>
+				</div>
+				<button
+					type="button"
+					onclick={loadComplianceMatrix}
+					class="inline-flex items-center gap-1 text-[11px] text-primary hover:underline"
+				>
+					<RefreshCw class="h-3 w-3 {isLoadingCompliance ? 'animate-spin' : ''}" />
+					<span>Actualiser</span>
+				</button>
+			</div>
+
+			{#if isLoadingCompliance}
+				<div class="p-6 text-center text-xs text-muted-foreground">
+					Génération et calcul de la matrice de conformité opposable...
+				</div>
+			{:else if complianceMarkdown}
+				<pre class="rounded-lg bg-muted/80 p-4 font-mono text-xs text-foreground overflow-x-auto max-h-[500px] leading-relaxed border shadow-inner whitespace-pre-wrap">{complianceMarkdown}</pre>
+			{:else}
+				<div class="p-6 text-center text-xs text-muted-foreground border rounded-lg">
+					Aucune donnée de conformité disponible pour cet engagement.
 				</div>
 			{/if}
 		</div>

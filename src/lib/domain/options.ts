@@ -73,6 +73,8 @@ export interface Decision {
 	rejected: DecisionRejectedOption[];
 	rationale: string;
 	reversibility: DecisionReversibility;
+	complianceStatus?: 'Compliant' | 'Partially compliant' | 'Non-compliant' | 'Provisional';
+	complianceRationale?: string;
 	arbiterId: string;
 	arbiterRole: string;
 	decidedAt: string; // ISO date

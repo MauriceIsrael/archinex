@@ -8,6 +8,12 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Identité des experts : assertion signée Ed25519 auprès du Hub (LLMOps#144)
+- `src/lib/server/llmops/actorAssertion.ts` : assertion d'acteur signée (`X-Actor-Token`, JWT EdDSA, `jti` neuf par requête, 60 s) quand une clé est
+  configurée ; sinon l'en-tête brut `X-Actor-Email` comme avant. `LLMOPS_ACTOR_AUTH=assertion` exige la clé et n'envoie jamais l'en-tête brut.
+- `scripts/gen-actor-key.mjs` produit la clé privée et le JWKS public. Faux Hub des tests : vérifie la signature, l'émetteur, le destinataire,
+  l'expiration et le rejeu comme le Hub 1.37, avec un mode strict.
+
 ### Vérification du Découpage PDF des RFP sur Échantillon & Rapport d'Extraction (#50)
 - **Rapport d'extraction automatique & Métriques de qualité** :
   - Module métier dédié (`src/lib/domain/rfpExtractionReport.ts`) calculant la couverture textuelle (`coverageRate`), le score de qualité du découpage (0 à 100), le nombre d'exigences et de pages.

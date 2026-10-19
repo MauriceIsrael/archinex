@@ -8,6 +8,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 
+import { ActorAssertionConfigError, actorIdentityHeaders } from './actorAssertion';
 import type {
   CheckClausesList,
   CheckClauseRow,
@@ -408,7 +409,13 @@ export class LLMOpsClient {
       'X-Engagement-Id': eng
     };
     if (actorEmail) {
-      headers['X-Actor-Email'] = actorEmail;
+      // Assertion signée (X-Actor-Token) quand une clé est configurée, en-tête brut sinon : voir actorAssertion.ts (LLMOps#144).
+      try {
+        Object.assign(headers, actorIdentityHeaders(actorEmail));
+      } catch (err) {
+        if (err instanceof ActorAssertionConfigError) console.error(`[llmops] ${err.message}`);
+        throw err;
+      }
     }
     if (idempotencyKey) {
       headers['Idempotency-Key'] = idempotencyKey;

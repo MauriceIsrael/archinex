@@ -62,7 +62,8 @@ export const POST: RequestHandler = async ({ request }) => {
 			projectType: body.projectType,
 			forceAudit: Boolean(body.forceAudit),
 			recompute: Boolean(body.recompute),
-			sourceText: typeof body.sourceText === 'string' ? body.sourceText : undefined
+			sourceText: typeof body.sourceText === 'string' ? body.sourceText : undefined,
+			extractionValidation: body.extractionValidation || undefined
 		};
 
 		const launch = await launchFactorization(req);

@@ -8,6 +8,28 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Vérification du Découpage PDF des RFP sur Échantillon & Rapport d'Extraction (#50)
+- **Rapport d'extraction automatique & Métriques de qualité** :
+  - Module métier dédié (`src/lib/domain/rfpExtractionReport.ts`) calculant la couverture textuelle (`coverageRate`), le score de qualité du découpage (0 à 100), le nombre d'exigences et de pages.
+  - Détection et classification des motifs de référence (`REQ-Lot1-*`, `Art. *`, `Clause *`, `§*`) avec mise en avant du motif dominant.
+  - Alerte de couverture textuelle si moins de 60 % du document est rattaché à des exigences.
+- **Détection exhaustive et explicite des anomalies de découpage** :
+  - Détection des trous dans la numérotation séquentielle (`detectNumberingGaps`), avec identification des bornes et des numéros manquants (ex: `REQ-Lot1-13 .. REQ-Lot1-14`).
+  - Détection des doublons disambiguïsés avec suffixe `#2` (`detectDuplicatesAndUnnumbered`).
+  - Détection des références sans numéro explicite (`REQ-Lot1-?`) ou atypiques ne respectant pas le motif dominant.
+  - Détection des clauses anormalement courtes (< 25 caractères) ou volumineuses (> 2 500 caractères).
+  - Détection des pages sans aucune clause (sommaires, pages de garde, annexes non découpées).
+- **Échantillon de vérification humaine côte à côte** :
+  - Générateur d'échantillon (`generateVerificationSample`) sélectionnant en priorité absolue toutes les clauses associées à des anomalies, complétées par des clauses représentatives réparties sur le document.
+  - Composant Svelte `RfpExtractionVerification.svelte` offrant une vue comparative : clause extraite à gauche (référence, titre, texte, criticité, anomalie), page source du document avec son numéro de page à droite.
+  - Possibilité de valider l'échantillon ou de signaler une clause problématique avant le lancement de l'audit.
+- **Traçabilité & Persistance dans les exécutions de factorisation** :
+  - Intégration de `HumanExtractionValidation` dans `FactorizeRequest`, `FactorizationRun` (base de données) et `RfpFactorizationResponse`.
+  - Affichage clair du statut de validation humaine (ou alerte d'absence de vérification) dans le composant de révision `RfpFactorizationReview.svelte`.
+- **Tests** :
+  - Tests de contrat d'extraction et de détection d'anomalies sur deux mises en page de RFP réelles (`examples/Lulu.pdf` de 194 pages et `examples/lumicc-noc/rfp-section4-noc.md`) dans `tests/contract/rfp-extraction-report.test.ts`.
+  - Tests de contrat de persistance et traçabilité de la validation dans `tests/contract/rfp-factorize-validation.test.ts`.
+
 ### Montée de version Prisma 6.19 → 7.10 (#60)
 - **Prisma 7.10 (dernière 7.x stable)** avec le générateur `prisma-client` (sortie dans `src/generated/prisma`, ignorée par git) et l'adaptateur `@prisma/adapter-better-sqlite3` (instanciation centralisée dans `src/lib/server/prismaFactory.ts`).
 - L'URL de base passe dans `prisma.config.ts` ; les chemins `file:./` restent résolus relativement à `prisma/`.

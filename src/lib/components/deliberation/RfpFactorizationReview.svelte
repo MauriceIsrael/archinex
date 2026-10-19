@@ -39,6 +39,7 @@
 		toQualifyCount?: number;
 		clarifications?: Array<{ clauseRef: string; title: string; question: string }>;
 		allAuditedRequirements?: any[];
+		extractionValidation?: import('$lib/domain/rfpExtractionReport').HumanExtractionValidation;
 		onConfirm: (initialSubjects: InitialSubjectInput[]) => void;
 		onCancel: () => void;
 	}
@@ -60,6 +61,7 @@
 		toQualifyCount,
 		clarifications,
 		allAuditedRequirements,
+		extractionValidation,
 		onConfirm,
 		onCancel
 	}: Props = $props();
@@ -315,6 +317,32 @@
 				<span class="text-[11px] text-muted-foreground">({clauses.length} exigences analysées)</span>
 			</div>
 		</div>
+
+		<!-- ─── Traçabilité : Validation Humaine Préalable du Découpage PDF ──────── -->
+		{#if extractionValidation}
+			{#if extractionValidation.validated}
+				<div class="p-3 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-950 dark:text-emerald-100 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 text-xs">
+					<div class="flex items-center gap-2">
+						<ShieldCheck class="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+						<div>
+							<strong class="font-semibold">Découpage vérifié par un humain :</strong>
+							<span>Validé{extractionValidation.validatedBy ? ` par ${extractionValidation.validatedBy}` : ''}{extractionValidation.validatedAt ? ` le ${new Date(extractionValidation.validatedAt).toLocaleDateString('fr-FR')}` : ''}</span>
+							<span class="opacity-80">({extractionValidation.sampleSize} clauses examinées, {extractionValidation.acceptedAnomaliesCount} anomalie(s) acceptée(s){extractionValidation.flaggedIssuesCount > 0 ? `, ${extractionValidation.flaggedIssuesCount} problème(s) signalé(s)` : ''})</span>
+						</div>
+					</div>
+					{#if extractionValidation.notes}
+						<span class="text-[11px] italic bg-background/50 px-2 py-0.5 rounded border border-emerald-500/20">« {extractionValidation.notes} »</span>
+					{/if}
+				</div>
+			{:else}
+				<div class="p-3 rounded-xl border border-amber-500/40 bg-amber-500/10 text-amber-900 dark:text-amber-200 flex items-center gap-2 text-xs">
+					<AlertTriangle class="h-4 w-4 text-amber-600 dark:text-amber-400 shrink-0" />
+					<div>
+						<strong>Validation humaine non effectuée :</strong> Cette analyse a été exécutée sans vérification préalable du découpage PDF sur échantillon. Des clauses mal extraites ou tronquées peuvent être passées inaperçues.
+					</div>
+				</div>
+			{/if}
+		{/if}
 
 		{#if engine === 'arckit-requirements-audit'}
 			<div class="p-3.5 rounded-xl border border-emerald-500/30 bg-emerald-500/10 text-emerald-950 dark:text-emerald-100 space-y-1.5">

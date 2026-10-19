@@ -48,6 +48,8 @@ export interface FactorizeRequest {
 	/** Ignore les résultats antérieurs et le cache des étapes. */
 	recompute?: boolean;
 	sourceText?: string;
+	/** Validation humaine préalable du découpage PDF (échantillon, anomalies acceptées). */
+	extractionValidation?: import('$lib/domain/rfpExtractionReport').HumanExtractionValidation;
 }
 
 /** Issue d'un calcul : ce que l'API renvoie (corps et code HTTP) et ce qui est persisté. */
@@ -198,6 +200,23 @@ function execute(runId: string | null, req: FactorizeRequest, model: string, kb:
 			const message = err instanceof Error ? err.message : 'Erreur interne lors de la factorisation.';
 			console.error(`❌ [Factorisation] Erreur critique :`, err);
 			outcome = { runStatus: 'error', engine: 'audit', httpStatus: 500, body: { status: 'error', error: message }, error: message };
+		}
+		if (outcome.result) {
+			const validation = req.extractionValidation || {
+				validated: false,
+				sampleSize: 0,
+				sampleItems: [],
+				acceptedAnomaliesCount: 0,
+				flaggedIssuesCount: 0,
+				reportSummary: {
+					pageCount: 1,
+					clauseCount: req.clauses.length,
+					coverageRate: 0,
+					anomaliesCount: 0
+				}
+			};
+			outcome.result.extractionValidation = validation;
+			outcome.body = { ...outcome.body, extractionValidation: validation };
 		}
 		if (runId) {
 			try {

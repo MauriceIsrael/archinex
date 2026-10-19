@@ -77,6 +77,26 @@ L'interface est structurée autour de zones opérationnelles claires :
 
 ## 4. Méthodologie d'Ingestion & Délibération (Méthodologie ArcKit)
 
+### 4.0 Vérification préalable du découpage PDF sur échantillon & Rapport d'extraction (#50)
+Avant de lancer l'audit ou la factorisation sémantique d'un RFP, Archinex génère et affiche un **rapport d'extraction complet** pour permettre une relecture humaine sur échantillon :
+
+- **Rapport d'extraction automatique** :
+  - **Statistiques globales** : nombre d'exigences extraites, nombre de pages du document source, taux de couverture textuelle effective du document (`coverageRate`) avec seuil d'alerte si la couverture est inférieure à 60 %.
+  - **Motifs de référence** : identification des préfixes récurrents (`REQ-Lot1-*`, `Art. *`, `Clause *`, etc.) et mise en évidence du motif dominant.
+  - **Anomalies de découpage explicitement listées** :
+    - *Trous dans la numérotation séquentielle* (ex: saut de `REQ-Lot1-12` à `REQ-Lot1-15`, indiquant les numéros manquants `13` et `14`).
+    - *Références en double* (renvois ou tableaux récapitulatifs disambiguïsés avec suffixe `#2`).
+    - *Références sans numéro* (ex: `REQ-Lot1-?`) ou *atypiques* ne suivant pas la convention dominante.
+    - *Clauses anormalement courtes* (< 25 caractères) ou *volumineuses* (> 2 500 caractères, signalant une possible concaténation d'exigences sans séparateur).
+    - *Pages sans clause* (sommaires, pages de garde, annexes non structurées).
+- **Échantillon de vérification humaine côte à côte** :
+  - Sélection prioritaire de toutes les clauses présentant une anomalie, complétée d'un échantillon représentatif de clauses nominales réparties sur le document.
+  - Présentation en double vue : à gauche, l'exigence découpée (référence, titre, texte, criticité, anomalies associées) ; à droite, le calque textuel de la **page source correspondante** du PDF avec son numéro de page.
+  - Confirmation par l'architecte (« Valider le découpage ») ou signalement d'un problème sur une clause spécifique.
+- **Traçabilité & Persistance** :
+  - L'attestation de validation humaine (identité de l'architecte, horodatage ISO, clauses examinées, anomalies acceptées) est persistée avec l'exécution de factorisation (`FactorizationRun`).
+  - Toute analyse lancée sans validation préalable est marquée comme non vérifiée et affiche un bandeau d'avertissement dans la synthèse des résultats (`RfpFactorizationReview`).
+
 ### 4.1 Audit des exigences : le modèle propose, vous disposez
 À l'import d'un RFP, le modèle de langage classe **chaque clause** dans l'un de quatre états. Ce sont des **propositions** : rien n'est décidé tant que vous ne les avez pas relues.
 

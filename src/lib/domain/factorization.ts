@@ -110,4 +110,6 @@ export interface RfpFactorizationResponse {
 	reusedRun?: boolean;
 	/** État partiel d'une exécution encore en cours (dispositions, puis périmètre des sujets). */
 	inProgress?: boolean;
+	/** Validation humaine préalable du découpage PDF (qui, quand, échantillon, statut). */
+	extractionValidation?: import('./rfpExtractionReport').HumanExtractionValidation;
 }

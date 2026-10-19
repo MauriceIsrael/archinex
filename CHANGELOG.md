@@ -8,6 +8,17 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### J0 : une clause d'automatisation n'est plus évacuée par le modèle seul (archinex#132)
+- Constat du jalon J0 (`eval-results/decision-j0.md`) : un faux négatif dangereux identique aux deux passes, `REQ-Lot1-216` (création automatique
+  d'incidents), évacuée comme « fonction standard ITSM ».
+- Invariant déterministe `applyClassificationInvariants` : une clause non « info » qui décrit une automatisation (automatique, automatisé,
+  boucle fermée, auto-remédiation, « sans intervention humaine »… en français et en anglais, `src/lib/domain/automationMarkers.ts`) ne peut pas être
+  évacuée : elle passe « à qualifier », avec la proposition du modèle conservée pour l'humain. C'est une famille de formulations, pas un identifiant.
+- Mesuré sur les évacuations archivées de J0 (92 clauses) : `REQ-Lot1-216` n'est plus évacuée ; `REQ-Lot1-259` (même famille) est aussi renvoyée ;
+  « à qualifier » passe de 0 à 2 clauses sur 92 (2 %, plafond 30 %). Les quatre autres évacuations restent.
+- **Le jalon n'est pas rejoué** : ce correctif a été écrit en voyant le cas ; le rejeu doit se faire sur un autre dossier avec un juge fixé avant la mesure
+  (`docs/jalon-j0.md`). L'issue reste ouverte jusque-là.
+
 ### Identité des experts : assertion signée Ed25519 auprès du Hub (LLMOps#144)
 - `src/lib/server/llmops/actorAssertion.ts` : assertion d'acteur signée (`X-Actor-Token`, JWT EdDSA, `jti` neuf par requête, 60 s) quand une clé est
   configurée ; sinon l'en-tête brut `X-Actor-Email` comme avant. `LLMOPS_ACTOR_AUTH=assertion` exige la clé et n'envoie jamais l'en-tête brut.

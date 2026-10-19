@@ -111,3 +111,12 @@ Le piège à éviter : trouver l'outil « intéressant » et continuer sans chif
 - le rapport d'audit reste utile pour relire : « Télécharger le rapport d'audit », ou `--report` en ligne de commande ;
 - une clause évacuée à tort se récupère à l'écran de revue par « Promouvoir en Sujet Archi », ou plus tard par `PATCH /api/projects/{id}/requirements/{SRC-xxxx:clause}` (pas encore d'écran dédié) ;
 - seule la décision d'un humain identifié rend une clause `asserted` dans le dossier ; une évacuation décidée exige un motif.
+
+## Après un échec : corriger, puis rejouer ailleurs
+
+Un faux négatif dangereux (critère « 0, non négociable ») impose de corriger, puis de rejouer. Deux pièges :
+
+- **Corriger le cas, pas la famille** : ajouter l'identifiant ou le mot-clé de la clause ratée fait passer le rejeu sans rien prouver. Corriger la
+  formulation générale (ex. `src/lib/domain/automationMarkers.ts` après le J0 LUMICC) et mesurer son coût sur les sorties archivées.
+- **Rejouer sur le même juge** : le juge a servi à régler le système, il ne mesure plus. Le rejeu se fait sur un second dossier avec une analyse de
+  référence fixée avant la mesure par quelqu'un qui n'a pas vu la sortie. Le dossier d'origine ne sert plus qu'à vérifier l'absence de régression.

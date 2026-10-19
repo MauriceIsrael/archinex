@@ -1,0 +1,6 @@
+# HTTPS obligatoire : Archinex ne pose ses cookies de session que sur https en production.
+# Nom de domaine public → certificat Let's Encrypt automatique (ports 80 et 443 ouverts).
+# « localhost » → autorité interne de Caddy (le navigateur avertit : certificat non reconnu).
+{$SANDBOX_DOMAIN} {
+	reverse_proxy archinex:8080
+}

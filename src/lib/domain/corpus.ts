@@ -17,6 +17,7 @@ export interface ExtractedClause {
 	text: string;
 	criticality: 'bloquant' | 'majeur' | 'info';
 	impactSummary?: string;
+	pageNumber?: number;
 }
 
 export interface InducedRule {

@@ -112,6 +112,7 @@ export function shredRfpTextToClauses(rawText: string): ExtractedClause[] {
 	let currentClause: Partial<ExtractedClause> | null = null;
 	let clauseCounter = 1;
 	const seenRefs = new Map<string, number>();
+	let currentPage: number | undefined = lines.some((l) => PAGE_MARKER.test(l.trim())) ? 1 : undefined;
 
 	// Regex robuste pour détecter les débuts d'articles ou exigences :
 	// Exemples supportés : REQ-Lot1-191, Art. 1.1, §2.1, Clause 3.1, Exigence NET-03, BR-001, NFR-SEC-002, REQ 12
@@ -123,6 +124,11 @@ export function shredRfpTextToClauses(rawText: string): ExtractedClause[] {
 	for (const rawLine of lines) {
 		const line = rawLine.trim();
 		if (!line) continue;
+		const pageMarkerMatch = line.match(/^--\s*(\d+)\s+of\s+\d+\s*--$/i);
+		if (pageMarkerMatch) {
+			currentPage = parseInt(pageMarkerMatch[1], 10);
+			continue;
+		}
 		// Ignorer les en-têtes purs de structure Markdown ou métadonnées
 		if (line.startsWith('#') || line.startsWith('---') || line.startsWith('Source:')) continue;
 
@@ -154,7 +160,8 @@ export function shredRfpTextToClauses(rawText: string): ExtractedClause[] {
 				id: `clause-${clauseRef.toLowerCase().replace(/[^a-z0-9_-]/g, '-')}`,
 				clauseRef,
 				title: title || `Exigence ${clauseRef}`,
-				text: ''
+				text: '',
+				pageNumber: currentPage
 			};
 		} else if (currentClause) {
 			currentClause.text = currentClause.text ? `${currentClause.text} ${line}` : line;
@@ -167,7 +174,8 @@ export function shredRfpTextToClauses(rawText: string): ExtractedClause[] {
 					title: line.slice(0, 50).trim() + (line.length > 50 ? '...' : ''),
 					text: line,
 					criticality: detectCriticality(line),
-					impactSummary: 'Extrait analysé du cahier des charges'
+					impactSummary: 'Extrait analysé du cahier des charges',
+					pageNumber: currentPage
 				});
 				clauseCounter++;
 			}
@@ -256,7 +264,12 @@ export function stripPageFurniture(rawText: string): string {
 	let afterPageFurniture = false;
 	for (const l of lines) {
 		const t = l.trim();
-		if (PAGE_MARKER.test(t) || furniture.has(t)) {
+		if (PAGE_MARKER.test(t)) {
+			out.push(t);
+			afterPageFurniture = true;
+			continue;
+		}
+		if (furniture.has(t)) {
 			afterPageFurniture = true;
 			continue;
 		}
@@ -276,7 +289,8 @@ function finalizeClause(partial: Partial<ExtractedClause>, counter: number): Ext
 		title: partial.title || `Exigence ${counter}`,
 		text,
 		criticality: detectCriticality(fullContent),
-		impactSummary: `Impact sur le dimensionnement et la validation d'architecture`
+		impactSummary: `Impact sur le dimensionnement et la validation d'architecture`,
+		pageNumber: partial.pageNumber
 	};
 }
 

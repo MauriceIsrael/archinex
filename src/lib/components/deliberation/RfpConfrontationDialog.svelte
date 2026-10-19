@@ -13,6 +13,8 @@
 	import { detectApplicableFrameworks, type DetectedFramework } from '$lib/domain/regulatoryFrameworks';
 	import type { LocalLlmModel, RfpFactorizationResponse } from '$lib/domain/factorization';
 	import RfpFactorizationReview from './RfpFactorizationReview.svelte';
+	import RfpExtractionVerification from './RfpExtractionVerification.svelte';
+	import type { HumanExtractionValidation } from '$lib/domain/rfpExtractionReport';
 	import ReuseConfirmationModal from '$lib/components/kb/ReuseConfirmationModal.svelte';
 	import type { SimilarKnowledgeItem, ReuseConfirmation } from '$lib/types/llmops';
 	import {
@@ -84,6 +86,8 @@
 	let fileParseSuccess = $state<string | null>(null);
 	let fileParseWarning = $state<string | null>(null);
 	let fileParseError = $state<string | null>(null);
+	let extractedPages = $state<Array<{ pageNumber: number; text: string }> | undefined>(undefined);
+	let extractionValidation = $state<HumanExtractionValidation | null>(null);
 
 	// Confrontation classique clause-par-clause
 	let isAnalyzing = $state<boolean>(false);
@@ -355,6 +359,8 @@
 		factorizationResponse = null;
 		similarAssetsByClause = {};
 		clauseReuseConfirmations = {};
+		extractedPages = undefined;
+		extractionValidation = null;
 	}
 
 	async function handleFetchUrl() {
@@ -380,6 +386,8 @@
 			documentSource = data.sourceUrl;
 			confrontationResult = null;
 			factorizationResponse = null;
+			extractedPages = undefined;
+			extractionValidation = null;
 		} catch (err: unknown) {
 			fetchError = err instanceof Error ? err.message : 'Erreur lors de la récupération';
 		} finally {
@@ -426,6 +434,12 @@
 				if (data.title) {
 					documentTitle = data.title;
 				}
+				if (data.pages) {
+					extractedPages = data.pages;
+				} else {
+					extractedPages = undefined;
+				}
+				extractionValidation = null;
 
 				if (data.warning) {
 					fileParseWarning = data.warning;
@@ -444,6 +458,8 @@
 				const content = event.target?.result as string;
 				if (content) {
 					rfpText = content;
+					extractedPages = undefined;
+					extractionValidation = null;
 					fileParseSuccess = `Fichier textuel chargé avec succès (${content.length.toLocaleString('fr-FR')} caractères).`;
 				}
 			};
@@ -477,7 +493,8 @@
 					model: selectedModel,
 					customPromptDirectives: customPromptDirectives.trim() || undefined,
 					documentTitle,
-					sourceText: rfpText
+					sourceText: rfpText,
+					extractionValidation
 				})
 			});
 
@@ -689,6 +706,7 @@
 						toQualifyCount={factorizationResponse.toQualifyCount}
 						clarifications={factorizationResponse.clarifications}
 						allAuditedRequirements={factorizationResponse.allAuditedRequirements}
+						extractionValidation={factorizationResponse.extractionValidation}
 						onConfirm={(finalSubjects: InitialSubjectInput[]) => {
 							if (factorizationResponse?.inProgress) {
 								factorizationError = "Analyse encore en cours : l'import sera possible une fois le résultat final disponible.";
@@ -1031,6 +1049,18 @@
 									{/if}
 									</div>
 							</div>
+						{/if}
+
+						<!-- ─── Rapport d'Extraction & Échantillon de Vérification Humaine ── -->
+						{#if rfpText.trim() && !isParsingFile}
+							<RfpExtractionVerification
+								rawText={rfpText}
+								clauses={shredRfpTextToClauses(rfpText)}
+								pages={extractedPages}
+								actorEmail={actorEmail}
+								bind:validation={extractionValidation}
+								onValidated={(val) => { extractionValidation = val; }}
+							/>
 						{/if}
 
 						<!-- ─── Boutons d'Action Principale ────────────────────────────── -->

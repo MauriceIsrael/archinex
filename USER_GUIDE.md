@@ -149,6 +149,27 @@ Quand un sujet du RFP ressemble à une décision déjà validée, Archinex la **
 
 Seules les issues de réutilisation marquent la clause « Conforme (Réutilisé) », avec qui l'a validée et sur quelles hypothèses. Un rejet ou un report laisse la question ouverte et le dit.
 
+### 5.4 Vérification du découpage PDF sur échantillon & Rapport d'extraction (Issue #50)
+
+Avant d'exécuter l'audit ou la factorisation sémantique d'un document, Archinex affiche un rapport d'extraction synthétique avec contrôle de cohérence :
+1. **Rapport d'extraction & Taux de couverture** :
+   - Indication du nombre de pages et du nombre d'exigences découpées.
+   - Calcul de la couverture textuelle (`coverageRate`) avec seuil d'avertissement si elle est inférieure à 60 %.
+   - Synthèse des motifs détectés (`REQ-Lot1-*`, `Art. *`, `Clause *`, `§*`) et mise en évidence du motif dominant.
+2. **Détection explicite des anomalies** :
+   - Trous dans la numérotation séquentielle avec affichage des plages manquantes (ex: `REQ-Lot1-13 .. REQ-Lot1-14`).
+   - Doublons disambiguïsés avec suffixe `#2` (renvois ou tableaux de synthèse).
+   - Références sans numéro explicite (`REQ-Lot1-?`) ou atypiques.
+   - Clauses anormalement courtes (< 25 caractères) ou volumineuses (> 2 500 caractères).
+   - Pages sans exigence identifiée (pages de garde, tables des matières, etc.).
+3. **Échantillon de vérification humaine côte à côte** :
+   - Présentation de toutes les anomalies prioritaires complétées de clauses de contrôle.
+   - Vue côte à côte : clause extraite à gauche, extrait de la page source correspondante du PDF (avec numéro de page) à droite.
+   - Possibilité d'accepter l'échantillon ou de signaler une clause problématique.
+4. **Traçabilité & Persistance** :
+   - La validation humaine est persistée avec l'exécution (`FactorizationRun`) et rappelée dans la synthèse des résultats.
+   - Une exécution lancée sans validation humaine préalable est marquée comme telle avec avertissement explicite.
+
 ## 6. Atelier de Doctrine & Simulation de Clauses (`/kb/workshop`) — Lot A8
 
 L'Atelier de Doctrine permet aux experts (`kb:maintain`, `kb:review`, `kb:admin`) de formuler de nouvelles clauses de doctrine, de définir des prédicats formels vérifiables par machine, de simuler l'impact sur un banc de test et de détecter d'éventuelles régressions de rappel avant soumission.

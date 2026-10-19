@@ -37,6 +37,7 @@ export const POST: RequestHandler = async ({ request }) => {
 		let pagesCount = 1;
 		let docTitle = fileName.replace(/\.[^/.]+$/, '');
 		let warning: string | null = null;
+		let pagesList: Array<{ pageNumber: number; text: string }> | undefined = undefined;
 
 		if (isPdf) {
 			try {
@@ -45,6 +46,15 @@ export const POST: RequestHandler = async ({ request }) => {
 				const pdfResult = await parser.getText();
 				pagesCount = pdfResult.total || (pdfResult.pages ? pdfResult.pages.length : 1);
 				extractedText = (pdfResult.text || '').trim();
+
+				// S'assurer que les sauts de page contiennent un marqueur standardisé si le PDF ne les a pas
+				const hasPageMarkers = /^--\s*\d+\s+of\s+\d+\s*--$/im.test(extractedText);
+				if (!hasPageMarkers && pdfResult.pages && pdfResult.pages.length > 1) {
+					extractedText = pdfResult.pages
+						.map((p: any, idx: number) => (idx > 0 ? `-- ${p.num} of ${pagesCount} --\n${p.text || ''}` : (p.text || '')))
+						.join('\n\n')
+						.trim();
+				}
 
 				// Tenter d'extraire des métadonnées du document si disponibles
 				try {
@@ -55,6 +65,10 @@ export const POST: RequestHandler = async ({ request }) => {
 				} catch {
 					// Métadonnées optionnelles
 				}
+
+				pagesList = pdfResult.pages
+					? pdfResult.pages.map((p: any) => ({ pageNumber: p.num, text: (p.text || '').trim() }))
+					: undefined;
 
 				await parser.destroy();
 			} catch (pdfErr: unknown) {
@@ -85,6 +99,7 @@ export const POST: RequestHandler = async ({ request }) => {
 			length: extractedText.length,
 			hasText: extractedText.length >= 15,
 			text: extractedText,
+			pages: pagesList,
 			warning
 		});
 	} catch (err: unknown) {

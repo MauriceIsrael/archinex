@@ -156,6 +156,7 @@ describe('Découpage d\'un RFP extrait de PDF : mobilier de page et références
 	it('recolle une exigence coupée par un saut de page', () => {
 		const req1 = shredRfpTextToClauses(text).find((c) => c.clauseRef === 'REQ-Lot1-1')!;
 		expect(req1.text).toBe('Le cœur doit rester synchronisé plus d\'un mois sans GNSS.');
+		expect(req1.pageNumber).toBe(1);
 	});
 
 	it('sépare un numéro collé au titre et signale une référence sans numéro', () => {

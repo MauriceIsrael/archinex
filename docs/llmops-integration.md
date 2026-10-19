@@ -290,6 +290,23 @@ Conformément à la spécification du banc de test en boîte noire (`archinex-be
 - **Validation contractuelle (`tests/contract/benchmark-adapter.test.ts`)** :
   - 4 tests automatisés vérifiant la stricte séparation S2 / S3, le calcul des interactions d'experts, les sollicitations non couvertes (`expert_unanswered`), et l'intégrité cryptographique absolue (`verifyEngagementBundle`).
 
+## 7 quater. Identité de l'expert : assertion signée (LLMOps#144)
+
+Archinex appelle le Hub avec un jeton de service. Pour dire **quel expert** agit, il envoyait l'en-tête brut `X-Actor-Email` : tout porteur
+du jeton pouvait se faire passer pour n'importe qui, et la séparation des tâches du Hub (l'auteur d'un candidat ne le relit pas) ne valait
+que ce que l'appelant voulait bien écrire. Archinex peut maintenant envoyer une **assertion signée** (`X-Actor-Token`) :
+
+- JWT EdDSA (Ed25519), en-tête `{alg: EdDSA, typ: JWT, kid}`, claims `iss` (« archinex »), `aud` (« knowledge-hub »), `sub` et `email`
+  (l'expert de la session), `iat`, `nbf`, `exp` (60 s par défaut, 300 s au plus) et un `jti` neuf par requête (le Hub refuse le rejeu).
+  Les droits viennent du registre d'experts du Hub : l'assertion ne donne aucun rôle.
+- Mise en service : `node scripts/gen-actor-key.mjs [kid]` ; la clé **privée** va dans l'environnement d'Archinex
+  (`ARCHINEX_ACTOR_PRIVATE_KEY`, `ARCHINEX_ACTOR_KID`), le **JWKS public** est déclaré au Hub (voir la documentation du Hub pour la variable
+  qui le charge). Aucune clé privée dans le dépôt ni dans le Hub.
+- `LLMOPS_ACTOR_AUTH` : `auto` (défaut : assertion si une clé est configurée, sinon en-tête brut), `assertion` (clé exigée, jamais d'en-tête
+  brut : à utiliser quand le Hub est en mode strict), `header` (en-tête brut seulement : serveur de contrat, tests).
+- **Limite** : tant que le Hub n'est pas en mode strict, il accepte encore l'en-tête brut d'un autre appelant ; l'assertion protège l'identité
+  seulement quand le Hub refuse l'en-tête brut. Les deux réglages vont ensemble.
+
 ## 8. Gouvernance de la Base de Connaissances (API v1)
 
 Les lots de gouvernance étendent l'intégration au-delà du protocole MCP en appelant directement l'API REST de gouvernance avec propagation d'identité souveraine (`X-Actor-Email`) :

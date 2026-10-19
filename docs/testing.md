@@ -41,6 +41,11 @@ tournent que quand quelqu'un les lance.
 
 ### Lancer les tests « live » contre un Hub
 
+**La CI les lance** : `.github/workflows/hub-live.yml` extrait le Hub (dépôt public LLMOps), démarre son serveur de contrat sur le runner
+et rejoue les 10 fichiers ci-dessous, sur chaque PR, sur `main`, chaque nuit et à la demande (`llmops_ref` : branche, étiquette ou empreinte du Hub).
+Il éprouve Archinex contre le Hub **tel qu'il est sur `main`**, pas contre une version figée : un échec nocturne sans changement
+d'Archinex veut dire que le Hub a changé. Rejouer en local reste utile pour déboguer :
+
 Le Hub fournit un serveur de contrat jetable (copie de travail de la base de connaissances, gouvernance SQLite, jetons de test).
 
 ```bash

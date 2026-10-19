@@ -48,6 +48,7 @@ import type {
   SimilarityRelation,
   CheckClauseRow
 } from '../../src/lib/types/llmops';
+import { AssertionRejected, verifyActorAssertion, decodeAssertion, type ActorAssertionPolicy } from './actorAssertionVerifier';
 
 export interface FakeLlmopsState {
   health: LLMOpsHealth;
@@ -55,6 +56,8 @@ export interface FakeLlmopsState {
   frameworkCoverage: FrameworkCoverage;
   candidates: KbCandidate[];
   owners: KbOwner[];
+  /** Politique d'assertions d'acteur signées (Hub 1.37). Absente : le jeton est décodé sans être vérifié. */
+  actorAssertion?: ActorAssertionPolicy;
   inbox: KbReviewInboxItem[];
   candidateDetails: Record<string, KbCandidateDetail>;
   comments: Record<string, KbComment[]>;
@@ -1000,6 +1003,30 @@ export async function startFakeLlmopsServer(initialState?: Partial<FakeLlmopsSta
       res.end(JSON.stringify(data));
     };
 
+    // Identité de l'acteur : assertion signée (X-Actor-Token) vérifiée comme le Hub 1.37, ou en-tête brut X-Actor-Email.
+    const actorToken = (req.headers['x-actor-token'] || req.headers['x-actor-assertion']) as string | undefined;
+    if (actorToken) {
+      try {
+        const claims = state.actorAssertion
+          ? verifyActorAssertion(actorToken, state.actorAssertion)
+          : decodeAssertion(actorToken).payload;
+        req.headers['x-actor-email'] = String(claims.email || claims.sub || '');
+      } catch (err) {
+        if (!(err instanceof AssertionRejected)) throw err;
+        return json(err.code === 'replay_detected' || err.code === 'token_revoked' ? 403 : 401, {
+          status: 'unauthorized',
+          error: err.code,
+          reason: err.reason
+        });
+      }
+    } else if (state.actorAssertion?.strict && req.headers['x-actor-email']) {
+      return json(401, {
+        status: 'unauthorized',
+        error: 'assertion_required',
+        reason: 'Mode strict : l’en-tête brut X-Actor-Email est refusé, une assertion signée est exigée.'
+      });
+    }
+
     // Parse body for POST / PUT / PATCH
     let body: any = null;
     if (method === 'POST' || method === 'PUT' || method === 'PATCH') {
@@ -1406,6 +1433,15 @@ export async function startFakeLlmopsServer(initialState?: Partial<FakeLlmopsSta
           return json(403, {
             status: 'error',
             error: `Interdit: l’expert ${actorEmail} ne possède pas le domaine '${candidateDomain}' requis pour cette revue`
+          });
+        }
+
+        // 400 separation_of_duties (contrat 1.37) : l'auteur d'un candidat ne peut pas le relire. Forme réelle du Hub.
+        if (String(candidate.author || '').toLowerCase() === actorEmail.toLowerCase()) {
+          return json(400, {
+            status: 'invalid_argument',
+            argument: 'reviewer',
+            reason: 'separation_of_duties: the author of a candidate cannot review it (author handle match).'
           });
         }
 

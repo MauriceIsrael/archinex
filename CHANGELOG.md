@@ -8,6 +8,14 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Sécurité : le login n'accepte plus le hash stocké comme mot de passe (archinex#137)
+- `POST /api/auth/login` et `POST /api/invite/accept` (compte existant) acceptaient aussi `user.passwordHash === password` (repli
+  « texte clair » des comptes de démonstration) : qui lisait `users.passwordHash` (fuite de base, sauvegarde) ouvrait la session en
+  le soumettant tel quel. Les deux routes passent par `verifyPassword` (`src/lib/auth/password.server.ts`), bcrypt seulement.
+- Reproduit avant le correctif (le hash donnait un 200), 5 tests ensuite (`tests/integration/login-no-plaintext-fallback.test.ts`).
+- Conséquence : un compte dont `passwordHash` contiendrait encore un mot de passe en clair ne peut plus se connecter. `prisma/seed.ts`
+  et les créations de comptes hachent déjà ; à refaire par le seed ou une réinitialisation de mot de passe si un tel compte existe.
+
 ### Bac à sable : un Hub et un Archinex neufs et vierges, en conteneurs (`deploy/sandbox`)
 - `./sandbox.sh up` construit et démarre le Hub (LLMOps), Archinex et un proxy HTTPS (Caddy) sur une URL de test, sans engagement,
   projet ni donnée : 4 comptes de test aux mots de passe aléatoires, registre des experts du Hub réduit à ces 4 personnes, Hub en

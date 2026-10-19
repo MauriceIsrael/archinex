@@ -2,7 +2,7 @@ import { json } from '@sveltejs/kit';
 import { signAccessToken, signRefreshToken } from '$lib/auth/jwt.server';
 import { prisma } from '$lib/server/prisma';
 import type { RequestHandler } from './$types';
-import bcrypt from 'bcryptjs';
+import { verifyPassword } from '$lib/auth/password.server';
 
 /**
  * Login Handler — DB-backed authentication with bcrypt.
@@ -24,13 +24,8 @@ export const POST: RequestHandler = async ({ request, cookies, url }) => {
       return json({ message: 'Invalid email or password' }, { status: 401 });
     }
 
-    // 2. Check credentials with bcrypt
-    const passwordMatch = await bcrypt.compare(password, user.passwordHash);
-    
-    // Fallback for demo users with plain text (optional, but safer to migrate)
-    const isPlainTextMatch = user.passwordHash === password;
-    
-    if (!passwordMatch && !isPlainTextMatch) {
+    // 2. Check credentials with bcrypt (no plain-text fallback: archinex#137)
+    if (!(await verifyPassword(password, user.passwordHash))) {
       return json({ message: 'Invalid email or password' }, { status: 401 });
     }
 

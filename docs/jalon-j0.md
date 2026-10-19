@@ -22,7 +22,10 @@ Deux listes, figées et datées.
 
 Puis figez : `git add` et commit avec la date. Le commit est la preuve que le juge précède la mesure.
 
-> Le fichier `examples/lumicc-noc/reference-analysis.json` provient de l'ancien audit câblé et son auteur n'est pas établi. Il ne peut servir de juge qu'après relecture par un architecte qui ne l'a pas produit. Pour un test sans enjeu, il suffit ; pour décider, écrivez le vôtre.
+> **Statut du juge de référence** :
+> - Le fichier historique `examples/lumicc-noc/reference-analysis.json` provenait de l'ancien audit câblé et son auteur n'était pas établi.
+> - Une analyse de référence indépendante à auteur établi a été rédigée à l'aveugle et figée dans `examples/lumicc-noc/reference-analysis-independent.json` (commit `bdc3e4d`) avant toute mesure.
+> - Les résultats réels de la double passe sont archivés dans `eval-results/rapport-1.md`, `eval-results/rapport-2.md`, et la décision formelle dans `eval-results/decision-j0.md`.
 
 ## 2. Fixer les critères de décision (avant de compter)
 
@@ -96,6 +99,10 @@ Motif en trois lignes : …
 ```
 
 Le piège à éviter : trouver l'outil « intéressant » et continuer sans chiffre. Un GO se justifie par des critères écrits avant, pas par une impression.
+
+> **Exécution réelle du Jalon J0 (18/10/2026)** :
+> Consultez la fiche de décision remplie et scellée : [`eval-results/decision-j0.md`](file:///c:/Users/Momo/Documents/Dev/archinex/eval-results/decision-j0.md).
+> Verdict obtenu : **CORRIGER puis rejouer** (1 faux négatif dangereux `REQ-Lot1-216` à corriger, rappel 87-89 %, 4/4 angles ratés retrouvés). Les chiffres non sourcés (« 89 % » ou « 100 % de rappel ») sont officiellement rejetés au profit de ces mesures factuelles.
 
 ## Et les clauses qui ne deviennent pas des sujets ?
 

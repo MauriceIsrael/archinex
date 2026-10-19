@@ -43,7 +43,6 @@ playwright-report/
 test-results/
 tests/e2e/.auth/
 
-eval-results/
 
 # Private / local files
 Lulu.pdf

@@ -8,6 +8,14 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Bac à sable : un Hub et un Archinex neufs et vierges, en conteneurs (`deploy/sandbox`)
+- `./sandbox.sh up` construit et démarre le Hub (LLMOps), Archinex et un proxy HTTPS (Caddy) sur une URL de test, sans engagement,
+  projet ni donnée : 4 comptes de test aux mots de passe aléatoires, registre des experts du Hub réduit à ces 4 personnes, Hub en
+  mode strict (assertions d'acteur signées, clé d'Archinex générée au premier lancement). `reset` efface les données, `destroy` tout.
+- N'exécute pas `docker-entrypoint.sh`, qui sème des comptes de démonstration aux mots de passe publics (archinex#137 pour le repli
+  « texte clair » du login). Exige un Hub au contrat ≥ 1.39. Les images n'ont pas été construites par l'auteur (pas de démon Docker) :
+  voir `deploy/sandbox/README.md`, « État de la vérification ».
+
 ### J0 : une clause d'automatisation n'est plus évacuée par le modèle seul (archinex#132)
 - Constat du jalon J0 (`eval-results/decision-j0.md`) : un faux négatif dangereux identique aux deux passes, `REQ-Lot1-216` (création automatique
   d'incidents), évacuée comme « fonction standard ITSM ».

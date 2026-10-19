@@ -1,0 +1,93 @@
+# Environnement de test jetable : le Hub de connaissances (LLMOps) et Archinex, vierges, derrière un proxy HTTPS.
+# Piloté par sandbox.sh (qui fabrique .sandbox/env) ; ne pas lancer à la main sans ce fichier d'environnement.
+# NON destiné à la production : jeton de service unique, embeddings jouets autorisés, comptes de test.
+name: archinex-sandbox
+
+services:
+  hub:
+    build:
+      context: ${LLMOPS_DIR}
+      dockerfile: Dockerfile
+    # root : le volume nommé /var/lib/llmops (base de gouvernance, engagements) doit être inscriptible sans préparation.
+    user: "0:0"
+    command: ["sh", "-c", "python /sandbox/hub-init.py && exec python -m mcp_server.main"]
+    environment:
+      LLMOPS_ENV: production
+      SERVER_TOKEN: ${DEMO_TOKEN}
+      # Le jeton de service d'Archinex : relit et délègue (kb:review, kb:delegate), tous engagements.
+      ENGAGEMENT_TOKENS: ${SERVICE_TOKEN}:kb:review,kb:delegate,*
+      # Vierge : aucun engagement (celui de démonstration de l'image n'est pas lu), gouvernance dans un volume neuf.
+      LLMOPS_ENGAGEMENTS_DIR: /var/lib/llmops/engagements
+      LLMOPS_ENGAGEMENT: ""
+      LLMOPS_BLUEPRINT: ""
+      CANDIDATES_BACKEND: sql
+      GOVERNANCE_DATABASE_URL: sqlite:////var/lib/llmops/governance.db
+      LLMOPS_STORAGE_PERSISTENT: "true"
+      # Identité : seules les assertions signées par Archinex désignent une personne (LLMOps#144).
+      LLMOPS_REQUIRE_SIGNED_ACTOR: "true"
+      ARCHINEX_JWKS: ${ARCHINEX_JWKS}
+      # Personnes de test enregistrées dans le registre des experts (voir hub-init.py).
+      SANDBOX_HUB_PERSONAS: ${SANDBOX_HUB_PERSONAS}
+    volumes:
+      - hub-state:/var/lib/llmops
+      - ./hub-init.py:/sandbox/hub-init.py:ro
+    healthcheck:
+      test: ["CMD", "curl", "-fsS", "http://localhost:8000/ready"]
+      interval: 10s
+      timeout: 5s
+      start_period: 40s
+      retries: 12
+    # Publié sur la boucle locale seulement, pour curl : jamais sur Internet.
+    ports:
+      - "127.0.0.1:${HUB_LOCAL_PORT:-8000}:8000"
+
+  archinex:
+    build:
+      context: ../..
+      dockerfile: Dockerfile
+    depends_on:
+      hub:
+        condition: service_healthy
+    # Ne pas lancer docker-entrypoint.sh : il sème des comptes de démonstration aux mots de passe publics.
+    command:
+      - sh
+      - -c
+      - npx prisma db push --accept-data-loss && node /app/sandbox-init.mjs && exec node build/index.js
+    environment:
+      NODE_ENV: production
+      ORIGIN: ${SANDBOX_ORIGIN}
+      JWT_SECRET: ${JWT_SECRET}
+      DATABASE_URL: file:/data/archinex.db
+      LLMOPS_BASE_URL: http://hub:8000
+      LLMOPS_ALLOWED_HOSTS: hub
+      LLMOPS_AUTH_TOKEN: ${SERVICE_TOKEN}
+      LLMOPS_ACTOR_AUTH: assertion
+      ARCHINEX_ACTOR_PRIVATE_KEY: ${ARCHINEX_ACTOR_PRIVATE_KEY}
+      ARCHINEX_ACTOR_KID: ${ARCHINEX_ACTOR_KID}
+      # Sans clé, les fonctions qui demandent un modèle sont indisponibles (pas de serveur local dans ce bac à sable).
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:-}
+      LLM_PROVIDER: auto
+      EMBEDDING_MODEL: toy-bow
+      ALLOW_TOY_EMBEDDINGS: "1"
+      SANDBOX_ARCHINEX_USERS: ${SANDBOX_ARCHINEX_USERS}
+    volumes:
+      - archinex-data:/data
+      - ./archinex-init.mjs:/app/sandbox-init.mjs:ro
+
+  proxy:
+    image: caddy:2
+    depends_on:
+      - archinex
+    environment:
+      SANDBOX_DOMAIN: ${SANDBOX_DOMAIN}
+    ports:
+      - "${SANDBOX_HTTP_PORT}:80"
+      - "${SANDBOX_HTTPS_PORT}:443"
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - proxy-data:/data
+
+volumes:
+  hub-state:
+  archinex-data:
+  proxy-data:

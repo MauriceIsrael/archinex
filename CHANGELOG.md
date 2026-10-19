@@ -19,9 +19,15 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 ### J0 : une clause d'automatisation n'est plus évacuée par le modèle seul (archinex#132)
 - Constat du jalon J0 (`eval-results/decision-j0.md`) : un faux négatif dangereux identique aux deux passes, `REQ-Lot1-216` (création automatique
   d'incidents), évacuée comme « fonction standard ITSM ».
-- Invariant déterministe `applyClassificationInvariants` : une clause non « info » qui décrit une automatisation (automatique, automatisé,
-  boucle fermée, auto-remédiation, « sans intervention humaine »… en français et en anglais, `src/lib/domain/automationMarkers.ts`) ne peut pas être
-  évacuée : elle passe « à qualifier », avec la proposition du modèle conservée pour l'humain. C'est une famille de formulations, pas un identifiant.
+- Double protection sur la famille d'automatisation (pas un cas isolé) :
+  1. **Consigne système** (`CLASSIFY_SYSTEM` dans `src/lib/server/ingest/arckitRequirementsPipeline.ts`) : instruit explicitement le modèle
+     que toute automatisation (auto-remédiation, boucle fermée, création ou bascule automatique, action sans intervention humaine) relève
+     de « deliberate » et n'est jamais une commodité.
+  2. **Invariant déterministe** (`applyClassificationInvariants` avec `src/lib/domain/automationMarkers.ts`) : une clause non « info » qui décrit
+     une automatisation ne peut pas être évacuée par le modèle : elle passe « à qualifier », avec la proposition du modèle conservée pour l'humain.
+- Traçabilité et auteur du juge : `AuditReference` (`src/lib/domain/requirementsAuditEval.ts`), `examples/reference-template.json`, les rapports Markdown
+  (`src/lib/domain/requirementsAuditReport.ts`) et `scripts/eval-requirements-audit.ts` intègrent et vérifient désormais l'auteur (`author`), la date (`date`)
+  et le statut (`status`) du juge indépendant.
 - Mesuré sur les évacuations archivées de J0 (92 clauses) : `REQ-Lot1-216` n'est plus évacuée ; `REQ-Lot1-259` (même famille) est aussi renvoyée ;
   « à qualifier » passe de 0 à 2 clauses sur 92 (2 %, plafond 30 %). Les quatre autres évacuations restent.
 - **Le jalon n'est pas rejoué** : ce correctif a été écrit en voyant le cas ; le rejeu doit se faire sur un autre dossier avec un juge fixé avant la mesure

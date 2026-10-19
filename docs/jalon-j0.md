@@ -14,7 +14,8 @@ La règle d'or : **le juge est écrit avant la mesure, par quelqu'un qui n'a pas
 
 Deux listes, figées et datées.
 
-**A. L'analyse de référence** (lisible par la machine). Copiez `examples/reference-template.json`. Listez :
+**A. L'analyse de référence** (lisible par la machine). Copiez `examples/reference-template.json`. Renseignez :
+- **l'auteur et la date** : rôle ou identité de l'architecte indépendant ayant rédigé le juge à l'aveugle (`"author"`, `"date"`, `"status": "fige_avant_mesure"`) ;
 - les **points durs** : les dilemmes qui méritaient un débat d'architecture, avec les clauses qui les portent ;
 - les **clarifications** : les questions que vous auriez posées au donneur d'ordre.
 
@@ -114,9 +115,11 @@ Le piège à éviter : trouver l'outil « intéressant » et continuer sans chif
 
 ## Après un échec : corriger, puis rejouer ailleurs
 
-Un faux négatif dangereux (critère « 0, non négociable ») impose de corriger, puis de rejouer. Deux pièges :
+Un faux négatif dangereux (critère « 0, non négociable ») impose de corriger, puis de rejouer. Règles méthodologiques :
 
-- **Corriger le cas, pas la famille** : ajouter l'identifiant ou le mot-clé de la clause ratée fait passer le rejeu sans rien prouver. Corriger la
-  formulation générale (ex. `src/lib/domain/automationMarkers.ts` après le J0 LUMICC) et mesurer son coût sur les sorties archivées.
-- **Rejouer sur le même juge** : le juge a servi à régler le système, il ne mesure plus. Le rejeu se fait sur un second dossier avec une analyse de
-  référence fixée avant la mesure par quelqu'un qui n'a pas vu la sortie. Le dossier d'origine ne sert plus qu'à vérifier l'absence de régression.
+- **Corriger la famille, pas le cas seul** : ajouter l'identifiant ou un mot-clé de la clause ratée fait passer le rejeu sans rien prouver.
+  La correction combine deux niveaux :
+  1. **La consigne en amont (`CLASSIFY_SYSTEM`)** : instruit explicitement le modèle que toute automatisation d'action d'exploitation (boucle fermée, auto-remédiation, création automatique d'incidents, action sans intervention humaine) relève de `deliberate` car le degré d'intervention humaine dans la boucle engage la responsabilité d'architecture et de sûreté de fonctionnement ;
+  2. **L'invariant déterministe en aval (`applyClassificationInvariants` + `src/lib/domain/automationMarkers.ts`)** : si le modèle tente néanmoins d'évacuer une clause d'automatisation comme commodité, elle est interceptée et renvoyée en `to_qualify`.
+- **Rejouer sur un second dossier** : le juge ayant servi à identifier l'échec a indirectement réglé le système ; rejouer sur le même dossier ne mesure plus rien. Le rejeu s'effectue sur un second dossier avec une analyse de référence fixée avant la mesure par un architecte indépendant n'ayant pas vu la sortie. Le dossier d'origine ne sert plus qu'à vérifier l'absence de régression.
+- **Transparence et traçabilité du juge** : le juge doit porter formellement l'identité ou le rôle de l'architecte indépendant et la date de gel dans `reference-template.json` / `reference-analysis-independent.json`, consignés dans `eval-results/` et validés par le script d'évaluation (`npm run eval:requirements`).

@@ -75,6 +75,11 @@ async function main() {
 		integrityOk = metrics.integrityOk;
 
 		console.log('\n── Comparaison avec l\'analyse de référence ──');
+		if (reference.author) {
+			console.log(`Juge de référence             : ${reference.author}${reference.date ? ` (${reference.date})` : ''}${reference.status ? ` [${reference.status}]` : ''}`);
+		} else {
+			console.log('Juge de référence             : ⚠ Aucun auteur renseigné dans le fichier de référence');
+		}
 		console.log(`Rappel « à délibérer »        : ${pct(metrics.deliberateRecall)}`);
 		console.log(`Faux négatifs dangereux       : ${metrics.dangerousFalseNegatives.length}${metrics.dangerousFalseNegatives.length ? ` → ${metrics.dangerousFalseNegatives.join(', ')}` : ''}`);
 		console.log(`Référence laissée « à qualifier » : ${metrics.referenceLeftToQualify.length}`);

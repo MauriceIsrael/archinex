@@ -285,7 +285,7 @@ const ClassifyResponseSchema = z.object({
 });
 export type ClassifyItem = z.infer<typeof ClassifyResponseSchema>['items'][number];
 
-const CLASSIFY_SYSTEM = `Tu es architecte système senior (télécoms, infrastructures et systèmes critiques). Tu tries les exigences d'un appel d'offres pour décider lesquelles méritent un débat d'architecture.
+export const CLASSIFY_SYSTEM = `Tu es architecte système senior (télécoms, infrastructures et systèmes critiques). Tu tries les exigences d'un appel d'offres pour décider lesquelles méritent un débat d'architecture.
 
 Pour CHAQUE exigence reçue, choisis une disposition :
 - "deliberate" : l'exigence engage un choix d'architecture avec des alternatives réelles (compromis coût / risque / performance), entre en tension avec une autre contrainte (souveraineté, sécurité, disponibilité, interopérabilité), ou a un impact transverse. Donne en "reason" la tension en une phrase.
@@ -296,6 +296,7 @@ Règles impératives :
 - En cas de doute, ne choisis JAMAIS "commodity".
 - Une exigence de criticité "bloquant" n'est jamais "commodity".
 - Toute valeur chiffrée exigeante (durées, disponibilité, délais, volumes), toute exigence de souveraineté, de sécurité ou de continuité de service relève de "deliberate".
+- Toute exigence décrivant une automatisation (auto-remédiation, boucle fermée, création ou bascule automatique, action sans intervention humaine) relève de "deliberate" : le degré d'intervention humaine dans la boucle d'exploitation engage la responsabilité et l'architecture, ce n'est jamais une simple commodité.
 - N'invente aucun fait absent du texte.
 
 Catégorie ("category") : FR fonctionnelle, NFR non fonctionnelle (performance, disponibilité, résilience), INT interface ou interopérabilité, FAC installations physiques, BR règle de gestion ou gouvernance, DR donnée.

@@ -205,4 +205,21 @@ describe('Contract: KB Review Inbox, Expert Actions & 7 Checks (Lot A7 - Porte G
     expect(pollSince.status).toBe('ok');
     expect(pollSince.data!.events.length).toBe(0);
   });
+  it('12. séparation des tâches (Hub 1.37) : l’auteur ne relit pas son candidat, la raison est dite, un pair peut statuer', async () => {
+    const sub = await client.submitCandidate(
+      { kind: 'new_asset', title: 'Candidat de l’auteur', rationale: 'r', summary: 's', author: expertEmail,
+        source: { system: 'archinex', engagement: 'sod' } } as any,
+      expertEmail
+    );
+    const id = sub.candidate_id;
+
+    const own = await client.reviewCandidate(id, 'accept', { reason: 'je valide mon propre candidat' }, expertEmail);
+    expect(own.status).toBe('forbidden');
+    expect(own.code).toBe('separation_of_duties');
+    expect(own.error).toMatch(/auteur/i);
+    expect(own.error).not.toMatch(/Erreur HTTP/);
+
+    const peer = await client.reviewCandidate(id, 'accept', { reason: 'relu par un pair' }, 'peer@archinex.local');
+    expect(peer.status).toBe('ok');
+  });
 });

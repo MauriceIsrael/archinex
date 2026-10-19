@@ -197,7 +197,14 @@ describe.skipIf(!LIVE)('Contrat réel LLMOps — A11 santé, promotion, publicat
     );
     expect(sub.candidate_id).toMatch(/^CAND-\d{8}-\d{4}$/);
     candidateId = sub.candidate_id;
-    const acc = await client.reviewCandidate(candidateId, 'accept', { reason: 'Générique et éprouvé' }, ALICE);
+
+    // Hub 1.37 (séparation des tâches) : l'auteur ne relit pas son propre candidat, et Archinex le dit clairement.
+    const own = await client.reviewCandidate(candidateId, 'accept', { reason: 'Je valide mon propre candidat' }, ALICE);
+    expect(own.status, JSON.stringify(own)).toBe('forbidden');
+    expect(own.code).toBe('separation_of_duties');
+
+    // Un autre relecteur statue : le mainteneur (kb:maintain relit tous les domaines).
+    const acc = await client.reviewCandidate(candidateId, 'accept', { reason: 'Générique et éprouvé' }, MAINT);
     expect(acc.status, JSON.stringify(acc)).toBe('ok');
   });
 

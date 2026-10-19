@@ -58,6 +58,7 @@ export const PATCH: RequestHandler = async ({ params, request, locals }) => {
     return json(
       {
         status: 'forbidden',
+        ...(result.code ? { code: result.code } : {}),
         error:
           result.error ||
           'Action refusée (403) : vous ne possédez pas les droits de domaine requis pour statuer sur ce candidat.'

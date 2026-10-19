@@ -8,6 +8,12 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Identité des experts : assertion signée Ed25519 auprès du Hub (LLMOps#144)
+- `src/lib/server/llmops/actorAssertion.ts` : assertion d'acteur signée (`X-Actor-Token`, JWT EdDSA, `jti` neuf par requête, 60 s) quand une clé est
+  configurée ; sinon l'en-tête brut `X-Actor-Email` comme avant. `LLMOPS_ACTOR_AUTH=assertion` exige la clé et n'envoie jamais l'en-tête brut.
+- `scripts/gen-actor-key.mjs` produit la clé privée et le JWKS public. Faux Hub des tests : vérifie la signature, l'émetteur, le destinataire,
+  l'expiration et le rejeu comme le Hub 1.37, avec un mode strict.
+
 ### Revue des candidats : séparation des tâches du Hub 1.37 (#131)
 - Le Hub interdit à l'auteur d'un candidat de le relire. Archinex affichait « Erreur HTTP 400 » ; il dit maintenant « Séparation des tâches : vous êtes l'auteur… »
   (statut `forbidden`, code `separation_of_duties`), et l'écran de revue désactive accepter / amender / rejeter pour l'auteur avec une note.

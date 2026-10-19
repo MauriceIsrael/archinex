@@ -3,6 +3,7 @@ import { getInvitationByToken, updateInvitationStatus } from '$lib/server/invita
 import { prisma } from '$lib/server/prisma';
 import { signAccessToken, signRefreshToken } from '$lib/auth/jwt.server';
 import bcrypt from 'bcryptjs';
+import { verifyPassword } from '$lib/auth/password.server';
 import type { RequestHandler } from './$types';
 
 export const POST: RequestHandler = async ({ request, cookies, locals }) => {
@@ -64,10 +65,7 @@ export const POST: RequestHandler = async ({ request, cookies, locals }) => {
 			if (!password) {
 				throw error(400, 'Mot de passe requis pour confirmer votre identité');
 			}
-			const passwordMatch = await bcrypt.compare(password, user.passwordHash);
-			const isPlainTextMatch = user.passwordHash === password;
-
-			if (!passwordMatch && !isPlainTextMatch) {
+			if (!(await verifyPassword(password, user.passwordHash))) {
 				throw error(401, 'Mot de passe incorrect pour ce compte existant');
 			}
 		}

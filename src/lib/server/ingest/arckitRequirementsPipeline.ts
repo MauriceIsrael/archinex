@@ -24,6 +24,7 @@ import { anthropicCapabilities, localLlmClient } from '$lib/server/llm/localLlmC
 import { cleanJsonString, inferTargetSubjectsCount, type KbItemSummary } from '$lib/server/llm/rfpFactorizer';
 import type { ChatOptions } from '$lib/server/llm/types';
 import type { RequirementDisposition } from '$lib/domain/requirementAudit';
+import { findAutomationMarker } from '$lib/domain/automationMarkers';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -380,6 +381,15 @@ export function applyClassificationInvariants(
 			if (clause.criticality === 'bloquant') {
 				return toQualify(
 					`Clause bloquante : le modèle proposait de l'évacuer (« ${clip(reason, 140)} »), ce qui exige une revue humaine.`,
+					category
+				);
+			}
+			// Automatisation d'une action d'exploitation : le degré d'intervention humaine est un choix, pas une commodité (J0, archinex#132).
+			// Les clauses « info » (mobilier, câblage) ne sont pas concernées.
+			const automation = clause.criticality === 'info' ? null : findAutomationMarker(`${clause.title}\n${clause.text}`);
+			if (automation) {
+				return toQualify(
+					`Automatisation (« ${automation} ») : le degré d'intervention humaine est un choix d'exploitation, le modèle ne peut pas l'évacuer seul (« ${clip(reason, 140)} »).`,
 					category
 				);
 			}

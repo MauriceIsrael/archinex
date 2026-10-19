@@ -1,5 +1,5 @@
 import { GenericContainer, Wait, type StartedTestContainer } from 'testcontainers';
-import { PrismaClient } from '@prisma/client';
+import { createPrismaClient, type PrismaClient } from '../../src/lib/server/prismaFactory';
 import { execSync } from 'node:child_process';
 import { existsSync, unlinkSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -65,14 +65,12 @@ export async function setupCleanEnvironment(): Promise<CleanTestEnvironment> {
 	}
 
 	console.log('[TestEnv] Initialisation du schéma Prisma vierge...');
-	execSync(`npx prisma db push --skip-generate --accept-data-loss`, {
+	execSync(`npx prisma db push --accept-data-loss`, {
 		env: { ...process.env, DATABASE_URL },
 		stdio: 'pipe'
 	});
 
-	const prisma = new PrismaClient({
-		datasources: { db: { url: DATABASE_URL } }
-	});
+	const prisma = createPrismaClient(DATABASE_URL);
 
 	// 4. Insertion du Lead Architect et des permissions Casbin
 	await prisma.user.create({

@@ -1,7 +1,7 @@
 import { prisma } from '../prisma';
 import { ConcurrencyConflictError, type ActorInfo } from './projectsDb';
 import { validateEvaluation, type Criterion, type Option, type OptionEvaluation, type TradeOff, type Decision, type CriterionKind, type OptionOrigin, type OptionStatus, type DecisionReversibility } from '$lib/domain/options';
-import type { Prisma } from '@prisma/client';
+import type { Prisma } from '../../../generated/prisma/client';
 
 // -------------------------------------------------------------
 // CRITERIA

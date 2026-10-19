@@ -165,7 +165,7 @@ describe.skipIf(!SHOULD_RUN)('E2E : Réglementation → RFP → Délibération �
       }
     }
 
-    execSync('npx prisma db push --skip-generate --accept-data-loss', {
+    execSync('npx prisma db push --accept-data-loss', {
       env: { ...process.env, DATABASE_URL },
       stdio: 'pipe'
     });

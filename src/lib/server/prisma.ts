@@ -1,4 +1,4 @@
-import { PrismaClient } from '@prisma/client';
+import { createPrismaClient, type PrismaClient } from './prismaFactory';
 
 /**
  * Prisma Client singleton (instanciation paresseuse pour éviter
@@ -10,7 +10,7 @@ function getPrisma(): PrismaClient {
 	if (!_prisma) {
 		console.log('[Prisma Init] CWD:', process.cwd());
 		console.log('[Prisma Init] DATABASE_URL:', process.env.DATABASE_URL);
-		_prisma = new PrismaClient();
+		_prisma = createPrismaClient();
 		// Mode WAL + busy_timeout pour supporter les écritures concurrentes sans verrouiller SQLite
 		_prisma.$executeRawUnsafe('PRAGMA journal_mode = WAL;').catch(() => {});
 		_prisma.$executeRawUnsafe('PRAGMA busy_timeout = 5000;').catch(() => {});

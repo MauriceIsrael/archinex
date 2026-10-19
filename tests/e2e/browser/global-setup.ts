@@ -1,5 +1,5 @@
 import { GenericContainer, Wait, type StartedTestContainer } from 'testcontainers';
-import { PrismaClient } from '@prisma/client';
+import { createPrismaClient, type PrismaClient } from '../../../src/lib/server/prismaFactory';
 import { execSync, spawn, type ChildProcess } from 'node:child_process';
 import { existsSync, unlinkSync, writeFileSync, mkdirSync } from 'node:fs';
 import { resolve } from 'node:path';
@@ -109,14 +109,12 @@ export default async function globalSetup() {
 
   process.env.DATABASE_URL = DATABASE_URL;
   console.log('[Playwright Global Setup] Initialisation du schéma SQLite...');
-  execSync('npx prisma db push --skip-generate --accept-data-loss', {
+  execSync('npx prisma db push --accept-data-loss', {
     env: { ...process.env, DATABASE_URL },
     stdio: 'pipe'
   });
 
-  const prisma = new PrismaClient({
-    datasources: { db: { url: DATABASE_URL } }
-  });
+  const prisma = createPrismaClient(DATABASE_URL);
 
   // Nettoyage et seed des utilisateurs
   await prisma.kbEventCursor.deleteMany();

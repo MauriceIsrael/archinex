@@ -10,6 +10,7 @@
  * Code de sortie : 0 si l'intégrité est respectée, 1 sinon, 2 si le modèle était injoignable.
  */
 
+import 'dotenv/config';
 import { readFileSync, writeFileSync, mkdirSync } from 'node:fs';
 import { basename, dirname, resolve } from 'node:path';
 import { shredRfpTextToClauses } from '../src/lib/domain/rfpConfrontation';

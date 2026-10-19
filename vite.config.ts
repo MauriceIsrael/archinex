@@ -20,7 +20,6 @@ export default defineConfig({
 			'casbin',
 			'casbin-prisma-adapter',
 			// Packages SSR découverts trop tard (prisma, jose)
-			'@prisma/client',
 			'jose',
 			// Transitives svelte-i18n
 			'intl-messageformat',

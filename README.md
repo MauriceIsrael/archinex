@@ -96,6 +96,7 @@ npm install
 cp .env.example .env
 
 # 3. Initialiser le schéma SQLite puis charger les données initiales (comptes démo & exemples)
+npx prisma generate
 npx prisma db push
 npx prisma db seed
 # Astuce : `npm run db:reset` permet de réinitialiser complètement la base à tout moment

@@ -40,6 +40,7 @@ LLM_LOCAL_ENDPOINT="http://localhost:11434"
 
 ### 2.3 Initialisation de la Base de Données
 ```bash
+npx prisma generate
 npx prisma db push
 npx prisma db seed
 # Ou réinitialisation complète : npm run db:reset
@@ -111,7 +112,7 @@ Pour ajouter un nouveau format cible de projection (ex: Terraform ou PlantUML C4
 
 ## 5. Intégration continue
 
-`.github/workflows/verify.yml` exécute `npm run verify` sur un clone propre à chaque push et pull request. Une PR rouge ne se fusionne pas. Pour reproduire localement : `cp .env.example .env && npx prisma db push && npm run verify`.
+`.github/workflows/verify.yml` exécute `npm run verify` sur un clone propre à chaque push et pull request. Une PR rouge ne se fusionne pas. Pour reproduire localement : `cp .env.example .env && npx prisma generate && npx prisma db push && npm run verify`.
 
 Les tests « live » (vrai LLMOps) et les parcours Playwright ne tournent pas en CI : ils sont ignorés sans `LLMOPS_LIVE_URL` ou Docker. Lancez-les avant une fusion qui touche l'intégration LLMOps.
 

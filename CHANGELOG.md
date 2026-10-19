@@ -30,6 +30,12 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
   - Tests de contrat d'extraction et de détection d'anomalies sur deux mises en page de RFP réelles (`examples/Lulu.pdf` de 194 pages et `examples/lumicc-noc/rfp-section4-noc.md`) dans `tests/contract/rfp-extraction-report.test.ts`.
   - Tests de contrat de persistance et traçabilité de la validation dans `tests/contract/rfp-factorize-validation.test.ts`.
 
+### Montée de version Prisma 6.19 → 7.10 (#60)
+- **Prisma 7.10 (dernière 7.x stable)** avec le générateur `prisma-client` (sortie dans `src/generated/prisma`, ignorée par git) et l'adaptateur `@prisma/adapter-better-sqlite3` (instanciation centralisée dans `src/lib/server/prismaFactory.ts`).
+- L'URL de base passe dans `prisma.config.ts` ; les chemins `file:./` restent résolus relativement à `prisma/`.
+- `prisma db push` ne génère plus le client : `npx prisma generate` ajouté en CI, et l'option `--skip-generate` supprimée.
+- `casbin-prisma-adapter@1.12` est déjà compatible Prisma 7 (peer `^7.2.0`). Prisma 8 reste en release candidate : non ciblé.
+
 ### Export d'Architecture HLD & Projections C4/Mermaid dans l'Engagement Bundle (#122)
 - **Peuplement automatique du modèle d'architecture (`data.architecture`)** :
   - `assembleEngagementBundle` extrait et synthétise les éléments (`BundleElement`) et relations (`BundleRelation`) à partir des sujets, options retenues et statements formalisés.

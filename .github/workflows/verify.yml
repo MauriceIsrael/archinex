@@ -3,11 +3,15 @@ name: verify
 # Porte qualité unique : garde-fou denylist, tests, types Svelte, build de production.
 # C'est la commande locale `npm run verify`, exécutée sur un clone propre.
 #
+# Déclencheurs : les PR et `main`. Sans filtre sur `push`, une branche avec une PR ouverte lançait deux runs à chaque push
+# (un pour le push, un pour la PR). Une branche sans PR n'est pas vérifiée ici : ouvrir la PR, en brouillon au besoin.
+#
 # Les tests « live » (contre un vrai serveur LLMOps) et les parcours Playwright ne tournent pas ici :
 # ils exigent un LLMOps réel (LLMOPS_LIVE_URL ou Docker) et sont ignorés sans lui.
 
 on:
   push:
+    branches: [main]
   pull_request:
 
 concurrency:
@@ -37,7 +41,7 @@ jobs:
         run: npm ci
 
       - name: Créer la base SQLite et générer le client Prisma
-        run: npx prisma db push
+        run: npx prisma generate && npx prisma db push
 
       - name: Vérifier (denylist, tests, types, build)
         run: npm run verify

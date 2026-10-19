@@ -43,7 +43,6 @@ playwright-report/
 test-results/
 tests/e2e/.auth/
 
-eval-results/
 
 # Private / local files
 Lulu.pdf
@@ -51,3 +50,6 @@ Lulu.pdf
 
 # Base locale de la copie de travail
 prisma/dev-wt.db*
+
+# Generated Prisma client (Prisma 7)
+/src/generated/prisma

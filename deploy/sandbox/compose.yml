@@ -48,7 +48,7 @@ services:
     depends_on:
       hub:
         condition: service_healthy
-    # Ne pas lancer docker-entrypoint.sh : il sème des comptes de démonstration aux mots de passe publics.
+    # Ne pas lancer docker-entrypoint.sh : le bac à sable crée ses propres comptes de test (archinex-init.mjs).
     command:
       - sh
       - -c

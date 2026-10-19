@@ -100,6 +100,7 @@ npx prisma generate
 npx prisma db push
 npx prisma db seed
 # Astuce : `npm run db:reset` permet de réinitialiser complètement la base à tout moment
+# (développement local : le conteneur, lui, ne sème pas ces comptes, voir docs/fresh-install.md § 3 bis)
 
 # 4. Lancer le serveur de développement
 npm run dev

@@ -24,8 +24,9 @@
   let loading = $state(false);
   let showPassword = $state(false);
 
-  const demoUsers = [
-    // Comptes créés par `npm run db:reset` (prisma/seed-dev.ts)
+  const demoUsers = !import.meta.env.DEV ? [] : [
+    // Comptes créés par `npm run db:reset` (prisma/seed-dev.ts) : affichés en développement seulement
+    // (mots de passe publics, jamais proposés sur une instance construite).
     { label: 'Admin', email: 'admin@archinex.local', password: 'admin123', role: 'admin' },
     { label: 'Architecte', email: 'architect@archinex.local', password: 'user123', role: 'user' },
     { label: 'Expert', email: 'expert@archinex.local', password: 'user123', role: 'user' },
@@ -73,7 +74,8 @@
       <p class="mt-1 text-sm text-muted-foreground">Enter your credentials to access the app</p>
     </div>
 
-    <!-- Demo accounts quick-fill -->
+    <!-- Demo accounts quick-fill (développement seulement) -->
+    {#if import.meta.env.DEV}
     <Card.Root>
       <Card.Header class="pb-3">
         <Card.Title class="text-sm font-medium text-muted-foreground">Demo accounts</Card.Title>
@@ -94,6 +96,7 @@
         {/each}
       </Card.Content>
     </Card.Root>
+    {/if}
 
     <!-- Login form -->
     <Card.Root>

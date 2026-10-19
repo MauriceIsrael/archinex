@@ -1,0 +1,94 @@
+name: hub-live
+
+# Les tests « live » d'Archinex contre un vrai Hub : le serveur de contrat de LLMOps (`scripts/contract_server.py`), démarré
+# sur le runner depuis le dépôt public MauriceIsrael/LLMOps. Sans cette porte, un changement du Hub qui casse Archinex
+# n'est vu par personne : `verify` ignore ces tests faute de serveur (LLMOps#143 a cassé le flux de revue des candidats,
+# archinex#131, sans qu'aucune CI ne le signale).
+#
+# Déclencheurs : les PR, `main`, chaque nuit (le Hub bouge sans qu'Archinex bouge) et à la demande, avec la référence du Hub
+# à éprouver (`llmops_ref` : branche, étiquette ou empreinte ; `main` par défaut).
+#
+# Ce que ce contrôle éprouve : Archinex contre le Hub tel qu'il est sur `main` (ou la référence demandée), pas contre une
+# version figée. Un échec la nuit sans changement d'Archinex veut dire que le Hub a changé.
+# Le contrôle miroir côté Hub (une PR du Hub éprouvée contre Archinex) est un autre chantier.
+
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "23 3 * * *"
+  workflow_dispatch:
+    inputs:
+      llmops_ref:
+        description: "Référence du Hub à éprouver (branche, étiquette ou empreinte)"
+        required: false
+        default: main
+
+concurrency:
+  group: hub-live-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  hub-live:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      DATABASE_URL: file:./dev.db
+      JWT_SECRET: ci-only-secret-not-used-anywhere-else-0123456789
+      LLMOPS_LIVE_URL: http://127.0.0.1:8099
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Récupérer le Hub (dépôt public)
+        uses: actions/checkout@v4
+        with:
+          repository: MauriceIsrael/LLMOps
+          ref: ${{ inputs.llmops_ref || 'main' }}
+          path: llmops
+
+      # La même version de Poetry que celle qui a écrit llmops/poetry.lock (docs/TESTING.md du Hub).
+      - name: Installer Poetry
+        run: pipx install poetry==2.5.1
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+          cache: poetry
+          cache-dependency-path: llmops/poetry.lock
+
+      - name: Installer les dépendances du Hub (verrou, sans les outils de développement)
+        working-directory: llmops
+        run: poetry install --no-interaction --no-ansi --only main --no-root
+
+      - name: Démarrer le serveur de contrat du Hub
+        working-directory: llmops
+        run: |
+          nohup poetry run python scripts/contract_server.py --port 8099 > "$RUNNER_TEMP/contract-server.log" 2>&1 &
+          for i in $(seq 1 90); do
+            if curl -fs "$LLMOPS_LIVE_URL/health" > /dev/null; then echo "Hub prêt après ~$((i * 2)) s"; break; fi
+            sleep 2
+          done
+          curl -fs "$LLMOPS_LIVE_URL/health" > /dev/null || { echo "Le Hub n'a pas démarré"; tail -60 "$RUNNER_TEMP/contract-server.log"; exit 1; }
+          echo "Contrat du Hub :" && grep -m1 'CONTRACT_VERSION =' mcp_server/core/version.py
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Installer les dépendances
+        run: npm ci
+
+      - name: Créer la base SQLite et générer le client Prisma
+        run: npx prisma generate && npx prisma db push
+
+      - name: Tests live contre le Hub
+        run: npx vitest run tests/contract/*live*.test.ts tests/integration/llmops-mcp.test.ts
+
+      - name: Journal du serveur de contrat (en cas d'échec)
+        if: failure()
+        run: tail -200 "$RUNNER_TEMP/contract-server.log" || true

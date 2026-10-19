@@ -1436,6 +1436,15 @@ export async function startFakeLlmopsServer(initialState?: Partial<FakeLlmopsSta
           });
         }
 
+        // 400 separation_of_duties (contrat 1.37) : l'auteur d'un candidat ne peut pas le relire. Forme réelle du Hub.
+        if (String(candidate.author || '').toLowerCase() === actorEmail.toLowerCase()) {
+          return json(400, {
+            status: 'invalid_argument',
+            argument: 'reviewer',
+            reason: 'separation_of_duties: the author of a candidate cannot review it (author handle match).'
+          });
+        }
+
         // 409 if candidate is already in terminal state
         if (candidate.status === 'accepted' || candidate.status === 'rejected') {
           return json(409, {

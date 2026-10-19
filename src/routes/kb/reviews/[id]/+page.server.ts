@@ -1,6 +1,7 @@
 import { error } from '@sveltejs/kit';
 import { requireAuth } from '$lib/auth/guard.server';
 import { getKbExpertByUserId } from '$lib/server/kbProfilesDb';
+import { isCandidateAuthor } from '$lib/domain/candidateAuthorship';
 import { llmopsClient } from '$lib/server/llmops/client';
 import type { PageServerLoad } from './$types';
 
@@ -29,6 +30,12 @@ export const load: PageServerLoad = async ({ params, locals }) => {
     candidateDomains.some((cd) => cd.toLowerCase() === d.toLowerCase())
   );
 
+  // Séparation des tâches (Hub 1.37) : l'auteur d'un candidat ne peut pas le relire.
+  const isAuthor = isCandidateAuthor(candRes.data.author, {
+    handle: localExpert?.kbHandle || `@${user.email.split('@')[0]}`,
+    email: user.email
+  });
+
   return {
     user: {
       id: user.id,
@@ -44,6 +51,7 @@ export const load: PageServerLoad = async ({ params, locals }) => {
     candidate: candRes.data,
     comments: commentsRes.data || [],
     isAuthorizedForDomain,
+    isAuthor,
     offline: candRes.status === 'unavailable'
   };
 };

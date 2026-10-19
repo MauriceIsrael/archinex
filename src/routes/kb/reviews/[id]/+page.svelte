@@ -265,6 +265,20 @@
     </div>
   {/if}
 
+  <!-- Séparation des tâches (Hub 1.37) : l'auteur ne relit pas son propre candidat -->
+  {#if data.isAuthor}
+    <div class="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-xs text-amber-800 dark:text-amber-200 flex items-start gap-3" data-testid="separation-of-duties-notice">
+      <Lock class="h-5 w-5 shrink-0 text-amber-600 mt-0.5" />
+      <div>
+        <h4 class="font-bold text-sm">Vous êtes l'auteur de ce candidat</h4>
+        <p class="mt-0.5">
+          La gouvernance exige qu'une autre personne ayant les droits du domaine « <strong>{data.candidate.domain}</strong> » le relise.
+          Vous pouvez le commenter, le réassigner ou solliciter un avis ; accepter, amender ou rejeter vous est refusé par le Hub.
+        </p>
+      </div>
+    </div>
+  {/if}
+
   <!-- Grille principale 2 colonnes -->
   <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
     <!-- Colonne Gauche (2/3) : Détails, 7 Checks, Historique -->
@@ -435,7 +449,7 @@
             <button
               type="button"
               class="w-full inline-flex items-center justify-center gap-2 rounded-lg py-2 px-3 text-xs font-semibold bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white shadow transition-colors"
-              disabled={isSubmitting || !data.isAuthorizedForDomain}
+              disabled={isSubmitting || !data.isAuthorizedForDomain || data.isAuthor}
               data-testid="btn-open-accept-modal"
               onclick={() => (showAcceptModal = true)}
             >
@@ -446,7 +460,7 @@
             <button
               type="button"
               class="w-full inline-flex items-center justify-center gap-2 rounded-lg py-2 px-3 text-xs font-semibold border border-amber-500/40 text-amber-700 dark:text-amber-300 hover:bg-amber-500/10 disabled:opacity-50 transition-colors"
-              disabled={isSubmitting || !data.isAuthorizedForDomain}
+              disabled={isSubmitting || !data.isAuthorizedForDomain || data.isAuthor}
               onclick={() => (showAmendModal = true)}
             >
               <Edit3 class="h-4 w-4" /> Amender la formulation
@@ -456,7 +470,7 @@
             <button
               type="button"
               class="w-full inline-flex items-center justify-center gap-2 rounded-lg py-2 px-3 text-xs font-semibold bg-rose-600 hover:bg-rose-700 disabled:opacity-50 text-white transition-colors"
-              disabled={isSubmitting || !data.isAuthorizedForDomain}
+              disabled={isSubmitting || !data.isAuthorizedForDomain || data.isAuthor}
               onclick={() => (showRejectModal = true)}
             >
               <XCircle class="h-4 w-4" /> Rejeter avec motif

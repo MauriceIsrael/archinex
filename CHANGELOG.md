@@ -8,6 +8,16 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Sécurité : le conteneur ne sème plus de comptes de démonstration
+- `docker-entrypoint.sh` lançait `prisma/seed.ts` à chaque démarrage : comptes `admin@archinex.local` / `admin123` (et `user123`) publics.
+  Il appelle maintenant `prisma/bootstrap-admin.ts` : un premier administrateur est créé seulement si aucun n'existe et si
+  `ARCHINEX_BOOTSTRAP_ADMIN_EMAIL` est défini (`ARCHINEX_BOOTSTRAP_ADMIN_PASSWORD` : 12 caractères minimum, sinon mot de passe généré et
+  affiché une fois). Idempotent. Les autres comptes se créent depuis `/admin` (`docs/fresh-install.md`, § 3 bis).
+- Le jeu de démonstration reste disponible à la demande : `ARCHINEX_SEED_DEMO=1`.
+- La page `/login` n'affiche plus les boutons « Demo accounts » (identifiants en clair) hors développement : le bundle de production ne
+  contenait pas seulement le bouton, mais `admin123` dans le JavaScript client ; vérifié absent après correction.
+- Tests : `tests/integration/bootstrap-admin.test.ts` (6).
+
 ### Sécurité : le login n'accepte plus le hash stocké comme mot de passe (archinex#137)
 - `POST /api/auth/login` et `POST /api/invite/accept` (compte existant) acceptaient aussi `user.passwordHash === password` (repli
   « texte clair » des comptes de démonstration) : qui lisait `users.passwordHash` (fuite de base, sauvegarde) ouvrait la session en

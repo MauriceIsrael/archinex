@@ -8,6 +8,12 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Revue des candidats : séparation des tâches du Hub 1.37 (#131)
+- Le Hub interdit à l'auteur d'un candidat de le relire. Archinex affichait « Erreur HTTP 400 » ; il dit maintenant « Séparation des tâches : vous êtes l'auteur… »
+  (statut `forbidden`, code `separation_of_duties`), et l'écran de revue désactive accepter / amender / rejeter pour l'auteur avec une note.
+- Tests live A11 : le candidat est relu par un autre acteur, et le refus de l'auteur est vérifié ; délai explicite pour A8 (5 à 7 s).
+- Le faux Hub des tests applique la même règle, avec la forme réelle de la réponse.
+
 ### Vérification du Découpage PDF des RFP sur Échantillon & Rapport d'Extraction (#50)
 - **Rapport d'extraction automatique & Métriques de qualité** :
   - Module métier dédié (`src/lib/domain/rfpExtractionReport.ts`) calculant la couverture textuelle (`coverageRate`), le score de qualité du découpage (0 à 100), le nombre d'exigences et de pages.

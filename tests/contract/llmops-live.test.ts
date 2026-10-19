@@ -192,7 +192,7 @@ describe.skipIf(!LIVE)('Contrat réel LLMOps (serveur vivant)', () => {
     expect(res.status, JSON.stringify(res)).toBe('ok');
     expect((res.data as any).regressions.length).toBeGreaterThan(0); // retirer les clauses de P-002 fait des régressions
     expect((res.data as any).metrics.after.violation_recall).toBeLessThan((res.data as any).metrics.before.violation_recall);
-  });
+  }, 60_000); // la simulation prend de 5 à 7 s selon la machine : au-dessus du délai par défaut de vitest (5 s)
 
   const excerpt = process.env.LLMOPS_NIS2_EXCERPT || (existsSync('../LLMOps/tests/fixtures/frameworks/nis2_excerpt.txt') ? '../LLMOps/tests/fixtures/frameworks/nis2_excerpt.txt' : undefined);
   it.skipIf(!excerpt || !existsSync(excerpt))('A10 — ingestion NIS2 (multipart), revue d’une ligne, déclaration refusée avec la liste des manques', async () => {

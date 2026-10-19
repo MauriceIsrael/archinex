@@ -1399,6 +1399,8 @@ export class LLMOpsClient {
     status: 'ok' | 'error' | 'conflict' | 'forbidden' | 'unavailable';
     data?: KbCandidateDetail;
     error?: string;
+    /** Code stable lorsque le Hub en donne un (ex. `separation_of_duties`). */
+    code?: string;
   }> {
     if (!this.isLocalNetworkUrl(this.baseUrl)) {
       return { status: 'unavailable', error: 'Enclave locale non configurée' };
@@ -1453,9 +1455,20 @@ export class LLMOpsClient {
       }
 
       const errJson = await res.json().catch(() => ({}));
+      // Le Hub (contrat 1.37) interdit à l'auteur d'un candidat de le relire : 400 `invalid_argument`, argument `reviewer`,
+      // raison `separation_of_duties: …`. Ce n'est ni une erreur technique ni un défaut de droits de domaine : on le dit.
+      const hubReason: string = typeof errJson.reason === 'string' ? errJson.reason : '';
+      if (hubReason.startsWith('separation_of_duties')) {
+        return {
+          status: 'forbidden',
+          code: 'separation_of_duties',
+          error:
+            'Séparation des tâches : vous êtes l’auteur de ce candidat, il doit être relu par une autre personne ayant les droits du domaine.'
+        };
+      }
       return {
         status: 'error',
-        error: errJson.error || `Erreur HTTP ${res.status} lors de l'examen du candidat`
+        error: errJson.error || hubReason || `Erreur HTTP ${res.status} lors de l'examen du candidat`
       };
     } catch {
       return {

@@ -4,7 +4,9 @@ import { describe, it, expect } from 'vitest';
 import type { ExtractedClause } from '$lib/domain/corpus';
 import { findAutomationMarker } from '$lib/domain/automationMarkers';
 import { shredRfpTextToClauses } from '$lib/domain/rfpConfrontation';
-import { applyClassificationInvariants, type ClassifyItem } from '$lib/server/ingest/arckitRequirementsPipeline';
+import { applyClassificationInvariants, CLASSIFY_SYSTEM, type ClassifyItem } from '$lib/server/ingest/arckitRequirementsPipeline';
+import { computeAuditMetrics, type AuditReference } from '$lib/domain/requirementsAuditEval';
+import { buildAuditReportMarkdown } from '$lib/domain/requirementsAuditReport';
 
 const REASON = 'Fonction standard du marché, sans arbitrage d’architecture à mener.';
 
@@ -109,6 +111,47 @@ describe('Automatisation : jamais évacuée par le modèle seul (J0, archinex#13
 			const toQualify = out.filter((r) => r.disposition === 'to_qualify').length;
 			expect(toQualify).toBe(2);
 			expect(toQualify / clauses.length).toBeLessThan(0.3);
+		});
+	});
+
+	describe('Consigne de classification (CLASSIFY_SYSTEM)', () => {
+		it('ordonne au modèle de traiter toute exigence d’automatisation comme deliberate', () => {
+			expect(CLASSIFY_SYSTEM).toMatch(/automatisation/i);
+			expect(CLASSIFY_SYSTEM).toMatch(/boucle fermée/i);
+			expect(CLASSIFY_SYSTEM).toMatch(/auto-remédiation/i);
+			expect(CLASSIFY_SYSTEM).toMatch(/sans intervention humaine/i);
+			expect(CLASSIFY_SYSTEM).toMatch(/relève de "deliberate"/);
+		});
+	});
+
+	describe('Métadonnées du juge de référence (J0, archinex#132)', () => {
+		it('computeAuditMetrics et buildAuditReportMarkdown intègrent l’auteur et la date du juge', () => {
+			const ref: AuditReference = {
+				author: 'Architecte Référent Indépendant',
+				date: '2026-10-18',
+				status: 'fige_avant_mesure',
+				hardPoints: [{ id: 'HP-1', name: 'Test HP', coveredClauseRefs: ['R-1'] }],
+				clarifications: []
+			};
+			const metrics = computeAuditMetrics(
+				[{ clauseRef: 'R-1', criticality: 'majeur', disposition: 'deliberated' }],
+				[{ id: 'S-1', name: 'Sujet 1', coveredClauseRefs: ['R-1'] }],
+				ref
+			);
+			expect(metrics.referenceAuthor).toBe('Architecte Référent Indépendant');
+			expect(metrics.referenceDate).toBe('2026-10-18');
+			expect(metrics.referenceStatus).toBe('fige_avant_mesure');
+
+			const report = buildAuditReportMarkdown({
+				title: 'Test Audit',
+				model: 'claude-sonnet-5-5',
+				generatedAt: '2026-10-19',
+				requirements: [{ clauseRef: 'R-1', title: 'T1', text: 'Txt', criticality: 'majeur', disposition: 'deliberated' }],
+				subjects: [],
+				metrics
+			});
+			expect(report).toContain('Juge de référence : **Architecte Référent Indépendant** (2026-10-18)');
+			expect(report).toContain('statut : `fige_avant_mesure`');
 		});
 	});
 });

@@ -15,6 +15,10 @@ export interface AuditReferenceHardPoint {
 }
 
 export interface AuditReference {
+	author?: string;
+	date?: string;
+	status?: string;
+	source?: string;
 	hardPoints: AuditReferenceHardPoint[];
 	clarifications: Array<{ clauseRefs: string[]; question: string }>;
 }
@@ -52,6 +56,9 @@ export interface AuditMetrics {
 	hardPointMatches: HardPointMatch[];
 	/** Verdict d'intégrité : aucun faux négatif dangereux et aucune évacuation de clause bloquante. */
 	integrityOk: boolean;
+	referenceAuthor?: string;
+	referenceDate?: string;
+	referenceStatus?: string;
 }
 
 const ratio = (num: number, den: number) => (den === 0 ? 1 : num / den);
@@ -103,6 +110,9 @@ export function computeAuditMetrics(
 		referenceLeftToQualify,
 		clarificationRecall: ratio(clarifyHits, refClarify.length),
 		hardPointMatches,
-		integrityOk: dangerousFalseNegatives.length === 0 && evacuatedBlocking === 0
+		integrityOk: dangerousFalseNegatives.length === 0 && evacuatedBlocking === 0,
+		referenceAuthor: reference.author,
+		referenceDate: reference.date,
+		referenceStatus: reference.status
 	};
 }

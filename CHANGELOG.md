@@ -8,6 +8,13 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Bac à sable : support Windows avec Docker Desktop (`deploy/sandbox`)
+- Script natif PowerShell `deploy/sandbox/sandbox.ps1` avec parité totale de commandes (`up`, `status`, `creds`, `smoke`, `logs`, `down`, `reset`, `destroy`) pour Windows avec Docker Desktop.
+- Dérivation cryptographique des clés d'acteur Ed25519 (RFC 8037) et des secrets aléatoires sans dépendance externe binaire en s'appuyant sur l'API native `node:crypto` (avec repli OpenSSL).
+- Normalisation des chemins Windows et conversion `cygpath -m` dans `deploy/sandbox/sandbox.sh` pour prévenir l'interprétation des chemins de contexte `/c/...` comme dossiers relatifs sous Windows Docker Desktop.
+- Ajout de `.gitattributes` garantissant les fins de ligne `LF` sur les scripts shell, Dockerfile, Caddyfile et scripts montés dans les conteneurs Linux, et `CRLF` sur PowerShell.
+- Suite de tests de contrat dédiée (`tests/contract/sandbox-windows-support.test.ts`).
+
 ### Bac à sable : un Hub et un Archinex neufs et vierges, en conteneurs (`deploy/sandbox`)
 - `./sandbox.sh up` construit et démarre le Hub (LLMOps), Archinex et un proxy HTTPS (Caddy) sur une URL de test, sans engagement,
   projet ni donnée : 4 comptes de test aux mots de passe aléatoires, registre des experts du Hub réduit à ces 4 personnes, Hub en

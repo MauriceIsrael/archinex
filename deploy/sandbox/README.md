@@ -6,6 +6,25 @@ Hub en mode strict). Rien n'est partagé avec une installation existante : tout 
 
 ## Utilisation
 
+### Sous Windows (PowerShell + Docker Desktop)
+
+```powershell
+cd deploy\sandbox
+.\sandbox.ps1 up        # construit (première fois : plusieurs minutes), démarre, affiche l'URL et les comptes
+.\sandbox.ps1 smoke     # vérifie le Hub, le mode strict et la connexion
+.\sandbox.ps1 creds     # rappelle l'URL et les comptes
+.\sandbox.ps1 reset     # EFFACE les données : « up » repart de bases vierges (mêmes comptes)
+.\sandbox.ps1 destroy   # supprime tout, secrets compris
+```
+
+Prérequis Windows :
+- **Docker Desktop** démarré avec `docker compose` v2.
+- **PowerShell** (Windows PowerShell 5.1 ou PowerShell 7+).
+- **Node.js** (utilisé pour dériver la paire de clés Ed25519 RFC 8037 et les jetons aléatoires sans binaire externe requis) ou `openssl`.
+- `curl.exe` (présent de base sur Windows 10 et 11).
+
+### Sous Linux / macOS ou Git Bash / WSL
+
 ```bash
 cd deploy/sandbox
 ./sandbox.sh up        # construit (première fois : plusieurs minutes), démarre, affiche l'URL et les comptes
@@ -15,13 +34,18 @@ cd deploy/sandbox
 ./sandbox.sh destroy   # supprime tout, secrets compris
 ```
 
-Prérequis : Docker avec `docker compose` v2, `openssl`, `python3`, `curl`. Le dépôt LLMOps est pris dans `../LLMOps` s'il existe à
+Prérequis : Docker avec `docker compose` v2, `node` ou `openssl`, `python3` ou `python` ou `node`, `curl`. Le dépôt LLMOps est pris dans `../LLMOps` s'il existe à
 côté d'Archinex, sinon cloné (branche `LLMOPS_REF`, défaut `main`) ; `LLMOPS_DIR` désigne une copie précise.
 
 ### Une URL de test publique
 
 ```bash
+# Sous Linux / macOS / Bash
 SANDBOX_ORIGIN=https://test.exemple.org ./sandbox.sh up
+
+# Sous Windows (PowerShell)
+$env:SANDBOX_ORIGIN = 'https://test.exemple.org'
+.\sandbox.ps1 up
 ```
 
 Le nom de domaine doit pointer vers la machine, avec les ports 80 et 443 ouverts : le proxy (Caddy) obtient seul un certificat
@@ -61,7 +85,7 @@ Pour éprouver la séparation des tâches : soumettre un candidat avec `architec
 
 ## Fichiers
 
-`sandbox.sh` (pilote), `compose.yml`, `Caddyfile`, `hub-init.py` (registre des experts), `archinex-init.mjs` (comptes de test).
+`sandbox.ps1` (pilote Windows PowerShell), `sandbox.sh` (pilote Bash / Linux / macOS), `compose.yml`, `Caddyfile`, `hub-init.py` (registre des experts), `archinex-init.mjs` (comptes de test).
 Les secrets sont dans `.sandbox/` (ignoré par git, droits 600).
 
 ## État de la vérification

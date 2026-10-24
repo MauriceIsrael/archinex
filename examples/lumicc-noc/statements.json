@@ -1,0 +1,183 @@
+[
+  {
+    "id": "STMT-LUMI-01",
+    "section": "§4.1",
+    "triplet": {
+      "subject": "SUBJ-LUMICC-01",
+      "predicate": "site_topology",
+      "value": "POST Tier IV 2-Sites Active + 1-Site Standby Quorum"
+    },
+    "justification": {
+      "basedOn": [
+        "DOC-LUMICC-RFP-01/REQ-Lot1-192"
+      ]
+    },
+    "authority": {
+      "author": "M. Israel",
+      "role": "lead_architect",
+      "productionMode": "human-authored"
+    },
+    "maturity": {
+      "subjectLevel": "L2_decomposed",
+      "confidence": "designed"
+    },
+    "revisability": {
+      "antecedents": []
+    },
+    "status": "active",
+    "createdAt": "2026-10-18T10:00:00Z",
+    "updatedAt": "2026-10-18T10:00:00Z"
+  },
+  {
+    "id": "STMT-LUMI-02",
+    "section": "§4.1",
+    "triplet": {
+      "subject": "SUBJ-LUMICC-01",
+      "predicate": "udr_replication",
+      "value": "Synchronous Database Replication RTT < 0.8ms"
+    },
+    "justification": {
+      "basedOn": [
+        "STMT-LUMI-01"
+      ]
+    },
+    "authority": {
+      "author": "P. Durand",
+      "role": "infra_expert_architect",
+      "productionMode": "human-authored"
+    },
+    "maturity": {
+      "subjectLevel": "L2_decomposed",
+      "confidence": "designed"
+    },
+    "revisability": {
+      "antecedents": [
+        "STMT-LUMI-01"
+      ]
+    },
+    "status": "active",
+    "createdAt": "2026-10-18T10:15:00Z",
+    "updatedAt": "2026-10-18T10:15:00Z"
+  },
+  {
+    "id": "STMT-LUMI-03",
+    "section": "§4.1",
+    "triplet": {
+      "subject": "SUBJ-LUMICC-01",
+      "predicate": "target_rto",
+      "value": "RTO < 15min on Hot Standby Site"
+    },
+    "justification": {
+      "basedOn": [
+        "STMT-LUMI-02",
+        "HARV-ADR-001-UDR-RTO"
+      ]
+    },
+    "authority": {
+      "author": "P. Durand",
+      "role": "infra_expert_architect",
+      "productionMode": "human-authored"
+    },
+    "maturity": {
+      "subjectLevel": "L2_decomposed",
+      "confidence": "verified"
+    },
+    "revisability": {
+      "antecedents": [
+        "STMT-LUMI-02"
+      ]
+    },
+    "status": "active",
+    "createdAt": "2026-10-18T10:30:00Z",
+    "updatedAt": "2026-10-18T10:30:00Z"
+  },
+  {
+    "id": "STMT-LUMI-04",
+    "section": "§4.2",
+    "triplet": {
+      "subject": "SUBJ-LUMICC-02",
+      "predicate": "wlan_offload",
+      "value": "UE-driven without N3IWF/ATSSS functions on 5GC"
+    },
+    "justification": {
+      "basedOn": [
+        "DOC-LUMICC-RFP-01/REQ-Lot1-11",
+        "HARV-ADR-002-5GC-WLAN-NO-N3IWF"
+      ]
+    },
+    "authority": {
+      "author": "A. Chen",
+      "role": "domain_architect",
+      "productionMode": "human-authored"
+    },
+    "maturity": {
+      "subjectLevel": "L3_decided",
+      "confidence": "verified"
+    },
+    "revisability": {
+      "antecedents": []
+    },
+    "status": "active",
+    "createdAt": "2026-10-18T11:00:00Z",
+    "updatedAt": "2026-10-18T11:00:00Z"
+  },
+  {
+    "id": "STMT-LUMI-05",
+    "section": "§4.3",
+    "triplet": {
+      "subject": "SUBJ-LUMICC-03",
+      "predicate": "clock_holdover",
+      "value": "Rubidium Atomic Clocks + PTP G.8275.1 30-day Holdover"
+    },
+    "justification": {
+      "basedOn": [
+        "DOC-LUMICC-RFP-01/REQ-Lot1-223",
+        "HARV-ADR-003-GNSS-30D-PASSIVE-RF"
+      ]
+    },
+    "authority": {
+      "author": "P. Durand",
+      "role": "infra_expert_architect",
+      "productionMode": "human-authored"
+    },
+    "maturity": {
+      "subjectLevel": "L1_framed",
+      "confidence": "designed"
+    },
+    "revisability": {
+      "antecedents": []
+    },
+    "status": "active",
+    "createdAt": "2026-10-18T11:30:00Z",
+    "updatedAt": "2026-10-18T11:30:00Z"
+  },
+  {
+    "id": "STMT-LUMI-06",
+    "section": "§4.7",
+    "triplet": {
+      "subject": "SUBJ-LUMICC-07",
+      "predicate": "frmcs_demarcation",
+      "value": "Non-compliant CFL Railway Scope (0 gNodeBs in Lot 1)"
+    },
+    "justification": {
+      "basedOn": [
+        "DOC-LUMICC-RFP-01/REQ-Lot1-478"
+      ]
+    },
+    "authority": {
+      "author": "M. Israel",
+      "role": "lead_architect",
+      "productionMode": "human-authored"
+    },
+    "maturity": {
+      "subjectLevel": "L3_decided",
+      "confidence": "verified"
+    },
+    "revisability": {
+      "antecedents": []
+    },
+    "status": "active",
+    "createdAt": "2026-10-18T12:00:00Z",
+    "updatedAt": "2026-10-18T12:00:00Z"
+  }
+]

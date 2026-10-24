@@ -7,6 +7,7 @@
   import Sparkles from 'lucide-svelte/icons/sparkles';
   import Lock from 'lucide-svelte/icons/lock';
   import Globe from 'lucide-svelte/icons/globe';
+  import AlertTriangle from 'lucide-svelte/icons/alert-triangle';
 
   let { data } = $props();
 
@@ -66,6 +67,19 @@
       {/if}
     </div>
   </div>
+
+  <!-- Alerte compte non inscrit dans le registre -->
+  {#if data.llmops.status === 'not_registered'}
+    <div data-testid="me-not-registered-alert" class="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-xs text-amber-800 dark:text-amber-200 flex items-start gap-3">
+      <AlertTriangle class="h-5 w-5 shrink-0 text-amber-600 mt-0.5" />
+      <div>
+        <h4 class="font-bold text-sm">Compte non inscrit dans le registre des experts du Hub</h4>
+        <p class="mt-0.5">
+          {data.llmops.error || "Votre adresse n'est pas inscrite dans le registre des experts du Hub : demandez à un administrateur (Administration → Inscrire dans le registre LLMOps)"}
+        </p>
+      </div>
+    </div>
+  {/if}
 
   <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
     <!-- Colonne gauche : Carte d'identité expert -->

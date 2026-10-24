@@ -15,6 +15,20 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 - Ajout de `.gitattributes` garantissant les fins de ligne `LF` sur les scripts shell, Dockerfile, Caddyfile et scripts montés dans les conteneurs Linux, et `CRLF` sur PowerShell.
 - Mots de passe conviviaux par défaut en local sur `localhost` (`admin123`, `architect123`, `security123`, `ciso123`) ou configurables via `SANDBOX_SIMPLE_PASSWORDS=1` pour simplifier les tests locaux sans compromettre la sécurité sur URL publique.
 - Suite de tests de contrat dédiée (`tests/contract/sandbox-windows-support.test.ts`).
+### Démonstration : pré-chargement de l'engagement LUMICC et de l'audit ArcKit (sans clé API)
+- Ajout du jeu de données de référence examples/lumicc-noc/ (Lot 1 LUMICC : NOC, Cœur 5G PPDR & Résilience) :
+  - 92 clauses RFP analysées, 7 sujets d'architecture cardinaux formalisés avec options et critères MCDA.
+  - Énoncés épistémiques avec dépendances causales directes (asedOn) pour la démonstration de la rétractation en cascade.
+  - Délibération d'équipe multi-experts reconstituée.
+- Enrichissement de prisma/seed.ts pour pré-charger automatiquement le projet lumicc-lot1-noc ainsi que l'exécution d'audit 
+un_lumicc_live_j0 dans Prisma (FactorizationRun). La démonstration complète peut être animée hors-ligne sans clé API externe.
+- Guide de démonstration complet rédigé dans [docs/demo-guide.md](docs/demo-guide.md) détaillant les principes ArcKit (triage 4 compartiments, factorisation N→K, élicitation MCDA, projections déterministes d'artefacts) et le scénario en 3 actes.
+### Sécurité : validation stricte de JWT_SECRET et suppression de la valeur publique du Dockerfile (archinex#141)
+- L'étape `runner` du `Dockerfile` fixait une valeur par défaut publique (`archinex-super-secret-production-jwt-key-2026`). Elle a été retirée : le secret de session ne doit jamais être figé dans l'image.
+- Au démarrage en production (`NODE_ENV=production`), le conteneur (`docker-entrypoint.sh`) et le serveur (`src/lib/auth/jwt.server.ts`, hook `init` dans `src/hooks.server.ts`) **refusent de démarrer** si `JWT_SECRET` est absent, plus court que 32 caractères ou égal à l'une des valeurs publiques connues (Dockerfile, développement, exemple, CI), avec un message d'erreur explicite indiquant la procédure de génération (`openssl rand -hex 32`).
+- Les sessions et jetons d'administration forgés avec une ancienne clé publique ou de repli sont rejetés lors de la vérification.
+- Documentation mise à jour (`GCP_CLOUD_RUN_DEPLOYMENT.md`, `docs/fresh-install.md`, `docs/developer-guide.md`) pour détailler la génération et l'injection via Secret Manager (`--set-secrets JWT_SECRET=archinex-jwt-secret:latest`).
+- Tests de contrat : `tests/contract/jwt-secret-validation.test.ts` (12 tests validant le refus des clés publiques, l'exigence de longueur, l'échec de démarrage, et le rejet des jetons forgés).
 ### Rendu et homologation : correction de l'erreur Svelte `each_key_duplicate` dans le fragment HLD
 - Dans `HldFragmentView.svelte`, les listes de chaînes de caractères (points ouverts, conséquences, risques acceptés, avertissements, critères et scores) utilisaient la valeur comme clé dans les blocs `{#each ...}`. Lorsqu'une question ou objection ouverte partageait le même intitulé (par exemple lors de relances automatiques de proposition de découpage du sujet pour lever la stagnation), Svelte levait une exception fatale `each_key_duplicate`.
 - Les boucles d'affichage statiques de listes simples ont été dé-clées dans `HldFragmentView.svelte` ainsi que dans la vue de consultation des cadres (`kb/frameworks/[id]`).

@@ -33,7 +33,7 @@ export const load: PageServerLoad = async ({ locals }) => {
     inbox: {
       items: inboxRes.data || [],
       status: inboxRes.status,
-      offline: inboxRes.status === 'unavailable' || inboxRes.status === 'error',
+      offline: inboxRes.status === 'unavailable',
       error: inboxRes.error
     },
     notifications

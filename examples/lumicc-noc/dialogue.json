@@ -1,0 +1,52 @@
+[
+  {
+    "id": "msg-lumi-01",
+    "channel": "internal",
+    "author": "M. Israel (Lead Architect)",
+    "role": "lead_architect",
+    "content": "Sur le Lot 1 LUMICC, notre priorité absolue est d'éviter les pièges contractuels d'engagements complaisants (Yes-Man). Nous devons verrouiller la démarcation 3 DC, l'exclusion FRMCS et la limite réelle du RTO UDR.",
+    "timestamp": "09:30",
+    "isAi": false,
+    "subjectId": "SUBJ-LUMICC-01"
+  },
+  {
+    "id": "msg-lumi-02",
+    "channel": "internal",
+    "author": "P. Durand",
+    "role": "infra_expert_architect",
+    "content": "Pour le RTO < 15 min de REQ-Lot1-192/30, l'ingénierie Ericsson confirme que le rechargement mémoire DB UDR tient en 12 minutes si la CNF est déjà instanciée sur le site standby. En revanche, un déploiement bare-metal à froid prendrait 4 heures.",
+    "timestamp": "09:35",
+    "isAi": false,
+    "subjectId": "SUBJ-LUMICC-01"
+  },
+  {
+    "id": "msg-lumi-03",
+    "channel": "internal",
+    "author": "S. Bernard",
+    "role": "security_architect",
+    "content": "Sur le Wi-Fi (SUBJ-LUMICC-02), la doctrine cyber ANSSI/NIS2 impose de refuser formellement l'intégration d'une passerelle N3IWF non maîtrisée dans le cœur 5G souverain. L'offload au niveau du terminal sécurisé est la seule option tenable.",
+    "timestamp": "09:40",
+    "isAi": false,
+    "subjectId": "SUBJ-LUMICC-02"
+  },
+  {
+    "id": "msg-lumi-04",
+    "channel": "internal",
+    "author": "A. Chen",
+    "role": "domain_architect",
+    "content": "Confirmé pour le Wi-Fi : nous alignons la matrice Excel en 'Partially compliant' avec mention claire en colonne G. Pour le FRMCS (SUBJ-LUMICC-07), j'ai supprimé la mention des 5 gNodeBs du §3.7 du HLD Lot 1 : zéro contradiction avec la matrice.",
+    "timestamp": "09:45",
+    "isAi": false,
+    "subjectId": "SUBJ-LUMICC-07"
+  },
+  {
+    "id": "msg-lumi-05",
+    "channel": "internal",
+    "author": "P. Durand",
+    "role": "infra_expert_architect",
+    "content": "Sur le déni GNSS 30 jours (SUBJ-LUMICC-03), nous validons l'oscillateur Rubidium avec distribution PTP G.8275.1. La dérive restera inférieure à 1 µs après 30 jours complets sans signal GPS.",
+    "timestamp": "09:50",
+    "isAi": false,
+    "subjectId": "SUBJ-LUMICC-03"
+  }
+]

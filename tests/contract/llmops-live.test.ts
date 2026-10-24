@@ -68,7 +68,16 @@ describe.skipIf(!LIVE)('Contrat réel LLMOps (serveur vivant)', () => {
   it('A6 — /me : un e-mail inconnu n’est JAMAIS présenté comme un profil valide (403, pas de profil inventé)', async () => {
     const res = await client.getMe('nobody@example.org');
     expect(res.status).not.toBe('ok');
+    expect(res.status).toBe('not_registered');
     expect(res.data).toBeUndefined();
+    expect(res.error).toContain("Votre adresse n'est pas inscrite dans le registre des experts du Hub");
+  });
+
+  it('A7 — bote de revue : un e-mail inconnu renvoie not_registered et message explicite', async () => {
+    const res = await client.getReviewInbox('nobody@example.org');
+    expect(res.status).toBe('not_registered');
+    expect(res.data).toBeUndefined();
+    expect(res.error).toContain("Votre adresse n'est pas inscrite dans le registre des experts du Hub");
   });
 
   it('A6 — registre : lire puis réécrire sans perte (default_owner, domaines et secrets conservés)', async () => {

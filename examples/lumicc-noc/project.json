@@ -1,0 +1,58 @@
+{
+  "id": "lumicc-lot1-noc",
+  "title": "LUMICC · Lot 1 (NOC, Cœur 5G PPDR & Résilience)",
+  "shortName": "LUMICC Lot 1",
+  "type": "project_rfp",
+  "badge": "LUMICC · Lot 1 PPDR",
+  "description": "Programme national large bande PPDR (Mission Critical) au Luxembourg. Lot 1 : Cœur 5G Ericsson durci, NOC souverain, géo-redondance 3 DC Tier IV, holdover GNSS 30j et interconnexions.",
+  "defaultSubjectId": "SUBJ-LUMICC-01",
+  "defaultDocId": "DOC-LUMICC-RFP-01",
+  "status": "active",
+  "strategy": {
+    "objectives": [
+      "Haute disponibilité 99,999 % et résilience géo-distribuée",
+      "RPO = 0 et RTO < 15 min sur le cœur 5G et la base UDR",
+      "Souveraineté des données et opérations 100 % hébergées au Luxembourg (NIS2 / PSF)",
+      "Zéro point unique de défaillance (N-1 permanent)"
+    ],
+    "principles": [
+      "Standardisation 3GPP Release 17 / TS 38.300",
+      "Architecture Zero-Trust avec mTLS et OAuth2 sur la SBA",
+      "Gouvernance stricte eSIM GSMA SGP.22 avec HSM FIPS 140-3 L3 et cérémonie 4-yeux",
+      "Human-in-the-Loop sur toutes les actions de remédiation réseau"
+    ],
+    "constraints": [
+      "Topologie 3 datacentres POST (RCE, RCS, RCW)",
+      "Refus d'implémenter N3IWF/ATSSS sur le cœur PPDR (offload UE Wi-Fi uniquement)",
+      "Holdover temporel 30 jours sans GNSS (Rubidium + PTP G.8275.1)",
+      "Démarcation stricte : FRMCS confié aux CFL, réseaux MNO commerciaux au Lot 3"
+    ]
+  },
+  "participants": [
+    {
+      "id": "part-lead",
+      "name": "M. Israel",
+      "role": "lead_architect",
+      "email": "admin@archinex.local",
+      "isLead": true
+    },
+    {
+      "id": "part-infra",
+      "name": "P. Durand",
+      "role": "infra_expert_architect",
+      "email": "architect@archinex.local"
+    },
+    {
+      "id": "part-sec",
+      "name": "S. Bernard",
+      "role": "security_architect",
+      "email": "expert@archinex.local"
+    },
+    {
+      "id": "part-domain",
+      "name": "A. Chen",
+      "role": "domain_architect",
+      "email": "architect@archinex.local"
+    }
+  ]
+}

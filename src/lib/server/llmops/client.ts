@@ -520,6 +520,8 @@ export class LLMOpsClient {
         if (env.status === 'ok' && Array.isArray(env.data)) {
           return { data: env.data, source: 'live' };
         }
+      } else if (res.status === 403 || res.status === 401) {
+        return { data: [], source: 'live' };
       }
     } catch {
       // Fallback
@@ -547,6 +549,8 @@ export class LLMOpsClient {
         if (env.status === 'ok' && Array.isArray(env.data)) {
           return { data: env.data, source: 'live' };
         }
+      } else if (res.status === 403 || res.status === 401) {
+        return { data: [], source: 'live' };
       }
     } catch {
       // Fallback
@@ -571,6 +575,8 @@ export class LLMOpsClient {
         if (env.status === 'ok' && Array.isArray(env.data)) {
           return { data: env.data, source: 'live' };
         }
+      } else if (res.status === 403 || res.status === 401) {
+        return { data: [], source: 'live' };
       }
     } catch {
       // Fallback
@@ -939,6 +945,33 @@ export class LLMOpsClient {
         return { status: 'unavailable', error: 'LLMOps governance database unavailable (503)' };
       }
 
+      if (res.status === 401) {
+        const errBody = await res.json().catch(() => ({}));
+        return {
+          status: 'unauthorized',
+          error: errBody.error || errBody.reason || 'Jeton de service ou authentification invalide (401)',
+          reason: errBody.reason
+        };
+      }
+
+      if (res.status === 403) {
+        const errBody = await res.json().catch(() => ({}));
+        const reason = String(errBody.reason || errBody.error || errBody.detail || errBody.message || '');
+        const isNotRegistered =
+          errBody.status === 'unauthorized' ||
+          errBody.error === 'unauthorized' ||
+          /not a registered expert/i.test(reason) ||
+          /non enregistr/i.test(reason);
+
+        return {
+          status: isNotRegistered ? 'not_registered' : 'forbidden',
+          error: isNotRegistered
+            ? "Votre adresse n'est pas inscrite dans le registre des experts du Hub : demandez à un administrateur (Administration → Inscrire dans le registre LLMOps)"
+            : (errBody.error || errBody.reason || `HTTP ${res.status}`),
+          reason: errBody.reason
+        };
+      }
+
       if (res.ok) {
         const body = await res.json();
         const data = body.data || body;
@@ -1297,6 +1330,33 @@ export class LLMOpsClient {
         return { status: 'unavailable', error: 'Service de gouvernance KB indisponible (503)' };
       }
 
+      if (res.status === 401) {
+        const errBody = await res.json().catch(() => ({}));
+        return {
+          status: 'unauthorized',
+          error: errBody.error || errBody.reason || 'Jeton de service ou authentification invalide (401)',
+          reason: errBody.reason
+        };
+      }
+
+      if (res.status === 403) {
+        const errBody = await res.json().catch(() => ({}));
+        const reason = String(errBody.reason || errBody.error || errBody.detail || errBody.message || '');
+        const isNotRegistered =
+          errBody.status === 'unauthorized' ||
+          errBody.error === 'unauthorized' ||
+          /not a registered expert/i.test(reason) ||
+          /non enregistr/i.test(reason);
+
+        return {
+          status: isNotRegistered ? 'not_registered' : 'error',
+          error: isNotRegistered
+            ? "Votre adresse n'est pas inscrite dans le registre des experts du Hub : demandez à un administrateur (Administration → Inscrire dans le registre LLMOps)"
+            : (errBody.error || errBody.reason || 'Accès interdit (403)'),
+          reason: errBody.reason
+        };
+      }
+
       if (res.ok) {
         const body = await res.json();
         const rawPayload = body.data || body;
@@ -1359,7 +1419,7 @@ export class LLMOpsClient {
   async getCandidate(
     candidateId: string,
     actorEmail?: string
-  ): Promise<{ status: 'ok' | 'error' | 'unavailable'; data?: KbCandidateDetail; error?: string }> {
+  ): Promise<{ status: 'ok' | 'error' | 'unavailable' | 'not_registered'; data?: KbCandidateDetail; error?: string; reason?: string }> {
     if (!this.isLocalNetworkUrl(this.baseUrl)) {
       return { status: 'unavailable', error: 'Enclave locale non configurée' };
     }
@@ -1371,6 +1431,29 @@ export class LLMOpsClient {
 
       if (res.status === 503) {
         return { status: 'unavailable', error: 'Service de gouvernance KB indisponible (503)' };
+      }
+
+      if (res.status === 401) {
+        const errBody = await res.json().catch(() => ({}));
+        return { status: 'error', error: errBody.error || errBody.reason || 'Authentification requise (401)' };
+      }
+
+      if (res.status === 403) {
+        const errBody = await res.json().catch(() => ({}));
+        const reason = String(errBody.reason || errBody.error || errBody.detail || errBody.message || '');
+        const isNotRegistered =
+          errBody.status === 'unauthorized' ||
+          errBody.error === 'unauthorized' ||
+          /not a registered expert/i.test(reason) ||
+          /non enregistr/i.test(reason);
+
+        return {
+          status: isNotRegistered ? 'not_registered' : 'error',
+          error: isNotRegistered
+            ? "Votre adresse n'est pas inscrite dans le registre des experts du Hub : demandez à un administrateur (Administration → Inscrire dans le registre LLMOps)"
+            : (errBody.error || errBody.reason || 'Accès interdit (403)'),
+          reason: errBody.reason
+        };
       }
 
       if (res.ok) {
@@ -3949,10 +4032,7 @@ export class LLMOpsClient {
       this.getConflicts(remoteEng)
     ]);
 
-    const isLive =
-      healthRes.source === 'live' &&
-      boardRes.source === 'live' &&
-      statementsRes.source === 'live';
+    const isLive = healthRes.source === 'live';
 
     return {
       source: isLive ? 'live' : 'offline-fallback',

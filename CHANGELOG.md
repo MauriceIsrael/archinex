@@ -8,6 +8,16 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Posture 3 (Rendu & Homologation) : les schémas et le fragment de HLD se lisent comme un brouillon de tableau blanc
+- **C4** : le Structurizr DSL produit est accepté par le CLI officiel (2025.11.09). Avant : `enterprise` (retiré du langage), containers homonymes, relation parent → enfant. Une vue `container` s'ajoute à la vue de contexte (qui ne montre pas les containers) ; les liens causaux `basedOn` deviennent des relations « fonde » ; plus de personne inventée à partir des participants (`src/lib/domain/structurizrDsl.ts`).
+- **Solidité visible** : chaque énoncé dessiné (Mermaid, C4, SysML, JSON) porte vérifié / conçu non vérifié / hypothèse / en revue / contesté / en conflit / confiance non renseignée, en libellé et en couleur (`src/lib/domain/epistemicBadge.ts`). Énoncés remplacés ou retirés non dessinés, leur nombre dit ; deux valeurs actives différentes pour un prédicat = conflit, plus de « dernière valeur lue » dans le JSON. Fin du « Verified Architecture » sur chaque élément C4 et du `confidence: 'verified'` codé en dur dans l'export scellé.
+- **Brouillon** : hypothèses, conflits à arbitrer, questions ouvertes et bandeau « PROVISOIRE » (paramètre `draft`, lu jusque-là par aucun générateur) ; bandeau aussi sur les schémas globaux du dossier scellé.
+- **Option retenue à l'écran** : le store charge décision et options (`fetchDecisionContext`) et les passe au contexte de projection ; le gel les charge avant de sceller. L'identifiant de l'arbitre n'est pas transmis.
+- **Fragment de HLD** : « En bref » en tête (Markdown et écran), Y-statement sans le problème ni la justification en double, identifiants typés humanisés, métadonnées `COMPLIANCE_STATUS:*` / `PORTABILITY:*` hors des « écarts acceptés », pas de « risque accepté » sans décision.
+- Empreintes : les projections scellées changent de contenu, donc d'empreinte, pour un même dossier (décision assumée, pas de production).
+- Tests : `tests/contract/structurizr-dsl.test.ts` (invariants + vrai CLI via `STRUCTURIZR_CLI` ou `npm run test:structurizr`), `epistemic-projections.test.ts`, `hld-fragment.test.ts`.
+- **Limites** : SysML v2 non validé par un outil SysML ; schémas globaux sans le détail par énoncé ; `data.statements` de l'export scellé contient encore les énoncés retirés, présentés comme affirmés ; validation Mermaid hors tests (`jsdom` absent), rendu contrôlé à la main avec Playwright.
+
 ### Knowledge Hub : distinction du refus 403 « expert non enregistré » face à l'indisponibilité 503 (archinex#145)
 - Un utilisateur Archinex non inscrit dans le registre des experts du Hub voyait `/kb/reviews` afficher à tort « Mode Hors-Ligne ou Service LLMOps Indisponible (503) — Le Knowledge Hub distant n'est pas joignable » et la pastille d'en-tête basculer sur « LLMOps Local », alors que le Hub répondait précisément 403 `{"status":"unauthorized","reason":"'...' is not a registered expert."}`.
 - Le client LLMOps (`client.ts`) distingue désormais rigoureusement le statut `not_registered` (403 avec raison non enregistré), `unauthorized` (401 jeton/assertion invalide), `unavailable` (503 ou panne réseau) et `ok`.

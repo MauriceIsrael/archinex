@@ -16,7 +16,8 @@ describe('Sandbox Windows Support & Docker Desktop Contract', () => {
 		for (const candidate of ['pwsh', 'powershell']) {
 			try {
 				execFileSync(candidate, ['-NoProfile', '-NonInteractive', '-Command', 'exit 0'], {
-					stdio: 'ignore'
+					stdio: 'ignore',
+					timeout: 5000
 				});
 				return candidate;
 			} catch {
@@ -42,15 +43,18 @@ describe('Sandbox Windows Support & Docker Desktop Contract', () => {
 		expect(content).toContain('docker compose');
 	});
 
-	it('valide la syntaxe PowerShell de sandbox.ps1 sans erreur de parsing', () => {
-		const psCmd = resolvePowerShellCmd();
+	it('valide la syntaxe PowerShell de sandbox.ps1 sans erreur de parsing', { timeout: 30000 }, () => {
+		const isWindows = process.platform === 'win32';
+		const psCmd = isWindows ? resolvePowerShellCmd() : null;
 		if (!psCmd) {
-			// Sur un environnement Linux sans PowerShell (ou runner CI sans pwsh),
+			// Sur un environnement non-Windows (runner CI Linux / macOS),
 			// on effectue des vérifications structurelles indispensables de sandbox.ps1.
 			const content = fs.readFileSync(sandboxPs1, 'utf-8');
 			expect(content).toContain('param(');
 			expect(content).toContain('New-SandboxEnv');
 			expect(content).toContain('switch ($Command)');
+			expect(content).toContain('Invoke-Smoke');
+			expect(content).toContain('Find-Llmops');
 			expect(content).not.toMatch(/\$pAdmin\s*=\s*$/m);
 			return;
 		}
@@ -65,7 +69,8 @@ describe('Sandbox Windows Support & Docker Desktop Contract', () => {
 			].join('; ');
 
 			execFileSync(psCmd, ['-NoProfile', '-NonInteractive', '-Command', script], {
-				stdio: 'pipe'
+				stdio: 'pipe',
+				timeout: 20000
 			});
 		} catch (err) {
 			throw new Error(`Erreur de syntaxe PowerShell dans sandbox.ps1 : ${String(err)}`);

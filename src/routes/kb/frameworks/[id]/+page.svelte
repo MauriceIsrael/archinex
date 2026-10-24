@@ -672,14 +672,14 @@
         {#if req.acceptance_criteria?.length}
           <div class="p-3 bg-emerald-50 border border-emerald-200 rounded-lg text-xs space-y-1">
             <span class="font-bold text-emerald-900">Critères d'acceptation retenus</span>
-            <ul class="list-disc pl-5 text-emerald-900">{#each req.acceptance_criteria as c (c)}<li>{c}</li>{/each}</ul>
+            <ul class="list-disc pl-5 text-emerald-900">{#each req.acceptance_criteria as c}<li>{c}</li>{/each}</ul>
           </div>
         {:else if req.proposed_acceptance_criteria?.length}
           <div class="p-3 bg-purple-50 border border-purple-200 rounded-lg text-xs space-y-1" data-testid="proposed-criteria">
             <span class="font-bold text-purple-900">
               Critères d'acceptation proposés {req.links_production_mode === 'llm-derived' ? 'par le modèle' : ''} — à accepter, amender ou rejeter
             </span>
-            <ul class="list-disc pl-5 text-purple-900">{#each req.proposed_acceptance_criteria as c (c)}<li>{c}</li>{/each}</ul>
+            <ul class="list-disc pl-5 text-purple-900">{#each req.proposed_acceptance_criteria as c}<li>{c}</li>{/each}</ul>
           </div>
         {/if}
 

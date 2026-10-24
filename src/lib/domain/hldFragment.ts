@@ -114,15 +114,19 @@ export function buildHldFragment(input: HldFragmentInput): HldFragment {
 	});
 
 	const known = new Map(input.requirements.map((r) => [r.id, r]));
-	const items = input.requirementRefs.map((ref) => known.get(ref)).filter((r): r is HldRequirementRef => !!r);
-	const unresolvedRefs = input.requirementRefs.filter((ref) => !known.has(ref));
+	const uniqueRefs = Array.from(new Set(input.requirementRefs));
+	const items = uniqueRefs.map((ref) => known.get(ref)).filter((r): r is HldRequirementRef => !!r);
+	const unresolvedRefs = uniqueRefs.filter((ref) => !known.has(ref));
 
 	const objections = input.arguments.filter((a) => a.stance === 'objection');
-	const acceptedRisks = objections.filter((a) => a.resolution === 'accepted_risk').map((a) => a.claim);
-	const openPoints = [
+	const acceptedRisks = Array.from(
+		new Set(objections.filter((a) => a.resolution === 'accepted_risk').map((a) => a.claim))
+	);
+	const rawOpenPoints = [
 		...objections.filter((a) => a.resolution === 'open').map((a) => `Objection ouverte : ${a.claim}`),
 		...input.arguments.filter((a) => a.stance === 'question' && a.resolution === 'open').map((a) => `Question ouverte : ${a.claim}`)
 	];
+	const openPoints = Array.from(new Set(rawOpenPoints));
 
 	const retained = options.find((o) => o.status === 'retained');
 	const others = options.filter((o) => o.id !== retained?.id).map((o) => o.title);
@@ -177,9 +181,11 @@ export function buildHldFragment(input: HldFragmentInput): HldFragment {
 		decision: decisionBlock,
 		consequences: {
 			acceptedRisks,
-			acceptedViolations: (decision?.acceptedViolations ?? []).map((v) => `${v.typedId} : ${v.justification}`),
+			acceptedViolations: Array.from(
+				new Set((decision?.acceptedViolations ?? []).map((v) => `${v.typedId} : ${v.justification}`))
+			),
 			reversibility: decisionBlock?.reversibility,
-			coverageWarnings: input.coverageWarnings ?? []
+			coverageWarnings: Array.from(new Set(input.coverageWarnings ?? []))
 		},
 		openPoints,
 		provenance: {

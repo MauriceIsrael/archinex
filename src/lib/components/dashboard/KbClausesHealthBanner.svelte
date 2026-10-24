@@ -89,7 +89,7 @@
 
 				<div class="flex items-center gap-2 shrink-0">
 					<a
-						href="/knowledge/clauses"
+						href="/kb/clauses"
 						class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border bg-background hover:bg-muted font-semibold text-xs transition-colors"
 					>
 						<span>Valider & publier les clauses</span>

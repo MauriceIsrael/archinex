@@ -1,4 +1,6 @@
 import { describe, it, expect } from 'vitest';
+import { render } from 'svelte/server';
+import KbClausesHealthBanner from '$lib/components/dashboard/KbClausesHealthBanner.svelte';
 import {
 	computeKbClausesHealth,
 	rescopeKbClausesHealth
@@ -133,6 +135,23 @@ describe('KB Clauses Health & Alert Indicator (Issue #119)', () => {
 		expect(both.hasAlert).toBe(true);
 		expect(both.status).toBe('warning');
 		expect(both.unvalidatedControlsCount).toBe(1);
+	});
+
+	it('renders action link pointing to /kb/clauses instead of /knowledge/clauses', () => {
+		const mockClausesList: CheckClausesList = {
+			clauses: [
+				makeClause({ asset_id: 'CTRL-01', framework: 'NIS2', status: 'draft' })
+			],
+			counts: { validated: 0, draft: 1, rejected: 0 },
+			mandatory_without_clause: [],
+			pending_publication: 0
+		};
+		const summary = computeKbClausesHealth(mockClausesList);
+		const { html } = render(KbClausesHealthBanner, { props: { health: summary } });
+
+		expect(html).toContain('href="/kb/clauses"');
+		expect(html).not.toContain('href="/knowledge/clauses"');
+		expect(html).toContain('Valider &amp; publier les clauses');
 	});
 
 	it('handles offline state cleanly', () => {

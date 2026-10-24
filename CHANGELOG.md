@@ -8,6 +8,13 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Tableau de bord : correction du lien d'action vers la validation des clauses KB et redirection de courtoisie
+- Le bouton « Valider & publier les clauses » du composant `KbClausesHealthBanner` pointait vers `/knowledge/clauses`, ce qui déclenchait la route de détail d'actif `/knowledge/[id]` avec `id = "clauses"` et provoquait une erreur `404 Actif "clauses" introuvable`.
+- Le lien de la bannière pointe désormais directement vers la route canonique de gestion des clauses `/kb/clauses`.
+- Ajout d'une redirection de courtoisie HTTP 307 dans `src/routes/knowledge/[id]/+page.server.ts` pour rediriger automatiquement toute requête vers `/knowledge/clauses` vers `/kb/clauses`, évitant ainsi l'erreur 404 en cas d'accès direct ou via un ancien signet.
+- Tests : vérification du lien `/kb/clauses` rendu par `KbClausesHealthBanner` dans `tests/contract/kb-clauses-health-alert.test.ts` et de la redirection 307 dans `tests/contract/issue_95_knowledge_explorer.test.ts`.
+
+
 ### Knowledge Hub : distinction du refus 403 « expert non enregistré » face à l'indisponibilité 503 (archinex#145)
 - Un utilisateur Archinex non inscrit dans le registre des experts du Hub voyait `/kb/reviews` afficher à tort « Mode Hors-Ligne ou Service LLMOps Indisponible (503) — Le Knowledge Hub distant n'est pas joignable » et la pastille d'en-tête basculer sur « LLMOps Local », alors que le Hub répondait précisément 403 `{"status":"unauthorized","reason":"'...' is not a registered expert."}`.
 - Le client LLMOps (`client.ts`) distingue désormais rigoureusement le statut `not_registered` (403 avec raison non enregistré), `unauthorized` (401 jeton/assertion invalide), `unavailable` (503 ou panne réseau) et `ok`.

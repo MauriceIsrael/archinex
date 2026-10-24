@@ -85,4 +85,21 @@ describe('Fragment de HLD construit depuis la délibération', () => {
 		expect([...order].sort((a, b) => a - b)).toEqual(order);
 		expect(md).toContain('| 3.1 | Disponibilité | bloquant |');
 	});
+	it('dédoublonne les points ouverts, exigences et risques acceptés pour éviter les clés en double', () => {
+		const input = base();
+		input.requirementRefs = ['SRC-abcd1234:3.1', 'SRC-abcd1234:3.1'];
+		input.arguments = [
+			{ id: 'a1', subjectId: 'sub-1', stance: 'objection', claim: 'Latence inter-sites', grounds: '', kbRefs: [], confidence: 'assumed', author: 'x', authorKind: 'human', productionMode: 'human-authored', round: 1, resolution: 'accepted_risk', version: 1, createdAt: '' },
+			{ id: 'a2', subjectId: 'sub-1', stance: 'objection', claim: 'Latence inter-sites', grounds: '', kbRefs: [], confidence: 'assumed', author: 'y', authorKind: 'human', productionMode: 'human-authored', round: 2, resolution: 'accepted_risk', version: 1, createdAt: '' },
+			{ id: 'a3', subjectId: 'sub-1', stance: 'question', claim: 'Proposition de découpage du sujet pour lever la stagnation', grounds: '', kbRefs: [], confidence: 'assumed', author: 'agent', authorKind: 'llm', productionMode: 'llm-derived', round: 1, resolution: 'open', version: 1, createdAt: '' },
+			{ id: 'a4', subjectId: 'sub-1', stance: 'question', claim: 'Proposition de découpage du sujet pour lever la stagnation', grounds: '', kbRefs: [], confidence: 'assumed', author: 'agent', authorKind: 'llm', productionMode: 'llm-derived', round: 2, resolution: 'open', version: 1, createdAt: '' }
+		] as any;
+		input.coverageWarnings = ['Avertissement 1', 'Avertissement 1'];
+
+		const f = buildHldFragment(input);
+		expect(f.openPoints).toEqual(['Question ouverte : Proposition de découpage du sujet pour lever la stagnation']);
+		expect(f.consequences.acceptedRisks).toEqual(['Latence inter-sites']);
+		expect(f.consequences.coverageWarnings).toEqual(['Avertissement 1']);
+		expect(f.requirements.items.length).toBe(1);
+	});
 });

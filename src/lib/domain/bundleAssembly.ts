@@ -34,6 +34,7 @@ import {
 } from './artifactProjections';
 import type { Statement } from '$lib/types/epistemic';
 import { renderStructurizrWorkspace, type C4Container, type C4System } from '$lib/domain/structurizrDsl';
+import { c4Styles, elementBadge, isWithdrawn, mermaidClassDefs, mmdText, storedBadge } from '$lib/domain/epistemicBadge';
 import type { MaturitySubject } from '$lib/domain/maturityBoard';
 import type { TelegraphicDraft } from '$lib/domain/telegraphic';
 
@@ -109,6 +110,12 @@ export interface AssemblyStatement {
 	productionMode: string;
 	author: string;
 	createdAt: Date;
+	/** Confiance telle que stockée (`verified`, `designed`, `assumed`…). Absente : jamais prise pour « vérifié ». */
+	confidence?: string | null;
+	/** Statut tel que stocké (`active`, `contested`, `retracted`…). Absent : actif. */
+	status?: string | null;
+	/** Identifiants des énoncés dont celui-ci dépend. */
+	basedOn?: string[];
 }
 
 export interface AssemblyInput {
@@ -186,38 +193,35 @@ function classifyRelationKind(predicate: string): 'uses' | 'depends_on' | 'data_
 }
 
 function generateGlobalMermaid(elements: BundleElement[], relations: BundleRelation[]): string {
-	const lines = ['flowchart TD'];
+	const lines = ['flowchart TD', ...mermaidClassDefs()];
 	const systems = elements.filter((e) => e.kind === 'system' || e.kind === 'boundary');
 	const components = elements.filter((e) => e.kind !== 'system' && e.kind !== 'boundary');
+	const id = (raw: string) => raw.replace(/[^a-zA-Z0-9_]/g, '_');
+	// Chaque élément dit s'il est validé par un humain ou seulement proposé, et — pour un énoncé — sa confiance (dans `description`).
+	const node = (el: BundleElement, indent: string) => {
+		const badge = elementBadge(el);
+		const detail = el.description && el.kind !== 'system' ? `${mmdText(el.description)} · ` : '';
+		lines.push(`${indent}${id(el.id)}["${mmdText(el.name)}<br/><i>${detail}${mmdText(badge.label)}</i>"]:::${badge.tag}`);
+	};
 
 	for (const sys of systems) {
 		const children = components.filter((c) => c.boundary_id === sys.id);
-		const safeSysId = sys.id.replace(/[^a-zA-Z0-9_]/g, '_');
-		lines.push(`    subgraph ${safeSysId}["${sys.name.replace(/["[\]()]/g, '')}"]`);
-		for (const child of children) {
-			const safeChildId = child.id.replace(/[^a-zA-Z0-9_]/g, '_');
-			const safeName = child.name.replace(/["[\]()]/g, '');
-			lines.push(`        ${safeChildId}["${safeName}"]`);
-		}
-		if (children.length === 0) {
-			lines.push(`        ${safeSysId}_node["${sys.name.replace(/["[\]()]/g, '')}"]`);
-		}
+		lines.push(`    subgraph ${id(sys.id)}["${mmdText(sys.name)}"]`);
+		for (const child of children) node(child, '        ');
+		if (children.length === 0) lines.push(`        ${id(sys.id)}_node["${mmdText(sys.name)}"]`);
 		lines.push('    end');
 	}
 
 	for (const comp of components) {
-		if (!comp.boundary_id || !systems.some((s) => s.id === comp.boundary_id)) {
-			const safeId = comp.id.replace(/[^a-zA-Z0-9_]/g, '_');
-			const safeName = comp.name.replace(/["[\]()]/g, '');
-			lines.push(`    ${safeId}["${safeName}"]`);
-		}
+		if (!comp.boundary_id || !systems.some((s) => s.id === comp.boundary_id)) node(comp, '    ');
 	}
 
+	// Une relation « contient » entre un système et ce qu'il contient est déjà dite par le sous-graphe : on ne la redessine pas
+	// (elle collait aussi un libellé sur le titre du sous-graphe).
 	for (const rel of relations) {
-		const safeFrom = rel.from.replace(/[^a-zA-Z0-9_]/g, '_');
-		const safeTo = rel.to.replace(/[^a-zA-Z0-9_]/g, '_');
-		const safeLabel = (rel.label || rel.kind).replace(/["[\]()]/g, '');
-		lines.push(`    ${safeFrom} -->|"${safeLabel}"| ${safeTo}`);
+		const child = components.find((c) => c.id === rel.to);
+		if (rel.kind === 'contains' && child?.boundary_id === rel.from) continue;
+		lines.push(`    ${id(rel.from)} -->|"${mmdText(rel.label || rel.kind)}"| ${id(rel.to)}`);
 	}
 
 	return lines.join('\n');
@@ -227,7 +231,10 @@ function generateGlobalStructurizr(projectName: string, elements: BundleElement[
 	const systems = elements.filter((e) => e.kind === 'system' || e.kind === 'boundary');
 	const components = elements.filter((e) => e.kind !== 'system' && e.kind !== 'boundary');
 	const systemIds = new Set(systems.map((s) => s.id));
-	const toContainer = (c: BundleElement): C4Container => ({ id: c.id, name: c.name, description: c.description || c.kind, technology: c.kind });
+	const toContainer = (c: BundleElement): C4Container => {
+		const badge = elementBadge(c);
+		return { id: c.id, name: c.name, description: c.description || c.kind, technology: `${c.kind}, ${badge.label}`, tags: [badge.tag] };
+	};
 	const c4Systems: C4System[] = systems.map((sys) => ({
 		id: sys.id,
 		name: sys.name,
@@ -244,7 +251,8 @@ function generateGlobalStructurizr(projectName: string, elements: BundleElement[
 		group: projectName,
 		systems: c4Systems,
 		relations: relations.map((r) => ({ from: r.from, to: r.to, label: r.label || r.kind })),
-		viewKey: 'Architecture_Globale'
+		viewKey: 'Architecture_Globale',
+		styles: c4Styles()
 	});
 }
 
@@ -259,6 +267,7 @@ function generateGlobalSysMLv2(projectName: string, elements: BundleElement[], r
 		lines.push(`    part def ${safeId} {`);
 		lines.push(`        attribute name : String = "${safeName}";`);
 		lines.push(`        attribute kind : String = "${el.kind}";`);
+		lines.push(`        attribute epistemic : String = "${elementBadge(el).label}";`);
 		lines.push('    }');
 	}
 	lines.push('}');
@@ -362,7 +371,7 @@ export function assembleEngagementBundle(input: AssemblyInput): EngagementBundle
 				value: st.value,
 				...(st.unit ? { unit: st.unit } : {})
 			},
-			justification: { basedOn: [] },
+			justification: { basedOn: st.basedOn ?? [] },
 			authority: {
 				author: sanitizeHandle(st.author),
 				role: 'lead_architect',
@@ -370,10 +379,11 @@ export function assembleEngagementBundle(input: AssemblyInput): EngagementBundle
 			},
 			maturity: {
 				subjectLevel: matSubject.level as any,
-				confidence: 'verified'
+				// Avant : `'verified'` pour tous. Une confiance inconnue reste inconnue (badge « non renseignée »).
+				confidence: (st.confidence ?? '') as any
 			},
 			revisability: { antecedents: [] },
-			status: 'active',
+			status: (st.status === 'contested' || st.status === 'retracted' ? st.status : 'active') as any,
 			createdAt: st.createdAt.toISOString(),
 			updatedAt: st.createdAt.toISOString()
 		}));
@@ -592,6 +602,8 @@ export function assembleEngagementBundle(input: AssemblyInput): EngagementBundle
 
 		for (const st of [...input.statements].sort((a, b) => cmp(a.id, b.id))) {
 			if (!st.subjectId || !subjectMap.has(st.subjectId)) continue;
+			// Un énoncé remplacé ou retiré n'engage plus personne : il n'est pas un élément de l'architecture.
+			if (isWithdrawn({ status: (st.status ?? 'active') as Statement['status'] })) continue;
 			const sub = subjectMap.get(st.subjectId)!;
 			const isHuman = st.productionMode === 'human-authored';
 			const stmtElemId = `elem-stmt-${st.id}`;
@@ -603,6 +615,7 @@ export function assembleEngagementBundle(input: AssemblyInput): EngagementBundle
 				name: `${st.predicate}: ${st.value}${st.unit ? ' ' + st.unit : ''}`,
 				kind,
 				boundary_id: subElemId,
+				description: storedBadge(st.confidence, st.status).label,
 				decision_ids: sub.decision ? [sub.decision.id] : [],
 				epistemic_status: isHuman ? 'validated' : 'ai_proposed',
 				assertion_level: isHuman ? 'asserted' : 'proposed',

@@ -92,7 +92,10 @@ export async function exportEngagementBundle(
 			unit: st.unit,
 			productionMode: st.productionMode,
 			author: st.author,
-			createdAt: st.createdAt
+			createdAt: st.createdAt,
+			confidence: st.confidence,
+			status: st.status,
+			basedOn: parseJsonArray<string>(st.basedOn)
 		}))
 	};
 

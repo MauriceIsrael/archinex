@@ -147,4 +147,14 @@ describe.skipIf(!cli && !required)('Structurizr DSL : validé par le vrai CLI', 
 	it('le workspace d\'un sujet (noms en double, guillemets, antislash, apostrophe) est accepté', () => validate('sujet', unitDsl()));
 	it('le workspace global (plusieurs systèmes, décision, relations) est accepté', () => validate('global', bundleDsl()));
 	it('un workspace sans énoncé ni personne est accepté', () => validate('vide', generateStructurizrDSL(subject, draft, [], undefined)));
+	it('un workspace aux statuts mêlés (styles, étiquettes, énoncé remplacé écarté) est accepté', () => {
+		const mixed = [
+			{ ...stmt('M1', 'ingress', 'Envoy'), maturity: { subjectLevel: 'L2_decomposed', confidence: 'designed' } },
+			{ ...stmt('M2', 'region', 'eu-west-3', ['M1']), maturity: { subjectLevel: 'L2_decomposed', confidence: 'assumed' }, status: 'under_review' },
+			{ ...stmt('M3', 'kms', 'clé fournisseur', ['M1']), status: 'contested' },
+			{ ...stmt('M4', 'ttl', '30'), status: 'superseded' },
+			stmt('M5', 'ttl', '15')
+		] as Statement[];
+		validate('statuts', generateStructurizrDSL(subject, draft, mixed, { decision: { retainedOptionId: 'o', retainedOptionTitle: 'Envoy', rationale: 'r', reversibility: 'costly' } } as never));
+	});
 });

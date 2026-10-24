@@ -2,6 +2,7 @@ import type { MaturitySubject } from '$lib/domain/maturityBoard';
 import type { TelegraphicDraft } from '$lib/domain/telegraphic';
 import type { Statement } from '$lib/types/epistemic';
 import { renderStructurizrWorkspace, type C4Container, type C4Relation } from '$lib/domain/structurizrDsl';
+import { badgeOf, c4Styles, epistemicCounts, mermaidClassDefs, mmdText, partitionStatements, withdrawnNote } from '$lib/domain/epistemicBadge';
 
 export interface ProjectionActor {
 	name: string;
@@ -29,8 +30,22 @@ export interface ProjectionContext {
 	sealSha256?: string;
 }
 
+/** Les énoncés d'une section, partagés en « à dessiner » et « écartés » : le même tri pour tous les artefacts. */
+function scoped(subject: MaturitySubject, statements: Statement[]) {
+	return partitionStatements(statements.filter((s) => s.section === subject.section_ref || s.triplet.subject === subject.id));
+}
+
+/** Liens causaux entre énoncés dessinés : `basedOn` qui désigne un autre énoncé de la section (une référence externe est ignorée). */
+function causalLinks(shown: Statement[]): Array<{ from: Statement; to: Statement }> {
+	const byId = new Map(shown.map((s) => [s.id, s]));
+	return shown.flatMap((to) => to.justification.basedOn.flatMap((id) => (byId.has(id) ? [{ from: byId.get(id)!, to }] : [])));
+}
+
 /**
- * Génère le diagramme d'architecture Mermaid normalisé à partir des faits prouvés (No Doc Drift).
+ * Génère le diagramme d'architecture Mermaid à partir des énoncés de la section.
+ *
+ * Chaque énoncé porte son badge de solidité (vérifié, conçu, hypothèse, contesté, en conflit…) en couleur **et** en toutes lettres ;
+ * un énoncé remplacé ou retiré n'est pas dessiné, et le dit.
  */
 export function generateMermaidDiagram(
 	subject: MaturitySubject,
@@ -38,46 +53,31 @@ export function generateMermaidDiagram(
 	statements: Statement[],
 	context?: ProjectionContext
 ): string {
-	const relevantStatements = statements.filter(
-		(s) => s.section === subject.section_ref || s.triplet.subject === subject.id
-	);
+	const { shown, withdrawn, conflictIds } = scoped(subject, statements);
+	const index = new Map(shown.map((s, i) => [s.id, i]));
+	const hasOption = Boolean(context?.decision?.retainedOptionTitle);
 
-	const lines: string[] = [
-		'flowchart TD',
-		`    subgraph "${subject.section_ref} · ${subject.name}"`
-	];
+	const lines: string[] = ['flowchart TD', ...mermaidClassDefs(), `    subgraph "${mmdText(`${subject.section_ref} · ${subject.name}`)}"`];
 
-	if (context?.decision?.retainedOptionTitle) {
-		const safeOpt = context.decision.retainedOptionTitle.replace(/["[\]()]/g, '');
-		lines.push(`        OPT["⭐ Option Retenue : ${safeOpt}"]`);
-	}
+	if (hasOption) lines.push(`        OPT["⭐ Option retenue : ${mmdText(context!.decision!.retainedOptionTitle!)}"]:::Retained`);
 
-	if (relevantStatements.length === 0 && !context?.decision) {
+	if (shown.length === 0 && !context?.decision) {
 		lines.push('        A["Architecture en cours de délibération"]');
 	} else {
-		relevantStatements.forEach((stmt, idx) => {
-			const sanitizedVal = String(stmt.triplet.value).replace(/["[\]()]/g, '');
-			const nodeId = `N_${idx}`;
-			lines.push(`        ${nodeId}["${stmt.triplet.predicate} : ${sanitizedVal}"]`);
+		shown.forEach((stmt, i) => {
+			const badge = badgeOf(stmt, conflictIds.has(stmt.id));
+			lines.push(`        N_${i}["${mmdText(`${stmt.triplet.predicate} : ${stmt.triplet.value}`)}<br/><i>${mmdText(badge.label)}</i>"]:::${badge.tag}`);
 		});
-
-		// Liens causaux entre énoncés
-		relevantStatements.forEach((stmt, idx) => {
-			if (stmt.justification.basedOn.length > 0) {
-				stmt.justification.basedOn.forEach((baseId) => {
-					const parentIdx = relevantStatements.findIndex((s) => s.id === baseId);
-					if (parentIdx >= 0) {
-						lines.push(`        N_${parentIdx} --> N_${idx}`);
-					}
-				});
-			}
-		});
-
-		if (context?.decision?.retainedOptionTitle && relevantStatements.length > 0) {
-			lines.push(`        OPT --> N_0`);
+		for (const { from, to } of causalLinks(shown)) lines.push(`        N_${index.get(from.id)} --> N_${index.get(to.id)}`);
+		if (hasOption) {
+			// L'option retenue précède les énoncés qui ne se fondent sur aucun autre de la section.
+			const founded = new Set(causalLinks(shown).map((l) => l.to.id));
+			shown.filter((s) => !founded.has(s.id)).forEach((s) => lines.push(`        OPT --> N_${index.get(s.id)}`));
 		}
 	}
 
+	const note = withdrawnNote(withdrawn);
+	if (note) lines.push(`        W["${mmdText(note)}"]:::Withdrawn`);
 	lines.push('    end');
 	return lines.join('\n');
 }
@@ -85,7 +85,8 @@ export function generateMermaidDiagram(
 /**
  * Génère la spécification C4 au format Structurizr DSL (.dsl), **acceptée par Structurizr** (voir `structurizrDsl.ts`).
  *
- * Les personnes sont celles que l'appelant déclare comme acteurs du système : aucune personne n'est inventée quand il n'en donne pas.
+ * Chaque container porte, comme « technologie » et comme étiquette de style, la solidité de l'énoncé dont il vient. Les personnes
+ * sont celles que l'appelant déclare comme acteurs du système : aucune n'est inventée.
  */
 export function generateStructurizrDSL(
 	subject: MaturitySubject,
@@ -93,10 +94,7 @@ export function generateStructurizrDSL(
 	statements: Statement[],
 	context?: ProjectionContext
 ): string {
-	const relevantStatements = statements.filter(
-		(s) => s.section === subject.section_ref || s.triplet.subject === subject.id
-	);
-
+	const { shown, withdrawn, conflictIds } = scoped(subject, statements);
 	const enterpriseName = context?.enterpriseName || context?.projectName || 'Organisation';
 	const containers: C4Container[] = [];
 
@@ -105,37 +103,44 @@ export function generateStructurizrDSL(
 			id: 'retained_option',
 			name: context.decision.retainedOptionTitle,
 			description: context.decision.rationale || 'Option retenue',
-			technology: 'Architecture Retenue'
+			technology: 'Option retenue',
+			tags: ['Retained']
 		});
 	}
 
-	relevantStatements.forEach((s) => {
-		containers.push({ id: s.id, name: s.triplet.predicate, description: String(s.triplet.value), technology: 'Verified Architecture' });
+	shown.forEach((s) => {
+		const badge = badgeOf(s, conflictIds.has(s.id));
+		containers.push({ id: s.id, name: s.triplet.predicate, description: String(s.triplet.value), technology: badge.label, tags: [badge.tag] });
 	});
 
 	if (containers.length === 0) {
-		containers.push({ id: 'default', name: 'Socle Architectural', description: 'En cours de spécification', technology: 'Verified Architecture' });
+		containers.push({ id: 'default', name: 'Socle Architectural', description: 'En cours de spécification', technology: 'non spécifié', tags: ['Unqualified'] });
 	}
 
-	// Un énoncé fondé sur un autre : le lien causal du Mermaid existe aussi dans le C4.
-	const inScope = new Set(relevantStatements.map((s) => s.id));
-	const relations: C4Relation[] = relevantStatements.flatMap((s) =>
-		s.justification.basedOn.filter((baseId) => inScope.has(baseId)).map((baseId) => ({ from: baseId, to: s.id, label: 'fonde' }))
-	);
+	const note = withdrawnNote(withdrawn);
+	const relations: C4Relation[] = causalLinks(shown).map(({ from, to }) => ({ from: from.id, to: to.id, label: 'fonde' }));
 
 	return renderStructurizrWorkspace({
 		name: subject.name,
 		description: 'Projeté sans dérive depuis Archinex',
 		group: enterpriseName,
 		persons: (context?.actors ?? []).map((a) => ({ name: a.name, description: a.description })),
-		systems: [{ id: subject.id, name: subject.name, containers }],
+		systems: [{ id: subject.id, name: subject.name, description: note ?? undefined, containers }],
 		relations,
-		viewKey: subject.id
+		viewKey: subject.id,
+		styles: c4Styles(),
+		notes: note ? [note] : undefined
 	});
 }
 
+/** Texte sûr dans un commentaire `doc` SysML : la fin de commentaire est neutralisée. */
+const sysmlDoc = (value: string) => value.replace(/\*\//g, '* /').replace(/[\r\n]+/g, ' ');
+const sysmlString = (value: string) => String(value).replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/[\r\n]+/g, ' ');
+
 /**
  * Génère la modélisation système en langage SysML v2 / SysON.
+ *
+ * Non validé par un outil SysML v2 : les noms sont uniques et échappés, mais aucun analyseur n'a relu ce texte.
  */
 export function generateSysMLv2(
 	subject: MaturitySubject,
@@ -143,46 +148,64 @@ export function generateSysMLv2(
 	statements: Statement[],
 	context?: ProjectionContext
 ): string {
-	const relevantStatements = statements.filter(
-		(s) => s.section === subject.section_ref || s.triplet.subject === subject.id
-	);
-
+	const { shown, withdrawn, conflictIds } = scoped(subject, statements);
+	const taken = new Set<string>();
+	const unique = (raw: string) => {
+		const base = raw.replace(/[^a-zA-Z0-9_]/g, '_').replace(/^(\d)/, '_$1') || 'element';
+		let name = base;
+		for (let n = 2; taken.has(name); n++) name = `${base}_${n}`;
+		taken.add(name);
+		return name;
+	};
 	const parts: string[] = [];
 
 	if (context?.decision?.retainedOptionTitle) {
-		const safeTitle = context.decision.retainedOptionTitle.replace(/[^a-zA-Z0-9_]/g, '_');
-		parts.push(`    part def Opt_${safeTitle} {`);
-		parts.push(`        doc /* Option retenue : ${context.decision.retainedOptionTitle.replace(/"/g, '\\"')} */`);
+		parts.push(`    part def ${unique(`Opt_${context.decision.retainedOptionTitle}`)} {`);
+		parts.push(`        doc /* Option retenue : ${sysmlDoc(context.decision.retainedOptionTitle)} */`);
 		if (context.decision.reversibility) {
-			parts.push(`        attribute reversibility : String = "${context.decision.reversibility}";`);
+			parts.push(`        attribute reversibility : String = "${sysmlString(context.decision.reversibility)}";`);
 		}
 		parts.push(`    }`);
 	}
 
-	relevantStatements.forEach((s) => {
-		const safeName = s.triplet.predicate.replace(/[^a-zA-Z0-9_]/g, '_');
-		parts.push(`    part def ${safeName} {`);
-		parts.push(`        attribute specification : String = "${String(s.triplet.value).replace(/"/g, '\\"')}";`);
-		parts.push(`        attribute confidence : String = "${s.maturity.confidence}";`);
+	shown.forEach((s) => {
+		const badge = badgeOf(s, conflictIds.has(s.id));
+		parts.push(`    part def ${unique(s.triplet.predicate)} {`);
+		parts.push(`        attribute specification : String = "${sysmlString(String(s.triplet.value))}";`);
+		parts.push(`        attribute confidence : String = "${sysmlString(String(s.maturity.confidence))}";`);
+		parts.push(`        attribute status : String = "${sysmlString(String(s.status))}";`);
+		parts.push(`        attribute epistemic : String = "${sysmlString(badge.label)}";`);
 		parts.push(`    }`);
 	});
 
 	if (context?.requirements && context.requirements.length > 0) {
 		context.requirements.forEach((r) => {
 			const safeClause = r.clauseRef.replace(/[^a-zA-Z0-9_]/g, '_');
-			parts.push(`    // Exigence couverte : ${r.clauseRef} - ${r.title.replace(/"/g, '\\"')}`);
+			parts.push(`    // Exigence couverte : ${r.clauseRef} - ${r.title.replace(/[\r\n]+/g, ' ')}`);
 			parts.push(`    // satisfy requirement req_${safeClause};`);
 		});
 	}
 
-	return `package '${subject.name}' {
-    doc /* Projeté sans doc drift depuis Archinex snapshot scellé */
-${parts.join('\n')}
-}`;
+	const note = withdrawnNote(withdrawn);
+	const header = [`    doc /* Projeté sans doc drift depuis Archinex snapshot scellé */`];
+	if (note) header.push(`    doc /* ${sysmlDoc(note)} */`);
+	return `package '${subject.name.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}' {\n${[...header, ...parts].join('\n')}\n}`;
+}
+
+/** Valeur typée d'un paramètre : « true », « 15 » deviennent un booléen, un nombre. */
+function typed(value: unknown): unknown {
+	if (typeof value !== 'string') return value;
+	if (value.toLowerCase() === 'true') return true;
+	if (value.toLowerCase() === 'false') return false;
+	return /^-?\d+(\.\d+)?$/.test(value) ? Number(value) : value;
 }
 
 /**
- * Génère la configuration opérationnelle JSON dynamique à partir des faits prouvés et de la décision (No Doc Drift).
+ * Génère la configuration opérationnelle JSON à partir des énoncés de la section et de la décision.
+ *
+ * Un prédicat qui porte deux valeurs actives différentes n'est **pas** tranché ici : il sort dans `conflicts`, pas dans `parameters`
+ * (avant, la dernière valeur lue l'emportait, au gré de l'ordre des énoncés). Les paramètres qui ne sont pas vérifiés sont listés
+ * dans `unsettled` avec leur solidité.
  */
 export function generateConfigJSON(
 	subject: MaturitySubject,
@@ -192,29 +215,25 @@ export function generateConfigJSON(
 	generatedAt: string = new Date().toISOString(),
 	context?: ProjectionContext
 ): string {
-	const relevantStatements = statements.filter(
-		(s) => s.section === subject.section_ref || s.triplet.subject === subject.id
-	);
+	const { shown, withdrawn, conflictIds } = scoped(subject, statements);
+	const key = (s: Statement) => s.triplet.predicate.replace(/[^a-zA-Z0-9_]/g, '_');
 
 	const parameters: Record<string, unknown> = {};
-	for (const stmt of relevantStatements) {
-		const key = stmt.triplet.predicate.replace(/[^a-zA-Z0-9_]/g, '_');
-		let val: any = stmt.triplet.value;
-		if (typeof val === 'string') {
-			if (val.toLowerCase() === 'true') val = true;
-			else if (val.toLowerCase() === 'false') val = false;
-			else if (/^-?\d+(\.\d+)?$/.test(val)) val = Number(val);
+	const unsettled: Record<string, string> = {};
+	const conflicts: Record<string, unknown[]> = {};
+	for (const stmt of shown) {
+		const k = key(stmt);
+		if (conflictIds.has(stmt.id)) {
+			(conflicts[k] ??= []).push(typed(stmt.triplet.value));
+			continue;
 		}
-		parameters[key] = val;
+		parameters[k] = typed(stmt.triplet.value);
+		const badge = badgeOf(stmt, false);
+		if (!badge.settled) unsettled[k] = badge.label;
 	}
 
 	const config = {
-		subject: {
-			id: subject.id,
-			sectionRef: subject.section_ref,
-			name: subject.name,
-			maturityLevel: subject.level
-		},
+		subject: { id: subject.id, sectionRef: subject.section_ref, name: subject.name, maturityLevel: subject.level },
 		decision: context?.decision
 			? {
 					retainedOptionId: context.decision.retainedOptionId,
@@ -225,17 +244,13 @@ export function generateConfigJSON(
 					arbiterRole: context.decision.arbiterRole
 				}
 			: null,
-		parameters: Object.keys(parameters).length > 0 ? parameters : {
-			status: subject.level,
-			verifiedStatementsCount: relevantStatements.length
-		},
+		parameters: Object.keys(parameters).length > 0 ? parameters : { status: subject.level, statementsCount: shown.length },
+		unsettled,
+		conflicts,
+		withdrawnStatements: withdrawn,
+		epistemic: epistemicCounts(shown, conflictIds),
 		coveredRequirements: context?.requirements?.map((r) => r.clauseRef) ?? [],
-		provenance: {
-			sealedEngine: 'Archinex Deliberation Workbench',
-			generatedAt,
-			enforcedTruth: true,
-			sealSha256: context?.sealSha256
-		}
+		provenance: { sealedEngine: 'Archinex Deliberation Workbench', generatedAt, sealSha256: context?.sealSha256 }
 	};
 
 	return JSON.stringify(config, null, 2);
@@ -250,44 +265,42 @@ export function generateStructurizrVisualMermaid(
 	statements: Statement[],
 	context?: ProjectionContext
 ): string {
-	const relevantStatements = statements.filter(
-		(s) => s.section === subject.section_ref || s.triplet.subject === subject.id
-	);
-
+	const { shown, withdrawn, conflictIds } = scoped(subject, statements);
 	const enterpriseName = context?.enterpriseName || context?.projectName || 'Organisation';
 	const actors = context?.actors ?? [];
 
 	const lines: string[] = [
 		'flowchart TB',
 		'    classDef person fill:#08427b,stroke:#073b6e,color:#fff,font-weight:bold',
-		'    classDef system fill:#1168bd,stroke:#0b4884,color:#fff,font-weight:bold',
-		'    classDef container fill:#438dd5,stroke:#2e6295,color:#fff',
-		'    classDef retained fill:#2b8a3e,stroke:#1b5e20,color:#fff,font-weight:bold',
+		...mermaidClassDefs(),
 		'',
 		...actors.map(
-			(a, i) => `    user_${i}["👤 ${a.name.replace(/["[\]()]/g, '')}<br/><small>[Personne]</small><br/>${(a.description || '').replace(/["[\]()]/g, '')}"]:::person`
+			(a, i) => `    user_${i}["👤 ${mmdText(a.name)}<br/><small>[Personne]</small><br/>${mmdText(a.description || '')}"]:::person`
 		),
 		'',
-		`    subgraph Enterprise["🏢 Entreprise : ${enterpriseName}"]`,
-		`        subgraph SysBound["Système : ${subject.name}"]`,
+		`    subgraph Enterprise["🏢 Entreprise : ${mmdText(enterpriseName)}"]`,
+		`        subgraph SysBound["Système : ${mmdText(subject.name)}"]`,
 		`            direction TB`
 	];
 
 	if (context?.decision?.retainedOptionTitle) {
-		const safeOpt = context.decision.retainedOptionTitle.replace(/["[\]()]/g, '');
-		const safeRat = (context.decision.rationale || '').slice(0, 50).replace(/["[\]()]/g, '');
-		lines.push(`            c_opt["⭐ ${safeOpt}<br/><small>[Option Retenue · Arbitrée]</small><br/>${safeRat}"]:::retained`);
+		const safeRat = (context.decision.rationale || '').slice(0, 50);
+		lines.push(`            c_opt["⭐ ${mmdText(context.decision.retainedOptionTitle)}<br/><small>[Option retenue · arbitrée]</small><br/>${mmdText(safeRat)}"]:::Retained`);
 	}
 
-	if (relevantStatements.length === 0 && !context?.decision) {
-		lines.push(`            c_default["⚙️ Composant Architectural<br/><small>[Container]</small><br/>En cours de délibération"]:::container`);
+	if (shown.length === 0 && !context?.decision) {
+		lines.push(`            c_default["⚙️ Composant Architectural<br/><small>[non spécifié]</small><br/>En cours de délibération"]:::Unqualified`);
 	} else {
-		relevantStatements.forEach((s, idx) => {
-			const safeVal = String(s.triplet.value).replace(/["[\]()]/g, '');
-			lines.push(`            c_${idx}["⚙️ ${s.triplet.predicate}<br/><small>[Container · ${s.authority.role}]</small><br/>${safeVal}"]:::container`);
+		shown.forEach((s, idx) => {
+			const badge = badgeOf(s, conflictIds.has(s.id));
+			lines.push(`            c_${idx}["⚙️ ${mmdText(s.triplet.predicate)}<br/><small>[Container · ${mmdText(badge.label)}]</small><br/>${mmdText(String(s.triplet.value))}"]:::${badge.tag}`);
 		});
+		const index = new Map(shown.map((s, i) => [s.id, i]));
+		for (const { from, to } of causalLinks(shown)) lines.push(`            c_${index.get(from.id)} -->|"fonde"| c_${index.get(to.id)}`);
 	}
 
+	const note = withdrawnNote(withdrawn);
+	if (note) lines.push(`            c_withdrawn["${mmdText(note)}"]:::Withdrawn`);
 	lines.push('        end');
 	lines.push('    end');
 	lines.push('');
@@ -305,28 +318,30 @@ export function generateSysMLVisualMermaid(
 	statements: Statement[],
 	context?: ProjectionContext
 ): string {
-	const relevantStatements = statements.filter(
-		(s) => s.section === subject.section_ref || s.triplet.subject === subject.id
-	);
+	const { shown, withdrawn, conflictIds } = scoped(subject, statements);
+	// Un membre de classe Mermaid : on garde les accents (avant, chacun devenait « _ »), on retire ce qui casse la syntaxe.
+	const member = (value: string) => value.replace(/[{}"<>`]/g, '').replace(/[()]/g, ' ').replace(/\s*[\r\n]+\s*/g, ' ').replace(/\s{2,}/g, ' ').trim();
 
 	const lines: string[] = [
 		'classDiagram',
 		`    class Block_${subject.id.replace(/[^a-zA-Z0-9_]/g, '_')} {`,
 		`        <<system>>`,
-		`        +section: "${subject.section_ref}"`,
-		`        +status: "${subject.level}"`
+		`        +section: ${member(subject.section_ref)}`,
+		`        +status: ${member(String(subject.level))}`
 	];
 
 	if (context?.decision?.retainedOptionTitle) {
-		lines.push(`        +retainedOption: "${context.decision.retainedOptionTitle.replace(/"/g, '')}"`);
+		lines.push(`        +retainedOption: ${member(context.decision.retainedOptionTitle)}`);
 	}
 
-	relevantStatements.forEach((s) => {
-		const safePred = s.triplet.predicate.replace(/[^a-zA-Z0-9_]/g, '_');
-		const safeVal = String(s.triplet.value).replace(/[^a-zA-Z0-9_]/g, '_');
-		lines.push(`        +${safePred}: ${safeVal}`);
+	shown.forEach((s) => {
+		const badge = badgeOf(s, conflictIds.has(s.id));
+		const name = s.triplet.predicate.replace(/[^\p{L}\p{N}_]/gu, '_');
+		lines.push(`        +${name}: ${member(String(s.triplet.value))} · ${member(badge.label)}`);
 	});
 
+	const note = withdrawnNote(withdrawn);
+	if (note) lines.push(`        +écartés: ${member(note)}`);
 	lines.push('    }');
 
 	return lines.join('\n');

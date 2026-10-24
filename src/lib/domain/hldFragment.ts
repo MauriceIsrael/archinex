@@ -63,6 +63,8 @@ export interface HldFragment {
 	status: HldFragmentStatus;
 	statusLabel: string;
 	control: Array<{ label: string; value: string }>;
+	/** Ce qu'il faut savoir avant de lire le détail : la réponse (ou son absence), en trois ou quatre lignes. */
+	synthesis: { headline: string; details: string[] };
 	context: { problem: string; nature?: string; dependsOn: string[] };
 	requirements: { items: HldRequirementRef[]; unresolvedRefs: string[]; dossierPresent: boolean };
 	drivers: Array<{ name: string; kind: string; weight: number; description?: string }>;
@@ -81,6 +83,22 @@ const REVERSIBILITY_LABEL: Record<string, string> = {
 	irreversible: 'Irréversible'
 };
 
+/**
+ * « principle:P-009 » → « principe P-009 » : un identifiant typé sert à retrouver l'objet, pas à être lu. Un type inconnu reste tel quel.
+ * Les entrées `COMPLIANCE_STATUS:*` et `PORTABILITY:*` ne sont pas des écarts : elles transportent des métadonnées de la décision.
+ */
+const TYPED_ID_LABEL: Record<string, string> = {
+	principle: 'principe', control: 'contrôle', pattern: 'patron', requirement: 'exigence', req: 'exigence', rule: 'règle'
+};
+const isDecisionMetadata = (typedId: string) => typedId.startsWith('COMPLIANCE_STATUS:') || typedId.startsWith('PORTABILITY:');
+export function humanizeTypedId(typedId: string): string {
+	const i = typedId.indexOf(':');
+	const label = i > 0 ? TYPED_ID_LABEL[typedId.slice(0, i).toLowerCase()] : undefined;
+	return label ? `${label} ${typedId.slice(i + 1)}` : typedId;
+}
+
+const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+
 const isModel = (productionMode?: string, origin?: string) =>
 	origin === 'llm-proposed' || (productionMode ?? '').startsWith('llm');
 
@@ -95,6 +113,7 @@ export function buildHldFragment(input: HldFragmentInput): HldFragment {
 	const status = hldFragmentStatus(subject, decision);
 	const criterionById = new Map(input.criteria.map((c) => [c.id, c]));
 	const rejected = new Map((decision?.rejected ?? []).map((r) => [r.optionId, r.reason]));
+	const violations = (decision?.acceptedViolations ?? []).filter((v) => !isDecisionMetadata(v.typedId));
 
 	const options: HldFragmentOption[] = input.options.map((o) => {
 		const scores = input.evaluations
@@ -119,10 +138,11 @@ export function buildHldFragment(input: HldFragmentInput): HldFragment {
 	const unresolvedRefs = uniqueRefs.filter((ref) => !known.has(ref));
 
 	const objections = input.arguments.filter((a) => a.stance === 'objection');
-	const acceptedRisks = Array.from(
-		new Set(objections.filter((a) => a.resolution === 'accepted_risk').map((a) => a.claim))
-	);
+	const riskClaims = Array.from(new Set(objections.filter((a) => a.resolution === 'accepted_risk').map((a) => a.claim)));
+	// Un risque n'est « accepté » que par une décision : sans elle, c'est un point du débat, pas une conséquence assumée.
+	const acceptedRisks = decision ? riskClaims : [];
 	const rawOpenPoints = [
+		...(decision ? [] : riskClaims.map((c) => `Risque jugé acceptable en débat, non arbitré : ${c}`)),
 		...objections.filter((a) => a.resolution === 'open').map((a) => `Objection ouverte : ${a.claim}`),
 		...input.arguments.filter((a) => a.stance === 'question' && a.resolution === 'open').map((a) => `Question ouverte : ${a.claim}`)
 	];
@@ -132,6 +152,7 @@ export function buildHldFragment(input: HldFragmentInput): HldFragment {
 	const others = options.filter((o) => o.id !== retained?.id).map((o) => o.title);
 	const topDrivers = [...input.criteria].sort((a, b) => b.weight - a.weight).slice(0, 3).map((c) => c.name);
 	const problem = (subject.problemStatement || '').trim() || subject.name;
+	const unresolved = Array.from(new Set(input.requirementRefs)).filter((ref) => !input.requirements.some((r) => r.id === ref));
 
 	const decisionBlock =
 		decision && retained
@@ -139,15 +160,14 @@ export function buildHldFragment(input: HldFragmentInput): HldFragment {
 					retained: retained.title,
 					rationale: decision.rationale,
 					reversibility: REVERSIBILITY_LABEL[decision.reversibility] ?? decision.reversibility,
-					// Y-statement (gabarit ADR d'ArcKit) : contexte, exigence, choix, alternatives écartées, justification, prix accepté.
+					// Y-statement (gabarit ADR d'ArcKit), sans le problème : « Contexte et problème » le dit juste au-dessus.
 					yStatement:
-						`Dans le contexte de « ${problem} », ` +
-						(topDrivers.length ? `face à ${topDrivers.join(', ')}, ` : '') +
-						`nous avons retenu « ${retained.title} »` +
+						(topDrivers.length ? `Face à ${topDrivers.join(', ')}, nous` : 'Nous') +
+						` avons retenu « ${retained.title} »` +
 						(others.length ? ` plutôt que ${others.map((t) => `« ${t} »`).join(', ')}` : '') +
 						`, pour la raison suivante : ${decision.rationale.trim().replace(/\.$/, '')}` +
-						((decision.acceptedViolations?.length ?? 0) > 0 || acceptedRisks.length > 0
-							? `, en acceptant ${[...(decision.acceptedViolations ?? []).map((v) => `l'écart ${v.typedId}`), ...acceptedRisks.map((r) => `le risque « ${r} »`)].join(', ')}.`
+						(violations.length > 0 || acceptedRisks.length > 0
+							? `, en acceptant ${[...violations.map((v) => `l'écart au ${humanizeTypedId(v.typedId)}`), ...acceptedRisks.map((r) => `le risque « ${r} »`)].join(', ')}.`
 							: '.')
 				}
 			: undefined;
@@ -163,12 +183,25 @@ export function buildHldFragment(input: HldFragmentInput): HldFragment {
 		if (input.affirmedBy) control.push({ label: 'Affirmée par', value: input.affirmedBy });
 	}
 
+	const counts = [
+		plural(options.length, 'option étudiée', 'options étudiées'),
+		items.length > 0 || unresolved.length === 0 ? plural(items.length, 'exigence couverte', 'exigences couvertes') : `${plural(unresolved.length, 'exigence rattachée', 'exigences rattachées')} (dossier d'exigences non résolu)`,
+		openPoints.length > 0 ? plural(openPoints.length, 'point ouvert', 'points ouverts') : 'aucun point ouvert'
+	].join(' · ');
+	const synthesis = decisionBlock
+		? { headline: `${statusLabel} : « ${decisionBlock.retained} »`, details: [decisionBlock.rationale.trim(), `Réversibilité : ${decisionBlock.reversibility}.`, counts] }
+		: {
+				headline: `${statusLabel} — aucune option n'est retenue`,
+				details: [options.length ? `En lice : ${options.map((o) => `« ${o.title} »`).join(', ')}.` : "Aucune option posée pour l'instant.", counts]
+			};
+
 	return {
 		subjectId: subject.id,
 		title: `${subject.sectionRef} ${subject.name}`,
 		status,
 		statusLabel,
 		control,
+		synthesis,
 		context: {
 			problem,
 			nature: subject.nature ?? undefined,
@@ -181,9 +214,7 @@ export function buildHldFragment(input: HldFragmentInput): HldFragment {
 		decision: decisionBlock,
 		consequences: {
 			acceptedRisks,
-			acceptedViolations: Array.from(
-				new Set((decision?.acceptedViolations ?? []).map((v) => `${v.typedId} : ${v.justification}`))
-			),
+			acceptedViolations: Array.from(new Set(violations.map((v) => `${humanizeTypedId(v.typedId)} : ${v.justification}`))),
 			reversibility: decisionBlock?.reversibility,
 			coverageWarnings: Array.from(new Set(input.coverageWarnings ?? []))
 		},
@@ -206,6 +237,8 @@ export function renderHldFragmentMarkdown(f: HldFragment): string {
 	const out: string[] = [];
 	out.push(`## ${f.title}`, '');
 	out.push('| Contrôle | |', '|---|---|', ...f.control.map((c) => `| ${c.label} | ${cell(c.value)} |`), '');
+
+	out.push('### En bref', '', `**${f.synthesis.headline}.**`, '', ...f.synthesis.details.flatMap((l) => [l, '']));
 
 	out.push('### Contexte et problème', '', f.context.problem, '');
 	if (f.context.nature) out.push(`Nature : ${f.context.nature}.`, '');
@@ -235,11 +268,12 @@ export function renderHldFragmentMarkdown(f: HldFragment): string {
 
 	out.push('### Décision', '');
 	if (f.decision) {
-		out.push(f.decision.yStatement, '', `Justification : ${f.decision.rationale}`, '', `Réversibilité : ${f.decision.reversibility}.`, '');
+		// Le Y-statement porte déjà la justification : la répéter en dessous doublait le paragraphe.
+		out.push(f.decision.yStatement, '', `Réversibilité : ${f.decision.reversibility}.`, '');
 	} else out.push('_Sujet non tranché._', '');
 
 	if (f.consequences.acceptedViolations.length || f.consequences.acceptedRisks.length) {
-		out.push('### Conséquences et risques acceptés', '');
+		out.push(f.status === 'awaiting_review' ? '### Conséquences et risques acceptés (décision en revue)' : '### Conséquences et risques acceptés', '');
 		out.push(...f.consequences.acceptedViolations.map((v) => `- Écart accepté : ${v}`), ...f.consequences.acceptedRisks.map((r) => `- Risque accepté : ${r}`), '');
 	}
 	if (f.openPoints.length) out.push('### Points ouverts', '', ...f.openPoints.map((p) => `- ${p}`), '');

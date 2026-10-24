@@ -8,7 +8,7 @@ obtenir un résultat **reproductible**, ce que `verify` ne lance **pas**, et com
 1. **Dépendances du verrou** : `npm ci` (jamais `npm install`, qui peut réécrire `package-lock.json`).
 2. **`DATABASE_URL` est obligatoire** pour les tests d'intégration (`file:./dev.db`). Sans elle, Prisma échoue à l'initialisation
    et toutes les suites concernées apparaissent comme **« ignorées »**, pas comme en échec : un « vert » trompeur. Si le nombre de
-   tests ignorés dépasse 96 (voir plus bas), c'est le premier suspect.
+   tests ignorés dépasse 101 (voir plus bas), c'est le premier suspect.
 3. **Base SQLite neuve** : les tests partagent `dev.db` et s'exécutent l'un après l'autre (`fileParallelism: false`). Un test qui a
    échoué en route peut laisser des lignes.
 4. **Aucun test ne parle à un vrai LLM ni à un Hub de développement** : `LLMOPS_BASE_URL` est forcé à `http://127.0.0.1:1` par
@@ -21,8 +21,10 @@ git worktree add ../archinex-clean HEAD         # ou : git clone <dépôt> archi
 cd ../archinex-clean
 export DATABASE_URL=file:./dev.db JWT_SECRET=ci-only-secret-not-used-anywhere-else-0123456789
 npm ci
-npx prisma db push                               # crée dev.db neuve et génère le client
+npx prisma db push && npx prisma generate      # dev.db neuve, puis le client (Prisma 7 ne le génère plus au db push)
 npm run verify                                   # les 4 portes : denylist, vitest, svelte-check, build
+# La porte « build » peut manquer de mémoire avec le tas par défaut de Node (mesuré sur main : code 134) :
+# NODE_OPTIONS=--max-old-space-size=8192 npx vite build
 ```
 
 Dans un dépôt de travail existant, au minimum : `rm -f dev.db dev.db-journal && npx prisma db push`, puis `npm run verify`.
@@ -34,9 +36,10 @@ Dans un dépôt de travail existant, au minimum : `rm -f dev.db dev.db-journal &
 | Hub réel : `hub-*-live` (K17, décisions, exigences, parité, matrice) | 22 | serveur de contrat du Hub, voir ci-dessous |
 | Contrat réel LLMOps : `llmops-live*`, `llmops-mcp`, `kb-clauses-live` | 58 | idem (`kb-clauses-live` exige en plus `LLMOPS_LIVE_MAINTAINER=maint@example.org`) |
 | Parcours conteneurisés : `closed-loop-deliberation`, `regulatory-to-capitalization` | 16 | `TEST_CONTAINERS=1` (testcontainers construit l'image du Hub) ou `LLMOPS_LIVE_URL` |
+| Validation du C4 par le vrai Structurizr : `structurizr-dsl` (3 de ses 12 tests) | 4 | `STRUCTURIZR_CLI=/chemin/structurizr.sh npm run test:structurizr` (Java et le [CLI Structurizr](https://github.com/structurizr/cli/releases) ; sans le CLI, la commande **échoue** au lieu de s'ignorer) |
 | Parcours navigateur : `tests/e2e/browser/*.spec.ts` (Playwright) | — | `npm run test:e2e:browser` (exige Hub réel + navigateur) |
 
-Les 96 tests ignorés de `verify` sont les trois premières lignes. **Le dépôt n'a aucune CI qui les exécute** : aujourd'hui, ils ne
+Les 101 tests ignorés de `verify` (mesuré le 2026-10-24) sont les quatre premières lignes, à un test près que ce tableau ne localise pas. **Le dépôt n'a aucune CI qui les exécute** : aujourd'hui, ils ne
 tournent que quand quelqu'un les lance.
 
 ### Lancer les tests « live » contre un Hub

@@ -2,6 +2,7 @@ import { untrack } from 'svelte';
 import type { RequirementAuditInput } from '$lib/domain/requirementAudit';
 import type { MaturityLevel, ArchitectRole, Statement } from '$lib/types/epistemic';
 import type { TelegraphicDraft } from '$lib/domain/telegraphic';
+import type { Decision, Option } from '$lib/domain/options';
 import {
 	sortMaturityBoard,
 	resolveSubjectArbitration,
@@ -166,6 +167,11 @@ class DeliberationStore {
 	dialogueMessages = $state<DialogueMessage[]>([]);
 	activeRecalls = $state<DoctrineRecallRule[]>([]);
 	frozenSnapshots = $state<Record<string, SealedSnapshot>>({});
+	/**
+	 * Décision et options de chaque sujet, telles que l'API les rend. La matrice les charge dans ses propres composants ; les
+	 * projections (Mermaid, C4, SysML, JSON) et le gel en ont besoin ici — sans quoi l'option retenue n'apparaît dans aucun schéma.
+	 */
+	decisionContexts = $state<Record<string, { decision: Decision | null; options: Option[] }>>({});
 	selectedStatementForWhy = $state<Statement | null>(null);
 	isFreezeDialogOpen = $state<boolean>(false);
 	isWhyInspectorOpen = $state<boolean>(false);
@@ -1435,20 +1441,53 @@ class DeliberationStore {
 	getProjectionContext(subjectId: string): ProjectionContext {
 		const eng = this.activeEngagement;
 		const subject = this.subjects.find((s) => s.id === subjectId);
+		const { decision, options = [] } = this.decisionContexts[subjectId] ?? {};
 		return {
 			projectName: eng?.title || 'Engagement Archinex',
 			enterpriseName: eng?.title || 'Organisation',
-			actors: (eng?.participants || []).map((p) => ({
-				name: p.name,
-				role: p.role,
-				description: p.isLead ? 'Architecte Référent' : `Expert (${p.role})`
-			})),
+			// Les participants de l'engagement sont les architectes qui délibèrent, pas les utilisateurs du système : ils ne sont pas
+			// des acteurs du diagramme. Le modèle ne porte pas encore d'acteurs du système ; on n'en invente pas.
+			actors: [],
+			// Sans décision enregistrée, aucune option n'est « retenue » : le schéma ne l'invente pas. L'identifiant de l'arbitre n'est
+			// pas transmis (les projections n'en ont pas besoin et elles sont scellées, donc diffusées).
+			decision: decision
+				? {
+						retainedOptionId: decision.retainedOptionId,
+						retainedOptionTitle: options.find((o) => o.id === decision.retainedOptionId)?.title ?? decision.retainedOptionId,
+						rationale: decision.rationale,
+						reversibility: decision.reversibility,
+						decidedAt: decision.decidedAt,
+						arbiterRole: decision.arbiterRole
+					}
+				: null,
+			options: options.map((o) => ({ id: o.id, title: o.title, summary: o.summary, status: o.status })),
 			requirements: (subject?.requirement_ids || []).map((id) => ({
 				clauseRef: id.split(':').pop() || id,
 				title: id
 			})),
 			sealSha256: this.frozenSnapshots[subjectId]?.sealSha256
 		};
+	}
+
+	/**
+	 * Charge la décision et les options d'un sujet pour les projections. Une API muette laisse l'état précédent : on ne remplace
+	 * pas une décision connue par « aucune » sur une erreur réseau.
+	 */
+	async fetchDecisionContext(subjectId: string, projectId = this.activeEngagement?.id || this.activeEngagementId) {
+		if (!projectId || !subjectId || typeof window === 'undefined') return;
+		const base = `/api/projects/${encodeURIComponent(projectId)}/subjects/${encodeURIComponent(subjectId)}`;
+		try {
+			const [dRes, oRes] = await Promise.all([fetch(`${base}/decision`), fetch(`${base}/options`)]);
+			if (!dRes.ok || !oRes.ok) return;
+			const dData = await dRes.json();
+			const oData = await oRes.json();
+			this.decisionContexts[subjectId] = {
+				decision: dData?.decision ?? null,
+				options: Array.isArray(oData) ? oData : (oData?.options ?? [])
+			};
+		} catch {
+			// mode hors-ligne / test
+		}
 	}
 
 	/**

@@ -2,7 +2,7 @@ import type { MaturitySubject } from '$lib/domain/maturityBoard';
 import type { TelegraphicDraft } from '$lib/domain/telegraphic';
 import type { Statement } from '$lib/types/epistemic';
 import { renderStructurizrWorkspace, type C4Container, type C4Relation } from '$lib/domain/structurizrDsl';
-import { badgeOf, c4Styles, epistemicCounts, mermaidClassDefs, mmdText, partitionStatements, withdrawnNote } from '$lib/domain/epistemicBadge';
+import { badgeOf, c4Styles, draftOverlay, epistemicCounts, mermaidClassDefs, mmdText, partitionStatements, withdrawnNote } from '$lib/domain/epistemicBadge';
 
 export interface ProjectionActor {
 	name: string;
@@ -56,12 +56,14 @@ export function generateMermaidDiagram(
 	const { shown, withdrawn, conflictIds } = scoped(subject, statements);
 	const index = new Map(shown.map((s, i) => [s.id, i]));
 	const hasOption = Boolean(context?.decision?.retainedOptionTitle);
+	const overlay = draftOverlay(draft);
 
 	const lines: string[] = ['flowchart TD', ...mermaidClassDefs(), `    subgraph "${mmdText(`${subject.section_ref} · ${subject.name}`)}"`];
 
+	if (overlay.banner) lines.push(`        BANNER["⚠ ${mmdText(overlay.banner)}"]:::Provisional`);
 	if (hasOption) lines.push(`        OPT["⭐ Option retenue : ${mmdText(context!.decision!.retainedOptionTitle!)}"]:::Retained`);
 
-	if (shown.length === 0 && !context?.decision) {
+	if (shown.length === 0 && !context?.decision && overlay.points.length === 0) {
 		lines.push('        A["Architecture en cours de délibération"]');
 	} else {
 		shown.forEach((stmt, i) => {
@@ -75,6 +77,8 @@ export function generateMermaidDiagram(
 			shown.filter((s) => !founded.has(s.id)).forEach((s) => lines.push(`        OPT --> N_${index.get(s.id)}`));
 		}
 	}
+
+	overlay.points.forEach((p, i) => lines.push(`        P_${i}["${mmdText(p.title)}<br/><i>${mmdText(`${p.label} · ${p.detail}`)}</i>"]:::${p.tag}`));
 
 	const note = withdrawnNote(withdrawn);
 	if (note) lines.push(`        W["${mmdText(note)}"]:::Withdrawn`);
@@ -97,6 +101,7 @@ export function generateStructurizrDSL(
 	const { shown, withdrawn, conflictIds } = scoped(subject, statements);
 	const enterpriseName = context?.enterpriseName || context?.projectName || 'Organisation';
 	const containers: C4Container[] = [];
+	const overlay = draftOverlay(draft);
 
 	if (context?.decision?.retainedOptionTitle) {
 		containers.push({
@@ -113,23 +118,28 @@ export function generateStructurizrDSL(
 		containers.push({ id: s.id, name: s.triplet.predicate, description: String(s.triplet.value), technology: badge.label, tags: [badge.tag] });
 	});
 
+	overlay.points.forEach((p, i) =>
+		containers.push({ id: `open_${i}`, name: p.title, description: p.detail, technology: p.label, tags: [p.tag] })
+	);
+
 	if (containers.length === 0) {
 		containers.push({ id: 'default', name: 'Socle Architectural', description: 'En cours de spécification', technology: 'non spécifié', tags: ['Unqualified'] });
 	}
 
 	const note = withdrawnNote(withdrawn);
+	const systemDescription = [overlay.banner, note].filter(Boolean).join(' — ') || undefined;
 	const relations: C4Relation[] = causalLinks(shown).map(({ from, to }) => ({ from: from.id, to: to.id, label: 'fonde' }));
 
 	return renderStructurizrWorkspace({
 		name: subject.name,
-		description: 'Projeté sans dérive depuis Archinex',
+		description: overlay.banner ? `Projeté depuis Archinex — ${overlay.banner}` : 'Projeté sans dérive depuis Archinex',
 		group: enterpriseName,
 		persons: (context?.actors ?? []).map((a) => ({ name: a.name, description: a.description })),
-		systems: [{ id: subject.id, name: subject.name, description: note ?? undefined, containers }],
+		systems: [{ id: subject.id, name: subject.name, description: systemDescription, containers }],
 		relations,
 		viewKey: subject.id,
 		styles: c4Styles(),
-		notes: note ? [note] : undefined
+		notes: [overlay.banner, note].filter((n): n is string => Boolean(n))
 	});
 }
 
@@ -149,6 +159,7 @@ export function generateSysMLv2(
 	context?: ProjectionContext
 ): string {
 	const { shown, withdrawn, conflictIds } = scoped(subject, statements);
+	const overlay = draftOverlay(draft);
 	const taken = new Set<string>();
 	const unique = (raw: string) => {
 		const base = raw.replace(/[^a-zA-Z0-9_]/g, '_').replace(/^(\d)/, '_$1') || 'element';
@@ -178,6 +189,14 @@ export function generateSysMLv2(
 		parts.push(`    }`);
 	});
 
+	overlay.points.forEach((p) => {
+		parts.push(`    part def ${unique(`Open_${p.kind}`)} {`);
+		parts.push(`        doc /* ${sysmlDoc(p.title)} */`);
+		parts.push(`        attribute detail : String = "${sysmlString(p.detail)}";`);
+		parts.push(`        attribute epistemic : String = "${sysmlString(p.label)}";`);
+		parts.push(`    }`);
+	});
+
 	if (context?.requirements && context.requirements.length > 0) {
 		context.requirements.forEach((r) => {
 			const safeClause = r.clauseRef.replace(/[^a-zA-Z0-9_]/g, '_');
@@ -188,6 +207,7 @@ export function generateSysMLv2(
 
 	const note = withdrawnNote(withdrawn);
 	const header = [`    doc /* Projeté sans doc drift depuis Archinex snapshot scellé */`];
+	if (overlay.banner) header.push(`    doc /* ${sysmlDoc(overlay.banner)} */`);
 	if (note) header.push(`    doc /* ${sysmlDoc(note)} */`);
 	return `package '${subject.name.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}' {\n${[...header, ...parts].join('\n')}\n}`;
 }
@@ -216,6 +236,7 @@ export function generateConfigJSON(
 	context?: ProjectionContext
 ): string {
 	const { shown, withdrawn, conflictIds } = scoped(subject, statements);
+	const overlay = draftOverlay(draft);
 	const key = (s: Statement) => s.triplet.predicate.replace(/[^a-zA-Z0-9_]/g, '_');
 
 	const parameters: Record<string, unknown> = {};
@@ -245,8 +266,10 @@ export function generateConfigJSON(
 				}
 			: null,
 		parameters: Object.keys(parameters).length > 0 ? parameters : { status: subject.level, statementsCount: shown.length },
+		provisional: overlay.banner,
 		unsettled,
 		conflicts,
+		openPoints: overlay.points.map((p) => ({ kind: p.kind, text: p.title, detail: p.detail })),
 		withdrawnStatements: withdrawn,
 		epistemic: epistemicCounts(shown, conflictIds),
 		coveredRequirements: context?.requirements?.map((r) => r.clauseRef) ?? [],
@@ -268,6 +291,7 @@ export function generateStructurizrVisualMermaid(
 	const { shown, withdrawn, conflictIds } = scoped(subject, statements);
 	const enterpriseName = context?.enterpriseName || context?.projectName || 'Organisation';
 	const actors = context?.actors ?? [];
+	const overlay = draftOverlay(draft);
 
 	const lines: string[] = [
 		'flowchart TB',
@@ -278,6 +302,7 @@ export function generateStructurizrVisualMermaid(
 			(a, i) => `    user_${i}["👤 ${mmdText(a.name)}<br/><small>[Personne]</small><br/>${mmdText(a.description || '')}"]:::person`
 		),
 		'',
+		...(overlay.banner ? [`    banner["⚠ ${mmdText(overlay.banner)}"]:::Provisional`, ''] : []),
 		`    subgraph Enterprise["🏢 Entreprise : ${mmdText(enterpriseName)}"]`,
 		`        subgraph SysBound["Système : ${mmdText(subject.name)}"]`,
 		`            direction TB`
@@ -288,7 +313,7 @@ export function generateStructurizrVisualMermaid(
 		lines.push(`            c_opt["⭐ ${mmdText(context.decision.retainedOptionTitle)}<br/><small>[Option retenue · arbitrée]</small><br/>${mmdText(safeRat)}"]:::Retained`);
 	}
 
-	if (shown.length === 0 && !context?.decision) {
+	if (shown.length === 0 && !context?.decision && overlay.points.length === 0) {
 		lines.push(`            c_default["⚙️ Composant Architectural<br/><small>[non spécifié]</small><br/>En cours de délibération"]:::Unqualified`);
 	} else {
 		shown.forEach((s, idx) => {
@@ -298,6 +323,10 @@ export function generateStructurizrVisualMermaid(
 		const index = new Map(shown.map((s, i) => [s.id, i]));
 		for (const { from, to } of causalLinks(shown)) lines.push(`            c_${index.get(from.id)} -->|"fonde"| c_${index.get(to.id)}`);
 	}
+
+	overlay.points.forEach((p, i) =>
+		lines.push(`            c_open_${i}["❓ ${mmdText(p.title)}<br/><small>[${mmdText(p.label)}]</small><br/>${mmdText(p.detail)}"]:::${p.tag}`)
+	);
 
 	const note = withdrawnNote(withdrawn);
 	if (note) lines.push(`            c_withdrawn["${mmdText(note)}"]:::Withdrawn`);
@@ -319,6 +348,7 @@ export function generateSysMLVisualMermaid(
 	context?: ProjectionContext
 ): string {
 	const { shown, withdrawn, conflictIds } = scoped(subject, statements);
+	const overlay = draftOverlay(draft);
 	// Un membre de classe Mermaid : on garde les accents (avant, chacun devenait « _ »), on retire ce qui casse la syntaxe.
 	const member = (value: string) => value.replace(/[{}"<>`]/g, '').replace(/[()]/g, ' ').replace(/\s*[\r\n]+\s*/g, ' ').replace(/\s{2,}/g, ' ').trim();
 
@@ -339,6 +369,9 @@ export function generateSysMLVisualMermaid(
 		const name = s.triplet.predicate.replace(/[^\p{L}\p{N}_]/gu, '_');
 		lines.push(`        +${name}: ${member(String(s.triplet.value))} · ${member(badge.label)}`);
 	});
+
+	if (overlay.banner) lines.push(`        +provisoire: ${member(overlay.banner)}`);
+	overlay.points.forEach((p) => lines.push(`        +${p.kind}: ${member(p.title.replace(/^[^:]+ : /, ''))} · ${member(p.label)}`));
 
 	const note = withdrawnNote(withdrawn);
 	if (note) lines.push(`        +écartés: ${member(note)}`);

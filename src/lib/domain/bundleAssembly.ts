@@ -192,8 +192,25 @@ function classifyRelationKind(predicate: string): 'uses' | 'depends_on' | 'data_
 	return 'depends_on';
 }
 
-function generateGlobalMermaid(elements: BundleElement[], relations: BundleRelation[]): string {
+/**
+ * Bandeau d'un dossier dont des sujets n'ont pas de décision ou dont des questions restent ouvertes ; `null` sinon.
+ * Les schémas globaux ne portent pas le brouillon de chaque section : ce bandeau dit au moins qu'ils ne sont pas définitifs.
+ */
+function globalBanner(subjects: AssemblyInput['subjects']): string | null {
+	const undecided = subjects.filter((s) => !s.decision).length;
+	const questions = subjects.reduce((n, s) => n + s.questions.filter((q) => q.status === 'open').length, 0);
+	if (undecided === 0 && questions === 0) return null;
+	const plural = (n: number, one: string, many: string) => `${n} ${n === 1 ? one : many}`;
+	const parts = [
+		undecided > 0 ? `${plural(undecided, 'sujet sans décision', 'sujets sans décision')}` : null,
+		questions > 0 ? `${plural(questions, 'question ouverte', 'questions ouvertes')}` : null
+	].filter(Boolean);
+	return `PROVISOIRE · ${parts.join(' · ')} · ne se lit pas comme une décision`;
+}
+
+function generateGlobalMermaid(elements: BundleElement[], relations: BundleRelation[], banner: string | null): string {
 	const lines = ['flowchart TD', ...mermaidClassDefs()];
+	if (banner) lines.push(`    BANNER["⚠ ${mmdText(banner)}"]:::Provisional`);
 	const systems = elements.filter((e) => e.kind === 'system' || e.kind === 'boundary');
 	const components = elements.filter((e) => e.kind !== 'system' && e.kind !== 'boundary');
 	const id = (raw: string) => raw.replace(/[^a-zA-Z0-9_]/g, '_');
@@ -227,7 +244,7 @@ function generateGlobalMermaid(elements: BundleElement[], relations: BundleRelat
 	return lines.join('\n');
 }
 
-function generateGlobalStructurizr(projectName: string, elements: BundleElement[], relations: BundleRelation[]): string {
+function generateGlobalStructurizr(projectName: string, elements: BundleElement[], relations: BundleRelation[], banner: string | null): string {
 	const systems = elements.filter((e) => e.kind === 'system' || e.kind === 'boundary');
 	const components = elements.filter((e) => e.kind !== 'system' && e.kind !== 'boundary');
 	const systemIds = new Set(systems.map((s) => s.id));
@@ -247,19 +264,21 @@ function generateGlobalStructurizr(projectName: string, elements: BundleElement[
 
 	return renderStructurizrWorkspace({
 		name: projectName,
-		description: 'Architecture globale scellée Archinex',
+		description: banner ? `Architecture globale scellée Archinex — ${banner}` : 'Architecture globale scellée Archinex',
 		group: projectName,
 		systems: c4Systems,
 		relations: relations.map((r) => ({ from: r.from, to: r.to, label: r.label || r.kind })),
 		viewKey: 'Architecture_Globale',
-		styles: c4Styles()
+		styles: c4Styles(),
+		notes: banner ? [banner] : undefined
 	});
 }
 
-function generateGlobalSysMLv2(projectName: string, elements: BundleElement[], relations: BundleRelation[]): string {
+function generateGlobalSysMLv2(projectName: string, elements: BundleElement[], relations: BundleRelation[], banner: string | null): string {
 	const lines: string[] = [
 		`package '${projectName.replace(/'/g, "\\'")}' {`,
-		"    doc /* Modèle d'architecture globale scellé Archinex */"
+		"    doc /* Modèle d'architecture globale scellé Archinex */",
+		...(banner ? [`    doc /* ${banner.replace(/\*\//g, '* /')} */`] : [])
 	];
 	for (const el of elements) {
 		const safeId = el.id.replace(/[^a-zA-Z0-9_]/g, '_');
@@ -665,9 +684,10 @@ export function assembleEngagementBundle(input: AssemblyInput): EngagementBundle
 		elements.sort((a, b) => cmp(a.id, b.id));
 		relations.sort((a, b) => cmp(a.id, b.id));
 
-		const globalMermaid = generateGlobalMermaid(elements, relations);
-		const globalStructurizr = generateGlobalStructurizr(input.project.title, elements, relations);
-		const globalSysML = generateGlobalSysMLv2(input.project.title, elements, relations);
+		const banner = globalBanner(input.subjects);
+		const globalMermaid = generateGlobalMermaid(elements, relations, banner);
+		const globalStructurizr = generateGlobalStructurizr(input.project.title, elements, relations, banner);
+		const globalSysML = generateGlobalSysMLv2(input.project.title, elements, relations, banner);
 
 		architecture = {
 			elements,

@@ -26,6 +26,11 @@
 		}
 	});
 
+	// L'option retenue et les options écartées viennent de la décision enregistrée : les charger à chaque changement de sujet.
+	$effect(() => {
+		if (activeSubject?.id) void deliberationStore.fetchDecisionContext(activeSubject.id);
+	});
+
 	async function loadComplianceMatrix() {
 		const pId = deliberationStore.activeEngagement?.id || deliberationStore.activeEngagementId;
 		if (!pId) return;
@@ -51,6 +56,7 @@
 				await Promise.all([
 					deliberationStore.refreshSubjectFromServer(activeSubject.id, pId),
 					deliberationStore.fetchFrozenSnapshot(activeSubject.id, pId),
+					deliberationStore.fetchDecisionContext(activeSubject.id, pId),
 					loadComplianceMatrix()
 				]);
 			}

@@ -147,6 +147,15 @@ describe.skipIf(!cli && !required)('Structurizr DSL : validé par le vrai CLI', 
 	it('le workspace d\'un sujet (noms en double, guillemets, antislash, apostrophe) est accepté', () => validate('sujet', unitDsl()));
 	it('le workspace global (plusieurs systèmes, décision, relations) est accepté', () => validate('global', bundleDsl()));
 	it('un workspace sans énoncé ni personne est accepté', () => validate('vide', generateStructurizrDSL(subject, draft, [], undefined)));
+	it('un workspace provisoire avec hypothèses, conflits et questions ouvertes (noms longs, guillemets) est accepté', () => {
+		const open = {
+			...draft, is_provisional: true,
+			suppose: [{ text: 'Pic de "12 000" req/s', consequence: 'dimensionnement x2', cost_hint: '+18 k€/an' }],
+			conflit: [{ text: 'Clés fournisseur', opposing_reference: 'exigence souveraineté', requires_arbitration: true }],
+			manque: [{ id: 'q1', question: "Qui héberge le HSM ? (l'exploitant)", assigned_role: 'lead_architect' }]
+		} as unknown as TelegraphicDraft;
+		validate('provisoire', generateStructurizrDSL(subject, open, awkward, undefined));
+	});
 	it('un workspace aux statuts mêlés (styles, étiquettes, énoncé remplacé écarté) est accepté', () => {
 		const mixed = [
 			{ ...stmt('M1', 'ingress', 'Envoy'), maturity: { subjectLevel: 'L2_decomposed', confidence: 'designed' } },

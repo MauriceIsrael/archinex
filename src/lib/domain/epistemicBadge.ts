@@ -9,10 +9,13 @@
  *  - un énoncé **remplacé** ou **retiré** n'est pas dessiné (il n'engage plus personne) ; le nombre de ceux qu'on a écartés est dit ;
  *  - le statut l'emporte sur la confiance : contesté, puis en conflit, puis en revue, puis la confiance elle-même ;
  *  - deux énoncés actifs de même prédicat mais de valeurs différentes sont **en conflit** : on ne choisit pas pour l'architecte ;
- *  - la solidité ne se lit pas seulement à la couleur : chaque badge a un libellé.
+ *  - la solidité ne se lit pas seulement à la couleur : chaque badge a un libellé ;
+ *  - ce que le brouillon de la section tient encore pour ouvert (hypothèses, conflits, questions) est dessiné à côté des énoncés,
+ *    et une section provisoire porte un bandeau : un schéma qui ne le dit pas se lit comme une décision.
  */
 import type { Statement } from '$lib/types/epistemic';
 import type { C4StyleDef } from '$lib/domain/structurizrDsl';
+import type { TelegraphicDraft } from '$lib/domain/telegraphic';
 
 export type BadgeTag =
 	| 'Verified'
@@ -23,6 +26,8 @@ export type BadgeTag =
 	| 'Contested'
 	| 'Conflict'
 	| 'Unqualified'
+	/** Question ouverte du brouillon : pas un énoncé, un manque. */
+	| 'Open'
 	/** Éléments du dossier scellé, qui ne portent que « validé par un humain » ou « proposé ». */
 	| 'Validated'
 	| 'Proposed';
@@ -114,7 +119,7 @@ export function epistemicCounts(statements: Statement[], conflictIds: Set<string
 	return out;
 }
 
-const STYLES: Record<BadgeTag | 'Retained', { fill: string; stroke: string; dashed: boolean; width?: number }> = {
+const STYLES: Record<BadgeTag | 'Retained' | 'Provisional', { fill: string; stroke: string; dashed: boolean; width?: number }> = {
 	Verified: { fill: '#e8f5e9', stroke: '#2b8a3e', dashed: false },
 	Designed: { fill: '#e3f2fd', stroke: '#1565c0', dashed: false },
 	Assumed: { fill: '#fff8e1', stroke: '#f9a825', dashed: true },
@@ -123,6 +128,8 @@ const STYLES: Record<BadgeTag | 'Retained', { fill: string; stroke: string; dash
 	Contested: { fill: '#ffebee', stroke: '#c62828', dashed: true, width: 3 },
 	Conflict: { fill: '#ffebee', stroke: '#c62828', dashed: true, width: 3 },
 	Unqualified: { fill: '#f5f5f5', stroke: '#757575', dashed: true },
+	Open: { fill: '#e8eaf6', stroke: '#3949ab', dashed: true },
+	Provisional: { fill: '#fffde7', stroke: '#f57f17', dashed: true, width: 2 },
 	Validated: { fill: '#e8f5e9', stroke: '#2b8a3e', dashed: false },
 	Proposed: { fill: '#fff8e1', stroke: '#f9a825', dashed: true },
 	Retained: { fill: '#2b8a3e', stroke: '#1b5e20', dashed: false, width: 2 }
@@ -146,6 +153,50 @@ export function c4Styles(): C4StyleDef[] {
 		color: tag === 'Retained' ? '#ffffff' : '#000000',
 		border: s.dashed ? ('dashed' as const) : ('solid' as const)
 	}));
+}
+
+export interface OpenPoint {
+	kind: 'suppose' | 'conflit' | 'manque';
+	tag: 'Assumed' | 'Conflict' | 'Open';
+	/** Ce qui est ouvert, en une ligne. */
+	title: string;
+	/** Ce que ça entraîne, ou qui doit le trancher. */
+	detail: string;
+	/** Libellé de solidité, comme celui d'un énoncé. */
+	label: string;
+}
+
+export interface DraftOverlay {
+	/** Bandeau d'une section provisoire ; `null` quand elle ne l'est pas. */
+	banner: string | null;
+	points: OpenPoint[];
+}
+
+const levelLabel = (level: string) => String(level).replace(/^L(\d)_/, 'L$1 · ').replace(/_/g, ' ');
+
+/**
+ * Ce que le brouillon télégraphique tient pour ouvert : hypothèses (« supposé »), conflits et questions (« manque »).
+ * Avant, le paramètre `draft` des générateurs n'était lu par aucun : un schéma de section provisoire ressemblait à une décision.
+ */
+export function draftOverlay(draft?: Partial<TelegraphicDraft> | null): DraftOverlay {
+	if (!draft) return { banner: null, points: [] };
+	const points: OpenPoint[] = [];
+	for (const h of draft.suppose ?? []) {
+		points.push({ kind: 'suppose', tag: 'Assumed', title: `supposé : ${h.text}`, detail: [`⇒ ${h.consequence}`, h.cost_hint].filter(Boolean).join(' · '), label: 'hypothèse' });
+	}
+	for (const c of draft.conflit ?? []) {
+		points.push({
+			kind: 'conflit', tag: 'Conflict', title: `conflit : ${c.text} vs ${c.opposing_reference}`,
+			detail: c.requires_arbitration ? 'arbitrage requis' : 'conflit ouvert', label: 'en conflit'
+		});
+	}
+	for (const m of draft.manque ?? []) {
+		points.push({ kind: 'manque', tag: 'Open', title: `question ouverte : ${m.question}`, detail: `→ ${m.assigned_role}`, label: 'à instruire' });
+	}
+	const banner = draft.is_provisional
+		? `PROVISOIRE · maturité ${levelLabel(draft.maturity ?? '')} · ne se lit pas comme une décision`
+		: null;
+	return { banner, points };
 }
 
 /** Texte sûr dans une étiquette Mermaid entre guillemets : on code ce qui casse la syntaxe au lieu de le supprimer. */

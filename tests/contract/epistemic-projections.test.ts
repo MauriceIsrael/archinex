@@ -25,7 +25,7 @@ const subject = {
 	waiting_for_role: 'lead_architect', relative_effort: 'M', last_transition_date: '2026-10-14T00:00:00Z', stall_days: 0,
 	is_stalled: false, dependent_subject_ids: []
 } as MaturitySubject;
-const draft = { section_id: '§3.2', subject: subject.name, maturity: 'L2_decomposed', is_provisional: true, retenu: [], suppose: [], conflit: [], manque: [] } as TelegraphicDraft;
+const draft = { section_id: '§3.2', subject: subject.name, maturity: 'L2_decomposed', is_provisional: false, retenu: [], suppose: [], conflit: [], manque: [] } as TelegraphicDraft;
 const st = (id: string, predicate: string, value: string, confidence: string, status = 'active', basedOn: string[] = []): Statement =>
 	({
 		id, section: '§3.2', triplet: { subject: 'sub-api', predicate, value }, justification: { basedOn },
@@ -219,5 +219,113 @@ describe('dossier scellé : la vraie confiance et le vrai statut', () => {
 		expect(b.projections.mermaid).toContain('<i>vérifié · validé par un humain</i>');
 		expect(b.projections.mermaid).toContain('<i>confiance non renseignée · proposé, non relu</i>');
 		expect(b.projections.mermaid).not.toContain('|"Contient"|');
+	});
+});
+
+/**
+ * Le brouillon de la section dit ce qui reste ouvert. Avant, `draft` n'était lu par aucun générateur : une section provisoire,
+ * avec une question bloquante et un conflit en attente d'arbitrage, se dessinait comme une architecture décidée.
+ */
+describe('brouillon : provisoire, hypothèses, conflits, questions', () => {
+	const open = {
+		...draft,
+		is_provisional: true,
+		suppose: [{ text: 'Pic de 12 000 req/s', consequence: 'dimensionnement x2', cost_hint: '+18 k€/an' }],
+		conflit: [{ text: 'Clés fournisseur', opposing_reference: 'exigence souveraineté', requires_arbitration: true }],
+		manque: [{ id: 'q1', question: 'Qui héberge le HSM ?', assigned_role: 'security_architect' }]
+	} as unknown as TelegraphicDraft;
+	const settled = { ...open, is_provisional: false, suppose: [], conflit: [], manque: [] } as TelegraphicDraft;
+
+	it('Mermaid : bandeau et points ouverts dans leur classe, avec la conséquence et qui tranche', () => {
+		const out = generateMermaidDiagram(subject, open, statements, { decision });
+		expect(out).toMatch(/BANNER\["⚠ PROVISOIRE · maturité L2 · decomposed · ne se lit pas comme une décision"\]:::Provisional/);
+		expect(out).toContain('supposé : Pic de 12 000 req/s<br/><i>hypothèse · ⇒ dimensionnement x2 · +18 k€/an</i>"]:::Assumed');
+		expect(out).toContain('conflit : Clés fournisseur vs exigence souveraineté<br/><i>en conflit · arbitrage requis</i>"]:::Conflict');
+		expect(out).toContain('question ouverte : Qui héberge le HSM ?<br/><i>à instruire · → security_architect</i>"]:::Open');
+	});
+
+	it('une section tranchée n\'a ni bandeau ni point ouvert', () => {
+		for (const out of [generateMermaidDiagram(subject, settled, statements, { decision }), generateStructurizrDSL(subject, settled, statements, { decision })]) {
+			expect(out).not.toContain('PROVISOIRE');
+			expect(out).not.toContain('question ouverte');
+		}
+	});
+
+	it('C4 : chaque point ouvert est un container étiqueté, et le bandeau figure sur le système', () => {
+		const dsl = generateStructurizrDSL(subject, open, statements, { decision });
+		expect(dsl).toContain('"question ouverte : Qui héberge le HSM ?" "→ security_architect" "à instruire"');
+		expect(dsl).toMatch(/tags "Open"/);
+		expect(dsl).toMatch(/softwareSystem "Passerelle d'API" "PROVISOIRE · maturité/);
+		expect(generateStructurizrVisualMermaid(subject, open, statements, { decision })).toContain('c_open_2["❓ question ouverte');
+	});
+
+	it('une section sans énoncé mais avec des questions ne se dit pas « en cours de délibération » à vide', () => {
+		expect(generateMermaidDiagram(subject, open, [], undefined)).not.toContain('Architecture en cours de délibération');
+		expect(generateStructurizrDSL(subject, open, [], undefined)).not.toContain('Socle Architectural');
+	});
+
+	it('SysML et JSON portent la même information', () => {
+		expect(generateSysMLv2(subject, open, statements, { decision })).toContain('attribute detail : String = "→ security_architect";');
+		expect(generateSysMLVisualMermaid(subject, open, statements, { decision })).toContain('+provisoire: PROVISOIRE');
+		const cfg = JSON.parse(generateConfigJSON(subject, open, statements, 'x', { decision }));
+		expect(cfg.provisional).toMatch(/^PROVISOIRE/);
+		expect(cfg.openPoints.map((p: any) => p.kind)).toEqual(['suppose', 'conflit', 'manque']);
+		expect(JSON.parse(generateConfigJSON(subject, settled, statements, 'x')).provisional).toBeNull();
+	});
+});
+
+describe('dossier scellé : le bandeau provisoire des schémas globaux', () => {
+	const decided = { id: 'd', retainedOptionId: 'o', rejected: [], rationale: 'r', complianceStatus: 'Compliant', complianceRationale: 'ok', arbiterId: 'lead@x.org', decidedAt: new Date('2026-10-14T00:00:00Z') };
+	const build = (subjectExtra: object) =>
+		(assembleEngagementBundle({
+			project: { id: 'p', title: 'Projet' }, confidentiality: 'confidential', now: new Date('2026-10-14T00:00:00Z'), sources: [],
+			subjects: [{ id: 'sub-api', sectionRef: '§3.2', name: 'API', domain: 'infra', maturityLevel: 'L3_decided', requirementRefs: [], decision: decided, options: [{ id: 'o', title: 'Envoy' }], questions: [], ...subjectExtra }],
+			statements: [{ id: 'st-0', subjectId: 'sub-api', subjectRef: 'api', predicate: 'a', value: 'v', confidence: 'verified', productionMode: 'human-authored', author: 'a@x.org', createdAt: new Date('2026-10-14T00:00:00Z') }]
+		} as unknown as AssemblyInput).data as any).architecture.projections;
+
+	it('une question ouverte ou un sujet sans décision rend les trois schémas globaux provisoires', () => {
+		const p = build({ questions: [{ id: 'q', text: 'HSM ?', blocking: true, status: 'open' }] });
+		expect(p.mermaid).toContain('BANNER["⚠ PROVISOIRE · 1 question ouverte');
+		expect(p.structurizr_dsl).toContain('PROVISOIRE · 1 question ouverte');
+		expect(p.sysml_v2).toContain('PROVISOIRE · 1 question ouverte');
+		expect(build({ decision: null }).mermaid).toContain('1 sujet sans décision');
+	});
+
+	it('un dossier entièrement décidé, sans question ouverte, n\'a pas de bandeau', () => {
+		expect(build({}).mermaid).not.toContain('PROVISOIRE');
+	});
+});
+
+/**
+ * L'option retenue doit atteindre les schémas affichés à l'écran et ceux qu'on scelle. Avant, `getProjectionContext` ne passait ni la
+ * décision ni les options (la matrice les charge dans ses propres composants) : aucun schéma de l'interface ne montrait l'option retenue.
+ */
+describe('contexte de projection du store', () => {
+	it('sans décision chargée, aucune option n\'est « retenue » ; avec, elle l\'est avec son titre — et l\'arbitre n\'est pas transmis', async () => {
+		const { deliberationStore } = await import('$lib/stores/deliberationStore.svelte');
+		deliberationStore.subjects = [subject];
+		deliberationStore.drafts = { [subject.id]: draft };
+		deliberationStore.statements = statements;
+
+		expect(deliberationStore.getProjectionContext(subject.id).decision).toBeNull();
+		expect(deliberationStore.getProjections(subject.id)!.mermaid).not.toContain('Option retenue');
+
+		deliberationStore.decisionContexts[subject.id] = {
+			decision: { id: 'd', subjectId: subject.id, retainedOptionId: 'o2', rejected: [], rationale: 'Clés souveraines', reversibility: 'costly', arbiterId: 'lead@x.org', arbiterRole: 'lead_architect', decidedAt: '2026-10-14T00:00:00Z', acceptedViolations: [], kbCandidateIds: [] },
+			options: [
+				{ id: 'o1', subjectId: subject.id, title: 'HAProxy', summary: '', origin: 'human', kbRefs: [], status: 'rejected', author: 'a', role: 'r', productionMode: 'human-authored', version: 1 },
+				{ id: 'o2', subjectId: subject.id, title: 'Envoy en cluster', summary: '', origin: 'human', kbRefs: [], status: 'retained', author: 'a', role: 'r', productionMode: 'human-authored', version: 1 }
+			]
+		} as never;
+
+		const ctx = deliberationStore.getProjectionContext(subject.id);
+		expect(ctx.decision).toMatchObject({ retainedOptionId: 'o2', retainedOptionTitle: 'Envoy en cluster', reversibility: 'costly', arbiterRole: 'lead_architect' });
+		expect(JSON.stringify(ctx)).not.toContain('lead@x.org');
+		expect(ctx.options!.map((o) => o.title)).toEqual(['HAProxy', 'Envoy en cluster']);
+
+		const p = deliberationStore.getProjections(subject.id)!;
+		expect(p.mermaid).toContain('Option retenue : Envoy en cluster');
+		expect(p.structurizrDSL).toContain('"Envoy en cluster"');
+		expect(JSON.parse(p.configJSON).decision.retainedOptionTitle).toBe('Envoy en cluster');
 	});
 });

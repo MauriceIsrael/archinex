@@ -59,8 +59,11 @@
 		deliberationStore.closeFreezeDialog();
 	}
 
-	function handleFreeze() {
+	async function handleFreeze() {
 		if (!activeSubject) return;
+		// Les projections scellées portent l'option retenue : la décision doit être chargée avant le gel, pas seulement à l'ouverture
+		// de l'onglet des schémas.
+		await deliberationStore.fetchDecisionContext(activeSubject.id);
 		deliberationStore.freezeSection(activeSubject.id);
 	}
 

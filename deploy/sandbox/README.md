@@ -72,8 +72,9 @@ Pour éprouver la séparation des tâches : soumettre un candidat avec `architec
 
 ## Ce qui est différent d'un déploiement réel
 
-- Le démarrage **n'exécute pas** `docker-entrypoint.sh`, qui sème des comptes de démonstration aux mots de passe publics
-  (`admin123`…) : inacceptable sur une URL joignable.
+- Le démarrage **n'exécute pas** `docker-entrypoint.sh` : le bac à sable crée ses propres comptes de test (mots de passe aléatoires) et
+  contrôle l'ordre d'initialisation. (Cet entrypoint ne sème plus de comptes de démonstration : premier administrateur par
+  `ARCHINEX_BOOTSTRAP_ADMIN_EMAIL`, voir `docs/fresh-install.md` § 3 bis.)
 - Un seul jeton de service, tiré au hasard ; embeddings jouets autorisés (`ALLOW_TOY_EMBEDDINGS=1`) : les fonctions de
   similarité n'ont **aucune valeur sémantique**.
 - Sans `ANTHROPIC_API_KEY` (à exporter avant `up`), les fonctions qui demandent un modèle sont indisponibles ; il n'y a pas de

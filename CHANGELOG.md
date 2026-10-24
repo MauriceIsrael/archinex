@@ -15,6 +15,23 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 - Ajout de `.gitattributes` garantissant les fins de ligne `LF` sur les scripts shell, Dockerfile, Caddyfile et scripts montés dans les conteneurs Linux, et `CRLF` sur PowerShell.
 - Mots de passe conviviaux par défaut en local sur `localhost` (`admin123`, `architect123`, `security123`, `ciso123`) ou configurables via `SANDBOX_SIMPLE_PASSWORDS=1` pour simplifier les tests locaux sans compromettre la sécurité sur URL publique.
 - Suite de tests de contrat dédiée (`tests/contract/sandbox-windows-support.test.ts`).
+### Sécurité : le conteneur ne sème plus de comptes de démonstration
+- `docker-entrypoint.sh` lançait `prisma/seed.ts` à chaque démarrage : comptes `admin@archinex.local` / `admin123` (et `user123`) publics.
+  Il appelle maintenant `prisma/bootstrap-admin.ts` : un premier administrateur est créé seulement si aucun n'existe et si
+  `ARCHINEX_BOOTSTRAP_ADMIN_EMAIL` est défini (`ARCHINEX_BOOTSTRAP_ADMIN_PASSWORD` : 12 caractères minimum, sinon mot de passe généré et
+  affiché une fois). Idempotent. Les autres comptes se créent depuis `/admin` (`docs/fresh-install.md`, § 3 bis).
+- Le jeu de démonstration reste disponible à la demande : `ARCHINEX_SEED_DEMO=1`.
+- La page `/login` n'affiche plus les boutons « Demo accounts » (identifiants en clair) hors développement : le bundle de production ne
+  contenait pas seulement le bouton, mais `admin123` dans le JavaScript client ; vérifié absent après correction.
+- Tests : `tests/integration/bootstrap-admin.test.ts` (6).
+
+### Sécurité : le login n'accepte plus le hash stocké comme mot de passe (archinex#137)
+- `POST /api/auth/login` et `POST /api/invite/accept` (compte existant) acceptaient aussi `user.passwordHash === password` (repli
+  « texte clair » des comptes de démonstration) : qui lisait `users.passwordHash` (fuite de base, sauvegarde) ouvrait la session en
+  le soumettant tel quel. Les deux routes passent par `verifyPassword` (`src/lib/auth/password.server.ts`), bcrypt seulement.
+- Reproduit avant le correctif (le hash donnait un 200), 5 tests ensuite (`tests/integration/login-no-plaintext-fallback.test.ts`).
+- Conséquence : un compte dont `passwordHash` contiendrait encore un mot de passe en clair ne peut plus se connecter. `prisma/seed.ts`
+  et les créations de comptes hachent déjà ; à refaire par le seed ou une réinitialisation de mot de passe si un tel compte existe.
 
 ### Bac à sable : un Hub et un Archinex neufs et vierges, en conteneurs (`deploy/sandbox`)
 - `./sandbox.sh up` construit et démarre le Hub (LLMOps), Archinex et un proxy HTTPS (Caddy) sur une URL de test, sans engagement,
@@ -27,9 +44,15 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 ### J0 : une clause d'automatisation n'est plus évacuée par le modèle seul (archinex#132)
 - Constat du jalon J0 (`eval-results/decision-j0.md`) : un faux négatif dangereux identique aux deux passes, `REQ-Lot1-216` (création automatique
   d'incidents), évacuée comme « fonction standard ITSM ».
-- Invariant déterministe `applyClassificationInvariants` : une clause non « info » qui décrit une automatisation (automatique, automatisé,
-  boucle fermée, auto-remédiation, « sans intervention humaine »… en français et en anglais, `src/lib/domain/automationMarkers.ts`) ne peut pas être
-  évacuée : elle passe « à qualifier », avec la proposition du modèle conservée pour l'humain. C'est une famille de formulations, pas un identifiant.
+- Double protection sur la famille d'automatisation (pas un cas isolé) :
+  1. **Consigne système** (`CLASSIFY_SYSTEM` dans `src/lib/server/ingest/arckitRequirementsPipeline.ts`) : instruit explicitement le modèle
+     que toute automatisation (auto-remédiation, boucle fermée, création ou bascule automatique, action sans intervention humaine) relève
+     de « deliberate » et n'est jamais une commodité.
+  2. **Invariant déterministe** (`applyClassificationInvariants` avec `src/lib/domain/automationMarkers.ts`) : une clause non « info » qui décrit
+     une automatisation ne peut pas être évacuée par le modèle : elle passe « à qualifier », avec la proposition du modèle conservée pour l'humain.
+- Traçabilité et auteur du juge : `AuditReference` (`src/lib/domain/requirementsAuditEval.ts`), `examples/reference-template.json`, les rapports Markdown
+  (`src/lib/domain/requirementsAuditReport.ts`) et `scripts/eval-requirements-audit.ts` intègrent et vérifient désormais l'auteur (`author`), la date (`date`)
+  et le statut (`status`) du juge indépendant.
 - Mesuré sur les évacuations archivées de J0 (92 clauses) : `REQ-Lot1-216` n'est plus évacuée ; `REQ-Lot1-259` (même famille) est aussi renvoyée ;
   « à qualifier » passe de 0 à 2 clauses sur 92 (2 %, plafond 30 %). Les quatre autres évacuations restent.
 - **Le jalon n'est pas rejoué** : ce correctif a été écrit en voyant le cas ; le rejeu doit se faire sur un autre dossier avec un juge fixé avant la mesure

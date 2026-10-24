@@ -77,19 +77,20 @@ Instance Cloud SQL, secrets `llmops-engagement-tokens` et `llmops-governance-db-
 
 ---
 
-## 3. Comptes pré-configurés pour la délibération
+## 3. Comptes pour la délibération
 
-Une fois sur l'URL Cloud Run, connectez-vous avec :
+Le conteneur **ne crée plus de comptes de démonstration** (mots de passe publics). Au déploiement, définir :
 
-- **Lead Architect / Administrateur :**
-  - Email : `admin@example.com`
-  - Mot de passe : `admin123`
-  - Rôle : `lead_architect` (droits de scellement L3/L4/L5, validation Tour 8 & 11)
+```bash
+gcloud run deploy archinex --source . --region europe-west1 \
+  --set-env-vars ARCHINEX_BOOTSTRAP_ADMIN_EMAIL=vous@exemple.org \
+  --set-secrets ARCHINEX_BOOTSTRAP_ADMIN_PASSWORD=archinex-admin-password:latest
+```
 
-- **Architecte Expert :**
-  - Email : `user@example.com`
-  - Mot de passe : `user123`
-  - Rôle : `infra_expert_architect` / `contributor`
+(mot de passe de 12 caractères minimum ; sans lui, un mot de passe est généré et affiché une seule fois dans les journaux Cloud Run.)
+Connectez-vous avec cette adresse, puis créez les autres comptes depuis **Administration → Nouveau compte** (`/admin`). Détail :
+`docs/fresh-install.md`, § 3 bis. Une instance de **démonstration** peut exiger l'ancien jeu avec `ARCHINEX_SEED_DEMO=1`
+(comptes `admin@example.com` / `admin123`… : aucune donnée réelle).
 
 ---
 

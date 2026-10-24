@@ -206,6 +206,9 @@ export function buildAuditReportMarkdown(input: AuditReportInput): string {
 		const m = input.metrics;
 		out.push('## Comparaison avec l\'analyse de référence');
 		out.push('');
+		if (m.referenceAuthor || m.referenceDate) {
+			out.push(`- Juge de référence : **${m.referenceAuthor || 'Auteur non renseigné'}**${m.referenceDate ? ` (${m.referenceDate})` : ''}${m.referenceStatus ? ` · statut : \`${m.referenceStatus}\`` : ''}`);
+		}
 		out.push(`- Rappel « à délibérer » : **${pct(m.deliberateRecall)}**`);
 		out.push(
 			`- Faux négatifs dangereux (clause de référence évacuée) : **${m.dangerousFalseNegatives.length}**` +

@@ -68,7 +68,7 @@ Les développeurs se demandent souvent pourquoi deux commandes sont nécessaires
      - Les profils d'experts Knowledge Base (`@admin-lead`, `@sec-expert`).
      - Les règles d'autorisation RBAC/ABAC Casbin (droits d'administration, de lecture, et politiques KB `kb:review`, `kb:maintain`).
      - Les projets exemples de référence (`examples/suse-telco-cloud` et `examples/cctp-rfp`) avec leurs documents de corpus associés.
-   - **Sans cette étape, il est impossible de se connecter à l'application.**
+   - **En développement local, sans cette étape, il est impossible de se connecter.** (Le conteneur, lui, crée son premier administrateur autrement : voir § 3 bis.)
 
 > [!TIP]
 > Vous pouvez à tout moment réinitialiser proprement la base de développement avec la commande :
@@ -79,7 +79,41 @@ Les développeurs se demandent souvent pourquoi deux commandes sont nécessaires
 
 ---
 
-## 4. Comptes de démonstration pré-configurés
+## 3 bis. Conteneur / production : premier administrateur et création des comptes
+
+**Le conteneur (`docker-entrypoint.sh`) ne sème plus de comptes de démonstration.** Ils avaient des mots de passe publics
+(`admin123`, `user123`), donc n'importe qui pouvait se connecter à une instance exposée.
+
+**Premier compte (administrateur).** Au démarrage, `prisma/bootstrap-admin.ts` crée un administrateur si, et seulement si, aucun n'existe
+et si `ARCHINEX_BOOTSTRAP_ADMIN_EMAIL` est défini :
+
+| Variable | Rôle |
+| :--- | :--- |
+| `ARCHINEX_BOOTSTRAP_ADMIN_EMAIL` | adresse du premier administrateur (obligatoire pour qu'il soit créé) |
+| `ARCHINEX_BOOTSTRAP_ADMIN_PASSWORD` | son mot de passe, 12 caractères au minimum. Absent : un mot de passe fort est **généré et affiché une seule fois** dans le journal du conteneur |
+| `ARCHINEX_BOOTSTRAP_ADMIN_NAME` | nom affiché (défaut « Administrateur ») |
+
+Relancer le conteneur ne recrée ni ne modifie jamais un compte. Si l'adresse existe déjà comme simple utilisateur, elle est promue
+administrateur sans changer son mot de passe. Sans la variable (et sans administrateur), le démarrage le signale et personne ne peut
+se connecter : définir la variable et redémarrer.
+
+**Créer les autres comptes (en tant qu'administrateur).** Connectez-vous, ouvrez **Administration** (`/admin`, « Gestion centralisée des
+comptes »), puis **Nouveau compte** :
+1. nom, adresse e-mail, rôle applicatif (`admin` ou `user`) ;
+2. activation, sans envoi d'e-mail : soit un **mot de passe initial** (6 caractères minimum, compte actif tout de suite), soit un **lien
+   d'activation à usage unique** valable 7 jours, à transmettre à la personne (`/invite?token=…`) ;
+3. rôles dans les espaces de travail ;
+4. si la personne relit la base de connaissances : handle KB, rôles (`kb:review`, `kb:evaluate`, `kb:maintain`, `kb:admin`), domaines, et
+   « Inscrire dans le registre LLMOps » pour que le Hub la reconnaisse (le Hub décide de ses droits à partir de son propre registre).
+
+La même opération existe en API : `POST /api/admin/accounts` (session administrateur).
+
+**Jeu de démonstration, à la demande seulement.** `ARCHINEX_SEED_DEMO=1` fait lancer `prisma/seed.ts` au démarrage du conteneur : comptes
+`@archinex.local` / `@example.com` à mots de passe **publics**. À réserver à une instance de démonstration sans donnée réelle.
+
+---
+
+## 4. Comptes de démonstration pré-configurés (développement local)
 
 Après avoir exécuté `npx prisma db seed` (ou `npm run db:reset`), les comptes suivants sont créés et utilisables directement sur la page `/login` :
 

@@ -59,14 +59,14 @@ valide. Sans `SANDBOX_ORIGIN`, l'URL est `https://localhost:8443` avec un certif
 | Hub | la doctrine versionnée du dépôt (`data/kb` : référentiels, contrôles, principes), sa seule base de référence ; **aucun engagement** (celui de démonstration de l'image n'est pas lu) ; base de gouvernance neuve (candidats, revues, audit) ; registre des experts réduit aux 4 personnes de test |
 | Archinex | base SQLite neuve : **4 comptes de test**, aucun projet, aucun espace de travail |
 
-Les 4 comptes (mots de passe tirés au hasard au premier `up`, affichés par `creds`, gardés dans `.sandbox/env`) :
+Les 4 comptes (mots de passe conviviaux `admin123`… par défaut en local sur `localhost`, ou tirés au hasard sur domaine public, rappelés par `creds` et gardés dans `.sandbox/env`) :
 
-| Compte | Rôle Archinex | Expert du Hub |
-|---|---|---|
-| `admin@sandbox.test` | administrateur | `@maintainers` (maintenir, administrer) |
-| `architect@sandbox.test` | utilisateur | `@core-owner-architecture` (relire) |
-| `security@sandbox.test` | utilisateur | `@security-compliance-team` (relire) |
-| `ciso@sandbox.test` | utilisateur | `@ciso-office` (évaluer) |
+| Compte | Mot de passe (local) | Rôle Archinex | Expert du Hub |
+|---|---|---|---|
+| `admin@sandbox.test` | `admin123` | administrateur | `@maintainers` (maintenir, administrer) |
+| `architect@sandbox.test` | `architect123` | utilisateur | `@core-owner-architecture` (relire) |
+| `security@sandbox.test` | `security123` | utilisateur | `@security-compliance-team` (relire) |
+| `ciso@sandbox.test` | `ciso123` | utilisateur | `@ciso-office` (évaluer) |
 
 Pour éprouver la séparation des tâches : soumettre un candidat avec `architect`, le relire avec `security`.
 

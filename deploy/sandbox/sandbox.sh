@@ -98,7 +98,12 @@ console.log(JSON.stringify({ x: jwk.x, pem }));
   fi
 
   local p_admin p_arch p_sec p_ciso
-  p_admin="$(rand 9)"; p_arch="$(rand 9)"; p_sec="$(rand 9)"; p_ciso="$(rand 9)"
+  if [ "$domain" = "localhost" ] || [ "${SANDBOX_SIMPLE_PASSWORDS:-0}" = "1" ]; then
+    p_admin="admin123"; p_arch="architect123"; p_sec="security123"; p_ciso="ciso123"
+  else
+    p_admin="$(rand 9)"; p_arch="$(rand 9)"; p_sec="$(rand 9)"; p_ciso="$(rand 9)"
+  fi
+
   local users
   users=$(cat <<JSON
 [{"key":"admin","name":"Administrateur (test)","email":"admin@sandbox.test","password":"$p_admin","role":"admin","kbHandle":"@maintainers","kbRoles":["kb:admin","kb:review","kb:evaluate","kb:maintain"]},

@@ -13,6 +13,7 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 - Dérivation cryptographique des clés d'acteur Ed25519 (RFC 8037) et des secrets aléatoires sans dépendance externe binaire en s'appuyant sur l'API native `node:crypto` (avec repli OpenSSL).
 - Normalisation des chemins Windows et conversion `cygpath -m` dans `deploy/sandbox/sandbox.sh` pour prévenir l'interprétation des chemins de contexte `/c/...` comme dossiers relatifs sous Windows Docker Desktop.
 - Ajout de `.gitattributes` garantissant les fins de ligne `LF` sur les scripts shell, Dockerfile, Caddyfile et scripts montés dans les conteneurs Linux, et `CRLF` sur PowerShell.
+- Mots de passe conviviaux par défaut en local sur `localhost` (`admin123`, `architect123`, `security123`, `ciso123`) ou configurables via `SANDBOX_SIMPLE_PASSWORDS=1` pour simplifier les tests locaux sans compromettre la sécurité sur URL publique.
 - Suite de tests de contrat dédiée (`tests/contract/sandbox-windows-support.test.ts`).
 
 ### Bac à sable : un Hub et un Archinex neufs et vierges, en conteneurs (`deploy/sandbox`)

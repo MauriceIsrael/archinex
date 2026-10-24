@@ -124,5 +124,18 @@ describe('Sandbox Windows Support & Docker Desktop Contract', () => {
 			}
 		}
 	});
-});
 
+	it('configure des mots de passe conviviaux par défaut pour localhost', () => {
+		const ps1Content = fs.readFileSync(sandboxPs1, 'utf-8');
+		expect(ps1Content).toContain('admin123');
+		expect(ps1Content).toContain('architect123');
+		expect(ps1Content).toContain('security123');
+		expect(ps1Content).toContain('ciso123');
+
+		const shContent = fs.readFileSync(sandboxSh, 'utf-8');
+		expect(shContent).toContain('admin123');
+		expect(shContent).toContain('architect123');
+		expect(shContent).toContain('security123');
+		expect(shContent).toContain('ciso123');
+	});
+});

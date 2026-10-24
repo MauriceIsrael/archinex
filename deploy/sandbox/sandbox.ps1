@@ -1,4 +1,4 @@
-<#
+﻿<#
 .SYNOPSIS
     Environnement de test neuf et vierge sous Windows avec Docker Desktop :
     Hub de connaissances (LLMOps) + Archinex, en conteneurs, derrière HTTPS.
@@ -158,10 +158,11 @@ function New-SandboxEnv {
     $pem = $keyData.pem
     $jwksJson = ($keyData.jwks | ConvertTo-Json -Depth 10 -Compress)
 
-    $pAdmin = Get-RandomHex 9
-    $pArch = Get-RandomHex 9
-    $pSec = Get-RandomHex 9
-    $pCiso = Get-RandomHex 9
+    $useSimplePw = ($domain -eq 'localhost') -or ($env:SANDBOX_SIMPLE_PASSWORDS -eq '1')
+    $pAdmin = if ($useSimplePw) { 'admin123' } else { Get-RandomHex 9 }
+    $pArch = if ($useSimplePw) { 'architect123' } else { Get-RandomHex 9 }
+    $pSec = if ($useSimplePw) { 'security123' } else { Get-RandomHex 9 }
+    $pCiso = if ($useSimplePw) { 'ciso123' } else { Get-RandomHex 9 }
 
     $users = @(
         [ordered]@{

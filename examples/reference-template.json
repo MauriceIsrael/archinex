@@ -1,5 +1,8 @@
 {
-  "_instructions": "Copier ce fichier, le remplir AVANT de lancer la moindre mesure, puis le figer (commit daté). Il est le juge : il doit être écrit par un architecte qui n'a pas vu la sortie du pipeline. Les identifiants de clauses sont ceux du RFP (colonne « Clause » du rapport).",
+  "_instructions": "Copier ce fichier, le remplir AVANT de lancer la moindre mesure, puis le figer (commit daté). Il est le juge : il doit être écrit par un architecte qui n'a pas vu la sortie du pipeline. L'identité (ou le rôle) et la date de rédaction sont obligatoires. Les identifiants de clauses sont ceux du RFP (colonne « Clause » du rapport).",
+  "author": "Rôle / Identité de l'architecte indépendant (ex. Architecte Référent Indépendant)",
+  "date": "AAAA-MM-JJ",
+  "status": "fige_avant_mesure",
   "source": "chemin/vers/le-rfp.md",
   "hardPoints": [
     {

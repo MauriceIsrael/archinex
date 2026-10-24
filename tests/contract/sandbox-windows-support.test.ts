@@ -41,6 +41,8 @@ describe('Sandbox Windows Support & Docker Desktop Contract', () => {
 		expect(content).toContain('Invoke-Smoke');
 		expect(content).toContain('Find-Llmops');
 		expect(content).toContain('docker compose');
+		expect(content).toContain('BUILDKIT_PROGRESS');
+		expect(content).not.toMatch(/\$exitCode\s*=\s*Invoke-SandboxCompose/);
 	});
 
 	it('valide la syntaxe PowerShell de sandbox.ps1 sans erreur de parsing', { timeout: 30000 }, () => {
@@ -56,6 +58,8 @@ describe('Sandbox Windows Support & Docker Desktop Contract', () => {
 			expect(content).toContain('Invoke-Smoke');
 			expect(content).toContain('Find-Llmops');
 			expect(content).not.toMatch(/\$pAdmin\s*=\s*$/m);
+			expect(content).toContain('BUILDKIT_PROGRESS');
+			expect(content).not.toMatch(/\$exitCode\s*=\s*Invoke-SandboxCompose/);
 			return;
 		}
 

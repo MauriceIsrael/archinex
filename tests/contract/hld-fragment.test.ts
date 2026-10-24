@@ -103,3 +103,57 @@ describe('Fragment de HLD construit depuis la délibération', () => {
 		expect(f.requirements.items.length).toBe(1);
 	});
 });
+/**
+ * Lecture « tableau blanc » : la réponse d'abord, le détail ensuite, et rien qui ne dise ce qu'une décision n'a pas encore dit.
+ * Avant : le Y-statement répétait le problème posé juste au-dessus et citait « l'écart principle:P-009 » ; les entrées
+ * `COMPLIANCE_STATUS:*` et `PORTABILITY:*` (métadonnées de la décision) sortaient comme des « écarts acceptés » ; un sujet non tranché
+ * affichait « Risque accepté » et une section « risques acceptés ».
+ */
+describe('Fragment de HLD : lisible comme un brouillon', () => {
+	it('« En bref » précède le contexte et dit la réponse, ou son absence', () => {
+		const md = renderHldFragmentMarkdown(buildHldFragment(base()));
+		expect(md.indexOf('### En bref')).toBeGreaterThan(md.indexOf('| Contrôle |'));
+		expect(md.indexOf('### En bref')).toBeLessThan(md.indexOf('### Contexte et problème'));
+		expect(md).toContain('**Décidé : « Actif-actif ».**');
+		expect(md).toContain('2 options étudiées · 1 exigence couverte · 1 point ouvert');
+
+		const undecided = base();
+		undecided.decision = null;
+		const f = buildHldFragment(undecided);
+		expect(f.synthesis.headline).toBe("Non tranché — aucune option n'est retenue");
+		expect(f.synthesis.details[0]).toBe('En lice : « Actif-actif », « Actif-passif ».');
+	});
+
+	it('le Y-statement ne répète pas le problème et ne montre pas d\'identifiant brut', () => {
+		const input = base();
+		input.decision!.acceptedViolations = [
+			{ typedId: 'principle:P-009', justification: 'Hébergeur hors UE toléré 12 mois' },
+			{ typedId: 'COMPLIANCE_STATUS:Compliant', justification: 'ok' },
+			{ typedId: 'PORTABILITY:project_specific', justification: 'ok' }
+		];
+		const f = buildHldFragment(input);
+		expect(f.decision!.yStatement).not.toContain(input.subject.problemStatement!);
+		expect(f.decision!.yStatement).toContain("l'écart au principe P-009");
+		expect(f.decision!.yStatement).not.toContain('principle:');
+		expect(f.consequences.acceptedViolations).toEqual(['principe P-009 : Hébergeur hors UE toléré 12 mois']);
+		expect(renderHldFragmentMarkdown(f)).not.toMatch(/COMPLIANCE_STATUS|PORTABILITY/);
+	});
+
+	it('sans décision, un risque jugé acceptable reste un point du débat : ni « risque accepté » ni section de conséquences', () => {
+		const input = base();
+		input.decision = null;
+		const f = buildHldFragment(input);
+		expect(f.consequences.acceptedRisks).toEqual([]);
+		expect(f.openPoints).toContain('Risque jugé acceptable en débat, non arbitré : Latence inter-sites');
+		const md = renderHldFragmentMarkdown(f);
+		expect(md).not.toContain('risques acceptés');
+		expect(md).not.toContain('Risque accepté');
+	});
+
+	it('une décision en revue le dit dans le titre de ses conséquences', () => {
+		const input = base();
+		input.subject.maturityLevel = 'L2_decomposed';
+		input.subject.deliberationStatus = 'awaiting_review';
+		expect(renderHldFragmentMarkdown(buildHldFragment(input))).toContain('### Conséquences et risques acceptés (décision en revue)');
+	});
+});

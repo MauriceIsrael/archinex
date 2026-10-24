@@ -56,6 +56,8 @@ export interface FakeLlmopsState {
   frameworkCoverage: FrameworkCoverage;
   candidates: KbCandidate[];
   owners: KbOwner[];
+  /** Rejette les requêtes d'acteurs non enregistrés avec 403 unauthorized comme le vrai Hub. */
+  rejectUnregisteredExperts?: boolean;
   /** Politique d'assertions d'acteur signées (Hub 1.37). Absente : le jeton est décodé sans être vérifié. */
   actorAssertion?: ActorAssertionPolicy;
   inbox: KbReviewInboxItem[];
@@ -1372,6 +1374,16 @@ export async function startFakeLlmopsServer(initialState?: Partial<FakeLlmopsSta
 
     // Inbox: GET /api/knowledge/reviews/inbox ou /kb/reviews/inbox
     if ((pathname === '/api/knowledge/reviews/inbox' || pathname === '/kb/reviews/inbox') && method === 'GET') {
+      const actorEmail = (req.headers['x-actor-email'] as string) || '';
+      if (state.rejectUnregisteredExperts) {
+        const found = state.owners.find((o) => o.email.toLowerCase() === actorEmail.toLowerCase());
+        if (!found) {
+          return json(403, {
+            status: 'unauthorized',
+            reason: `'${actorEmail}' is not a registered expert.`
+          });
+        }
+      }
       const domainFilter = parsedUrl.searchParams.get('domain');
       const kindFilter = parsedUrl.searchParams.get('kind');
 
@@ -1819,6 +1831,13 @@ export async function startFakeLlmopsServer(initialState?: Partial<FakeLlmopsSta
         });
       }
 
+      if (state.rejectUnregisteredExperts) {
+        return json(403, {
+          status: 'unauthorized',
+          reason: `'${actorEmail}' is not a registered expert.`
+        });
+      }
+
       return json(200, {
         status: 'ok',
         data: {
@@ -1833,7 +1852,7 @@ export async function startFakeLlmopsServer(initialState?: Partial<FakeLlmopsSta
     }
 
     // Board: GET /board
-    if (pathname === '/board' && method === 'GET') {
+    if ((pathname === '/api/arbitration/board' || pathname === '/board') && method === 'GET') {
       return json(200, {
         status: 'ok',
         data: state.board
@@ -1841,7 +1860,7 @@ export async function startFakeLlmopsServer(initialState?: Partial<FakeLlmopsSta
     }
 
     // Statements: GET /statements
-    if (pathname === '/statements' && method === 'GET') {
+    if ((pathname === '/api/arbitration/statements' || pathname === '/statements') && method === 'GET') {
       return json(200, {
         status: 'ok',
         data: state.statements
@@ -1849,7 +1868,7 @@ export async function startFakeLlmopsServer(initialState?: Partial<FakeLlmopsSta
     }
 
     // Conflicts: GET /conflicts
-    if (pathname === '/conflicts' && method === 'GET') {
+    if ((pathname === '/api/arbitration/conflicts' || pathname === '/conflicts') && method === 'GET') {
       return json(200, {
         status: 'ok',
         data: state.conflicts

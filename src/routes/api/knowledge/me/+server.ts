@@ -17,6 +17,43 @@ export const GET: RequestHandler = async ({ locals }) => {
   // Appel souverain vers LLMOps avec X-Actor-Email
   const remoteMe = await llmopsClient.getMe(user.email);
 
+  if (remoteMe.status === 'not_registered') {
+    return json(
+      {
+        status: 'not_registered',
+        error: remoteMe.error,
+        reason: remoteMe.reason,
+        data: {
+          userId: user.id,
+          name: user.name,
+          email: user.email,
+          role: user.role,
+          kbHandle: localExpert?.kbHandle || `@${user.email.split('@')[0]}`,
+          kbRoles: localExpert?.kbRoles || [],
+          ownedDomains: localExpert?.ownedDomains || [],
+          pendingReviews: 0,
+          delegated: localExpert?.delegated ?? false,
+          isActive: localExpert?.isActive ?? true,
+          invitationStatus: localExpert?.invitationStatus ?? 'active',
+          llmopsStatus: 'not_registered',
+          offline: false
+        }
+      },
+      { status: 403 }
+    );
+  }
+
+  if (remoteMe.status === 'unauthorized') {
+    return json(
+      {
+        status: 'unauthorized',
+        error: remoteMe.error,
+        reason: remoteMe.reason
+      },
+      { status: 401 }
+    );
+  }
+
   const kbRoles =
     localExpert?.kbRoles ||
     (remoteMe.status === 'ok' && remoteMe.data ? remoteMe.data.kb_roles : []);

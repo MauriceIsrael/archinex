@@ -224,8 +224,28 @@
     </div>
   </div>
 
-  <!-- Alerte dégradation souveraine si hors-ligne -->
-  {#if data.inbox.offline}
+  <!-- Alerte compte non inscrit dans le registre ou hors-ligne -->
+  {#if data.inbox.status === 'not_registered'}
+    <div data-testid="not-registered-alert" class="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-xs text-amber-800 dark:text-amber-200 flex items-start gap-3">
+      <AlertTriangle class="h-5 w-5 shrink-0 text-amber-600 mt-0.5" />
+      <div>
+        <h4 class="font-bold text-sm">Compte non inscrit dans le registre des experts du Hub</h4>
+        <p class="mt-0.5">
+          {data.inbox.error || "Votre adresse n'est pas inscrite dans le registre des experts du Hub : demandez à un administrateur (Administration → Inscrire dans le registre LLMOps)"}
+        </p>
+      </div>
+    </div>
+  {:else if data.inbox.status === 'unauthorized'}
+    <div data-testid="unauthorized-alert" class="rounded-xl border border-rose-500/30 bg-rose-500/10 p-4 text-xs text-rose-800 dark:text-rose-200 flex items-start gap-3">
+      <AlertTriangle class="h-5 w-5 shrink-0 text-rose-600 mt-0.5" />
+      <div>
+        <h4 class="font-bold text-sm">Authentification invalide (401)</h4>
+        <p class="mt-0.5">
+          {data.inbox.error || "Jeton de service ou authentification invalide (401)"}
+        </p>
+      </div>
+    </div>
+  {:else if data.inbox.offline}
     <div class="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-xs text-amber-800 dark:text-amber-200 flex items-start gap-3">
       <Lock class="h-5 w-5 shrink-0 text-amber-600 mt-0.5" />
       <div>
@@ -317,13 +337,30 @@
     {#if filteredItems.length === 0}
       <Card.Root>
         <Card.Content class="py-12 text-center space-y-3">
-          <div class="flex h-12 w-12 items-center justify-center rounded-full bg-muted mx-auto text-muted-foreground">
-            <CheckCircle class="h-6 w-6" />
-          </div>
-          <h3 class="font-bold text-base">Boîte de revue à jour</h3>
-          <p class="text-xs text-muted-foreground max-w-md mx-auto">
-            Aucun candidat en attente d'examen ne correspond à vos filtres actuels. Dès qu'un projet ou un architecte soumet une clause dans vos domaines, elle apparaîtra ici.
-          </p>
+          {#if data.inbox.status === 'not_registered'}
+            <div class="flex h-12 w-12 items-center justify-center rounded-full bg-amber-500/10 mx-auto text-amber-600">
+              <AlertTriangle class="h-6 w-6" />
+            </div>
+            <h3 class="font-bold text-base">Expert non inscrit au Hub</h3>
+            <p class="text-xs text-muted-foreground max-w-md mx-auto">
+              {data.inbox.error || "Votre adresse n'est pas inscrite dans le registre des experts du Hub : demandez à un administrateur (Administration → Inscrire dans le registre LLMOps)"}
+            </p>
+            {#if data.user.role === 'admin'}
+              <div class="pt-2">
+                <Button size="sm" variant="outline" href="/admin">
+                  Administration des comptes
+                </Button>
+              </div>
+            {/if}
+          {:else}
+            <div class="flex h-12 w-12 items-center justify-center rounded-full bg-muted mx-auto text-muted-foreground">
+              <CheckCircle class="h-6 w-6" />
+            </div>
+            <h3 class="font-bold text-base">Boîte de revue à jour</h3>
+            <p class="text-xs text-muted-foreground max-w-md mx-auto">
+              Aucun candidat en attente d'examen ne correspond à vos filtres actuels. Dès qu'un projet ou un architecte soumet une clause dans vos domaines, elle apparaîtra ici.
+            </p>
+          {/if}
         </Card.Content>
       </Card.Root>
     {:else}

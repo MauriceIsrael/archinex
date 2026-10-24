@@ -89,7 +89,8 @@ describe('Projections dynamiques d\'architecture (No Doc Drift - Issue #64)', ()
 
 	it('1. C4 Structurizr DSL reflète le projet, l\'acteur réel et l\'option retenue sans données fixes', () => {
 		const dsl = generateStructurizrDSL(subject, draft, statements, context);
-		expect(dsl).toContain('enterprise "GCS e-Santé"');
+		expect(dsl).toContain('group "GCS e-Santé"'); // `enterprise` n'existe plus dans Structurizr
+		expect(dsl).not.toContain('enterprise');
 		expect(dsl).toContain('person "Praticien Hospitalier"');
 		expect(dsl).toContain('container "Fédération OIDC avec Pro Santé Connect"');
 		expect(dsl).toContain('session_ttl_minutes');

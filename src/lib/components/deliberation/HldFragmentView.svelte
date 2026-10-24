@@ -134,9 +134,11 @@
 			<h3 class="text-sm font-bold text-foreground">{fragment.title}</h3>
 			<span class="rounded-md border px-1.5 py-0.5 text-[10px] font-bold {statusClass[fragment.status]}">{fragment.statusLabel}</span>
 		</div>
-		{#if fragment.status === 'undecided'}
-			<p class="rounded-lg bg-muted/60 p-2 text-muted-foreground">Sujet non tranché : le fragment montre l'état de la délibération, sans décision.</p>
-		{:else if fragment.status === 'awaiting_review'}
+		<div class="rounded-lg border border-primary/30 bg-primary/5 p-2 space-y-0.5" data-testid="hld-synthesis">
+			<p class="font-bold text-foreground">{fragment.synthesis.headline}</p>
+			{#each fragment.synthesis.details as detail}<p class="text-muted-foreground">{detail}</p>{/each}
+		</div>
+		{#if fragment.status === 'awaiting_review'}
 			<p class="rounded-lg bg-amber-500/10 p-2 text-amber-800 dark:text-amber-200">Décision en revue : elle doit être affirmée par un décideur distinct de son auteur avant d'entrer dans le dossier.</p>
 		{/if}
 

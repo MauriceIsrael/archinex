@@ -16,12 +16,28 @@ Ce guide permet de déployer Archinex sur votre compte GCP pour pouvoir tester, 
    ```
 3. **Services GCP activés** (une seule fois par projet) :
    ```bash
-   gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com
+   gcloud services enable run.googleapis.com cloudbuild.googleapis.com artifactregistry.googleapis.com secretmanager.googleapis.com
    ```
 
 ---
 
 ## 2. Déploiement Cloud Run avec connexion LLMOps
+
+### Secret `JWT_SECRET` (obligatoire en production, #141)
+
+Le secret `JWT_SECRET` est utilisé pour signer et vérifier les jetons de session (HS256). Pour éviter tout risque d'usurpation de session ou d'élévation de privilèges administrateur via une clé publique connue, l'image de production ne fixe **aucune valeur par défaut** dans son Dockerfile et **refuse de démarrer** si le secret est absent, fait moins de 32 caractères ou utilise une valeur d'exemple publique.
+
+Créez le secret dans Google Cloud Secret Manager avant le premier déploiement :
+
+```bash
+# Générer un secret aléatoire fort de 32 octets (64 caractères hexadécimaux) et créer le secret :
+openssl rand -hex 32 | tr -d '\n' | gcloud secrets create archinex-jwt-secret --data-file=-
+
+# Ou ajouter une nouvelle version si le secret existe déjà :
+openssl rand -hex 32 | tr -d '\n' | gcloud secrets versions add archinex-jwt-secret --data-file=-
+```
+
+### Commande de déploiement
 
 Depuis la racine du projet `archinex`, lancez :
 

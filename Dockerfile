@@ -29,7 +29,6 @@ ENV NODE_ENV=production
 ENV PORT=8080
 ENV HOST=0.0.0.0
 ENV DATABASE_URL="file:/app/prisma/dev.db"
-ENV JWT_SECRET="archinex-super-secret-production-jwt-key-2026"
 
 COPY --from=builder /app/package*.json ./
 COPY --from=builder /app/node_modules ./node_modules

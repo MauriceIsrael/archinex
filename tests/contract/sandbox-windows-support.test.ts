@@ -12,6 +12,18 @@ describe('Sandbox Windows Support & Docker Desktop Contract', () => {
 	const composeYml = path.join(sandboxDir, 'compose.yml');
 	const gitattributes = path.join(rootDir, '.gitattributes');
 
+	function resolvePowerShellCmd(): string | null {
+		for (const candidate of ['pwsh', 'powershell']) {
+			try {
+				execSync(`${candidate} -NoProfile -NonInteractive -Command "exit 0"`, { stdio: 'ignore' });
+				return candidate;
+			} catch {
+				// binaire non disponible sur la machine ou le runner CI
+			}
+		}
+		return null;
+	}
+
 	it('fournit le script PowerShell natif sandbox.ps1 avec en-tête UTF-8 BOM pour Windows PowerShell', () => {
 		expect(fs.existsSync(sandboxPs1)).toBe(true);
 
@@ -29,9 +41,20 @@ describe('Sandbox Windows Support & Docker Desktop Contract', () => {
 	});
 
 	it('valide la syntaxe PowerShell de sandbox.ps1 sans erreur de parsing', () => {
-		// Exécution de l'AST Parser PowerShell si PowerShell est disponible
+		const psCmd = resolvePowerShellCmd();
+		if (!psCmd) {
+			// Sur un environnement Linux sans PowerShell (ou runner CI sans pwsh),
+			// on effectue des vérifications structurelles indispensables de sandbox.ps1.
+			const content = fs.readFileSync(sandboxPs1, 'utf-8');
+			expect(content).toContain('param(');
+			expect(content).toContain('New-SandboxEnv');
+			expect(content).toContain('switch ($Command)');
+			expect(content).not.toMatch(/\$pAdmin\s*=\s*$/m);
+			return;
+		}
+
 		try {
-			const checkCmd = `powershell -NoProfile -NonInteractive -Command "$content = [System.IO.File]::ReadAllText('${sandboxPs1.replace(/\\/g, '\\\\')}', [System.Text.Encoding]::UTF8); $tokens = $null; $errors = $null; [void][System.Management.Automation.Language.Parser]::ParseInput($content, [ref]$tokens, [ref]$errors); if ($errors.Count -gt 0) { exit 1 } else { exit 0 }"`;
+			const checkCmd = `${psCmd} -NoProfile -NonInteractive -Command "$content = [System.IO.File]::ReadAllText('${sandboxPs1.replace(/\\/g, '\\\\')}', [System.Text.Encoding]::UTF8); $tokens = $null; $errors = $null; [void][System.Management.Automation.Language.Parser]::ParseInput($content, [ref]$tokens, [ref]$errors); if ($errors.Count -gt 0) { exit 1 } else { exit 0 }"`;
 			execSync(checkCmd, { stdio: 'pipe' });
 		} catch (err) {
 			throw new Error(`Erreur de syntaxe PowerShell dans sandbox.ps1 : ${String(err)}`);

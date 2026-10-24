@@ -1438,11 +1438,9 @@ class DeliberationStore {
 		return {
 			projectName: eng?.title || 'Engagement Archinex',
 			enterpriseName: eng?.title || 'Organisation',
-			actors: (eng?.participants || []).map((p) => ({
-				name: p.name,
-				role: p.role,
-				description: p.isLead ? 'Architecte Référent' : `Expert (${p.role})`
-			})),
+			// Les participants de l'engagement sont les architectes qui délibèrent, pas les utilisateurs du système : ils ne sont pas
+			// des acteurs du diagramme. Le modèle ne porte pas encore d'acteurs du système ; on n'en invente pas.
+			actors: [],
 			requirements: (subject?.requirement_ids || []).map((id) => ({
 				clauseRef: id.split(':').pop() || id,
 				title: id

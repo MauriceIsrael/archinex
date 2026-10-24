@@ -33,6 +33,7 @@ import {
 	type ProjectionContext
 } from './artifactProjections';
 import type { Statement } from '$lib/types/epistemic';
+import { renderStructurizrWorkspace, type C4Container, type C4System } from '$lib/domain/structurizrDsl';
 import type { MaturitySubject } from '$lib/domain/maturityBoard';
 import type { TelegraphicDraft } from '$lib/domain/telegraphic';
 
@@ -225,48 +226,26 @@ function generateGlobalMermaid(elements: BundleElement[], relations: BundleRelat
 function generateGlobalStructurizr(projectName: string, elements: BundleElement[], relations: BundleRelation[]): string {
 	const systems = elements.filter((e) => e.kind === 'system' || e.kind === 'boundary');
 	const components = elements.filter((e) => e.kind !== 'system' && e.kind !== 'boundary');
-	const lines: string[] = [
-		`workspace "${projectName.replace(/"/g, '\\"')}" "Architecture globale scellée Archinex" {`,
-		'    model {',
-		'        user = person "Utilisateur" "Utilisateur du système"',
-		`        enterprise "${projectName.replace(/"/g, '\\"')}" {`
-	];
+	const systemIds = new Set(systems.map((s) => s.id));
+	const toContainer = (c: BundleElement): C4Container => ({ id: c.id, name: c.name, description: c.description || c.kind, technology: c.kind });
+	const c4Systems: C4System[] = systems.map((sys) => ({
+		id: sys.id,
+		name: sys.name,
+		description: sys.description,
+		containers: components.filter((c) => c.boundary_id === sys.id).map(toContainer)
+	}));
+	// Un élément sans périmètre connu n'est pas écarté en silence : il va dans un système à part, nommé comme tel.
+	const orphans = components.filter((c) => !c.boundary_id || !systemIds.has(c.boundary_id));
+	if (orphans.length > 0) c4Systems.push({ id: 'elem-hors-perimetre', name: 'Éléments sans périmètre', containers: orphans.map(toContainer) });
 
-	for (const sys of systems) {
-		const safeSysId = sys.id.replace(/[^a-zA-Z0-9_]/g, '_');
-		const safeSysName = sys.name.replace(/"/g, '\\"');
-		lines.push(`            ${safeSysId} = softwareSystem "${safeSysName}" {`);
-		const children = components.filter((c) => c.boundary_id === sys.id);
-		for (const child of children) {
-			const safeChildId = child.id.replace(/[^a-zA-Z0-9_]/g, '_');
-			const safeChildName = child.name.replace(/"/g, '\\"');
-			const safeDesc = (child.description || child.kind).replace(/"/g, '\\"');
-			lines.push(`                ${safeChildId} = container "${safeChildName}" "${safeDesc}" "${child.kind}"`);
-		}
-		lines.push('            }');
-	}
-
-	lines.push('        }');
-	if (systems.length > 0) {
-		lines.push(`        user -> ${systems[0].id.replace(/[^a-zA-Z0-9_]/g, '_')} "Utilise"`);
-	}
-
-	for (const rel of relations) {
-		const safeFrom = rel.from.replace(/[^a-zA-Z0-9_]/g, '_');
-		const safeTo = rel.to.replace(/[^a-zA-Z0-9_]/g, '_');
-		const safeLabel = (rel.label || rel.kind).replace(/"/g, '\\"');
-		lines.push(`        ${safeFrom} -> ${safeTo} "${safeLabel}"`);
-	}
-
-	lines.push('    }');
-	lines.push('    views {');
-	lines.push('        systemLandscape landscape "Architecture_Globale" {');
-	lines.push('            include *');
-	lines.push('            autoLayout lr');
-	lines.push('        }');
-	lines.push('    }');
-	lines.push('}');
-	return lines.join('\n');
+	return renderStructurizrWorkspace({
+		name: projectName,
+		description: 'Architecture globale scellée Archinex',
+		group: projectName,
+		systems: c4Systems,
+		relations: relations.map((r) => ({ from: r.from, to: r.to, label: r.label || r.kind })),
+		viewKey: 'Architecture_Globale'
+	});
 }
 
 function generateGlobalSysMLv2(projectName: string, elements: BundleElement[], relations: BundleRelation[]): string {

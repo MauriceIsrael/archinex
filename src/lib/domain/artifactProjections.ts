@@ -1,6 +1,7 @@
 import type { MaturitySubject } from '$lib/domain/maturityBoard';
 import type { TelegraphicDraft } from '$lib/domain/telegraphic';
 import type { Statement } from '$lib/types/epistemic';
+import { renderStructurizrWorkspace, type C4Container, type C4Relation } from '$lib/domain/structurizrDsl';
 
 export interface ProjectionActor {
 	name: string;
@@ -82,7 +83,9 @@ export function generateMermaidDiagram(
 }
 
 /**
- * Génère la spécification C4 au format Structurizr DSL (.dsl) dynamique et contextualisée.
+ * Génère la spécification C4 au format Structurizr DSL (.dsl), **acceptée par Structurizr** (voir `structurizrDsl.ts`).
+ *
+ * Les personnes sont celles que l'appelant déclare comme acteurs du système : aucune personne n'est inventée quand il n'en donne pas.
  */
 export function generateStructurizrDSL(
 	subject: MaturitySubject,
@@ -95,50 +98,40 @@ export function generateStructurizrDSL(
 	);
 
 	const enterpriseName = context?.enterpriseName || context?.projectName || 'Organisation';
-	const primaryActor = context?.actors && context.actors.length > 0
-		? context.actors[0]
-		: { name: 'Utilisateur du Système', description: `Interagit avec ${subject.name}` };
-
-	const elements: string[] = [];
+	const containers: C4Container[] = [];
 
 	if (context?.decision?.retainedOptionTitle) {
-		const safeTitle = context.decision.retainedOptionTitle.replace(/"/g, '\\"');
-		const safeRat = (context.decision.rationale || 'Option retenue').replace(/"/g, '\\"');
-		elements.push(`            retained_option = container "${safeTitle}" "${safeRat}" "Architecture Retenue"`);
+		containers.push({
+			id: 'retained_option',
+			name: context.decision.retainedOptionTitle,
+			description: context.decision.rationale || 'Option retenue',
+			technology: 'Architecture Retenue'
+		});
 	}
 
 	relevantStatements.forEach((s) => {
-		const safeId = s.id.replace(/[^a-zA-Z0-9_]/g, '_');
-		const safeDesc = String(s.triplet.value).replace(/"/g, '\\"');
-		elements.push(`            ${safeId} = container "${s.triplet.predicate}" "${safeDesc}" "Verified Architecture"`);
+		containers.push({ id: s.id, name: s.triplet.predicate, description: String(s.triplet.value), technology: 'Verified Architecture' });
 	});
 
-	if (elements.length === 0) {
-		elements.push(`            c_default = container "Socle Architectural" "En cours de spécification" "Verified Architecture"`);
+	if (containers.length === 0) {
+		containers.push({ id: 'default', name: 'Socle Architectural', description: 'En cours de spécification', technology: 'Verified Architecture' });
 	}
 
-	const safeActorName = primaryActor.name.replace(/"/g, '\\"');
-	const safeActorDesc = (primaryActor.description || 'Interagit avec le système').replace(/"/g, '\\"');
-	const safeEnterprise = enterpriseName.replace(/"/g, '\\"');
-	const safeSubject = subject.name.replace(/"/g, '\\"');
+	// Un énoncé fondé sur un autre : le lien causal du Mermaid existe aussi dans le C4.
+	const inScope = new Set(relevantStatements.map((s) => s.id));
+	const relations: C4Relation[] = relevantStatements.flatMap((s) =>
+		s.justification.basedOn.filter((baseId) => inScope.has(baseId)).map((baseId) => ({ from: baseId, to: s.id, label: 'fonde' }))
+	);
 
-	return `workspace "${safeSubject}" "Projeté sans dérive depuis Archinex" {
-    model {
-        user = person "${safeActorName}" "${safeActorDesc}"
-        enterprise "${safeEnterprise}" {
-            system = softwareSystem "${safeSubject}" {
-${elements.join('\n')}
-            }
-        }
-        user -> system "Utilise les services du système"
-    }
-    views {
-        systemContext system "Context_${subject.id.replace(/[^a-zA-Z0-9_]/g, '_')}" {
-            include *
-            autoLayout lr
-        }
-    }
-}`;
+	return renderStructurizrWorkspace({
+		name: subject.name,
+		description: 'Projeté sans dérive depuis Archinex',
+		group: enterpriseName,
+		persons: (context?.actors ?? []).map((a) => ({ name: a.name, description: a.description })),
+		systems: [{ id: subject.id, name: subject.name, containers }],
+		relations,
+		viewKey: subject.id
+	});
 }
 
 /**
@@ -262,9 +255,7 @@ export function generateStructurizrVisualMermaid(
 	);
 
 	const enterpriseName = context?.enterpriseName || context?.projectName || 'Organisation';
-	const primaryActor = context?.actors && context.actors.length > 0
-		? context.actors[0]
-		: { name: 'Utilisateur', description: 'Consomme les services du système' };
+	const actors = context?.actors ?? [];
 
 	const lines: string[] = [
 		'flowchart TB',
@@ -273,7 +264,9 @@ export function generateStructurizrVisualMermaid(
 		'    classDef container fill:#438dd5,stroke:#2e6295,color:#fff',
 		'    classDef retained fill:#2b8a3e,stroke:#1b5e20,color:#fff,font-weight:bold',
 		'',
-		`    user["👤 ${primaryActor.name}<br/><small>[Personne]</small><br/>${primaryActor.description || ''}"]:::person`,
+		...actors.map(
+			(a, i) => `    user_${i}["👤 ${a.name.replace(/["[\]()]/g, '')}<br/><small>[Personne]</small><br/>${(a.description || '').replace(/["[\]()]/g, '')}"]:::person`
+		),
 		'',
 		`    subgraph Enterprise["🏢 Entreprise : ${enterpriseName}"]`,
 		`        subgraph SysBound["Système : ${subject.name}"]`,
@@ -298,7 +291,7 @@ export function generateStructurizrVisualMermaid(
 	lines.push('        end');
 	lines.push('    end');
 	lines.push('');
-	lines.push('    user -->|"Supervision / Utilisation sécurisée"| SysBound');
+	actors.forEach((_, i) => lines.push(`    user_${i} -->|"Utilise"| SysBound`));
 
 	return lines.join('\n');
 }

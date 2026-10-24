@@ -8,13 +8,20 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Knowledge Hub : distinction du refus 403 « expert non enregistré » face à l'indisponibilité 503 (archinex#145)
+- Un utilisateur Archinex non inscrit dans le registre des experts du Hub voyait `/kb/reviews` afficher à tort « Mode Hors-Ligne ou Service LLMOps Indisponible (503) — Le Knowledge Hub distant n'est pas joignable » et la pastille d'en-tête basculer sur « LLMOps Local », alors que le Hub répondait précisément 403 `{"status":"unauthorized","reason":"'...' is not a registered expert."}`.
+- Le client LLMOps (`client.ts`) distingue désormais rigoureusement le statut `not_registered` (403 avec raison non enregistré), `unauthorized` (401 jeton/assertion invalide), `unavailable` (503 ou panne réseau) et `ok`.
+- Message d'orientation explicite délivré : « Votre adresse n'est pas inscrite dans le registre des experts du Hub : demandez à un administrateur (Administration → Inscrire dans le registre LLMOps) ».
+- Les écrans `/kb/reviews` et `/kb/me` affichent un bandeau d'information dédié au lieu d'une fausse alerte de dégradation réseau.
+- La pastille d'en-tête « LLMOps Connecté » ne bascule plus sur « Local » lors d'un 403 : le service LLMOps distant est joignable et connecté.
+- Tests : `tests/contract/kb-not-registered-expert.test.ts` (7 tests de contrat exhaustifs avec simulation du faux Hub, vérification des statuts 401/403/503 et maintien de la pastille connectée) et `tests/contract/llmops-live.test.ts` (test contre le vrai Hub vivant).
+
 ### Démonstration : pré-chargement de l'engagement LUMICC et de l'audit ArcKit (sans clé API)
 - Ajout du jeu de données de référence examples/lumicc-noc/ (Lot 1 LUMICC : NOC, Cœur 5G PPDR & Résilience) :
   - 92 clauses RFP analysées, 7 sujets d'architecture cardinaux formalisés avec options et critères MCDA.
-  - Énoncés épistémiques avec dépendances causales directes (asedOn) pour la démonstration de la rétractation en cascade.
+  - Énoncés épistémiques avec dépendances causales directes (basedOn) pour la démonstration de la rétractation en cascade.
   - Délibération d'équipe multi-experts reconstituée.
-- Enrichissement de prisma/seed.ts pour pré-charger automatiquement le projet lumicc-lot1-noc ainsi que l'exécution d'audit 
-un_lumicc_live_j0 dans Prisma (FactorizationRun). La démonstration complète peut être animée hors-ligne sans clé API externe.
+- Enrichissement de prisma/seed.ts pour pré-charger automatiquement le projet lumicc-lot1-noc ainsi que l'exécution d'audit run_lumicc_live_j0 dans Prisma (FactorizationRun). La démonstration complète peut être animée hors-ligne sans clé API externe.
 - Guide de démonstration complet rédigé dans [docs/demo-guide.md](docs/demo-guide.md) détaillant les principes ArcKit (triage 4 compartiments, factorisation N→K, élicitation MCDA, projections déterministes d'artefacts) et le scénario en 3 actes.
 ### Sécurité : validation stricte de JWT_SECRET et suppression de la valeur publique du Dockerfile (archinex#141)
 - L'étape `runner` du `Dockerfile` fixait une valeur par défaut publique (`archinex-super-secret-production-jwt-key-2026`). Elle a été retirée : le secret de session ne doit jamais être figé dans l'image.
@@ -22,16 +29,17 @@ un_lumicc_live_j0 dans Prisma (FactorizationRun). La démonstration complète pe
 - Les sessions et jetons d'administration forgés avec une ancienne clé publique ou de repli sont rejetés lors de la vérification.
 - Documentation mise à jour (`GCP_CLOUD_RUN_DEPLOYMENT.md`, `docs/fresh-install.md`, `docs/developer-guide.md`) pour détailler la génération et l'injection via Secret Manager (`--set-secrets JWT_SECRET=archinex-jwt-secret:latest`).
 - Tests de contrat : `tests/contract/jwt-secret-validation.test.ts` (12 tests validant le refus des clés publiques, l'exigence de longueur, l'échec de démarrage, et le rejet des jetons forgés).
+
 ### Rendu et homologation : correction de l'erreur Svelte `each_key_duplicate` dans le fragment HLD
 - Dans `HldFragmentView.svelte`, les listes de chaînes de caractères (points ouverts, conséquences, risques acceptés, avertissements, critères et scores) utilisaient la valeur comme clé dans les blocs `{#each ...}`. Lorsqu'une question ou objection ouverte partageait le même intitulé (par exemple lors de relances automatiques de proposition de découpage du sujet pour lever la stagnation), Svelte levait une exception fatale `each_key_duplicate`.
 - Les boucles d'affichage statiques de listes simples ont été dé-clées dans `HldFragmentView.svelte` ainsi que dans la vue de consultation des cadres (`kb/frameworks/[id]`).
 - Dans `src/lib/domain/hldFragment.ts`, `openPoints`, `acceptedRisks`, `acceptedViolations`, `coverageWarnings` et `requirementRefs` sont désormais systématiquement dédoublonnés à la construction du fragment HLD.
 - Tests : validation du dédoublonnage et de la non-régression dans `tests/contract/hld-fragment.test.ts`.
+
 ### Serveur de développement : résolution de `.prisma/client/index-browser` sous Vite dev (archinex#144)
 - Correction du plantage au démarrage de `npm run dev` (`vite dev`) : lors de la première requête, l'optimiseur de dépendances de Vite tentait de pré-bundler `casbin-prisma-adapter` côté client navigateur. Cet adaptateur important `@prisma/client`, esbuild tentait de résoudre le point d'entrée navigateur (`index-browser.js`), qui échouait sur `.prisma/client/index-browser` (introuvable suite à la migration Prisma 7 générant le client dans `src/generated/prisma`).
 - `vite.config.ts` : retrait de `casbin`, `casbin-prisma-adapter` et `jose` de `optimizeDeps.include` (modules serveur/SSR qui n'ont pas à être pré-bundlés côté client) ; ajout de `@prisma/client`, `casbin` et `casbin-prisma-adapter` dans `optimizeDeps.exclude` ; configuration de `ssr.external` pour `@prisma/client` et `casbin-prisma-adapter`.
 - Suite de tests de contrat dédiée : `tests/contract/vite-dev-server.test.ts` validant la configuration et le démarrage sans erreur du serveur Vite de développement.
-
 
 ### Sécurité : le conteneur ne sème plus de comptes de démonstration
 - `docker-entrypoint.sh` lançait `prisma/seed.ts` à chaque démarrage : comptes `admin@archinex.local` / `admin123` (et `user123`) publics.

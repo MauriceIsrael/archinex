@@ -184,6 +184,47 @@ async function main() {
     const { seedProject } = await import('../scripts/seed');
     await seedProject('examples/suse-telco-cloud', prisma);
     await seedProject('examples/cctp-rfp', prisma);
+    await seedProject('examples/lumicc-noc', prisma);
+
+    // Pré-chargement de l'exécution de factorisation ArcKit J0 pour LUMICC (démo sans clé d'API)
+    const { readFileSync, existsSync } = await import('node:fs');
+    const { resolve } = await import('node:path');
+    const factResultPath = resolve(process.cwd(), 'examples/lumicc-noc/factorization-result.json');
+    if (existsSync(factResultPath)) {
+      const factResult = JSON.parse(readFileSync(factResultPath, 'utf-8'));
+      const rfpSourcePath = resolve(process.cwd(), 'examples/lumicc-noc/rfp-section4-noc.md');
+      const sourceText = existsSync(rfpSourcePath) ? readFileSync(rfpSourcePath, 'utf-8') : '';
+      await prisma.factorizationRun.upsert({
+        where: { id: 'run_lumicc_live_j0' },
+        create: {
+          id: 'run_lumicc_live_j0',
+          inputSha256: 'lumicc_noc_section4_j0_live_claude',
+          documentTitle: 'LUMICC Statement of Work – Lot 1 (Section 4 : NOC & Résilience)',
+          model: 'claude-sonnet-5-5',
+          engine: 'arckit-requirements-audit',
+          status: 'ok',
+          clauseCount: factResult.totalClauses || 92,
+          subjectCount: factResult.subjects?.length || 7,
+          result: JSON.stringify(factResult),
+          sourceText,
+          startedAt: new Date(),
+          finishedAt: new Date()
+        },
+        update: {
+          inputSha256: 'lumicc_noc_section4_j0_live_claude',
+          documentTitle: 'LUMICC Statement of Work – Lot 1 (Section 4 : NOC & Résilience)',
+          model: 'claude-sonnet-5-5',
+          engine: 'arckit-requirements-audit',
+          status: 'ok',
+          clauseCount: factResult.totalClauses || 92,
+          subjectCount: factResult.subjects?.length || 7,
+          result: JSON.stringify(factResult),
+          sourceText,
+          finishedAt: new Date()
+        }
+      });
+      console.log('   - Audit ArcKit LUMICC pré-chargé (run_lumicc_live_j0)');
+    }
   } catch (err) {
     console.warn('[seed] Avertissement lors du chargement des exemples :', err);
   }

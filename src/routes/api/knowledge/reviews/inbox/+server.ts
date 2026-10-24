@@ -19,6 +19,14 @@ export const GET: RequestHandler = async ({ request, locals, url }) => {
     return json({ status: 'unavailable', error: result.error, data: [] }, { status: 503 });
   }
 
+  if (result.status === 'not_registered') {
+    return json({ status: 'not_registered', error: result.error, reason: result.reason, data: [] }, { status: 403 });
+  }
+
+  if (result.status === 'unauthorized') {
+    return json({ status: 'unauthorized', error: result.error, data: [] }, { status: 401 });
+  }
+
   if (result.status === 'error') {
     return json({ status: 'error', error: result.error }, { status: 500 });
   }

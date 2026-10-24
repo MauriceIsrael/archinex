@@ -8,6 +8,15 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Démonstration : pré-chargement de l'engagement LUMICC et de l'audit ArcKit (sans clé API)
+- Ajout du jeu de données de référence examples/lumicc-noc/ (Lot 1 LUMICC : NOC, Cœur 5G PPDR & Résilience) :
+  - 92 clauses RFP analysées, 7 sujets d'architecture cardinaux formalisés avec options et critères MCDA.
+  - Énoncés épistémiques avec dépendances causales directes (asedOn) pour la démonstration de la rétractation en cascade.
+  - Délibération d'équipe multi-experts reconstituée.
+- Enrichissement de prisma/seed.ts pour pré-charger automatiquement le projet lumicc-lot1-noc ainsi que l'exécution d'audit 
+un_lumicc_live_j0 dans Prisma (FactorizationRun). La démonstration complète peut être animée hors-ligne sans clé API externe.
+- Guide de démonstration complet rédigé dans [docs/demo-guide.md](docs/demo-guide.md) détaillant les principes ArcKit (triage 4 compartiments, factorisation N→K, élicitation MCDA, projections déterministes d'artefacts) et le scénario en 3 actes.
+
 ### Sécurité : le conteneur ne sème plus de comptes de démonstration
 - `docker-entrypoint.sh` lançait `prisma/seed.ts` à chaque démarrage : comptes `admin@archinex.local` / `admin123` (et `user123`) publics.
   Il appelle maintenant `prisma/bootstrap-admin.ts` : un premier administrateur est créé seulement si aucun n'existe et si

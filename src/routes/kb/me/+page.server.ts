@@ -45,7 +45,8 @@ export const load: PageServerLoad = async ({ locals }) => {
     },
     llmops: {
       status: remoteMe.status,
-      offline: remoteMe.status === 'unavailable' || remoteMe.data?.offline === true
+      offline: remoteMe.status === 'unavailable' || remoteMe.data?.offline === true,
+      error: remoteMe.error
     }
   };
 };

@@ -260,8 +260,9 @@ export interface KbUserProfile {
 }
 
 export interface KbMeResponse {
-  status: 'ok' | 'error' | 'unavailable' | 'forbidden';
+  status: 'ok' | 'error' | 'unavailable' | 'forbidden' | 'not_registered' | 'unauthorized';
   data?: KbUserProfile;
+  reason?: string;
   error?: string;
 }
 
@@ -361,9 +362,10 @@ export interface KbEvent {
 }
 
 export interface KbInboxResponse {
-  status: 'ok' | 'error' | 'unavailable';
+  status: 'ok' | 'error' | 'unavailable' | 'not_registered' | 'unauthorized';
   data?: KbReviewInboxItem[];
   error?: string;
+  reason?: string;
 }
 
 export interface KbEventsResponse {

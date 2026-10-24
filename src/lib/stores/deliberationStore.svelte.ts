@@ -1534,6 +1534,11 @@ class DeliberationStore {
 		try {
 			const fetcher = customFetch || (typeof window !== 'undefined' ? window.fetch.bind(window) : fetch);
 			const res = await fetcher(`/api/llmops?action=sync&engagement=${encodeURIComponent(eng)}`);
+			if (res.status === 403) {
+				// Sur un 403, le Hub est connecté (accès restreint mais présent) : ne pas basculer la pastille à "Local"
+				this.llmopsStatus = 'connected';
+				return { success: true };
+			}
 			if (!res.ok) {
 				throw new Error(`Erreur HTTP ${res.status}`);
 			}

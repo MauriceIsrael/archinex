@@ -296,6 +296,16 @@ describe('Archinex #95 & LLMOps #108 - Explorateur de doctrine complet & histori
         loadAssetDetail({ params: { id: 'NON-EXISTENT-XYZ' } } as any)
       ).rejects.toThrow();
     });
+
+    it('redirige /knowledge/clauses vers /kb/clauses pour éviter l’erreur 404', async () => {
+      try {
+        await loadAssetDetail({ params: { id: 'clauses' } } as any);
+        expect.unreachable('Devrait avoir levé une redirection');
+      } catch (err: any) {
+        expect(err.status).toBe(307);
+        expect(err.location).toBe('/kb/clauses');
+      }
+    });
   });
 });
 

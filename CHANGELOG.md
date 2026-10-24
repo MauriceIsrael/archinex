@@ -13,6 +13,11 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 - La section inférieure « Historique des Ingestions » (bloc `<details>`) s'ouvre désormais automatiquement par défaut lorsqu'aucun référentiel n'est présent dans le snapshot actif et que des ingestions sont recensées, évitant que les boutons « Examiner » ne soient masqués à l'utilisateur.
 - Tests : `tests/contract/issue_90_frameworks_knowledge.test.ts` (vérification du rendu des liens directs vers les ingestions en attente).
 
+### Tableau de bord : correction du lien d'action vers la validation des clauses KB et redirection de courtoisie
+- Le bouton « Valider & publier les clauses » du composant `KbClausesHealthBanner` pointait vers `/knowledge/clauses`, ce qui déclenchait la route de détail d'actif `/knowledge/[id]` avec `id = "clauses"` et provoquait une erreur `404 Actif "clauses" introuvable`.
+- Le lien de la bannière pointe désormais directement vers la route canonique de gestion des clauses `/kb/clauses`.
+- Ajout d'une redirection de courtoisie HTTP 307 dans `src/routes/knowledge/[id]/+page.server.ts` pour rediriger automatiquement toute requête vers `/knowledge/clauses` vers `/kb/clauses`, évitant ainsi l'erreur 404 en cas d'accès direct ou via un ancien signet.
+- Tests : vérification du lien `/kb/clauses` rendu par `KbClausesHealthBanner` dans `tests/contract/kb-clauses-health-alert.test.ts` et de la redirection 307 dans `tests/contract/issue_95_knowledge_explorer.test.ts`.
 
 ### Posture 3 (Rendu & Homologation) : les schémas et le fragment de HLD se lisent comme un brouillon de tableau blanc
 - **C4** : le Structurizr DSL produit est accepté par le CLI officiel (2025.11.09). Avant : `enterprise` (retiré du langage), containers homonymes, relation parent → enfant. Une vue `container` s'ajoute à la vue de contexte (qui ne montre pas les containers) ; les liens causaux `basedOn` deviennent des relations « fonde » ; plus de personne inventée à partir des participants (`src/lib/domain/structurizrDsl.ts`).

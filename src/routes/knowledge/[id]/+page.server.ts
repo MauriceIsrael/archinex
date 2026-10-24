@@ -1,4 +1,4 @@
-import { error } from '@sveltejs/kit';
+import { error, redirect, isHttpError, isRedirect } from '@sveltejs/kit';
 import type { PageServerLoad } from './$types';
 import { llmopsClient } from '$lib/server/llmops/client';
 import type { KnowledgeSnapshot } from '$lib/domain/knowledgeGraph';
@@ -7,6 +7,11 @@ export const load: PageServerLoad = async ({ params }) => {
   const assetId = params.id;
   if (!assetId) {
     throw error(404, 'Identifiant d’actif manquant');
+  }
+
+  // Redirection de courtoisie vers la gestion des clauses si /knowledge/clauses est appelée
+  if (assetId === 'clauses') {
+    throw redirect(307, '/kb/clauses');
   }
 
   try {
@@ -50,6 +55,9 @@ export const load: PageServerLoad = async ({ params }) => {
       frameworks: complianceRes.data || []
     };
   } catch (err: any) {
+    if (isRedirect(err) || isHttpError(err)) {
+      throw err;
+    }
     if (err && typeof err === 'object' && 'status' in err && err.status === 404) {
       throw err;
     }

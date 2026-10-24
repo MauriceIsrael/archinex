@@ -5,7 +5,7 @@ import tailwindcss from '@tailwindcss/vite';
 export default defineConfig({
 	plugins: [tailwindcss(), sveltekit()],
 	optimizeDeps: {
-		exclude: ['lucide-svelte'],
+		exclude: ['lucide-svelte', '@prisma/client', 'casbin', 'casbin-prisma-adapter'],
 		include: [
 			'mermaid',
 			'tailwind-variants',
@@ -17,10 +17,6 @@ export default defineConfig({
 			'echarts/charts',
 			'echarts/components',
 			'echarts/renderers',
-			'casbin',
-			'casbin-prisma-adapter',
-			// Packages SSR découverts trop tard (prisma, jose)
-			'jose',
 			// Transitives svelte-i18n
 			'intl-messageformat',
 			'deepmerge',
@@ -29,7 +25,10 @@ export default defineConfig({
 			'tabbable',
 			'style-to-object',
 			// Transitives @internationalized
-			'@internationalized/date',
+			'@internationalized/date'
 		]
+	},
+	ssr: {
+		external: ['@prisma/client', 'casbin-prisma-adapter']
 	}
 });

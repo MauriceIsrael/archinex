@@ -15,6 +15,17 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 - Ajout de `.gitattributes` garantissant les fins de ligne `LF` sur les scripts shell, Dockerfile, Caddyfile et scripts montés dans les conteneurs Linux, et `CRLF` sur PowerShell.
 - Mots de passe conviviaux par défaut en local sur `localhost` (`admin123`, `architect123`, `security123`, `ciso123`) ou configurables via `SANDBOX_SIMPLE_PASSWORDS=1` pour simplifier les tests locaux sans compromettre la sécurité sur URL publique.
 - Suite de tests de contrat dédiée (`tests/contract/sandbox-windows-support.test.ts`).
+### Rendu et homologation : correction de l'erreur Svelte `each_key_duplicate` dans le fragment HLD
+- Dans `HldFragmentView.svelte`, les listes de chaînes de caractères (points ouverts, conséquences, risques acceptés, avertissements, critères et scores) utilisaient la valeur comme clé dans les blocs `{#each ...}`. Lorsqu'une question ou objection ouverte partageait le même intitulé (par exemple lors de relances automatiques de proposition de découpage du sujet pour lever la stagnation), Svelte levait une exception fatale `each_key_duplicate`.
+- Les boucles d'affichage statiques de listes simples ont été dé-clées dans `HldFragmentView.svelte` ainsi que dans la vue de consultation des cadres (`kb/frameworks/[id]`).
+- Dans `src/lib/domain/hldFragment.ts`, `openPoints`, `acceptedRisks`, `acceptedViolations`, `coverageWarnings` et `requirementRefs` sont désormais systématiquement dédoublonnés à la construction du fragment HLD.
+- Tests : validation du dédoublonnage et de la non-régression dans `tests/contract/hld-fragment.test.ts`.
+### Serveur de développement : résolution de `.prisma/client/index-browser` sous Vite dev (archinex#144)
+- Correction du plantage au démarrage de `npm run dev` (`vite dev`) : lors de la première requête, l'optimiseur de dépendances de Vite tentait de pré-bundler `casbin-prisma-adapter` côté client navigateur. Cet adaptateur important `@prisma/client`, esbuild tentait de résoudre le point d'entrée navigateur (`index-browser.js`), qui échouait sur `.prisma/client/index-browser` (introuvable suite à la migration Prisma 7 générant le client dans `src/generated/prisma`).
+- `vite.config.ts` : retrait de `casbin`, `casbin-prisma-adapter` et `jose` de `optimizeDeps.include` (modules serveur/SSR qui n'ont pas à être pré-bundlés côté client) ; ajout de `@prisma/client`, `casbin` et `casbin-prisma-adapter` dans `optimizeDeps.exclude` ; configuration de `ssr.external` pour `@prisma/client` et `casbin-prisma-adapter`.
+- Suite de tests de contrat dédiée : `tests/contract/vite-dev-server.test.ts` validant la configuration et le démarrage sans erreur du serveur Vite de développement.
+
+
 ### Sécurité : le conteneur ne sème plus de comptes de démonstration
 - `docker-entrypoint.sh` lançait `prisma/seed.ts` à chaque démarrage : comptes `admin@archinex.local` / `admin123` (et `user123`) publics.
   Il appelle maintenant `prisma/bootstrap-admin.ts` : un premier administrateur est créé seulement si aucun n'existe et si

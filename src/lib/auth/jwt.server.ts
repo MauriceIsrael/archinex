@@ -44,11 +44,13 @@ export interface JwtSecretValidationResult {
  * et ne doit correspondre à aucune des valeurs publiques d'exemple ou de développement (#141).
  */
 export function validateJwtSecret(
-  secret: string | undefined = process.env.JWT_SECRET,
-  nodeEnv: string = process.env.NODE_ENV ?? 'development'
+  secret?: string | undefined,
+  nodeEnv?: string
 ): JwtSecretValidationResult {
-  const isProduction = nodeEnv === 'production';
-  const trimmed = secret?.trim();
+  const actualSecret = arguments.length > 0 ? secret : process.env.JWT_SECRET;
+  const env = arguments.length > 1 && nodeEnv !== undefined ? nodeEnv : (process.env.NODE_ENV ?? 'development');
+  const isProduction = env === 'production';
+  const trimmed = actualSecret?.trim();
 
   if (!trimmed) {
     if (isProduction) {
@@ -89,10 +91,12 @@ export function validateJwtSecret(
  * Lève InsecureJwtSecretError si JWT_SECRET est invalide en production.
  */
 export function assertValidJwtSecret(
-  secret: string | undefined = process.env.JWT_SECRET,
-  nodeEnv: string = process.env.NODE_ENV ?? 'development'
+  secret?: string | undefined,
+  nodeEnv?: string
 ): void {
-  const result = validateJwtSecret(secret, nodeEnv);
+  const actualSecret = arguments.length > 0 ? secret : process.env.JWT_SECRET;
+  const env = arguments.length > 1 && nodeEnv !== undefined ? nodeEnv : (process.env.NODE_ENV ?? 'development');
+  const result = validateJwtSecret(actualSecret, env);
   if (!result.valid) {
     throw new InsecureJwtSecretError(result.error!);
   }
@@ -106,12 +110,11 @@ export function getJwtSecretKey(
   secretOverride?: string,
   nodeEnvOverride?: string
 ): Uint8Array {
-  const secret = secretOverride ?? process.env.JWT_SECRET;
-  const env = nodeEnvOverride ?? process.env.NODE_ENV ?? 'development';
+  const secret = arguments.length > 0 ? secretOverride : process.env.JWT_SECRET;
+  const env = arguments.length > 1 && nodeEnvOverride !== undefined ? nodeEnvOverride : (process.env.NODE_ENV ?? 'development');
 
   if (
-    secretOverride === undefined &&
-    nodeEnvOverride === undefined &&
+    arguments.length === 0 &&
     cachedKey &&
     cachedRawSecret === secret &&
     cachedEnv === env
@@ -124,7 +127,7 @@ export function getJwtSecretKey(
   const effectiveSecret = secret?.trim() || DEV_FALLBACK_JWT_SECRET;
   const key = new TextEncoder().encode(effectiveSecret);
 
-  if (secretOverride === undefined && nodeEnvOverride === undefined) {
+  if (arguments.length === 0) {
     cachedRawSecret = secret;
     cachedEnv = env;
     cachedKey = key;
@@ -152,7 +155,7 @@ export async function signAccessToken(
   secretOverride?: string,
   nodeEnvOverride?: string
 ): Promise<string> {
-  const key = getJwtSecretKey(secretOverride, nodeEnvOverride);
+  const key = arguments.length > 1 ? getJwtSecretKey(secretOverride, nodeEnvOverride) : getJwtSecretKey();
   return new SignJWT({
     email: user.email,
     name: user.name,
@@ -175,7 +178,7 @@ export async function signRefreshToken(
   secretOverride?: string,
   nodeEnvOverride?: string
 ): Promise<string> {
-  const key = getJwtSecretKey(secretOverride, nodeEnvOverride);
+  const key = arguments.length > 1 ? getJwtSecretKey(secretOverride, nodeEnvOverride) : getJwtSecretKey();
   return new SignJWT({ type: 'refresh' })
     .setProtectedHeader({ alg: 'HS256' })
     .setSubject(userId)
@@ -193,7 +196,7 @@ export async function verifyAccessToken(
   secretOverride?: string,
   nodeEnvOverride?: string
 ): Promise<AccessTokenPayload | null> {
-  const key = getJwtSecretKey(secretOverride, nodeEnvOverride);
+  const key = arguments.length > 1 ? getJwtSecretKey(secretOverride, nodeEnvOverride) : getJwtSecretKey();
   try {
     const { payload } = await jwtVerify(token, key);
     return payload as AccessTokenPayload;
@@ -210,7 +213,7 @@ export async function verifyRefreshToken(
   secretOverride?: string,
   nodeEnvOverride?: string
 ): Promise<string | null> {
-  const key = getJwtSecretKey(secretOverride, nodeEnvOverride);
+  const key = arguments.length > 1 ? getJwtSecretKey(secretOverride, nodeEnvOverride) : getJwtSecretKey();
   try {
     const { payload } = await jwtVerify(token, key);
     if (payload.type !== 'refresh' || !payload.sub) return null;

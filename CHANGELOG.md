@@ -23,6 +23,7 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 - Ajout de `.gitattributes` garantissant les fins de ligne `LF` sur les scripts shell, Dockerfile, Caddyfile et scripts montés dans les conteneurs Linux, et `CRLF` sur PowerShell.
 - Mots de passe conviviaux par défaut en local sur `localhost` (`admin123`, `architect123`, `security123`, `ciso123`) ou configurables via `SANDBOX_SIMPLE_PASSWORDS=1` pour simplifier les tests locaux sans compromettre la sécurité sur URL publique.
 - Suite de tests de contrat dédiée (`tests/contract/sandbox-windows-support.test.ts`).
+- Correction de l'erreur Docker Compose `failed to get console: The handle is invalid` sous Windows : suppression de la redirection de sortie de `Invoke-SandboxCompose` dans une variable (qui détruisait le handle de console), activation par défaut de `BUILDKIT_PROGRESS=plain` pour les terminaux non interactifs/IDE, et enregistrement systématique de `LLMOPS_DIR` dans `.sandbox/env`.
 ### Démonstration : pré-chargement de l'engagement LUMICC et de l'audit ArcKit (sans clé API)
 - Ajout du jeu de données de référence examples/lumicc-noc/ (Lot 1 LUMICC : NOC, Cœur 5G PPDR & Résilience) :
   - 92 clauses RFP analysées, 7 sujets d'architecture cardinaux formalisés avec options et critères MCDA.

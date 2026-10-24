@@ -205,6 +205,7 @@ function New-SandboxEnv {
         }
     )
     $usersJson = ($users | ConvertTo-Json -Depth 10 -Compress)
+    $llmopsDir = Find-Llmops
 
     $serviceToken = Get-RandomHex 24
     $demoToken = Get-RandomHex 24
@@ -224,7 +225,8 @@ function New-SandboxEnv {
         "ARCHINEX_ACTOR_PRIVATE_KEY='$pem'",
         "ARCHINEX_JWKS='$jwksJson'",
         "SANDBOX_HUB_PERSONAS='$hubPersonas'",
-        "SANDBOX_ARCHINEX_USERS='$usersJson'"
+        "SANDBOX_ARCHINEX_USERS='$usersJson'",
+        "LLMOPS_DIR='$llmopsDir'"
     )
 
     $content = ($lines -join "`n") + "`n"
@@ -246,12 +248,14 @@ function Load-Env {
             [System.Environment]::SetEnvironmentVariable($name, $val, 'Process')
         }
     }
+    if (-not $env:LLMOPS_DIR) {
+        $env:LLMOPS_DIR = Find-Llmops
+    }
 }
 
 function Invoke-SandboxCompose {
     param([Parameter(ValueFromRemainingArguments = $true)][string[]]$ComposeArgs)
     & docker compose -f $ComposeFile --env-file $EnvFile --project-directory $Here @ComposeArgs
-    return $LASTEXITCODE
 }
 
 function Show-Creds {
@@ -335,12 +339,15 @@ switch ($Command) {
         }
 
         New-SandboxEnv
-        $env:LLMOPS_DIR = Find-Llmops
         Load-Env
 
-        $exitCode = Invoke-SandboxCompose up -d --build --wait
-        if ($exitCode -ne 0) {
-            throw "Échec du démarrage de docker compose (code : $exitCode)."
+        if (-not $env:BUILDKIT_PROGRESS) {
+            $env:BUILDKIT_PROGRESS = 'plain'
+        }
+
+        Invoke-SandboxCompose up -d --build --wait
+        if ($LASTEXITCODE -ne 0) {
+            throw "Échec du démarrage de docker compose (code : $LASTEXITCODE)."
         }
         Write-Host ''
         Show-Creds

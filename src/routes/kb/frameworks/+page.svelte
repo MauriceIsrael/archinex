@@ -38,7 +38,7 @@
   let complianceFrameworks = $state<ComplianceFrameworkOverview[]>(data.complianceFrameworks || []);
   let statusFilter = $state<string>(data.statusFilter || 'all');
   let isFiltering = $state(false);
-  let historyOpen = $state(false);
+  let historyOpen = $state((data.complianceFrameworks?.length ?? 0) === 0 && (data.frameworks?.length ?? 0) > 0);
 
   let isUploading = $state(false);
   let uploadError = $state<string | null>(null);
@@ -328,8 +328,25 @@
     </div>
 
     {#if complianceFrameworks.length === 0}
-      <div class="p-6 bg-muted/40 border border-border rounded-xl text-center text-xs text-muted-foreground">
-        Aucun référentiel de conformité recensé dans le snapshot actif.
+      <div class="p-6 bg-muted/40 border border-border rounded-xl text-center text-xs text-muted-foreground space-y-2.5">
+        <p>Aucun référentiel de conformité recensé dans le snapshot actif.</p>
+        {#if frameworksList.length > 0}
+          <div class="pt-1 flex flex-wrap items-center justify-center gap-2">
+            <span class="text-foreground font-medium">
+              {frameworksList.length} lot{frameworksList.length > 1 ? 's' : ''} d'ingestion {frameworksList.length > 1 ? 'sont disponibles' : 'est disponible'} en revue :
+            </span>
+            {#each frameworksList as fw}
+              <a
+                href="/kb/frameworks/{fw.id}"
+                data-testid="framework-empty-state-ingestion-link"
+                class="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-primary/10 hover:bg-primary/20 text-primary font-semibold text-xs transition-colors"
+              >
+                <span>{fw.framework_name || fw.framework_id} (#{fw.id})</span>
+                <ChevronRight class="w-3 h-3" />
+              </a>
+            {/each}
+          </div>
+        {/if}
       </div>
     {:else}
       <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">

@@ -8,6 +8,12 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Référentiels réglementaires : visibilité et accessibilité des lots d'ingestion en attente sur `/kb/frameworks`
+- Lorsqu'aucun référentiel de conformité n'est encore recensé dans le snapshot actif (`GET /api/compliance/frameworks` vide), la section supérieure de `/kb/frameworks` affiche désormais des liens directs cliquables vers les lots d'ingestion disponibles (ex: `/kb/frameworks/{id}`).
+- La section inférieure « Historique des Ingestions » (bloc `<details>`) s'ouvre désormais automatiquement par défaut lorsqu'aucun référentiel n'est présent dans le snapshot actif et que des ingestions sont recensées, évitant que les boutons « Examiner » ne soient masqués à l'utilisateur.
+- Tests : `tests/contract/issue_90_frameworks_knowledge.test.ts` (vérification du rendu des liens directs vers les ingestions en attente).
+
+
 ### Posture 3 (Rendu & Homologation) : les schémas et le fragment de HLD se lisent comme un brouillon de tableau blanc
 - **C4** : le Structurizr DSL produit est accepté par le CLI officiel (2025.11.09). Avant : `enterprise` (retiré du langage), containers homonymes, relation parent → enfant. Une vue `container` s'ajoute à la vue de contexte (qui ne montre pas les containers) ; les liens causaux `basedOn` deviennent des relations « fonde » ; plus de personne inventée à partir des participants (`src/lib/domain/structurizrDsl.ts`).
 - **Solidité visible** : chaque énoncé dessiné (Mermaid, C4, SysML, JSON) porte vérifié / conçu non vérifié / hypothèse / en revue / contesté / en conflit / confiance non renseignée, en libellé et en couleur (`src/lib/domain/epistemicBadge.ts`). Énoncés remplacés ou retirés non dessinés, leur nombre dit ; deux valeurs actives différentes pour un prédicat = conflit, plus de « dernière valeur lue » dans le JSON. Fin du « Verified Architecture » sur chaque élément C4 et du `confidence: 'verified'` codé en dur dans l'export scellé.

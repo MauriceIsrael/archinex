@@ -1,4 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { render } from 'svelte/server';
+import KbFrameworksPage from '../../src/routes/kb/frameworks/+page.svelte';
 import { LLMOpsClient } from '$lib/server/llmops/client';
 import { POST as abandonPost } from '../../src/routes/api/frameworks/ingestions/[id]/abandon/+server';
 import { GET as listIngestionsGet } from '../../src/routes/api/frameworks/ingestions/+server';
@@ -232,5 +234,38 @@ describe('Issue #90 — Opposable frameworks overview, ingestion abandon & /know
     expect(data.initialFramework).toBe('NIS2');
     expect(data.snapshot.controls[0].validated_by).toEqual(['@ciso-office']);
     expect(data.snapshot.controls[1].validated_by).toEqual([]);
+  });
+
+  it('renders direct links to pending ingestions when no compliance framework is in active snapshot', () => {
+    const mockIngestion = {
+      id: '1',
+      framework_id: 'NIS2',
+      framework_name: 'Directive NIS 2 (UE) 2022/2555',
+      version: '2022/2555',
+      file_name: 'nis2.txt',
+      file_format: 'txt',
+      file_size_bytes: 100,
+      created_at: new Date().toISOString(),
+      status: 'reviewing',
+      total_requirements: 10,
+      reviewed_requirements: 2,
+      requirements: []
+    };
+
+    const { html } = render(KbFrameworksPage, {
+      props: {
+        data: {
+          user: { id: 'usr-1', name: 'User', email: 'user@example.com', role: 'admin' },
+          expert: { kbHandle: '@expert', kbRoles: ['kb:maintain'], ownedDomains: ['security'] },
+          frameworks: [mockIngestion as any],
+          complianceFrameworks: [],
+          offline: false
+        }
+      }
+    });
+
+    expect(html).toContain('Aucun référentiel de conformité recensé dans le snapshot actif.');
+    expect(html).toContain('href="/kb/frameworks/1"');
+    expect(html).toContain('Directive NIS 2 (UE) 2022/2555 (#1)');
   });
 });

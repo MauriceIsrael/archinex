@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { execSync } from 'node:child_process';
+import { execSync, execFileSync } from 'node:child_process';
 import { describe, it, expect } from 'vitest';
 
 describe('Sandbox Windows Support & Docker Desktop Contract', () => {
@@ -15,7 +15,9 @@ describe('Sandbox Windows Support & Docker Desktop Contract', () => {
 	function resolvePowerShellCmd(): string | null {
 		for (const candidate of ['pwsh', 'powershell']) {
 			try {
-				execSync(`${candidate} -NoProfile -NonInteractive -Command "exit 0"`, { stdio: 'ignore' });
+				execFileSync(candidate, ['-NoProfile', '-NonInteractive', '-Command', 'exit 0'], {
+					stdio: 'ignore'
+				});
 				return candidate;
 			} catch {
 				// binaire non disponible sur la machine ou le runner CI
@@ -54,8 +56,17 @@ describe('Sandbox Windows Support & Docker Desktop Contract', () => {
 		}
 
 		try {
-			const checkCmd = `${psCmd} -NoProfile -NonInteractive -Command "$content = [System.IO.File]::ReadAllText('${sandboxPs1.replace(/\\/g, '\\\\')}', [System.Text.Encoding]::UTF8); $tokens = $null; $errors = $null; [void][System.Management.Automation.Language.Parser]::ParseInput($content, [ref]$tokens, [ref]$errors); if ($errors.Count -gt 0) { exit 1 } else { exit 0 }"`;
-			execSync(checkCmd, { stdio: 'pipe' });
+			const script = [
+				`$content = [System.IO.File]::ReadAllText('${sandboxPs1.replace(/'/g, "''")}', [System.Text.Encoding]::UTF8)`,
+				`$tokens = $null`,
+				`$errors = $null`,
+				`[void][System.Management.Automation.Language.Parser]::ParseInput($content, [ref]$tokens, [ref]$errors)`,
+				`if ($errors.Count -gt 0) { exit 1 } else { exit 0 }`
+			].join('; ');
+
+			execFileSync(psCmd, ['-NoProfile', '-NonInteractive', '-Command', script], {
+				stdio: 'pipe'
+			});
 		} catch (err) {
 			throw new Error(`Erreur de syntaxe PowerShell dans sandbox.ps1 : ${String(err)}`);
 		}

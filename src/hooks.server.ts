@@ -1,7 +1,13 @@
-import { verifyAccessToken, verifyRefreshToken, signAccessToken, signRefreshToken } from '$lib/auth/jwt.server';
-import type { Handle } from '@sveltejs/kit';
+import { verifyAccessToken, verifyRefreshToken, signAccessToken, signRefreshToken, assertValidJwtSecret } from '$lib/auth/jwt.server';
+import type { Handle, ServerInit } from '@sveltejs/kit';
 import type { Session } from './app.d.ts';
 import { prisma } from '$lib/server/prisma';
+
+export const init: ServerInit = async () => {
+  if (process.env.NODE_ENV === 'production') {
+    assertValidJwtSecret();
+  }
+};
 
 const SESSION_REQUIRED_PREFIXES = ['/api/knowledge/', '/api/frameworks/'];
 

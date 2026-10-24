@@ -8,6 +8,13 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Sécurité : validation stricte de JWT_SECRET et suppression de la valeur publique du Dockerfile (archinex#141)
+- L'étape `runner` du `Dockerfile` fixait une valeur par défaut publique (`archinex-super-secret-production-jwt-key-2026`). Elle a été retirée : le secret de session ne doit jamais être figé dans l'image.
+- Au démarrage en production (`NODE_ENV=production`), le conteneur (`docker-entrypoint.sh`) et le serveur (`src/lib/auth/jwt.server.ts`, hook `init` dans `src/hooks.server.ts`) **refusent de démarrer** si `JWT_SECRET` est absent, plus court que 32 caractères ou égal à l'une des valeurs publiques connues (Dockerfile, développement, exemple, CI), avec un message d'erreur explicite indiquant la procédure de génération (`openssl rand -hex 32`).
+- Les sessions et jetons d'administration forgés avec une ancienne clé publique ou de repli sont rejetés lors de la vérification.
+- Documentation mise à jour (`GCP_CLOUD_RUN_DEPLOYMENT.md`, `docs/fresh-install.md`, `docs/developer-guide.md`) pour détailler la génération et l'injection via Secret Manager (`--set-secrets JWT_SECRET=archinex-jwt-secret:latest`).
+- Tests de contrat : `tests/contract/jwt-secret-validation.test.ts` (12 tests validant le refus des clés publiques, l'exigence de longueur, l'échec de démarrage, et le rejet des jetons forgés).
+
 ### Sécurité : le conteneur ne sème plus de comptes de démonstration
 - `docker-entrypoint.sh` lançait `prisma/seed.ts` à chaque démarrage : comptes `admin@archinex.local` / `admin123` (et `user123`) publics.
   Il appelle maintenant `prisma/bootstrap-admin.ts` : un premier administrateur est créé seulement si aucun n'existe et si

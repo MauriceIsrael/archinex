@@ -29,6 +29,7 @@ Consultez le guide dédié [Guide d'Installation & Initialisation (`docs/fresh-i
 
 ```bash
 DATABASE_URL="file:./dev.db"
+# JWT_SECRET : repli automatique en dev ; en production, obligatoire et généré via `openssl rand -hex 32`
 JWT_SECRET="archinex-super-secret-key-change-in-production"
 
 # LLM Souverain local (Ollama) ou API Anthropic

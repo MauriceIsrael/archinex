@@ -8,6 +8,12 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Rendu et homologation : correction de l'erreur Svelte `each_key_duplicate` dans le fragment HLD
+- Dans `HldFragmentView.svelte`, les listes de chaînes de caractères (points ouverts, conséquences, risques acceptés, avertissements, critères et scores) utilisaient la valeur comme clé dans les blocs `{#each ...}`. Lorsqu'une question ou objection ouverte partageait le même intitulé (par exemple lors de relances automatiques de proposition de découpage du sujet pour lever la stagnation), Svelte levait une exception fatale `each_key_duplicate`.
+- Les boucles d'affichage statiques de listes simples ont été dé-clées dans `HldFragmentView.svelte` ainsi que dans la vue de consultation des cadres (`kb/frameworks/[id]`).
+- Dans `src/lib/domain/hldFragment.ts`, `openPoints`, `acceptedRisks`, `acceptedViolations`, `coverageWarnings` et `requirementRefs` sont désormais systématiquement dédoublonnés à la construction du fragment HLD.
+- Tests : validation du dédoublonnage et de la non-régression dans `tests/contract/hld-fragment.test.ts`.
+
 ### Sécurité : le conteneur ne sème plus de comptes de démonstration
 - `docker-entrypoint.sh` lançait `prisma/seed.ts` à chaque démarrage : comptes `admin@archinex.local` / `admin123` (et `user123`) publics.
   Il appelle maintenant `prisma/bootstrap-admin.ts` : un premier administrateur est créé seulement si aucun n'existe et si

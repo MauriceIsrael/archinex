@@ -165,7 +165,7 @@
 			{/if}
 			{#if fragment.requirements.items.length}
 				<ul class="space-y-1">
-					{#each fragment.requirements.items as r (r.id)}
+					{#each fragment.requirements.items as r}
 						<li class="rounded border p-1.5"><span class="font-mono font-bold">{r.clauseRef}</span> · {r.title} <span class="text-[10px] text-muted-foreground">({r.criticality})</span></li>
 					{/each}
 				</ul>
@@ -178,7 +178,7 @@
 			<h4 class="font-bold text-foreground">Critères de décision</h4>
 			{#if fragment.drivers.length}
 				<div class="flex flex-wrap gap-1.5">
-					{#each fragment.drivers as d (d.name)}
+					{#each fragment.drivers as d}
 						<span class="rounded-md border px-2 py-0.5" title={d.description}>{d.name} <span class="text-muted-foreground">· {d.kind} · poids {d.weight}</span></span>
 					{/each}
 				</div>
@@ -200,7 +200,7 @@
 					{#if o.scores.length}
 						<table class="w-full text-[11px]">
 							<tbody>
-								{#each o.scores as s (s.criterion)}
+								{#each o.scores as s}
 									<tr class="border-t"><td class="py-1 pr-2 font-semibold">{s.criterion}</td><td class="py-1 pr-2 font-mono {scoreClass(s.score)}">{s.score > 0 ? `+${s.score}` : s.score}</td><td class="py-1 text-muted-foreground">{s.justification}</td></tr>
 								{/each}
 							</tbody>
@@ -224,8 +224,8 @@
 			<div class="space-y-1">
 				<h4 class="font-bold text-foreground">Conséquences et risques acceptés</h4>
 				<ul class="list-disc pl-5">
-					{#each fragment.consequences.acceptedViolations as v (v)}<li>Écart accepté : {v}</li>{/each}
-					{#each fragment.consequences.acceptedRisks as r (r)}<li>Risque accepté : {r}</li>{/each}
+					{#each fragment.consequences.acceptedViolations as v}<li>Écart accepté : {v}</li>{/each}
+					{#each fragment.consequences.acceptedRisks as r}<li>Risque accepté : {r}</li>{/each}
 				</ul>
 			</div>
 		{/if}
@@ -233,7 +233,7 @@
 		{#if fragment.consequences.coverageWarnings?.length}
 			<div class="space-y-1">
 				<h4 class="font-bold text-foreground">Vérification réglementaire</h4>
-				{#each fragment.consequences.coverageWarnings as warning (warning)}
+				{#each fragment.consequences.coverageWarnings as warning}
 					<p class="rounded-lg border border-amber-500/40 bg-amber-500/10 p-2">{warning}</p>
 				{/each}
 			</div>
@@ -242,7 +242,7 @@
 		{#if fragment.openPoints.length}
 			<div class="space-y-1">
 				<h4 class="font-bold text-foreground">Points ouverts</h4>
-				<ul class="list-disc pl-5">{#each fragment.openPoints as p (p)}<li>{p}</li>{/each}</ul>
+				<ul class="list-disc pl-5">{#each fragment.openPoints as p}<li>{p}</li>{/each}</ul>
 			</div>
 		{/if}
 

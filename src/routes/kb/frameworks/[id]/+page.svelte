@@ -24,6 +24,7 @@
       expert: { kbHandle: string; kbRoles: string[]; ownedDomains: string[]; registered?: boolean };
       ingestion: FrameworkIngestion;
       clauses?: CheckClauseRow[];
+      initialCoverageError?: string | null;
     };
   }
 
@@ -154,7 +155,7 @@
 
   // Déclaration de couverture
   let isDeclaringCoverage = $state(false);
-  let coverageError = $state<string | null>(null);
+  let coverageError = $state<string | null>(data.initialCoverageError ?? null);
   let missingReqs = $state<string[]>([]);
   let coverageDeclaration = $state<CoverageDeclarationResult | null>(null);
 
@@ -356,7 +357,7 @@
     try {
       const res = await fetch(`/api/frameworks/ingestions/${ingestion.id}/apply`, { method: 'POST' });
       const resData = await res.json();
-      if (!res.ok) throw new Error(resData.error || `Erreur HTTP ${res.status}`);
+      if (!res.ok) throw new Error(resData.reason || resData.error || `Erreur HTTP ${res.status}`);
       if (resData.publication?.status !== 'ok') {
         // Contrôles promus mais base servie non rafraîchie : le juge ne les voit pas encore.
         coverageError = `Exigences appliquées, mais la publication de la base a échoué (${resData.publication?.error || resData.publication?.status}) : relancez « Publier ».`;
@@ -532,12 +533,32 @@
   {/if}
 
   {#if coverageError}
-    <div class="p-5 bg-rose-50 border-2 border-rose-300 rounded-xl shadow-sm text-rose-900">
+    <div class="p-5 bg-rose-50 border-2 border-rose-300 rounded-xl shadow-sm text-rose-900" data-testid="coverage-error-banner">
       <div class="flex items-start gap-3">
         <AlertTriangle class="w-6 h-6 text-rose-600 flex-shrink-0 mt-0.5" />
-        <div>
-          <h3 class="text-base font-bold text-rose-800">Déclaration Bloquée (Conflit 409)</h3>
-          <p class="text-sm mt-1">{coverageError}</p>
+        <div class="space-y-2 flex-1">
+          <h3 class="text-base font-bold text-rose-800">
+            {#if coverageError.includes('separation_of_duties')}
+              Séparation des fonctions requise (contrôle des 4 yeux)
+            {:else if coverageError.startsWith('Publication impossible')}
+              Publication bloquée (Conflit 409)
+            {:else if coverageError.startsWith('Propositions non chargées')}
+              Erreur lors du chargement des propositions
+            {:else}
+              Déclaration Bloquée (Conflit 409)
+            {/if}
+          </h3>
+          <p class="text-sm mt-1" data-testid="coverage-error-message">{coverageError}</p>
+          {#if coverageError.includes('separation_of_duties')}
+            <div class="mt-2.5 p-3 bg-white/90 border border-rose-200 rounded-lg text-xs text-rose-900 space-y-1" data-testid="separation-of-duties-explanation">
+              <p class="font-semibold text-rose-950">
+                Principe de la revue indépendante (4 yeux — règle d'intégrité #91) :
+              </p>
+              <p>
+                Les contrôles obligatoires d'un référentiel doivent être appliqués par un autre mainteneur que celui qui les a validés. Veuillez confier la publication à un pair mainteneur.
+              </p>
+            </div>
+          {/if}
           {#if missingReqs.length > 0}
             <div class="mt-2">
               <span class="text-xs font-semibold text-rose-700">Exigences en attente de revue :</span>

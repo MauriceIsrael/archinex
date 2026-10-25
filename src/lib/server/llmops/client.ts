@@ -2533,7 +2533,7 @@ export class LLMOpsClient {
   async applyFrameworkIngestion(
     ingestionId: string | number,
     actorEmail?: string
-  ): Promise<{ status: 'ok' | 'error' | 'forbidden' | 'conflict' | 'unavailable'; data?: any; error?: string }> {
+  ): Promise<{ status: 'ok' | 'error' | 'forbidden' | 'conflict' | 'unavailable'; data?: any; error?: string; code?: string }> {
     try {
       const url = `${this.baseUrl}/api/frameworks/ingestions/${encodeURIComponent(String(ingestionId))}/apply`;
       const res = await this.fetchWithTimeout(url, {
@@ -2543,18 +2543,24 @@ export class LLMOpsClient {
       });
 
       if (res.status === 403) {
-        return { status: 'forbidden', error: 'Action réservée aux mainteneurs' };
+        const body = await res.json().catch(() => ({}));
+        return { status: 'forbidden', error: body.reason || body.error || 'Action réservée aux mainteneurs' };
       }
       if (res.status === 409) {
         const body = await res.json().catch(() => ({}));
-        return { status: 'conflict', error: body.error || 'Conflit lors de l’application' };
+        const reason = body.reason || body.error;
+        return {
+          status: 'conflict',
+          error: reason || 'Conflit lors de l’application',
+          code: typeof reason === 'string' && reason.startsWith('separation_of_duties') ? 'separation_of_duties' : undefined
+        };
       }
       if (res.ok) {
         const body = await res.json();
         return { status: 'ok', data: body.data || body };
       }
       const body = await res.json().catch(() => ({}));
-      return { status: 'error', error: body.error || `Erreur HTTP ${res.status}` };
+      return { status: 'error', error: body.reason || body.error || `Erreur HTTP ${res.status}` };
     } catch {
       return { status: 'unavailable', error: 'Mode hors-ligne : application d’ingestion indisponible' };
     }

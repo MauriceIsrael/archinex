@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { render } from 'svelte/server';
 import KbFrameworksPage from '../../src/routes/kb/frameworks/+page.svelte';
+import KbFrameworkDetailPage from '../../src/routes/kb/frameworks/[id]/+page.svelte';
 import { LLMOpsClient } from '$lib/server/llmops/client';
 import { POST as abandonPost } from '../../src/routes/api/frameworks/ingestions/[id]/abandon/+server';
 import { GET as listIngestionsGet } from '../../src/routes/api/frameworks/ingestions/+server';
@@ -267,5 +268,132 @@ describe('Issue #90 — Opposable frameworks overview, ingestion abandon & /know
     expect(html).toContain('Aucun référentiel de conformité recensé dans le snapshot actif.');
     expect(html).toContain('href="/kb/frameworks/1"');
     expect(html).toContain('Directive NIS 2 (UE) 2022/2555 (#1)');
+  });
+
+  it('excludes abandoned ingestions from empty-state links and default active list', () => {
+    const activeIngestion = {
+      id: '1',
+      framework_id: 'NIS2',
+      framework_name: 'Directive NIS 2 (UE) 2022/2555',
+      version: '2022/2555',
+      file_name: 'nis2.txt',
+      file_format: 'txt',
+      file_size_bytes: 100,
+      created_at: new Date().toISOString(),
+      status: 'reviewing',
+      total_requirements: 10,
+      reviewed_requirements: 2,
+      requirements: []
+    };
+    const abandonedIngestion = {
+      id: '99',
+      framework_id: 'CRA_OBSOLETE',
+      framework_name: 'Cyber Resilience Act (abandonné)',
+      version: '2024/0000',
+      file_name: 'cra_old.pdf',
+      file_format: 'pdf',
+      file_size_bytes: 200,
+      created_at: new Date().toISOString(),
+      status: 'abandoned',
+      abandon_reason: 'Version PDF obsolète',
+      total_requirements: 5,
+      reviewed_requirements: 0,
+      requirements: []
+    };
+
+    const { html } = render(KbFrameworksPage, {
+      props: {
+        data: {
+          user: { id: 'usr-1', name: 'User', email: 'user@example.com', role: 'admin' },
+          expert: { kbHandle: '@expert', kbRoles: ['kb:maintain'], ownedDomains: ['security'] },
+          frameworks: [activeIngestion as any, abandonedIngestion as any],
+          complianceFrameworks: [],
+          statusFilter: 'all',
+          offline: false
+        }
+      }
+    });
+
+    // Active ingestion must be present in empty state and card list
+    expect(html).toContain('href="/kb/frameworks/1"');
+    expect(html).toContain('Directive NIS 2 (UE) 2022/2555');
+
+    // Abandoned ingestion must NOT be present in default view or empty state
+    expect(html).not.toContain('href="/kb/frameworks/99"');
+    expect(html).not.toContain('Cyber Resilience Act (abandonné)');
+    expect(html).toContain("1 lot d'ingestion est disponible en revue");
+  });
+
+  it('displays abandoned ingestions only when statusFilter is abandoned', () => {
+    const abandonedIngestion = {
+      id: '99',
+      framework_id: 'CRA_OBSOLETE',
+      framework_name: 'Cyber Resilience Act (abandonné)',
+      version: '2024/0000',
+      file_name: 'cra_old.pdf',
+      file_format: 'pdf',
+      file_size_bytes: 200,
+      created_at: new Date().toISOString(),
+      status: 'abandoned',
+      abandon_reason: 'Version PDF obsolète',
+      total_requirements: 5,
+      reviewed_requirements: 0,
+      requirements: []
+    };
+
+    const { html } = render(KbFrameworksPage, {
+      props: {
+        data: {
+          user: { id: 'usr-1', name: 'User', email: 'user@example.com', role: 'admin' },
+          expert: { kbHandle: '@expert', kbRoles: ['kb:maintain'], ownedDomains: ['security'] },
+          frameworks: [abandonedIngestion as any],
+          complianceFrameworks: [],
+          statusFilter: 'abandoned',
+          offline: false
+        }
+      }
+    });
+
+    expect(html).toContain('Cyber Resilience Act (abandonné)');
+    expect(html).toContain('Version PDF obsolète');
+    expect(html).toContain('href="/kb/frameworks/99"');
+  });
+
+  it('displays an explicit banner and disables action buttons when an ingestion is abandoned on /kb/frameworks/[id]', () => {
+    const abandonedIngestion = {
+      id: '42',
+      framework_id: 'CRA',
+      framework_name: 'Cyber Resilience Act (UE 2024/2847)',
+      version: '2024/2847',
+      file_name: 'cra.pdf',
+      file_format: 'pdf',
+      file_size_bytes: 12000,
+      created_at: new Date().toISOString(),
+      status: 'abandoned',
+      abandon_reason: 'Doublon avec lot #43',
+      abandoned_by: '@maintainers',
+      abandoned_at: '2026-04-20T10:00:00Z',
+      total_requirements: 10,
+      reviewed_requirements: 0,
+      requirements: []
+    };
+
+    const { html } = render(KbFrameworkDetailPage, {
+      props: {
+        data: {
+          user: { id: 'usr-1', name: 'User', email: 'user@example.com', role: 'admin' },
+          expert: { kbHandle: '@expert', kbRoles: ['kb:maintain'], ownedDomains: ['security'], registered: true },
+          ingestion: abandonedIngestion as any
+        }
+      }
+    });
+
+    // Check banner, badge, and disabled buttons
+    expect(html).toContain('data-testid="abandoned-ingestion-banner"');
+    expect(html).toContain("Ce lot d'ingestion a été abandonné");
+    expect(html).toContain('Doublon avec lot #43');
+    expect(html).toContain('data-testid="abandoned-badge"');
+    expect(html).toContain('Abandonnée');
+    expect(html).not.toContain('data-testid="input-proposals"');
   });
 });

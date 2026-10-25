@@ -38,7 +38,7 @@
   let complianceFrameworks = $state<ComplianceFrameworkOverview[]>(data.complianceFrameworks || []);
   let statusFilter = $state<string>(data.statusFilter || 'all');
   let isFiltering = $state(false);
-  let historyOpen = $state((data.complianceFrameworks?.length ?? 0) === 0 && (data.frameworks?.length ?? 0) > 0);
+  let historyOpen = $state((data.complianceFrameworks?.length ?? 0) === 0 && (data.frameworks || []).some((fw) => fw.status !== 'abandoned'));
 
   let isUploading = $state(false);
   let uploadError = $state<string | null>(null);
@@ -56,8 +56,10 @@
   let isAbandoning = $state(false);
   let abandonError = $state<string | null>(null);
 
+  const activeIngestions = $derived(frameworksList.filter((fw) => fw.status !== 'abandoned'));
+
   const filteredIngestions = $derived.by(() => {
-    if (statusFilter === 'all') return frameworksList;
+    if (statusFilter === 'all') return frameworksList.filter((fw) => fw.status !== 'abandoned');
     return frameworksList.filter((fw) => fw.status === statusFilter);
   });
 
@@ -330,12 +332,12 @@
     {#if complianceFrameworks.length === 0}
       <div class="p-6 bg-muted/40 border border-border rounded-xl text-center text-xs text-muted-foreground space-y-2.5">
         <p>Aucun référentiel de conformité recensé dans le snapshot actif.</p>
-        {#if frameworksList.length > 0}
+        {#if activeIngestions.length > 0}
           <div class="pt-1 flex flex-wrap items-center justify-center gap-2">
             <span class="text-foreground font-medium">
-              {frameworksList.length} lot{frameworksList.length > 1 ? 's' : ''} d'ingestion {frameworksList.length > 1 ? 'sont disponibles' : 'est disponible'} en revue :
+              {activeIngestions.length} lot{activeIngestions.length > 1 ? 's' : ''} d'ingestion {activeIngestions.length > 1 ? 'sont disponibles' : 'est disponible'} en revue :
             </span>
-            {#each frameworksList as fw}
+            {#each activeIngestions as fw}
               <a
                 href="/kb/frameworks/{fw.id}"
                 data-testid="framework-empty-state-ingestion-link"
@@ -571,7 +573,7 @@
           Historique des Ingestions
         </h2>
         <span class="text-xs px-2 py-0.5 rounded-full bg-primary/15 text-primary font-semibold">
-          {filteredIngestions.length} / {frameworksList.length}
+          {filteredIngestions.length} / {statusFilter === 'abandoned' ? frameworksList.filter((fw) => fw.status === 'abandoned').length : activeIngestions.length}
         </span>
       </div>
       <span class="text-xs text-muted-foreground">
@@ -588,7 +590,7 @@
             Statut :
           </span>
           {#each [
-            { id: 'all', label: 'Toutes' },
+            { id: 'all', label: 'Toutes les actives' },
             { id: 'reviewing', label: 'En revue' },
             { id: 'partially_applied', label: 'Partiellement appliquées' },
             { id: 'applied', label: 'Appliquées' },

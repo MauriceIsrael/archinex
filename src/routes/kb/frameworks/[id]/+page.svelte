@@ -7,6 +7,7 @@
   import Edit from 'lucide-svelte/icons/edit';
   import X from 'lucide-svelte/icons/x';
   import Sparkles from 'lucide-svelte/icons/sparkles';
+  import Ban from 'lucide-svelte/icons/ban';
   import type {
     FrameworkIngestion,
     FrameworkRequirement,
@@ -403,6 +404,33 @@
 </script>
 
 <div class="space-y-6 max-w-7xl mx-auto px-4 py-6">
+  {#if ingestion.status === 'abandoned'}
+    <div
+      class="rounded-xl border-2 border-rose-300 bg-rose-50/90 p-5 text-rose-950 shadow-sm"
+      data-testid="abandoned-ingestion-banner"
+    >
+      <div class="flex items-start gap-3">
+        <Ban class="w-6 h-6 text-rose-600 flex-shrink-0 mt-0.5" />
+        <div class="space-y-1">
+          <h3 class="text-base font-bold text-rose-900">Ce lot d'ingestion a été abandonné</h3>
+          <p class="text-sm text-rose-800">
+            Cette ingestion est archivée en lecture seule. Ses exigences ne peuvent plus être publiées ni faire l'objet d'une déclaration d'opposabilité.
+          </p>
+          {#if ingestion.abandon_reason}
+            <div class="mt-2 text-xs bg-white/80 p-2.5 rounded-lg border border-rose-200 text-rose-900">
+              <strong>Motif d'abandon :</strong> {ingestion.abandon_reason}
+              {#if ingestion.abandoned_by}
+                <span class="text-rose-700 ml-1 font-mono">({ingestion.abandoned_by})</span>
+              {/if}
+              {#if ingestion.abandoned_at}
+                <span class="text-muted-foreground ml-1">le {new Date(ingestion.abandoned_at).toLocaleDateString('fr-FR')}</span>
+              {/if}
+            </div>
+          {/if}
+        </div>
+      </div>
+    </div>
+  {/if}
   {#if !data.expert.registered}
     <div class="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm" data-testid="not-registered-banner">
       <strong>Lecture seule.</strong> Le compte <span class="font-mono">{data.user.email}</span> n'est pas un responsable déclaré dans LLMOps :
@@ -434,6 +462,11 @@
         <span class="text-xs px-2.5 py-1 rounded bg-muted text-muted-foreground font-mono uppercase">
           {ingestion.file_format}
         </span>
+        {#if ingestion.status === 'abandoned'}
+          <span class="text-xs px-2.5 py-1 rounded-full bg-rose-500/15 text-rose-700 border border-rose-500/30 font-semibold" data-testid="abandoned-badge">
+            Abandonnée
+          </span>
+        {/if}
       </div>
       <p class="text-xs text-muted-foreground mt-1">
         Fichier source : <span class="font-mono">{ingestion.file_name}</span> ({(ingestion.file_size_bytes / 1024).toFixed(1)} Ko)
@@ -442,6 +475,7 @@
 
     <!-- Bouton Déclaration de Couverture -->
     <div class="flex items-center gap-3">
+      {#if ingestion.status !== 'abandoned'}
       <label
         class="px-4 py-2.5 border border-purple-400 text-purple-700 hover:bg-purple-50 font-semibold text-sm rounded-lg cursor-pointer"
         title="Fichier JSON de propositions (critères d'acceptation, liens) préparé dans le dépôt LLMOps : data/proposals/frameworks/"
@@ -449,9 +483,10 @@
         {isLoadingProposals ? 'Chargement…' : 'Charger des propositions (JSON)'}
         <input type="file" accept="application/json,.json" class="hidden" onchange={loadProposals} data-testid="input-proposals" />
       </label>
+      {/if}
       <button
         onclick={applyIngestion}
-        disabled={isApplying || acceptedCount + amendedCount === 0}
+        disabled={isApplying || acceptedCount + amendedCount === 0 || ingestion.status === 'abandoned'}
         data-testid="btn-apply-ingestion"
         title="Publie dans la base LLMOps les exigences acceptées ou amendées (rôle kb:maintain)"
         class="px-4 py-2.5 border border-emerald-600 text-emerald-700 hover:bg-emerald-50 disabled:opacity-50 font-semibold text-sm rounded-lg flex items-center gap-2 transition-colors"
@@ -461,7 +496,7 @@
       </button>
       <button
         onclick={triggerCoverageDeclaration}
-        disabled={isDeclaringCoverage}
+        disabled={isDeclaringCoverage || ingestion.status === 'abandoned'}
         data-testid="btn-declare-coverage"
         class="px-5 py-2.5 bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-semibold text-sm rounded-lg shadow-sm flex items-center gap-2 transition-colors"
       >

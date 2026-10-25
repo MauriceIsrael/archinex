@@ -116,3 +116,24 @@ export function detectApplicableFrameworks(text: string): DetectedFramework[] {
 	}
 	return found.sort((a, b) => b.mentions - a.mentions);
 }
+
+
+/**
+ * Détermine si un expert possède un domaine selon les règles de gouvernance LLMOps :
+ * - Un mainteneur (rôle 'kb:maintain') relit tous les domaines.
+ * - Sinon, le domaine doit correspondre exactement à un domaine possédé, ou être un sous-domaine
+ *   hiérarchique délimité par '/' (ex: 'it-infrastructure/virtualization' pour 'it-infrastructure').
+ * - Note : un tiret '-' ne constitue PAS un séparateur hiérarchique (ex: 'security-governance' n'est pas un sous-domaine de 'security').
+ */
+export function userOwnsDomain(
+	expert: { kbRoles?: string[]; ownedDomains?: string[] },
+	domain: string
+): boolean {
+	if (expert.kbRoles?.includes('kb:maintain')) return true;
+	if (!domain || !expert.ownedDomains?.length) return false;
+	const d = domain.toLowerCase();
+	return expert.ownedDomains.some((o) => {
+		const owned = o.toLowerCase();
+		return d === owned || d.startsWith(owned + '/');
+	});
+}

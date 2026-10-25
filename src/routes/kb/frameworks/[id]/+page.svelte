@@ -191,7 +191,7 @@
     const d = domain.toLowerCase();
     return data.expert.ownedDomains.some((o) => {
       const owned = o.toLowerCase();
-      return d === owned || d.startsWith(`${owned}/`) || d.startsWith(`${owned}-`);
+      return d === owned || d.startsWith(`${owned}/`);
     });
   }
 

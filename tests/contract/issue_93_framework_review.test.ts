@@ -1,6 +1,7 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { POST as ingestFrameworkPost } from '../../src/routes/api/frameworks/ingestions/+server';
 import { load as loadFrameworkReview } from '../../src/routes/kb/frameworks/[id]/+page.server';
+import { userOwnsDomain } from '$lib/domain/regulatoryFrameworks';
 import { llmopsClient } from '$lib/server/llmops/client';
 import {
   lookupDefaultFrameworkVersion,
@@ -253,6 +254,29 @@ describe('Issue #93 — Version officielle au téléversement et revue des claus
       expect(c2?.kind).toBe('requires');
       expect(c2?.status).toBe('validated');
       expect(c2?.expect?.terms_any).toContain('off-site');
+    });
+  });
+
+  describe('3. Droits de revue et contrôle de possession de domaine (userOwnsDomain)', () => {
+    it('permet au mainteneur (kb:maintain) de relire tous les domaines', () => {
+      expect(userOwnsDomain({ kbRoles: ['kb:maintain'], ownedDomains: [] }, 'security-governance')).toBe(true);
+      expect(userOwnsDomain({ kbRoles: ['kb:maintain'], ownedDomains: [] }, 'anything')).toBe(true);
+    });
+
+    it('accorde la revue sur le domaine possédé exactement ou un sous-domaine hiérarchique avec slash', () => {
+      const expert = { kbRoles: ['kb:review'], ownedDomains: ['it-infrastructure', 'security'] };
+      expect(userOwnsDomain(expert, 'it-infrastructure')).toBe(true);
+      expect(userOwnsDomain(expert, 'it-infrastructure/virtualization')).toBe(true);
+      expect(userOwnsDomain(expert, 'security')).toBe(true);
+      expect(userOwnsDomain(expert, 'security/network')).toBe(true);
+    });
+
+    it('interdit la revue si le domaine n\'est pas possédé, et ne traite PAS le tiret "-" comme un sous-domaine', () => {
+      const expertAlice = { kbRoles: ['kb:review'], ownedDomains: ['network-automation', 'architecture', 'security'] };
+      // security-governance est possédé par @security-compliance-team, PAS par security
+      expect(userOwnsDomain(expertAlice, 'security-governance')).toBe(false);
+      expect(userOwnsDomain(expertAlice, 'security-monitoring')).toBe(false);
+      expect(userOwnsDomain(expertAlice, 'cloud-platform')).toBe(false);
     });
   });
 });

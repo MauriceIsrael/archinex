@@ -1,4 +1,4 @@
-﻿import type { KbCandidate } from '$lib/types/llmops';
+import type { KbCandidate } from '$lib/types/llmops';
 import type { Decision, Option } from '$lib/domain/options';
 import type { Argument } from '$lib/domain/debate';
 
@@ -62,7 +62,7 @@ const DOMAIN_MAPPING: Record<string, string> = {
 	telecom: 'telecom-core',
 	data: 'data-protection',
 	network: 'transport',
-	'sÃ©curitÃ©': 'security',
+	'sécurité': 'security',
 	securite: 'security',
 	exploitation: 'operations'
 };
@@ -144,16 +144,16 @@ export function formatCandidateProposedContent(
 	const rawDomain = Array.isArray(candidate.domain) ? candidate.domain[0] : candidate.domain;
 	const domain = normalizeKbDomain(rawDomain);
 	const title = (candidate.title || 'Architecture Candidate').trim();
-	const fmTitle = title.length >= 5 ? title : `${title} â€” Architecture Asset`;
+	const fmTitle = title.length >= 5 ? title : `${title} — Architecture Asset`;
 	const summary = (candidate.summary || title).trim();
 	const suggested = (candidate.suggested_change || summary).trim();
-	const rationale = (candidate.rationale || 'Arbitrage architectural motivÃ© et gÃ©nÃ©ralisÃ©.').trim();
+	const rationale = (candidate.rationale || 'Arbitrage architectural motivé et généralisé.').trim();
 	const seed = `${title}|${summary}`;
 
 	if (candidate.kind === 'amendment') {
 		const targetId = normalizeTargetAssetId(candidate.target_asset_id || candidate.target_asset_ref) || 'UNKNOWN';
 		return [
-			`# Amendment Proposal â€” ${targetId}`,
+			`# Amendment Proposal — ${targetId}`,
 			'',
 			'## Summary',
 			summary,
@@ -179,10 +179,10 @@ export function formatCandidateProposedContent(
 			'phase: [BID, BUILD, RUN]',
 			`domain: [${domain}]`,
 			'assumptions:',
-			'  - "Applicable aux engagements d\'architecture partageant les mÃªmes contraintes de gouvernance et d\'exploitation."',
+			'  - "Applicable aux engagements d\'architecture partageant les mêmes contraintes de gouvernance et d\'exploitation."',
 			'---',
 			'',
-			`# ${adrId} â€” ${fmTitle}`,
+			`# ${adrId} — ${fmTitle}`,
 			'',
 			'## Context',
 			summary,
@@ -211,7 +211,7 @@ export function formatCandidateProposedContent(
 		`domain: [${domain}]`,
 		'---',
 		'',
-		`# ${patId} â€” ${fmTitle}`,
+		`# ${patId} — ${fmTitle}`,
 		'',
 		'## Problem',
 		summary,
@@ -223,23 +223,23 @@ export function formatCandidateProposedContent(
 		rationale,
 		'',
 		'## When not to use this',
-		'Lorsque des contraintes contractuelles ou rÃ©glementaires propres Ã  un projet imposent une dÃ©rogation locale.',
+		'Lorsque des contraintes contractuelles ou réglementaires propres à un projet imposent une dérogation locale.',
 		''
 	].join('\n');
 }
 
 /**
- * GÃ©nÃ¨re de maniÃ¨re pure les candidats Ã  la Knowledge Base (Porte G4).
+ * Génère de manière pure les candidats à la Knowledge Base (Porte G4).
  * Trois cas de figure :
- * 1. new_asset : si l'option retenue n'a pas de kbRefs prÃ©alables.
- * 2. amendment : pour chaque violation acceptÃ©e par l'arbitre, avec sa justification.
- * 3. rex : systÃ©matique, rÃ©sumant le dilemme, les options Ã©cartÃ©es et le compromis.
+ * 1. new_asset : si l'option retenue n'a pas de kbRefs préalables.
+ * 2. amendment : pour chaque violation acceptée par l'arbitre, avec sa justification.
+ * 3. rex : systématique, résumant le dilemme, les options écartées et le compromis.
  */
 export function buildKbCandidates(input: BuildKbCandidatesInput): KbCandidate[] {
 	const { decision, subject, options, engagement, author, authorRole = 'lead_architect' } = input;
 
-	// Issue #120: Une dÃ©cision qualifiÃ©e 'project_specific' (spÃ©cifique au contrat / lotissement)
-	// reste cantonnÃ©e au projet et ne doit JAMAIS gÃ©nÃ©rer de candidat au moissonnage global LLMOps.
+	// Issue #120: Une décision qualifiée 'project_specific' (spécifique au contrat / lotissement)
+	// reste cantonnée au projet et ne doit JAMAIS générer de candidat au moissonnage global LLMOps.
 	if (decision.portability === 'project_specific') {
 		return [];
 	}
@@ -267,10 +267,10 @@ export function buildKbCandidates(input: BuildKbCandidatesInput): KbCandidate[] 
 			kind: 'new_asset',
 			asset_type: 'pattern',
 			domain: [normalizedDomain],
-			title: `Pattern architectural Ã©mergent : ${retainedOption?.title || 'Nouvelle option'}`,
-			summary: `Option retenue sans rÃ©fÃ©rence prÃ©alable Ã  la doctrine KB : ${retainedOption?.summary || subject.name}`,
-			suggested_change: `ConsidÃ©rer l'intÃ©gration d'un standard rÃ©utilisable pour le domaine "${subject.domain || 'architecture gÃ©nÃ©rale'}" couvrant ce cas d'usage.`,
-			rationale: `Arbitrage motivÃ© : ${decision.rationale}`,
+			title: `Pattern architectural émergent : ${retainedOption?.title || 'Nouvelle option'}`,
+			summary: `Option retenue sans référence préalable à la doctrine KB : ${retainedOption?.summary || subject.name}`,
+			suggested_change: `Considérer l'intégration d'un standard réutilisable pour le domaine "${subject.domain || 'architecture générale'}" couvrant ce cas d'usage.`,
+			rationale: `Arbitrage motivé : ${decision.rationale}`,
 			source: {
 				system: 'archinex',
 				engagement,
@@ -291,7 +291,7 @@ export function buildKbCandidates(input: BuildKbCandidatesInput): KbCandidate[] 
 		candidates.push(newAssetCand);
 	}
 
-	// Cas 2 : amendment pour chaque violation doctrinale acceptÃ©e (hors mÃ©tadonnÃ©es COMPLIANCE_STATUS / PORTABILITY)
+	// Cas 2 : amendment pour chaque violation doctrinale acceptée (hors métadonnées COMPLIANCE_STATUS / PORTABILITY)
 	const acceptedViolations = (decision.acceptedViolations || []).filter(
 		(v) => v?.typedId && !isDecisionMetadataViolation(v.typedId)
 	);
@@ -306,10 +306,10 @@ export function buildKbCandidates(input: BuildKbCandidatesInput): KbCandidate[] 
 			target_asset_ref: violation.typedId,
 			domain: [normalizedDomain],
 			accepted_violation_justification: violation.justification,
-			title: `Proposition d'amendement / dÃ©rogation pour ${violation.typedId}`,
-			summary: `DÃ©rogation arbitrÃ©e sur le sujet "${subject.name}" relative Ã  la rÃ¨gle ${violation.typedId}. Justification : ${violation.justification}`,
-			suggested_change: `Ajouter une clause d'exception ou faire Ã©voluer la rÃ¨gle ${violation.typedId} pour accommoder : ${violation.justification}`,
-			rationale: `DÃ©rogation formellement arbitrÃ©e et assumÃ©e : ${violation.justification}`,
+			title: `Proposition d'amendement / dérogation pour ${violation.typedId}`,
+			summary: `Dérogation arbitrée sur le sujet "${subject.name}" relative à la règle ${violation.typedId}. Justification : ${violation.justification}`,
+			suggested_change: `Ajouter une clause d'exception ou faire évoluer la règle ${violation.typedId} pour accommoder : ${violation.justification}`,
+			rationale: `Dérogation formellement arbitrée et assumée : ${violation.justification}`,
 			source: {
 				system: 'archinex',
 				engagement,
@@ -330,15 +330,15 @@ export function buildKbCandidates(input: BuildKbCandidatesInput): KbCandidate[] 
 		candidates.push(amendCand);
 	}
 
-	// Cas 3 : REX systÃ©matique
+	// Cas 3 : REX systématique
 	const rexCand: KbCandidate = {
 		id: `cand-rex-${subject.id}-${Date.now()}`,
 		kind: 'rex',
 		asset_type: 'decision',
 		domain: [normalizedDomain],
-		title: `REX DÃ©cision : ${subject.name} - ${retainedOption?.title || 'Option retenue'}`,
-		summary: `Sujet : ${subject.name}\nOption retenue : ${retainedOption?.title || decision.retainedOptionId}\nOptions Ã©cartÃ©es : ${rejectedDetails || 'Aucune'}`,
-		suggested_change: `Enrichir la base de REX sur le compromis architectural (rÃ©versibilitÃ©: ${decision.reversibility}) et les motifs de choix.`,
+		title: `REX Décision : ${subject.name} - ${retainedOption?.title || 'Option retenue'}`,
+		summary: `Sujet : ${subject.name}\nOption retenue : ${retainedOption?.title || decision.retainedOptionId}\nOptions écartées : ${rejectedDetails || 'Aucune'}`,
+		suggested_change: `Enrichir la base de REX sur le compromis architectural (réversibilité: ${decision.reversibility}) et les motifs de choix.`,
 		rationale: `Compromis et motifs : ${decision.rationale}`,
 		source: {
 			system: 'archinex',
@@ -367,15 +367,15 @@ function escapeRegex(str: string): string {
 }
 
 /**
- * Anonymise une chaÃ®ne de texte avant envoi vers LLMOps.
- * Masque les identitÃ©s projet, client, sites, participants, adresses IP et volumes chiffrÃ©s.
+ * Anonymise une chaîne de texte avant envoi vers LLMOps.
+ * Masque les identités projet, client, sites, participants, adresses IP et volumes chiffrés.
  */
 export function anonymizeText(text: string, ctx: AnonymizationContext): string {
 	if (!text) return '';
 
 	let result = text;
 
-	// 1. Remplacement des noms explicites (triÃ©s par longueur dÃ©croissante)
+	// 1. Remplacement des noms explicites (triés par longueur décroissante)
 	const replacements: Array<{ term: string; placeholder: string }> = [];
 
 	for (const p of ctx.projectNames || []) {
@@ -408,7 +408,7 @@ export function anonymizeText(text: string, ctx: AnonymizationContext): string {
 	const ipv6Regex = /\b(?:[0-9a-fA-F]{1,4}:){7}[0-9a-fA-F]{1,4}\b|\b(?:[0-9a-fA-F]{1,4}:){1,7}:[0-9a-fA-F]{1,4}\b/g;
 	result = result.replace(ipv6Regex, '[IP]');
 
-	// 3. Volumes chiffrÃ©s et chemins de disques sensibles (sans manger la ponctuation finale)
+	// 3. Volumes chiffrés et chemins de disques sensibles (sans manger la ponctuation finale)
 	const volumeMapperRegex = /\/(?:dev|mnt|vol)\/mapper\/[a-zA-Z0-9_\-]+(?:\.[a-zA-Z0-9_\-]+)*/gi;
 	result = result.replace(volumeMapperRegex, '[STORAGE_VOLUME]');
 
@@ -444,7 +444,7 @@ export function anonymizeCandidate(candidate: KbCandidate, ctx: AnonymizationCon
 }
 
 /**
- * Anonymise une liste complÃ¨te de candidats.
+ * Anonymise une liste complète de candidats.
  */
 export function anonymizeCandidates(
 	candidates: KbCandidate[],

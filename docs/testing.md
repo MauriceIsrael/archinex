@@ -94,3 +94,81 @@ du serveur de contrat, donc SSE en 401, puis engagement de démonstration absent
 
 Sur la branche de ce document : 109 fichiers, 803 tests ; 707 réussis, 0 échec, 96 ignorés (les suites « live » ci-dessus).
 Les 22 tests `hub-*-live` ont été rejoués contre le serveur de contrat du dépôt du Hub (`main`, contrat 1.31) : 22 réussis.
+
+
+---
+
+## Inventaire exhaustif des suites de tests
+
+### 1. Tests E2E Navigateur & Démonstrations Visuelles (Playwright)
+Dossier : `tests/e2e/browser/` (configuré dans `playwright.config.ts`).
+
+| Spécification | Rôle & Scénario | Mode d'exécution standard | Mode Démo Interactif (Chromium visible + ralenti 600ms + vidéo) |
+|---|---|---|---|
+| `regulatory-to-capitalization.spec.ts` | **Boucle fermée complète en 7 actes** : Appropriation RFP $\rightarrow$ Ingestion NIS2 $ightarrow$ Délibération $ightarrow$ Décision $ightarrow$ Capitalisation $ightarrow$ Audit accessibilité `axe-core`. | `npx playwright test tests/e2e/browser/regulatory-to-capitalization.spec.ts` | `npm run demo:e2e` |
+| `second-rfp-reuse.spec.ts` | **Preuve de réutilisation sur second RFP** : Dépouillement, détection sémantique ADR-0001, garantie D8 (confirmation obligatoire sans faux positif silencieux). | `npx playwright test tests/e2e/browser/second-rfp-reuse.spec.ts` | `cross-env DEMO_E2E=1 playwright test tests/e2e/browser/second-rfp-reuse.spec.ts --project=chromium` |
+| `second-rfp-zero-tolerance.spec.ts` | **Validation stricte des hypothèses d'architecture** : Rejet immédiat si une hypothèse ne tient pas, obligation de motif. | `npx playwright test tests/e2e/browser/second-rfp-zero-tolerance.spec.ts` | `cross-env DEMO_E2E=1 playwright test tests/e2e/browser/second-rfp-zero-tolerance.spec.ts --project=chromium` |
+| `lumicc-demo.spec.ts` | **Démonstration de bout en bout Cas Réel LUMICC** (Lot 1 NOC & Cœur 5G PPDR) : Reprise de l'audit live Claude scellé J0 (`run_lumicc_live_j0`), exploration des 3 DC POST, matrice d'options UDR, contraintes Holdover GNSS 30j et arbitrage Porte G3. | `npx playwright test tests/e2e/browser/lumicc-demo.spec.ts` | `npm run demo:lumicc` |
+
+*Captures d'écran produites automatiquement : `tests/e2e/screenshots/`.*
+
+---
+
+### 2. Tests de Bout en Bout API (E2E Backend)
+Dossier : `tests/e2e/`.
+
+* **`regulatory-to-capitalization.test.ts`** (833 lignes) :
+  Exécute les 7 actes de la chaîne fermée en appelant directement les services et la base de données.
+  * *Avec conteneur Docker éphémère (testcontainers)* :
+    `TEST_CONTAINERS=1 npx vitest run tests/e2e/regulatory-to-capitalization.test.ts`
+  * *Contre un serveur LLMOps existant* :
+    `LLMOPS_LIVE_URL=http://127.0.0.1:8099 npx vitest run tests/e2e/regulatory-to-capitalization.test.ts`
+* **`second-rfp-reuse-api.test.ts`** :
+  Vérifie au niveau API que les actifs capitalisés sont retrouvés et réutilisés sans régression sur un nouveau projet vierge.
+* **`it-cloud-platform.test.ts`** :
+  Second cas de test IT pure (Plateforme Cloud Privé Souveraine — Porte G4).
+
+---
+
+### 3. Tests d'Intégration
+Dossier : `tests/integration/` (~30 suites).
+
+* **Boucle fermée & Délibération** :
+  * `closed-loop-deliberation.test.ts` : Délibération en base vierge (clean slate Docker tmpfs + SQLite neuve).
+  * `deliberation-workflow.test.ts` : Transition des états de maturation L0 à L3.
+  * `causal-retraction-cascade.test.ts` : Invalidation en cascade lorsqu'un énoncé amont est rétracté.
+* **Multi-agents & Débat** :
+  * `expert-debate-maturation.test.ts` : Débat entre experts de domaine et maturation d'options.
+  * `multi-agent-debate.test.ts` : Débat dialectique contradictoire orchestré par agents.
+  * `arbitration-gate.test.ts` : Enregistrement et verrouillage des arbitrages (Porte G3).
+* **Capitalisation & Hub LLMOps** :
+  * `kb-capitalization.test.ts` : Soumission de candidats patterns/principes vers le Hub.
+  * `llmops-mcp.test.ts` : Communication MCP (SSE) avec le Hub de connaissances.
+  * `frameworks-coverage.test.ts` & `gate-g7-publication.test.ts` : Ingestion et publication scellée de doctrine.
+
+---
+
+### 4. Tests de Contrat
+Dossier : `tests/contract/` (~50 suites).
+
+* **Contrats d'interface & Robustesse** :
+  * `bundle-schema-1-1.test.ts` & `bundle-assembly.test.ts` : Validation des schémas d'export d'architecture.
+  * `jwt-secret-validation.test.ts` : Rejet au démarrage des secrets JWT faibles ou par défaut (#141).
+  * `sandbox-windows-support.test.ts` : Support natif Windows PowerShell (BOM UTF-8, CRLF/LF) et compose.
+  * `issue_93_framework_review.test.ts` : Droits de revue par domaine (`userOwnsDomain`) et rejet des versions génériques (#93).
+  * `kb-apply-conflict-reason.test.ts` : Extraction du motif de conflit 409 et règle de séparation des fonctions 4 yeux (#156).
+* **Parité Hub Live (rejouables contre `llmops-contract:latest`)** :
+  * `hub-parity-live.test.ts`, `hub-compliance-live.test.ts`, `hub-decision-live.test.ts`, `hub-requirements-live.test.ts`, `hub-traceability-route-live.test.ts`.
+
+---
+
+### 5. Bancs Externes Associés
+
+* **`archinex-benchmark` (ABE v2.1)** :
+  * Banc boîte noire indépendant évaluant le couple Archinex + LLMOps sur 6 cas réels held-out du RFP LUMICC (*Lulu*).
+  * Conteneur Docker étanche avec volumes hôtes en lecture seule (`:ro`) et bac à sable en RAM :
+    `docker compose -f docker-compose.test.yml up --build --abort-on-container-exit`
+* **`LLMOps` (Hub de Connaissances)** :
+  * Garde-fous de non-régression absolue : `test_frozen_interfaces.py` (formes figées MCP/REST) et `test_ladybug_version_guard.py` (moteur graphe < 0.21).
+  * Image propre de test : `make test-docker` (`Dockerfile.test`).
+  * Serveur de contrat de référence pour les clients : `Dockerfile.contract` (`llmops-contract:latest`).

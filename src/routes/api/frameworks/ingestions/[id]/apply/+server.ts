@@ -8,7 +8,7 @@ export const POST: RequestHandler = async ({ params, locals }) => {
 	const actor = locals.session.user.email;
 	const result = await llmopsClient.applyFrameworkIngestion(params.id!, actor);
 	const code = { ok: 200, forbidden: 403, conflict: 409, unavailable: 503, error: 400 }[result.status] ?? 500;
-	if (result.status !== 'ok') return json({ status: result.status, data: result.data, error: result.error }, { status: code });
+	if (result.status !== 'ok') return json({ status: result.status, data: result.data, error: result.error, reason: result.error, code: result.code }, { status: code });
 
 	// Sans publication, la base servie (contexte de doctrine, juge d'options) ignore les contrôles promus.
 	const publication = await llmopsClient.publishKbDoctrine({ changelog: `Référentiel : ingestion ${params.id} appliquée` }, actor);

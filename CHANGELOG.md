@@ -16,6 +16,13 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 - **Cycle de vie non bloquant dans LLMOps** : l'enregistrement soumet la clause avec le statut `draft` et la provenance `llm-derived` (`POST /api/kb/clauses/[assetId]/save-draft`). Elle rejoint la file de relecture de doctrine sans bloquer les arbitrages d'architecture tant qu'un relecteur habilité ne l'a pas formellement validée (conformément au contrat LLMOps 1.26).
 - **Navigation directe par onglet** : support du paramètre d'URL `?tab=missing` (ou `tab=draft`, `validated`, `rejected`) sur `/kb/clauses`.
 - **Tests** : suite de tests de contrat dédiée `tests/contract/issue_99_assisted_clause_drafting.test.ts` (8 tests couvrant la génération IA, le repli déterministe bilingue, la protection 401/400 des routes API, la persistance `draft` dans fakeLLMOps et le rendu SSR).
+### Base de connaissances : extraction du motif de conflit 409 et explication 4 yeux lors de la publication d'ingestion (archinex#156)
+- **Extraction du motif Hub (409 Conflict)** : dans `LLMOpsClient.applyFrameworkIngestion`, extraction de `body.reason || body.error` (au lieu du seul `body.error`), permettant de restituer le motif précis renvoyé par l'enveloppe normalisée du Knowledge Hub (ex. `separation_of_duties` ou `the ingestion is abandoned`) au lieu du repli générique « Conflit lors de l’application ».
+- **Transmission HTTP dans la route API** : la route `POST /api/frameworks/ingestions/[id]/apply` transmet désormais `reason` et `code: 'separation_of_duties'` en cas de conflit HTTP 409.
+- **Interface utilisateur (/kb/frameworks/[id])** :
+  - Affichage du motif exact dans l'alerte d'erreur lors d'une tentative de publication bloquée (titre adapté « Publication bloquée (Conflit 409) » au lieu de « Déclaration Bloquée »).
+  - Détection du motif `separation_of_duties` : affichage d'un titre explicite « Séparation des fonctions requise (contrôle des 4 yeux) » et d'un encart explicatif dédié rappelant le principe du contrôle des 4 yeux / revue indépendante (règle d'intégrité issue #91) invitant à confier la publication à un pair mainteneur qui n'a pas instruit les exigences.
+- Tests : `tests/contract/kb-apply-conflict-reason.test.ts` (7 tests de contrat couvrant l'extraction des motifs 409/403/400 dans le client LLMOps, la route API `apply` et le rendu SSR de l'alerte avec explication des 4 yeux).
 
 
 ### Référentiels réglementaires : visibilité, masquage des ingestions abandonnées et liens directs (/kb/frameworks)

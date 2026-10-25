@@ -1379,6 +1379,7 @@ export interface CheckClauseRow {
   status: CheckClauseStatus;
   review?: { by: string; at: string; decision: CheckClauseDecision; comment?: string } | null;
   may_decide?: boolean;
+  provenance?: 'llm-derived' | 'human-authored' | string | null;
 }
 
 export interface MandatoryControlWithoutClause {
@@ -1402,4 +1403,22 @@ export interface AssetClauseTrialVerdict {
   check_id: string;
   verdict: 'supports' | 'violates';
   matched_terms: string[];
+}
+
+export interface DraftCheckClauseInput {
+  asset_id: string;
+  asset_title: string;
+  asset_title_fr?: string | null;
+  asset_excerpt: string;
+  framework?: string | null;
+  domain?: string[];
+  source_ref?: string | null;
+}
+
+export interface DraftCheckClause {
+  kind: 'requires' | 'forbids';
+  when: CheckClauseMatcher;
+  expect?: CheckClauseMatcher | null;
+  message: string;
+  provenance: 'llm-derived';
 }

@@ -8,6 +8,16 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Clauses vérifiables : rédaction assistée d'une clause pour les contrôles sans clause (archinex#99)
+- **Bouton « Proposer une clause »** : sur `/kb/clauses` (onglet « Contrôles sans clause »), chaque contrôle obligatoire dépourvu de clause dispose désormais d'un bouton d'action dédié permettant de générer une proposition assistée par IA (`Sparkles`).
+- **Générateur IA bilingue (`clauseDrafter.ts`)** : dérivation automatique de clauses déterministes structurées (`kind: 'requires' | 'forbids'`, `when.terms_any`, `expect.terms_any`, `message`) à partir du texte officiel de l'exigence et des métadonnées du contrôle. Les termes déclencheurs et attendus sont générés systématiquement en français et en anglais afin de couvrir les options rédigées dans l'une ou l'autre langue. Provenance marquée `llm-derived`.
+- **Repli déterministe résilient** : en cas d'indisponibilité, d'absence de configuration du modèle ou de délai dépassé, un mécanisme de repli thématique et lexical (analyses des risques, sauvegardes et PCA/PRA, authentification et MFA, chiffrement, gestion des incidents, chaîne d'approvisionnement, vulnérabilités, journalisation) garantit la production immédiate d'une clause conforme sans jamais bloquer l'utilisateur par une erreur HTTP 500.
+- **Atelier interactif d'amendement et banc d'essai** : le relecteur peut modifier les déclencheurs, conditions attendues, message explicatif et type de règle, et tester immédiatement la clause proposée sur une option d'architecture libre (« Essayer sur une option ») pour observer le verdict de conformité déterministe (`verdict: 'violates' | 'supports'`) avant enregistrement.
+- **Cycle de vie non bloquant dans LLMOps** : l'enregistrement soumet la clause avec le statut `draft` et la provenance `llm-derived` (`POST /api/kb/clauses/[assetId]/save-draft`). Elle rejoint la file de relecture de doctrine sans bloquer les arbitrages d'architecture tant qu'un relecteur habilité ne l'a pas formellement validée (conformément au contrat LLMOps 1.26).
+- **Navigation directe par onglet** : support du paramètre d'URL `?tab=missing` (ou `tab=draft`, `validated`, `rejected`) sur `/kb/clauses`.
+- **Tests** : suite de tests de contrat dédiée `tests/contract/issue_99_assisted_clause_drafting.test.ts` (8 tests couvrant la génération IA, le repli déterministe bilingue, la protection 401/400 des routes API, la persistance `draft` dans fakeLLMOps et le rendu SSR).
+
+
 ### Référentiels réglementaires : visibilité, masquage des ingestions abandonnées et liens directs (/kb/frameworks)
 - Lorsqu'aucun référentiel de conformité n'est encore recensé dans le snapshot actif (`GET /api/compliance/frameworks` vide), la section supérieure de `/kb/frameworks` affiche désormais des liens directs cliquables vers les lots d'ingestion disponibles (ex: `/kb/frameworks/{id}`).
 - **Masquage des ingestions abandonnées** : les lots d'ingestion ayant le statut `abandoned` ne sont plus comptabilisés ni listés dans l'encart d'alerte supérieur (« X lots d'ingestion disponibles en revue ») ni dans la vue par défaut de l'historique (`statusFilter === 'all'`).

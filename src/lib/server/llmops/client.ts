@@ -1956,6 +1956,66 @@ export class LLMOpsClient {
   }
 
   /**
+   * Enregistre une clause de vérification rédigée en brouillon pour un actif (Issue #99, contrat 1.26).
+   * La clause entre avec status: 'draft' et provenance: 'llm-derived', et n'est jamais bloquante
+   * tant qu'un relecteur ne l'a pas validée explicitement.
+   */
+  async submitDraftClause(
+    assetId: string,
+    clause: {
+      kind: 'requires' | 'forbids';
+      when: CheckClauseMatcher;
+      expect?: CheckClauseMatcher | null;
+      message: string;
+      provenance?: string;
+    },
+    actorEmail: string
+  ): Promise<{ status: 'ok' | 'forbidden' | 'invalid' | 'not_found' | 'error' | 'unavailable'; data?: any; error?: string }> {
+    try {
+      // 1. Tente l'enregistrement direct via la route des checks de l'actif
+      const url = `${this.baseUrl}/api/knowledge/assets/${encodeURIComponent(assetId)}/checks`;
+      const res = await this.fetchWithTimeout(url, {
+        method: 'POST',
+        headers: { ...this.getHeaders(undefined, actorEmail), 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clause: { ...clause, status: 'draft', provenance: clause.provenance || 'llm-derived' } })
+      });
+      const payload = await res.json().catch(() => ({}));
+      if (res.ok) return { status: 'ok', data: payload.data || payload };
+
+      // Si la route directe n'existe pas (404/405), enregistre un candidat d'amendement
+      if (res.status === 404 || res.status === 405) {
+        const candUrl = `${this.baseUrl}/api/knowledge/candidates`;
+        const candRes = await this.fetchWithTimeout(candUrl, {
+          method: 'POST',
+          headers: { ...this.getHeaders(undefined, actorEmail), 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            kind: 'amendment',
+            asset_type: 'control',
+            target_asset_id: assetId,
+            title: `Proposition de clause vérifiable pour ${assetId}`,
+            summary: clause.message,
+            suggested_change: JSON.stringify({ ...clause, status: 'draft', provenance: clause.provenance || 'llm-derived' }, null, 2),
+            source: { system: 'archinex', author: actorEmail, provenance: clause.provenance || 'llm-derived' },
+            author: actorEmail,
+            production_mode: 'llm-derived'
+          })
+        });
+        const candPayload = await candRes.json().catch(() => ({}));
+        if (candRes.ok) return { status: 'ok', data: candPayload.data || candPayload };
+        const error = candPayload.reason || candPayload.error?.message || candPayload.error || `Erreur HTTP ${candRes.status}`;
+        return { status: 'error', error };
+      }
+
+      const error = payload.reason || payload.error?.message || payload.error || `Erreur HTTP ${res.status}`;
+      if (res.status === 403) return { status: 'forbidden', error };
+      if (res.status === 400) return { status: 'invalid', error };
+      return { status: 'error', error };
+    } catch {
+      return { status: 'unavailable', error: 'Mode hors-ligne : enregistrement du brouillon impossible' };
+    }
+  }
+
+  /**
    * Essai des clauses d'un actif sur des options libres (POST /api/knowledge/checks/simulate, sans écriture).
    * Renvoie, pour chaque option, les verdicts de l'actif avec les clauses proposées.
    */

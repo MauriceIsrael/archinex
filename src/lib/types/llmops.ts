@@ -199,6 +199,14 @@ export interface FrameworkCoverage {
 export interface KbCandidate {
   id?: string;
   kind: 'new_asset' | 'amendment' | 'rex' | 'principle';
+  asset_type?: 'principle' | 'pattern' | 'decision' | 'control' | 'glossary' | 'trigger' | 'fact_key';
+  target_asset_id?: string;
+  domain?: string | string[];
+  proposed_content?: string;
+  evidence?: Array<{
+    kind: 'measure' | 'audit' | 'engagement' | 'vendor-doc';
+    ref: string;
+  }>;
   title: string;
   summary: string;
   suggested_change?: string;
@@ -208,6 +216,8 @@ export interface KbCandidate {
     engagement: string;
     decision_id?: string;
     subject_id?: string;
+    author?: string;
+    production_mode?: 'human-authored' | 'llm-proposed-human-approved' | 'llm-derived';
   };
   target_asset_ref?: string;
   accepted_violation_justification?: string;
@@ -1379,6 +1389,7 @@ export interface CheckClauseRow {
   status: CheckClauseStatus;
   review?: { by: string; at: string; decision: CheckClauseDecision; comment?: string } | null;
   may_decide?: boolean;
+  provenance?: 'llm-derived' | 'human-authored' | string | null;
 }
 
 export interface MandatoryControlWithoutClause {
@@ -1402,4 +1413,28 @@ export interface AssetClauseTrialVerdict {
   check_id: string;
   verdict: 'supports' | 'violates';
   matched_terms: string[];
+}
+
+export interface DraftCheckClauseInput {
+  asset_id: string;
+  asset_title: string;
+  asset_title_fr?: string | null;
+  asset_excerpt: string;
+  framework?: string | null;
+  domain?: string[];
+  source_ref?: string | null;
+}
+
+export interface DraftCheckClause {
+  kind: 'requires' | 'forbids';
+  when: {
+    terms_any: string[];
+    terms_all?: string[];
+  };
+  expect?: {
+    terms_any: string[];
+    terms_all?: string[];
+  } | null;
+  message: string;
+  provenance: 'llm-derived';
 }

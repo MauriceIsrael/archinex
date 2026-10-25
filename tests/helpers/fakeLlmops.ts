@@ -46,7 +46,8 @@ import type {
   SimilarityZone,
   SimilarityFamily,
   SimilarityRelation,
-  CheckClauseRow
+  CheckClauseRow,
+  MandatoryControlWithoutClause
 } from '../../src/lib/types/llmops';
 import { AssertionRejected, verifyActorAssertion, decodeAssertion, type ActorAssertionPolicy } from './actorAssertionVerifier';
 
@@ -69,6 +70,7 @@ export interface FakeLlmopsState {
   conflicts: LLMOpsConflict[];
   frameworkIngestions: Record<string, FrameworkIngestion>;
   checkClauses: CheckClauseRow[];
+  mandatoryWithoutClause?: MandatoryControlWithoutClause[];
   evalDatasets: Record<string, EvalDataset>;
   verdictFeedbacks: VerdictFeedbackItem[];
   publications: KbPublication[];
@@ -762,6 +764,17 @@ export function createDefaultFakeState(): FakeLlmopsState {
         message: 'NIS2 Art. 21(2)(c): business continuity needs backups segregated from production.',
         status: 'draft',
         may_decide: true
+      }
+    ],
+    mandatoryWithoutClause: [
+      {
+        asset_id: 'NIS2-ART21-2A',
+        asset_title: 'Politiques relatives à l’analyse des risques et à la sécurité des systèmes d’information',
+        asset_title_fr: 'Politiques d’analyse des risques',
+        framework: 'NIS2',
+        domain: ['security'],
+        source_ref: 'Article 21(2)(a)',
+        asset_excerpt: 'Policies on risk analysis and information system security. Entities shall have formal, documented risk management policies.'
       }
     ],
     similarityDatasets: {
@@ -2485,9 +2498,74 @@ export async function startFakeLlmopsServer(initialState?: Partial<FakeLlmopsSta
         data: {
           clauses,
           counts,
-          mandatory_without_clause: [],
+          mandatory_without_clause: state.mandatoryWithoutClause ? [...state.mandatoryWithoutClause] : [],
           pending_publication: 0
         }
+      });
+    }
+
+    // POST /api/knowledge/assets/:assetId/checks (Issue #99)
+    const clausePostMatch = pathname.match(/^\/api\/knowledge\/assets\/([^/]+)\/checks$/);
+    if (clausePostMatch && method === 'POST') {
+      const assetId = decodeURIComponent(clausePostMatch[1]);
+      const actorEmail = (req.headers['x-actor-email'] as string) || '';
+      const inputClause = body?.clause;
+      if (!inputClause) {
+        return json(400, { status: 'invalid', error: "Le champ 'clause' est requis" });
+      }
+
+      const missingAsset = (state.mandatoryWithoutClause || []).find((m) => m.asset_id === assetId);
+      const existingChecks = (state.checkClauses || []).filter((c) => c.asset_id === assetId);
+      const seq = existingChecks.length + 1;
+      const checkId = `${assetId}-C${seq}`;
+
+      const newClauseRow: CheckClauseRow = {
+        asset_id: assetId,
+        typed_id: `control:${assetId}`,
+        asset_type: 'control',
+        asset_title: missingAsset?.asset_title || assetId,
+        asset_title_fr: missingAsset?.asset_title_fr ?? null,
+        framework: missingAsset?.framework || 'NIS2',
+        severity: 'mandatory',
+        domain: missingAsset?.domain || ['security'],
+        asset_excerpt: missingAsset?.asset_excerpt || '',
+        revision: 1,
+        check_id: checkId,
+        kind: inputClause.kind || 'requires',
+        when: inputClause.when || { terms_any: [] },
+        expect: inputClause.kind === 'forbids' ? undefined : inputClause.expect,
+        message: inputClause.message || `Contrôle obligatoire pour ${assetId}`,
+        status: 'draft',
+        provenance: inputClause.provenance || 'llm-derived',
+        may_decide: true
+      };
+
+      if (!state.checkClauses) state.checkClauses = [];
+      state.checkClauses.push(newClauseRow);
+
+      if (state.mandatoryWithoutClause) {
+        state.mandatoryWithoutClause = state.mandatoryWithoutClause.filter((m) => m.asset_id !== assetId);
+      }
+
+      state.candidates.push({
+        id: `cand-${Date.now()}-${Math.random().toString(36).substring(2, 6)}`,
+        kind: 'amendment',
+        title: `Proposition de clause vérifiable pour ${assetId}`,
+        summary: newClauseRow.message || '',
+        rationale: 'Proposition de clause rédigée par IA pour contrôle obligatoire',
+        source: {
+          system: 'archinex',
+          engagement: 'test-engagement'
+        },
+        status: 'in_review',
+        author: actorEmail || 'expert@example.com',
+        production_mode: 'llm-derived',
+        created_at: new Date().toISOString()
+      });
+
+      return json(201, {
+        status: 'ok',
+        data: newClauseRow
       });
     }
 

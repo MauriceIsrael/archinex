@@ -3,6 +3,11 @@ import { doctrineService } from '$lib/server/doctrine/doctrineService';
 import {
 	buildKbCandidates,
 	anonymizeCandidates,
+	formatCandidateProposedContent,
+	inferCandidateAssetType,
+	isDecisionMetadataViolation,
+	normalizeKbDomain,
+	normalizeTargetAssetId,
 	type AnonymizationContext
 } from '$lib/domain/capitalization';
 import { canArbitrateSubject, UnauthorizedArbitrationError } from './arbitrationDb';
@@ -14,7 +19,9 @@ import type { Decision, Option } from '$lib/domain/options';
  * Extrait le contexte d'anonymisation depuis les données du projet.
  */
 function extractAnonymizationContext(project: any): AnonymizationContext {
-	const projectNames = [project.title, project.shortName].filter(Boolean);
+	const rawTitle = String(project.title || '').trim();
+	const baseTitle = rawTitle.includes('(') ? rawTitle.split('(')[0].trim() : '';
+	const projectNames = [project.id, rawTitle, baseTitle, project.shortName].filter(Boolean);
 	const participantNames = (project.members || []).map((m: any) => m.userId).filter(Boolean);
 
 	let clientNames: string[] = [];
@@ -39,6 +46,9 @@ function extractAnonymizationContext(project: any): AnonymizationContext {
 /**
  * Prépare les candidats KB pour un sujet arbitré (Porte G4).
  * Renvoie les propositions générées et anonymisées pour révision humaine préalable.
+ * Lorsqu'un architecte déclenche la préparation en Porte G4, une décision initialement
+ * qualifiée `project_specific` par construction est anonymisée et généralisée en doctrine
+ * réutilisable (`reusable_architecture_doctrine`) pour devenir moissonnable par LLMOps.
  */
 export async function prepareSubjectKbCandidates(
 	subjectId: string,
@@ -66,13 +76,36 @@ export async function prepareSubjectKbCandidates(
 		throw new Error(`Sujet introuvable : ${subjectId}`);
 	}
 
-	if (!subject.decision || subject.maturityLevel !== 'L3_decided') {
+	if (!subject.decision || subject.deliberationStatus === 'awaiting_review') {
 		throw new Error(
 			"Le sujet n'a pas encore fait l'objet d'un arbitrage opposable (Maturité L3_decided et décision requises pour capitaliser)."
 		);
 	}
 
+	if (!['L3_decided', 'L4_specified', 'L5_archived'].includes(subject.maturityLevel)) {
+		await prisma.subject.update({
+			where: { id: subjectId },
+			data: { maturityLevel: 'L3_decided', deliberationStatus: 'arbitrated' }
+		});
+	}
+
 	const ctx = extractAnonymizationContext(subject.project);
+
+	const rawViolations: Array<{ typedId: string; justification: string }> = JSON.parse(
+		subject.decision.acceptedViolations || '[]'
+	);
+	const portabilityEntry = rawViolations.find((v) => v?.typedId?.startsWith('PORTABILITY:'));
+	const storedPortability = portabilityEntry?.typedId?.replace('PORTABILITY:', '') as Decision['portability'];
+	const realViolations = rawViolations.filter(
+		(v) => v?.typedId && !isDecisionMetadataViolation(v.typedId)
+	);
+
+	// En Porte G4, l'architecte choisit explicitement d'anonymiser et de généraliser la décision
+	// pour la verser au patrimoine doctrinal LLMOps.
+	const effectivePortability: Decision['portability'] =
+		storedPortability === 'reusable_product_capability'
+			? 'reusable_product_capability'
+			: 'reusable_architecture_doctrine';
 
 	const parsedDecision: Decision = {
 		id: subject.decision.id,
@@ -81,10 +114,11 @@ export async function prepareSubjectKbCandidates(
 		rejected: JSON.parse(subject.decision.rejected || '[]'),
 		rationale: subject.decision.rationale,
 		reversibility: subject.decision.reversibility as any,
+		portability: effectivePortability,
 		arbiterId: subject.decision.arbiterId,
 		arbiterRole: subject.decision.arbiterRole,
 		decidedAt: subject.decision.decidedAt.toISOString(),
-		acceptedViolations: JSON.parse(subject.decision.acceptedViolations || '[]'),
+		acceptedViolations: realViolations,
 		kbCandidateIds: JSON.parse(subject.decision.kbCandidateIds || '[]'),
 		version: subject.decision.version
 	};
@@ -173,25 +207,42 @@ export async function submitSubjectKbCandidates(
 	}
 
 	const ctx = extractAnonymizationContext(subject.project);
+	const normalizedDomain = normalizeKbDomain(subject.domain);
+
+	// Filtre défensif contre les marqueurs de métadonnées de délibération
+	const validCandidates = candidates.filter(
+		(c) => !isDecisionMetadataViolation(c.target_asset_ref) && !isDecisionMetadataViolation(c.target_asset_id)
+	);
 
 	// Ré-anonymisation de sécurité avant transmission
-	const sanitizedCandidates = anonymizeCandidates(candidates, ctx);
+	const sanitizedCandidates = anonymizeCandidates(validCandidates, ctx);
 
 	const submittedResults: Array<{ id?: string; candidate_id: string; status: string }> = [];
 
 	for (const cand of sanitizedCandidates) {
+		const targetAssetId = normalizeTargetAssetId(cand.target_asset_id || cand.target_asset_ref);
+		const assetType = cand.asset_type || inferCandidateAssetType(cand.kind, targetAssetId);
 		const payload: KbCandidate = {
 			...cand,
+			asset_type: assetType,
+			target_asset_id: targetAssetId,
+			domain: [normalizedDomain],
 			source: {
 				system: 'archinex',
 				engagement: subject.projectId,
 				decision_id: subject.decision.id,
-				subject_id: subject.id
+				subject_id: subject.id,
+				author: actor.userId,
+				production_mode: 'human-authored'
 			},
+			evidence: [{ kind: 'engagement', ref: subject.projectId }],
 			author: actor.userId,
 			author_role: actor.role,
+			portability: 'reusable_architecture_doctrine',
+			harvestable: true,
 			production_mode: 'human-authored'
 		};
+		payload.proposed_content = formatCandidateProposedContent(payload);
 
 		const res = await doctrineService.submitKbCandidate(payload);
 		submittedResults.push({
@@ -201,16 +252,28 @@ export async function submitSubjectKbCandidates(
 		});
 	}
 
-	// Persistance des identifiants dans la décision et enregistrement du DomainEvent
-	const existingIds: string[] = JSON.parse(subject.decision.kbCandidateIds || '[]');
-	const newIds = submittedResults.map((r) => r.candidate_id);
+	// Persistance des identifiants dans la décision, mise à jour de la portabilité et enregistrement du DomainEvent
+	const existingIds: string[] = JSON.parse(subject.decision.kbCandidateIds || '[]').filter(Boolean);
+	const newIds = submittedResults.map((r) => r.candidate_id || r.id || 'pending_dispatch').filter(Boolean);
 	const mergedIds = Array.from(new Set([...existingIds, ...newIds]));
+
+	const existingViolations: Array<{ typedId: string; justification: string }> = JSON.parse(
+		subject.decision.acceptedViolations || '[]'
+	);
+	const updatedViolations = existingViolations.some((v) => v?.typedId?.startsWith('PORTABILITY:'))
+		? existingViolations.map((v) =>
+				v?.typedId === 'PORTABILITY:project_specific'
+					? { ...v, typedId: 'PORTABILITY:reusable_architecture_doctrine' }
+					: v
+			)
+		: [...existingViolations, { typedId: 'PORTABILITY:reusable_architecture_doctrine', justification: '' }];
 
 	await prisma.$transaction(async (tx) => {
 		await tx.decision.update({
 			where: { subjectId },
 			data: {
 				kbCandidateIds: JSON.stringify(mergedIds),
+				acceptedViolations: JSON.stringify(updatedViolations),
 				version: { increment: 1 }
 			}
 		});
@@ -258,7 +321,7 @@ export async function getSubjectKbCandidatesStatus(subjectId: string): Promise<{
 		return { candidateIds: [], candidates: [] };
 	}
 
-	const candidateIds: string[] = JSON.parse(subject.decision.kbCandidateIds || '[]');
+	const candidateIds: string[] = JSON.parse(subject.decision.kbCandidateIds || '[]').filter(Boolean);
 
 	// Interroge LLMOps pour récupérer la liste des candidats de cet engagement
 	const remoteCandidates = await doctrineService.listKbCandidates({
@@ -267,12 +330,17 @@ export async function getSubjectKbCandidatesStatus(subjectId: string): Promise<{
 	});
 
 	// Filtrage des candidats associés au sujet ou dont l'id figure dans candidateIds
-	const matched = remoteCandidates.filter(
-		(c) =>
-			(c.id && candidateIds.includes(c.id)) ||
-			c.source?.decision_id === subject.decision?.id ||
-			c.source?.subject_id === subjectId
-	);
+	const matched = remoteCandidates
+		.filter(
+			(c) =>
+				(c.id && candidateIds.includes(c.id)) ||
+				c.source?.decision_id === subject.decision?.id ||
+				c.source?.subject_id === subjectId
+		)
+		.map((c) => ({
+			...c,
+			summary: c.summary || c.rationale || ''
+		}));
 
 	return {
 		decisionId: subject.decision.id,

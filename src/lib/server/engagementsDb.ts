@@ -236,7 +236,10 @@ export async function saveEngagementToDb(profile: EngagementProfile): Promise<En
 			for (const s of profile.subjects) {
 				const subjectId = s.id;
 				if (!subjectId) continue;
-				const existing = await tx.subject.findUnique({ where: { id: subjectId }, select: { projectId: true, maturityLevel: true } });
+				const existing = await tx.subject.findUnique({
+					where: { id: subjectId },
+					select: { projectId: true, maturityLevel: true, decision: { select: { id: true } } }
+				});
 				if (existing && existing.projectId !== profile.id) {
 					// Un identifiant de sujet est global : ne jamais réécrire le sujet d'un autre projet.
 					console.warn(`[engagementsDb] Sujet ${subjectId} déjà rattaché au projet ${existing.projectId} : ignoré pour ${profile.id}.`);
@@ -273,7 +276,9 @@ export async function saveEngagementToDb(profile: EngagementProfile): Promise<En
 				}
 				// Mise à jour depuis le profil client : le serveur reste maître de l'énoncé du problème (édité via
 				// /subjects/[id]), du domaine et des niveaux décidés (L3+ ne s'obtient que par l'arbitrage formel).
-				const serverDecided = ['L3_decided', 'L4_specified', 'L5_archived'].includes(existing.maturityLevel);
+				const serverDecided =
+					Boolean(existing.decision) ||
+					['L3_decided', 'L4_specified', 'L5_archived'].includes(existing.maturityLevel);
 				const clientLevel = s.level || 'L0_named';
 				const clientDecided = ['L3_decided', 'L4_specified', 'L5_archived'].includes(clientLevel);
 				await tx.subject.update({
@@ -283,7 +288,11 @@ export async function saveEngagementToDb(profile: EngagementProfile): Promise<En
 						name: s.name || 'Sujet sans titre',
 						...((s as any).domain ? { domain: (s as any).domain } : {}),
 						...(problemStatement ? { problemStatement } : {}),
-						...(!serverDecided && !clientDecided ? { maturityLevel: clientLevel } : {}),
+						...(existing.decision && !['L3_decided', 'L4_specified', 'L5_archived'].includes(existing.maturityLevel)
+							? { maturityLevel: 'L3_decided', deliberationStatus: 'arbitrated' }
+							: !serverDecided && !clientDecided
+								? { maturityLevel: clientLevel }
+								: {}),
 						waitingForRole: s.waiting_for_role || 'lead_architect',
 						relativeEffort: s.relative_effort || 'M',
 						blockingCount: s.blocking_count ?? 0,

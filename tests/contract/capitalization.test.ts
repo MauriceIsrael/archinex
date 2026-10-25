@@ -334,7 +334,48 @@ describe('Lot A5 - Anonymization Engine Contract', () => {
 			for (const cand of candidates) {
 				expect(cand.harvestable).toBe(true);
 				expect(cand.portability).toBe('reusable_architecture_doctrine');
+				expect(cand.proposed_content).toBeDefined();
+				expect(cand.proposed_content).toContain('---');
+				expect(cand.asset_type).toBeDefined();
 			}
+		});
+
+		it('filtre les marqueurs de métadonnées COMPLIANCE_STATUS:* et PORTABILITY:* hors des amendements', () => {
+			const decision: Decision = {
+				id: 'dec-meta-filter',
+				subjectId: 'subj-meta',
+				retainedOptionId: 'opt-cloud-native',
+				rejected: [],
+				rationale: 'Arbitrage généralisé en Porte G4.',
+				reversibility: 'reversible',
+				portability: 'reusable_architecture_doctrine',
+				arbiterId: 'alice-architect',
+				arbiterRole: 'lead_architect',
+				decidedAt: new Date().toISOString(),
+				acceptedViolations: [
+					{ typedId: 'COMPLIANCE_STATUS:Compliant', justification: '' },
+					{ typedId: 'PORTABILITY:project_specific', justification: '' },
+					{ typedId: 'principle:P-001', justification: 'Dérogation encadrée' }
+				],
+				kbCandidateIds: [],
+				version: 1
+			};
+
+			const candidates = buildKbCandidates({
+				decision,
+				subject: { id: 'subj-meta', name: 'Sujet Généralisé', domain: 'general' },
+				options: mockOptions,
+				engagement: 'lulu-demo',
+				author: 'Alice Lead',
+				authorRole: 'lead_architect'
+			});
+
+			const amendments = candidates.filter((c) => c.kind === 'amendment');
+			expect(amendments).toHaveLength(1);
+			expect(amendments[0].target_asset_ref).toBe('principle:P-001');
+			expect(amendments[0].target_asset_id).toBe('P-001');
+			expect(amendments[0].asset_type).toBe('principle');
+			expect(amendments[0].domain).toEqual(['architecture']);
 		});
 	});
 });

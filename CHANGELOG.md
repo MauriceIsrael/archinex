@@ -8,6 +8,13 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Capitalisation (Porte G4) : généralisation des décisions projet et conformité du contrat `POST /api/knowledge/candidates` vers LLMOps
+- **Généralisation explicite en Porte G4** (`prepareSubjectKbCandidates` / `submitSubjectKbCandidates`) : une décision d'arbitrage initialement qualifiée `project_specific` par construction en Porte G3 peut désormais être anonymisée et généralisée par l'architecte en Porte G4 (`portability: 'reusable_architecture_doctrine'`, `harvestable: true`) afin d'être moissonnée par LLMOps et réutilisée comme doctrine à la délibération suivante.
+- **Filtrage des métadonnées d'arbitrage** (`buildKbCandidates`, `prepareSubjectKbCandidates`, `submitSubjectKbCandidates`) : exclusion systématique des marqueurs techniques `COMPLIANCE_STATUS:*` et `PORTABILITY:*` stockés dans `acceptedViolations`, qui généraient auparavant de faux candidats `amendment` rejetés en `400 Bad Request` par LLMOps.
+- **Normalisation complète du payload candidat LLMOps** (`formatCandidateProposedContent`, `normalizeKbDomain`, `normalizeTargetAssetId`, `inferCandidateAssetType`) : génération systématique de `proposed_content` (front matter YAML `PAT-xxx` / `ADR-xxxx` + sections Markdown réglementaires), `asset_type`, `target_asset_id`, `domain` normalisé (`general` -> `architecture`) et `evidence` d'engagement, avec anonymisation intégrale incluant l'identifiant et le nom court du projet.
+- **Protection du niveau de maturité `L3_decided`** (`saveEngagementProfile` dans `engagementsDb.ts`) : préservation garantie du niveau `L3_decided` lorsqu'une décision existe en base lors d'une synchronisation du profil d'engagement.
+- Tests : `tests/contract/capitalization.test.ts` et `tests/integration/kb-capitalization.test.ts`.
+
 ### Clauses vérifiables : rédaction assistée d'une clause pour les contrôles sans clause (archinex#99)
 - **Bouton « Proposer une clause »** : sur `/kb/clauses` (onglet « Contrôles sans clause »), chaque contrôle obligatoire dépourvu de clause dispose désormais d'un bouton d'action dédié permettant de générer une proposition assistée par IA (`Sparkles`).
 - **Générateur IA bilingue (`clauseDrafter.ts`)** : dérivation automatique de clauses déterministes structurées (`kind: 'requires' | 'forbids'`, `when.terms_any`, `expect.terms_any`, `message`) à partir du texte officiel de l'exigence et des métadonnées du contrôle. Les termes déclencheurs et attendus sont générés systématiquement en français et en anglais afin de couvrir les options rédigées dans l'une ou l'autre langue. Provenance marquée `llm-derived`.

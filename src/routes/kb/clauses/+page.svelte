@@ -8,11 +8,12 @@
   import FlaskConical from 'lucide-svelte/icons/flask-conical';
   import Sparkles from 'lucide-svelte/icons/sparkles';
   import { invalidateAll } from '$app/navigation';
-  import type { CheckClauseRow, CheckClausesList, CheckClauseDecision, AssetClauseTrialVerdict } from '$lib/types/llmops';
+  import type { CheckClauseRow, CheckClausesList, CheckClauseDecision, AssetClauseTrialVerdict, MandatoryControlWithoutClause } from '$lib/types/llmops';
 
   interface Props {
     data: {
       framework: string | null;
+      tab?: string | null;
       clauses: CheckClausesList | null;
       error: string | null;
       expert: { handle: string | null; canPublish: boolean };
@@ -28,7 +29,7 @@
     rows = data.clauses?.clauses ?? [];
     pending = data.clauses?.pending_publication ?? 0;
   });
-  let tab = $state<Tab>('draft');
+  let tab = $state<Tab>((data.tab as Tab) || 'draft');
   let frameworkFilter = $state('');
   let search = $state('');
 
@@ -197,6 +198,143 @@
     }
   }
 
+  // --- Rédaction assistée de clause (Issue #99) --------------------------------------------------
+  interface MissingDraftState {
+    kind: 'requires' | 'forbids';
+    when: string;
+    expect: string;
+    message: string;
+    provenance: string;
+    trying?: boolean;
+    trialTitle?: string;
+    trialDescription?: string;
+    trialVerdict?: AssetClauseTrialVerdict | null;
+    trialError?: string | null;
+    saving?: boolean;
+    error?: string | null;
+    success?: string | null;
+  }
+
+  let draftingAssetId = $state<string | null>(null);
+  let missingDrafts = $state<Record<string, MissingDraftState>>({});
+
+  async function generateDraft(m: MandatoryControlWithoutClause) {
+    draftingAssetId = m.asset_id;
+    try {
+      const res = await fetch(`/api/kb/clauses/${encodeURIComponent(m.asset_id)}/draft`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          asset_id: m.asset_id,
+          asset_title: m.asset_title,
+          asset_title_fr: m.asset_title_fr,
+          asset_excerpt: m.asset_excerpt,
+          framework: m.framework,
+          domain: m.domain,
+          source_ref: m.source_ref
+        })
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        missingDrafts[m.asset_id] = {
+          kind: 'requires',
+          when: '',
+          expect: '',
+          message: '',
+          provenance: 'llm-derived',
+          error: body.error || `Erreur HTTP ${res.status}`
+        };
+        return;
+      }
+      const draft = body.data;
+      missingDrafts[m.asset_id] = {
+        kind: draft.kind || 'requires',
+        when: (draft.when?.terms_any || []).join('\n'),
+        expect: (draft.expect?.terms_any || []).join('\n'),
+        message: draft.message || '',
+        provenance: draft.provenance || 'llm-derived',
+        trialTitle: '',
+        trialDescription: ''
+      };
+    } finally {
+      draftingAssetId = null;
+    }
+  }
+
+  async function tryMissingDraft(m: MandatoryControlWithoutClause) {
+    const draft = missingDrafts[m.asset_id];
+    if (!draft || !draft.trialTitle?.trim()) return;
+
+    draft.trying = true;
+    draft.trialError = null;
+    draft.trialVerdict = null;
+
+    try {
+      const checkClause = {
+        id: `${m.asset_id}-DRAFT`,
+        kind: draft.kind,
+        when: { terms_any: lines(draft.when) },
+        ...(draft.kind === 'requires' ? { expect: { terms_any: lines(draft.expect) } } : {}),
+        message: draft.message.trim()
+      };
+
+      const res = await fetch(`/api/kb/clauses/${encodeURIComponent(m.asset_id)}/try`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          checks: [checkClause],
+          option: { title: draft.trialTitle.trim(), description: draft.trialDescription || '' }
+        })
+      });
+
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        draft.trialError = body.error || `Erreur HTTP ${res.status}`;
+      } else {
+        const verdicts = (body.data || []) as AssetClauseTrialVerdict[];
+        draft.trialVerdict = verdicts[0] || null;
+      }
+    } finally {
+      draft.trying = false;
+    }
+  }
+
+  async function saveMissingDraft(m: MandatoryControlWithoutClause) {
+    const draft = missingDrafts[m.asset_id];
+    if (!draft) return;
+
+    draft.saving = true;
+    draft.error = null;
+    draft.success = null;
+
+    try {
+      const clause = {
+        kind: draft.kind,
+        when: { terms_any: lines(draft.when) },
+        ...(draft.kind === 'requires' ? { expect: { terms_any: lines(draft.expect) } } : {}),
+        message: draft.message.trim(),
+        provenance: draft.provenance || 'llm-derived'
+      };
+
+      const res = await fetch(`/api/kb/clauses/${encodeURIComponent(m.asset_id)}/save-draft`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ clause })
+      });
+
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        draft.error = body.error || `Erreur HTTP ${res.status}`;
+      } else {
+        draft.success = 'Clause enregistrée en brouillon. Retrouvez-la dans l’onglet « À relire » pour la valider.';
+        pending += 1;
+        await invalidateAll();
+      }
+    } finally {
+      draft.saving = false;
+    }
+  }
+
   // --- Publication --------------------------------------------------------------------------------
   let publishing = $state(false);
   let publishMessage = $state<{ ok: boolean; text: string } | null>(null);
@@ -289,17 +427,156 @@
 
     {#if tab === 'missing'}
       <p class="text-sm text-muted-foreground">
-        Ces contrôles obligatoires ne portent aucune clause : rien ne peut bloquer une option qui les enfreint. La rédaction assistée
-        d'une clause viendra dans un second temps ; d'ici là, une clause peut être proposée par un amendement dans l'atelier de doctrine.
+        Ces contrôles obligatoires ne portent aucune clause : rien ne peut bloquer une option qui les enfreint.
+        Cliquez sur « Proposer une clause » pour générer un brouillon assisté par IA, l'essayer sur des options et l'enregistrer dans la base.
       </p>
       {#each missing as m (m.asset_id)}
-        <div class="rounded-lg border border-border bg-card p-3">
-          <div class="flex flex-wrap items-center gap-2">
-            <span class="font-mono text-xs text-muted-foreground">{m.asset_id}</span>
-            <span class="font-semibold">{m.asset_title_fr || m.asset_title}</span>
-            {#if m.framework}<span class="text-xs px-1.5 py-0.5 rounded bg-muted">{m.framework}</span>{/if}
+        {@const draft = missingDrafts[m.asset_id]}
+        {@const isDrafting = draftingAssetId === m.asset_id}
+        <div class="rounded-lg border border-border bg-card p-4 space-y-3" data-testid="missing-control-{m.asset_id}">
+          <div class="flex flex-wrap items-center justify-between gap-2">
+            <div class="flex flex-wrap items-center gap-2">
+              <span class="font-mono text-xs text-muted-foreground">{m.asset_id}</span>
+              <span class="font-semibold">{m.asset_title_fr || m.asset_title}</span>
+              {#if m.framework}<span class="text-xs px-1.5 py-0.5 rounded bg-muted">{m.framework}</span>{/if}
+              {#if m.domain?.length}<span class="text-xs text-muted-foreground">{m.domain.join(', ')}</span>{/if}
+            </div>
+            {#if !draft}
+              <button
+                onclick={() => generateDraft(m)}
+                disabled={isDrafting}
+                data-testid="btn-draft-clause-{m.asset_id}"
+                class="px-3 py-1.5 rounded-md bg-primary text-primary-foreground text-xs font-medium flex items-center gap-1.5 disabled:opacity-50 hover:bg-primary/90 transition-colors shadow-sm"
+              >
+                {#if isDrafting}
+                  <RefreshCw class="w-3.5 h-3.5 animate-spin" />
+                  Rédaction en cours…
+                {:else}
+                  <Sparkles class="w-3.5 h-3.5" />
+                  Proposer une clause
+                {/if}
+              </button>
+            {/if}
           </div>
-          {#if m.source_ref}<p class="text-xs text-muted-foreground mt-1">{m.source_ref}</p>{/if}
+
+          {#if m.source_ref}<p class="text-xs text-muted-foreground">{m.source_ref}</p>{/if}
+
+          {#if m.asset_excerpt}
+            <details class="text-xs">
+              <summary class="text-primary cursor-pointer">Texte légal de l'exigence</summary>
+              <p class="whitespace-pre-line mt-1 text-muted-foreground bg-muted/30 p-2 rounded">{m.asset_excerpt}</p>
+            </details>
+          {/if}
+
+          {#if draft}
+            <div class="pt-3 border-t border-border space-y-3 bg-muted/10 p-3 rounded-lg" data-testid="draft-workbench-{m.asset_id}">
+              <div class="flex flex-wrap items-center justify-between gap-2">
+                <span class="text-xs font-medium inline-flex items-center gap-1 px-2 py-0.5 rounded bg-purple-500/15 text-purple-700 dark:text-purple-300">
+                  <Sparkles class="w-3.5 h-3.5" /> IA · {draft.provenance}
+                </span>
+                <div class="flex items-center gap-3">
+                  <label class="text-xs flex items-center gap-1 cursor-pointer">
+                    <input type="radio" bind:group={draft.kind} value="requires" />
+                    <span>Exige</span>
+                  </label>
+                  <label class="text-xs flex items-center gap-1 cursor-pointer">
+                    <input type="radio" bind:group={draft.kind} value="forbids" />
+                    <span>Interdit</span>
+                  </label>
+                </div>
+              </div>
+
+              <div class="grid md:grid-cols-2 gap-3 text-sm">
+                <label class="space-y-1">
+                  <span class="text-xs font-semibold">Déclencheurs (when) — un terme par ligne (FR et EN)</span>
+                  <textarea bind:value={draft.when} rows="4" class="w-full rounded-md border border-border bg-background p-2 text-xs font-mono" data-testid="draft-when-{m.asset_id}"></textarea>
+                </label>
+                {#if draft.kind === 'requires'}
+                  <label class="space-y-1">
+                    <span class="text-xs font-semibold">Conditions attendues (expect) — un terme par ligne (FR et EN)</span>
+                    <textarea bind:value={draft.expect} rows="4" class="w-full rounded-md border border-border bg-background p-2 text-xs font-mono" data-testid="draft-expect-{m.asset_id}"></textarea>
+                  </label>
+                {/if}
+                <label class="space-y-1 md:col-span-2">
+                  <span class="text-xs font-semibold">Message montré à l'architecte</span>
+                  <input bind:value={draft.message} class="w-full rounded-md border border-border bg-background p-2 text-sm" data-testid="draft-message-{m.asset_id}" />
+                </label>
+              </div>
+
+              <!-- Essai sur une option -->
+              <div class="rounded-md border border-border p-3 space-y-2 bg-muted/20">
+                <span class="text-xs font-semibold flex items-center gap-1 text-muted-foreground">
+                  <FlaskConical class="w-3.5 h-3.5" /> Essayer cette proposition sur une option
+                </span>
+                <input
+                  bind:value={draft.trialTitle}
+                  placeholder="Titre de l'option (ex. : Hébergement Cloud sans chiffrement des flux)"
+                  class="w-full rounded-md border border-border bg-background p-1.5 text-xs"
+                  data-testid="draft-trial-title-{m.asset_id}"
+                />
+                <textarea
+                  bind:value={draft.trialDescription}
+                  rows="2"
+                  placeholder="Description détaillée de l'option (optionnel)"
+                  class="w-full rounded-md border border-border bg-background p-1.5 text-xs"
+                ></textarea>
+                <div class="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onclick={() => tryMissingDraft(m)}
+                    disabled={!draft.trialTitle?.trim() || draft.trying}
+                    data-testid="btn-run-missing-trial-{m.asset_id}"
+                    class="px-2.5 py-1 rounded-md border border-border text-xs flex items-center gap-1 disabled:opacity-50"
+                  >
+                    {#if draft.trying}<RefreshCw class="w-3 h-3 animate-spin" />{/if}
+                    Essayer
+                  </button>
+                </div>
+
+                {#if draft.trialError}
+                  <p class="text-xs text-destructive">{draft.trialError}</p>
+                {:else if draft.trialVerdict}
+                  <p class="text-xs font-medium {draft.trialVerdict.verdict === 'violates' ? 'text-destructive' : 'text-emerald-600'}" data-testid="missing-trial-verdict-{m.asset_id}">
+                    {draft.trialVerdict.verdict === 'violates' ? '⚠️ Viole la clause proposée' : '✅ Respecte la clause proposée'}
+                    {#if draft.trialVerdict.matched_terms.length}
+                      <span class="text-xs font-normal text-muted-foreground block mt-0.5">
+                        Termes reconnus : <strong class="text-foreground">{draft.trialVerdict.matched_terms.join(', ')}</strong>
+                      </span>
+                    {/if}
+                  </p>
+                {/if}
+              </div>
+
+              <!-- Erreur ou succès de sauvegarde -->
+              {#if draft.error}
+                <p class="text-xs text-destructive">{draft.error}</p>
+              {/if}
+              {#if draft.success}
+                <p class="text-xs text-emerald-600 font-medium">{draft.success}</p>
+              {/if}
+
+              <!-- Boutons d'actions -->
+              <div class="flex flex-wrap items-center gap-2 pt-1">
+                <button
+                  type="button"
+                  onclick={() => saveMissingDraft(m)}
+                  disabled={draft.saving || !draft.when.trim() || (draft.kind === 'requires' && !draft.expect.trim())}
+                  data-testid="btn-save-draft-{m.asset_id}"
+                  class="px-3 py-1.5 rounded-md bg-primary text-primary-foreground text-xs font-semibold flex items-center gap-1.5 disabled:opacity-50"
+                >
+                  {#if draft.saving}<RefreshCw class="w-3.5 h-3.5 animate-spin" />{/if}
+                  Enregistrer en brouillon
+                </button>
+                <button
+                  type="button"
+                  onclick={() => { delete missingDrafts[m.asset_id]; }}
+                  class="px-2.5 py-1.5 rounded-md border border-border text-xs"
+                >
+                  Annuler
+                </button>
+              </div>
+            </div>
+          {/if}
         </div>
       {:else}
         <p class="text-sm text-muted-foreground">Aucun contrôle obligatoire sans clause.</p>

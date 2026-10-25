@@ -46,7 +46,8 @@ import type {
   SimilarityZone,
   SimilarityFamily,
   SimilarityRelation,
-  CheckClauseRow
+  CheckClauseRow,
+  MandatoryControlWithoutClause
 } from '../../src/lib/types/llmops';
 import { AssertionRejected, verifyActorAssertion, decodeAssertion, type ActorAssertionPolicy } from './actorAssertionVerifier';
 
@@ -2551,6 +2552,11 @@ export async function startFakeLlmopsServer(initialState?: Partial<FakeLlmopsSta
         kind: 'amendment',
         title: `Proposition de clause vérifiable pour ${assetId}`,
         summary: newClauseRow.message || '',
+        rationale: 'Proposition de clause rédigée par IA pour contrôle obligatoire',
+        source: {
+          system: 'archinex',
+          engagement: 'test-engagement'
+        },
         status: 'in_review',
         author: actorEmail || 'expert@example.com',
         production_mode: 'llm-derived',

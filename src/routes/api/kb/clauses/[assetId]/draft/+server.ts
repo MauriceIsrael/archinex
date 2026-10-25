@@ -1,6 +1,6 @@
-import { json } from '@sveltejs/kit';
+import { json, type RequestHandler } from '@sveltejs/kit';
 import { draftCheckClause } from '$lib/server/doctrine/clauseDrafter';
-import type { RequestHandler } from './$types';
+
 
 /**
  * Rédaction assistée par IA d'une clause de vérification déterministe (Issue #99).

@@ -199,6 +199,14 @@ export interface FrameworkCoverage {
 export interface KbCandidate {
   id?: string;
   kind: 'new_asset' | 'amendment' | 'rex' | 'principle';
+  asset_type?: 'principle' | 'pattern' | 'decision' | 'control' | 'glossary' | 'trigger' | 'fact_key';
+  target_asset_id?: string;
+  domain?: string | string[];
+  proposed_content?: string;
+  evidence?: Array<{
+    kind: 'measure' | 'audit' | 'engagement' | 'vendor-doc';
+    ref: string;
+  }>;
   title: string;
   summary: string;
   suggested_change?: string;
@@ -208,6 +216,8 @@ export interface KbCandidate {
     engagement: string;
     decision_id?: string;
     subject_id?: string;
+    author?: string;
+    production_mode?: 'human-authored' | 'llm-proposed-human-approved' | 'llm-derived';
   };
   target_asset_ref?: string;
   accepted_violation_justification?: string;
@@ -1417,8 +1427,14 @@ export interface DraftCheckClauseInput {
 
 export interface DraftCheckClause {
   kind: 'requires' | 'forbids';
-  when: CheckClauseMatcher;
-  expect?: CheckClauseMatcher | null;
+  when: {
+    terms_any: string[];
+    terms_all?: string[];
+  };
+  expect?: {
+    terms_any: string[];
+    terms_all?: string[];
+  } | null;
   message: string;
   provenance: 'llm-derived';
 }

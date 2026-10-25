@@ -1,6 +1,6 @@
-import { json } from '@sveltejs/kit';
+import { json, type RequestHandler } from '@sveltejs/kit';
 import { llmopsClient } from '$lib/server/llmops/client';
-import type { RequestHandler } from './$types';
+
 
 const HTTP = { forbidden: 403, invalid: 400, not_found: 404, unavailable: 503, error: 502 } as const;
 
@@ -49,7 +49,13 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 		}
 	}
 
-	const assetId = params.assetId;
+	const assetId = params.assetId || body.asset_id;
+	if (!assetId) {
+		return json(
+			{ status: 'error', error: "L'identifiant du contrôle (assetId) est requis" },
+			{ status: 400 }
+		);
+	}
 	const result = await llmopsClient.submitDraftClause(
 		assetId,
 		{

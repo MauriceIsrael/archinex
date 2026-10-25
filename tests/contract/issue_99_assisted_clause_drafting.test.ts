@@ -94,7 +94,7 @@ describe('Issue #99 — Rédaction assistée d’une clause pour les contrôles 
 			const draft = generateFallbackClause(backupControl);
 			expect(draft.kind).toBe('requires');
 			expect(draft.when.terms_any.some((t) => t.includes('sauvegarde') || t.includes('backup'))).toBe(true);
-			expect(draft.expect?.terms_any.some((t) => t.includes('hors-site') || t.includes('off-site'))).toBe(true);
+			expect(draft.expect?.terms_any?.some((t) => t.includes('hors-site') || t.includes('off-site'))).toBe(true);
 			expect(draft.provenance).toBe('llm-derived');
 		});
 	});

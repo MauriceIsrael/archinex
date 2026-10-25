@@ -8,17 +8,19 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
-### Référentiels réglementaires : visibilité et accessibilité des lots d'ingestion en attente sur `/kb/frameworks`
+### Référentiels réglementaires : visibilité, masquage des ingestions abandonnées et liens directs (/kb/frameworks)
 - Lorsqu'aucun référentiel de conformité n'est encore recensé dans le snapshot actif (`GET /api/compliance/frameworks` vide), la section supérieure de `/kb/frameworks` affiche désormais des liens directs cliquables vers les lots d'ingestion disponibles (ex: `/kb/frameworks/{id}`).
-- La section inférieure « Historique des Ingestions » (bloc `<details>`) s'ouvre désormais automatiquement par défaut lorsqu'aucun référentiel n'est présent dans le snapshot actif et que des ingestions sont recensées, évitant que les boutons « Examiner » ne soient masqués à l'utilisateur.
-- Tests : `tests/contract/issue_90_frameworks_knowledge.test.ts` (vérification du rendu des liens directs vers les ingestions en attente).
+- **Masquage des ingestions abandonnées** : les lots d'ingestion ayant le statut `abandoned` ne sont plus comptabilisés ni listés dans l'encart d'alerte supérieur (« X lots d'ingestion disponibles en revue ») ni dans la vue par défaut de l'historique (`statusFilter === 'all'`).
+- Un onglet dédié « Abandonnées » permet d'accéder spécifiquement aux ingestions archivées, tandis que l'onglet par défaut liste « Toutes les actives ».
+- L'accordéon inférieur « Historique des Ingestions » ne s'ouvre automatiquement par défaut que s'il existe des ingestions actives non abandonnées.
+- Sur la page de détail d'un lot d'ingestion (`/kb/frameworks/[id]`), lorsqu'une ingestion est abandonnée : affichage d'un bandeau explicite d'avertissement et du badge « Abandonnée » rappelant le motif d'abandon et l'auteur, désactivation des boutons de publication (`applyIngestion`) et de déclaration d'opposabilité (`triggerCoverageDeclaration`), et masquage du chargement de propositions JSON.
+- Tests : `tests/contract/issue_90_frameworks_knowledge.test.ts` (vérification de l'exclusion des ingestions abandonnées dans l'état vide et la vue par défaut, affichage sur filtre `abandoned`, et bandeau/actions désactivées sur l'écran de détail).
 
 ### Tableau de bord : correction du lien d'action vers la validation des clauses KB et redirection de courtoisie
 - Le bouton « Valider & publier les clauses » du composant `KbClausesHealthBanner` pointait vers `/knowledge/clauses`, ce qui déclenchait la route de détail d'actif `/knowledge/[id]` avec `id = "clauses"` et provoquait une erreur `404 Actif "clauses" introuvable`.
 - Le lien de la bannière pointe désormais directement vers la route canonique de gestion des clauses `/kb/clauses`.
 - Ajout d'une redirection de courtoisie HTTP 307 dans `src/routes/knowledge/[id]/+page.server.ts` pour rediriger automatiquement toute requête vers `/knowledge/clauses` vers `/kb/clauses`, évitant ainsi l'erreur 404 en cas d'accès direct ou via un ancien signet.
 - Tests : vérification du lien `/kb/clauses` rendu par `KbClausesHealthBanner` dans `tests/contract/kb-clauses-health-alert.test.ts` et de la redirection 307 dans `tests/contract/issue_95_knowledge_explorer.test.ts`.
-
 ### Posture 3 (Rendu & Homologation) : les schémas et le fragment de HLD se lisent comme un brouillon de tableau blanc
 - **C4** : le Structurizr DSL produit est accepté par le CLI officiel (2025.11.09). Avant : `enterprise` (retiré du langage), containers homonymes, relation parent → enfant. Une vue `container` s'ajoute à la vue de contexte (qui ne montre pas les containers) ; les liens causaux `basedOn` deviennent des relations « fonde » ; plus de personne inventée à partir des participants (`src/lib/domain/structurizrDsl.ts`).
 - **Solidité visible** : chaque énoncé dessiné (Mermaid, C4, SysML, JSON) porte vérifié / conçu non vérifié / hypothèse / en revue / contesté / en conflit / confiance non renseignée, en libellé et en couleur (`src/lib/domain/epistemicBadge.ts`). Énoncés remplacés ou retirés non dessinés, leur nombre dit ; deux valeurs actives différentes pour un prédicat = conflit, plus de « dernière valeur lue » dans le JSON. Fin du « Verified Architecture » sur chaque élément C4 et du `confidence: 'verified'` codé en dur dans l'export scellé.

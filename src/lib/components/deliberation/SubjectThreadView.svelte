@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { page } from '$app/state';
 	import { deliberationStore } from '$lib/stores/deliberationStore.svelte';
 	import type { Argument, ArgumentResolution, Stance } from '$lib/domain/debate';
 	import {
@@ -63,7 +64,6 @@
 		subjectId = '',
 		projectId = '',
 		userRole = 'lead_architect',
-		sessionUser = null,
 		isHumanUser = true,
 		isDossierOpen = false,
 		onToggleDossier = () => {},
@@ -72,7 +72,6 @@
 		subjectId: string;
 		projectId: string;
 		userRole?: string;
-		sessionUser?: { id: string; email: string; role?: string } | null;
 		isHumanUser?: boolean;
 		isDossierOpen?: boolean;
 		onToggleDossier?: () => void;
@@ -1122,8 +1121,8 @@
 				{subjectId}
 				decision={subjectDecision}
 				options={subjectOptions}
-				sessionUser={sessionUser
-					? { id: sessionUser.id, email: sessionUser.email, role: sessionUser.role || userRole }
+				sessionUser={page.data?.session?.user
+					? { id: page.data.session.user.id, email: page.data.session.user.email, role: userRole }
 					: { id: 'anonymous', email: '', role: userRole }}
 				isHubCutover={effectiveReport?.sourceOfRecord === 'hub'}
 				onAffirmed={async () => {

@@ -542,10 +542,24 @@ export function getMilestoneContextualActions(level: MaturityLevel): MilestoneCo
 					kind: 'workspace',
 					targetTab: 'matrix',
 					criterionActionType: 'hub_affirmation'
+				},
+				{
+					id: 'l3_prepare_kb',
+					label: '📦 Candidats KB (G4)',
+					description: 'Préparer les candidats de capitalisation doctrinale vers LLMOps',
+					kind: 'workspace',
+					targetTab: 'matrix'
 				}
 			];
 		case 'L4_specified':
 			return [
+				{
+					id: 'l4_prepare_kb',
+					label: '📦 Préparer les candidats KB (G4)',
+					description: 'Capitaliser la décision vers le Knowledge Hub LLMOps (Porte G4)',
+					kind: 'workspace',
+					targetTab: 'matrix'
+				},
 				{
 					id: 'l4_affirm_k16',
 					label: '✍️ Affirmer la décision & Faits K18',

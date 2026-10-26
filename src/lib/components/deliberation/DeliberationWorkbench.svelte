@@ -16,6 +16,7 @@
 
 	type MobileWorkbenchTab = 'list' | 'workspace';
 	let mobileTab = $state<MobileWorkbenchTab>('workspace');
+	let isSidebarCollapsed = $state(false);
 
 	const activeSubjectId = $derived(deliberationStore.activeSubjectId);
 	const projectId = $derived(deliberationStore.activeEngagement?.id || '');
@@ -23,6 +24,10 @@
 	function handleSelectSubject(id: string) {
 		deliberationStore.selectSubject(id);
 		mobileTab = 'workspace';
+	}
+
+	function toggleSidebar() {
+		isSidebarCollapsed = !isSidebarCollapsed;
 	}
 </script>
 
@@ -92,24 +97,30 @@
 	<!-- 2. VUE DESKTOP (>= lg) : 2 COLONNES (ARBRE DES SUJETS + ESPACE UNIFIÉ)     -->
 	<!-- ═════════════════════════════════════════════════════════════════════════ -->
 	<div class="hidden lg:grid grid-cols-12 gap-4 h-[calc(100vh-120px)] min-h-[700px] items-stretch">
-		<!-- Colonne 1 (Gauche) : Arbre / Liste des sujets (3 cols) -->
-		<div class="col-span-4 xl:col-span-3 h-full overflow-hidden">
-			<SubjectConversationList
-				selectedSubjectId={activeSubjectId}
-				{sessionRole}
-				onSelectSubject={handleSelectSubject}
-				{onBackToBoard}
-			/>
-		</div>
+		<!-- Colonne 1 (Gauche) : Arbre / Liste des sujets (3-4 cols ou repliée) -->
+		{#if !isSidebarCollapsed}
+			<div class="col-span-4 xl:col-span-3 h-full overflow-hidden transition-all duration-200">
+				<SubjectConversationList
+					selectedSubjectId={activeSubjectId}
+					{sessionRole}
+					isCollapsible={true}
+					onToggleCollapse={toggleSidebar}
+					onSelectSubject={handleSelectSubject}
+					{onBackToBoard}
+				/>
+			</div>
+		{/if}
 
-		<!-- Colonne 2 (Droite unifiée) : Timeline de maturation + Volets unifiés sans doublon (9 cols) -->
-		<div class="col-span-8 xl:col-span-9 h-full min-h-0 overflow-hidden">
+		<!-- Colonne 2 (Droite unifiée) : Timeline de maturation + Volets unifiés sans doublon (pleine largeur quand replié) -->
+		<div class="{isSidebarCollapsed ? 'col-span-12' : 'col-span-8 xl:col-span-9'} h-full min-h-0 overflow-hidden transition-all duration-200">
 			<SubjectThreadView
 				subjectId={activeSubjectId}
 				{projectId}
 				userRole={sessionRole || deliberationStore.currentRole}
 				{sessionUser}
 				isHumanUser={deliberationStore.isHuman}
+				{isSidebarCollapsed}
+				onToggleSidebar={toggleSidebar}
 				{onBackToBoard}
 			/>
 		</div>

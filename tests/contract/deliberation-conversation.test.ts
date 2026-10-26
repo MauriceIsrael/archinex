@@ -7,6 +7,7 @@ import SubjectConversationList from '$lib/components/deliberation/SubjectConvers
 import SubjectThreadView from '$lib/components/deliberation/SubjectThreadView.svelte';
 import SubjectProblemCard from '$lib/components/deliberation/SubjectProblemCard.svelte';
 import MaturityStepper from '$lib/components/deliberation/MaturityStepper.svelte';
+import CapitalizationPanel from '$lib/components/deliberation/CapitalizationPanel.svelte';
 import {
 	computeMaturityCriteria,
 	getMilestoneContextualActions
@@ -258,9 +259,11 @@ describe('A24 — Délibération : Un sujet = une conversation (Issue #35)', () 
 			expect(l3Actions.some((a) => a.agentRole === 'challenger')).toBe(true);
 			expect(l3Actions.some((a) => a.agentRole === 'synthesizer')).toBe(true);
 			expect(l3Actions.some((a) => a.targetTab === 'matrix')).toBe(true);
+			expect(l3Actions.some((a) => a.id === 'l3_prepare_kb')).toBe(true);
 
 			const l4Actions = getMilestoneContextualActions('L4_specified');
 			expect(l4Actions.some((a) => a.targetTab === 'cascade')).toBe(true);
+			expect(l4Actions.some((a) => a.id === 'l4_prepare_kb')).toBe(true);
 		});
 
 		it('MaturityStepper affiche la timeline horizontale L0-L5 ouverte sur le prochain jalon avec critères et actions contextualisées', () => {
@@ -333,6 +336,47 @@ describe('A24 — Délibération : Un sujet = une conversation (Issue #35)', () 
 			expect(html).toContain('data-testid="tab-unified-kb"');
 			expect(html).toContain('data-testid="tab-unified-cascade"');
 			expect(html).toContain('data-testid="btn-toggle-split"');
+		});
+
+		it('SubjectConversationList et SubjectThreadView permettent de replier et redéplier la liste des sujets', () => {
+			const listHtml = render(SubjectConversationList, {
+				props: {
+					selectedSubjectId: deliberationStore.subjects[0]?.id || '',
+					sessionRole: 'lead_architect',
+					isCollapsible: true
+				}
+			}).html;
+			expect(listHtml).toContain('data-testid="collapse-subject-list-btn"');
+
+			const threadCollapsedHtml = render(SubjectThreadView, {
+				props: {
+					subjectId: deliberationStore.subjects[0]?.id || '',
+					projectId: deliberationStore.activeEngagement.id,
+					userRole: 'lead_architect',
+					isHumanUser: true,
+					isSidebarCollapsed: true
+				}
+			}).html;
+			expect(threadCollapsedHtml).toContain('data-testid="expand-subject-list-btn"');
+		});
+
+		it('CapitalizationPanel propose un bouton CTA très visible pour préparer les candidats KB', () => {
+			const targetSubject = deliberationStore.subjects[0];
+			const { html } = render(CapitalizationPanel, {
+				props: {
+					projectId: deliberationStore.activeEngagement.id,
+					subjectId: targetSubject?.id || 'sub_1',
+					decision: {
+						id: 'dec_1',
+						retainedOptionId: 'opt-1',
+						rationale: 'Validation architecture',
+						reversibility: 'reversible'
+					} as any,
+					options: [{ id: 'opt-1', title: 'Option 1' }] as any
+				}
+			});
+			expect(html).toContain('data-testid="prepare-kb-candidates-cta"');
+			expect(html).toContain('Préparer les Candidats KB maintenant');
 		});
 	});
 });

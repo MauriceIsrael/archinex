@@ -8,12 +8,19 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
-### Ergonomie de la Délibération : Espace Sujet Unifié, Timeline Horizontale Contextualisée et Cadrage Compact
-- **Fusion du panneau principal et du Dossier du sujet (`DeliberationWorkbench.svelte`, `SubjectThreadView.svelte`)** : suppression de la 3e colonne redondante au profit d’un **Espace Sujet Unifié** (9 colonnes à droite de l’arbre des sujets) structuré autour d’un en-tête unique, de la timeline horizontale de maturation en haut et de 4 volets complémentaires sans doublon (`💬 Délibération & Cadrage`, `⚖️ Options, Matrice & Arbitrage`, `📚 Doctrines, RFP & Brouillon`, `🌿 Cascade & Règles`).
-- **Mode Split optionnel sur grand écran (`btn-toggle-split`)** : bascule permettant d’afficher côte à côte le fil contradictoire à gauche et le volet d’analyse actif (Matrice, Doctrines ou Cascade) à droite, sous la timeline commune.
-- **Timeline horizontale de maturation (`L0 → L5`) avec critères et actions contextualisées (`MaturityStepper.svelte`, `getMilestoneContextualActions`)** : affichage permanent en haut des critères du prochain jalon à franchir sous forme de grille horizontale compacte, cliquable sur n’importe quel jalon `L0` à `L5`, accompagné d’une barre d’actions humaines et d’agents IA (`@proposer`, `@verifier`, `@challenger`, `@synthesizer`) directement contextualisées au jalon inspecté.
+### Ergonomie de la Délibération : Espace Sujet Unifié, Vue Split par Défaut, Liste Repliable et Capitalisation G4 Contextualisée
+- **Fusion du panneau principal et du Dossier du sujet (`DeliberationWorkbench.svelte`, `SubjectThreadView.svelte`)** : suppression de la 3e colonne redondante au profit d’un **Espace Sujet Unifié** (9 à 12 colonnes) structuré autour d’un en-tête unique, de la timeline horizontale de maturation en haut et de 4 volets complémentaires sans doublon (`💬 Délibération & Cadrage`, `⚖️ Options, Matrice & Arbitrage`, `📚 Doctrines, RFP & Brouillon`, `🌿 Cascade & Règles`).
+- **Repli de l'arbre des sujets (`SubjectConversationList.svelte`, `DeliberationWorkbench.svelte`)** : ajout d'un bouton `⇥ Replier` masquant la colonne des sujets pour donner 100% de la largeur de l'écran (12 colonnes) au workbench, et bouton `📂 Sujets` dans l'en-tête du fil pour la redéplier à la demande.
+- **Mode Split par défaut sur grand écran (`btn-toggle-split`)** : affichage côte à côte par défaut sur écrans larges du fil de discussion à gauche et de la matrice / analyse à droite, avec possibilité de basculer en pleine largeur.
+- **Contextualisation selon le niveau de maturité et intégration Porte G4 (`CapitalizationPanel.svelte`, `SubjectThreadView.svelte`)** :
+  - Masquage des formulaires d'arbitrage inaccessibles en phase `L0/L1` au profit d'un guide pédagogique d'exploration.
+  - Activation de l'affirmation collégiale `K16`, des faits `K18` et de la capitalisation Porte G4 à partir du niveau `L3+`.
+  - Bouton d'action proéminent « ✨ Préparer les Candidats KB maintenant » dans le panneau de capitalisation et raccourci direct dans le bandeau de décision du fil.
+  - Actions contextualisées `📦 Préparer les candidats KB (G4)` ajoutées aux jalons `L3` et `L4` dans la timeline (`getMilestoneContextualActions`).
+- **Suppression des duplications (`TelegraphicDraftView.svelte`)** : élimination des onglets imbriqués redondants en mode lecture seule pour afficher directement la synthèse des 5 colonnes.
+- **Timeline horizontale de maturation (`L0 → L5`) avec critères et actions contextualisées (`MaturityStepper.svelte`)** : grille compacte des critères du jalon inspecté avec boutons d'actions humaines et agents IA.
 - **Bandeau de Cadrage compact sur 2 lignes (`SubjectProblemCard.svelte`)** : synthèse en 2 lignes (Question centrale éditable in-place + pastilles Hypothèse, Dilemme, Exigences RFP, Questions métier et raccourci vers la Matrice), dépliable à la demande, sans dupliquer les cartes d’options dans le fil.
-- Tests : `tests/contract/deliberation-conversation.test.ts`.
+- Tests : `tests/contract/deliberation-conversation.test.ts` (15 tests de contrat).
 
 ### Capitalisation (Porte G4) : généralisation des décisions projet et conformité du contrat `POST /api/knowledge/candidates` vers LLMOps
 - **Généralisation explicite en Porte G4** (`prepareSubjectKbCandidates` / `submitSubjectKbCandidates`) : une décision d'arbitrage initialement qualifiée `project_specific` par construction en Porte G3 peut désormais être anonymisée et généralisée par l'architecte en Porte G4 (`portability: 'reusable_architecture_doctrine'`, `harvestable: true`) afin d'être moissonnée par LLMOps et réutilisée comme doctrine à la délibération suivante.

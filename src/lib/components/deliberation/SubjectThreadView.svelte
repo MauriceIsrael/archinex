@@ -27,6 +27,7 @@
 	import SplitSubjectDialog from './SplitSubjectDialog.svelte';
 	import OptionsMatrix from './OptionsMatrix.svelte';
 	import TelegraphicDraftView from './TelegraphicDraftView.svelte';
+	import CapitalizationPanel from './CapitalizationPanel.svelte';
 	import ProjectRulesPanel from './ProjectRulesPanel.svelte';
 	import KnowledgeTreeChart from '$lib/components/knowledge/KnowledgeTreeChart.svelte';
 	import type { CascadeResult } from '$lib/domain/cascade';
@@ -57,7 +58,10 @@
 		Columns2,
 		Maximize2,
 		ExternalLink,
-		FileText
+		FileText,
+		PanelLeftOpen,
+		Database,
+		CheckCircle2
 	} from 'lucide-svelte';
 
 	let {
@@ -66,6 +70,8 @@
 		userRole = 'lead_architect',
 		sessionUser = null,
 		isHumanUser = true,
+		isSidebarCollapsed = false,
+		onToggleSidebar = () => {},
 		isDossierOpen = false,
 		onToggleDossier = () => {},
 		onBackToBoard = () => {}
@@ -75,6 +81,8 @@
 		userRole?: string;
 		sessionUser?: { id: string; email: string; role?: string } | null;
 		isHumanUser?: boolean;
+		isSidebarCollapsed?: boolean;
+		onToggleSidebar?: () => void;
 		isDossierOpen?: boolean;
 		onToggleDossier?: () => void;
 		onBackToBoard?: () => void;
@@ -604,7 +612,14 @@
 		}
 		if (act.targetTab) {
 			activeWorkspaceTab = act.targetTab;
-			if (act.targetTab === 'matrix') void refreshMatrixData();
+			if (act.targetTab === 'matrix') {
+				void refreshMatrixData();
+				if (act.id === 'l3_prepare_kb' || act.id === 'l4_prepare_kb') {
+					setTimeout(() => {
+						document.getElementById('capitalization-section')?.scrollIntoView({ behavior: 'smooth' });
+					}, 80);
+				}
+			}
 			if (act.targetTab === 'cascade') void refreshTreeData();
 		}
 		if (act.criterionActionType) {
@@ -981,16 +996,35 @@
 						</div>
 					</div>
 
-					<button
-						type="button"
-						onclick={() => {
-							activeWorkspaceTab = 'matrix';
-							void refreshMatrixData();
-						}}
-						class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-emerald-500/35 bg-background text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/15 text-xs font-semibold transition-colors cursor-pointer shrink-0 shadow-2xs"
-					>
-						<span>Matrice, Arbitrage & Faits K18 →</span>
-					</button>
+					<div class="flex items-center gap-2 shrink-0">
+						<button
+							type="button"
+							data-testid="thread-banner-kb-candidates-btn"
+							onclick={() => {
+								activeWorkspaceTab = 'matrix';
+								void refreshMatrixData();
+								setTimeout(() => {
+									document.getElementById('capitalization-section')?.scrollIntoView({ behavior: 'smooth' });
+								}, 80);
+							}}
+							class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold transition-colors cursor-pointer shadow-2xs"
+							title="Préparer et transmettre les candidats de capitalisation à LLMOps (Porte G4)"
+						>
+							<Database class="h-3.5 w-3.5" />
+							<span>Candidats KB (G4)</span>
+						</button>
+
+						<button
+							type="button"
+							onclick={() => {
+								activeWorkspaceTab = 'matrix';
+								void refreshMatrixData();
+							}}
+							class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-emerald-500/35 bg-background text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/15 text-xs font-semibold transition-colors cursor-pointer shadow-2xs"
+						>
+							<span>Matrice & Faits K18 →</span>
+						</button>
+					</div>
 				</div>
 			{/if}
 
@@ -1324,6 +1358,22 @@
 					</span>
 				{/if}
 			</button>
+
+			{#if isSidebarCollapsed}
+				<button
+					type="button"
+					data-testid="expand-subject-list-btn"
+					onclick={onToggleSidebar}
+					class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border bg-card hover:bg-muted text-xs font-semibold text-foreground transition-colors cursor-pointer shadow-2xs"
+					title="Déplier la liste des sujets"
+				>
+					<PanelLeftOpen class="h-3.5 w-3.5 text-primary" />
+					<span class="hidden sm:inline">Sujets</span>
+					<span class="text-[10px] font-mono px-1 rounded bg-primary/10 text-primary font-bold">
+						{deliberationStore.sortedSubjects.length}
+					</span>
+				</button>
+			{/if}
 
 			<div>
 				<div class="flex items-center gap-2 flex-wrap">

@@ -18,6 +18,8 @@ export interface LocalLlmConfig {
 	anthropicApiKey?: string;
 	provider?: 'local' | 'anthropic' | 'auto';
 	anthropicModel?: string;
+	/** Chemin explicite vers un fichier .env (ou false pour désactiver la lecture disque). */
+	envFilePath?: string | false;
 }
 
 export type KnowledgeAlignment = 'standard_established' | 'conflict_detected' | 'novel_requirement';

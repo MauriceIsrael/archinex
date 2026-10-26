@@ -1,5 +1,8 @@
+import fs from 'node:fs';
+import os from 'node:os';
+import path from 'node:path';
 import { describe, it, expect, vi } from 'vitest';
-import { LocalLlmClient, localLlmClient } from '../../src/lib/server/llm/localLlmClient';
+import { LocalLlmClient, localLlmClient, parseDotEnvFile } from '../../src/lib/server/llm/localLlmClient';
 import {
 	buildSystemPrompt,
 	buildUserMessage,
@@ -928,6 +931,79 @@ describe('Local LLM Souverain & Factorisation de RFP', () => {
 			expect(result.coverageRate).toBe(100);
 
 			chatSpy.mockRestore();
+		});
+
+		it('charge ANTHROPIC_API_KEY et LLM_LOCAL_ENDPOINT depuis un fichier .env quand process.env nest pas hydraté (vite dev)', () => {
+			const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'archinex-dotenv-test-'));
+			const tmpEnv = path.join(tmpDir, '.env');
+			fs.writeFileSync(
+				tmpEnv,
+				[
+					'# Configuration souveraine et cloud',
+					'LLM_LOCAL_ENDPOINT="http://raptor-nino:11434"',
+					'LLM_LOCAL_MODEL="ministral:latest"',
+					'ANTHROPIC_API_KEY="sk-ant-dotenv-test-key"',
+					'ANTHROPIC_MODEL="claude-sonnet-5-5"',
+					'LLM_PROVIDER="auto"'
+				].join('\n'),
+				'utf-8'
+			);
+
+			const savedKey = process.env.ANTHROPIC_API_KEY;
+			const savedModel = process.env.ANTHROPIC_MODEL;
+			const savedProvider = process.env.LLM_PROVIDER;
+			const savedEndpoint = process.env.LLM_LOCAL_ENDPOINT;
+			delete process.env.ANTHROPIC_API_KEY;
+			delete process.env.ANTHROPIC_MODEL;
+			delete process.env.LLM_PROVIDER;
+			delete process.env.LLM_LOCAL_ENDPOINT;
+
+			try {
+				const parsed = parseDotEnvFile(tmpEnv);
+				expect(parsed.ANTHROPIC_API_KEY).toBe('sk-ant-dotenv-test-key');
+				expect(parsed.LLM_LOCAL_ENDPOINT).toBe('http://raptor-nino:11434');
+
+				const envClient = new LocalLlmClient({ envFilePath: tmpEnv });
+				expect(envClient.hasAnthropicConfigured()).toBe(true);
+				expect(envClient.getDefaultModel()).toBe('claude-sonnet-5-5');
+				expect(envClient.getProvider()).toBe('auto');
+			} finally {
+				if (savedKey !== undefined) process.env.ANTHROPIC_API_KEY = savedKey;
+				if (savedModel !== undefined) process.env.ANTHROPIC_MODEL = savedModel;
+				if (savedProvider !== undefined) process.env.LLM_PROVIDER = savedProvider;
+				if (savedEndpoint !== undefined) process.env.LLM_LOCAL_ENDPOINT = savedEndpoint;
+				fs.rmSync(tmpDir, { recursive: true, force: true });
+			}
+		});
+
+		it('n envoie jamais model="" à Ollama (/api/chat) et lève une erreur explicite si aucun modèle n est configuré ni détecté', async () => {
+			const unconfiguredClient = new LocalLlmClient({
+				endpoint: 'http://localhost:11434',
+				provider: 'local',
+				defaultModel: '',
+				envFilePath: false
+			});
+
+			const calledUrls: string[] = [];
+			const spyFetch = vi.spyOn(globalThis, 'fetch').mockImplementation(async (input) => {
+				const url = String(input);
+				calledUrls.push(url);
+				return new Response(JSON.stringify({ models: [] }), {
+					status: 200,
+					headers: { 'Content-Type': 'application/json' }
+				});
+			});
+
+			try {
+				await expect(
+					unconfiguredClient.chat({
+						messages: [{ role: 'user', content: 'Test sans modèle' }]
+					})
+				).rejects.toThrow(/Aucun modèle LLM configuré ni détecté/);
+				expect(calledUrls.some((u) => u.endsWith('/api/chat'))).toBe(false);
+			} finally {
+				spyFetch.mockRestore();
+			}
 		});
 	});
 });

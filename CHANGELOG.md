@@ -8,6 +8,11 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Client LLM (`LocalLlmClient`) : chargement automatique de `.env` sous `vite dev` et garde contre les requêtes Ollama sans modèle
+- **Hydratation de `process.env` via `loadEnv` dans `vite.config.ts` et lecture de secours `.env` dans `LocalLlmClient` (`parseDotEnvFile`)** : sous `npm run dev` (`vite dev`), les variables non préfixées par `VITE_` (`ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`, `LLM_PROVIDER`, `LLM_LOCAL_ENDPOINT`, `LLM_LOCAL_MODEL`) n'étaient pas injectées dans `process.env`, ce qui faisait basculer `localLlmClient` sur `http://localhost:11434` avec un modèle vide `""` (`HTTP 400 {"error":"model is required"}`). Le client résout désormais les variables d'environnement depuis `process.env` avec repli automatique sur `.env`.
+- **Auto-découverte ou erreur explicite sur `chatLocal` sans modèle** : lorsqu'un appel local est tenté sans identifiant de modèle, `chatLocal` interroge d'abord `/api/tags` pour sélectionner un modèle local disponible et lève une erreur explicite (`Aucun modèle LLM configuré ni détecté`) au lieu d'envoyer `{"model": ""}` à Ollama.
+- Tests : `tests/contract/local-llm-factorizer.test.ts` (chargement depuis un fichier `.env` temporaire et rejet explicite sans appel `/api/chat` lorsque `model` est vide).
+
 ### Capitalisation (Porte G4) : généralisation des décisions projet et conformité du contrat `POST /api/knowledge/candidates` vers LLMOps
 - **Généralisation explicite en Porte G4** (`prepareSubjectKbCandidates` / `submitSubjectKbCandidates`) : une décision d'arbitrage initialement qualifiée `project_specific` par construction en Porte G3 peut désormais être anonymisée et généralisée par l'architecte en Porte G4 (`portability: 'reusable_architecture_doctrine'`, `harvestable: true`) afin d'être moissonnée par LLMOps et réutilisée comme doctrine à la délibération suivante.
 - **Filtrage des métadonnées d'arbitrage** (`buildKbCandidates`, `prepareSubjectKbCandidates`, `submitSubjectKbCandidates`) : exclusion systématique des marqueurs techniques `COMPLIANCE_STATUS:*` et `PORTABILITY:*` stockés dans `acceptedViolations`, qui généraient auparavant de faux candidats `amendment` rejetés en `400 Bad Request` par LLMOps.

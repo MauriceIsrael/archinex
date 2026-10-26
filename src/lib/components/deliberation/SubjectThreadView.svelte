@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { page } from '$app/state';
+
 	import { deliberationStore } from '$lib/stores/deliberationStore.svelte';
 	import type { Argument, ArgumentResolution, Stance } from '$lib/domain/debate';
 	import {
@@ -64,6 +64,7 @@
 		subjectId = '',
 		projectId = '',
 		userRole = 'lead_architect',
+		sessionUser = null,
 		isHumanUser = true,
 		isDossierOpen = false,
 		onToggleDossier = () => {},
@@ -72,6 +73,7 @@
 		subjectId: string;
 		projectId: string;
 		userRole?: string;
+		sessionUser?: { id: string; email: string; role?: string } | null;
 		isHumanUser?: boolean;
 		isDossierOpen?: boolean;
 		onToggleDossier?: () => void;
@@ -81,7 +83,7 @@
 	// ─── État de navigation unifié (Onglets pleine largeur + Mode Split optionnel) ───
 	type UnifiedWorkspaceTab = 'thread' | 'matrix' | 'kb' | 'cascade';
 	let activeWorkspaceTab = $state<UnifiedWorkspaceTab>('thread');
-	let isSplitView = $state(false);
+	let isSplitView = $state(true);
 	// En mode Split, la colonne de gauche affiche le fil ('thread') et la colonne de droite affiche l'un des 3 volets d'analyse :
 	let splitRightTab = $derived<Exclude<UnifiedWorkspaceTab, 'thread'>>(
 		activeWorkspaceTab === 'thread' ? 'matrix' : activeWorkspaceTab
@@ -959,7 +961,7 @@
 
 			<!-- Bannière synthétique de décision actée (renvoie vers le volet Matrice & Arbitrage) -->
 			{#if subjectDecision}
-				{@const retainedOpt = subjectOptions.find((o) => o.id === subjectDecision.retainedOptionId)}
+				{@const retainedOpt = subjectOptions.find((o) => o.id === subjectDecision?.retainedOptionId)}
 				<div class="rounded-xl border-2 border-emerald-500/40 bg-gradient-to-r from-emerald-500/15 via-emerald-500/5 to-card p-3 flex items-center justify-between gap-3 shadow-2xs">
 					<div class="flex items-center gap-2.5">
 						<div class="p-2 rounded-lg bg-emerald-500/20 text-emerald-700 dark:text-emerald-300">
@@ -1121,8 +1123,8 @@
 				{subjectId}
 				decision={subjectDecision}
 				options={subjectOptions}
-				sessionUser={page.data?.session?.user
-					? { id: page.data.session.user.id, email: page.data.session.user.email, role: userRole }
+				sessionUser={sessionUser
+					? { id: sessionUser.id, email: sessionUser.email, role: sessionUser.role || userRole }
 					: { id: 'anonymous', email: '', role: userRole }}
 				isHubCutover={effectiveReport?.sourceOfRecord === 'hub'}
 				onAffirmed={async () => {

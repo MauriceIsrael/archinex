@@ -423,3 +423,163 @@ export function computeMaturityCriteria(input: MaturityCriteriaInput): MaturityT
 		relanceMessage
 	};
 }
+
+
+export interface MilestoneContextualAction {
+	id: string;
+	label: string;
+	description: string;
+	kind: 'human' | 'agent' | 'workspace';
+	agentRole?: 'challenger' | 'proposer' | 'verifier' | 'synthesizer';
+	targetTab?: 'thread' | 'matrix' | 'kb' | 'cascade';
+	criterionActionType?: MaturityCriterion['actionType'];
+}
+
+/**
+ * Retourne les actions d'assistance (humaines, agents IA et navigation d'atelier)
+ * contextualisées au jalon de maturité sélectionné dans la timeline horizontale.
+ */
+export function getMilestoneContextualActions(level: MaturityLevel): MilestoneContextualAction[] {
+	switch (level) {
+		case 'L0_named':
+			return [
+				{
+					id: 'l0_edit_problem',
+					label: '✏️ Formuler le problème',
+					description: 'Renseigner la question centrale d’architecture du sujet',
+					kind: 'human',
+					targetTab: 'thread',
+					criterionActionType: 'edit_problem'
+				},
+				{
+					id: 'l0_open_kb',
+					label: '📚 Explorer Doctrines & RFP',
+					description: 'Consulter les clauses clientes et les règles doctrinales applicables',
+					kind: 'workspace',
+					targetTab: 'kb'
+				}
+			];
+		case 'L1_framed':
+			return [
+				{
+					id: 'l1_edit_problem',
+					label: '✏️ Reformuler la question',
+					description: 'Affiner l’énoncé du problème et l’hypothèse de cadrage',
+					kind: 'human',
+					targetTab: 'thread',
+					criterionActionType: 'edit_problem'
+				},
+				{
+					id: 'l1_attach_doctrine',
+					label: '📌 Rattacher règle #base',
+					description: 'Lier une contrainte doctrinale ou exigence au sujet',
+					kind: 'human',
+					targetTab: 'thread',
+					criterionActionType: 'add_doctrine_ref'
+				},
+				{
+					id: 'l1_open_kb',
+					label: '📚 Voir Doctrines & Brouillon',
+					description: 'Ouvrir le référentiel doctrinal et la synthèse télégraphique',
+					kind: 'workspace',
+					targetTab: 'kb'
+				}
+			];
+		case 'L2_decomposed':
+			return [
+				{
+					id: 'l2_proposer',
+					label: '💡 Suggérer 2 options (@proposer)',
+					description: 'Demander à l’agent @proposer de formuler des alternatives contrastées',
+					kind: 'agent',
+					agentRole: 'proposer',
+					criterionActionType: 'add_option'
+				},
+				{
+					id: 'l2_define_criteria',
+					label: '⚖️ Définir Options & Critères',
+					description: 'Ouvrir la matrice multicritères pour structurer les alternatives',
+					kind: 'workspace',
+					targetTab: 'matrix',
+					criterionActionType: 'define_criteria'
+				},
+				{
+					id: 'l2_split_subject',
+					label: '✂️ Scinder en 2 sous-sujets',
+					description: 'Découper ce sujet en sous-problèmes indépendants',
+					kind: 'human',
+					criterionActionType: 'derive_subjects'
+				}
+			];
+		case 'L3_decided':
+			return [
+				{
+					id: 'l3_verifier',
+					label: '🛡️ Vérifier conformité (@verifier)',
+					description: 'Confronter les options proposées aux règles doctrinales (#base)',
+					kind: 'agent',
+					agentRole: 'verifier',
+					criterionActionType: 'run_verifier'
+				},
+				{
+					id: 'l3_challenger',
+					label: '⚔️ Challenger (@challenger)',
+					description: 'Tester la robustesse des options et soulever les objections',
+					kind: 'agent',
+					agentRole: 'challenger'
+				},
+				{
+					id: 'l3_synthesizer',
+					label: '⚖️ Synthétiser (@synthesizer)',
+					description: 'Dégager une synthèse contradictoire pour préparer l’arbitrage',
+					kind: 'agent',
+					agentRole: 'synthesizer'
+				},
+				{
+					id: 'l3_arbitrate_matrix',
+					label: '🔨 Évaluer & Trancher (Matrice L3)',
+					description: 'Noter les options et acter la décision formelle dans la matrice',
+					kind: 'workspace',
+					targetTab: 'matrix',
+					criterionActionType: 'hub_affirmation'
+				}
+			];
+		case 'L4_specified':
+			return [
+				{
+					id: 'l4_affirm_k16',
+					label: '✍️ Affirmer la décision & Faits K18',
+					description: 'Contre-signer la décision (K16) et extraire les faits d’architecture',
+					kind: 'workspace',
+					targetTab: 'matrix',
+					criterionActionType: 'hub_affirmation'
+				},
+				{
+					id: 'l4_cascade',
+					label: '🌿 Instruire la cascade & sous-sujets',
+					description: 'Gérer les questions en cascade et les sous-sujets dérivés (A28)',
+					kind: 'workspace',
+					targetTab: 'cascade',
+					criterionActionType: 'derive_subjects'
+				},
+				{
+					id: 'l4_spec',
+					label: '📋 Spécification télégraphique',
+					description: 'Consulter ou compléter le brouillon de spécification',
+					kind: 'workspace',
+					targetTab: 'kb',
+					criterionActionType: 'write_spec'
+				}
+			];
+		case 'L5_archived':
+			return [
+				{
+					id: 'l5_archive',
+					label: '🔒 Homologuer & Archiver (L5)',
+					description: 'Sceller la décision pour publication et capitalisation',
+					kind: 'human',
+					criterionActionType: 'lead_gate'
+				}
+			];
+	}
+}

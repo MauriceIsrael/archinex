@@ -1,16 +1,21 @@
 <script lang="ts">
-	import { page } from '$app/state';
 	import { deliberationStore } from '$lib/stores/deliberationStore.svelte';
 	import type { Argument, ArgumentResolution, Stance } from '$lib/domain/debate';
 	import {
+		countOpenObjections,
 		formatMaturityMilestoneSeparator,
 		formatMaturityLevel,
 		getMaturityBadgeClass,
-		canCloseObjection,
 		computeResumeSummary,
 		type ResumeSummary
 	} from '$lib/domain/debate';
-	import type { Option } from '$lib/domain/options';
+	import type {
+		Criterion,
+		Option,
+		OptionEvaluation,
+		TradeOff,
+		Decision
+	} from '$lib/domain/options';
 	import SubjectMessageBubble from './SubjectMessageBubble.svelte';
 	import PinnedObjections from './PinnedObjections.svelte';
 	import StructuredComposer from './StructuredComposer.svelte';
@@ -19,82 +24,163 @@
 	import CascadeQuestionsCard from './CascadeQuestionsCard.svelte';
 	import SubjectProblemCard from './SubjectProblemCard.svelte';
 	import SplitSubjectDialog from './SplitSubjectDialog.svelte';
+	import OptionsMatrix from './OptionsMatrix.svelte';
+	import TelegraphicDraftView from './TelegraphicDraftView.svelte';
+	import ProjectRulesPanel from './ProjectRulesPanel.svelte';
+	import KnowledgeTreeChart from '$lib/components/knowledge/KnowledgeTreeChart.svelte';
 	import type { CascadeResult } from '$lib/domain/cascade';
 	import {
 		computeMaturityCriteria,
 		type MaturityTransitionsReport,
-		type MaturityCriterion
+		type MaturityCriterion,
+		type MilestoneContextualAction
 	} from '$lib/domain/maturityCriteria';
 	import type { MaturityLevel } from '$lib/types/epistemic';
 	import {
 		Bot,
-		FolderLock,
-		Play,
 		AlertTriangle,
 		ArrowLeft,
 		Sparkles,
 		RotateCcw,
-		HelpCircle,
-		Filter,
 		ArrowDown,
 		Clock,
 		X,
-		Layers,
-		CheckCircle2,
 		ChevronDown,
-		Scissors,
 		Gavel,
-		RefreshCw
+		RefreshCw,
+		MessagesSquare,
+		Scale,
+		BookOpen,
+		GitFork,
+		ShieldAlert,
+		Columns2,
+		Maximize2,
+		ExternalLink,
+		FileText
 	} from 'lucide-svelte';
 
 	let {
 		subjectId = '',
 		projectId = '',
 		userRole = 'lead_architect',
+		sessionUser = null,
 		isHumanUser = true,
-		isDossierOpen = true,
+		isDossierOpen = false,
 		onToggleDossier = () => {},
 		onBackToBoard = () => {}
 	}: {
 		subjectId: string;
 		projectId: string;
 		userRole?: string;
+		sessionUser?: { id: string; email: string; role?: string } | null;
 		isHumanUser?: boolean;
 		isDossierOpen?: boolean;
 		onToggleDossier?: () => void;
 		onBackToBoard?: () => void;
 	} = $props();
 
+	// ─── État de navigation unifié (Onglets pleine largeur + Mode Split optionnel) ───
+	type UnifiedWorkspaceTab = 'thread' | 'matrix' | 'kb' | 'cascade';
+	let activeWorkspaceTab = $state<UnifiedWorkspaceTab>('thread');
+	let isSplitView = $state(false);
+	// En mode Split, la colonne de gauche affiche le fil ('thread') et la colonne de droite affiche l'un des 3 volets d'analyse :
+	let splitRightTab = $derived<Exclude<UnifiedWorkspaceTab, 'thread'>>(
+		activeWorkspaceTab === 'thread' ? 'matrix' : activeWorkspaceTab
+	);
+
+	// ─── État des données du sujet ──────────────────────────────────────────────────
 	let argumentsList = $state<Argument[]>([]);
 	let subjectOptions = $state<Option[]>([]);
+	let matrixCriteria = $state<Criterion[]>([]);
+	let matrixEvaluations = $state<OptionEvaluation[]>([]);
+	let matrixTradeOffs = $state<TradeOff[]>([]);
 	let allowedKbRefs = $state<string[]>([]);
 	let criteriaReport = $state<MaturityTransitionsReport | null>(null);
-	let subjectDecision = $state<any>(null);
+	let subjectDecision = $state<Decision | null>(null);
 	let cascadeResult = $state<CascadeResult | null>(null);
 	let foundationContested = $state(false);
 	let contestationReason = $state<string | undefined>(undefined);
 	let isLoadingArguments = $state(false);
+	let isLoadingMatrix = $state(false);
 	let isDebating = $state(false);
 	let invokingAgentRole = $state<string | null>(null);
 	let isAgentMenuOpen = $state(false);
 	let replyingTo = $state<Argument | null>(null);
 
-	// Navigation et modes d'affichage du fil
-	type ViewMode = 'thread' | 'synthesis';
-	let viewMode = $state<ViewMode>('thread');
+	// Doctrine & Arbre cascade (fusionnés depuis l'ancien SubjectDossierView)
+	interface DoctrineItem {
+		id: string;
+		type: string;
+		title: string;
+		status?: string;
+		confidence?: string;
+		excerpt?: string;
+		source_ref?: string;
+		relevance?: number;
+		framework?: string;
+		required?: boolean;
+		relevant?: boolean;
+		relevance_method?: string;
+	}
+	let doctrineItems = $state<DoctrineItem[]>([]);
+	let isLoadingDoctrine = $state(false);
+	let treeSeries = $state<any[]>([]);
+	let isLoadingTree = $state(false);
+
+	// Filtre de posture dans le fil
 	let postureFilter = $state<Stance | 'all'>('all');
 	let selectedComposerOptionId = $state<string>('');
 
 	// Résumé de reprise après absence
 	let dismissResumeBanner = $state(false);
-	let lastVisitedTimestamp = $state<number>(Date.now() - 90_000_000); // Ex: simulé > 24h par défaut ou stocké
+	let lastVisitedTimestamp = $state<number>(Date.now() - 90_000_000);
 
 	let isSplitDialogOpen = $state(false);
 	let isForceEditingQuestion = $state(false);
 	const activeSubject = $derived(deliberationStore.activeSubject);
 	const activeDraft = $derived(deliberationStore.activeDraft);
 
-	// Calcul d'un rapport de maturité de secours / réactif
+	// Raccourci externe vers l'arbitrage formel (ex: clic depuis un autre composant)
+	$effect(() => {
+		if (deliberationStore.pendingDecisionSubjectId) {
+			activeWorkspaceTab = 'matrix';
+			deliberationStore.pendingDecisionSubjectId = null;
+		}
+	});
+
+	// Compteurs synthétiques unifiés
+	const openObjectionsCount = $derived(countOpenObjections(argumentsList));
+	const totalObjectionsCount = $derived(
+		argumentsList.filter((a) => a.stance === 'objection').length
+	);
+	const citedKbRefs = $derived.by(() => {
+		const set = new Set<string>();
+		for (const a of argumentsList) {
+			if (a.kbRefs && Array.isArray(a.kbRefs)) {
+				for (const ref of a.kbRefs) {
+					if (ref) set.add(ref);
+				}
+			}
+		}
+		return Array.from(set);
+	});
+
+	const relevantDoctrine = $derived(
+		doctrineItems.filter((i) =>
+			typeof i.relevant === 'boolean' ? i.relevant : !i.required || (i.relevance ?? 0) > 0.1
+		)
+	);
+	const searchMethod = $derived(doctrineItems.find((i) => i.relevance_method)?.relevance_method);
+	const requiredByFramework = $derived.by(() => {
+		const groups = new Map<string, DoctrineItem[]>();
+		for (const i of doctrineItems.filter((x) => x.required && !relevantDoctrine.includes(x))) {
+			const key = i.framework || 'Référentiel';
+			groups.set(key, [...(groups.get(key) ?? []), i]);
+		}
+		return [...groups.entries()];
+	});
+
+	// Calcul réactif du rapport de maturité
 	const computedReport = $derived.by<MaturityTransitionsReport | null>(() => {
 		if (!activeSubject) return null;
 		const problem = activeDraft?.manque?.[0]?.question || activeSubject.name;
@@ -111,6 +197,7 @@
 				is_stalled: activeSubject.is_stalled,
 				stall_days: activeSubject.stall_days
 			},
+			criteria: matrixCriteria.map((c) => ({ id: c.id, name: c.name })),
 			options: subjectOptions.map((o) => ({ id: o.id, title: o.title })),
 			arguments: argumentsList,
 			doctrineConstraintsCount: doctrineCount,
@@ -140,25 +227,10 @@
 		);
 	});
 
-	// Messages filtrés selon la bascule (Fil / Synthèse) et le filtre de posture
+	// Messages filtrés selon le filtre de posture
 	const displayedArguments = $derived.by(() => {
-		let list = argumentsList;
-
-		// Mode Synthèse : Uniquement cartes de synthèse, objections ouvertes et décisions
-		if (viewMode === 'synthesis') {
-			list = list.filter(
-				(a) =>
-					a.stance === 'synthesis' ||
-					(a.stance === 'objection' && a.resolution === 'open')
-			);
-		}
-
-		// Filtre par posture
-		if (postureFilter !== 'all') {
-			list = list.filter((a) => a.stance === postureFilter);
-		}
-
-		return list;
+		if (postureFilter === 'all') return argumentsList;
+		return argumentsList.filter((a) => a.stance === postureFilter);
 	});
 
 	$effect(() => {
@@ -171,14 +243,18 @@
 		if (!projectId || !subjectId) return;
 		isLoadingArguments = true;
 		try {
-			const [argsRes, optsRes, docRes, critRes, decRes, cascadeRes] = await Promise.all([
-				fetch(`/api/projects/${projectId}/subjects/${subjectId}/arguments`),
-				fetch(`/api/projects/${projectId}/subjects/${subjectId}/options`),
-				fetch(`/api/projects/${projectId}/subjects/${subjectId}/doctrine-context`),
-				fetch(`/api/projects/${projectId}/subjects/${subjectId}/maturity-criteria`).catch(() => null),
-				fetch(`/api/projects/${projectId}/subjects/${subjectId}/decision`).catch(() => null),
-				fetch(`/api/projects/${projectId}/subjects/${subjectId}/cascade`).catch(() => null)
-			]);
+			const [argsRes, optsRes, critListRes, evalsRes, tradeRes, docRes, critRes, decRes, cascadeRes] =
+				await Promise.all([
+					fetch(`/api/projects/${projectId}/subjects/${subjectId}/arguments`),
+					fetch(`/api/projects/${projectId}/subjects/${subjectId}/options`),
+					fetch(`/api/projects/${projectId}/subjects/${subjectId}/criteria`).catch(() => null),
+					fetch(`/api/projects/${projectId}/subjects/${subjectId}/evaluations`).catch(() => null),
+					fetch(`/api/projects/${projectId}/subjects/${subjectId}/tradeoffs`).catch(() => null),
+					fetch(`/api/projects/${projectId}/subjects/${subjectId}/doctrine-context`),
+					fetch(`/api/projects/${projectId}/subjects/${subjectId}/maturity-criteria`).catch(() => null),
+					fetch(`/api/projects/${projectId}/subjects/${subjectId}/decision`).catch(() => null),
+					fetch(`/api/projects/${projectId}/subjects/${subjectId}/cascade`).catch(() => null)
+				]);
 
 			if (argsRes.ok) {
 				const data = await argsRes.json();
@@ -194,11 +270,34 @@
 				subjectOptions = [];
 			}
 
+			if (critListRes && critListRes.ok) {
+				const cData = await critListRes.json();
+				matrixCriteria = Array.isArray(cData) ? cData : (cData.criteria || []);
+			} else {
+				matrixCriteria = [];
+			}
+
+			if (evalsRes && evalsRes.ok) {
+				const eData = await evalsRes.json();
+				matrixEvaluations = Array.isArray(eData) ? eData : (eData.evaluations || []);
+			} else {
+				matrixEvaluations = [];
+			}
+
+			if (tradeRes && tradeRes.ok) {
+				const tData = await tradeRes.json();
+				matrixTradeOffs = Array.isArray(tData) ? tData : (tData.tradeOffs || []);
+			} else {
+				matrixTradeOffs = [];
+			}
+
 			if (docRes.ok) {
 				const docData = await docRes.json();
 				allowedKbRefs = docData.allowedKbRefs || [];
+				doctrineItems = docData.items || [];
 			} else {
 				allowedKbRefs = [];
+				doctrineItems = [];
 			}
 
 			if (critRes && critRes.ok) {
@@ -211,26 +310,77 @@
 				subjectDecision = decData.decision || null;
 			}
 
-			// Liste des sujets (colonne de gauche) : niveau tel que le serveur le connaît après l'action
 			void deliberationStore.refreshSubjectFromServer(subjectId, projectId);
 
 			if (cascadeRes && cascadeRes.ok) {
 				const cascData = await cascadeRes.json();
 				cascadeResult = cascData.cascade || null;
+				treeSeries = cascData.treeSeries || [];
 				foundationContested = cascData.foundationContested || false;
 				contestationReason = cascData.contestationReason;
 			}
 		} catch (err) {
-			console.warn('[Fil Sujet] Erreur chargement contexte:', err);
+			console.warn('[Espace Sujet] Erreur chargement contexte:', err);
 		} finally {
 			isLoadingArguments = false;
 		}
 	}
 
-	/**
-	 * Met à jour le sujet côté serveur avec la version courante (verrou optimiste) ; en cas de conflit,
-	 * relit la version renvoyée par le serveur et réessaie une fois.
-	 */
+	async function refreshMatrixData() {
+		if (!projectId || !subjectId) return;
+		isLoadingMatrix = true;
+		try {
+			const [cRes, oRes, eRes, tRes, dRes] = await Promise.all([
+				fetch(`/api/projects/${projectId}/subjects/${subjectId}/criteria`),
+				fetch(`/api/projects/${projectId}/subjects/${subjectId}/options`),
+				fetch(`/api/projects/${projectId}/subjects/${subjectId}/evaluations`),
+				fetch(`/api/projects/${projectId}/subjects/${subjectId}/tradeoffs`),
+				fetch(`/api/projects/${projectId}/subjects/${subjectId}/decision`)
+			]);
+			if (cRes.ok) {
+				const cData = await cRes.json();
+				matrixCriteria = Array.isArray(cData) ? cData : (cData.criteria || []);
+			}
+			if (oRes.ok) {
+				const oData = await oRes.json();
+				subjectOptions = Array.isArray(oData) ? oData : (oData.options || []);
+			}
+			if (eRes.ok) {
+				const eData = await eRes.json();
+				matrixEvaluations = Array.isArray(eData) ? eData : (eData.evaluations || []);
+			}
+			if (tRes.ok) {
+				const tData = await tRes.json();
+				matrixTradeOffs = Array.isArray(tData) ? tData : (tData.tradeOffs || []);
+			}
+			if (dRes.ok) {
+				const dData = await dRes.json();
+				subjectDecision = dData.decision || null;
+			}
+		} catch (err) {
+			console.warn('[Matrice] Erreur rafraîchissement:', err);
+		} finally {
+			isLoadingMatrix = false;
+		}
+	}
+
+	async function refreshTreeData() {
+		if (!projectId || !subjectId) return;
+		isLoadingTree = true;
+		try {
+			const res = await fetch(`/api/projects/${projectId}/subjects/${subjectId}/cascade`);
+			if (res.ok) {
+				const data = await res.json();
+				treeSeries = data.treeSeries || [];
+				cascadeResult = data.cascade || cascadeResult;
+			}
+		} catch {
+			// ignore
+		} finally {
+			isLoadingTree = false;
+		}
+	}
+
 	async function patchSubject(payload: Record<string, unknown>): Promise<Response> {
 		const url = `/api/projects/${projectId}/subjects/${subjectId}`;
 		const current = await fetch(url).then((r) => (r.ok ? r.json() : null)).catch(() => null);
@@ -249,12 +399,15 @@
 	}
 
 	async function handleTransitionMaturity(targetLevel: MaturityLevel) {
-		// La décision (L3+) passe par l'arbitrage formel du dossier, jamais par un simple changement de niveau.
-		if (targetLevel === 'L3_decided' || targetLevel === 'L4_specified' || targetLevel === 'L5_archived') {
+		if (
+			targetLevel === 'L3_decided' ||
+			targetLevel === 'L4_specified' ||
+			targetLevel === 'L5_archived'
+		) {
+			activeWorkspaceTab = 'matrix';
 			deliberationStore.requestFormalDecision(subjectId);
 			return;
 		}
-		// Toujours appliquer la transition dans le store réactif pour fluidité immédiate
 		deliberationStore.setSubjectLevel(subjectId, targetLevel);
 
 		if (!projectId || !subjectId) {
@@ -264,15 +417,13 @@
 
 		try {
 			const res = await patchSubject({ maturityLevel: targetLevel });
-
 			if (!res.ok) {
 				const err = await res.json().catch(() => ({}));
-				console.warn('[Fil Sujet] Transition backend non persistée:', err);
+				console.warn('[Espace Sujet] Transition backend non persistée:', err);
 			}
-
 			await loadArgumentsAndContext();
 			deliberationStore.logNotification(`Jalon ${targetLevel} validé avec succès !`, 'success');
-		} catch (err: any) {
+		} catch {
 			deliberationStore.logNotification(`Jalon ${targetLevel} appliqué.`, 'info');
 		}
 	}
@@ -281,17 +432,12 @@
 		if (!activeSubject) return;
 		const hyp = activeDraft?.suppose?.[0]?.text || `Hypothèse validée pour ${activeSubject.name}`;
 
-		// 1. Inscrire dans le brouillon retenu si pas déjà présent
 		if (activeDraft) {
 			if (!activeDraft.retenu.includes(hyp)) {
 				activeDraft.retenu = [hyp, ...activeDraft.retenu];
 			}
 		}
 
-		// 2. Déterminer le prochain jalon :
-		// L0_named -> L1_framed
-		// L1_framed -> L2_decomposed
-		// L2_decomposed -> L3_decided (Arbitrage formel)
 		let nextLevel: MaturityLevel = 'L1_framed';
 		if (activeSubject.level === 'L0_named') nextLevel = 'L1_framed';
 		else if (activeSubject.level === 'L1_framed') nextLevel = 'L2_decomposed';
@@ -299,12 +445,12 @@
 		else nextLevel = activeSubject.level;
 
 		if (nextLevel === 'L3_decided') {
+			activeWorkspaceTab = 'matrix';
 			deliberationStore.requestFormalDecision(activeSubject.id);
 		} else {
 			await handleTransitionMaturity(nextLevel);
 		}
 
-		// 3. Consigner l'argument dans le fil
 		try {
 			if (projectId && subjectId) {
 				const res = await fetch(`/api/projects/${projectId}/subjects/${subjectId}/arguments`, {
@@ -365,71 +511,79 @@
 	function handleCriterionAction(crit: MaturityCriterion) {
 		switch (crit.actionType) {
 			case 'resolve_objection':
+				activeWorkspaceTab = 'thread';
 				scrollToNextUnresolvedObjection();
 				break;
 			case 'run_verifier':
-				// Le seul agent vérificateur, pas un débat complet : il confronte les options à la doctrine.
-				deliberationStore.logNotification('Vérificateur sollicité : il confronte les options à la doctrine (peut prendre une minute).', 'info');
+				deliberationStore.logNotification(
+					'Vérificateur sollicité : il confronte les options à la doctrine (peut prendre une minute).',
+					'info'
+				);
 				handleInvokeAgent('verifier');
 				break;
 			case 'derive_subjects':
-				handleDecomposeSubject();
+				isSplitDialogOpen = true;
 				break;
 			case 'edit_problem': {
-				// 1. Scroller vers la carte du problème et mettre en valeur
+				activeWorkspaceTab = 'thread';
 				const cardElem = document.getElementById('subject-problem-box');
 				if (cardElem) {
 					cardElem.scrollIntoView({ behavior: 'smooth', block: 'center' });
 					cardElem.classList.add('ring-2', 'ring-primary', 'transition-all');
 					setTimeout(() => cardElem?.classList.remove('ring-2', 'ring-primary'), 2500);
 				}
-				// 2. Déclencher le mode édition in-place
 				isForceEditingQuestion = true;
 				setTimeout(() => (isForceEditingQuestion = false), 600);
 				break;
 			}
 			case 'add_doctrine_ref': {
-				// Pré-remplir le composeur avec #base pour rattacher une règle doctrinale en 1 clic
-				const composer = document.getElementById('compose-claim') as HTMLTextAreaElement | HTMLInputElement | null;
-				if (composer) {
-					composer.scrollIntoView({ behavior: 'smooth', block: 'center' });
-					if (!composer.value.includes('#base')) {
-						composer.value = '#base ' + (composer.value || '');
+				activeWorkspaceTab = 'thread';
+				setTimeout(() => {
+					const composer = document.getElementById('compose-claim') as
+						| HTMLTextAreaElement
+						| HTMLInputElement
+						| null;
+					if (composer) {
+						composer.scrollIntoView({ behavior: 'smooth', block: 'center' });
+						if (!composer.value.includes('#base')) {
+							composer.value = '#base ' + (composer.value || '');
+						}
+						composer.focus();
+						deliberationStore.logNotification(
+							'Composeur pré-rempli avec #base : mentionnez une règle pour rattacher la doctrine.',
+							'info'
+						);
+					} else {
+						deliberationStore.sendSubjectMessage(
+							`📌 Standard doctrinal rattaché : respect des contraintes d'architecture de référence (#base) sur la section ${activeSubject?.section_ref}.`
+						);
+						deliberationStore.logNotification('Contrainte doctrinale rattachée !', 'success');
 					}
-					composer.focus();
-					deliberationStore.logNotification(
-						'Composeur pré-rempli avec #base : mentionnez une règle pour rattacher la doctrine.',
-						'info'
-					);
-				} else {
-					deliberationStore.sendSubjectMessage(
-						`📌 Standard doctrinal rattaché : respect des contraintes d'architecture de référence (#base) sur la section ${activeSubject?.section_ref}.`
-					);
-					deliberationStore.logNotification('Contrainte doctrinale rattachée !', 'success');
-				}
+				}, 50);
 				break;
 			}
-			case 'add_option': {
-				// Solliciter directement l'agent @proposer pour poser 2 options
+			case 'add_option':
 				handleInvokeAgent('proposer');
 				break;
-			}
+			case 'define_criteria':
+				activeWorkspaceTab = 'matrix';
+				void refreshMatrixData();
+				break;
 			case 'edit_scope':
 			case 'write_spec':
-			case 'define_criteria':
-				if (!isDossierOpen) onToggleDossier();
+				activeWorkspaceTab = 'kb';
 				break;
 			case 'hub_affirmation':
+				activeWorkspaceTab = 'matrix';
+				void refreshMatrixData();
 				if (!subjectDecision) {
-					// Rien à valider tant que la décision n'est pas tranchée : on ouvre l'arbitrage formel.
 					deliberationStore.requestFormalDecision(subjectId);
-					break;
+				} else {
+					deliberationStore.logNotification(
+						'Consultez la carte d’affirmation K16 et les faits K18 dans le volet Options, Matrice & Arbitrage.',
+						'info'
+					);
 				}
-				viewMode = 'synthesis';
-				deliberationStore.logNotification(
-					"La décision doit être validée par un autre architecte que son auteur : il ouvre ce sujet et clique « Affirmer » sur la carte de décision.",
-					'info'
-				);
 				break;
 			case 'lead_gate':
 				deliberationStore.logNotification(
@@ -439,6 +593,28 @@
 				break;
 			default:
 				break;
+		}
+	}
+
+	function handleContextualMilestoneAction(act: MilestoneContextualAction) {
+		if (act.agentRole) {
+			void handleInvokeAgent(act.agentRole);
+			return;
+		}
+		if (act.targetTab) {
+			activeWorkspaceTab = act.targetTab;
+			if (act.targetTab === 'matrix') void refreshMatrixData();
+			if (act.targetTab === 'cascade') void refreshTreeData();
+		}
+		if (act.criterionActionType) {
+			handleCriterionAction({
+				id: act.id,
+				label: act.label,
+				description: act.description,
+				satisfied: false,
+				actionLabel: act.label,
+				actionType: act.criterionActionType
+			});
 		}
 	}
 
@@ -491,7 +667,10 @@
 			if (idx !== -1) {
 				argumentsList[idx] = updated;
 			}
-			deliberationStore.logNotification(`Statut de l'objection mis à jour : ${resolution}`, 'success');
+			deliberationStore.logNotification(
+				`Statut de l'objection mis à jour : ${resolution}`,
+				'success'
+			);
 		} catch (err: any) {
 			deliberationStore.logNotification(err.message, 'warning');
 		}
@@ -578,36 +757,43 @@
 	}
 
 	function handleSelectOptionForDiscussion(opt: any) {
+		activeWorkspaceTab = 'thread';
 		selectedComposerOptionId = opt.id;
 		const composerElem = document.getElementById('compose-claim');
 		composerElem?.focus();
-		deliberationStore.logNotification(`Option « ${opt.title} » sélectionnée pour discussion.`, 'info');
+		deliberationStore.logNotification(
+			`Option « ${opt.title} » sélectionnée pour discussion.`,
+			'info'
+		);
 	}
 
 	function handleArbitrateOption(_opt?: any) {
-		viewMode = 'synthesis';
+		activeWorkspaceTab = 'matrix';
+		void refreshMatrixData();
 	}
 
 	function handleChallengeArgument(arg: Argument) {
+		activeWorkspaceTab = 'thread';
 		replyingTo = arg;
 		const composerElem = document.getElementById('compose-claim');
 		composerElem?.focus();
-		deliberationStore.logNotification(`Réfutation ciblée sur l'argument de ${arg.author}.`, 'info');
+		deliberationStore.logNotification(
+			`Réfutation ciblée sur l'argument de ${arg.author}.`,
+			'info'
+		);
 	}
 
 	function scrollToNextUnresolvedObjection() {
-		// Chercher les éléments d'objection ouverte
-		const openObjections = document.querySelectorAll('[data-stance="objection"]');
-		// Trouver le premier qui contient "Objection ouverte"
+		const openEls = document.querySelectorAll('[data-stance="objection"]');
 		let targetElem: HTMLElement | null = null;
-		for (const el of openObjections) {
+		for (const el of openEls) {
 			if (el.textContent?.includes('Objection ouverte')) {
 				targetElem = el as HTMLElement;
 				break;
 			}
 		}
-		if (!targetElem && openObjections.length > 0) {
-			targetElem = openObjections[0] as HTMLElement;
+		if (!targetElem && openEls.length > 0) {
+			targetElem = openEls[0] as HTMLElement;
 		}
 
 		if (targetElem) {
@@ -617,438 +803,452 @@
 				targetElem?.classList.remove('ring-2', 'ring-rose-500');
 			}, 2000);
 		} else {
-			deliberationStore.logNotification("Aucune objection ouverte trouvée dans le fil.", 'info');
+			deliberationStore.logNotification('Aucune objection ouverte trouvée dans le fil.', 'info');
 		}
 	}
-
 </script>
 
-<div class="flex flex-col h-full bg-card rounded-xl border shadow-xs overflow-hidden">
-	<!-- ═════════════════════════════════════════════════════════════════════════ -->
-	<!-- EN-TÊTE DU FIL : Titre du sujet, bascule Fil/Synthèse et boutons d'action -->
-	<!-- ═════════════════════════════════════════════════════════════════════════ -->
-	<div class="p-3 border-b bg-muted/20 space-y-2.5 shrink-0">
-		<div class="flex items-center justify-between gap-3 flex-wrap">
-			<div class="flex items-center gap-2">
+<!-- ═════════════════════════════════════════════════════════════════════════ -->
+<!-- SNIPPETS DE RENDU DES VOLETS UNIFIÉS (ZÉRO DOUBLON)                       -->
+<!-- ═════════════════════════════════════════════════════════════════════════ -->
+
+{#snippet renderThreadPane()}
+	<div class="flex flex-col h-full min-h-0">
+		<!-- Barre de filtre rapide du fil -->
+		<div class="px-4 py-2 border-b bg-muted/10 flex items-center justify-between gap-2 flex-wrap text-xs shrink-0">
+			<div class="flex items-center gap-1 text-[11px]">
+				<span class="text-muted-foreground font-medium mr-1">Filtrer le fil :</span>
 				<button
 					type="button"
-					onclick={onBackToBoard}
-					class="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-semibold bg-muted/60 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors cursor-pointer mr-1"
-					title="Revenir au tableau de maturité et changer de projet"
+					onclick={() => (postureFilter = 'all')}
+					class="px-2 py-0.5 rounded font-medium cursor-pointer {postureFilter === 'all'
+						? 'bg-primary text-primary-foreground font-semibold'
+						: 'bg-muted text-muted-foreground hover:text-foreground'}"
 				>
-					<ArrowLeft class="h-3.5 w-3.5" />
-					<span>Tableau</span>
-					{#if deliberationStore.activeEngagement?.title}
-						<span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-background text-primary border border-primary/30 font-bold">
-							{deliberationStore.activeEngagement.shortName || deliberationStore.activeEngagement.title}
+					Tous ({argumentsList.length})
+				</button>
+				<button
+					type="button"
+					onclick={() => (postureFilter = 'objection')}
+					class="px-2 py-0.5 rounded font-medium cursor-pointer {postureFilter === 'objection'
+						? 'bg-rose-600 text-white font-semibold'
+						: 'bg-muted text-muted-foreground hover:text-foreground'}"
+				>
+					Objections ({totalObjectionsCount})
+				</button>
+				<button
+					type="button"
+					onclick={() => (postureFilter = 'synthesis')}
+					class="px-2 py-0.5 rounded font-medium cursor-pointer {postureFilter === 'synthesis'
+						? 'bg-indigo-600 text-white font-semibold'
+						: 'bg-muted text-muted-foreground hover:text-foreground'}"
+				>
+					Synthèses ({argumentsList.filter((a) => a.stance === 'synthesis').length})
+				</button>
+			</div>
+
+			{#if openObjections.length > 0}
+				<button
+					type="button"
+					onclick={scrollToNextUnresolvedObjection}
+					class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-rose-500/10 text-rose-700 dark:text-rose-300 border border-rose-500/25 hover:bg-rose-500/20 text-[10px] font-bold transition-colors cursor-pointer"
+					title="Scroller vers la prochaine objection non résolue"
+				>
+					<ArrowDown class="h-3 w-3" />
+					<span>Prochaine objection ↓</span>
+				</button>
+			{/if}
+		</div>
+
+		<!-- Corps scrollable du fil -->
+		<div class="flex-1 overflow-y-auto p-4 space-y-3.5">
+			{#if activeSubject && (activeSubject.nature || activeSubject.depends_on_subject_ids?.length)}
+				<div class="flex flex-wrap items-center gap-2 text-[11px]">
+					{#if activeSubject.nature && activeSubject.nature !== 'architecture'}
+						<span class="px-2 py-0.5 rounded-full font-bold border bg-violet-500/10 text-violet-700 dark:text-violet-300 border-violet-500/20">
+							{activeSubject.nature === 'contractuel' ? 'Sujet contractuel' : 'Sujet organisationnel'}
 						</span>
 					{/if}
-				</button>
+					{#if activeSubject.depends_on_subject_ids?.length}
+						<span class="text-muted-foreground"><strong>À trancher après :</strong></span>
+						{#each activeSubject.depends_on_subject_ids as depId (depId)}
+							{@const dep = deliberationStore.activeEngagement?.subjects.find((s) => s.id === depId)}
+							<button
+								type="button"
+								onclick={() => deliberationStore.selectSubject(depId)}
+								class="px-2 py-0.5 rounded-md border hover:bg-muted/40 cursor-pointer {dep && ['L3_decided', 'L4_specified', 'L5_archived'].includes(dep.level) ? 'text-emerald-700 dark:text-emerald-300 border-emerald-500/30' : 'text-amber-700 dark:text-amber-300 border-amber-500/30'}"
+							>
+								{dep?.name ?? depId}
+							</button>
+						{/each}
+					{/if}
+				</div>
+			{/if}
 
-				<div>
+			<!-- Bandeau Cadrage compact (2 lignes par défaut, dépliable, sans doublon d'options) -->
+			{#if activeSubject}
+				<SubjectProblemCard
+					subject={activeSubject}
+					draft={activeDraft}
+					options={subjectOptions}
+					isInvokingAgent={invokingAgentRole !== null}
+					onInvokeProposer={() => handleInvokeAgent('proposer')}
+					onSplit={() => (isSplitDialogOpen = true)}
+					onUpdateQuestion={handleUpdateDraftQuestion}
+					onUpdateHypothesis={handleUpdateDraftHypothesis}
+					onAdoptHypothesis={handleAdoptHypothesis}
+					onSelectOption={handleSelectOptionForDiscussion}
+					onArbitrateOption={handleArbitrateOption}
+					{isForceEditingQuestion}
+				/>
+			{/if}
+
+			{#if resumeSummary}
+				<div class="rounded-xl border border-blue-500/30 bg-blue-500/10 p-3 flex items-center justify-between gap-3 text-xs shadow-2xs">
 					<div class="flex items-center gap-2">
-						<span class="font-mono text-xs font-bold text-muted-foreground">
-							{activeSubject?.section_ref || '§'}
-						</span>
-						<h2 class="text-sm font-bold text-foreground leading-none">
-							{activeSubject?.name || 'Sujet non sélectionné'}
-						</h2>
-						{#if activeSubject}
-							<span class="inline-flex items-center rounded-md px-2 py-0.5 font-mono text-[10px] font-bold border {getMaturityBadgeClass(activeSubject.level)}">
-								{formatMaturityLevel(activeSubject.level)}
-							</span>
-						{/if}
-					</div>
-					<div class="text-[11px] text-muted-foreground mt-0.5">
-						Attente : <strong class="text-foreground">{activeSubject?.waiting_for_role || '—'}</strong> · Effort : <span class="font-mono">{activeSubject?.relative_effort || 'M'}</span>
-					</div>
-				</div>
-			</div>
-
-			<div class="flex items-center gap-1.5 flex-wrap">
-				<!-- Indicateur d'état LLMOps -->
-				{#if deliberationStore.llmopsStatus === 'connected'}
-					<button
-						type="button"
-						onclick={() => deliberationStore.syncWithLLMOps()}
-						disabled={deliberationStore.isSyncingLLMOps}
-						class="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg border text-xs font-medium bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/20 transition-colors cursor-pointer"
-						title="Connecté au Knowledge Hub LLMOps ({deliberationStore.activeEngagementId}) · Cliquez pour resynchroniser"
-					>
-						<span class="inline-block h-2 w-2 rounded-full bg-emerald-500"></span>
-						<span class="opacity-80">LLMOps :</span>
-						<strong class="font-mono">En ligne</strong>
-						{#if deliberationStore.isSyncingLLMOps}
-							<RefreshCw class="h-3 w-3 animate-spin ml-0.5" />
-						{/if}
-					</button>
-				{:else}
-					<button
-						type="button"
-						onclick={() => deliberationStore.syncWithLLMOps()}
-						disabled={deliberationStore.isSyncingLLMOps}
-						class="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg border text-xs font-medium bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-500/30 hover:bg-rose-500/20 transition-colors cursor-pointer"
-						title="Non connecté à une instance LLMOps : aucune synchronisation distante active. Archinex continue avec vos données locales. Cliquez pour tester la connexion."
-					>
-						<span class="inline-block h-2 w-2 rounded-full bg-rose-500"></span>
-						<span class="opacity-80">LLMOps :</span>
-						<strong class="font-mono">Non connecté</strong>
-						{#if deliberationStore.isSyncingLLMOps}
-							<RefreshCw class="h-3 w-3 animate-spin ml-0.5" />
-						{/if}
-					</button>
-				{/if}
-
-				<!-- Menu compact Solliciter un agent (A31) -->
-				<div class="relative">
-					<button
-						type="button"
-						disabled={isDebating || invokingAgentRole !== null}
-						onclick={() => (isAgentMenuOpen = !isAgentMenuOpen)}
-						class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg border bg-background hover:bg-muted/70 disabled:opacity-50 text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
-						title="Solliciter un agent IA ou lancer un débat contradictoire"
-					>
-						{#if isDebating}
-							<RotateCcw class="h-3.5 w-3.5 animate-spin text-primary" />
-							<span>Débat en cours...</span>
-						{:else if invokingAgentRole}
-							<RotateCcw class="h-3.5 w-3.5 animate-spin text-purple-600" />
-							<span>@{invokingAgentRole}...</span>
-						{:else}
-							<Sparkles class="h-3.5 w-3.5 text-purple-600" />
-							<span>Solliciter un agent</span>
-							<ChevronDown class="h-3 w-3 text-muted-foreground transition-transform {isAgentMenuOpen ? 'rotate-180' : ''}" />
-						{/if}
-					</button>
-
-					{#if isAgentMenuOpen}
-						<div
-							class="absolute right-0 mt-1 w-56 rounded-xl border bg-popover text-popover-foreground shadow-lg z-30 p-1.5 space-y-1 text-xs"
-							role="menu"
-						>
-							<div class="px-2 py-1 text-[10px] font-bold text-muted-foreground uppercase tracking-wider border-b mb-1">
-								Interpeller un agent IA
-							</div>
-							<button
-								type="button"
-								onclick={() => {
-									isAgentMenuOpen = false;
-									handleInvokeAgent('challenger');
-								}}
-								class="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-rose-500/10 text-rose-700 dark:text-rose-400 font-semibold cursor-pointer transition-colors text-left"
-							>
-								<span>⚔️</span>
-								<div>
-									<div class="leading-none">@challenger</div>
-									<div class="text-[10px] font-normal text-muted-foreground mt-0.5">Trouver failles & objections</div>
-								</div>
-							</button>
-							<button
-								type="button"
-								onclick={() => {
-									isAgentMenuOpen = false;
-									handleInvokeAgent('proposer');
-								}}
-								class="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-blue-500/10 text-blue-700 dark:text-blue-400 font-semibold cursor-pointer transition-colors text-left"
-							>
-								<span>💡</span>
-								<div>
-									<div class="leading-none">@proposer</div>
-									<div class="text-[10px] font-normal text-muted-foreground mt-0.5">Suggérer une nouvelle option</div>
-								</div>
-							</button>
-							<button
-								type="button"
-								onclick={() => {
-									isAgentMenuOpen = false;
-									handleInvokeAgent('verifier');
-								}}
-								class="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-cyan-500/10 text-cyan-700 dark:text-cyan-400 font-semibold cursor-pointer transition-colors text-left"
-							>
-								<span>🛡️</span>
-								<div>
-									<div class="leading-none">@verifier</div>
-									<div class="text-[10px] font-normal text-muted-foreground mt-0.5">Contrôler conformité doctrine</div>
-								</div>
-							</button>
-							<button
-								type="button"
-								onclick={() => {
-									isAgentMenuOpen = false;
-									handleInvokeAgent('synthesizer');
-								}}
-								class="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-purple-500/10 text-purple-700 dark:text-purple-400 font-semibold cursor-pointer transition-colors text-left"
-							>
-								<span>⚖️</span>
-								<div>
-									<div class="leading-none">@synthesizer</div>
-									<div class="text-[10px] font-normal text-muted-foreground mt-0.5">Résumer et arbitrer</div>
-								</div>
-							</button>
-
-							<div class="border-t my-1"></div>
-
-							<button
-								type="button"
-								onclick={() => {
-									isAgentMenuOpen = false;
-									handleLaunchDebate();
-								}}
-								class="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 font-semibold cursor-pointer transition-colors text-left"
-							>
-								<span>⚡</span>
-								<div>
-									<div class="leading-none">Débat complet</div>
-									<div class="text-[10px] font-normal text-muted-foreground mt-0.5">Tour contradictoire automatisé</div>
-								</div>
-							</button>
+						<Clock class="h-4 w-4 text-blue-600 shrink-0" />
+						<div>
+							<strong class="text-blue-900 dark:text-blue-200">Résumé de reprise :</strong>
+							<span class="text-blue-800 dark:text-blue-300 ml-1">{resumeSummary.summaryText}</span>
 						</div>
-					{/if}
-				</div>
-			</div>
-		</div>
-
-		<!-- STEPPER DE MATURATION (A26) : L0->L5, Verrous, Convergence, Stagnation -->
-		<MaturityStepper
-			report={effectiveReport}
-			{userRole}
-			{isHumanUser}
-			onAction={handleCriterionAction}
-			onTransition={handleTransitionMaturity}
-		/>
-
-		<!-- BARRE DE NAVIGATION DANS LE FIL : Bascule Fil / Synthèse, filtres & scroll objection -->
-		<div class="flex items-center justify-between gap-2 pt-1 border-t border-border/40 flex-wrap text-xs">
-			<!-- Bascule Fil / Synthèse -->
-			<div class="flex items-center gap-1 bg-muted/60 p-0.5 rounded-lg">
-				<button
-					type="button"
-					onclick={() => (viewMode = 'thread')}
-					class="px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all cursor-pointer {viewMode ===
-					'thread'
-						? 'bg-background text-foreground shadow-2xs'
-						: 'text-muted-foreground hover:text-foreground'}"
-				>
-					Fil complet ({argumentsList.length})
-				</button>
-
-				<button
-					type="button"
-					onclick={() => (viewMode = 'synthesis')}
-					class="px-2.5 py-1 rounded-md text-[11px] font-semibold transition-all cursor-pointer {viewMode ===
-					'synthesis'
-						? 'bg-background text-foreground shadow-2xs'
-						: 'text-muted-foreground hover:text-foreground'}"
-				>
-					Synthèse & Arbitrage
-				</button>
-			</div>
-
-			<!-- Filtres par posture & bouton prochaine objection -->
-			<div class="flex items-center gap-1.5">
-				<div class="flex items-center gap-1 text-[10px]">
-					<button
-						type="button"
-						onclick={() => (postureFilter = 'all')}
-						class="px-2 py-0.5 rounded font-medium cursor-pointer {postureFilter === 'all'
-							? 'bg-primary text-primary-foreground font-semibold'
-							: 'bg-muted text-muted-foreground hover:text-foreground'}"
-					>
-						Tous
-					</button>
-					<button
-						type="button"
-						onclick={() => (postureFilter = 'objection')}
-						class="px-2 py-0.5 rounded font-medium cursor-pointer {postureFilter === 'objection'
-							? 'bg-rose-600 text-white font-semibold'
-							: 'bg-muted text-muted-foreground hover:text-foreground'}"
-					>
-						Objections ({argumentsList.filter((a) => a.stance === 'objection').length})
-					</button>
-					<button
-						type="button"
-						onclick={() => (postureFilter = 'synthesis')}
-						class="px-2 py-0.5 rounded font-medium cursor-pointer {postureFilter === 'synthesis'
-							? 'bg-indigo-600 text-white font-semibold'
-							: 'bg-muted text-muted-foreground hover:text-foreground'}"
-					>
-						Synthèses ({argumentsList.filter((a) => a.stance === 'synthesis').length})
-					</button>
-				</div>
-
-				{#if openObjections.length > 0}
-					<button
-						type="button"
-						onclick={scrollToNextUnresolvedObjection}
-						class="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-rose-500/10 text-rose-700 dark:text-rose-300 border border-rose-500/25 hover:bg-rose-500/20 text-[10px] font-bold transition-colors cursor-pointer"
-						title="Scroller vers la prochaine objection non résolue"
-					>
-						<ArrowDown class="h-3 w-3" />
-						<span>Prochaine objection ↓</span>
-					</button>
-				{/if}
-			</div>
-		</div>
-	</div>
-
-	<!-- ═════════════════════════════════════════════════════════════════════════ -->
-	<!-- CORPS DU FIL : Résumé de reprise, objections épinglées et messages        -->
-	<!-- ═════════════════════════════════════════════════════════════════════════ -->
-	<div class="flex-1 overflow-y-auto p-4 space-y-4">
-		<!-- CARTE DE CADRAGE DU PROBLÈME (GRAINE D'ARCHITECTURE & RFP SEED) -->
-		{#if activeSubject && (activeSubject.nature || activeSubject.depends_on_subject_ids?.length)}
-			<!-- Nature et dépendances proposées à la factorisation : à relire comme le reste -->
-			<div class="flex flex-wrap items-center gap-2 text-[11px]">
-				{#if activeSubject.nature && activeSubject.nature !== 'architecture'}
-					<span class="px-2 py-0.5 rounded-full font-bold border bg-violet-500/10 text-violet-700 dark:text-violet-300 border-violet-500/20">
-						{activeSubject.nature === 'contractuel' ? 'Sujet contractuel' : 'Sujet organisationnel'}
-					</span>
-				{/if}
-				{#if activeSubject.depends_on_subject_ids?.length}
-					<span class="text-muted-foreground"><strong>À trancher après :</strong></span>
-					{#each activeSubject.depends_on_subject_ids as depId (depId)}
-						{@const dep = deliberationStore.activeEngagement?.subjects.find((s) => s.id === depId)}
-						<button
-							type="button"
-							onclick={() => deliberationStore.selectSubject(depId)}
-							class="px-2 py-0.5 rounded-md border hover:bg-muted/40 cursor-pointer {dep && ['L3_decided', 'L4_specified', 'L5_archived'].includes(dep.level) ? 'text-emerald-700 dark:text-emerald-300 border-emerald-500/30' : 'text-amber-700 dark:text-amber-300 border-amber-500/30'}"
-							title={dep && ['L3_decided', 'L4_specified', 'L5_archived'].includes(dep.level) ? 'Déjà tranché' : 'Pas encore tranché'}
-						>
-							{dep?.name ?? depId}
-						</button>
-					{/each}
-				{/if}
-			</div>
-		{/if}
-		{#if activeSubject}
-			<SubjectProblemCard
-				subject={activeSubject}
-				draft={activeDraft}
-				options={subjectOptions}
-				isInvokingAgent={invokingAgentRole !== null}
-				onInvokeProposer={() => handleInvokeAgent('proposer')}
-				onSplit={() => (isSplitDialogOpen = true)}
-				onUpdateQuestion={handleUpdateDraftQuestion}
-				onUpdateHypothesis={handleUpdateDraftHypothesis}
-				onAdoptHypothesis={handleAdoptHypothesis}
-				onSelectOption={handleSelectOptionForDiscussion}
-				onArbitrateOption={handleArbitrateOption}
-				{isForceEditingQuestion}
-			/>
-		{/if}
-
-		<!-- Bannière Résumé de reprise après absence (> 24 h) -->
-		{#if resumeSummary}
-			<div class="rounded-xl border border-blue-500/30 bg-blue-500/10 p-3 flex items-center justify-between gap-3 text-xs shadow-2xs">
-				<div class="flex items-center gap-2">
-					<Clock class="h-4 w-4 text-blue-600 shrink-0" />
-					<div>
-						<strong class="text-blue-900 dark:text-blue-200">Résumé de reprise :</strong>
-						<span class="text-blue-800 dark:text-blue-300 ml-1">{resumeSummary.summaryText}</span>
 					</div>
+					<button
+						type="button"
+						onclick={() => (dismissResumeBanner = true)}
+						class="p-1 text-blue-700 hover:text-blue-950 dark:hover:text-blue-100 transition-colors cursor-pointer"
+						title="Masquer le résumé"
+					>
+						<X class="h-3.5 w-3.5" />
+					</button>
 				</div>
+			{/if}
 
-				<button
-					type="button"
-					onclick={() => (dismissResumeBanner = true)}
-					class="p-1 text-blue-700 hover:text-blue-950 dark:hover:text-blue-100 transition-colors cursor-pointer"
-					title="Masquer le résumé"
+			{#if foundationContested}
+				<div
+					class="rounded-xl border border-rose-500/40 bg-rose-500/10 p-3.5 flex items-start gap-3 text-xs shadow-2xs"
+					data-testid="foundation-contested-banner"
 				>
-					<X class="h-3.5 w-3.5" />
-				</button>
-			</div>
-		{/if}
-
-		<!-- Bannière Fondement remis en cause (A28) -->
-		{#if foundationContested}
-			<div
-				class="rounded-xl border border-rose-500/40 bg-rose-500/10 p-3.5 flex items-start gap-3 text-xs shadow-2xs"
-				data-testid="foundation-contested-banner"
-			>
-				<AlertTriangle class="h-5 w-5 text-rose-600 shrink-0 mt-0.5" />
-				<div class="space-y-1">
-					<h4 class="font-bold text-rose-900 dark:text-rose-200 flex items-center gap-1.5">
-						<span>⚠️ Fondement du sujet remis en cause</span>
-					</h4>
-					<p class="text-rose-800 dark:text-rose-300 leading-relaxed">
-						{contestationReason ||
-							'La décision parente ayant engendré ce sujet a été modifiée ou remplacée. Le périmètre de cette délibération doit être réévalué.'}
-					</p>
-				</div>
-			</div>
-		{/if}
-
-		<!-- Objections ouvertes épinglées en haut du fil -->
-		{#if openObjections.length > 0}
-			<PinnedObjections
-				objections={openObjections}
-				{userRole}
-				{isHumanUser}
-				onResolve={handleResolveArgument}
-			/>
-		{/if}
-
-		<!-- Séparateur de jalon de maturité initial -->
-		{#if activeSubject}
-			<div class="flex items-center justify-center my-3">
-				<span class="px-3 py-1 rounded-full bg-muted/80 text-[11px] font-mono font-medium text-muted-foreground border border-border/60">
-					{formatMaturityMilestoneSeparator(activeSubject.level)}
-				</span>
-			</div>
-		{/if}
-
-		<!-- BANNIÈRE DE DÉCISION ACTÉE DANS LE FIL (viewMode === 'thread') -->
-		{#if viewMode === 'thread' && subjectDecision}
-			{@const retainedOpt = subjectOptions.find((o) => o.id === subjectDecision.retainedOptionId)}
-			<div class="rounded-xl border-2 border-emerald-500/40 bg-gradient-to-r from-emerald-500/15 via-emerald-500/5 to-card p-3.5 flex items-center justify-between gap-3 shadow-2xs">
-				<div class="flex items-center gap-3">
-					<div class="p-2.5 rounded-lg bg-emerald-500/20 text-emerald-700 dark:text-emerald-300">
-						<Gavel class="h-5 w-5" />
-					</div>
-					<div>
-						<div class="flex items-center gap-2">
-							<span class="text-xs font-bold text-foreground">Décision d'architecture actée</span>
-							<span class="px-1.5 py-0.2 rounded text-[10px] font-mono font-bold bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
-								L3 · Décidé
-							</span>
-						</div>
-						<p class="text-xs text-muted-foreground mt-0.5">
-							Option retenue : <strong class="text-foreground">{retainedOpt?.title || subjectDecision.retainedOptionId}</strong>
-							{#if subjectDecision.validatedBy} · Affirmée par <strong>{subjectDecision.validatedBy}</strong>{/if}
+					<AlertTriangle class="h-5 w-5 text-rose-600 shrink-0 mt-0.5" />
+					<div class="space-y-1">
+						<h4 class="font-bold text-rose-900 dark:text-rose-200">
+							⚠️ Fondement du sujet remis en cause
+						</h4>
+						<p class="text-rose-800 dark:text-rose-300 leading-relaxed">
+							{contestationReason ||
+								'La décision parente ayant engendré ce sujet a été modifiée ou remplacée. Le périmètre de cette délibération doit être réévalué.'}
 						</p>
 					</div>
 				</div>
+			{/if}
 
-				<button
-					type="button"
-					onclick={() => (viewMode = 'synthesis')}
-					class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-emerald-500/35 bg-background text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/15 text-xs font-semibold transition-colors cursor-pointer shrink-0 shadow-2xs"
-				>
-					<span>Consulter arbitrage & faits K18</span>
-					<span>→</span>
-				</button>
-			</div>
-		{/if}
+			{#if openObjections.length > 0}
+				<PinnedObjections
+					objections={openObjections}
+					{userRole}
+					{isHumanUser}
+					onResolve={handleResolveArgument}
+				/>
+			{/if}
 
-		<!-- CARTE DE DÉCISION ET FAITS AFFIRMÉS (viewMode === 'synthesis') -->
-		{#if viewMode === 'synthesis'}
+			{#if activeSubject}
+				<div class="flex items-center justify-center my-2">
+					<span class="px-3 py-1 rounded-full bg-muted/80 text-[11px] font-mono font-medium text-muted-foreground border border-border/60">
+						{formatMaturityMilestoneSeparator(activeSubject.level)}
+					</span>
+				</div>
+			{/if}
+
+			<!-- Bannière synthétique de décision actée (renvoie vers le volet Matrice & Arbitrage) -->
+			{#if subjectDecision}
+				{@const retainedOpt = subjectOptions.find((o) => o.id === subjectDecision.retainedOptionId)}
+				<div class="rounded-xl border-2 border-emerald-500/40 bg-gradient-to-r from-emerald-500/15 via-emerald-500/5 to-card p-3 flex items-center justify-between gap-3 shadow-2xs">
+					<div class="flex items-center gap-2.5">
+						<div class="p-2 rounded-lg bg-emerald-500/20 text-emerald-700 dark:text-emerald-300">
+							<Gavel class="h-4 w-4" />
+						</div>
+						<div>
+							<div class="flex items-center gap-2">
+								<span class="text-xs font-bold text-foreground">Décision d'architecture actée</span>
+								<span class="px-1.5 py-0.2 rounded text-[10px] font-mono font-bold bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
+									L3 · Décidé
+								</span>
+							</div>
+							<p class="text-xs text-muted-foreground mt-0.5">
+								Option retenue : <strong class="text-foreground">{retainedOpt?.title || subjectDecision.retainedOptionId}</strong>
+								{#if (subjectDecision as any).validatedBy} · Affirmée par <strong>{(subjectDecision as any).validatedBy}</strong>{/if}
+							</p>
+						</div>
+					</div>
+
+					<button
+						type="button"
+						onclick={() => {
+							activeWorkspaceTab = 'matrix';
+							void refreshMatrixData();
+						}}
+						class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-emerald-500/35 bg-background text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/15 text-xs font-semibold transition-colors cursor-pointer shrink-0 shadow-2xs"
+					>
+						<span>Matrice, Arbitrage & Faits K18 →</span>
+					</button>
+				</div>
+			{/if}
+
+			<!-- Liste des messages -->
+			{#if isLoadingArguments}
+				<div class="p-8 text-center text-xs text-muted-foreground animate-pulse">
+					Chargement de la conversation...
+				</div>
+			{:else if argumentsList.length === 0}
+				<div class="p-6 text-center border-2 border-dashed rounded-xl space-y-3 bg-muted/5 max-w-lg mx-auto my-4">
+					<div class="p-2.5 rounded-full bg-primary/10 text-primary w-fit mx-auto">
+						<Sparkles class="h-5 w-5" />
+					</div>
+					<div class="space-y-1">
+						<h4 class="text-sm font-bold text-foreground">Délibération ouverte</h4>
+						<p class="text-xs text-muted-foreground leading-relaxed">
+							Initiez le débat ci-dessous ou utilisez les actions contextualisées du jalon en haut de l'écran.
+						</p>
+					</div>
+				</div>
+			{:else if displayedArguments.length === 0}
+				<div class="p-8 text-center border-2 border-dashed rounded-xl space-y-2 bg-muted/10">
+					<Bot class="h-8 w-8 text-muted-foreground/60 mx-auto" />
+					<h4 class="text-xs font-bold text-foreground">Aucun argument affiché pour ce filtre</h4>
+					<p class="text-xs text-muted-foreground max-w-sm mx-auto">
+						Basculez sur « Tous » pour afficher l'ensemble des échanges ({argumentsList.length} arguments).
+					</p>
+				</div>
+			{:else}
+				{#each displayedArguments as arg (arg.id)}
+					{@const targetArg = arg.targetArgumentId
+						? argumentsList.find((a) => a.id === arg.targetArgumentId) || null
+						: null}
+
+					<SubjectMessageBubble
+						argument={arg}
+						targetArgument={targetArg}
+						{userRole}
+						{isHumanUser}
+						onResolve={handleResolveArgument}
+						onChallenge={handleChallengeArgument}
+						onArbitrateOption={handleArbitrateOption}
+						onSplit={() => (isSplitDialogOpen = true)}
+						onReply={(target) => {
+							replyingTo = target;
+							const composerElem = document.getElementById('compose-claim');
+							composerElem?.focus();
+						}}
+					/>
+				{/each}
+
+				{#if !subjectDecision && argumentsList.length > 0}
+					<div class="rounded-xl border border-dashed border-primary/30 bg-muted/10 p-3 flex items-center justify-between gap-3 text-xs mt-2 flex-wrap">
+						<div class="flex items-center gap-2 text-muted-foreground">
+							<Sparkles class="h-4 w-4 text-primary shrink-0" />
+							<span>Prêt à évaluer les alternatives ou trancher la décision ?</span>
+						</div>
+						<div class="flex items-center gap-2">
+							<button
+								type="button"
+								onclick={() => handleInvokeAgent('synthesizer')}
+								disabled={invokingAgentRole !== null}
+								class="px-2.5 py-1 rounded-md bg-purple-500/10 text-purple-700 dark:text-purple-300 border border-purple-500/25 hover:bg-purple-500/20 text-[11px] font-semibold transition-colors cursor-pointer"
+							>
+								⚖️ @synthesizer
+							</button>
+							<button
+								type="button"
+								onclick={() => {
+									activeWorkspaceTab = 'matrix';
+									void refreshMatrixData();
+								}}
+								class="px-2.5 py-1 rounded-md bg-primary text-primary-foreground text-[11px] font-semibold hover:bg-primary/90 transition-colors cursor-pointer shadow-2xs"
+							>
+								Ouvrir Matrice & Arbitrer →
+							</button>
+						</div>
+					</div>
+				{/if}
+			{/if}
+		</div>
+
+		<!-- Composeur structuré épinglé en bas du fil -->
+		<div class="p-3 border-t bg-muted/20 shrink-0">
+			<StructuredComposer
+				{subjectId}
+				{projectId}
+				options={subjectOptions}
+				bind:selectedOptionId={selectedComposerOptionId}
+				{allowedKbRefs}
+				{replyingTo}
+				onCancelReply={() => (replyingTo = null)}
+				onArgumentCreated={handleArgumentCreated}
+				onError={(msg) => deliberationStore.logNotification(msg, 'warning')}
+			/>
+		</div>
+	</div>
+{/snippet}
+
+{#snippet renderMatrixPane()}
+	<div class="h-full overflow-y-auto p-4 space-y-5" data-testid="unified-matrix-pane">
+		<!-- 1. Matrice Multicritères, Propositions d'Options & Arbitrage Formel L3 -->
+		<div class="space-y-3">
+			{#if isLoadingMatrix}
+				<div class="text-xs font-mono text-muted-foreground animate-pulse">
+					Synchronisation de la matrice...
+				</div>
+			{/if}
+			<OptionsMatrix
+				{projectId}
+				{subjectId}
+				bind:criteria={matrixCriteria}
+				bind:options={subjectOptions}
+				bind:evaluations={matrixEvaluations}
+				bind:tradeOffs={matrixTradeOffs}
+				bind:decision={subjectDecision}
+				userRole={deliberationStore.currentRole}
+				onDecisionMade={() => {
+					void loadArgumentsAndContext();
+					deliberationStore.refreshSubjectFromServer(subjectId, projectId);
+				}}
+				onError={(msg) => deliberationStore.logNotification(msg, 'warning')}
+			/>
+		</div>
+
+		<!-- 2. Affirmation Collégiale (K16) & Extraction des Faits Machine-Lisibles (K18) -->
+		<div class="pt-4 border-t border-border/60">
 			<DecisionSurveyCard
 				{projectId}
 				{subjectId}
 				decision={subjectDecision}
 				options={subjectOptions}
-				sessionUser={page.data?.session?.user
-					? { id: page.data.session.user.id, email: page.data.session.user.email, role: userRole }
+				sessionUser={sessionUser
+					? { id: sessionUser.id, email: sessionUser.email, role: sessionUser.role || userRole }
 					: { id: 'anonymous', email: '', role: userRole }}
 				isHubCutover={effectiveReport?.sourceOfRecord === 'hub'}
 				onAffirmed={async () => {
 					await loadArgumentsAndContext();
-					deliberationStore.logNotification('Décision d’architecture et faits machine-lisibles affirmés !', 'success');
+					deliberationStore.logNotification(
+						'Décision d’architecture et faits machine-lisibles affirmés !',
+						'success'
+					);
 				}}
 			/>
-		{/if}
+		</div>
+	</div>
+{/snippet}
 
-		<!-- CARTE DE CASCADE DE QUESTIONS (A28) : Découverte automatique post-affirmation -->
+{#snippet renderDoctrinesAndDraftPane()}
+	<div class="h-full overflow-y-auto p-4 space-y-5 text-xs" data-testid="unified-doctrines-pane">
+		<div class="grid grid-cols-1 xl:grid-cols-2 gap-4 items-start">
+			<!-- Colonne A : Doctrines applicables (LLMOps) & Règles mobilisées dans le débat -->
+			<div class="space-y-3 rounded-xl border bg-card/50 p-3.5">
+				<div class="flex items-center justify-between pb-2 border-b text-foreground font-bold">
+					<span class="flex items-center gap-1.5">
+						<BookOpen class="h-4 w-4 text-indigo-500" />
+						<span>
+							Doctrine applicable (LLMOps){#if searchMethod}
+								· recherche {searchMethod === 'lexical'
+									? 'par mots-clés'
+									: searchMethod === 'semantic'
+										? 'sémantique'
+										: 'hybride'}{/if}
+						</span>
+					</span>
+					<span class="font-mono text-[10px] text-muted-foreground">
+						{isLoadingDoctrine ? '…' : `${doctrineItems.length} élément(s)`}
+					</span>
+				</div>
+
+				{#if !isLoadingDoctrine && doctrineItems.length === 0}
+					<div class="p-3 rounded-lg border border-dashed text-center text-muted-foreground">
+						Aucune doctrine applicable renvoyée par LLMOps pour ce sujet.
+					</div>
+				{/if}
+
+				{#if relevantDoctrine.length}
+					<div class="space-y-1.5">
+						<p class="text-[11px] font-semibold text-foreground">Pertinente pour ce sujet</p>
+						{#each relevantDoctrine as item (item.id)}
+							<div class="rounded-lg border bg-card p-2.5 space-y-0.5">
+								<div class="flex items-center gap-2">
+									<span class="font-mono font-bold text-indigo-600 dark:text-indigo-400">{item.id}</span>
+									<span class="text-[10px] text-muted-foreground">
+										{item.type}{item.confidence ? ` · ${item.confidence}` : ''}
+									</span>
+								</div>
+								<p class="text-foreground font-medium">{item.title}</p>
+							</div>
+						{/each}
+					</div>
+				{/if}
+
+				{#each requiredByFramework as [framework, items] (framework)}
+					<details class="rounded-lg border bg-muted/20 p-2.5">
+						<summary class="cursor-pointer font-semibold">
+							Contrôles {framework} imposés par les référentiels déclarés ({items.length})
+						</summary>
+						<ul class="mt-2 space-y-1">
+							{#each items as item (item.id)}
+								<li><span class="font-mono font-semibold">{item.id}</span> — {item.title}</li>
+							{/each}
+						</ul>
+					</details>
+				{/each}
+
+				<div class="flex items-center justify-between pt-2 pb-1 border-b text-muted-foreground font-semibold">
+					<span>Règles doctrinales mobilisées dans le débat</span>
+					<span class="font-mono text-[10px]">{citedKbRefs.length} identifiée(s)</span>
+				</div>
+
+				{#if citedKbRefs.length === 0}
+					<div class="p-3 rounded-lg border border-dashed text-center text-muted-foreground">
+						Aucune règle doctrinale citée explicitement dans les arguments de ce sujet.
+					</div>
+				{:else}
+					<div class="space-y-2">
+						{#each citedKbRefs as ref}
+							<div class="rounded-lg border bg-card p-2.5 flex items-center justify-between gap-2">
+								<div class="flex items-center gap-2">
+									<BookOpen class="h-3.5 w-3.5 text-indigo-500 shrink-0" />
+									<div>
+										<span class="font-mono font-bold text-foreground">§ {ref}</span>
+										<p class="text-[10px] text-muted-foreground">
+											Règle mobilisée dans l'argumentation contradictoire
+										</p>
+									</div>
+								</div>
+								<a
+									href={`/knowledge?rule=${encodeURIComponent(ref)}`}
+									class="inline-flex items-center gap-1 text-[11px] font-semibold text-primary hover:underline px-2 py-1 rounded bg-primary/10 shrink-0"
+								>
+									<span>Fiche</span>
+									<ExternalLink class="h-3 w-3" />
+								</a>
+							</div>
+						{/each}
+					</div>
+				{/if}
+			</div>
+
+			<!-- Colonne B : Spécification Télégraphique (5 colonnes) -->
+			<div class="space-y-3 rounded-xl border bg-card/50 p-3.5">
+				<div class="flex items-center justify-between pb-2 border-b text-foreground font-bold">
+					<span class="flex items-center gap-1.5">
+						<FileText class="h-4 w-4 text-primary" />
+						<span>Spécification télégraphique du sujet</span>
+					</span>
+					<span class="text-[10px] font-mono text-muted-foreground">5 colonnes</span>
+				</div>
+				<TelegraphicDraftView readOnlyMode={true} />
+			</div>
+		</div>
+	</div>
+{/snippet}
+
+{#snippet renderCascadeAndRulesPane()}
+	<div class="h-full overflow-y-auto p-4 space-y-5 text-xs" data-testid="unified-cascade-pane">
+		<!-- 1. Questions en cascade générées post-décision (A28) -->
 		{#if cascadeResult && cascadeResult.questions && cascadeResult.questions.length > 0}
 			<CascadeQuestionsCard
 				{projectId}
@@ -1063,122 +1263,391 @@
 			/>
 		{/if}
 
-		<!-- Liste des messages de délibération -->
-		{#if isLoadingArguments}
-			<div class="p-8 text-center text-xs text-muted-foreground animate-pulse">
-				Chargement de la conversation...
-			</div>
-		{:else if argumentsList.length === 0}
-			<!-- Empty state spécifique quand le sujet a 0 message (nouveau sujet) -->
-			<div class="p-8 text-center border-2 border-dashed rounded-xl space-y-4 bg-muted/5 max-w-lg mx-auto my-6">
-				<div class="p-3 rounded-full bg-primary/10 text-primary w-fit mx-auto">
-					<Sparkles class="h-6 w-6" />
+		<!-- 2. Arbre de découverte (Généalogie cascade) & Règles du projet -->
+		<div class="grid grid-cols-1 xl:grid-cols-2 gap-4 items-start">
+			<div class="space-y-3 rounded-xl border bg-card/50 p-3.5" data-testid="dossier-discovery-tree">
+				<div class="flex items-center justify-between pb-2 border-b text-foreground font-bold">
+					<span class="flex items-center gap-1.5">
+						<GitFork class="h-4 w-4 text-primary" />
+						<span>Arbre de découverte (Parents → Décisions → Enfants)</span>
+					</span>
 				</div>
-				<div class="space-y-1.5">
-					<h4 class="text-sm font-bold text-foreground">Délibération ouverte</h4>
-					<p class="text-xs text-muted-foreground leading-relaxed">
-						Ce sujet est prêt pour l'analyse d'architecture. Vous pouvez initier le débat en formulant une question ou une proposition ci-dessous, ou solliciter directement l'un de nos agents spécialisés.
-					</p>
-				</div>
-
-				<div class="grid grid-cols-2 gap-2 text-left pt-2">
-					<button
-						type="button"
-						onclick={() => handleInvokeAgent('proposer')}
-						disabled={invokingAgentRole !== null}
-						class="p-2.5 rounded-lg border bg-card hover:bg-muted/50 transition-colors text-xs space-y-0.5 cursor-pointer"
-					>
-						<span class="font-bold text-blue-600 dark:text-blue-400 block">💡 @proposer</span>
-						<span class="text-[11px] text-muted-foreground">Formuler les premières options techniques</span>
-					</button>
-
-					<button
-						type="button"
-						onclick={() => handleInvokeAgent('verifier')}
-						disabled={invokingAgentRole !== null}
-						class="p-2.5 rounded-lg border bg-card hover:bg-muted/50 transition-colors text-xs space-y-0.5 cursor-pointer"
-					>
-						<span class="font-bold text-cyan-600 dark:text-cyan-400 block">🛡️ @verifier</span>
-						<span class="text-[11px] text-muted-foreground">Vérifier les contraintes de doctrine</span>
-					</button>
-				</div>
+				{#if isLoadingTree}
+					<div class="p-8 text-center text-muted-foreground animate-pulse">
+						Génération de l'arbre généalogique...
+					</div>
+				{:else if treeSeries && treeSeries.length > 0}
+					<div class="rounded-xl border bg-card p-2 min-h-[380px]">
+						<KnowledgeTreeChart series={treeSeries} height="380px" />
+					</div>
+				{:else}
+					<div class="p-8 text-center text-muted-foreground border-2 border-dashed rounded-xl">
+						Aucune cascade de décision générée pour ce sujet.
+					</div>
+				{/if}
 			</div>
-		{:else if displayedArguments.length === 0}
-			<!-- Empty state quand un filtre masque tous les messages existants -->
-			<div class="p-8 text-center border-2 border-dashed rounded-xl space-y-2 bg-muted/10">
-				<Bot class="h-8 w-8 text-muted-foreground/60 mx-auto" />
-				<h4 class="text-xs font-bold text-foreground">Aucun argument affiché pour ce filtre</h4>
-				<p class="text-xs text-muted-foreground max-w-sm mx-auto">
-					Basculez sur « Tous » ou « Fil complet » pour afficher l'ensemble des échanges ({argumentsList.length} arguments existants).
-				</p>
-			</div>
-		{:else}
-			{#each displayedArguments as arg (arg.id)}
-				{@const targetArg = arg.targetArgumentId
-					? argumentsList.find((a) => a.id === arg.targetArgumentId) || null
-					: null}
 
-				<SubjectMessageBubble
-					argument={arg}
-					targetArgument={targetArg}
-					{userRole}
-					{isHumanUser}
-					onResolve={handleResolveArgument}
-					onChallenge={handleChallengeArgument}
-					onArbitrateOption={handleArbitrateOption}
-					onSplit={() => (isSplitDialogOpen = true)}
-					onReply={(target) => {
-						replyingTo = target;
-						// Scroll composer into view
-						const composerElem = document.getElementById('compose-claim');
-						composerElem?.focus();
+			<div class="space-y-3 rounded-xl border bg-card/50 p-3.5" data-testid="dossier-project-rules">
+				<ProjectRulesPanel
+					{projectId}
+					{subjectId}
+					onRuleChanged={() => {
+						void refreshTreeData();
 					}}
 				/>
-			{/each}
+			</div>
+		</div>
+	</div>
+{/snippet}
 
-			{#if !subjectDecision && argumentsList.length > 0}
-				<div class="rounded-xl border border-dashed border-primary/30 bg-muted/10 p-3.5 flex items-center justify-between gap-3 text-xs mt-3 flex-wrap">
-					<div class="flex items-center gap-2 text-muted-foreground">
-						<Sparkles class="h-4 w-4 text-primary shrink-0" />
-						<span>Le débat est engagé ({argumentsList.length} argument{argumentsList.length > 1 ? 's' : ''}). Prêt à dégager un consensus ou arbitrer l'option retenue ?</span>
-					</div>
-					<div class="flex items-center gap-2">
-						<button
-							type="button"
-							onclick={() => handleInvokeAgent('synthesizer')}
-							disabled={invokingAgentRole !== null}
-							class="px-2.5 py-1 rounded-md bg-purple-500/10 text-purple-700 dark:text-purple-300 border border-purple-500/25 hover:bg-purple-500/20 text-[11px] font-semibold transition-colors cursor-pointer"
-						>
-							⚖️ @synthesizer
-						</button>
-						<button
-							type="button"
-							onclick={() => (viewMode = 'synthesis')}
-							class="px-2.5 py-1 rounded-md bg-primary text-primary-foreground text-[11px] font-semibold hover:bg-primary/90 transition-colors cursor-pointer shadow-2xs"
-						>
-							Arbitrer la décision →
-						</button>
-					</div>
+<!-- ═════════════════════════════════════════════════════════════════════════ -->
+<!-- CONTENEUR PRINCIPAL UNIFIÉ DU SUJET (PANNEAU DROIT FUSIONNÉ)              -->
+<!-- ═════════════════════════════════════════════════════════════════════════ -->
+<div class="flex flex-col h-full bg-card rounded-xl border shadow-xs overflow-hidden" data-testid="unified-subject-workbench">
+	<!-- ─────────────────────────────────────────────────────────────────────── -->
+	<!-- 1. EN-TÊTE UNIQUE DU SUJET                                              -->
+	<!-- ─────────────────────────────────────────────────────────────────────── -->
+	<div class="px-3.5 py-2.5 border-b bg-muted/20 flex items-center justify-between gap-3 flex-wrap shrink-0">
+		<div class="flex items-center gap-2">
+			<button
+				type="button"
+				onclick={onBackToBoard}
+				class="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-semibold bg-muted/60 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+				title="Revenir au tableau de maturité"
+			>
+				<ArrowLeft class="h-3.5 w-3.5" />
+				<span>Tableau</span>
+				{#if deliberationStore.activeEngagement?.title}
+					<span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-background text-primary border border-primary/30 font-bold">
+						{deliberationStore.activeEngagement.shortName || deliberationStore.activeEngagement.title}
+					</span>
+				{/if}
+			</button>
+
+			<div>
+				<div class="flex items-center gap-2 flex-wrap">
+					<span class="font-mono text-xs font-bold text-primary">
+						{activeSubject?.section_ref || '§'}
+					</span>
+					<h2 class="text-sm font-bold text-foreground leading-none">
+						{activeSubject?.name || 'Sujet non sélectionné'}
+					</h2>
+					{#if activeSubject}
+						<span class="inline-flex items-center rounded-md px-2 py-0.5 font-mono text-[10px] font-bold border {getMaturityBadgeClass(activeSubject.level)}">
+							{formatMaturityLevel(activeSubject.level)}
+						</span>
+					{/if}
 				</div>
+				<div class="text-[11px] text-muted-foreground mt-0.5">
+					Attente : <strong class="text-foreground">{activeSubject?.waiting_for_role || '—'}</strong> · Effort : <span class="font-mono">{activeSubject?.relative_effort || 'M'}</span>
+				</div>
+			</div>
+		</div>
+
+		<!-- Compteurs synthétiques, LLMOps, Menu Agents & Bascule Split -->
+		<div class="flex items-center gap-1.5 flex-wrap">
+			<!-- Badges Objections & Doctrines (fusionnés depuis l'ancien en-tête Dossier) -->
+			<span
+				class="inline-flex items-center gap-1 px-2 py-1 rounded-lg font-mono text-[10px] font-bold border {openObjectionsCount > 0
+					? 'bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-500/25'
+					: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/25'}"
+				title="Objections ouvertes sur le total des objections du sujet"
+			>
+				<ShieldAlert class="h-3 w-3" />
+				<span>{openObjectionsCount} obj. ouverte(s) / {totalObjectionsCount}</span>
+			</span>
+
+			<span
+				class="inline-flex items-center gap-1 px-2 py-1 rounded-lg font-mono text-[10px] font-bold bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-500/25"
+				title="Références doctrinales mobilisées dans la délibération"
+			>
+				<BookOpen class="h-3 w-3" />
+				<span>{citedKbRefs.length} ref(s) base</span>
+			</span>
+
+			<!-- Indicateur LLMOps -->
+			{#if deliberationStore.llmopsStatus === 'connected'}
+				<button
+					type="button"
+					onclick={() => deliberationStore.syncWithLLMOps()}
+					disabled={deliberationStore.isSyncingLLMOps}
+					class="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg border text-xs font-medium bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/20 transition-colors cursor-pointer"
+					title="Connecté au Knowledge Hub LLMOps · Cliquez pour resynchroniser"
+				>
+					<span class="inline-block h-2 w-2 rounded-full bg-emerald-500"></span>
+					<span class="opacity-80">LLMOps :</span>
+					<strong class="font-mono">En ligne</strong>
+					{#if deliberationStore.isSyncingLLMOps}
+						<RefreshCw class="h-3 w-3 animate-spin ml-0.5" />
+					{/if}
+				</button>
+			{:else}
+				<button
+					type="button"
+					onclick={() => deliberationStore.syncWithLLMOps()}
+					disabled={deliberationStore.isSyncingLLMOps}
+					class="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg border text-xs font-medium bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-500/30 hover:bg-rose-500/20 transition-colors cursor-pointer"
+					title="Non connecté à LLMOps · Cliquez pour tester la connexion"
+				>
+					<span class="inline-block h-2 w-2 rounded-full bg-rose-500"></span>
+					<span class="opacity-80">LLMOps :</span>
+					<strong class="font-mono">Non connecté</strong>
+					{#if deliberationStore.isSyncingLLMOps}
+						<RefreshCw class="h-3 w-3 animate-spin ml-0.5" />
+					{/if}
+				</button>
 			{/if}
-		{/if}
+
+			<!-- Menu Solliciter un agent -->
+			<div class="relative">
+				<button
+					type="button"
+					disabled={isDebating || invokingAgentRole !== null}
+					onclick={() => (isAgentMenuOpen = !isAgentMenuOpen)}
+					class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border bg-background hover:bg-muted/70 disabled:opacity-50 text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
+				>
+					{#if isDebating}
+						<RotateCcw class="h-3.5 w-3.5 animate-spin text-primary" />
+						<span>Débat...</span>
+					{:else if invokingAgentRole}
+						<RotateCcw class="h-3.5 w-3.5 animate-spin text-purple-600" />
+						<span>@{invokingAgentRole}...</span>
+					{:else}
+						<Sparkles class="h-3.5 w-3.5 text-purple-600" />
+						<span>Agents IA</span>
+						<ChevronDown class="h-3 w-3 text-muted-foreground transition-transform {isAgentMenuOpen ? 'rotate-180' : ''}" />
+					{/if}
+				</button>
+
+				{#if isAgentMenuOpen}
+					<div
+						class="absolute right-0 mt-1 w-56 rounded-xl border bg-popover text-popover-foreground shadow-lg z-30 p-1.5 space-y-1 text-xs"
+						role="menu"
+					>
+						<div class="px-2 py-1 text-[10px] font-bold text-muted-foreground uppercase tracking-wider border-b mb-1">
+							Interpeller un agent IA
+						</div>
+						<button
+							type="button"
+							onclick={() => {
+								isAgentMenuOpen = false;
+								handleInvokeAgent('challenger');
+							}}
+							class="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-rose-500/10 text-rose-700 dark:text-rose-400 font-semibold cursor-pointer transition-colors text-left"
+						>
+							<span>⚔️</span>
+							<div>
+								<div class="leading-none">@challenger</div>
+								<div class="text-[10px] font-normal text-muted-foreground mt-0.5">Trouver failles & objections</div>
+							</div>
+						</button>
+						<button
+							type="button"
+							onclick={() => {
+								isAgentMenuOpen = false;
+								handleInvokeAgent('proposer');
+							}}
+							class="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-blue-500/10 text-blue-700 dark:text-blue-400 font-semibold cursor-pointer transition-colors text-left"
+						>
+							<span>💡</span>
+							<div>
+								<div class="leading-none">@proposer</div>
+								<div class="text-[10px] font-normal text-muted-foreground mt-0.5">Suggérer une nouvelle option</div>
+							</div>
+						</button>
+						<button
+							type="button"
+							onclick={() => {
+								isAgentMenuOpen = false;
+								handleInvokeAgent('verifier');
+							}}
+							class="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-cyan-500/10 text-cyan-700 dark:text-cyan-400 font-semibold cursor-pointer transition-colors text-left"
+						>
+							<span>🛡️</span>
+							<div>
+								<div class="leading-none">@verifier</div>
+								<div class="text-[10px] font-normal text-muted-foreground mt-0.5">Contrôler conformité doctrine</div>
+							</div>
+						</button>
+						<button
+							type="button"
+							onclick={() => {
+								isAgentMenuOpen = false;
+								handleInvokeAgent('synthesizer');
+							}}
+							class="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-purple-500/10 text-purple-700 dark:text-purple-400 font-semibold cursor-pointer transition-colors text-left"
+						>
+							<span>⚖️</span>
+							<div>
+								<div class="leading-none">@synthesizer</div>
+								<div class="text-[10px] font-normal text-muted-foreground mt-0.5">Résumer et arbitrer</div>
+							</div>
+						</button>
+						<div class="border-t my-1"></div>
+						<button
+							type="button"
+							onclick={() => {
+								isAgentMenuOpen = false;
+								handleLaunchDebate();
+							}}
+							class="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 font-semibold cursor-pointer transition-colors text-left"
+						>
+							<span>⚡</span>
+							<div>
+								<div class="leading-none">Débat complet</div>
+								<div class="text-[10px] font-normal text-muted-foreground mt-0.5">Tour contradictoire automatisé</div>
+							</div>
+						</button>
+					</div>
+				{/if}
+			</div>
+
+			<!-- Bascule Mode Onglets Pleine Largeur vs Mode Split Côte-à-côte (sur grand écran) -->
+			<button
+				type="button"
+				data-testid="btn-toggle-split"
+				onclick={() => (isSplitView = !isSplitView)}
+				class="hidden xl:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-semibold transition-colors cursor-pointer {isSplitView
+					? 'bg-primary text-primary-foreground border-primary shadow-2xs'
+					: 'bg-background text-muted-foreground hover:text-foreground hover:bg-muted/60'}"
+				title={isSplitView
+					? 'Revenir aux onglets unifiés pleine largeur'
+					: 'Afficher le Fil et la Matrice côte à côte sur grand écran'}
+			>
+				{#if isSplitView}
+					<Maximize2 class="h-3.5 w-3.5" />
+					<span>Pleine largeur</span>
+				{:else}
+					<Columns2 class="h-3.5 w-3.5" />
+					<span>Vue Split (Fil + Matrice)</span>
+				{/if}
+			</button>
+		</div>
 	</div>
 
-	<!-- ═════════════════════════════════════════════════════════════════════════ -->
-	<!-- COMPOSEUR STRUCTURÉ (A25) : Posture, Fondement requis, #base, @agent      -->
-	<!-- ═════════════════════════════════════════════════════════════════════════ -->
-	<div class="p-3 border-t bg-muted/20 shrink-0">
-		<StructuredComposer
-			{subjectId}
-			{projectId}
-			options={subjectOptions}
-			bind:selectedOptionId={selectedComposerOptionId}
-			{allowedKbRefs}
-			{replyingTo}
-			onCancelReply={() => (replyingTo = null)}
-			onArgumentCreated={handleArgumentCreated}
-			onError={(msg) => deliberationStore.logNotification(msg, 'warning')}
+	<!-- ─────────────────────────────────────────────────────────────────────── -->
+	<!-- 2. TIMELINE HORIZONTALE DE MATURATION + CRITÈRES & ACTIONS EN HAUT      -->
+	<!-- ─────────────────────────────────────────────────────────────────────── -->
+	<div class="shrink-0">
+		<MaturityStepper
+			report={effectiveReport}
+			{userRole}
+			{isHumanUser}
+			onAction={handleCriterionAction}
+			onContextualAction={handleContextualMilestoneAction}
+			onTransition={handleTransitionMaturity}
 		/>
+	</div>
+
+	<!-- ─────────────────────────────────────────────────────────────────────── -->
+	<!-- 3. BARRE D'ONGLETS UNIFIÉS DU SUJET (Remplace Fil + Dossier séparés)    -->
+	<!-- ─────────────────────────────────────────────────────────────────────── -->
+	<div
+		class="px-3.5 py-1.5 border-b bg-muted/30 flex items-center justify-between gap-2 flex-wrap shrink-0"
+		data-testid="unified-workspace-tabs"
+	>
+		<div class="flex items-center gap-1 overflow-x-auto">
+			<button
+				type="button"
+				data-testid="tab-unified-thread"
+				onclick={() => (activeWorkspaceTab = 'thread')}
+				class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer whitespace-nowrap {activeWorkspaceTab ===
+					'thread' && !isSplitView
+					? 'bg-background text-foreground shadow-2xs border'
+					: isSplitView
+						? 'bg-primary/10 text-primary border border-primary/20'
+						: 'text-muted-foreground hover:text-foreground hover:bg-background/50'}"
+			>
+				<MessagesSquare class="h-3.5 w-3.5 text-primary" />
+				<span>Délibération & Cadrage</span>
+				<span class="px-1.5 py-0.2 rounded-full bg-muted text-[10px] font-mono">
+					{argumentsList.length}
+				</span>
+			</button>
+
+			<button
+				type="button"
+				data-testid="tab-unified-matrix"
+				onclick={() => {
+					activeWorkspaceTab = 'matrix';
+					void refreshMatrixData();
+				}}
+				class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer whitespace-nowrap {(isSplitView ? splitRightTab === 'matrix' : activeWorkspaceTab === 'matrix')
+					? 'bg-background text-foreground shadow-2xs border'
+					: 'text-muted-foreground hover:text-foreground hover:bg-background/50'}"
+			>
+				<Scale class="h-3.5 w-3.5 text-purple-600 dark:text-purple-400" />
+				<span>Options, Matrice & Arbitrage</span>
+				<span class="px-1.5 py-0.2 rounded-full bg-purple-500/15 text-purple-700 dark:text-purple-300 text-[10px] font-mono">
+					{subjectOptions.length} opt · {matrixCriteria.length} crit
+				</span>
+			</button>
+
+			<button
+				type="button"
+				data-testid="tab-unified-kb"
+				onclick={() => (activeWorkspaceTab = 'kb')}
+				class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer whitespace-nowrap {(isSplitView ? splitRightTab === 'kb' : activeWorkspaceTab === 'kb')
+					? 'bg-background text-foreground shadow-2xs border'
+					: 'text-muted-foreground hover:text-foreground hover:bg-background/50'}"
+			>
+				<BookOpen class="h-3.5 w-3.5 text-indigo-600 dark:text-indigo-400" />
+				<span>Doctrines, RFP & Brouillon</span>
+				<span class="px-1.5 py-0.2 rounded-full bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 text-[10px] font-mono">
+					{doctrineItems.length + citedKbRefs.length}
+				</span>
+			</button>
+
+			<button
+				type="button"
+				data-testid="tab-unified-cascade"
+				onclick={() => {
+					activeWorkspaceTab = 'cascade';
+					void refreshTreeData();
+				}}
+				class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer whitespace-nowrap {(isSplitView ? splitRightTab === 'cascade' : activeWorkspaceTab === 'cascade')
+					? 'bg-background text-foreground shadow-2xs border'
+					: 'text-muted-foreground hover:text-foreground hover:bg-background/50'}"
+			>
+				<GitFork class="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+				<span>Cascade & Règles</span>
+				{#if cascadeResult?.questions?.length}
+					<span class="px-1.5 py-0.2 rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 text-[10px] font-mono">
+						{cascadeResult.questions.length}
+					</span>
+				{/if}
+			</button>
+		</div>
+	</div>
+
+	<!-- ─────────────────────────────────────────────────────────────────────── -->
+	<!-- 4. CORPS DE L'ESPACE UNIFIÉ (ONGLETS PLEINE LARGEUR OU VUE SPLIT)       -->
+	<!-- ─────────────────────────────────────────────────────────────────────── -->
+	<div class="flex-1 min-h-0 overflow-hidden">
+		{#if isSplitView}
+			<div class="grid grid-cols-1 xl:grid-cols-12 h-full divide-y xl:divide-y-0 xl:divide-x divide-border">
+				<div class="xl:col-span-6 h-full min-h-0 overflow-hidden">
+					{@render renderThreadPane()}
+				</div>
+				<div class="xl:col-span-6 h-full min-h-0 overflow-hidden bg-muted/5">
+					{#if splitRightTab === 'matrix'}
+						{@render renderMatrixPane()}
+					{:else if splitRightTab === 'kb'}
+						{@render renderDoctrinesAndDraftPane()}
+					{:else}
+						{@render renderCascadeAndRulesPane()}
+					{/if}
+				</div>
+			</div>
+		{:else if activeWorkspaceTab === 'thread'}
+			{@render renderThreadPane()}
+		{:else if activeWorkspaceTab === 'matrix'}
+			{@render renderMatrixPane()}
+		{:else if activeWorkspaceTab === 'kb'}
+			{@render renderDoctrinesAndDraftPane()}
+		{:else if activeWorkspaceTab === 'cascade'}
+			{@render renderCascadeAndRulesPane()}
+		{/if}
 	</div>
 </div>
 

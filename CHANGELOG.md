@@ -8,6 +8,13 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Ergonomie de la Délibération : Espace Sujet Unifié, Timeline Horizontale Contextualisée et Cadrage Compact
+- **Fusion du panneau principal et du Dossier du sujet (`DeliberationWorkbench.svelte`, `SubjectThreadView.svelte`)** : suppression de la 3e colonne redondante au profit d’un **Espace Sujet Unifié** (9 colonnes à droite de l’arbre des sujets) structuré autour d’un en-tête unique, de la timeline horizontale de maturation en haut et de 4 volets complémentaires sans doublon (`💬 Délibération & Cadrage`, `⚖️ Options, Matrice & Arbitrage`, `📚 Doctrines, RFP & Brouillon`, `🌿 Cascade & Règles`).
+- **Mode Split optionnel sur grand écran (`btn-toggle-split`)** : bascule permettant d’afficher côte à côte le fil contradictoire à gauche et le volet d’analyse actif (Matrice, Doctrines ou Cascade) à droite, sous la timeline commune.
+- **Timeline horizontale de maturation (`L0 → L5`) avec critères et actions contextualisées (`MaturityStepper.svelte`, `getMilestoneContextualActions`)** : affichage permanent en haut des critères du prochain jalon à franchir sous forme de grille horizontale compacte, cliquable sur n’importe quel jalon `L0` à `L5`, accompagné d’une barre d’actions humaines et d’agents IA (`@proposer`, `@verifier`, `@challenger`, `@synthesizer`) directement contextualisées au jalon inspecté.
+- **Bandeau de Cadrage compact sur 2 lignes (`SubjectProblemCard.svelte`)** : synthèse en 2 lignes (Question centrale éditable in-place + pastilles Hypothèse, Dilemme, Exigences RFP, Questions métier et raccourci vers la Matrice), dépliable à la demande, sans dupliquer les cartes d’options dans le fil.
+- Tests : `tests/contract/deliberation-conversation.test.ts`.
+
 ### Capitalisation (Porte G4) : généralisation des décisions projet et conformité du contrat `POST /api/knowledge/candidates` vers LLMOps
 - **Généralisation explicite en Porte G4** (`prepareSubjectKbCandidates` / `submitSubjectKbCandidates`) : une décision d'arbitrage initialement qualifiée `project_specific` par construction en Porte G3 peut désormais être anonymisée et généralisée par l'architecte en Porte G4 (`portability: 'reusable_architecture_doctrine'`, `harvestable: true`) afin d'être moissonnée par LLMOps et réutilisée comme doctrine à la délibération suivante.
 - **Filtrage des métadonnées d'arbitrage** (`buildKbCandidates`, `prepareSubjectKbCandidates`, `submitSubjectKbCandidates`) : exclusion systématique des marqueurs techniques `COMPLIANCE_STATUS:*` et `PORTABILITY:*` stockés dans `acceptedViolations`, qui généraient auparavant de faux candidats `amendment` rejetés en `400 Bad Request` par LLMOps.

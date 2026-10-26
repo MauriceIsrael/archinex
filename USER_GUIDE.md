@@ -27,6 +27,15 @@ L'en-tête supérieur de l'application est accessible en permanence depuis n'imp
 
 Chaque sujet d'architecture traverse une chaîne rigoureuse de maturation en 6 étapes :
 
+### 2.0 Ergonomie de l'Espace Sujet Unifié (Workbench de Délibération)
+Lorsqu'un sujet est sélectionné dans l'arbre de gauche, tout l'écran de droite forme un **Espace Sujet Unifié** sans redondance :
+- **En haut : Timeline horizontale de maturation (`L0 Nommé` → `L5 Archivé`)** : ouverte par défaut sur le prochain jalon à franchir (et inspectable au clic sur n'importe quel jalon `L0..L5`), elle présente en grille horizontale les critères de passage ainsi que les **actions humaines et agents IA contextualisées au jalon** (`Reformuler`, `@proposer`, `@verifier`, `@challenger`, `@synthesizer`, `Trancher dans la Matrice`).
+- **4 Volets Unifiés (et Mode Split Côte-à-côte sur grand écran)** :
+  1. **Délibération & Cadrage** : bandeau de cadrage compact sur 2 lignes (Question centrale + pastilles Hypothèse, Dilemme, RFP, Questions métier, dépliable à la demande), objections ouvertes épinglées, fil contradictoire et composeur structuré.
+  2. **Options, Matrice & Arbitrage** : regroupe en un seul lieu les propositions d'alternatives, la matrice multicritères pondérée, l'acte d'arbitrage formel `L3` et la carte d'affirmation collégiale `K16` / faits `K18`.
+  3. **Doctrines, RFP & Brouillon** : doctrines LLMOps applicables, règles citées dans le débat et spécification télégraphique (5 colonnes).
+  4. **Cascade & Règles** : questions en cascade post-décision, arbre généalogique de découverte et règles du projet.
+
 ### Étape 1 : Cadrage du Sujet
 1. Ouvrez le sujet depuis la **Matrice d'Allocation d'Effort** ou la liste des sujets.
 2. Définissez le **Problème / Dilemme d'Architecture** (ex: *Sélection de la solution de stockage persistant pour les clusters bare-metal*).

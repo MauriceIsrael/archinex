@@ -2,45 +2,32 @@
 	import { deliberationStore } from '$lib/stores/deliberationStore.svelte';
 	import SubjectConversationList from './SubjectConversationList.svelte';
 	import SubjectThreadView from './SubjectThreadView.svelte';
-	import SubjectDossierView from './SubjectDossierView.svelte';
-	import { MessagesSquare, ListFilter, ArrowLeft, FolderOpen } from 'lucide-svelte';
-	import type { Argument } from '$lib/domain/debate';
+	import { MessagesSquare, ListFilter, ArrowLeft } from 'lucide-svelte';
 
 	let {
 		sessionRole = 'lead_architect',
+		sessionUser = null,
 		onBackToBoard = () => {}
 	}: {
 		sessionRole?: string;
+		sessionUser?: { id: string; email: string; role: string } | null;
 		onBackToBoard?: () => void;
 	} = $props();
 
-	type MobileWorkbenchTab = 'list' | 'thread' | 'dossier';
-	let mobileTab = $state<MobileWorkbenchTab>('thread');
-	// Dossier du sujet : options, critères, évaluations et décision (ouvert par défaut sur grand écran)
-	let isDossierOpen = $state(true);
-	const toggleDossier = () => (isDossierOpen = !isDossierOpen);
+	type MobileWorkbenchTab = 'list' | 'workspace';
+	let mobileTab = $state<MobileWorkbenchTab>('workspace');
 
-	// Décision formelle demandée (raccourci de l'interface) : ouvrir le dossier du sujet sur la matrice.
-	$effect(() => {
-		if (deliberationStore.pendingDecisionSubjectId) {
-			isDossierOpen = true;
-			mobileTab = 'dossier';
-			deliberationStore.pendingDecisionSubjectId = null;
-		}
-	});
-
-	const activeSubject = $derived(deliberationStore.activeSubject);
 	const activeSubjectId = $derived(deliberationStore.activeSubjectId);
 	const projectId = $derived(deliberationStore.activeEngagement?.id || '');
 
 	function handleSelectSubject(id: string) {
 		deliberationStore.selectSubject(id);
-		mobileTab = 'thread';
+		mobileTab = 'workspace';
 	}
 </script>
 
 <div class="space-y-3">
-	<!-- Barre de navigation mobile (< lg) : 3 onglets (Sujets, Fil, Dossier) + Retour tableau -->
+	<!-- Barre de navigation mobile (< lg) : 2 onglets (Sujets, Espace Sujet Unifié) + Retour tableau -->
 	<div class="lg:hidden flex items-center justify-between gap-1.5 bg-muted/60 p-1.5 rounded-lg text-xs">
 		<button
 			type="button"
@@ -66,26 +53,14 @@
 
 			<button
 				type="button"
-				onclick={() => (mobileTab = 'thread')}
+				onclick={() => (mobileTab = 'workspace')}
 				class="inline-flex items-center gap-1 py-1.5 px-2.5 rounded-md font-semibold transition-all cursor-pointer {mobileTab ===
-				'thread'
+				'workspace'
 					? 'bg-background text-foreground shadow-2xs'
 					: 'text-muted-foreground hover:text-foreground'}"
 			>
 				<MessagesSquare class="h-3.5 w-3.5" />
-				<span>Fil</span>
-			</button>
-
-			<button
-				type="button"
-				onclick={() => (mobileTab = 'dossier')}
-				class="inline-flex items-center gap-1 py-1.5 px-2.5 rounded-md font-semibold transition-all cursor-pointer {mobileTab ===
-				'dossier'
-					? 'bg-background text-foreground shadow-2xs'
-					: 'text-muted-foreground hover:text-foreground'}"
-			>
-				<FolderOpen class="h-3.5 w-3.5" />
-				<span>Dossier</span>
+				<span>Espace Sujet</span>
 			</button>
 		</div>
 	</div>
@@ -101,26 +76,23 @@
 				onSelectSubject={handleSelectSubject}
 				{onBackToBoard}
 			/>
-		{:else if mobileTab === 'dossier'}
-			<SubjectDossierView subjectId={activeSubjectId} {projectId} isOpen={true} onClose={() => (mobileTab = 'thread')} />
 		{:else}
 			<SubjectThreadView
 				subjectId={activeSubjectId}
 				{projectId}
 				userRole={sessionRole || deliberationStore.currentRole}
+				{sessionUser}
 				isHumanUser={deliberationStore.isHuman}
-				isDossierOpen={false}
-				onToggleDossier={() => (mobileTab = 'dossier')}
 				{onBackToBoard}
 			/>
 		{/if}
 	</div>
 
 	<!-- ═════════════════════════════════════════════════════════════════════════ -->
-	<!-- 2. VUE DESKTOP (>= lg) : DISPOSITION EN 2 COLONNES (SUJETS + FIL PUR)       -->
+	<!-- 2. VUE DESKTOP (>= lg) : 2 COLONNES (ARBRE DES SUJETS + ESPACE UNIFIÉ)     -->
 	<!-- ═════════════════════════════════════════════════════════════════════════ -->
 	<div class="hidden lg:grid grid-cols-12 gap-4 h-[calc(100vh-120px)] min-h-[700px] items-stretch">
-		<!-- Colonne 1 (Gauche) : Liste des conversations de sujets (3.5 cols) -->
+		<!-- Colonne 1 (Gauche) : Arbre / Liste des sujets (3 cols) -->
 		<div class="col-span-4 xl:col-span-3 h-full overflow-hidden">
 			<SubjectConversationList
 				selectedSubjectId={activeSubjectId}
@@ -130,35 +102,16 @@
 			/>
 		</div>
 
-		<!-- Colonne 2 : fil de délibération ; colonne 3 (optionnelle) : dossier du sujet -->
-		<div class="{isDossierOpen ? 'col-span-4 xl:col-span-5' : 'col-span-8 xl:col-span-9'} h-full overflow-hidden transition-all duration-200 flex flex-col gap-2">
-			<div class="flex justify-end">
-				<button
-					type="button"
-					data-testid="btn-toggle-dossier"
-					onclick={toggleDossier}
-					class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border text-[11px] font-semibold text-muted-foreground hover:text-foreground hover:bg-muted/40 cursor-pointer"
-				>
-					<FolderOpen class="h-3.5 w-3.5" />
-					<span>{isDossierOpen ? 'Masquer le dossier' : 'Dossier : options, critères, décision'}</span>
-				</button>
-			</div>
-			<div class="flex-1 min-h-0 overflow-hidden">
-				<SubjectThreadView
-					subjectId={activeSubjectId}
-					{projectId}
-					userRole={sessionRole || deliberationStore.currentRole}
-					isHumanUser={deliberationStore.isHuman}
-					{isDossierOpen}
-					onToggleDossier={toggleDossier}
-					{onBackToBoard}
-				/>
-			</div>
+		<!-- Colonne 2 (Droite unifiée) : Timeline de maturation + Volets unifiés sans doublon (9 cols) -->
+		<div class="col-span-8 xl:col-span-9 h-full min-h-0 overflow-hidden">
+			<SubjectThreadView
+				subjectId={activeSubjectId}
+				{projectId}
+				userRole={sessionRole || deliberationStore.currentRole}
+				{sessionUser}
+				isHumanUser={deliberationStore.isHuman}
+				{onBackToBoard}
+			/>
 		</div>
-		{#if isDossierOpen}
-			<div class="col-span-4 xl:col-span-4 h-full overflow-hidden">
-				<SubjectDossierView subjectId={activeSubjectId} {projectId} isOpen={true} onClose={() => (isDossierOpen = false)} />
-			</div>
-		{/if}
 	</div>
 </div>

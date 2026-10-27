@@ -19,6 +19,7 @@
     "db:reset": "prisma db push --force-reset && tsx prisma/seed-dev.ts",
     "db:generate": "prisma generate",
     "seed": "tsx scripts/seed.ts",
+    "seed:lulu": "tsx scripts/seed-lulu.ts",
     "test": "vitest run",
     "test:e2e:api": "vitest run tests/e2e/regulatory-to-capitalization.test.ts",
     "test:e2e:browser": "playwright test",

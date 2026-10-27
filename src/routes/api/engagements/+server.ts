@@ -10,9 +10,13 @@ const frameworksOf = (strategy: unknown): string[] | null => {
 	return Array.isArray(fws) ? [...fws].filter((f): f is string => typeof f === 'string').sort() : null;
 };
 
-export const GET: RequestHandler = async () => {
+export const GET: RequestHandler = async ({ url }) => {
 	try {
-		const engagements = await getAllEngagementsFromDb();
+		const full = url.searchParams.get('full') === 'true';
+		const engagements = await getAllEngagementsFromDb({
+			includeCorpusKeyClauses: full,
+			stripSubjectProposals: !full
+		});
 		return json(engagements);
 	} catch (err: any) {
 		return json({ error: err.message || 'Failed to fetch engagements' }, { status: 500 });

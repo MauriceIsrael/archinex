@@ -186,3 +186,19 @@ Lors de l'assemblage et du scellement de l'Engagement Bundle (`assembleEngagemen
 - **Vérification d'intégrité et de conformité** :
   - Le vérificateur opposable `verifyEngagementBundle` contrôle la validité des genres d'éléments, l'absence de circularité dans les frontières (`CIRCULAR_BOUNDARY`) et la résolution complète des identifiants cités dans les projections.
 
+
+
+### 4.10 Dépouillement RFP en arrière-plan, reprise sur cache et notifications
+Pour traiter les appels d'offres volumineux (plusieurs centaines ou milliers de clauses) sans contraindre l'architecte à attendre devant son écran ni perdre ses calculs en cas d'incident :
+- **Suivi et notifications en tâche de fond** :
+  - Le dépouillement s'exécute côté serveur via `factorizationJobs.ts`.
+  - L'application met à jour le titre de l'onglet du navigateur (`⏳ Tri des exigences (X/Y) · Archinex`) et émet une notification Web système (`new Notification(...)`) dès que le résultat est prêt (`✅ (Prêt !)`).
+  - Un système d'écoute en arrière-plan permet de naviguer partout dans l'application (tableaux de bord, délibération, relecture de doctrine) sans interrompre le suivi ni manquer la notification.
+- **Résilience et détection de quota/crédits LLM (Fast-Fail)** :
+  - Détection proactive des erreurs de solde (`isLlmCreditOrQuotaError`) chez les fournisseurs d'API (ex. Anthropic, OpenAI).
+  - En cas d'épuisement de crédits, le moteur stoppe immédiatement les appels suivants au lieu d'accumuler les échecs, conserve les lots déjà validés en mémoire cache SQLite (`FactorizationStageCache`) et signale l'état reprenable.
+- **Reprise instantanée sans surcoût** :
+  - L'interface met en évidence un bouton **« Reprendre l'analyse »**.
+  - La reprise relit instantanément les étapes déjà calculées depuis le cache local (quelques millisecondes) et ne sollicite le modèle LLM que pour les lots restants et les étapes de synthèse finale.
+- **Partitionnement sécurisé (`PARTITION_MAX_CHARS: 250 000`)** :
+  - Les exigences à délibérer sont découpées en tranches indépendantes de 250k caractères au plus lors de la cartographie (étape 3a), garantissant une consommation de jetons maîtrisée et une mise en cache par tranche.

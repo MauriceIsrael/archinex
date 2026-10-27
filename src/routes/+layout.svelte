@@ -37,6 +37,12 @@
   import { hasRole } from '$lib/auth/guard';
   import { apiFetch } from '$lib/api/fetch';
   import { toast } from '$lib/toast/index.svelte';
+  import {
+    ACTIVE_FACTORIZATION_RUN_KEY,
+    updateAuditProgressTitle,
+    resetAuditTitle,
+    notifyAuditCompleted
+  } from '$lib/services/backgroundAuditNotifier';
   import { goto } from '$app/navigation';
   import { page } from '$app/stores';
   import '$lib/i18n';
@@ -88,6 +94,40 @@
     toast(get(t)('feedback.signedOut'), { variant: 'default' });
     window.location.href = '/logout';
   }
+
+  // Suivi en arrière-plan d'un dépouillement RFP en cours si l'utilisateur navigue ailleurs
+  $effect(() => {
+    if (typeof window === 'undefined') return;
+    const pollBgAudit = async () => {
+      const activeRunId = localStorage.getItem(ACTIVE_FACTORIZATION_RUN_KEY);
+      if (!activeRunId) return;
+      try {
+        const res = await fetch(`/api/rfp/factorize/runs/${encodeURIComponent(activeRunId)}`);
+        if (!res.ok) return;
+        const run = await res.json();
+        if (run.status === 'running') {
+          if (run.progress) {
+            updateAuditProgressTitle(run.progress.label, run.progress.done, run.progress.total);
+          }
+        } else {
+          localStorage.removeItem(ACTIVE_FACTORIZATION_RUN_KEY);
+          resetAuditTitle();
+          notifyAuditCompleted({
+            runId: run.id,
+            status: run.status,
+            subjectCount: run.result?.subjects?.length ?? run.subjectCount ?? 0,
+            error: run.error,
+            title: run.documentTitle
+          });
+        }
+      } catch {
+        // Erreur réseau passagère
+      }
+    };
+
+    const interval = setInterval(pollBgAudit, 5000);
+    return () => clearInterval(interval);
+  });
 
   // Dark mode — reads preferences.themeOverride + system media query
   $effect(() => {

@@ -69,6 +69,7 @@ class DeliberationStore {
 	engagements = $state<EngagementProfile[]>([]);
 	activeEngagementId = $state<string>('');
 	isLoading = $state<boolean>(false);
+	private isHydratedFromDb = false;
 
 	constructor() {
 		if (typeof window !== 'undefined') {
@@ -78,11 +79,17 @@ class DeliberationStore {
 					this.activeEngagementId = savedId;
 				}
 			} catch {}
-			this.loadFromServer();
+			// Chargement différé : si la page SSR initialise déjà le store via initFromDb, on évite un fetch réseau redondant
+			queueMicrotask(() => {
+				if (!this.isHydratedFromDb && this.engagements.length === 0) {
+					this.loadFromServer();
+				}
+			});
 		}
 	}
 
-	async loadFromServer() {
+	async loadFromServer(force = false) {
+		if (!force && this.isHydratedFromDb && this.engagements.length > 0) return;
 		this.isLoading = true;
 		try {
 			const res = await fetch('/api/engagements');
@@ -312,6 +319,7 @@ class DeliberationStore {
 	 * Initialise le store avec les données réelles persistées dans Prisma SQLite
 	 */
 	initFromDb(engagements: EngagementProfile[], commonDocs: CorpusDocument[]) {
+		this.isHydratedFromDb = true;
 		untrack(() => {
 			if (engagements && engagements.length > 0) {
 				// Préserver les engagements en mémoire s'ils n'existent pas encore dans la DB (ex: nouvel espace créé)

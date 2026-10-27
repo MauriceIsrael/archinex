@@ -110,6 +110,8 @@ export interface StageCache {
 }
 
 export interface StagedAuditResult {
+	/** Indique une interruption précoce due à un épuisement des crédits ou du quota LLM. */
+	quotaExceeded?: boolean;
 	/**
 	 * ok          : toutes les étapes ont abouti.
 	 * partial     : au moins un lot ou le regroupement a échoué (le rapport est fiable mais incomplet).
@@ -127,6 +129,23 @@ export interface StagedAuditResult {
  * aboutir : elle envoie tout le RFP d'un bloc et dépasse le délai. On n'y bascule donc pas, pour ne pas masquer
  * la vraie cause de l'échec de l'audit par un second échec 5 minutes plus tard.
  */
+/** Détecte une erreur fatale de solde de crédits ou de quota d'API LLM (Anthropic, OpenAI, etc.). */
+export function isLlmCreditOrQuotaError(err: unknown): boolean {
+	const msg = (err instanceof Error ? err.message : String(err)).toLowerCase();
+	return (
+		msg.includes('credit balance is too low') ||
+		msg.includes('plans & billing') ||
+		msg.includes('insufficient_quota') ||
+		msg.includes('exceeded your current quota') ||
+		msg.includes('quota exceeded') ||
+		msg.includes('billing account') ||
+		msg.includes('out of credits') ||
+		msg.includes('credit limit') ||
+		msg.includes('402 payment required') ||
+		msg.includes('purchase credits')
+	);
+}
+
 export const DIRECT_FALLBACK_MAX_CHARS = 60000;
 
 export function totalClauseChars(clauses: ReadonlyArray<{ title?: string; text?: string }>): number {
@@ -408,11 +427,17 @@ export function applyClassificationInvariants(
 	});
 }
 
-async function mapWithConcurrency<T, R>(items: T[], limit: number, fn: (item: T, index: number) => Promise<R>): Promise<R[]> {
+async function mapWithConcurrency<T, R>(
+	items: T[],
+	limit: number,
+	fn: (item: T, index: number) => Promise<R>,
+	shouldStop?: () => boolean
+): Promise<R[]> {
 	const results = new Array<R>(items.length);
 	let next = 0;
 	const workers = Array.from({ length: Math.max(1, Math.min(limit, items.length)) }, async () => {
 		while (next < items.length) {
+			if (shouldStop?.()) break;
 			const i = next++;
 			results[i] = await fn(items[i], i);
 		}
@@ -523,7 +548,7 @@ export function normalizeProposal(raw: z.infer<typeof ProposalSchema> | null | u
  * ~330 000 jetons : tient largement dans la fenêtre d'un modèle à 1M de jetons, tout en laissant le
  * modèle voir d'un seul tenant l'ensemble des exigences d'un très gros RFP.
  */
-const PARTITION_MAX_CHARS = 1_200_000;
+export const PARTITION_MAX_CHARS = 250_000;
 const PARTITION_TEXT_BUDGET = 400;
 const INSTRUCT_TEXT_BUDGET = 2000;
 
@@ -918,6 +943,8 @@ export async function runRequirementsAudit(
 	const failureByRef = new Map<string, string>();
 	const items: ClassifyItem[] = [];
 	let failedBatches = 0;
+	let quotaExceeded = false;
+	let quotaErrorReason = '';
 
 	console.log(`📦 [Audit Exigences ArcKit] Étape 1 : Classement par lots (${batches.length} lots de max ${batchSize} clauses, concurrence: ${concurrency})`);
 
@@ -946,13 +973,30 @@ export async function runRequirementsAudit(
 			failedBatches++;
 			const batchSec = ((Date.now() - batchStart) / 1000).toFixed(1);
 			const msg = err instanceof Error ? err.message : String(err);
+			if (isLlmCreditOrQuotaError(err)) {
+				quotaExceeded = true;
+				quotaErrorReason = msg;
+			}
 			const reason = `Classement indisponible pour le lot ${i + 1}/${batches.length} (${clip(msg, 100)}).`;
 			console.warn(`   ⚠️ [Audit Exigences ArcKit] Échec du lot ${i + 1}/${batches.length} (${batchSec}s) :`, msg);
 			for (const c of batch) failureByRef.set(c.clauseRef, reason);
 			warnings.push(reason);
 		}
 		progress({ stage: 'classify', done: ++classifiedBatches, total: batches.length });
-	});
+	}, () => quotaExceeded);
+
+	if (quotaExceeded) {
+		const reason = `Interruption précoce : solde de crédits d'API LLM insuffisant (${clip(quotaErrorReason, 100)}). Les lots non traités sont reprenables sans recalculer les lots acquis.`;
+		console.warn(`   ⚠️ [Audit Exigences ArcKit] ${reason}`);
+		warnings.push(reason);
+		for (const batch of batches) {
+			for (const c of batch) {
+				if (!failureByRef.has(c.clauseRef) && !items.some((it) => it.ref === c.clauseRef)) {
+					failureByRef.set(c.clauseRef, reason);
+				}
+			}
+		}
+	}
 
 	// Étape 2 : contrôles déterministes
 	const requirements = applyClassificationInvariants(clauses, items, failureByRef);
@@ -987,6 +1031,18 @@ export async function runRequirementsAudit(
 	// Étape 3a : cartographie des décisions d'architecture (partitionnement des clauses à délibérer).
 	// Avec un modèle à grande fenêtre, le RFP est vu d'un seul tenant : pas de sujets en doublon
 	// d'une partie à l'autre, et les contraintes dispersées dans le document se retrouvent.
+	if (quotaExceeded) {
+		console.warn(`⚠️ [Audit Exigences ArcKit] Cartographie et instruction ignorées suite à l'épuisement des crédits d'API.`);
+		return {
+			status: 'partial',
+			report: buildAuditReport(requirements, [...warnings]),
+			subjects: [],
+			warnings: [...warnings],
+			modelUsed: model,
+			quotaExceeded: true
+		};
+	}
+
 	const deliberated = requirements.filter((r) => r.disposition === 'deliberated');
 	let groupingFailed = false;
 	const largeContext = options.largeContext ?? anthropicCapabilities(model).adaptiveThinking;
@@ -1015,6 +1071,10 @@ export async function runRequirementsAudit(
 			);
 			return { data };
 		} catch (err) {
+			if (isLlmCreditOrQuotaError(err)) {
+				quotaExceeded = true;
+				quotaErrorReason = err instanceof Error ? err.message : String(err);
+			}
 			return { error: err };
 		}
 	});
@@ -1058,6 +1118,20 @@ export async function runRequirementsAudit(
 
 	// Une partie de la cartographie a pu échouer : seules les clauses effectivement cartographiées sont regroupées,
 	// pour qu'un échec ne soit jamais masqué par un rattachement par proximité.
+	if (quotaExceeded) {
+		const msg = `Interruption de la cartographie : solde de crédits d'API LLM insuffisant (${clip(quotaErrorReason, 100)}).`;
+		console.warn(`   ⚠️ [Audit Exigences ArcKit] ${msg}`);
+		warnings.push(msg);
+		return {
+			status: 'partial',
+			report: buildAuditReport(requirements, [...warnings]),
+			subjects: [],
+			warnings: [...warnings],
+			modelUsed: model,
+			quotaExceeded: true
+		};
+	}
+
 	const mapped = new Set(drafts.flatMap((d) => d.coveredClauseRefs));
 	const mappedDeliberated = deliberated.filter((r) => mapped.has(r.clauseRef));
 

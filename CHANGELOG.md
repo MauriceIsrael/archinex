@@ -22,6 +22,44 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 - **Bandeau de Cadrage compact sur 2 lignes (`SubjectProblemCard.svelte`)** : synthèse en 2 lignes (Question centrale éditable in-place + pastilles Hypothèse, Dilemme, Exigences RFP, Questions métier et raccourci vers la Matrice), dépliable à la demande, sans dupliquer les cartes d’options dans le fil.
 - Tests : `tests/contract/deliberation-conversation.test.ts` (15 tests de contrat).
 
+### Dépouillement RFP : suivi en arrière-plan, notifications Web, reprise sur quota et partitionnement résilient
+- **Notifications d'arrière-plan & mise à jour du titre d'onglet (`backgroundAuditNotifier.ts`, `+layout.svelte`, `RfpConfrontationDialog.svelte`)** :
+  - Support de l'API Web Notifications (`new Notification(...)`) informant l'utilisateur dès que le dépouillement en tâche de fond est terminé ou requiert une action, même si l'onglet est masqué ou en arrière-plan.
+  - Titre dynamique de l'onglet pendant le traitement (`⏳ Tri des exigences (X/Y) · Archinex`) et signalétique immédiate à l'achèvement (`✅ (Prêt !)` ou `⚠️ (Reprise possible)`).
+  - Toasts globaux persistants et écoute continue en arrière-plan dans `+layout.svelte` permettant de naviguer librement dans l'application sans perdre le suivi du dépouillement.
+- **Détection des erreurs de quota/crédits LLM & Fast-Fail (`arckitRequirementsPipeline.ts`, `factorizationJobs.ts`)** :
+  - Détection proactive des erreurs de solde insuffisant ou de quota (`isLlmCreditOrQuotaError`) chez les fournisseurs d'inférence (Anthropic, OpenAI, etc.).
+  - Interruption rapide (Fast-Fail) dès qu'un lot échoue pour manque de crédit : arrêt immédiat des requêtes suivantes vouées à l'échec et omission de l'étape 3a afin de préserver les crédits restants et le temps d'attente.
+  - Conservation intégrale en base de données SQLite/Postgres (`FactorizationStageCache`) de tous les lots validés avant la coupure.
+  - Positionnement d'un statut explicite reprenable (`partial` avec message clair d'épuisement de crédits).
+- **Mise en avant immédiate de la reprise dans l'interface (`RfpConfrontationDialog.svelte`)** :
+  - Affichage d'un bandeau d'alerte spécifique et visible avec le bouton « Reprendre l'analyse » dès qu'une analyse est incomplète ou suspendue (sans contraindre l'utilisateur à naviguer dans l'historique déroulant).
+  - Relance instantanée relisant les lots déjà validés depuis le cache local (durée de quelques millisecondes pour les étapes acquises).
+- **Partitionnement sécurisé de l'étape de cartographie (`PARTITION_MAX_CHARS`)** :
+  - Abaissement de `PARTITION_MAX_CHARS` de 1 200 000 à 250 000 caractères (~60 000 tokens) pour éviter les prompts monolithiques gigantesques (500k+ caractères) aux limites de contexte et de quotas de sortie, permettant un découpage en parties indépendantes mémorisées individuellement dans le cache de reprise.
+- **Tests** : suite de tests de contrat dédiée `tests/contract/audit-background-notifications-and-resume.test.ts`.
+
+
+### Performance & Fluidité : optimisation du Dashboard et des mini-apps (baisse de latence de 3,6 s à < 100 ms)
+- **Cache mémoire en lecture & déduplication Singleflight (`LLMOpsClient`)** :
+  - Mise en cache en mémoire des appels GET lourds (`/api/compliance/frameworks`, `/api/knowledge/health`, `/api/knowledge/checks`, `/api/knowledge/publications`, `/health`, `/snapshot/latest`) avec TTL adaptatif (30 s en nominal, 2 s en cas d'erreur transitoire).
+  - Déduplication Singleflight des requêtes concurrentes : une seule requête est envoyée au backend LLMOps lorsque plusieurs composants ou requêtes SSR sollicitent la même ressource en parallèle.
+  - Invalidation atomique du cache lors de toute mutation (`POST`, `PUT`, `PATCH`, `DELETE`) ou changement de `baseUrl`.
+- **Allégement drastique des payloads SSR et API (`engagementsDb.ts`, `+page.server.ts`, `/api/engagements`)** :
+  - Élagage des clauses textuelles lourdes (`keyClauses: []`) sur les vues globales tout en préservant le compteur `extractedClausesCount` pour les KPI et graphiques, réduisant la charge utile de 2,9 Mo à moins de 100 Ko (> 97 % de réduction).
+  - Suppression des propositions temporaires mortes (`subjects.proposal`) lors de la restitution des listes de projets.
+  - Élimination du double-fetch client redondant (`/api/engagements`, 2,7 Mo) dans `deliberationStore` via hydratation différée `queueMicrotask` lorsque les données sont déjà fournies par le SSR (`initFromDb`).
+- **Résolution granulaire des icônes Lucide à la compilation (`vite.config.ts`)** :
+  - Création du plugin Vite `lucideOptimizePlugin` transformant les imports barils globaux `import { ... } from 'lucide-svelte'` en imports directs `import Icon from 'lucide-svelte/icons/<kebab>'`.
+  - Élimination du waterfall de 3 788 requêtes HTTP et compilation de 1 929 modules d'icônes en mode dev.
+  - Navigation client instantanée entre Dashboard et mini-apps mesurée à moins de 100 ms (Workspaces : 36 ms, Délibération : 68 ms, Dashboard : 93 ms).
+- **Tests** : suites de tests dédiées `tests/contract/llmops-client-cache.test.ts` (mise en cache, singleflight, invalidation) et `tests/contract/corpus-payload-optimization.test.ts` (intégrité des compteurs et réduction de taille de charge utile).
+
+### Client LLM (`LocalLlmClient`) : chargement automatique de `.env` sous `vite dev` et garde contre les requêtes Ollama sans modèle
+- **Hydratation de `process.env` via `loadEnv` dans `vite.config.ts` et lecture de secours `.env` dans `LocalLlmClient` (`parseDotEnvFile`)** : sous `npm run dev` (`vite dev`), les variables non préfixées par `VITE_` (`ANTHROPIC_API_KEY`, `ANTHROPIC_MODEL`, `LLM_PROVIDER`, `LLM_LOCAL_ENDPOINT`, `LLM_LOCAL_MODEL`) n'étaient pas injectées dans `process.env`, ce qui faisait basculer `localLlmClient` sur `http://localhost:11434` avec un modèle vide `""` (`HTTP 400 {"error":"model is required"}`). Le client résout désormais les variables d'environnement depuis `process.env` avec repli automatique sur `.env`.
+- **Auto-découverte ou erreur explicite sur `chatLocal` sans modèle** : lorsqu'un appel local est tenté sans identifiant de modèle, `chatLocal` interroge d'abord `/api/tags` pour sélectionner un modèle local disponible et lève une erreur explicite (`Aucun modèle LLM configuré ni détecté`) au lieu d'envoyer `{"model": ""}` à Ollama.
+- Tests : `tests/contract/local-llm-factorizer.test.ts` (chargement depuis un fichier `.env` temporaire et rejet explicite sans appel `/api/chat` lorsque `model` est vide).
+
 ### Capitalisation (Porte G4) : généralisation des décisions projet et conformité du contrat `POST /api/knowledge/candidates` vers LLMOps
 - **Généralisation explicite en Porte G4** (`prepareSubjectKbCandidates` / `submitSubjectKbCandidates`) : une décision d'arbitrage initialement qualifiée `project_specific` par construction en Porte G3 peut désormais être anonymisée et généralisée par l'architecte en Porte G4 (`portability: 'reusable_architecture_doctrine'`, `harvestable: true`) afin d'être moissonnée par LLMOps et réutilisée comme doctrine à la délibération suivante.
 - **Filtrage des métadonnées d'arbitrage** (`buildKbCandidates`, `prepareSubjectKbCandidates`, `submitSubjectKbCandidates`) : exclusion systématique des marqueurs techniques `COMPLIANCE_STATUS:*` et `PORTABILITY:*` stockés dans `acceptedViolations`, qui généraient auparavant de faux candidats `amendment` rejetés en `400 Bad Request` par LLMOps.

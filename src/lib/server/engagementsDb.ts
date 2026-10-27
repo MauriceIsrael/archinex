@@ -19,7 +19,21 @@ function parseJsonSafe<T>(val: string | null | undefined, fallback: T): T {
 /**
  * Convertit un enregistrement Prisma Engagement vers le type métier EngagementProfile
  */
-export function mapPrismaToEngagementProfile(row: any): EngagementProfile {
+export function mapPrismaToEngagementProfile(
+	row: any,
+	options: { stripSubjectProposals?: boolean } = {}
+): EngagementProfile {
+	const rawSubjects = parseJsonSafe<MaturitySubject[]>(row.subjects, []);
+	const subjects = options.stripSubjectProposals
+		? rawSubjects.map((s) => {
+				if (s.proposal) {
+					const { proposal: _, ...rest } = s;
+					return rest as MaturitySubject;
+				}
+				return s;
+		  })
+		: rawSubjects;
+
 	return {
 		id: row.id,
 		title: row.title,
@@ -35,7 +49,7 @@ export function mapPrismaToEngagementProfile(row: any): EngagementProfile {
 			constraints: []
 		}),
 		participants: parseJsonSafe<ProjectParticipant[]>(row.participants, []),
-		subjects: parseJsonSafe<MaturitySubject[]>(row.subjects, []),
+		subjects,
 		drafts: parseJsonSafe<Record<string, TelegraphicDraft>>(row.drafts, {}),
 		statements: parseJsonSafe<Statement[]>(row.statements, []),
 		corpusDocuments: [], // Complété par la base de connaissances liée
@@ -47,7 +61,11 @@ export function mapPrismaToEngagementProfile(row: any): EngagementProfile {
 /**
  * Convertit un enregistrement Prisma CorpusDocument vers le type métier CorpusDocument
  */
-export function mapPrismaToCorpusDocument(row: any): CorpusDocument {
+export function mapPrismaToCorpusDocument(
+	row: any,
+	options: { includeKeyClauses?: boolean } = {}
+): CorpusDocument {
+	const includeKeyClauses = options.includeKeyClauses ?? true;
 	return {
 		id: row.id,
 		title: row.title,
@@ -63,7 +81,7 @@ export function mapPrismaToCorpusDocument(row: any): CorpusDocument {
 		summary: row.summary,
 		keyIdeas: parseJsonSafe<string[]>(row.keyIdeas, []),
 		inducedRules: parseJsonSafe<InducedRule[]>(row.inducedRules, []),
-		keyClauses: parseJsonSafe<ExtractedClause[]>(row.keyClauses, []),
+		keyClauses: includeKeyClauses ? parseJsonSafe<ExtractedClause[]>(row.keyClauses, []) : [],
 		isGlobalStandard: Boolean(row.isGlobalStandard),
 		engagementIds: parseJsonSafe<string[]>(row.engagementIds, []),
 		addedDate: row.addedDate ? new Date(row.addedDate).toISOString() : new Date().toISOString(),
@@ -134,19 +152,23 @@ async function overlayServerSubjects(profiles: EngagementProfile[]): Promise<voi
 }
 
 /**
- * Récupère tous les engagements persistés dans Prisma
+ * Récupère tous les engagements persistés dans Prisma.
+ * Par défaut, les clauses lourdes des documents du corpus sont allégées pour un chargement instantané.
  */
-export async function getAllEngagementsFromDb(): Promise<EngagementProfile[]> {
+export async function getAllEngagementsFromDb(options: {
+	includeCorpusKeyClauses?: boolean;
+	stripSubjectProposals?: boolean;
+} = {}): Promise<EngagementProfile[]> {
 	const [rows, allDocs] = await Promise.all([
 		prisma.engagement.findMany({
 			where: { status: { not: 'deleted' } },
 			orderBy: { createdAt: 'desc' }
 		}),
-		getAllCorpusDocumentsFromDb()
+		getAllCorpusDocumentsFromDb({ includeKeyClauses: options.includeCorpusKeyClauses ?? false })
 	]);
 
 	const profiles = rows.map((r) => {
-		const profile = mapPrismaToEngagementProfile(r);
+		const profile = mapPrismaToEngagementProfile(r, { stripSubjectProposals: options.stripSubjectProposals });
 		// Relie les documents du corpus pertinents à cet engagement
 		profile.corpusDocuments = allDocs.filter(
 			(d) =>
@@ -166,7 +188,7 @@ export async function getEngagementByIdFromDb(id: string): Promise<EngagementPro
 	const row = await prisma.engagement.findUnique({ where: { id } });
 	if (!row) return null;
 
-	const allDocs = await getAllCorpusDocumentsFromDb();
+	const allDocs = await getAllCorpusDocumentsFromDb({ includeKeyClauses: true });
 	const profile = mapPrismaToEngagementProfile(row);
 	profile.corpusDocuments = allDocs.filter(
 		(d) =>
@@ -390,12 +412,14 @@ export async function deleteEngagementFromDb(id: string): Promise<boolean> {
 /**
  * Récupère tous les documents du patrimoine de connaissances depuis Prisma
  */
-export async function getAllCorpusDocumentsFromDb(): Promise<CorpusDocument[]> {
+export async function getAllCorpusDocumentsFromDb(
+	options: { includeKeyClauses?: boolean } = {}
+): Promise<CorpusDocument[]> {
 	const rows = await prisma.corpusDocument.findMany({
 		orderBy: { addedDate: 'asc' }
 	});
 
-	return rows.map(mapPrismaToCorpusDocument);
+	return rows.map((r) => mapPrismaToCorpusDocument(r, options));
 }
 
 /**

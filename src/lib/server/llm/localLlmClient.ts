@@ -7,10 +7,43 @@
  *   et des fenêtres de contexte étendues (jusqu'à 1M tokens).
  */
 
+import fs from 'node:fs';
+import path from 'node:path';
 import Anthropic from '@anthropic-ai/sdk';
 import type { AnthropicBeta } from '@anthropic-ai/sdk/resources/beta/beta';
 import type { BetaMessageStreamParams } from '@anthropic-ai/sdk/resources/beta/messages/messages';
 import type { LocalLlmConfig, LocalLlmModel, ChatOptions } from './types';
+
+/**
+ * Charge les variables définies dans le fichier `.env` lorsque `process.env` n'a pas été hydraté
+ * (ex: lancement sous `vite dev` sans `--env-file=.env` ou scripts autonomes).
+ */
+export function parseDotEnvFile(envFilePath?: string | false): Record<string, string> {
+	if (envFilePath === false) return {};
+	if (envFilePath === undefined && process.env.VITEST) return {};
+
+	const targetPath = envFilePath || path.resolve(process.cwd(), '.env');
+	const out: Record<string, string> = {};
+	try {
+		if (!fs.existsSync(targetPath)) return out;
+		const lines = fs.readFileSync(targetPath, 'utf-8').split(/\r?\n/);
+		for (const line of lines) {
+			const trimmed = line.trim();
+			if (!trimmed || trimmed.startsWith('#')) continue;
+			const eqIdx = trimmed.indexOf('=');
+			if (eqIdx <= 0) continue;
+			const key = trimmed.slice(0, eqIdx).trim();
+			const rawVal = trimmed.slice(eqIdx + 1).trim();
+			const val = rawVal.replace(/^["']|["']$/g, '').trim();
+			if (key) {
+				out[key] = val;
+			}
+		}
+	} catch {
+		// Ignorer silencieusement si le fichier .env est illisible
+	}
+	return out;
+}
 
 /** Résout les alias historiques (Claude 3.x) vers un modèle servi ; un identifiant non Claude retombe sur le modèle par défaut. */
 export function resolveAnthropicModel(model: string, fallback: string): string {
@@ -40,6 +73,7 @@ export function anthropicCapabilities(model: string): AnthropicCapabilities {
 
 export class LocalLlmClient {
 	private anthropic?: Anthropic;
+	private dotEnv: Record<string, string>;
 	private endpoint: string;
 	private defaultModel: string;
 	private timeoutMs: number;
@@ -49,24 +83,32 @@ export class LocalLlmClient {
 	private anthropicModel: string;
 
 	constructor(config: Partial<LocalLlmConfig> = {}) {
+		this.dotEnv = parseDotEnvFile(config.envFilePath);
+
 		// Endpoint serveur local souverain
 		this.endpoint = (
 			config.endpoint ||
-			process.env.LLM_LOCAL_ENDPOINT ||
+			this.resolveEnv('LLM_LOCAL_ENDPOINT') ||
 			'http://localhost:11434'
 		).replace(/\/+$/, '');
 
 		// Clé et configuration Anthropic Claude
-		this.anthropicApiKey = (config.anthropicApiKey || process.env.ANTHROPIC_API_KEY || '').trim();
-		this.provider = (config.provider || (process.env.LLM_PROVIDER as any) || 'auto') as 'local' | 'anthropic' | 'auto';
-		this.anthropicModel = config.anthropicModel || process.env.ANTHROPIC_MODEL || 'claude-sonnet-5-5';
+		this.anthropicApiKey = (config.anthropicApiKey || this.resolveEnv('ANTHROPIC_API_KEY') || '').trim();
+		this.provider = (config.provider || (this.resolveEnv('LLM_PROVIDER') as any) || 'auto') as 'local' | 'anthropic' | 'auto';
+		this.anthropicModel = config.anthropicModel || this.resolveEnv('ANTHROPIC_MODEL') || 'claude-sonnet-5-5';
 
 		const hasAnthropic = Boolean(this.anthropicApiKey) && this.provider !== 'local';
-		const localDefault = process.env.LLM_LOCAL_MODEL || '';
+		const localDefault = this.resolveEnv('LLM_LOCAL_MODEL') || '';
 
 		this.defaultModel = config.defaultModel || (hasAnthropic ? this.anthropicModel : (localDefault || ''));
-		this.timeoutMs = config.timeoutMs || parseInt(process.env.LLM_LOCAL_TIMEOUT_MS || '180000', 10);
+		this.timeoutMs = config.timeoutMs || parseInt(this.resolveEnv('LLM_LOCAL_TIMEOUT_MS') || '180000', 10);
 		this.temperature = config.temperature ?? 0.2;
+	}
+
+	private resolveEnv(key: string): string | undefined {
+		const fromProc = process.env[key];
+		if (fromProc !== undefined && fromProc !== '') return fromProc;
+		return this.dotEnv[key];
 	}
 
 	/**
@@ -182,7 +224,7 @@ export class LocalLlmClient {
 			try {
 				const controller = new AbortController();
 				const timer = setTimeout(() => controller.abort(), 4000);
-				const baseUrl = (process.env.ANTHROPIC_BASE_URL?.trim() || 'https://api.anthropic.com').replace(/\/+$/, '');
+				const baseUrl = (this.resolveEnv('ANTHROPIC_BASE_URL')?.trim() || 'https://api.anthropic.com').replace(/\/+$/, '');
 				const res = await fetch(`${baseUrl}/v1/models`, {
 					headers: {
 						'x-api-key': this.anthropicApiKey,
@@ -254,7 +296,7 @@ export class LocalLlmClient {
 			});
 
 			// Si aucune variable ANTHROPIC_MODEL n'est explicitement fixée, privilégier le modèle le plus pertinent
-			if (!process.env.ANTHROPIC_MODEL && models.length > 0) {
+			if (!this.resolveEnv('ANTHROPIC_MODEL') && models.length > 0) {
 				this.defaultModel = models[0].id;
 			}
 		}
@@ -492,7 +534,7 @@ export class LocalLlmClient {
 	}
 
 	private getAnthropic(): Anthropic {
-		const baseURL = process.env.ANTHROPIC_BASE_URL?.trim() || undefined;
+		const baseURL = this.resolveEnv('ANTHROPIC_BASE_URL')?.trim() || undefined;
 		// fetch résolu à l'appel : les tests peuvent substituer globalThis.fetch.
 		this.anthropic ??= new Anthropic({
 			apiKey: this.anthropicApiKey,
@@ -511,6 +553,22 @@ export class LocalLlmClient {
 			throw new Error(`Air-Gap Security: Appel refusé vers ${this.endpoint}`);
 		}
 
+		let resolvedModel = model.trim();
+		if (!resolvedModel) {
+			const available = await this.getAvailableModels();
+			const localModel = available.find((m) => !m.id.toLowerCase().startsWith('claude'));
+			if (localModel) {
+				resolvedModel = localModel.id;
+				this.defaultModel = resolvedModel;
+			}
+		}
+
+		if (!resolvedModel) {
+			throw new Error(
+				`Aucun modèle LLM configuré ni détecté sur ${this.endpoint} (renseignez ANTHROPIC_API_KEY ou LLM_LOCAL_MODEL dans .env).`
+			);
+		}
+
 		const startTime = Date.now();
 		const timeout = options.timeoutMs || this.timeoutMs;
 		const controller = new AbortController();
@@ -519,7 +577,7 @@ export class LocalLlmClient {
 		try {
 			// Requête native Ollama /api/chat
 			const payload: any = {
-				model,
+				model: resolvedModel,
 				messages: options.messages,
 				stream: false,
 				options: {
@@ -535,8 +593,8 @@ export class LocalLlmClient {
 				payload.options.num_predict = options.maxTokens;
 			}
 
-			if (options.numCtx || process.env.LLM_LOCAL_NUM_CTX) {
-				const numCtx = options.numCtx || parseInt(process.env.LLM_LOCAL_NUM_CTX || '0', 10);
+			if (options.numCtx || this.resolveEnv('LLM_LOCAL_NUM_CTX')) {
+				const numCtx = options.numCtx || parseInt(this.resolveEnv('LLM_LOCAL_NUM_CTX') || '0', 10);
 				if (numCtx > 0) {
 					payload.options.num_ctx = numCtx;
 				}
@@ -544,7 +602,7 @@ export class LocalLlmClient {
 
 			const inputChars = options.messages.reduce((acc, m) => acc + (m.content?.length || 0), 0);
 			console.log(
-				`🖥️ [Local Ollama] Appel en cours -> Modèle : "${model}" sur ${this.endpoint}, caractères envoyés : ${inputChars.toLocaleString('fr-FR')}`
+				`🖥️ [Local Ollama] Appel en cours -> Modèle : "${resolvedModel}" sur ${this.endpoint}, caractères envoyés : ${inputChars.toLocaleString('fr-FR')}`
 			);
 
 			const res = await fetch(`${this.endpoint}/api/chat`, {

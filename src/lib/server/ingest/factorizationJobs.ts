@@ -21,6 +21,7 @@ import {
 	canUseDirectHolisticPass,
 	directPassMaxChars,
 	totalClauseChars,
+	isLlmCreditOrQuotaError,
 	type AuditProgress
 } from './arckitRequirementsPipeline';
 import {
@@ -307,6 +308,13 @@ export async function computeFactorization(
 	// Les motifs d'échec sont journalisés (sans contenu du RFP) : sans eux la cause d'une panne est introuvable.
 	console.info(`[Audit RFP] statut : ${audit.status}, ${audit.subjects.length} sujet(s), ${audit.warnings.length} avertissement(s)`);
 	for (const w of audit.warnings) console.warn(`[Audit RFP] ${w}`);
+
+	if (audit.quotaExceeded || audit.warnings.some((w) => isLlmCreditOrQuotaError(w))) {
+		const result = toFactorizationResponse(audit);
+		const errorMsg = "Solde de crédits d'API LLM insuffisant : rechargez vos crédits dans votre compte fournisseur puis cliquez sur Reprendre pour finaliser le dépouillement.";
+		console.warn('⚠️ [Factorisation] Quota dépassé : exécution suspendue (reprenable depuis le cache).');
+		return { runStatus: 'partial', engine: 'audit', httpStatus: 200, body: { ...result, error: errorMsg, isQuotaExceeded: true }, result, error: errorMsg };
+	}
 
 	if (audit.status === 'ok') {
 		const result = toFactorizationResponse(audit);

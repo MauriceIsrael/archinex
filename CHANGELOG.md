@@ -8,6 +8,24 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Dépouillement RFP : suivi en arrière-plan, notifications Web, reprise sur quota et partitionnement résilient
+- **Notifications d'arrière-plan & mise à jour du titre d'onglet (`backgroundAuditNotifier.ts`, `+layout.svelte`, `RfpConfrontationDialog.svelte`)** :
+  - Support de l'API Web Notifications (`new Notification(...)`) informant l'utilisateur dès que le dépouillement en tâche de fond est terminé ou requiert une action, même si l'onglet est masqué ou en arrière-plan.
+  - Titre dynamique de l'onglet pendant le traitement (`⏳ Tri des exigences (X/Y) · Archinex`) et signalétique immédiate à l'achèvement (`✅ (Prêt !)` ou `⚠️ (Reprise possible)`).
+  - Toasts globaux persistants et écoute continue en arrière-plan dans `+layout.svelte` permettant de naviguer librement dans l'application sans perdre le suivi du dépouillement.
+- **Détection des erreurs de quota/crédits LLM & Fast-Fail (`arckitRequirementsPipeline.ts`, `factorizationJobs.ts`)** :
+  - Détection proactive des erreurs de solde insuffisant ou de quota (`isLlmCreditOrQuotaError`) chez les fournisseurs d'inférence (Anthropic, OpenAI, etc.).
+  - Interruption rapide (Fast-Fail) dès qu'un lot échoue pour manque de crédit : arrêt immédiat des requêtes suivantes vouées à l'échec et omission de l'étape 3a afin de préserver les crédits restants et le temps d'attente.
+  - Conservation intégrale en base de données SQLite/Postgres (`FactorizationStageCache`) de tous les lots validés avant la coupure.
+  - Positionnement d'un statut explicite reprenable (`partial` avec message clair d'épuisement de crédits).
+- **Mise en avant immédiate de la reprise dans l'interface (`RfpConfrontationDialog.svelte`)** :
+  - Affichage d'un bandeau d'alerte spécifique et visible avec le bouton « Reprendre l'analyse » dès qu'une analyse est incomplète ou suspendue (sans contraindre l'utilisateur à naviguer dans l'historique déroulant).
+  - Relance instantanée relisant les lots déjà validés depuis le cache local (durée de quelques millisecondes pour les étapes acquises).
+- **Partitionnement sécurisé de l'étape de cartographie (`PARTITION_MAX_CHARS`)** :
+  - Abaissement de `PARTITION_MAX_CHARS` de 1 200 000 à 250 000 caractères (~60 000 tokens) pour éviter les prompts monolithiques gigantesques (500k+ caractères) aux limites de contexte et de quotas de sortie, permettant un découpage en parties indépendantes mémorisées individuellement dans le cache de reprise.
+- **Tests** : suite de tests de contrat dédiée `tests/contract/audit-background-notifications-and-resume.test.ts`.
+
+
 ### Performance & Fluidité : optimisation du Dashboard et des mini-apps (baisse de latence de 3,6 s à < 100 ms)
 - **Cache mémoire en lecture & déduplication Singleflight (`LLMOpsClient`)** :
   - Mise en cache en mémoire des appels GET lourds (`/api/compliance/frameworks`, `/api/knowledge/health`, `/api/knowledge/checks`, `/api/knowledge/publications`, `/health`, `/snapshot/latest`) avec TTL adaptatif (30 s en nominal, 2 s en cas d'erreur transitoire).

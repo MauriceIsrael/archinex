@@ -12,6 +12,13 @@
 	import { buildRequirementAudit, type RequirementAuditInput } from '$lib/domain/requirementAudit';
 	import { detectApplicableFrameworks, type DetectedFramework } from '$lib/domain/regulatoryFrameworks';
 	import type { LocalLlmModel, RfpFactorizationResponse } from '$lib/domain/factorization';
+	import {
+		requestNotificationPermission,
+		updateAuditProgressTitle,
+		resetAuditTitle,
+		notifyAuditCompleted,
+		ACTIVE_FACTORIZATION_RUN_KEY
+	} from '$lib/services/backgroundAuditNotifier';
 	import RfpFactorizationReview from './RfpFactorizationReview.svelte';
 	import RfpExtractionVerification from './RfpExtractionVerification.svelte';
 	import type { HumanExtractionValidation } from '$lib/domain/rfpExtractionReport';
@@ -121,7 +128,7 @@
 
 	// Factorisations exécutées côté serveur, en tâche de fond : le suivi survit à un rechargement de page
 	// (l'exécution suivie est mémorisée dans le navigateur) et à une fermeture de la boîte de dialogue.
-	const ACTIVE_RUN_KEY = 'archinex.factorization.activeRun';
+	const ACTIVE_RUN_KEY = ACTIVE_FACTORIZATION_RUN_KEY;
 	interface RunProgress {
 		stage: string;
 		label: string;
@@ -218,6 +225,7 @@
 		activeProgress = null;
 		activeRunHasPartial = false;
 		localStorage.setItem(ACTIVE_RUN_KEY, runId);
+		void requestNotificationPermission();
 
 		let startedAt = Date.now();
 		clearInterval(factorizeTimer);
@@ -245,12 +253,31 @@
 				activeProgress = run.progress;
 				if (run.status === 'running') {
 					activeRunHasPartial = !!run.result;
+					if (run.progress) {
+						updateAuditProgressTitle(run.progress.label, run.progress.done, run.progress.total);
+					}
 					await sleep(3000);
 					continue;
 				}
 				localStorage.removeItem(ACTIVE_RUN_KEY);
-				if ((run.status === 'ok' || run.status === 'partial') && run.result) {
+				resetAuditTitle();
+				notifyAuditCompleted({
+					runId: run.id,
+					status: run.status,
+					subjectCount: run.result?.subjects?.length ?? run.subjectCount ?? 0,
+					error: run.error,
+					title: run.documentTitle
+				});
+				if (run.status === 'ok') {
 					applyRunResult(run);
+				} else if (run.status === 'interrupted' || run.status === 'partial') {
+					if (run.result) applyRunResult(run);
+					interruptedRunId = run.id;
+					if (run.error) {
+						factorizationError = run.error;
+					} else if (!run.result?.subjects?.length) {
+						factorizationError = 'Analyse suspendue avant génération des sujets (solde de crédits ou réseau). Reprise possible depuis le cache.';
+					}
 				} else {
 					factorizationError = run.error || 'Échec de la factorisation';
 					if (RESUMABLE.includes(run.status)) interruptedRunId = run.id;
@@ -1033,21 +1060,26 @@
 							</div>
 						</div>
 
-						{#if factorizationError}
-							<div class="p-3 rounded-xl bg-destructive/10 border border-destructive/25 text-destructive text-xs flex items-start gap-2">
-								<AlertTriangle class="h-4 w-4 shrink-0 mt-0.5" />
-								<div>
-									<strong>Erreur de factorisation :</strong> {factorizationError}
-									{#if interruptedRunId}
-										<button
-											type="button"
-											onclick={() => resumeRun(interruptedRunId!)}
-											class="ml-2 px-2 py-0.5 rounded-md border border-destructive/40 font-semibold hover:bg-destructive/10 cursor-pointer"
-										>
-											Reprendre
-										</button>
-									{/if}
+						{#if factorizationError || interruptedRunId}
+							<div class="p-3 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-900 dark:text-amber-200 text-xs flex items-center justify-between gap-3 shadow-sm">
+								<div class="flex items-start gap-2">
+									<AlertTriangle class="h-4 w-4 shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
+									<div>
+										<strong>{factorizationError ? "État de l'analyse :" : "Reprise disponible :"}</strong> {factorizationError || "Cette analyse a été interrompue et peut être reprise."}
+										<div class="text-[11px] text-muted-foreground mt-0.5">Les étapes déjà calculées sont conservées en mémoire cache sans surcoût.</div>
 									</div>
+								</div>
+								{#if interruptedRunId}
+									<button
+										type="button"
+										onclick={() => resumeRun(interruptedRunId!)}
+										disabled={isFactorizing}
+										class="shrink-0 px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-semibold text-xs transition cursor-pointer flex items-center gap-1.5 shadow-sm disabled:opacity-50"
+									>
+										<RefreshCw class="h-3.5 w-3.5" />
+										Reprendre l'analyse
+									</button>
+								{/if}
 							</div>
 						{/if}
 

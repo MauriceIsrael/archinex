@@ -122,6 +122,8 @@ export interface LLMOpsClientConfig {
   timeoutMs?: number;
   /** Hôtes autorisés en plus du réseau local (voir LLMOPS_ALLOWED_HOSTS). */
   allowedHosts?: string[];
+  /** Durée de rétention du cache en mémoire pour les lectures GET (ms). Défaut : 30 000 ms (0 en test Vitest). */
+  cacheTtlMs?: number;
 }
 
 /**
@@ -319,6 +321,9 @@ export class LLMOpsClient {
   private defaultEngagement: string;
   private timeoutMs: number | undefined;
   private allowedHosts: string[];
+  private cacheTtlMs: number;
+  private cache = new Map<string, { value: any; expiresAt: number }>();
+  private inFlight = new Map<string, Promise<any>>();
 
   constructor(config: LLMOpsClientConfig | string = {}, maybeAuthToken?: string) {
     const conf: LLMOpsClientConfig = typeof config === 'string' ? { baseUrl: config, authToken: maybeAuthToken } : config;
@@ -331,6 +336,70 @@ export class LLMOpsClient {
     this.allowedHosts = (conf.allowedHosts ?? (process.env.LLMOPS_ALLOWED_HOSTS || '').split(','))
       .map((h) => h.trim())
       .filter(Boolean);
+    this.cacheTtlMs = conf.cacheTtlMs ?? (process.env.VITEST ? 0 : 30_000);
+  }
+
+  /**
+   * Vide le cache en mémoire (toutes les clés ou seulement celles correspondant au préfixe optionnel).
+   */
+  invalidateCache(prefix?: string): void {
+    if (!prefix) {
+      this.cache.clear();
+      return;
+    }
+    for (const key of this.cache.keys()) {
+      if (key.startsWith(prefix)) {
+        this.cache.delete(key);
+      }
+    }
+  }
+
+  /**
+   * Définit dynamiquement la durée de rétention du cache en mémoire (ms).
+   */
+  setCacheTtl(ttlMs: number): void {
+    this.cacheTtlMs = Math.max(0, ttlMs);
+  }
+
+  /**
+   * Exécute une lecture avec mise en cache mémoire et déduplication des requêtes concurrentes (singleflight).
+   */
+  async cachedFetch<T>(key: string, fetcher: () => Promise<T>, ttlMs?: number): Promise<T> {
+    const effectiveTtl = ttlMs ?? this.cacheTtlMs;
+    const now = Date.now();
+
+    if (effectiveTtl > 0) {
+      const cached = this.cache.get(key);
+      if (cached && cached.expiresAt > now) {
+        return cached.value as T;
+      }
+    }
+
+    if (this.inFlight.has(key)) {
+      return this.inFlight.get(key)! as Promise<T>;
+    }
+
+    const promise = (async () => {
+      try {
+        const result = await fetcher();
+        if (effectiveTtl > 0 && result !== undefined && result !== null) {
+          const isErrorStatus =
+            result &&
+            typeof result === 'object' &&
+            'status' in result &&
+            ((result as any).status === 'error' || (result as any).status === 'unavailable');
+          // En cas d'erreur ou d'indisponibilité, TTL réduit à 2s pour permettre une reprise rapide sans marteler
+          const finalTtl = isErrorStatus ? Math.min(effectiveTtl, 2000) : effectiveTtl;
+          this.cache.set(key, { value: result, expiresAt: Date.now() + finalTtl });
+        }
+        return result;
+      } finally {
+        this.inFlight.delete(key);
+      }
+    })();
+
+    this.inFlight.set(key, promise);
+    return promise;
   }
 
   /** Délai applicable à un appel : uniforme si configuré, sinon selon l'opération (voir OPERATION_TIMEOUTS). */
@@ -348,6 +417,7 @@ export class LLMOpsClient {
 
   setBaseUrl(url: string) {
     this.baseUrl = url.replace(/\/+$/, '');
+    this.invalidateCache();
   }
 
   /**
@@ -473,38 +543,50 @@ export class LLMOpsClient {
   /**
    * Surveillance de santé / version (Mode 1 live avec fallback Mode 2)
    */
-  async getHealth(): Promise<{ data: LLMOpsHealth; source: 'live' | 'offline-fallback' }> {
-    try {
-      const url = `${this.baseUrl}/health`;
-      const res = await this.fetchWithTimeout(url);
-      if (res.ok) {
-        const data = (await res.json()) as LLMOpsHealth;
-        return { data, source: 'live' };
-      }
-    } catch {
-      // Live unreachable -> fallback offline
-    }
+  async getHealth(options: { bypassCache?: boolean } = {}): Promise<{ data: LLMOpsHealth; source: 'live' | 'offline-fallback' }> {
+    const cacheKey = `health:${this.baseUrl}`;
+    if (options.bypassCache) this.invalidateCache(cacheKey);
+    return this.cachedFetch(
+      cacheKey,
+      async () => {
+        try {
+          const url = `${this.baseUrl}/health`;
+          const res = await this.fetchWithTimeout(url);
+          if (res.ok) {
+            const data = (await res.json()) as LLMOpsHealth;
+            return { data, source: 'live' };
+          }
+        } catch {
+          // Live unreachable -> fallback offline
+        }
 
-    return { data: this.unreachableHealth(), source: 'offline-fallback' };
+        return { data: this.unreachableHealth(), source: 'offline-fallback' };
+      },
+      5000 // Santé rafraîchie sous 5s pour détecter les coupures rapidement
+    );
   }
 
   /**
    * Récupération du snapshot scellé
    */
-  async getLatestSnapshot(): Promise<{ data: LLMOpsSnapshot; source: 'live' | 'offline-fallback' }> {
-    try {
-      const url = `${this.baseUrl}/snapshot/latest`;
-      const res = await this.fetchWithTimeout(url, { headers: this.getHeaders() });
-      if (res.ok) {
-        const data = (await res.json()) as LLMOpsSnapshot;
-        return { data, source: 'live' };
+  async getLatestSnapshot(options: { bypassCache?: boolean } = {}): Promise<{ data: LLMOpsSnapshot; source: 'live' | 'offline-fallback' }> {
+    const cacheKey = `snapshot:latest:${this.baseUrl}`;
+    if (options.bypassCache) this.invalidateCache(cacheKey);
+    return this.cachedFetch(cacheKey, async () => {
+      try {
+        const url = `${this.baseUrl}/snapshot/latest`;
+        const res = await this.fetchWithTimeout(url, { headers: this.getHeaders() });
+        if (res.ok) {
+          const data = (await res.json()) as LLMOpsSnapshot;
+          return { data, source: 'live' };
+        }
+      } catch (err: unknown) {
+        const orig = err instanceof Error ? ` (${err.message})` : '';
+        throw new Error(`LLMOps injoignable (${this.baseUrl}) : aucun instantané scellé disponible${orig}`);
       }
-    } catch (err: unknown) {
-      const orig = err instanceof Error ? ` (${err.message})` : '';
-      throw new Error(`LLMOps injoignable (${this.baseUrl}) : aucun instantané scellé disponible${orig}`);
-    }
 
-    throw new Error(`LLMOps injoignable (${this.baseUrl}) : aucun instantané scellé disponible.`);
+      throw new Error(`LLMOps injoignable (${this.baseUrl}) : aucun instantané scellé disponible.`);
+    });
   }
 
   /**
@@ -655,6 +737,7 @@ export class LLMOpsClient {
       });
 
       if (res.ok) {
+        this.invalidateCache();
         const body = await res.json();
         const payload = body.data || body;
         return {
@@ -691,6 +774,7 @@ export class LLMOpsClient {
       const url = `${this.baseUrl}/api/knowledge/context?${q.toString()}`;
       const res = await this.fetchWithTimeout(url, { headers: this.getHeaders() });
       if (res.ok) {
+        this.invalidateCache();
         const body = await res.json();
         const data = (body.data || body) as DoctrineContext;
         return { ...data, offline: false };
@@ -756,6 +840,7 @@ export class LLMOpsClient {
         body: JSON.stringify(bodyPayload)
       });
       if (res.ok) {
+        this.invalidateCache();
         const body = await res.json();
         const data = (body.data || body) as CheckResult;
         return { ...data, offline: false };
@@ -797,6 +882,7 @@ export class LLMOpsClient {
       const url = `${this.baseUrl}/api/compliance/frameworks/applicable?engagement=${encodeURIComponent(remoteEng)}`;
       const res = await this.fetchWithTimeout(url, { headers: this.getHeaders(remoteEng) });
       if (res.ok) {
+        this.invalidateCache();
         const body = await res.json();
         const data = body.data || body;
         // Format servi par LLMOps : { applicable_frameworks, coverage: { NIS2: { status, expected, validated, missing_ids } } }
@@ -869,6 +955,7 @@ export class LLMOpsClient {
         body: JSON.stringify(candidate)
       });
       if (res.ok) {
+        this.invalidateCache();
         const body = await res.json();
         const payload = body.data || body;
         return {
@@ -915,6 +1002,7 @@ export class LLMOpsClient {
       const url = `${this.baseUrl}/api/knowledge/candidates?${q.toString()}`;
       const res = await this.fetchWithTimeout(url, { headers: this.getHeaders(remoteEng, actorEmail) });
       if (res.ok) {
+        this.invalidateCache();
         const body = await res.json();
         const data = body.data || body;
         return Array.isArray(data) ? data : [];
@@ -973,6 +1061,7 @@ export class LLMOpsClient {
       }
 
       if (res.ok) {
+        this.invalidateCache();
         const body = await res.json();
         const data = body.data || body;
         return {
@@ -1022,6 +1111,7 @@ export class LLMOpsClient {
         headers: this.getHeaders(undefined, actorEmail)
       });
       if (res.ok) {
+        this.invalidateCache();
         const body = await res.json();
         const payload = body.data || body;
         const owners = Array.isArray(payload) ? payload : (payload.owners || []);
@@ -1092,6 +1182,7 @@ export class LLMOpsClient {
       }
 
       if (res.ok) {
+        this.invalidateCache();
         const body = await res.json();
         const resPayload = body.data || body;
         return {
@@ -1271,6 +1362,7 @@ export class LLMOpsClient {
       }
 
       if (res.ok) {
+        this.invalidateCache();
         const body = await res.json();
         const resPayload = body.data || body;
         return {
@@ -1358,6 +1450,7 @@ export class LLMOpsClient {
       }
 
       if (res.ok) {
+        this.invalidateCache();
         const body = await res.json();
         const rawPayload = body.data || body;
         const rawItems: any[] = Array.isArray(rawPayload)
@@ -1457,6 +1550,7 @@ export class LLMOpsClient {
       }
 
       if (res.ok) {
+        this.invalidateCache();
         const body = await res.json();
         return {
           status: 'ok',
@@ -1537,6 +1631,7 @@ export class LLMOpsClient {
       }
 
       if (res.ok) {
+        this.invalidateCache();
         const body = await res.json();
         return {
           status: 'ok',
@@ -1604,6 +1699,7 @@ export class LLMOpsClient {
       }
 
       if (res.ok) {
+        this.invalidateCache();
         const body = await res.json();
         return { status: 'ok', data: body.data || body };
       }
@@ -1684,6 +1780,7 @@ export class LLMOpsClient {
       }
 
       if (res.ok) {
+        this.invalidateCache();
         const body = await res.json();
         const raw = Array.isArray(body.data)
           ? body.data
@@ -1737,6 +1834,7 @@ export class LLMOpsClient {
       }
 
       if (res.ok) {
+        this.invalidateCache();
         const body = await res.json();
         const c = body.data || body;
         return {
@@ -1780,6 +1878,7 @@ export class LLMOpsClient {
       }
 
       if (res.ok) {
+        this.invalidateCache();
         const body = await res.json();
         const payload = body.data || body;
         const rawEvents = Array.isArray(payload.events) ? payload.events : [];
@@ -1833,6 +1932,7 @@ export class LLMOpsClient {
       }
 
       if (res.ok) {
+        this.invalidateCache();
         const body = await res.json();
         return {
           status: 'ok',
@@ -1881,6 +1981,7 @@ export class LLMOpsClient {
       }
 
       if (res.ok) {
+        this.invalidateCache();
         const body = await res.json();
         return {
           status: 'ok',
@@ -1905,25 +2006,32 @@ export class LLMOpsClient {
    */
   async listCheckClauses(
     filters: { status?: string; framework?: string; type?: string; asset_id?: string } = {},
-    actorEmail?: string
+    actorEmail?: string,
+    options: { bypassCache?: boolean } = {}
   ): Promise<{ status: 'ok' | 'error' | 'unavailable'; data?: CheckClausesList; error?: string }> {
-    try {
-      const q = new URLSearchParams();
-      if (filters) {
-        for (const [k, v] of Object.entries(filters)) if (v) q.set(k, v);
-      }
-      const res = await this.fetchWithTimeout(`${this.baseUrl}/api/knowledge/checks?${q.toString()}`, {
-        headers: this.getHeaders(undefined, actorEmail)
-      });
-      const body = await res.json().catch(() => ({}));
-      if (res.ok) return { status: 'ok', data: (body.data || body) as CheckClausesList };
-      if (res.status === 404) {
-        return { status: 'error', error: 'LLMOps ne connaît pas encore la décision par clause (contrat 1.26 requis)' };
-      }
-      return { status: 'error', error: body.reason || body.error || `Erreur HTTP ${res.status}` };
-    } catch {
-      return { status: 'unavailable', error: 'Mode hors-ligne : clauses vérifiables indisponibles' };
+    const q = new URLSearchParams();
+    if (filters) {
+      for (const [k, v] of Object.entries(filters)) if (v) q.set(k, v);
     }
+    const qs = q.toString();
+    const cacheKey = `kb:checks:${this.baseUrl}:${qs}:${actorEmail || ''}`;
+    if (options.bypassCache) this.invalidateCache(cacheKey);
+
+    return this.cachedFetch(cacheKey, async () => {
+      try {
+        const res = await this.fetchWithTimeout(`${this.baseUrl}/api/knowledge/checks?${qs}`, {
+          headers: this.getHeaders(undefined, actorEmail)
+        });
+        const body = await res.json().catch(() => ({}));
+        if (res.ok) return { status: 'ok', data: (body.data || body) as CheckClausesList };
+        if (res.status === 404) {
+          return { status: 'error', error: 'LLMOps ne connaît pas encore la décision par clause (contrat 1.26 requis)' };
+        }
+        return { status: 'error', error: body.reason || body.error || `Erreur HTTP ${res.status}` };
+      } catch {
+        return { status: 'unavailable', error: 'Mode hors-ligne : clauses vérifiables indisponibles' };
+      }
+    });
   }
 
   /**
@@ -1936,6 +2044,8 @@ export class LLMOpsClient {
     body: { decision: CheckClauseDecision; comment?: string; clause?: { kind?: string; when?: CheckClauseMatcher; expect?: CheckClauseMatcher; message?: string } },
     actorEmail: string
   ): Promise<{ status: 'ok' | 'forbidden' | 'invalid' | 'not_found' | 'error' | 'unavailable'; data?: CheckClauseRow; error?: string }> {
+    this.invalidateCache('kb:');
+    this.invalidateCache('compliance:');
     try {
       const url = `${this.baseUrl}/api/knowledge/assets/${encodeURIComponent(assetId)}/checks/${encodeURIComponent(checkId)}`;
       const res = await this.fetchWithTimeout(url, {
@@ -2063,6 +2173,7 @@ export class LLMOpsClient {
       }
 
       if (res.ok) {
+        this.invalidateCache();
         const body = await res.json();
         return {
           status: 'ok',
@@ -2085,95 +2196,100 @@ export class LLMOpsClient {
   /**
    * Vue d'ensemble des référentiels de conformité opposables et de leur couverture (GET /api/compliance/frameworks)
    */
-  async getComplianceFrameworks(): Promise<{
+  async getComplianceFrameworks(options: { bypassCache?: boolean } = {}): Promise<{
     status: 'ok' | 'error' | 'unavailable';
     data: ComplianceFrameworkOverview[];
     error?: string;
   }> {
-    try {
-      const url = `${this.baseUrl}/api/compliance/frameworks`;
-      const res = await this.fetchWithTimeout(url, { headers: this.getHeaders() });
-      if (res.ok) {
-        const body = await res.json();
-        const rawList = Array.isArray(body.data)
-          ? body.data
-          : Array.isArray(body.frameworks)
-            ? body.frameworks
-            : Array.isArray(body)
-              ? body
-              : [];
-        const byFw = new Map<string, ComplianceFrameworkOverview>();
-        for (const item of rawList) {
-          if (!item || typeof item !== 'object') continue;
-          const fw = String(item.framework || item.name || item.id || '').trim();
-          if (!fw) continue;
-          const statusRaw = String(item.status || 'unknown').toLowerCase();
-          const status: ComplianceFrameworkOverview['status'] =
-            statusRaw === 'covered' || statusRaw === 'partial' || statusRaw === 'missing'
-              ? statusRaw
-              : 'unknown';
-          const present = Number(item.present ?? item.control_count ?? 0);
-          const validated = Number(item.validated ?? item.covered_count ?? 0);
-          const expected =
-            item.expected !== undefined && item.expected !== null
-              ? Number(item.expected)
-              : item.total_count !== undefined && item.total_count !== null
-                ? Number(item.total_count)
-                : null;
-          const provisional =
-            item.provisional !== undefined
-              ? Number(item.provisional)
-              : Math.max(0, present - validated);
-          const validatedControls = Array.isArray(item.validated_controls)
-            ? item.validated_controls.map((vc: any) => ({
-                id: String(vc.id || ''),
-                validated_by: Array.isArray(vc.validated_by) ? vc.validated_by.map(String) : [],
-                validated_at: vc.validated_at ?? null
-              }))
-            : [];
+    const cacheKey = `compliance:frameworks:${this.baseUrl}`;
+    if (options.bypassCache) this.invalidateCache(cacheKey);
 
-          const existing = byFw.get(fw);
-          if (!existing) {
-            byFw.set(fw, {
-              framework: fw,
-              version: String(item.version || '1.0'),
-              title: String(item.title || item.framework_name || fw),
-              jurisdiction: item.jurisdiction ? String(item.jurisdiction) : undefined,
-              description: item.description ? String(item.description) : undefined,
-              control_count: Number(item.control_count ?? present),
-              status,
-              expected,
-              present,
-              validated,
-              provisional,
-              declared_by: item.declared_by ?? null,
-              declared_at: item.declared_at ?? null,
-              validated_controls: validatedControls
-            });
-          } else {
-            existing.control_count += Number(item.control_count ?? 0);
-            if (!existing.version.includes(String(item.version || ''))) {
-              existing.version = `${existing.version}, ${item.version}`;
+    return this.cachedFetch(cacheKey, async () => {
+      try {
+        const url = `${this.baseUrl}/api/compliance/frameworks`;
+        const res = await this.fetchWithTimeout(url, { headers: this.getHeaders() });
+        if (res.ok) {
+          const body = await res.json();
+          const rawList = Array.isArray(body.data)
+            ? body.data
+            : Array.isArray(body.frameworks)
+              ? body.frameworks
+              : Array.isArray(body)
+                ? body
+                : [];
+          const byFw = new Map<string, ComplianceFrameworkOverview>();
+          for (const item of rawList) {
+            if (!item || typeof item !== 'object') continue;
+            const fw = String(item.framework || item.name || item.id || '').trim();
+            if (!fw) continue;
+            const statusRaw = String(item.status || 'unknown').toLowerCase();
+            const status: ComplianceFrameworkOverview['status'] =
+              statusRaw === 'covered' || statusRaw === 'partial' || statusRaw === 'missing'
+                ? statusRaw
+                : 'unknown';
+            const present = Number(item.present ?? item.control_count ?? 0);
+            const validated = Number(item.validated ?? item.covered_count ?? 0);
+            const expected =
+              item.expected !== undefined && item.expected !== null
+                ? Number(item.expected)
+                : item.total_count !== undefined && item.total_count !== null
+                  ? Number(item.total_count)
+                  : null;
+            const provisional =
+              item.provisional !== undefined
+                ? Number(item.provisional)
+                : Math.max(0, present - validated);
+            const validatedControls = Array.isArray(item.validated_controls)
+              ? item.validated_controls.map((vc: any) => ({
+                  id: String(vc.id || ''),
+                  validated_by: Array.isArray(vc.validated_by) ? vc.validated_by.map(String) : [],
+                  validated_at: vc.validated_at ?? null
+                }))
+              : [];
+
+            const existing = byFw.get(fw);
+            if (!existing) {
+              byFw.set(fw, {
+                framework: fw,
+                version: String(item.version || '1.0'),
+                title: String(item.title || item.framework_name || fw),
+                jurisdiction: item.jurisdiction ? String(item.jurisdiction) : undefined,
+                description: item.description ? String(item.description) : undefined,
+                control_count: Number(item.control_count ?? present),
+                status,
+                expected,
+                present,
+                validated,
+                provisional,
+                declared_by: item.declared_by ?? null,
+                declared_at: item.declared_at ?? null,
+                validated_controls: validatedControls
+              });
+            } else {
+              existing.control_count += Number(item.control_count ?? 0);
+              if (!existing.version.includes(String(item.version || ''))) {
+                existing.version = `${existing.version}, ${item.version}`;
+              }
             }
           }
+          return {
+            status: 'ok',
+            data: Array.from(byFw.values())
+          };
         }
         return {
-          status: 'ok',
-          data: Array.from(byFw.values())
+          status: 'error',
+          data: [],
+          error: `Erreur HTTP ${res.status} lors du chargement des référentiels de conformité`
+        };
+      } catch {
+        return {
+          status: 'unavailable',
+          data: [],
+          error: 'Mode hors-ligne : référentiels de conformité indisponibles'
         };
       }
-      return {
-        status: 'error',
-        data: [],
-        error: `Erreur HTTP ${res.status} lors du chargement des référentiels de conformité`
-      };
-    } catch {
-      return {
-        status: 'unavailable',
-        data: [],
-        error: 'Mode hors-ligne : référentiels de conformité indisponibles'
-      };
-    }
+    });
   }
 
   /**
@@ -2192,6 +2308,7 @@ export class LLMOpsClient {
         headers: this.getHeaders(undefined, actorEmail)
       });
       if (res.ok) {
+        this.invalidateCache();
         const body = await res.json();
         const payload = body.data || body;
         const rawList = Array.isArray(payload.ingestions)
@@ -2259,6 +2376,7 @@ export class LLMOpsClient {
         return { status: 'bad_request', error: body.error || body.reason || 'Requête invalide' };
       }
       if (res.ok) {
+        this.invalidateCache();
         const body = await res.json();
         return { status: 'ok', data: normalizeFrameworkIngestion(body.data || body) };
       }
@@ -2282,6 +2400,7 @@ export class LLMOpsClient {
         headers: this.getHeaders(undefined, actorEmail)
       });
       if (res.ok) {
+        this.invalidateCache();
         const body = await res.json();
         const payload = body.data || body;
         return {
@@ -2380,6 +2499,7 @@ export class LLMOpsClient {
       }
 
       if (res.ok) {
+        this.invalidateCache();
         const body = await res.json();
         const payload = body.data || body;
         return {
@@ -2486,6 +2606,7 @@ export class LLMOpsClient {
       }
 
       if (res.ok) {
+        this.invalidateCache();
         const body = await res.json();
         return {
           status: 'ok',
@@ -2523,6 +2644,7 @@ export class LLMOpsClient {
       });
 
       if (res.ok) {
+        this.invalidateCache();
         const body = await res.json();
         return {
           status: 'ok',
@@ -2567,6 +2689,7 @@ export class LLMOpsClient {
       }
 
       if (res.ok) {
+        this.invalidateCache();
         const body = await res.json();
         return {
           status: 'ok',
@@ -2616,6 +2739,7 @@ export class LLMOpsClient {
         };
       }
       if (res.ok) {
+        this.invalidateCache();
         const body = await res.json();
         return { status: 'ok', data: body.data || body };
       }
@@ -2646,6 +2770,7 @@ export class LLMOpsClient {
         return { status: 'forbidden', error: 'Action réservée aux mainteneurs' };
       }
       if (res.ok) {
+        this.invalidateCache();
         const body = await res.json();
         return { status: 'ok', data: body.data || body };
       }
@@ -2676,6 +2801,7 @@ export class LLMOpsClient {
         headers: this.getHeaders(undefined, actorEmail)
       });
       if (res.ok) {
+        this.invalidateCache();
         const body = await res.json();
         const raw = body.data || body;
         const normalized: EvalDataset = {
@@ -2776,6 +2902,7 @@ export class LLMOpsClient {
       });
 
       if (res.ok) {
+        this.invalidateCache();
         const body = await res.json();
         const rawData = body.data || body;
         const actualRecall = rawData.actual_recall ?? (typeof rawData.violation_recall === 'number' ? (rawData.violation_recall <= 1 ? Math.round(rawData.violation_recall * 100) : Math.round(rawData.violation_recall)) : 85);
@@ -2828,6 +2955,7 @@ export class LLMOpsClient {
       });
 
       if (res.ok) {
+        this.invalidateCache();
         const body = await res.json();
         return {
           status: 'ok',
@@ -2862,6 +2990,7 @@ export class LLMOpsClient {
         headers: this.getHeaders(undefined, actorEmail)
       });
       if (res.ok) {
+        this.invalidateCache();
         const body = await res.json();
         const raw = body.data || body;
         const items = Array.isArray(raw) ? raw : (raw.items || []);
@@ -3008,94 +3137,100 @@ export class LLMOpsClient {
    * Récupère les métriques de santé consolidées du Knowledge Hub (GET /api/knowledge/health)
    */
   async getKbHealth(
-    actorEmail?: string
+    actorEmail?: string,
+    options: { bypassCache?: boolean } = {}
   ): Promise<{ status: 'ok' | 'error' | 'unavailable'; data?: KbHealthMetrics; error?: string }> {
-    try {
-      const url = `${this.baseUrl}/api/knowledge/health`;
-      const res = await this.fetchWithTimeout(url, {
-        headers: this.getHeaders(undefined, actorEmail)
-      });
-      if (res.ok) {
-        const body = await res.json();
-        const raw = body.data || body;
-        const assets = raw.assets || {};
-        const byType = assets.by_type || {};
-        const queue = raw.queue || {};
-        const coverage = raw.coverage || {};
-        const evaluation = raw.evaluation || {};
-        const storage = raw.storage || { persistent: true, mode: 'normal' };
+    const cacheKey = `kb:health:${this.baseUrl}:${actorEmail || ''}`;
+    if (options.bypassCache) this.invalidateCache(cacheKey);
 
-        const covEntries = Object.entries(coverage);
-        const totalFw = covEntries.length;
-        let totalReqs = 0;
-        let coveredReqs = 0;
-        for (const [, cov] of covEntries as any) {
-          if (cov?.requirements) {
-            totalReqs += cov.requirements.total || 0;
-            coveredReqs += cov.requirements.covered || 0;
+    return this.cachedFetch(cacheKey, async () => {
+      try {
+        const url = `${this.baseUrl}/api/knowledge/health`;
+        const res = await this.fetchWithTimeout(url, {
+          headers: this.getHeaders(undefined, actorEmail)
+        });
+        if (res.ok) {
+          const body = await res.json();
+          const raw = body.data || body;
+          const assets = raw.assets || {};
+          const byType = assets.by_type || {};
+          const queue = raw.queue || {};
+          const coverage = raw.coverage || {};
+          const evaluation = raw.evaluation || {};
+          const storage = raw.storage || { persistent: true, mode: 'normal' };
+
+          const covEntries = Object.entries(coverage);
+          const totalFw = covEntries.length;
+          let totalReqs = 0;
+          let coveredReqs = 0;
+          for (const [, cov] of covEntries as any) {
+            if (cov?.requirements) {
+              totalReqs += cov.requirements.total || 0;
+              coveredReqs += cov.requirements.covered || 0;
+            }
           }
+          const covPct = totalReqs > 0 ? Math.round((coveredReqs / totalReqs) * 100) : 75;
+
+          const totalAssets = assets.active ?? raw.doctrine_health?.total_assets ?? 42;
+          const overdueCount = queue.overdue ? (Array.isArray(queue.overdue) ? queue.overdue.length : queue.overdue) : 0;
+          const pendingCount = queue.by_status?.in_review ?? queue.by_status?.submitted ?? 0;
+
+          const recall = evaluation.recall ?? evaluation.latest_recall ?? 0.85;
+          const gateG6 = recall >= 0.8;
+          const gateG7 = gateG6 && overdueCount === 0;
+
+          const data: KbHealthMetrics = {
+            ...raw,
+            doctrine_health: raw.doctrine_health || {
+              total_assets: totalAssets,
+              principles_count: byType.principle ?? 12,
+              patterns_count: byType.pattern ?? 24,
+              decisions_count: byType.decision ?? 14,
+              controls_count: byType.control ?? 10,
+              glossary_count: byType.glossary ?? 17
+            },
+            reviews_summary: raw.reviews_summary || {
+              pending_count: pendingCount,
+              overdue_count: overdueCount,
+              avg_review_duration_days: queue.avg_days ?? 2.4
+            },
+            regulatory_coverage: raw.regulatory_coverage || {
+              total_frameworks: totalFw || 1,
+              total_requirements: totalReqs || 19,
+              covered_requirements: coveredReqs || 14,
+              coverage_percentage: covPct
+            },
+            evals_summary: raw.evals_summary || {
+              latest_recall: recall,
+              gate_g6_passed: gateG6,
+              last_benchmark_at: evaluation.executed_at || new Date().toISOString()
+            },
+            storage: {
+              persistent: storage.persistent ?? true,
+              mode: storage.mode ?? 'normal',
+              provider: storage.provider || 'Local Persistent Store'
+            },
+            gate_g7_eligible: raw.gate_g7_eligible ?? gateG7,
+            gate_g7_blockers: raw.gate_g7_blockers || (gateG7 ? [] : ['Contrôles préalables en cours'])
+          };
+
+          return {
+            status: 'ok',
+            data
+          };
         }
-        const covPct = totalReqs > 0 ? Math.round((coveredReqs / totalReqs) * 100) : 75;
-
-        const totalAssets = assets.active ?? raw.doctrine_health?.total_assets ?? 42;
-        const overdueCount = queue.overdue ? (Array.isArray(queue.overdue) ? queue.overdue.length : queue.overdue) : 0;
-        const pendingCount = queue.by_status?.in_review ?? queue.by_status?.submitted ?? 0;
-
-        const recall = evaluation.recall ?? evaluation.latest_recall ?? 0.85;
-        const gateG6 = recall >= 0.8;
-        const gateG7 = gateG6 && overdueCount === 0;
-
-        const data: KbHealthMetrics = {
-          ...raw,
-          doctrine_health: raw.doctrine_health || {
-            total_assets: totalAssets,
-            principles_count: byType.principle ?? 12,
-            patterns_count: byType.pattern ?? 24,
-            decisions_count: byType.decision ?? 14,
-            controls_count: byType.control ?? 10,
-            glossary_count: byType.glossary ?? 17
-          },
-          reviews_summary: raw.reviews_summary || {
-            pending_count: pendingCount,
-            overdue_count: overdueCount,
-            avg_review_duration_days: queue.avg_days ?? 2.4
-          },
-          regulatory_coverage: raw.regulatory_coverage || {
-            total_frameworks: totalFw || 1,
-            total_requirements: totalReqs || 19,
-            covered_requirements: coveredReqs || 14,
-            coverage_percentage: covPct
-          },
-          evals_summary: raw.evals_summary || {
-            latest_recall: recall,
-            gate_g6_passed: gateG6,
-            last_benchmark_at: evaluation.executed_at || new Date().toISOString()
-          },
-          storage: {
-            persistent: storage.persistent ?? true,
-            mode: storage.mode ?? 'normal',
-            provider: storage.provider || 'Local Persistent Store'
-          },
-          gate_g7_eligible: raw.gate_g7_eligible ?? gateG7,
-          gate_g7_blockers: raw.gate_g7_blockers || (gateG7 ? [] : ['Contrôles préalables en cours'])
-        };
-
+        const body = await res.json().catch(() => ({}));
         return {
-          status: 'ok',
-          data
+          status: 'error',
+          error: body.error || `Erreur HTTP ${res.status} lors de la récupération de la santé KB`
+        };
+      } catch (e: any) {
+        return {
+          status: 'unavailable',
+          error: e?.message || 'Serveur LLMOps inaccessible pour la santé KB'
         };
       }
-      const body = await res.json().catch(() => ({}));
-      return {
-        status: 'error',
-        error: body.error || `Erreur HTTP ${res.status} lors de la récupération de la santé KB`
-      };
-    } catch (e: any) {
-      return {
-        status: 'unavailable',
-        error: e?.message || 'Serveur LLMOps inaccessible pour la santé KB'
-      };
-    }
+    });
   }
 
   private static campaignsStore: Map<string, KbCampaign> = new Map();
@@ -3113,6 +3248,7 @@ export class LLMOpsClient {
           type?: string;
           framework?: string;
           actorEmail?: string;
+          bypassCache?: boolean;
         },
     maybeActorEmail?: string
   ): Promise<{ status: 'ok' | 'error' | 'unavailable'; data?: KbPublication[]; error?: string }> {
@@ -3129,106 +3265,110 @@ export class LLMOpsClient {
       if (optionsOrActorEmail.framework) queryParams.set('framework', optionsOrActorEmail.framework);
     }
     const queryString = queryParams.toString() ? `?${queryParams.toString()}` : '';
+    const cacheKey = `kb:pubs:${this.baseUrl}:${queryString}:${actorEmail || ''}`;
+    if (isOptions && optionsOrActorEmail.bypassCache) this.invalidateCache(cacheKey);
 
-    try {
-      const url = `${this.baseUrl}/api/knowledge/publications${queryString}`;
-      const res = await this.fetchWithTimeout(url, {
-        headers: this.getHeaders(undefined, actorEmail)
-      });
-      if (res.ok) {
-        const body = await res.json();
-        const pubs = Array.isArray(body)
-          ? body
-          : Array.isArray(body.publications)
-            ? body.publications
-            : Array.isArray(body.data)
-              ? body.data
-              : [];
-        return {
-          status: 'ok',
-          data: pubs
-        };
-      }
-    } catch {
-      // Si la route n'existe pas ou erreur réseau, on bascule sur la dérivation contractuelle
-    }
-
-    try {
-      const candidatesRes = await this.listCandidates({ status: 'published' } as any, actorEmail);
-      const candidates = Array.isArray(candidatesRes) ? candidatesRes : [];
-
-      const bySnapshot = new Map<string, { snapshot_id: string; at: string; candidates: string[] }>();
-      for (const cand of candidates) {
-        const pub = (cand as any).published;
-        if (pub && pub.snapshot_id) {
-          const entry = bySnapshot.get(pub.snapshot_id) || {
-            snapshot_id: pub.snapshot_id,
-            at: pub.at || new Date().toISOString(),
-            candidates: [] as string[]
+    return this.cachedFetch(cacheKey, async () => {
+      try {
+        const url = `${this.baseUrl}/api/knowledge/publications${queryString}`;
+        const res = await this.fetchWithTimeout(url, {
+          headers: this.getHeaders(undefined, actorEmail)
+        });
+        if (res.ok) {
+          const body = await res.json();
+          const pubs = Array.isArray(body)
+            ? body
+            : Array.isArray(body.publications)
+              ? body.publications
+              : Array.isArray(body.data)
+                ? body.data
+                : [];
+          return {
+            status: 'ok',
+            data: pubs
           };
-          if (cand.id) {
-            entry.candidates.push(cand.id);
-          }
-          bySnapshot.set(pub.snapshot_id, entry);
         }
+      } catch {
+        // Si la route n'existe pas ou erreur réseau, on bascule sur la dérivation contractuelle
       }
 
-      const healthRes = await this.getKbHealth(actorEmail);
-      const health = healthRes.status === 'ok' ? (healthRes.data as any) : null;
-      if (health?.last_snapshot?.snapshot_id && !bySnapshot.has(health.last_snapshot.snapshot_id)) {
-        bySnapshot.set(health.last_snapshot.snapshot_id, {
-          snapshot_id: health.last_snapshot.snapshot_id,
-          at: health.last_snapshot.created_at || new Date().toISOString(),
-          candidates: []
-        });
-      }
+      try {
+        const candidatesRes = await this.listCandidates({ status: 'published' } as any, actorEmail);
+        const candidates = Array.isArray(candidatesRes) ? candidatesRes : [];
 
-      const publications: KbPublication[] = [];
-      for (const [snapId, entry] of bySnapshot.entries()) {
-        publications.push({
-          id: snapId,
-          snapshot_id: snapId,
-          version: snapId.replace(/^snapshot-/, 'v'),
-          published_at: entry.at,
-          published_by: health?.last_snapshot?.published_by || 'maintainer',
-          sha256_checksum: health?.last_snapshot?.sha256 || '0000000000000000000000000000000000000000000000000000000000000000',
-          changelog: health?.last_snapshot?.changelog || `Publication de ${entry.candidates.length} candidat(s)`,
-          assets_count: health?.doctrine_health?.total_assets || health?.assets?.active || entry.candidates.length,
-          storage_persistent: health?.storage?.persistent ?? true,
-          published_candidates: entry.candidates
-        });
-      }
+        const bySnapshot = new Map<string, { snapshot_id: string; at: string; candidates: string[] }>();
+        for (const cand of candidates) {
+          const pub = (cand as any).published;
+          if (pub && pub.snapshot_id) {
+            const entry = bySnapshot.get(pub.snapshot_id) || {
+              snapshot_id: pub.snapshot_id,
+              at: pub.at || new Date().toISOString(),
+              candidates: [] as string[]
+            };
+            if (cand.id) {
+              entry.candidates.push(cand.id);
+            }
+            bySnapshot.set(pub.snapshot_id, entry);
+          }
+        }
 
-      if (publications.length === 0 && (!health || healthRes.status !== 'ok')) {
+        const healthRes = await this.getKbHealth(actorEmail);
+        const health = healthRes.status === 'ok' ? (healthRes.data as any) : null;
+        if (health?.last_snapshot?.snapshot_id && !bySnapshot.has(health.last_snapshot.snapshot_id)) {
+          bySnapshot.set(health.last_snapshot.snapshot_id, {
+            snapshot_id: health.last_snapshot.snapshot_id,
+            at: health.last_snapshot.created_at || new Date().toISOString(),
+            candidates: []
+          });
+        }
+
+        const publications: KbPublication[] = [];
+        for (const [snapId, entry] of bySnapshot.entries()) {
+          publications.push({
+            id: snapId,
+            snapshot_id: snapId,
+            version: snapId.replace(/^snapshot-/, 'v'),
+            published_at: entry.at,
+            published_by: health?.last_snapshot?.published_by || 'maintainer',
+            sha256_checksum: health?.last_snapshot?.sha256 || '0000000000000000000000000000000000000000000000000000000000000000',
+            changelog: health?.last_snapshot?.changelog || `Publication de ${entry.candidates.length} candidat(s)`,
+            assets_count: health?.doctrine_health?.total_assets || health?.assets?.active || entry.candidates.length,
+            storage_persistent: health?.storage?.persistent ?? true,
+            published_candidates: entry.candidates
+          });
+        }
+
+        if (publications.length === 0 && (!health || healthRes.status !== 'ok')) {
+          return {
+            status: 'ok',
+            data: [
+              {
+                id: 'pub-2026-09-01-01',
+                snapshot_id: 'snapshot-2026-09-01-01',
+                version: 'v2.4.0',
+                published_at: '2026-09-01T10:00:00Z',
+                published_by: 'maint@archinex.fr',
+                sha256_checksum: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
+                changelog: 'Alignement doctrine sécurité NIS2 & DORA',
+                assets_count: 58,
+                storage_persistent: true,
+                published_candidates: []
+              }
+            ]
+          };
+        }
+
         return {
           status: 'ok',
-          data: [
-            {
-              id: 'pub-2026-09-01-01',
-              snapshot_id: 'snapshot-2026-09-01-01',
-              version: 'v2.4.0',
-              published_at: '2026-09-01T10:00:00Z',
-              published_by: 'maint@archinex.fr',
-              sha256_checksum: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
-              changelog: 'Alignement doctrine sécurité NIS2 & DORA',
-              assets_count: 58,
-              storage_persistent: true,
-              published_candidates: []
-            }
-          ]
+          data: publications
+        };
+      } catch {
+        return {
+          status: 'unavailable',
+          error: 'Mode hors-ligne : historique des publications indisponible'
         };
       }
-
-      return {
-        status: 'ok',
-        data: publications
-      };
-    } catch {
-      return {
-        status: 'unavailable',
-        error: 'Mode hors-ligne : historique des publications indisponible'
-      };
-    }
+    });
   }
 
   /**
@@ -3252,6 +3392,7 @@ export class LLMOpsClient {
         };
       }
       if (res.ok) {
+        this.invalidateCache();
         const body = await res.json();
         return {
           status: 'ok',
@@ -3442,6 +3583,7 @@ export class LLMOpsClient {
         headers: this.getHeaders(undefined, actorEmail)
       });
       if (res.ok) {
+        this.invalidateCache();
         const body = await res.json();
         return {
           status: 'ok',
@@ -3478,6 +3620,7 @@ export class LLMOpsClient {
         body: JSON.stringify(deposit)
       });
       if (res.ok) {
+        this.invalidateCache();
         const body = await res.json();
         return {
           status: 'ok',
@@ -3514,6 +3657,7 @@ export class LLMOpsClient {
         body: JSON.stringify(request)
       });
       if (res.ok) {
+        this.invalidateCache();
         const body = await res.json();
         return {
           status: 'ok',
@@ -3589,6 +3733,7 @@ export class LLMOpsClient {
         headers: this.getHeaders(undefined, actorEmail)
       });
       if (res.ok) {
+        this.invalidateCache();
         const body = await res.json();
         return {
           status: 'ok',
@@ -3628,6 +3773,7 @@ export class LLMOpsClient {
         headers: this.getHeaders(undefined, actorEmail)
       });
       if (res.ok) {
+        this.invalidateCache();
         const body = await res.json();
         return {
           status: 'ok',
@@ -3664,6 +3810,7 @@ export class LLMOpsClient {
         body: JSON.stringify(update)
       });
       if (res.ok) {
+        this.invalidateCache();
         const body = await res.json();
         return {
           status: 'ok',
@@ -3733,6 +3880,7 @@ export class LLMOpsClient {
         headers: this.getHeaders(undefined, actorEmail)
       });
       if (res.ok) {
+        this.invalidateCache();
         const body = await res.json();
         return {
           status: 'ok',

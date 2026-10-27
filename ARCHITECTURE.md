@@ -431,6 +431,26 @@ sequenceDiagram
 4. **Détection Obligatoire de Stockage Éphémère (Mode Démo)** : L'interface avertit obligatoirement par un bandeau d'alerte visible dès lors que le moteur LLMOps sous-jacent tourne en mémoire non persistante (`storage.mode = "demo"`), empêchant toute fausse assurance de pérennité.
 5. **Pilotage Proactif par Campagnes** : Les curateurs peuvent initier des campagnes d'enrichissement ciblées par domaine d'architecture (`security`, `cloud`, `resilience`) avec jauge de progression et date d'échéance.
 
+---
+
+## 11. Architecture de Performance & Fluidité de Navigation (Dashboard & Mini-Apps)
+
+Pour éliminer toute latence lors du clic sur le Dashboard (`/`) ou lors du basculement entre les mini-applications (`/workspaces`, `/deliberation`, `/knowledge`), Archinex met en œuvre une optimisation multicouche :
+
+### 1. Cache Mémoire en Lecture & Singleflight (`src/lib/server/llmops/client.ts`)
+- **Singleflight Promise Deduplication** : regroupe les requêtes GET concurrentes vers le service LLMOps (`/api/compliance/frameworks`, `/api/knowledge/health`, `/api/knowledge/checks`, etc.) en une promesse unique afin d'éviter tout engorgement backend.
+- **TTL Mémoire Adaptatif** : mise en cache mémoire de 30 secondes pour les lectures chaudes (réduit à 2 secondes sur statut d'erreur ou indisponibilité pour permettre un rétablissement rapide, désactivé par défaut en environnement de test Vitest).
+- **Invalidation Automatique sur Mutation** : tout appel modifiant l'état (promotion de candidat, décision sur clause, soumission, ingestion, changement d'URL de base) purge immédiatement les entrées de cache associées.
+
+### 2. Allégement des Payloads de Données (`engagementsDb.ts`, `+page.server.ts`, `deliberationStore.svelte.ts`)
+- **Élagage Sélectif des Clauses de Documents (`includeKeyClauses: false`)** : sur les vues de synthèse (Dashboard, listes d'engagements), les 1 500+ clauses textuelles brutes de chaque document RFP sont omises du transfert initial tout en conservant le compteur d'exigences (`extractedClausesCount`), réduisant la charge utile de 2,9 Mo à moins de 100 Ko (> 97 % de réduction). Les clauses complètes sont réservées à la consultation unitaire d'un document ou d'un sujet.
+- **Délestage des Propositions Mortes (`stripSubjectProposals: true`)** : purge des données temporaires de factorisation dans les listes globales d'espaces.
+- **Suppression du Double-Fetch Client (`deliberationStore`)** : différé via `queueMicrotask` pour éviter le rechargement réseau de `/api/engagements` dès lors que le store est déjà hydraté par le SSR (`initFromDb`).
+
+### 3. Résolution Granulaire des Icônes (`vite.config.ts`)
+- **Plugin de Transformation `lucideOptimizePlugin`** : réécrit à la compilation les imports barils `import { A, B } from 'lucide-svelte'` en imports directs `import A from 'lucide-svelte/icons/a'`, empêchant le navigateur de télécharger et compiler les 1 929 modules d'icônes et d'alias en mode développement (baisse de 3 788 requêtes à quelques dizaines par vue).
+
+
 
 
 

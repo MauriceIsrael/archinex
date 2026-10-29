@@ -8,6 +8,26 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Paquet de Décision Exécutable (EDP) : Moteur OPA, Bibliothèque Rego & Référence ADR-012 (Palier 2 - Issues #171, #175, #180, #176, #172)
+- **Exécuteur OPA Déterministe (`opaRunner.ts`, `install-opa.ps1`, `install-opa.sh`) (#171)** :
+  - Exécuteur OPA encapsulant `opa test` et `opa eval` avec gestion des timeouts, typage strict des résultats et détection de version minimale (Rego v1).
+  - Règle bloquante : le statut `unavailable` en cas d'absence du binaire OPA n'est jamais confondu avec un succès (`pass`).
+  - Scripts d'installation automatique et de contrôle d'intégrité SHA-256 pour OPA v1.21.4 sous Windows et Linux / CI.
+- **Bibliothèque Rego Commune (`policies/lib/edp_common.rego`) (#175)** :
+  - Fonctions helpers standard : extraction sûre de l'hôte `host_of(url)` évitant les fausses correspondances par sous-chaîne (`contains`), `missing_inputs` et `build_status` conforme aux 4 verdicts.
+  - Documentation intégrée des 3 pièges Rego : champ indéfini, comparaison de sous-chaîne et ensemble vide (vacuité).
+  - 7 tests unitaires Rego natifs (`policies/lib/edp_common_test.rego`).
+- **EDP de Référence ADR-012 Substrat Bare-Metal (`edp/examples/adr012-baremetal/`) (#180)** :
+  - Définition complète de l'oracle pour le substrat Kubernetes Telco Cloud (Sylva / CAPI et Nautobot Planned) couvrant 6 règles architecturales ciblées.
+  - Isolation du bloc d'ontologie en tête de politique pour substitution future par `data.ontology`.
+  - Mocks Red/Green complets : `pass.json`, 6 mocks à défaut unique (`fail_rule_1` à `fail_rule_6`) et mock multi-dérive d'agrégation.
+- **Garde de Mutation Déterministe (`scripts/edp-mutation-gate.ts`) (#176)** :
+  - Analyseur de mutation Rego testant la résilience de l'oracle par suppression de règles (`drop_rule`).
+  - Score de mutation atteint : **6/6 mutants tués (100 %)** sur ADR-012.
+- **Contrat des Fixtures & Adresses Réservées (`validateFixturesContract.ts`) (#172)** :
+  - Validateur exigeant exactement 1 mock conforme, 1 mock défaillant par règle ciblant un défaut unique, et le confinement strict de toutes les adresses IP aux plages documentaires RFC 5737 (`192.0.2.0/24`, `198.51.100.0/24`, `203.0.113.0/24`) et RFC 3849 (`2001:db8::/32`).
+- **Tests** : 22 tests de contrat dans `tests/contract/edp-opa-runner.test.ts`, `tests/contract/edp-rego-common.test.ts` et `tests/contract/edp-adr012-reference.test.ts` (total 47 tests passants sur les Paliers 1 & 2).
+
 ### Paquet de Décision Exécutable (EDP) : Spécifications, Schémas & Invariants (Palier 1 - Issues #167, #168, #169, #170)
 - **Proposition OpenSpec A12 (`openspec/changes/a12-edp/`) (#167)** :
   - Cadrage complet, spécification formelle (`proposal.md`, `design.md`, `tasks.md`, `.openspec.yaml`) ancrée dans la Constitution d'Archinex.

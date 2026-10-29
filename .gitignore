@@ -53,3 +53,7 @@ prisma/dev-wt.db*
 
 # Generated Prisma client (Prisma 7)
 /src/generated/prisma
+
+# Local tools and binaries
+tools/bin/
+*.exe

@@ -505,7 +505,7 @@ export async function listTradeOffs(subjectId: string) {
 export async function createTradeOff(
 	subjectId: string,
 	data: {
-		id: string;
+		id?: string;
 		optionId: string;
 		gains: string;
 		sacrifices: string;
@@ -519,7 +519,7 @@ export async function createTradeOff(
 
 		const created = await tx.tradeOff.create({
 			data: {
-				id: data.id,
+				id: data.id || ('tradeoff-' + Date.now() + '-' + Math.random().toString(36).substring(2, 7)),
 				subjectId,
 				optionId: data.optionId,
 				gains: data.gains,

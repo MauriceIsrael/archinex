@@ -9,15 +9,16 @@
 	}: {
 		isOpen: boolean;
 		onClose: () => void;
-		onSave: (option: { title: string; summary: string; origin: OptionOrigin }) => void;
+		onSave: (option: { title: string; summary: string; origin: OptionOrigin }) => Promise<void> | void;
 	} = $props();
 
 	let title = $state('');
 	let summary = $state('');
 	let origin = $state<OptionOrigin>('human');
 	let error = $state<string | null>(null);
+	let isSubmitting = $state(false);
 
-	function handleSubmit() {
+	async function handleSubmit() {
 		const trimmedTitle = title.trim();
 		const trimmedSummary = summary.trim();
 
@@ -31,16 +32,22 @@
 		}
 
 		error = null;
-		onSave({
-			title: trimmedTitle,
-			summary: trimmedSummary,
-			origin
-		});
-
-		title = '';
-		summary = '';
-		origin = 'human';
-		onClose();
+		isSubmitting = true;
+		try {
+			await onSave({
+				title: trimmedTitle,
+				summary: trimmedSummary,
+				origin
+			});
+			title = '';
+			summary = '';
+			origin = 'human';
+			onClose();
+		} catch (err: any) {
+			error = err.message || "Erreur lors de l'enregistrement de l'option";
+		} finally {
+			isSubmitting = false;
+		}
 	}
 </script>
 
@@ -114,17 +121,19 @@
 				<button
 					type="button"
 					onclick={onClose}
-					class="px-3 py-1.5 rounded-lg border text-xs font-semibold text-muted-foreground hover:bg-muted"
+					disabled={isSubmitting}
+					class="px-3 py-1.5 rounded-lg border text-xs font-semibold text-muted-foreground hover:bg-muted disabled:opacity-50"
 				>
 					Annuler
 				</button>
 				<button
 					type="button"
 					onclick={handleSubmit}
-					class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-700 text-white text-xs font-semibold shadow-xs"
+					disabled={isSubmitting}
+					class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white text-xs font-semibold shadow-xs cursor-pointer"
 				>
 					<Plus class="h-3.5 w-3.5" />
-					<span>Verser au débat</span>
+					<span>{isSubmitting ? 'Enregistrement...' : 'Verser au débat'}</span>
 				</button>
 			</div>
 		</div>

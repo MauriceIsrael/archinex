@@ -143,4 +143,43 @@ describe('OptionsMatrix Column Titles & Readability Contract (Lot A2)', () => {
 		expect(html).toContain('min-w-[220px]');
 		expect(html).toContain('max-w-[320px]');
 	});
+
+	it('affiche une 4ème colonne (Option C) lorsqu\'une 3ème option humaine est ajoutée', () => {
+		const threeOptions: Option[] = [
+			...sampleOptions,
+			{
+				id: 'opt-custom-human',
+				subjectId: 'subj-architecture-data',
+				title: 'Solution Edge locale souveraine',
+				summary: 'Déploiement sur site sécurisé sans dépendance externe.',
+				origin: 'human',
+				kbRefs: [],
+				status: 'proposed',
+				author: 'Bob',
+				role: 'lead_architect',
+				productionMode: 'human-authored',
+				version: 1
+			}
+		];
+
+		const { html } = render(OptionsMatrix, {
+			props: {
+				projectId: 'proj-1',
+				subjectId: 'subj-architecture-data',
+				criteria: sampleCriteria,
+				options: threeOptions,
+				evaluations: sampleEvaluations,
+				tradeOffs: [],
+				decision: null
+			}
+		});
+
+		expect(html).toContain('Option A');
+		expect(html).toContain('Option B');
+		expect(html).toContain('Option C');
+		expect(html).toContain('Solution Edge locale souveraine');
+		// 1 colonne critères + 3 colonnes options = 4 colonnes d'en-tête th
+		const thMatches = html.match(/<th\b/g);
+		expect(thMatches?.length).toBe(4);
+	});
 });

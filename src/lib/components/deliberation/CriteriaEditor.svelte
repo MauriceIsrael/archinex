@@ -9,7 +9,7 @@
 	}: {
 		isOpen: boolean;
 		onClose: () => void;
-		onSave: (criterion: { name: string; description: string; kind: CriterionKind; weight: number; kbRef?: string }) => void;
+		onSave: (criterion: { name: string; description: string; kind: CriterionKind; weight: number; kbRef?: string }) => Promise<void> | void;
 	} = $props();
 
 	let name = $state('');
@@ -18,8 +18,9 @@
 	let weight = $state<number>(3);
 	let kbRef = $state('');
 	let error = $state<string | null>(null);
+	let isSubmitting = $state(false);
 
-	function handleSubmit() {
+	async function handleSubmit() {
 		const trimmedName = name.trim();
 		if (!trimmedName) {
 			error = 'Le nom du critère est obligatoire.';
@@ -31,21 +32,28 @@
 		}
 
 		error = null;
-		onSave({
-			name: trimmedName,
-			description: description.trim(),
-			kind,
-			weight,
-			kbRef: kbRef.trim() || undefined
-		});
+		isSubmitting = true;
+		try {
+			await onSave({
+				name: trimmedName,
+				description: description.trim(),
+				kind,
+				weight,
+				kbRef: kbRef.trim() || undefined
+			});
 
-		// Reset
-		name = '';
-		description = '';
-		kind = 'nfr';
-		weight = 3;
-		kbRef = '';
-		onClose();
+			// Reset
+			name = '';
+			description = '';
+			kind = 'nfr';
+			weight = 3;
+			kbRef = '';
+			onClose();
+		} catch (err: any) {
+			error = err.message || "Erreur lors de l'enregistrement du critère";
+		} finally {
+			isSubmitting = false;
+		}
 	}
 </script>
 
@@ -81,59 +89,57 @@
 						id="criterion-name"
 						type="text"
 						bind:value={name}
-						placeholder="ex: Latence réseau p99, Conformité ANSSI, TCO sur 3 ans..."
+						placeholder="ex: Latence inter-sites < 5ms, Résilience 3 DC..."
 						class="w-full rounded-md border bg-background px-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground focus:ring-1 focus:ring-primary"
 					/>
 				</div>
 
 				<div>
 					<label for="criterion-desc" class="font-bold text-foreground block mb-1">
-						Description / Mesure attendue
+						Description & exigences associées
 					</label>
 					<textarea
 						id="criterion-desc"
 						bind:value={description}
 						rows={2}
-						placeholder="Préciser l'indicateur ou la contrainte mesurée..."
+						placeholder="Préciser l'objectif visé ou la clause du CCTP/RFP..."
 						class="w-full rounded-md border bg-background px-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground"
 					></textarea>
 				</div>
 
-				<div class="grid grid-cols-2 gap-3">
+				<div class="grid grid-cols-2 gap-2">
 					<div>
 						<label for="criterion-kind" class="font-bold text-foreground block mb-1">
-							Catégorie
+							Nature du critère
 						</label>
 						<select
 							id="criterion-kind"
 							bind:value={kind}
 							class="w-full rounded-md border bg-background px-2.5 py-1.5 text-xs text-foreground"
 						>
+							<option value="nfr">Non-Fonctionnel (NFR)</option>
 							<option value="functional">Fonctionnel</option>
-							<option value="nfr">Exigence Non-Fonctionnelle</option>
 							<option value="cost">Coût / TCO</option>
-							<option value="risk">Risque & Vulnérabilité</option>
-							<option value="compliance">Conformité / Souveraineté</option>
+							<option value="risk">Risque & Sécurité</option>
+							<option value="compliance">Conformité Doctrine</option>
 						</select>
 					</div>
 
 					<div>
 						<label for="criterion-weight" class="font-bold text-foreground block mb-1">
-							Poids (1 à 5) : <span class="font-mono text-primary font-extrabold">{weight}</span>
+							Poids (1 à 5)
 						</label>
-						<input
-							id="criterion-weight"
-							type="range"
-							min="1"
-							max="5"
-							step="1"
-							bind:value={weight}
-							class="w-full accent-primary"
-						/>
-						<div class="flex justify-between text-[10px] text-muted-foreground font-mono">
-							<span>1 (faible)</span>
-							<span>3 (moyen)</span>
-							<span>5 (critique)</span>
+						<div class="flex items-center gap-2">
+							<input
+								id="criterion-weight"
+								type="range"
+								min="1"
+								max="5"
+								step="1"
+								bind:value={weight}
+								class="w-full accent-primary"
+							/>
+							<span class="font-mono font-bold text-sm text-primary w-4">{weight}</span>
 						</div>
 					</div>
 				</div>
@@ -156,17 +162,19 @@
 				<button
 					type="button"
 					onclick={onClose}
-					class="px-3 py-1.5 rounded-lg border text-xs font-semibold text-muted-foreground hover:bg-muted"
+					disabled={isSubmitting}
+					class="px-3 py-1.5 rounded-lg border text-xs font-semibold text-muted-foreground hover:bg-muted disabled:opacity-50"
 				>
 					Annuler
 				</button>
 				<button
 					type="button"
 					onclick={handleSubmit}
-					class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 text-xs font-semibold shadow-xs"
+					disabled={isSubmitting}
+					class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-50 text-xs font-semibold shadow-xs cursor-pointer"
 				>
 					<Plus class="h-3.5 w-3.5" />
-					<span>Enregistrer le critère</span>
+					<span>{isSubmitting ? 'Enregistrement...' : 'Enregistrer le critère'}</span>
 				</button>
 			</div>
 		</div>

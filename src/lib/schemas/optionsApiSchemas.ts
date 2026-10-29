@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 export const CreateCriterionSchema = z.object({
-	id: z.string().min(1),
+	id: z.string().min(1).optional(),
 	name: z.string().min(1),
 	description: z.string().default(''),
 	kind: z.enum(['functional', 'nfr', 'cost', 'risk', 'compliance']),
@@ -19,7 +19,7 @@ export const UpdateCriterionSchema = z.object({
 });
 
 export const CreateOptionSchema = z.object({
-	id: z.string().min(1),
+	id: z.string().min(1).optional(),
 	title: z.string().min(1),
 	summary: z.string().min(1),
 	origin: z.enum(['human', 'llm-proposed', 'kb-pattern']).default('human'),
@@ -44,7 +44,7 @@ export const UpsertEvaluationSchema = z.object({
 });
 
 export const CreateTradeOffSchema = z.object({
-	id: z.string().min(1),
+	id: z.string().min(1).optional(),
 	optionId: z.string().min(1),
 	gains: z.string().min(1),
 	sacrifices: z.string().min(1),

@@ -6,6 +6,11 @@ import {
 	type Criterion,
 	type OptionEvaluation
 } from '$lib/domain/options';
+import {
+	CreateOptionSchema,
+	CreateCriterionSchema,
+	CreateTradeOffSchema
+} from '$lib/schemas/optionsApiSchemas';
 
 describe('Options & Multi-Criteria Contract (Lot A2)', () => {
 	describe('1. Validation stricte des évaluations d\'options (validateEvaluation)', () => {
@@ -136,6 +141,48 @@ describe('Options & Multi-Criteria Contract (Lot A2)', () => {
 			expect(converted.productionMode).toBe('llm-derived');
 			expect(converted.status).toBe('proposed');
 			expect(converted.summary).toBe(rawText);
+		});
+	});
+
+	describe('4. Validation des schémas d\'API de création (optionsApiSchemas)', () => {
+		it('CreateOptionSchema valide une option avec ou sans id pré-assigné', () => {
+			const withoutId = CreateOptionSchema.safeParse({
+				title: 'Passerelle eBPF Edge',
+				summary: 'Routage direct sans matériel dédié',
+				origin: 'human'
+			});
+			expect(withoutId.success).toBe(true);
+
+			const withId = CreateOptionSchema.safeParse({
+				id: 'opt-custom-1',
+				title: 'Passerelle Hardware',
+				summary: 'Boîtier physique appliance',
+				origin: 'kb-pattern'
+			});
+			expect(withId.success).toBe(true);
+
+			const missingTitle = CreateOptionSchema.safeParse({
+				summary: 'Sans titre'
+			});
+			expect(missingTitle.success).toBe(false);
+		});
+
+		it('CreateCriterionSchema valide un critère avec ou sans id', () => {
+			const withoutId = CreateCriterionSchema.safeParse({
+				name: 'Latence < 5ms',
+				kind: 'nfr',
+				weight: 4
+			});
+			expect(withoutId.success).toBe(true);
+		});
+
+		it('CreateTradeOffSchema valide un compromis avec ou sans id', () => {
+			const withoutId = CreateTradeOffSchema.safeParse({
+				optionId: 'opt-1',
+				gains: 'Meilleure latence',
+				sacrifices: 'Coût matériel plus élevé'
+			});
+			expect(withoutId.success).toBe(true);
 		});
 	});
 });

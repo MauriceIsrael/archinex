@@ -10,6 +10,7 @@ import {
 	type Argument
 } from '$lib/domain/debate';
 import { deliberationStore } from '$lib/stores/deliberationStore.svelte';
+import { toastQueue } from '$lib/toast/index.svelte';
 import { createTestDefaultEngagements } from '../fixtures/sample-data';
 
 describe('A25 — Composeur structuré, mentions et navigation dans le fil (Issue #36)', () => {
@@ -66,6 +67,14 @@ describe('A25 — Composeur structuré, mentions et navigation dans le fil (Issu
 				allowedKbRefs
 			);
 			expect(validRes.valid).toBe(true);
+		});
+
+		it('Transmet les notifications de délibération au système de Toast visuel', () => {
+			deliberationStore.logNotification('Erreur d\'autorisation : session requise', 'warning');
+			const latestToast = toastQueue.items[toastQueue.items.length - 1];
+			expect(latestToast).toBeDefined();
+			expect(latestToast.message).toContain('session requise');
+			expect(latestToast.variant).toBe('error');
 		});
 
 		it('Rendu HTML du composeur : propose les 4 postures et exige le fondement', () => {

@@ -8,6 +8,17 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Délibération & Composeur Structuré : Feedback Visuel d'Erreurs, Droits d'Accès et Raccourci Clavier
+- **Routage visuel des notifications vers le système de Toasts (`deliberationStore.svelte.ts`)** : connexion de `deliberationStore.logNotification` au système réactif `toast` (`$lib/toast`), garantissant que les notifications de succès, d'information et d'erreur (HTTP 401, 403, validation) s'affichent immédiatement sous forme d'alertes visuelles à l'écran plutôt que d'être silencieusement conservées en mémoire.
+- **Gestion explicite des erreurs d'authentification et de droits (`StructuredComposer.svelte`, `SubjectThreadView.svelte`)** :
+  - Extraction granulaire des messages d'erreur du backend (`err.reason || err.error || err.message`).
+  - Messages clairs et actionnables en cas de non-authentification (HTTP 401 avec invitation à se connecter sur `/login`) ou de droits insuffisants (HTTP 403 réservé aux membres du projet).
+  - Remontée d'erreur explicite lors de l'adoption d'une hypothèse de cadrage (`handleAdoptHypothesis`).
+- **Ergonomie du composeur structuré (`StructuredComposer.svelte`)** :
+  - Ajout du raccourci clavier `Ctrl+Enter` / `Cmd+Enter` pour soumettre directement un argument ou une hypothèse étayée, ou afficher immédiatement le champ manquant requis.
+  - Signalisation visuelle rehaussée (`bg-amber-500/10 border-amber-500/25`) de la raison de validation (obligation de fondement étayé d'au moins 5 caractères).
+- **Tests** : extension de la suite de contrat `tests/contract/structured-composer.test.ts` validant la propagation des notifications vers la file des toasts réactifs.
+
 ### Ergonomie de la Délibération : Espace Sujet Unifié, Vue Split par Défaut, Liste Repliable et Capitalisation G4 Contextualisée
 - **Fusion du panneau principal et du Dossier du sujet (`DeliberationWorkbench.svelte`, `SubjectThreadView.svelte`)** : suppression de la 3e colonne redondante au profit d’un **Espace Sujet Unifié** (9 à 12 colonnes) structuré autour d’un en-tête unique, de la timeline horizontale de maturation en haut et de 4 volets complémentaires sans doublon (`💬 Délibération & Cadrage`, `⚖️ Options, Matrice & Arbitrage`, `📚 Doctrines, RFP & Brouillon`, `🌿 Cascade & Règles`).
 - **Repli de l'arbre des sujets (`SubjectConversationList.svelte`, `DeliberationWorkbench.svelte`)** : ajout d'un bouton `⇥ Replier` masquant la colonne des sujets pour donner 100% de la largeur de l'écran (12 colonnes) au workbench, et bouton `📂 Sujets` dans l'en-tête du fil pour la redéplier à la demande.

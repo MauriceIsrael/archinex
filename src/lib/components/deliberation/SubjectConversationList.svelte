@@ -11,18 +11,23 @@
 		CheckCircle2,
 		Layers,
 		UserCheck,
-		Plus
+		Plus,
+		PanelLeftClose
 	} from 'lucide-svelte';
 	import CreateSubjectDialog from './CreateSubjectDialog.svelte';
 
 	let {
 		selectedSubjectId = '',
 		sessionRole = 'lead_architect',
+		isCollapsible = false,
+		onToggleCollapse = () => {},
 		onSelectSubject = (id: string) => {},
 		onBackToBoard = () => {}
 	}: {
 		selectedSubjectId?: string;
 		sessionRole?: string;
+		isCollapsible?: boolean;
+		onToggleCollapse?: () => void;
 		onSelectSubject?: (id: string) => void;
 		onBackToBoard?: () => void;
 	} = $props();
@@ -129,12 +134,24 @@
 				<button
 					type="button"
 					onclick={() => (isCreateDialogOpen = true)}
-					class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 text-[11px] font-semibold cursor-pointer shadow-2xs transition-colors"
+					class="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 text-[11px] font-semibold cursor-pointer shadow-2xs transition-colors"
 					title="Créer un nouveau sujet d'architecture"
 				>
-					<Plus class="h-3.5 w-3.5" />
+					<Plus class="h-3 w-3" />
 					<span>Nouveau</span>
 				</button>
+				{#if isCollapsible}
+					<button
+						type="button"
+						data-testid="collapse-subject-list-btn"
+						onclick={onToggleCollapse}
+						class="p-1 rounded-lg text-muted-foreground hover:text-foreground hover:bg-muted transition-colors cursor-pointer"
+						title="Replier la liste des sujets pour élargir l'espace délibération"
+						aria-label="Replier la liste des sujets"
+					>
+						<PanelLeftClose class="h-4 w-4" />
+					</button>
+				{/if}
 			</div>
 		</div>
 

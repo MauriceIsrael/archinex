@@ -312,9 +312,38 @@
 		</div>
 
 		{#if submittedCandidates.length === 0}
-			<div class="p-4 rounded-xl border border-dashed border-border/80 text-center text-xs text-muted-foreground bg-background/50">
-				Aucun candidat transmis pour le moment. Cliquez sur "Préparer les Candidats KB" pour capitaliser cette décision d'arbitrage.
-			</div>
+			{#if !isPrepared}
+				<div class="p-6 rounded-xl border-2 border-dashed border-indigo-500/40 bg-gradient-to-b from-indigo-500/10 to-transparent text-center space-y-3">
+					<div class="inline-flex p-3 rounded-full bg-indigo-500/20 text-indigo-700 dark:text-indigo-300">
+						<Sparkles class="w-6 h-6 animate-pulse" />
+					</div>
+					<div class="space-y-1 max-w-md mx-auto">
+						<h5 class="text-xs font-bold text-foreground">Aucun candidat KB préparé pour cette décision</h5>
+						<p class="text-[11px] text-muted-foreground leading-relaxed">
+							Transformez cette décision d'arbitrage en assets réutilisables. L'agent extrait automatiquement les patterns émergents, amendements doctrinaux et retours d'expérience.
+						</p>
+					</div>
+					<button
+						type="button"
+						data-testid="prepare-kb-candidates-cta"
+						onclick={handlePrepareCandidates}
+						disabled={isPreparing}
+						class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold shadow-md transition-all cursor-pointer disabled:opacity-50"
+					>
+						{#if isPreparing}
+							<RefreshCw class="w-4 h-4 animate-spin" />
+							<span>Extraction et anonymisation des candidats...</span>
+						{:else}
+							<Sparkles class="w-4 h-4" />
+							<span>✨ Préparer les Candidats KB maintenant</span>
+						{/if}
+					</button>
+				</div>
+			{:else}
+				<div class="p-4 rounded-xl border border-dashed border-border/80 text-center text-xs text-muted-foreground bg-background/50">
+					Candidats préparés ci-dessus en attente de validation avant transmission formelle à LLMOps.
+				</div>
+			{/if}
 		{:else}
 			<div class="space-y-2">
 				{#each submittedCandidates as cand}

@@ -505,6 +505,7 @@
 	</div>
 
 	<!-- Onglets de Délibération du Sujet (Problème & Alternatives / Débat Experts / Fiche Télégraphique) -->
+	{#if !readOnlyMode}
 	<div class="flex items-center gap-1 bg-muted/60 p-1 rounded-lg overflow-x-auto text-xs border">
 		<button
 			type="button"
@@ -550,6 +551,7 @@
 			<span>4. Arbitrage G3 & Capitalisation G4 {#if matrixDecision}✅{:else if subjectMaturityResult?.readyForArbitration}⚡{/if}</span>
 		</button>
 	</div>
+	{/if}
 
 	{#if !draft}
 		<div class="flex-1 flex items-center justify-center p-8 text-center text-muted-foreground text-xs border rounded-lg">
@@ -560,7 +562,7 @@
 			<!-- ═════════════════════════════════════════════════════════════════ -->
 			<!-- VUE 1 : LE PROBLÈME À TRANCHER ET LES ALTERNATIVES EN CONFRONTATION-->
 			<!-- ═════════════════════════════════════════════════════════════════ -->
-			{#if activeTab === 'decision'}
+			{#if !readOnlyMode && activeTab === 'decision'}
 				<!-- 1. QUESTION D'ARCHITECTURE DU SUJET & SOUS-QUESTIONS EXPERTS -->
 				<div class="rounded-xl border border-blue-500/30 bg-blue-500/[0.04] p-3.5 space-y-3">
 					<div class="flex items-center justify-between">
@@ -849,7 +851,7 @@
 			<!-- ═════════════════════════════════════════════════════════════════ -->
 			<!-- VUE 2 : DISCUSSION ENTRE EXPERTS SUR CE SUJET                     -->
 			<!-- ═════════════════════════════════════════════════════════════════ -->
-			{:else if activeTab === 'discussion'}
+			{:else if !readOnlyMode && activeTab === 'discussion'}
 				<DebateThreadView
 					projectId={deliberationStore.activeEngagement?.id || ''}
 					subjectId={deliberationStore.activeSubjectId}
@@ -863,7 +865,7 @@
 			<!-- ═════════════════════════════════════════════════════════════════ -->
 			<!-- VUE 3 : SYNTHÈSE TÉLÉGRAPHIQUE DU SUJET                           -->
 			<!-- ═════════════════════════════════════════════════════════════════ -->
-			{:else if activeTab === 'draft'}
+			{:else if readOnlyMode || activeTab === 'draft'}
 				<!-- 1. RETENU -->
 				<div class="rounded-lg bg-muted/30 p-3 border space-y-2">
 					<div class="flex items-center justify-between">

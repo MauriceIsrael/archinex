@@ -7,15 +7,12 @@
 		AlertTriangle,
 		FileText,
 		Scissors,
-		Sparkles,
 		ChevronDown,
 		Edit3,
 		Check,
-		X,
-		ArrowDownCircle,
-		RotateCcw,
 		HelpCircle,
-		BookOpen
+		BookOpen,
+		Scale
 	} from 'lucide-svelte';
 	import { deliberationStore } from '$lib/stores/deliberationStore.svelte';
 
@@ -47,7 +44,8 @@
 		onArbitrateOption?: (option: any) => void;
 	} = $props();
 
-	let isExpanded = $state(true);
+	// Par défaut : bandeau compact de 2 lignes (dépliable à la demande)
+	let isExpanded = $state(false);
 
 	// Mode édition de la question
 	let isEditingQuestion = $state(false);
@@ -80,7 +78,6 @@
 	const currentConflict = $derived(draft?.conflit?.[0]?.text || null);
 	const rawRetenu = $derived(draft?.retenu || []);
 
-	// Découplage strict : ADRs (décisions d'architecture de référence) vs Clauses réelles du client (RFP / CCTP)
 	const adrDecisions = $derived.by(() => {
 		const adrs: string[] = [];
 		for (const item of rawRetenu) {
@@ -92,7 +89,6 @@
 	});
 
 	const clientClauses = $derived.by(() => {
-		// Filtrer tout ce qui mentionne un ADR
 		const filtered = rawRetenu.filter(
 			(item) => !/ADR-\d+/i.test(item) && !item.toLowerCase().startsWith('adr-')
 		);
@@ -100,12 +96,9 @@
 			return filtered;
 		}
 
-		// Fallback dynamique si rawRetenu ne contenait que des ADRs ou était vide :
-		// Récupérer les vraies exigences issues des documents clients (CCTP / RFP) du projet
 		const allClientClauses = deliberationStore.clientDocuments.flatMap((d) => d.keyClauses || []);
 		if (allClientClauses.length === 0) return [];
 
-		// 1. Chercher par correspondance avec la section ou le nom du sujet
 		const bySection = allClientClauses.filter(
 			(c) =>
 				c.clauseRef.toLowerCase().includes(subject.section_ref.toLowerCase()) ||
@@ -115,7 +108,6 @@
 			return bySection.slice(0, 4).map((c) => `[${c.clauseRef}] ${c.title} : ${c.text}`);
 		}
 
-		// 2. Chercher par mots-clés significatifs
 		const keywords = subject.name
 			.toLowerCase()
 			.split(/[\s,;:'"()]+/)
@@ -158,6 +150,7 @@
 	function startEditHypothesis() {
 		editedHypothesis = currentHypothesis;
 		isEditingHypothesis = true;
+		isExpanded = true;
 	}
 
 	function saveHypothesis() {
@@ -165,18 +158,6 @@
 			onUpdateHypothesis(editedHypothesis.trim());
 		}
 		isEditingHypothesis = false;
-	}
-
-	function formatOptionStatus(status?: string): string {
-		if (!status) return '';
-		switch (status.toLowerCase()) {
-			case 'proposed': return 'Proposée';
-			case 'identified': return 'À l’étude';
-			case 'retained': return 'Retenue';
-			case 'rejected': return 'Écartée';
-			case 'draft': return 'Brouillon';
-			default: return status;
-		}
 	}
 
 	// Réponse interactive aux questions du sachant métier
@@ -194,142 +175,177 @@
 		answeringQuestionIdx = null;
 		currentAnswerInput = '';
 	}
-
-	function scrollToComposer() {
-		const composerElem = document.getElementById('compose-claim');
-		if (composerElem) {
-			composerElem.scrollIntoView({ behavior: 'smooth', block: 'center' });
-			composerElem.focus();
-		}
-	}
 </script>
 
 <div
-	class="rounded-xl border border-primary/25 bg-gradient-to-br from-primary/5 via-card to-background shadow-xs overflow-hidden transition-all"
+	id="subject-problem-box"
+	class="rounded-xl border border-primary/25 bg-gradient-to-br from-primary/5 via-card to-background shadow-2xs overflow-hidden transition-all"
 	data-testid="subject-problem-card"
 >
-	<!-- ─── En-tête de la Carte de Cadrage ───────────────────────────────────── -->
-	<div class="px-4 py-2.5 bg-primary/10 border-b border-primary/20 flex items-center justify-between gap-3 flex-wrap">
-		<div class="flex items-center gap-2">
-			<div class="p-1.5 rounded-lg bg-primary text-primary-foreground shadow-2xs">
-				<Target class="h-4 w-4" />
-			</div>
-			<div>
-				<div class="flex items-center gap-2">
-					<span class="font-bold text-xs text-foreground uppercase tracking-wider">
-						Cadrage du Problème & Graine d'Architecture
-					</span>
-					<span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold bg-background/80 border text-primary">
-						{subject.section_ref}
-					</span>
-					{#if subject.parent_subject_name}
-						<span class="text-[10px] text-muted-foreground flex items-center gap-1">
-							↳ Issu de : <strong class="text-foreground">{subject.parent_subject_name}</strong>
-						</span>
-					{/if}
-				</div>
-			</div>
-		</div>
+	<!-- ─── BANDEAU COMPACT SUR 2 LIGNES (Question + Hypothèse & Pills) ─────── -->
+	<div class="p-3 space-y-2 text-xs">
+		<!-- Ligne 1 : Badge Cadrage + Question Centrale d'Architecture + Actions rapides -->
+		<div class="flex items-start justify-between gap-2 flex-wrap">
+			<div class="flex items-start gap-2 flex-1 min-w-0">
+				<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-primary text-primary-foreground font-bold text-[11px] shrink-0 mt-0.5">
+					<Target class="h-3 w-3" />
+					<span>Cadrage</span>
+				</span>
 
-		<div class="flex items-center gap-1.5">
-			<button
-				type="button"
-				onclick={onSplit}
-				class="inline-flex items-center gap-1 px-2.5 py-1 rounded-md border bg-background/80 hover:bg-muted text-[11px] font-semibold text-foreground transition-colors cursor-pointer shadow-2xs"
-				title="Découper ce sujet d'architecture en 2 sous-problèmes distincts"
-			>
-				<Scissors class="h-3 w-3 text-muted-foreground" />
-				<span>Scinder ce sujet</span>
-			</button>
-
-			<!-- Toggle Déplier / Replier -->
-			<button
-				type="button"
-				onclick={() => (isExpanded = !isExpanded)}
-				class="p-1 rounded-lg hover:bg-muted text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-				aria-label={isExpanded ? 'Replier le cadrage' : 'Déplier le cadrage'}
-				title={isExpanded ? 'Replier le cadrage' : 'Déplier le cadrage'}
-			>
-				<ChevronDown class="h-4 w-4 transition-transform duration-200 {isExpanded ? 'rotate-180' : ''}" />
-			</button>
-		</div>
-	</div>
-
-	<!-- ─── Corps de la Carte (Déplié) ──────────────────────────────────────── -->
-	{#if isExpanded}
-		<div class="p-4 space-y-3.5 text-xs">
-			<!-- 1. Question Centrale d'Architecture (Le Problème) -->
-			<div class="rounded-xl border bg-background/90 p-3.5 space-y-1.5 shadow-2xs">
-				<div class="flex items-center justify-between gap-2">
-					<div class="flex items-center gap-1.5 text-[11px] font-bold text-primary uppercase tracking-wider">
-						<Target class="h-3.5 w-3.5" />
-						<span>Problème d'Architecture à Trancher</span>
-					</div>
-					{#if !isEditingQuestion}
-						<button
-							type="button"
-							onclick={startEditQuestion}
-							class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md bg-muted/60 hover:bg-muted text-xs font-semibold text-foreground cursor-pointer transition-colors border border-border/60 shadow-2xs"
-							title="Modifier ou reformuler le problème d'architecture directement in-place"
-						>
-							<Edit3 class="h-3.5 w-3.5 text-primary" />
-							<span>Reformuler (in-place)</span>
-						</button>
-					{/if}
-				</div>
-
-				{#if isEditingQuestion}
-					<div class="space-y-2 pt-1">
-						<textarea
-							bind:value={editedQuestion}
-							rows="2"
-							class="w-full px-2.5 py-1.5 rounded-lg border bg-background text-foreground text-xs focus:ring-2 focus:ring-primary focus:outline-none resize-none leading-relaxed"
-							placeholder="Formulez la question centrale d'architecture..."
-						></textarea>
-						<div class="flex items-center justify-end gap-1.5">
-							<button
-								type="button"
-								onclick={() => (isEditingQuestion = false)}
-								class="px-2.5 py-1 rounded-md border text-[11px] hover:bg-muted cursor-pointer"
-							>
-								Annuler
-							</button>
-							<button
-								type="button"
-								onclick={saveQuestion}
-								class="px-2.5 py-1 rounded-md bg-primary text-primary-foreground text-[11px] font-semibold hover:bg-primary/90 cursor-pointer shadow-2xs"
-							>
-								Enregistrer la reformulation
-							</button>
+				<div class="flex-1 min-w-0">
+					{#if isEditingQuestion}
+						<div class="space-y-2">
+							<textarea
+								bind:value={editedQuestion}
+								rows="2"
+								class="w-full px-2.5 py-1.5 rounded-lg border bg-background text-foreground text-xs focus:ring-2 focus:ring-primary focus:outline-none resize-none leading-relaxed"
+								placeholder="Formulez la question centrale d'architecture..."
+							></textarea>
+							<div class="flex items-center justify-end gap-1.5">
+								<button
+									type="button"
+									onclick={() => (isEditingQuestion = false)}
+									class="px-2.5 py-1 rounded-md border text-[11px] hover:bg-muted cursor-pointer"
+								>
+									Annuler
+								</button>
+								<button
+									type="button"
+									onclick={saveQuestion}
+									class="px-2.5 py-1 rounded-md bg-primary text-primary-foreground text-[11px] font-semibold hover:bg-primary/90 cursor-pointer shadow-2xs"
+								>
+									Enregistrer
+								</button>
+							</div>
 						</div>
-					</div>
-				{:else}
-					<div class="flex items-start justify-between gap-3 group">
+					{:else}
 						<button
 							type="button"
 							onclick={startEditQuestion}
-							class="text-left text-sm font-semibold text-foreground leading-snug flex-1 cursor-pointer hover:text-primary transition-colors"
-							title="Cliquer pour reformuler ce problème directement in-place"
+							class="text-left text-xs sm:text-sm font-bold text-foreground leading-snug hover:text-primary transition-colors cursor-pointer"
+							title="Cliquer pour reformuler la question centrale d'architecture"
 						>
 							{currentQuestion}
 						</button>
-						<button
-							type="button"
-							onclick={startEditQuestion}
-							class="p-1 rounded-md hover:bg-muted text-muted-foreground hover:text-foreground cursor-pointer transition-colors shrink-0"
-							title="Modifier ou reformuler ce problème (in-place)"
-							aria-label="Modifier le problème"
-						>
-							<Edit3 class="h-3.5 w-3.5 text-primary" />
-						</button>
-					</div>
+					{/if}
+				</div>
+			</div>
+
+			<div class="flex items-center gap-1.5 shrink-0">
+				{#if !isEditingQuestion}
+					<button
+						type="button"
+						onclick={startEditQuestion}
+						class="inline-flex items-center gap-1 px-2 py-1 rounded-md border bg-background/80 hover:bg-muted text-[11px] font-semibold text-foreground transition-colors cursor-pointer"
+						title="Reformuler le problème in-place"
+					>
+						<Edit3 class="h-3 w-3 text-primary" />
+						<span>Reformuler</span>
+					</button>
+				{/if}
+
+				<button
+					type="button"
+					onclick={onSplit}
+					class="inline-flex items-center gap-1 px-2 py-1 rounded-md border bg-background/80 hover:bg-muted text-[11px] font-semibold text-foreground transition-colors cursor-pointer"
+					title="Découper ce sujet en 2 sous-problèmes distincts"
+				>
+					<Scissors class="h-3 w-3 text-muted-foreground" />
+					<span>Scinder</span>
+				</button>
+
+				<button
+					type="button"
+					data-testid="btn-toggle-framing-details"
+					onclick={() => (isExpanded = !isExpanded)}
+					class="inline-flex items-center gap-1 px-2 py-1 rounded-md border bg-muted/50 hover:bg-muted text-[11px] font-semibold text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+					title={isExpanded ? 'Replier les détails du cadrage' : 'Afficher hypothèse détaillée, dilemme, clauses RFP et questions métier'}
+				>
+					<span>{isExpanded ? 'Réduire' : 'Détails'}</span>
+					<ChevronDown class="h-3.5 w-3.5 transition-transform duration-200 {isExpanded ? 'rotate-180' : ''}" />
+				</button>
+			</div>
+		</div>
+
+		<!-- Ligne 2 : Pills synthétiques (Hypothèse, Dilemme, Clauses RFP, Questions Métier, Lien Matrice) -->
+		<div class="flex items-center justify-between gap-2 flex-wrap pt-1 border-t border-border/40">
+			<div class="flex items-center gap-1.5 flex-wrap min-w-0">
+				<!-- Pill Hypothèse -->
+				<div class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-blue-500/10 border border-blue-500/25 text-blue-900 dark:text-blue-200 max-w-xl">
+					<Lightbulb class="h-3.5 w-3.5 text-blue-600 dark:text-blue-400 shrink-0" />
+					<span class="truncate text-[11px]">
+						<strong>Hypothèse :</strong> {currentHypothesis}
+					</span>
+					<button
+						type="button"
+						onclick={onAdoptHypothesis}
+						class="ml-1 inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-bold transition-colors cursor-pointer shrink-0"
+						title="Valider cette hypothèse comme choix retenu et faire progresser le jalon"
+					>
+						<Check class="h-2.5 w-2.5" />
+						<span>Retenir</span>
+					</button>
+				</div>
+
+				<!-- Pill Dilemme si présent -->
+				{#if currentConflict}
+					<button
+						type="button"
+						onclick={() => (isExpanded = true)}
+						class="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-amber-500/10 border border-amber-500/30 text-amber-800 dark:text-amber-300 text-[11px] font-medium max-w-xs truncate cursor-pointer"
+						title={currentConflict}
+					>
+						<AlertTriangle class="h-3 w-3 shrink-0" />
+						<span class="truncate">{currentConflict}</span>
+					</button>
+				{/if}
+
+				<!-- Pill Clauses RFP / ADR -->
+				{#if clientClauses.length > 0 || adrDecisions.length > 0}
+					<button
+						type="button"
+						onclick={() => (isExpanded = !isExpanded)}
+						class="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-indigo-500/10 border border-indigo-500/25 text-indigo-800 dark:text-indigo-300 text-[11px] font-semibold cursor-pointer"
+					>
+						<FileText class="h-3 w-3 shrink-0" />
+						<span>{clientClauses.length} exigence(s) RFP{adrDecisions.length > 0 ? ` · ${adrDecisions.length} ADR` : ''}</span>
+					</button>
+				{/if}
+
+				<!-- Pill Questions au Sachant Métier -->
+				{#if expertQuestions.length > 0}
+					<button
+						type="button"
+						onclick={() => (isExpanded = !isExpanded)}
+						class="inline-flex items-center gap-1 px-2 py-1 rounded-lg bg-amber-500/15 border border-amber-500/30 text-amber-900 dark:text-amber-200 text-[11px] font-semibold cursor-pointer"
+					>
+						<HelpCircle class="h-3 w-3 shrink-0" />
+						<span>{expertQuestions.length} question(s) métier</span>
+					</button>
 				{/if}
 			</div>
 
-			<!-- 2. Grille de Cadrage : Hypothèse, Conflit, Clauses RFP -->
+			<!-- Raccourci direct vers le volet Options, Matrice & Arbitrage (sans dupliquer les cartes d'options) -->
+			{#if options && options.length > 0}
+				<button
+					type="button"
+					onclick={() => onArbitrateOption(options[0])}
+					class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-purple-500/10 hover:bg-purple-500/20 border border-purple-500/30 text-purple-800 dark:text-purple-300 text-[11px] font-bold transition-colors cursor-pointer shrink-0"
+					title="Consulter et évaluer les options dans la Matrice & Arbitrage"
+				>
+					<Scale class="h-3 w-3" />
+					<span>{options.length} option(s) → Matrice</span>
+				</button>
+			{/if}
+		</div>
+	</div>
+
+	<!-- ─── VOLET DÉPLIABLE (Édition Hypothèse, Clauses RFP, Questions Métier) ─ -->
+	{#if isExpanded}
+		<div class="px-3.5 pb-3.5 pt-2 border-t border-primary/15 bg-card/50 space-y-3 text-xs">
 			<div class="grid grid-cols-1 md:grid-cols-3 gap-3">
-				<!-- Bloc Hypothèse Initiale -->
-				<div class="rounded-xl border bg-background/60 p-3 space-y-1.5 flex flex-col">
+				<!-- 1. Hypothèse éditable -->
+				<div class="rounded-xl border bg-background/80 p-2.5 space-y-1.5 flex flex-col">
 					<div class="flex items-center justify-between gap-2">
 						<div class="flex items-center gap-1 text-[11px] font-bold text-blue-600 dark:text-blue-400">
 							<Lightbulb class="h-3.5 w-3.5" />
@@ -375,73 +391,31 @@
 						<p class="text-xs text-foreground/90 leading-relaxed flex-1">
 							{currentHypothesis}
 						</p>
-						<div class="pt-1.5 flex items-center justify-between gap-1 border-t border-border/40 mt-1 flex-wrap">
-							<span class="text-[10px] text-muted-foreground italic truncate max-w-[160px]" title={currentConsequence}>
-								{currentConsequence}
-							</span>
-							<button
-								type="button"
-								onclick={onAdoptHypothesis}
-								class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-blue-600 hover:bg-blue-700 text-white text-[10px] font-semibold transition-colors cursor-pointer shadow-2xs shrink-0"
-								title="Valider cette hypothèse comme choix retenu et faire franchir le jalon supérieur"
-							>
-								<Check class="h-3 w-3" />
-								<span>Retenir & Avancer</span>
-							</button>
+						<div class="pt-1 border-t border-border/40 text-[10px] text-muted-foreground italic truncate" title={currentConsequence}>
+							{currentConsequence}
 						</div>
 					{/if}
 				</div>
 
-				<!-- Bloc Dilemme ou Conflit Doctrinal -->
-				<div class="rounded-xl border {currentConflict ? 'border-amber-500/30 bg-amber-500/5' : 'bg-background/60'} p-3 space-y-1.5 flex flex-col">
-					<div class="flex items-center justify-between gap-1">
-						<div class="flex items-center gap-1 text-[11px] font-bold {currentConflict ? 'text-amber-700 dark:text-amber-300' : 'text-muted-foreground'}">
-							<AlertTriangle class="h-3.5 w-3.5" />
-							<span>Dilemme & Arbitrage</span>
-						</div>
+				<!-- 2. Dilemme & Conflit -->
+				<div class="rounded-xl border {currentConflict ? 'border-amber-500/30 bg-amber-500/5' : 'bg-background/80'} p-2.5 space-y-1.5 flex flex-col">
+					<div class="flex items-center gap-1 text-[11px] font-bold {currentConflict ? 'text-amber-700 dark:text-amber-300' : 'text-muted-foreground'}">
+						<AlertTriangle class="h-3.5 w-3.5" />
+						<span>Dilemme & Arbitrage</span>
 					</div>
-
 					{#if currentConflict}
 						<p class="text-xs text-amber-900 dark:text-amber-200 leading-relaxed flex-1">
 							{currentConflict}
 						</p>
-						<div class="pt-1.5 flex items-center justify-between gap-1 border-t border-amber-500/20 mt-1 flex-wrap">
-							<span class="inline-flex items-center gap-1 text-[10px] font-bold text-amber-700 dark:text-amber-300">
-								⚠️ Nécessite arbitrage formel
-							</span>
-							<button
-								type="button"
-								onclick={onSplit}
-								class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-amber-600 hover:bg-amber-700 text-white text-[10px] font-semibold transition-colors cursor-pointer shadow-2xs shrink-0"
-								title="Découper ce sujet trop vaste ou conflictuel en 2 sous-sujets distincts"
-							>
-								<Scissors class="h-3 w-3" />
-								<span>Scinder en 2</span>
-							</button>
-						</div>
 					{:else}
 						<p class="text-xs text-muted-foreground leading-relaxed flex-1">
-							Aucun conflit doctrinal bloquant identifié pour l'instant. Le débat permettra de tester la conformité.
+							Aucun conflit doctrinal bloquant identifié.
 						</p>
-						<div class="pt-1.5 flex items-center justify-between gap-1 border-t border-border/40 mt-1 flex-wrap">
-							<span class="text-[10px] text-muted-foreground">
-								Standard : Règles appliquées
-							</span>
-							<button
-								type="button"
-								onclick={onSplit}
-								class="inline-flex items-center gap-1 px-2 py-0.5 rounded border border-border/80 hover:bg-muted text-[10px] font-medium text-muted-foreground hover:text-foreground transition-colors cursor-pointer shrink-0"
-								title="Découper ce sujet en 2 sous-sujets distincts"
-							>
-								<Scissors class="h-3 w-3" />
-								<span>Scinder le sujet</span>
-							</button>
-						</div>
 					{/if}
 				</div>
 
-				<!-- Bloc Exigences RFP / Clauses Clientes -->
-				<div class="rounded-xl border bg-background/60 p-3 space-y-1.5 flex flex-col">
+				<!-- 3. Exigences Client (RFP) & ADR -->
+				<div class="rounded-xl border bg-background/80 p-2.5 space-y-1.5 flex flex-col">
 					<div class="flex items-center justify-between gap-1 text-[11px] font-bold text-indigo-600 dark:text-indigo-400">
 						<div class="flex items-center gap-1">
 							<FileText class="h-3.5 w-3.5" />
@@ -460,21 +434,26 @@
 						</div>
 					{:else}
 						<p class="text-xs text-muted-foreground leading-relaxed flex-1">
-							Cahier des charges initial. Les clauses détaillées sont consultables dans le corpus documentaire.
+							Consultables dans l'onglet Doctrines & Brouillon.
 						</p>
 					{/if}
-					<div class="text-[10px] font-mono text-muted-foreground border-t pt-1 mt-1 flex justify-between items-center">
-						<span>{clientClauses.length} exigence(s) client</span>
-						{#if adrDecisions.length > 0}
-							<span class="text-blue-600 dark:text-blue-400 font-sans font-semibold">+{adrDecisions.length} ADR</span>
-						{/if}
-					</div>
+
+					{#if adrDecisions.length > 0}
+						<div class="flex flex-wrap gap-1 pt-1 border-t border-border/40">
+							{#each adrDecisions as adr}
+								<span class="px-2 py-0.5 rounded bg-blue-500/10 border border-blue-500/30 text-[10px] font-mono text-blue-800 dark:text-blue-200 flex items-center gap-1">
+									<BookOpen class="h-2.5 w-2.5" />
+									<span>{adr}</span>
+								</span>
+							{/each}
+						</div>
+					{/if}
 				</div>
 			</div>
 
-			<!-- 2 bis. Questions au Sachant Métier (Méthodologie ArcKit) -->
+			<!-- Questions au Sachant Métier (Méthodologie ArcKit) -->
 			{#if expertQuestions.length > 0}
-				<div class="rounded-xl border border-amber-500/30 bg-amber-500/5 p-3.5 space-y-3">
+				<div class="rounded-xl border border-amber-500/30 bg-amber-500/5 p-3 space-y-2.5">
 					<div class="flex items-center justify-between gap-2 flex-wrap">
 						<div class="flex items-center gap-1.5 text-xs font-bold text-amber-800 dark:text-amber-300">
 							<HelpCircle class="h-4 w-4 text-amber-600 dark:text-amber-400" />
@@ -484,17 +463,13 @@
 							Cadrage ArcKit
 						</span>
 					</div>
-					<p class="text-[11px] text-muted-foreground leading-relaxed">
-						Répondez à ces questions clés pour transformer les incertitudes en <strong>hypothèses de travail</strong> ou en <strong>décisions actées</strong> afin de franchir les jalons de maturité :
-					</p>
 
-					<div class="space-y-2.5">
+					<div class="space-y-2">
 						{#each expertQuestions as q, idx}
 							{@const savedAnswer = draft?.expertAnswers?.[q]}
 							{@const isAnswering = answeringQuestionIdx === idx}
 
-							<div class="rounded-lg bg-background border {savedAnswer ? 'border-emerald-500/40 bg-emerald-500/5' : 'border-amber-500/25'} p-3 space-y-2 text-xs transition-all shadow-2xs">
-								<!-- Ligne Question -->
+							<div class="rounded-lg bg-background border {savedAnswer ? 'border-emerald-500/40 bg-emerald-500/5' : 'border-amber-500/25'} p-2.5 space-y-2 text-xs">
 								<div class="flex items-start justify-between gap-2">
 									<div class="flex items-start gap-2 flex-1">
 										<span class="font-mono font-bold {savedAnswer ? 'text-emerald-600 dark:text-emerald-400' : 'text-amber-600 dark:text-amber-400'} shrink-0 mt-0.5">
@@ -511,28 +486,26 @@
 										>
 											Modifier
 										</button>
+									{:else if !savedAnswer && !isAnswering}
+										<button
+											type="button"
+											onclick={() => startAnswerQuestion(idx, '')}
+											class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-semibold text-amber-800 dark:text-amber-200 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 transition-colors cursor-pointer shrink-0"
+										>
+											<span>💬 Répondre</span>
+										</button>
 									{/if}
 								</div>
 
-								<!-- Affichage de la réponse existante -->
 								{#if savedAnswer && !isAnswering}
-									<div class="p-2.5 rounded-md bg-emerald-500/10 border border-emerald-500/25 flex items-start justify-between gap-2">
-										<div class="space-y-1">
-											<div class="flex items-center gap-1.5 text-[10px] font-bold text-emerald-800 dark:text-emerald-300 uppercase tracking-wide">
-												{#if savedAnswer.mode === 'hypothesis'}
-													<span>💡 Hypothèse formulée (valide le jalon L1)</span>
-												{:else if savedAnswer.mode === 'retenu'}
-													<span>📌 Décision actée (Retenu)</span>
-												{:else}
-													<span>💬 Argument partagé au débat</span>
-												{/if}
-											</div>
-											<p class="text-xs text-foreground font-sans italic">« {savedAnswer.answer} »</p>
-										</div>
+									<div class="p-2 rounded-md bg-emerald-500/10 border border-emerald-500/25 text-xs">
+										<span class="font-bold text-emerald-800 dark:text-emerald-300 text-[10px] uppercase mr-1.5">
+											{savedAnswer.mode === 'hypothesis' ? '💡 Hypothèse :' : savedAnswer.mode === 'retenu' ? '📌 Retenu :' : '💬 Argument :'}
+										</span>
+										<span class="italic">« {savedAnswer.answer} »</span>
 									</div>
 								{/if}
 
-								<!-- Formulaire de réponse / saisie -->
 								{#if isAnswering}
 									<div class="space-y-2 pt-1 border-t border-border/50">
 										<textarea
@@ -542,61 +515,39 @@
 											class="w-full text-xs p-2 rounded-md border border-input bg-background focus:ring-1 focus:ring-primary focus:outline-hidden resize-none"
 										></textarea>
 
-										<div class="flex items-center justify-between gap-2 flex-wrap">
-											<span class="text-[10px] text-muted-foreground">
-												Choisir comment intégrer cette réponse au sujet :
-											</span>
-
-											<div class="flex items-center gap-1.5 flex-wrap">
-												<button
-													type="button"
-													onclick={() => { answeringQuestionIdx = null; currentAnswerInput = ''; }}
-													class="px-2 py-1 rounded text-[11px] text-muted-foreground hover:text-foreground border border-border/60 hover:bg-muted cursor-pointer"
-												>
-													Annuler
-												</button>
-
-												<button
-													type="button"
-													disabled={!currentAnswerInput.trim()}
-													onclick={() => submitExpertAnswer(q, 'argument')}
-													class="px-2.5 py-1 rounded text-[11px] font-semibold border border-border hover:bg-muted text-foreground cursor-pointer disabled:opacity-50"
-													title="Diffuse l'éclairage dans le fil de discussion"
-												>
-													💬 Débattre
-												</button>
-
-												<button
-													type="button"
-													disabled={!currentAnswerInput.trim()}
-													onclick={() => submitExpertAnswer(q, 'hypothesis')}
-													class="px-2.5 py-1 rounded text-[11px] font-bold bg-amber-500/20 hover:bg-amber-500/30 text-amber-900 dark:text-amber-200 border border-amber-500/40 cursor-pointer disabled:opacity-50"
-													title="Formule l'hypothèse de travail du problème (requis pour le jalon L1)"
-												>
-													💡 Poser comme Hypothèse
-												</button>
-
-												<button
-													type="button"
-													disabled={!currentAnswerInput.trim()}
-													onclick={() => submitExpertAnswer(q, 'retenu')}
-													class="px-2.5 py-1 rounded text-[11px] font-bold bg-primary text-primary-foreground hover:bg-primary/90 cursor-pointer disabled:opacity-50"
-													title="Acter directement cette réponse comme choix arrêté (Retenu)"
-												>
-													📌 Acter comme Retenu
-												</button>
-											</div>
+										<div class="flex items-center justify-end gap-1.5 flex-wrap">
+											<button
+												type="button"
+												onclick={() => { answeringQuestionIdx = null; currentAnswerInput = ''; }}
+												class="px-2 py-1 rounded text-[11px] text-muted-foreground hover:text-foreground border border-border/60 hover:bg-muted cursor-pointer"
+											>
+												Annuler
+											</button>
+											<button
+												type="button"
+												disabled={!currentAnswerInput.trim()}
+												onclick={() => submitExpertAnswer(q, 'argument')}
+												class="px-2.5 py-1 rounded text-[11px] font-semibold border border-border hover:bg-muted text-foreground cursor-pointer disabled:opacity-50"
+											>
+												💬 Débattre
+											</button>
+											<button
+												type="button"
+												disabled={!currentAnswerInput.trim()}
+												onclick={() => submitExpertAnswer(q, 'hypothesis')}
+												class="px-2.5 py-1 rounded text-[11px] font-bold bg-amber-500/20 hover:bg-amber-500/30 text-amber-900 dark:text-amber-200 border border-amber-500/40 cursor-pointer disabled:opacity-50"
+											>
+												💡 Poser comme Hypothèse
+											</button>
+											<button
+												type="button"
+												disabled={!currentAnswerInput.trim()}
+												onclick={() => submitExpertAnswer(q, 'retenu')}
+												class="px-2.5 py-1 rounded text-[11px] font-bold bg-primary text-primary-foreground hover:bg-primary/90 cursor-pointer disabled:opacity-50"
+											>
+												📌 Acter comme Retenu
+											</button>
 										</div>
-									</div>
-								{:else if !savedAnswer}
-									<div class="flex justify-end pt-1">
-										<button
-											type="button"
-											onclick={() => startAnswerQuestion(idx, '')}
-											class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded text-[11px] font-semibold text-amber-800 dark:text-amber-200 bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 transition-colors cursor-pointer"
-										>
-											<span>💬 Répondre / Éclairer</span>
-										</button>
 									</div>
 								{/if}
 							</div>
@@ -604,128 +555,6 @@
 					</div>
 				</div>
 			{/if}
-
-			<!-- 2 ter. Propositions Immédiates & Options à l'Étude -->
-			{#if options && options.length > 0}
-				<div class="rounded-xl border border-primary/20 bg-primary/5 p-3 space-y-2 shadow-2xs">
-					<div class="flex items-center justify-between gap-2 flex-wrap">
-						<div class="flex items-center gap-1.5 text-[11px] font-bold text-primary">
-							<Sparkles class="h-3.5 w-3.5" />
-							<span>Options & Propositions Immédiates à l'Étude ({options.length})</span>
-						</div>
-						<span class="text-[10px] text-muted-foreground font-medium">
-							À instruire via le fil de discussion ci-dessous
-						</span>
-					</div>
-
-					<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-						{#each options as opt}
-							<div class="p-2.5 rounded-lg border bg-background/90 text-xs space-y-2 shadow-2xs flex flex-col justify-between">
-								<div class="space-y-1">
-									<div class="flex items-center justify-between gap-1.5">
-										<strong class="text-foreground font-semibold truncate">{opt.title}</strong>
-										{#if opt.status}
-											<span class="px-1.5 py-0.2 rounded text-[9px] font-mono bg-muted text-muted-foreground shrink-0 border">
-												{formatOptionStatus(opt.status)}
-											</span>
-										{/if}
-									</div>
-									{#if opt.summary}
-										<p class="text-[11px] text-muted-foreground line-clamp-2 leading-relaxed">
-											{opt.summary}
-										</p>
-									{/if}
-								</div>
-
-								<div class="flex items-center justify-end gap-1.5 pt-1.5 border-t border-border/40">
-									<button
-										type="button"
-										onclick={() => onSelectOption(opt)}
-										class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-medium text-muted-foreground hover:text-foreground hover:bg-muted/60 transition-colors cursor-pointer"
-										title="Débattre de cette option dans le fil"
-									>
-										<span>💬 Débattre</span>
-									</button>
-									<button
-										type="button"
-										onclick={() => onArbitrateOption(opt)}
-										class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[10px] font-semibold text-primary hover:bg-primary/10 transition-colors cursor-pointer"
-										title="Retenir ou arbitrer cette option"
-									>
-										<span>⚖️ Arbitrer</span>
-									</button>
-								</div>
-							</div>
-						{/each}
-					</div>
-				</div>
-			{/if}
-
-			<!-- 2 bis. Décisions d'Architecture de Référence Mobilisables (ADR du Patrimoine) -->
-			{#if adrDecisions.length > 0}
-				<div class="rounded-xl border border-blue-500/25 bg-blue-500/5 p-3 space-y-1.5 shadow-2xs">
-					<div class="flex items-center justify-between gap-2 flex-wrap">
-						<div class="flex items-center gap-1.5 text-[11px] font-bold text-blue-700 dark:text-blue-300">
-							<BookOpen class="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
-							<span>Décisions d'Architecture de Référence (ADR du Patrimoine)</span>
-						</div>
-						<span class="px-2 py-0.5 rounded text-[10px] bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-500/20 font-medium">
-							Standard interne réutilisable · Non imposé par le client
-						</span>
-					</div>
-					<p class="text-[11px] text-muted-foreground leading-snug">
-						Ces décisions d'architecture antérieures (issues du socle d'entreprise ou de projets précédents) sont mobilisables pour répondre aux exigences ci-dessus, mais constituent des choix d'ingénierie et non des contraintes contractuelles client.
-					</p>
-					<div class="flex flex-wrap gap-1.5 pt-1">
-						{#each adrDecisions as adr}
-							<div class="px-2.5 py-1 rounded-md bg-background/90 border border-blue-500/30 text-[11px] font-mono text-blue-800 dark:text-blue-200 shadow-2xs flex items-center gap-1.5">
-								<span class="text-blue-500 font-bold">🏛️</span>
-								<span>{adr}</span>
-							</div>
-						{/each}
-					</div>
-				</div>
-			{/if}
-
-			<!-- 3. Barre d'Actions Rapides pour l'Architecte -->
-			<div class="flex items-center justify-between gap-2 pt-1 border-t border-border/40 flex-wrap">
-				<div class="flex items-center gap-2 flex-wrap">
-					<button
-						type="button"
-						onclick={onAdoptHypothesis}
-						class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs transition-colors cursor-pointer shadow-2xs"
-						title="Valider l'hypothèse pressentie, l'inscrire au brouillon retenu et franchir le jalon de maturité suivant"
-					>
-						<Check class="h-3.5 w-3.5" />
-						<span>✅ Retenir l'hypothèse & Avancer</span>
-					</button>
-
-					<button
-						type="button"
-						onclick={onInvokeProposer}
-						disabled={isInvokingAgent}
-						class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-semibold text-xs transition-colors cursor-pointer disabled:opacity-50 shadow-2xs"
-						title="Demander à l'agent IA de poser immédiatement deux options contrastées"
-					>
-						{#if isInvokingAgent}
-							<RotateCcw class="h-3.5 w-3.5 animate-spin" />
-							<span>Génération en cours...</span>
-						{:else}
-							<Sparkles class="h-3.5 w-3.5" />
-							<span>💡 Poser 2 options (@proposer)</span>
-						{/if}
-					</button>
-				</div>
-
-				<button
-					type="button"
-					onclick={scrollToComposer}
-					class="inline-flex items-center gap-1 text-[11px] text-muted-foreground hover:text-foreground font-medium cursor-pointer transition-colors"
-				>
-					<ArrowDownCircle class="h-3.5 w-3.5 text-primary" />
-					<span>Formuler un avis ou une question ci-dessous</span>
-				</button>
-			</div>
 		</div>
 	{/if}
 </div>

@@ -27,6 +27,19 @@ L'en-tête supérieur de l'application est accessible en permanence depuis n'imp
 
 Chaque sujet d'architecture traverse une chaîne rigoureuse de maturation en 6 étapes :
 
+### 2.0 Ergonomie de l'Espace Sujet Unifié (Workbench de Délibération)
+Lorsqu'un sujet est sélectionné dans l'arbre de gauche, tout l'écran de droite forme un **Espace Sujet Unifié** sans redondance :
+- **Possibilité de replier la liste des sujets (`⇥ Replier` / `📂 Sujets`)** : un bouton dans l'en-tête de la liste permet de masquer la colonne latérale pour allouer 100% de la largeur de l'écran (12 colonnes) à la délibération. Le bouton `📂 Sujets` dans l'en-tête supérieur permet de la redéplier instantanément.
+- **En haut : Timeline horizontale de maturation (`L0 Nommé` → `L5 Archivé`)** : ouverte par défaut sur le prochain jalon à franchir (et inspectable au clic sur n'importe quel jalon `L0..L5`), elle présente en grille horizontale les critères de passage ainsi que les **actions humaines et agents IA contextualisées au jalon** (`Reformuler`, `@proposer`, `@verifier`, `@challenger`, `@synthesizer`, `Trancher dans la Matrice`, `📦 Préparer les candidats KB (G4)`).
+- **4 Volets Unifiés (Vue Split Fil + Matrice activée par défaut sur grand écran, désactivable via « Pleine largeur »)** :
+  1. **Délibération & Cadrage** : bandeau de cadrage compact sur 2 lignes (Question centrale + pastilles Hypothèse, Dilemme, RFP, Questions métier, dépliable à la demande), objections ouvertes épinglées, fil contradictoire et composeur structuré. Lorsqu'une décision est actée (`L3+`), un raccourci direct « Candidats KB (G4) » permet de basculer et défiler vers la section de capitalisation.
+  2. **Options, Matrice, Arbitrage & Capitalisation Porte G4** :
+     - *Contextualisation par niveau* : en phase de cadrage (`L0/L1`), un bandeau pédagogique guide la recherche d'alternatives sans encombrer l'écran de formulaires d'arbitrage inaccessibles.
+     - *Arbitrage & Affirmation (`L3+`)* : matrice multicritères, arbitrage formel, affirmation collégiale `K16` et extraction des faits `K18`.
+     - *Capitalisation doctrinale (`Porte G4`)* : panneau `CapitalizationPanel` intégré avec appel à l'action proéminent « ✨ Préparer les Candidats KB maintenant » pour extraire et transmettre patterns, amendements et REX anonymisés à LLMOps.
+  3. **Doctrines, RFP & Brouillon** : doctrines LLMOps applicables, règles citées dans le débat et spécification télégraphique (5 colonnes, épurée de tout onglet redondant en lecture seule).
+  4. **Cascade & Règles** : questions en cascade post-décision, arbre généalogique de découverte et règles du projet.
+
 ### Étape 1 : Cadrage du Sujet
 1. Ouvrez le sujet depuis la **Matrice d'Allocation d'Effort** ou la liste des sujets.
 2. Définissez le **Problème / Dilemme d'Architecture** (ex: *Sélection de la solution de stockage persistant pour les clusters bare-metal*).

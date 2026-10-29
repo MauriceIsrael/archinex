@@ -96,11 +96,12 @@
 						onOpenSubject={() => deliberationStore.setDeliberationViewMode('conversation')}
 					/>
 				</div>
-			<!-- 2. Vue Délibération par sujet : Disposition sur 3 colonnes -->
+			<!-- 2. Vue Délibération par sujet : Arbre à gauche + Espace Sujet Unifié à droite -->
 			{:else}
 				<div class="space-y-4">
 					<DeliberationWorkbench
 						sessionRole={data?.sessionRole}
+						sessionUser={data?.sessionUser}
 						onBackToBoard={() => deliberationStore.setDeliberationViewMode('board')}
 					/>
 				</div>

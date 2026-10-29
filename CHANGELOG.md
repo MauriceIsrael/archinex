@@ -8,6 +8,24 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Paquet de Décision Exécutable (EDP) : Ontologie & Persistance Souveraine (Palier 3 - Issues #173, #181, #174, #177)
+- **Client d'Ontologie & Contrôle des Liaisons (`ontologyClient.ts`) (#173)** :
+  - Client de lecture du catalogue d'ontologie supportant le mode fixture hors-ligne pour la CI et l'intégration API avec le Knowledge Hub sans aucun appel de modèle.
+  - Détection rigoureuse des URNs inconnues (erreur bloquante), des révisions futures inexistantes et avertissement `stale_binding` dès qu'une liaison est sur une révision antérieure.
+  - En cas d'indisponibilité du Hub, levée d'une erreur explicite sans jamais inventer de données.
+- **Compilateur de Projections & Linter de Littéraux (`projectionCompiler.ts`) (#181)** :
+  - Compilateur projetant les entités liées en un document `data.ontology` canonique pour OPA avec empreinte cryptographique SHA-256 déterministe (reproductibilité octet pour octet).
+  - Linter Rego analysant les politiques pour détecter les littéraux codés en dur qui doublonnent des valeurs d'ontologie.
+- **Persistance Prisma & Application Inviolable de l'Invariant II (`edpRepository.ts`, `prisma/schema.prisma`) (#174)** :
+  - Modèle additif `ExecutableDecisionPackage` stockant l'intension, les facettes épistémiques, les hashs de politiques et les métadonnées de validation.
+  - Règle constitutionnelle absolue (Invariant II) : refus bloquant de toute transition vers le statut `validated` pour un EDP dérivé par LLM (`llm-derived`) sans un validateur humain dûment identifié et habilité.
+  - Respect strict des rôles formels (Invariant VII) : seuls les rôles d'architectes habilités peuvent homologuer un EDP.
+  - Isolation étanche par drapeau `ARCHINEX_EXPERIMENTAL_EDP=1`.
+- **Rétractation Automatique & Maintenance de Vérité (`retractEdpOnAntecedentChange`) (#177)** :
+  - Application directe de l'Invariant VI : dès qu'une décision d'architecture source est rétractée ou qu'une URN d'ontologie liée change de révision, l'EDP bascule automatiquement à l'état `stale` avec consignation explicite de la cause (`staleReason`).
+  - Interdiction formelle de présenter un EDP `stale` comme `validated`.
+- **Tests** : 15 tests de contrat dans `tests/contract/edp-ontology-and-persistence.test.ts` (total 62 tests passants sur les Paliers 1, 2 & 3).
+
 ### Paquet de Décision Exécutable (EDP) : Moteur OPA, Bibliothèque Rego & Référence ADR-012 (Palier 2 - Issues #171, #175, #180, #176, #172)
 - **Exécuteur OPA Déterministe (`opaRunner.ts`, `install-opa.ps1`, `install-opa.sh`) (#171)** :
   - Exécuteur OPA encapsulant `opa test` et `opa eval` avec gestion des timeouts, typage strict des résultats et détection de version minimale (Rego v1).

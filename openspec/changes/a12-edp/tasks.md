@@ -39,17 +39,17 @@
   - [x] 9.2 Remplacer les adresses privées du PoC ADR-012 par les plages réservées
 
 ## Palier 3 : Ontologie & Persistance
-- [ ] 10. Client d'ontologie & contrôle des liaisons (#173)
-  - [ ] 10.1 Créer le client de lecture d'ontologie (mode fixture hors ligne + API)
-  - [ ] 10.2 Vérifier la présence des URNs et la révision (`stale_binding` si décalage)
-- [ ] 11. Compilateur de projections (#181)
-  - [ ] 11.1 Compiler l'ontologie vers des données OPA (`data.ontology`) avec hash SHA-256
-  - [ ] 11.2 Détecter les littéraux dupliqués
-- [ ] 12. Persistance des EDP & Invariant II (#174)
-  - [ ] 12.1 Ajouter le modèle Prisma `ExecutableDecisionPackage`
-  - [ ] 12.2 Imposer l'interdiction `verified × llm-derived` sans validateur humain habilité
-- [ ] 13. Rétractation automatique (#177)
-  - [ ] 13.1 Basculer l'EDP à `stale` dès qu'un antécédent devient caduc (Invariant VI)
+- [x] 10. Client d'ontologie & contrôle des liaisons (#173)
+  - [x] 10.1 Créer le client de lecture d'ontologie (mode fixture hors ligne + API)
+  - [x] 10.2 Vérifier la présence des URNs et la révision (`stale_binding` si décalage)
+- [x] 11. Compilateur de projections (#181)
+  - [x] 11.1 Compiler l'ontologie vers des données OPA (`data.ontology`) avec hash SHA-256
+  - [x] 11.2 Détecter les littéraux dupliqués
+- [x] 12. Persistance des EDP & Invariant II (#174)
+  - [x] 12.1 Ajouter le modèle Prisma `ExecutableDecisionPackage`
+  - [x] 12.2 Imposer l'interdiction `verified × llm-derived` sans validateur humain habilité
+- [x] 13. Rétractation automatique (#177)
+  - [x] 13.1 Basculer l'EDP à `stale` dès qu'un antécédent devient caduc (Invariant VI)
 
 ## Palier 4 : Vérification, Adaptateurs & CI Gate
 - [ ] 14. Commande et service `edp verify` (#182)

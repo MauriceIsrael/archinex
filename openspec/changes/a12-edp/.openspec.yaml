@@ -1,0 +1,10 @@
+schema: "1.0"
+change:
+  name: "a12-edp"
+  title: "Paquet de Décision Exécutable (EDP) et Oracles OPA/Rego (Expérimental)"
+  description: "Production pour chaque décision d'architecture d'un Paquet de Décision Exécutable (EDP) associant intension pure, oracles Rego déterministes et preuves Red/Green par fixtures et mutation, sous le contrôle strict de la Constitution d'Archinex."
+  status: "in_progress"
+  authors:
+    - "Maurice Israel <maurice@archinex.io>"
+  created_at: "2026-10-29"
+

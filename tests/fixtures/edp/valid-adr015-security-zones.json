@@ -1,0 +1,63 @@
+{
+  "metadata": {
+    "id": "EDP-ADR015-02",
+    "title": "Isolation Stricte des Zones de Sécurité NIS2 (ADR-015)",
+    "status": "proposed",
+    "revision": 2,
+    "decision_ref": {
+      "subjectId": "SUBJ-SEC-02",
+      "decisionId": "ADR-015",
+      "version": "2"
+    }
+  },
+  "decision_context": {
+    "problem": "Exigence de cloisonnement entre plan de contrôle OAM et plan usager selon le standard NIS2.",
+    "decision": "Interdiction de routage direct inter-zones sans passerelle mandataire d inspection avec journalisation signée.",
+    "tradeoffs": "Coût de déploiement de pare-feux applicatifs additionnels mais conformité réglementaire totale.",
+    "ontology_bindings": [
+      {
+        "urn": "urn:archinex:ontology:security:zone:oam",
+        "revision": "1.0"
+      },
+      {
+        "urn": "urn:archinex:ontology:security:zone:user_plane",
+        "revision": "1.0"
+      }
+    ]
+  },
+  "refinement_contract": {
+    "expected_inputs": [
+      {
+        "source": "nautobot_planned_devices",
+        "schema_version": "v2.0"
+      }
+    ]
+  },
+  "verification_oracle": {
+    "engine": "opa",
+    "entrypoint": "data.archinex.adr015.status",
+    "policy_files": [
+      {
+        "filename": "adr015_security_zones.rego",
+        "sha256": "bf4c8996fb92427ae41e4649b934ca495991b7852b855e3b0c44298fc1c149af"
+      }
+    ],
+    "self_test": {
+      "cases": [
+        {
+          "name": "mock_pass",
+          "description": "Aucun franchissement de frontière non autorisé",
+          "expected_verdict": "compliant"
+        }
+      ]
+    },
+    "mutation_manifest": {
+      "mutants": []
+    }
+  },
+  "provenance": {
+    "production_mode": "human-authored",
+    "created_at": "2026-10-29T10:10:00Z"
+  }
+}
+

@@ -34,6 +34,7 @@ graph TD
         Capitalization[capitalization.ts / buildKbCandidates & anonymize]
         Epistemic[epistemicEnvelope.ts / Triplet 5 Facettes]
         DAG[retractation.ts / Truth Maintenance DAG]
+        EDP[EDP Domain / edp.schema, intentionPurity, validateRefinedInput]
     end
     
     subgraph "Couche Agents & Intelligence Locale"
@@ -449,6 +450,25 @@ Pour éliminer toute latence lors du clic sur le Dashboard (`/`) ou lors du basc
 
 ### 3. Résolution Granulaire des Icônes (`vite.config.ts`)
 - **Plugin de Transformation `lucideOptimizePlugin`** : réécrit à la compilation les imports barils `import { A, B } from 'lucide-svelte'` en imports directs `import A from 'lucide-svelte/icons/a'`, empêchant le navigateur de télécharger et compiler les 1 929 modules d'icônes et d'alias en mode développement (baisse de 3 788 requêtes à quelques dizaines par vue).
+
+---
+
+## 12. Paquet de Décision Exécutable (EDP) & Oracles OPA/Rego (Expérimental)
+
+Dans le cadre de l'initiative expérimentale (`ARCHINEX_EXPERIMENTAL_EDP=1`), Archinex associe à chaque décision d'architecture arbitrée un **Paquet de Décision Exécutable** (EDP) assurant l'opposabilité et la vérifiabilité continue du HLD face aux instanciations LLD réelles ou simulées :
+
+1. **Séparation Stricte Intension (HLD) vs Extension (LLD)** :
+   - Le contexte de décision (`decision_context`) exprime des règles pures sur l'ontologie d'entreprise sans aucune valeur d'instanciation. Le module `intentionPurity.ts` filtre rigoureusement toute adresse IPv4, IPv6, CIDR, adresse MAC ou nom d'hôte physique ou logique avec une liste blanche stricte de standards et versions autorisées.
+2. **Contrats Formels & Prévention de la Vacuité (`edp.schema.json`, `refined_input.schema.json`)** :
+   - L'EDP formalise ses attentes d'extension via `expected_inputs`. Lors de l'évaluation, `validateRefinedInput.ts` exige la présence de chaque source et une provenance certifiée (`tool`, `version`, `command`, `sha256`, `generated_at`). Toute entrée partielle ou vide reçoit le verdict bloquant `insufficient_input` pour éliminer les faux positifs par vacuité.
+3. **Convention Normative à 4 Verdicts** :
+   - `compliant` : conformité totale aux politiques sans dérogation ni vacuité.
+   - `violated` : non-conformité avérée avec détails et chemins précis des violations.
+   - `not_applicable` : critères d'applicabilité hors périmètre.
+   - `insufficient_input` : source attendue absente, vide ou non prouvée.
+4. **Ancrage Constitutionnel** :
+   - Application directe de l'Invariant II : interdiction absolue de valider automatiquement un EDP produit par LLM (`llm-derived`) sans validation humaine tracée et signée.
+   - Rétractation vers l'état `stale` (Invariant VI) dès que l'un des antécédents de la décision est révisé ou invalidé.
 
 
 

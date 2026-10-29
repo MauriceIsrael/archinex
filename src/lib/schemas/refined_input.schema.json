@@ -1,0 +1,41 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://archinex.io/schemas/refined_input.schema.json",
+  "title": "RefinedInputPackage",
+  "description": "Contrat formel des entrées de raffinement (LLD) fournies pour l'évaluation de conformité d'un EDP.",
+  "type": "object",
+  "required": ["sources"],
+  "additionalProperties": false,
+  "properties": {
+    "sources": {
+      "type": "object",
+      "description": "Dictionnaire des sources de données de raffinement indexé par nom de source.",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["provenance", "content"],
+        "additionalProperties": false,
+        "properties": {
+          "provenance": {
+            "type": "object",
+            "required": ["tool", "version", "command", "sha256", "generated_at"],
+            "additionalProperties": false,
+            "properties": {
+              "tool": { "type": "string", "minLength": 1 },
+              "version": { "type": "string", "minLength": 1 },
+              "command": { "type": "string", "minLength": 1 },
+              "sha256": {
+                "type": "string",
+                "pattern": "^[a-f0-9]{64}$"
+              },
+              "generated_at": { "type": "string", "format": "date-time" }
+            }
+          },
+          "content": {
+            "description": "Contenu de la source de données (liste d'objets, dictionnaire ou manifeste non vide)."
+          }
+        }
+      }
+    }
+  }
+}
+

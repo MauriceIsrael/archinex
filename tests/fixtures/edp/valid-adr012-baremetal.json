@@ -1,0 +1,90 @@
+{
+  "metadata": {
+    "id": "EDP-ADR012-01",
+    "title": "Substrat Bare-Metal Kubernetes Telco Cloud (ADR-012)",
+    "status": "validated",
+    "revision": 1,
+    "decision_ref": {
+      "subjectId": "SUBJ-SUBSTRATE-01",
+      "decisionId": "ADR-012",
+      "version": 1
+    }
+  },
+  "decision_context": {
+    "problem": "Déploiement de fonctions réseau virtualisées sur serveurs physiques sans surcoût d hyperviseur.",
+    "decision": "Adoption d un substrat bare-metal automatisé par contrôleur BMC dédié et partitionnement strict des interfaces.",
+    "tradeoffs": [
+      "Complexité accrue d orchestration physique compensée par une latence d interruption minimale",
+      "Nécessité d un réseau d administration hors-bande dédié"
+    ],
+    "ontology_bindings": [
+      {
+        "urn": "urn:archinex:ontology:infrastructure:server:baremetal",
+        "revision": 1
+      },
+      {
+        "urn": "urn:archinex:ontology:telecom:network:oob",
+        "revision": 1
+      }
+    ]
+  },
+  "refinement_contract": {
+    "expected_inputs": [
+      {
+        "source": "k8s_manifests",
+        "path": "spec.cluster",
+        "schema_version": "v1alpha1"
+      },
+      {
+        "source": "nautobot_planned_devices",
+        "path": "devices",
+        "schema_version": "v2.0"
+      }
+    ]
+  },
+  "verification_oracle": {
+    "engine": "opa",
+    "entrypoint": "data.archinex.adr012.status",
+    "policy_files": [
+      {
+        "filename": "adr012_baremetal.rego",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      }
+    ],
+    "self_test": {
+      "cases": [
+        {
+          "name": "conforme",
+          "description": "Cluster et serveurs conformes aux exigences d isolation hors-bande",
+          "expected_verdict": "compliant",
+          "expected_violations": []
+        },
+        {
+          "name": "fail_oob_missing",
+          "description": "Serveur dépourvu d interface d administration hors-bande",
+          "expected_verdict": "violated",
+          "expected_violations": ["oob_interface_required"]
+        }
+      ]
+    },
+    "mutation_manifest": {
+      "mutants": [
+        {
+          "id": "mutant-rule-1",
+          "description": "Suppression de la vérification de l interface hors-bande",
+          "target_rule": "deny_missing_oob"
+        }
+      ]
+    }
+  },
+  "provenance": {
+    "production_mode": "llm-proposed-human-approved",
+    "created_at": "2026-10-29T10:00:00Z",
+    "validator": {
+      "id": "USR-LEAD-ARCH",
+      "role": "Lead Architect",
+      "timestamp": "2026-10-29T10:15:00Z"
+    }
+  }
+}
+

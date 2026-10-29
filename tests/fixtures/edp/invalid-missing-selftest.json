@@ -1,0 +1,29 @@
+{
+  "metadata": {
+    "id": "EDP-TEST-02",
+    "title": "Sans Self Test",
+    "status": "draft",
+    "revision": 1,
+    "decision_ref": { "subjectId": "S1", "decisionId": "D1", "version": 1 }
+  },
+  "decision_context": {
+    "problem": "Problème",
+    "decision": "Décision",
+    "tradeoffs": "Compromis",
+    "ontology_bindings": [{ "urn": "urn:archinex:test", "revision": 1 }]
+  },
+  "refinement_contract": {
+    "expected_inputs": [{ "source": "nautobot", "schema_version": "1.0" }]
+  },
+  "verification_oracle": {
+    "engine": "opa",
+    "entrypoint": "data.test.status",
+    "policy_files": [{ "filename": "test.rego", "sha256": "0000000000000000000000000000000000000000000000000000000000000000" }],
+    "mutation_manifest": { "mutants": [] }
+  },
+  "provenance": {
+    "production_mode": "human-authored",
+    "created_at": "2026-10-29T10:00:00Z"
+  }
+}
+

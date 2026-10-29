@@ -8,6 +8,26 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Paquet de Décision Exécutable (EDP) : Spécifications, Schémas & Invariants (Palier 1 - Issues #167, #168, #169, #170)
+- **Proposition OpenSpec A12 (`openspec/changes/a12-edp/`) (#167)** :
+  - Cadrage complet, spécification formelle (`proposal.md`, `design.md`, `tasks.md`, `.openspec.yaml`) ancrée dans la Constitution d'Archinex.
+  - Déclinaison concrète des Invariants I (5 facettes), II (`verified × llm-derived` interdit sans validateur humain habilité), III (le silence n'est pas une approbation), IV (brouillon appât percutant), V (portes G3 et G4), VI (rétractation vers `stale`), VII (rôles formels) et X (matérialisation visuelle).
+  - Convention normative de verdict à 4 états : `compliant | violated | not_applicable | insufficient_input`.
+  - Documentation du cadre expérimental (`ARCHINEX_EXPERIMENTAL_EDP=1` et branche socle `experimental/edp`).
+- **JSON Schema du Paquet de Décision Exécutable (`src/lib/schemas/edp.schema.json`, `validateEdp.ts`) (#168)** :
+  - Définition du schéma JSON Draft-07 couvrant `metadata`, `decision_context`, `refinement_contract`, `verification_oracle` et `provenance`.
+  - Rejet systématique de tout paquet dépourvu de `verification_oracle` ou de suite `self_test`.
+  - Fixtures valides (`valid-adr012-baremetal.json`, `valid-adr015-security-zones.json`) et 8 fixtures invalides typées.
+- **Contrôle de Pureté de l'Intension (`src/lib/domain/edp/intentionPurity.ts`) (#169)** :
+  - Détection lexicale et regex des valeurs d'instanciation physique ou logique : IPv4, IPv6, préfixes CIDR, adresses MAC et noms d'hôtes pointés dans `decision_context`.
+  - Liste blanche stricte garantissant zéro faux positif sur les numéros de version logicielle (`RKE2 1.28`, `5.5`), spécifications (`3GPP TS 23.501`, `RFC 5737`), métriques (`5QI 128-254`, `VLAN 100`, `MTU 1500`) et gabarits (`<IP>`, `${NODE_IP}`, `example.com`).
+  - Fonction pure, déterministe et isolée de tout appel réseau.
+- **Contrat d'Entrée de Raffinement (`src/lib/schemas/refined_input.schema.json`, `validateRefinedInput.ts`) (#170)** :
+  - Schéma et validateur des entrées de raffinement (LLD) avec métadonnées de provenance obligatoires (`tool`, `version`, `command`, `sha256`, `generated_at`).
+  - Élimination des faux positifs par vacuité : verdict `insufficient_input` dès qu'une source déclarée est manquante ou vide.
+  - Rejet des sources non déclarées (`verdict: violated`).
+- **Tests** : 25 tests de contrat dans `tests/contract/edp-schema.test.ts`, `tests/contract/edp-intention-purity.test.ts` et `tests/contract/edp-refined-input.test.ts`.
+
 ### Ergonomie de la Délibération : Espace Sujet Unifié, Vue Split par Défaut, Liste Repliable et Capitalisation G4 Contextualisée
 - **Fusion du panneau principal et du Dossier du sujet (`DeliberationWorkbench.svelte`, `SubjectThreadView.svelte`)** : suppression de la 3e colonne redondante au profit d’un **Espace Sujet Unifié** (9 à 12 colonnes) structuré autour d’un en-tête unique, de la timeline horizontale de maturation en haut et de 4 volets complémentaires sans doublon (`💬 Délibération & Cadrage`, `⚖️ Options, Matrice & Arbitrage`, `📚 Doctrines, RFP & Brouillon`, `🌿 Cascade & Règles`).
 - **Repli de l'arbre des sujets (`SubjectConversationList.svelte`, `DeliberationWorkbench.svelte`)** : ajout d'un bouton `⇥ Replier` masquant la colonne des sujets pour donner 100% de la largeur de l'écran (12 colonnes) au workbench, et bouton `📂 Sujets` dans l'en-tête du fil pour la redéplier à la demande.

@@ -1,0 +1,340 @@
+[
+  {
+    "id": "SUBJ-LUMICC-01",
+    "section_ref": "§4.1",
+    "name": "Topologie 3 DC POST (RCE/RCS/RCW), socle RKE2 & RTO UDR 15 min",
+    "level": "L1_framed",
+    "blocking_count": 0,
+    "unlocks_count": 3,
+    "waiting_for_role": "infra_expert_architect",
+    "relative_effort": "XL",
+    "last_transition_date": "2026-10-27T08:00:00Z",
+    "stall_days": 0,
+    "is_stalled": false,
+    "dependent_subject_ids": [
+      "SUBJ-LUMICC-03",
+      "SUBJ-LUMICC-04"
+    ],
+    "requirement_ids": [
+      "REQ-Lot1-191",
+      "REQ-Lot1-192",
+      "REQ-Lot1-20"
+    ],
+    "problem_statement": "Comment concilier la haute disponibilité 99,999 %, le RPO=0 et le RTO < 15 min sur la base UDR Ericsson face aux contraintes de latence inter-sites et d'arbitrage de split-brain ?",
+    "nature": "architecture",
+    "proposal": {
+      "options": [
+        {
+          "id": "OPT-01-A",
+          "title": "2 DC Tier IV actifs (RCE/RCS) + 3e DC standby (RCW)",
+          "summary": "Réplication synchrone active entre RCE et RCS (fibre noire < 10 km, RTT < 0.8 ms). Le 3e site RCW héberge le témoin de quorum et l'infrastructure de secours à froid.",
+          "status": "draft"
+        },
+        {
+          "id": "OPT-01-B",
+          "title": "3 DC actifs avec réplication tri-directionnelle",
+          "summary": "Répartition active des CNFs sur les 3 sites. Surcoût CAPEX de +450 k€ en licences et commutateurs épine-feuille, latence d'acquittement augmentée.",
+          "status": "draft"
+        }
+      ],
+      "criteria": [
+        { "id": "CRIT-01", "name": "RTO Base UDR", "weight": 0.4 },
+        { "id": "CRIT-02", "name": "Surcoût CAPEX/OPEX", "weight": 0.3 },
+        { "id": "CRIT-03", "name": "Immunité Split-Brain", "weight": 0.3 }
+      ],
+      "evaluations": [
+        { "optionId": "OPT-01-A", "criterionId": "CRIT-01", "score": 9, "justification": "RTO garanti < 12 min sur CNF chaud." },
+        { "optionId": "OPT-01-A", "criterionId": "CRIT-02", "score": 8, "justification": "Budget maîtrisé dans l'enveloppe Lot 1." },
+        { "optionId": "OPT-01-A", "criterionId": "CRIT-03", "score": 9, "justification": "Témoin tiers sur site RCW indépendant." },
+        { "optionId": "OPT-01-B", "criterionId": "CRIT-01", "score": 7, "justification": "Complexité de ré-alignement en cas de partition." },
+        { "optionId": "OPT-01-B", "criterionId": "CRIT-02", "score": 4, "justification": "Surcoût de +450 k€ non justifié par la charge." },
+        { "optionId": "OPT-01-B", "criterionId": "CRIT-03", "score": 8, "justification": "Quorum 3 sites natif." }
+      ]
+    }
+  },
+  {
+    "id": "SUBJ-LUMICC-02",
+    "section_ref": "§4.2",
+    "name": "Interworking Wi-Fi / WLAN Offload UE sans N3IWF/ePDG ni ATSSS",
+    "level": "L1_framed",
+    "blocking_count": 0,
+    "unlocks_count": 2,
+    "waiting_for_role": "domain_architect",
+    "relative_effort": "M",
+    "last_transition_date": "2026-10-27T08:00:00Z",
+    "stall_days": 0,
+    "is_stalled": false,
+    "dependent_subject_ids": [],
+    "requirement_ids": [
+      "REQ-Lot1-11",
+      "REQ-Lot1-12",
+      "REQ-Lot1-147"
+    ],
+    "problem_statement": "Le client demande le support WLAN/Wi-Fi dans REQ-Lot1-11/12. Faut-il introduire les passerelles non-3GPP N3IWF/ePDG ou restreindre le Wi-Fi à un offload applicatif terminal pour protéger le cœur souverain ?",
+    "nature": "architecture",
+    "proposal": {
+      "options": [
+        {
+          "id": "OPT-02-A",
+          "title": "Offload Wi-Fi terminal sans N3IWF sur le cœur 5G",
+          "summary": "Doctrine Cœur 5G Ericsson : pas d'exposition de N3IWF/ATSSS sur un cœur PPDR souverain. Le terminal durci gère l'offload data non critique.",
+          "status": "draft"
+        },
+        {
+          "id": "OPT-02-B",
+          "title": "Passerelle N3IWF complète avec tunnel IPsec sur SBA",
+          "summary": "Déploiement d'une brique logicielle N3IWF connectée directement au plan de contrôle 5GC. Surface d'attaque accrue sur le réseau régalien.",
+          "status": "draft"
+        }
+      ],
+      "criteria": [
+        { "id": "CRIT-02-1", "name": "Sécurité & Surface d'attaque Cœur 5G", "weight": 0.5 },
+        { "id": "CRIT-02-2", "name": "Conformité CCTP & Simplicité", "weight": 0.5 }
+      ],
+      "evaluations": [
+        { "optionId": "OPT-02-A", "criterionId": "CRIT-02-1", "score": 9, "justification": "Cloisonnement total : aucun flux Wi-Fi non authentifié n'atteint la SBA." },
+        { "optionId": "OPT-02-A", "criterionId": "CRIT-02-2", "score": 8, "justification": "Partially compliant explicité avec réserve en matrice." },
+        { "optionId": "OPT-02-B", "criterionId": "CRIT-02-1", "score": 3, "justification": "Risque cyber inacceptable sur réseau critique d'urgence." },
+        { "optionId": "OPT-02-B", "criterionId": "CRIT-02-2", "score": 7, "justification": "Répond formellement au mot-clé mais viole l'esprit de sécurité." }
+      ]
+    }
+  },
+  {
+    "id": "SUBJ-LUMICC-03",
+    "section_ref": "§4.3",
+    "name": "Holdover Horloge 30j sans GNSS (Rubidium/OCXO) & Détection Passive RF",
+    "level": "L1_framed",
+    "blocking_count": 0,
+    "unlocks_count": 1,
+    "waiting_for_role": "infra_expert_architect",
+    "relative_effort": "L",
+    "last_transition_date": "2026-10-27T08:00:00Z",
+    "stall_days": 0,
+    "is_stalled": false,
+    "dependent_subject_ids": [],
+    "requirement_ids": [
+      "REQ-Lot1-223",
+      "REQ-Lot1-233"
+    ],
+    "problem_statement": "REQ-Lot1-223 exige un maintien de synchronisation de 30 jours sans GNSS. Quelle chaîne d'horlogerie primaire déployer pour garantir la dérive < 1.5 µs requise par le TDD 5G ?",
+    "nature": "architecture",
+    "proposal": {
+      "options": [
+        {
+          "id": "OPT-03-A",
+          "title": "Horloges atomiques Rubidium + PTP G.8275.1 Telecom Profile + Détection passive",
+          "summary": "Serveurs de temps primaires avec résonateur Rubidium garantissant < 1 µs de dérive à 30 jours et détection de brouillage logicielle par écart de phase.",
+          "status": "draft"
+        },
+        {
+          "id": "OPT-03-B",
+          "title": "Oscillateurs à quartz OCXO simples avec synchronisation NTP standard",
+          "summary": "Solution économique (-60 k€ CAPEX) mais dérive temporelle > 10 µs dès 48h de déni GNSS, entraînant la perte de synchro des trames 5G NR TDD.",
+          "status": "draft"
+        }
+      ],
+      "criteria": [
+        { "id": "CRIT-03-1", "name": "Tenue temporelle 30j (< 1.5 µs)", "weight": 0.5 },
+        { "id": "CRIT-03-2", "name": "Surcoût CAPEX oscillateurs", "weight": 0.25 },
+        { "id": "CRIT-03-3", "name": "Maturité opérationnelle", "weight": 0.25 }
+      ],
+      "evaluations": [
+        { "optionId": "OPT-03-A", "criterionId": "CRIT-03-1", "score": 10, "justification": "Dérive certifiée < 1 µs après 30 jours complets sans signal GNSS." },
+        { "optionId": "OPT-03-A", "criterionId": "CRIT-03-2", "score": 6, "justification": "+85 k€ sur les deux serveurs primaires RCE/RCS." },
+        { "optionId": "OPT-03-A", "criterionId": "CRIT-03-3", "score": 9, "justification": "Profil ITU-T G.8275.1 éprouvé sur les cœurs télécom critiques." },
+        { "optionId": "OPT-03-B", "criterionId": "CRIT-03-1", "score": 2, "justification": "Échec critique : désynchronisation TDD dès le 3e jour." },
+        { "optionId": "OPT-03-B", "criterionId": "CRIT-03-2", "score": 9, "justification": "Économie de 60 k€." },
+        { "optionId": "OPT-03-B", "criterionId": "CRIT-03-3", "score": 6, "justification": "Standard IT courant mais inadapté au PPDR." }
+      ]
+    }
+  },
+  {
+    "id": "SUBJ-LUMICC-04",
+    "section_ref": "§4.4",
+    "name": "Médiation FCAPS via EMS (TS 28.532), Human-in-the-Loop & Salle de Repli NOC",
+    "level": "L1_framed",
+    "blocking_count": 0,
+    "unlocks_count": 1,
+    "waiting_for_role": "domain_architect",
+    "relative_effort": "L",
+    "last_transition_date": "2026-10-27T08:00:00Z",
+    "stall_days": 0,
+    "is_stalled": false,
+    "dependent_subject_ids": [],
+    "requirement_ids": [
+      "REQ-Lot1-201",
+      "REQ-Lot1-216",
+      "REQ-Lot1-247"
+    ],
+    "problem_statement": "Comment orchestrer la supervision des alarmes et la remédiation réseau multi-vendeurs sans risquer d'actions automatisées incontrôlées sur les équipements tiers ?",
+    "nature": "architecture",
+    "proposal": {
+      "options": [
+        {
+          "id": "OPT-04-A",
+          "title": "Médiation EMS 3GPP en lecture seule + confirmation opérateur sur tickets critiques",
+          "summary": "Interface 3GPP TS 28.532 standardisée, génération automatique de tickets d'incident et garde-fou humain (Human-in-the-Loop) sur toute action corrective.",
+          "status": "draft"
+        },
+        {
+          "id": "OPT-04-B",
+          "title": "Automatisation fermée sans validation humaine",
+          "summary": "Remédiation 100 % automatisée sur les passerelles réseau. Risque d'escalade d'incidents en cascade sans discernement opérationnel.",
+          "status": "draft"
+        }
+      ],
+      "criteria": [
+        { "id": "CRIT-04-1", "name": "Contrôle opérationnel & Sécurité", "weight": 0.6 },
+        { "id": "CRIT-04-2", "name": "Efficacité & Rapidité d'automatisation", "weight": 0.4 }
+      ],
+      "evaluations": [
+        { "optionId": "OPT-04-A", "criterionId": "CRIT-04-1", "score": 9, "justification": "Zéro modification non approuvée sur les équipements de production." },
+        { "optionId": "OPT-04-A", "criterionId": "CRIT-04-2", "score": 8, "justification": "Pré-remplissage complet des tickets ITSM." },
+        { "optionId": "OPT-04-B", "criterionId": "CRIT-04-1", "score": 2, "justification": "Risque d'effondrement global en cas de fausse détection." },
+        { "optionId": "OPT-04-B", "criterionId": "CRIT-04-2", "score": 9, "justification": "Temps de réaction sub-seconde." }
+      ]
+    }
+  },
+  {
+    "id": "SUBJ-LUMICC-05",
+    "section_ref": "§4.5",
+    "name": "Gouvernance eSIM SM-DP+ (GSMA SGP.22), HSM FIPS 140-3 L3 & 4-Yeux",
+    "level": "L1_framed",
+    "blocking_count": 0,
+    "unlocks_count": 0,
+    "waiting_for_role": "security_architect",
+    "relative_effort": "M",
+    "last_transition_date": "2026-10-27T08:00:00Z",
+    "stall_days": 0,
+    "is_stalled": false,
+    "dependent_subject_ids": [],
+    "requirement_ids": [
+      "REQ-Lot1-504",
+      "REQ-Lot1-518"
+    ],
+    "problem_statement": "Quelle architecture de sécurité pour la gestion à distance des profils eSIM (SM-DP+) des forces régaliennes face aux exigences GSMA SGP.22 et NIS2 ?",
+    "nature": "architecture",
+    "proposal": {
+      "options": [
+        {
+          "id": "OPT-05-A",
+          "title": "SM-DP+ SaaS infogéré sur cloud public avec authentification API simple",
+          "summary": "Plateforme externe hébergée sur cloud commercial mutualisé avec API token simple pour accélérer les délais de mise en service.",
+          "status": "draft"
+        },
+        {
+          "id": "OPT-05-B",
+          "title": "SM-DP+ certifié SAS-SM en UE avec HSM FIPS 140-3 Niveau 3 et cérémonie 4-yeux",
+          "summary": "Déploiement on-premise au Luxembourg ou chez un opérateur certifié GSMA SAS-SM en UE, chiffrement sous HSM FIPS 140-3 Niveau 3 et double contrôle humain obligatoire.",
+          "status": "draft"
+        }
+      ],
+      "criteria": [
+        { "id": "CRIT-05-1", "name": "Conformité NIS2 / PSF / GSMA SGP.22", "weight": 0.5 },
+        { "id": "CRIT-05-2", "name": "Délai de mise en service & Simplicité", "weight": 0.25 },
+        { "id": "CRIT-05-3", "name": "Souveraineté des clés & Contrôle d'accès", "weight": 0.25 }
+      ],
+      "evaluations": [
+        { "optionId": "OPT-05-A", "criterionId": "CRIT-05-1", "score": 1, "justification": "Violation majeure de GSMA SGP.22 et non-conformité NIS2 Art. 21." },
+        { "optionId": "OPT-05-A", "criterionId": "CRIT-05-2", "score": 9, "justification": "Mise en œuvre rapide sans approvisionnement matériel." },
+        { "optionId": "OPT-05-A", "criterionId": "CRIT-05-3", "score": 2, "justification": "Clés cryptographiques exposées aux lois extraterritoriales." },
+        { "optionId": "OPT-05-B", "criterionId": "CRIT-05-1", "score": 10, "justification": "Conformité intégrale aux standards bancaires et PPDR européens." },
+        { "optionId": "OPT-05-B", "criterionId": "CRIT-05-2", "score": 6, "justification": "Cycle de déploiement et approvisionnement HSM de 8 semaines." },
+        { "optionId": "OPT-05-B", "criterionId": "CRIT-05-3", "score": 10, "justification": "Règle des 4-yeux stricte et clés scellées dans le matériel." }
+      ]
+    }
+  },
+  {
+    "id": "SUBJ-LUMICC-06",
+    "section_ref": "§4.6",
+    "name": "Démarcation Inter-Lots sur Réseaux MNO Tiers (Lot 3) & Calendrier EUCCS",
+    "level": "L1_framed",
+    "blocking_count": 0,
+    "unlocks_count": 0,
+    "waiting_for_role": "lead_architect",
+    "relative_effort": "M",
+    "last_transition_date": "2026-10-27T08:00:00Z",
+    "stall_days": 0,
+    "is_stalled": false,
+    "dependent_subject_ids": [],
+    "requirement_ids": [
+      "REQ-Lot1-74",
+      "REQ-Lot1-77",
+      "REQ-Lot1-118"
+    ],
+    "problem_statement": "Jusqu'où s'étend la responsabilité opérationnelle du Lot 1 lors de l'itinérance sur les réseaux MNO commerciaux du Lot 3 et face aux dépendances du calendrier européen EUCCS ?",
+    "nature": "contractuel",
+    "proposal": {
+      "options": [
+        {
+          "id": "OPT-06-A",
+          "title": "Démarcation stricte aux passerelles Lot 1 et questions de clarification au client",
+          "summary": "Frontière claire aux points d'interconnexion (SGi-LAN / N6) sans engagement sur le matériel tiers.",
+          "status": "draft"
+        },
+        {
+          "id": "OPT-06-B",
+          "title": "Engagement sans réserve sur les équipements tiers",
+          "summary": "Acceptation d'engagements SLA sur le RAN commercial des MNO. Risque juridique et financier maximal.",
+          "status": "draft"
+        }
+      ],
+      "criteria": [
+        { "id": "CRIT-06-1", "name": "Responsabilité juridique & Maîtrise des risques", "weight": 0.7 },
+        { "id": "CRIT-06-2", "name": "Satisfaction commerciale immédiate", "weight": 0.3 }
+      ],
+      "evaluations": [
+        { "optionId": "OPT-06-A", "criterionId": "CRIT-06-1", "score": 9, "justification": "Protection contractuelle contre les défaillances de tiers." },
+        { "optionId": "OPT-06-A", "criterionId": "CRIT-06-2", "score": 7, "justification": "Nécessite d'expliciter le périmètre en soutenance." },
+        { "optionId": "OPT-06-B", "criterionId": "CRIT-06-1", "score": 2, "justification": "Pénalités certaines dès qu'un MNO subit une avarie." },
+        { "optionId": "OPT-06-B", "criterionId": "CRIT-06-2", "score": 8, "justification": "Réponse complaisante de type Yes-Man." }
+      ]
+    }
+  },
+  {
+    "id": "SUBJ-LUMICC-07",
+    "section_ref": "§4.7",
+    "name": "Exclusions Contractuelles de Lotissement (Ferroviaire FRMCS CFL & Verrouillage PEI)",
+    "level": "L1_framed",
+    "blocking_count": 0,
+    "unlocks_count": 0,
+    "waiting_for_role": "lead_architect",
+    "relative_effort": "M",
+    "last_transition_date": "2026-10-27T08:00:00Z",
+    "stall_days": 0,
+    "is_stalled": false,
+    "dependent_subject_ids": [],
+    "requirement_ids": [
+      "REQ-Lot1-435",
+      "REQ-Lot1-478"
+    ],
+    "problem_statement": "Comment réconcilier l'ambiguïté du HLD initial (qui mentionnait 5 stations de base gNodeB FRMCS) avec le statut Non-compliant acté en matrice commerciale ?",
+    "nature": "contractuel",
+    "proposal": {
+      "options": [
+        {
+          "id": "OPT-07-A",
+          "title": "Confirmation du statut Non-compliant FRMCS et alignement strict du HLD",
+          "summary": "Suppression formelle de la promesse de 5 gNodeBs du texte du HLD pour aligner la réponse technique sur la matrice financière.",
+          "status": "draft"
+        },
+        {
+          "id": "OPT-07-B",
+          "title": "Maintien de la fourniture des 5 gNodeBs FRMCS au Lot 1",
+          "summary": "Fourniture de 5 stations radio ferroviaires hors budget de soumission (+380 k€ de perte sèche).",
+          "status": "draft"
+        }
+      ],
+      "criteria": [
+        { "id": "CRIT-07-1", "name": "Cohérence Matrice / HLD", "weight": 0.6 },
+        { "id": "CRIT-07-2", "name": "Intégrité de la marge financière", "weight": 0.4 }
+      ],
+      "evaluations": [
+        { "optionId": "OPT-07-A", "criterionId": "CRIT-07-1", "score": 10, "justification": "Zéro incohérence entre offre technique et offre de prix." },
+        { "optionId": "OPT-07-A", "criterionId": "CRIT-07-2", "score": 9, "justification": "Économie de 380 k€ préservée." },
+        { "optionId": "OPT-07-B", "criterionId": "CRIT-07-1", "score": 1, "justification": "Incohérence frontale détectée à la soutenance." },
+        { "optionId": "OPT-07-B", "criterionId": "CRIT-07-2", "score": 2, "justification": "Perte financière non couverte." }
+      ]
+    }
+  }
+]

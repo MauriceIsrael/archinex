@@ -343,3 +343,20 @@ Accessible depuis le dialogue d'homologation (`FreezeSectionDialog`) :
 ### 11.4 DiffÃ©rentiel entre Dossiers & RÃ©troaction Doctrinale (A19)
 - **Comparateur de dossiers (`diffEngagementBundles`)** : DÃ©tecte les ajouts, suppressions et modifications entre deux versions scellÃ©es, et signale toute **rÃ©gression Ã©pistÃ©mique** (`asserted` $\rightarrow$ `proposed`).
 - **Retour vers la capitalisation (`extractBundleKbCandidates`)** : Les dÃ©cisions validÃ©es natives crÃ©Ã©es au cours du projet sont automatiquement extraites comme candidats pour la base de connaissances et dÃ©posÃ©es dans la boÃ®te de revue d'experts au statut `in_review`.
+
+---
+
+## 12. Démonstrateur & Ensemencements Démo (LUMICC / "Lulu")
+
+Pour préparer rapidement une session de démo ou des tests interactifs sans ressaisie manuelle, Archinex fournit un ensemencement dédié du dossier réel **LUMICC Lot 1** :
+
+``bash
+# Réinitialisation à l'état "Juste Après Ingestion" (7 sujets L1_framed, 0 décision scellée)
+npm run seed:lulu
+``n
+Cette commande réinitialise l'espace projet `lumicc-lot1-noc` dans la base SQLite locale (`dev.db`) et insère l'audit J0 de 92 clauses dans l'historique des dépouillements. Elle permet de dérouler en direct les 4 scénarios de délibération :
+1. **Cas nominal** (`SUBJ-LUMICC-01`) : arbitrage fluide sur la matrice d'options 3 DC & RTO UDR.
+2. **Débat contradictoire** (`SUBJ-LUMICC-03`) : controverse infra/sécurité sur l'oscillateur GNSS 30j et levée d'objection.
+3. **Contradiction réglementaire** (`SUBJ-LUMICC-05`) : blocage Porte G3 sur violation GSMA SGP.22 / NIS2 et alignement souverain.
+4. **Capitalisation doctrinale** (`SUBJ-LUMICC-02`) : passage Porte G4, qualification de portabilité et transmission au Knowledge Hub LLMOps.
+

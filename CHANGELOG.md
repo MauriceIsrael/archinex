@@ -8,6 +8,32 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Paquet de Décision Exécutable (EDP) : Rédaction Assistée, IHM & Évaluation Finale (Palier 5 - Issues #184, #186, #187, #188, #189)
+- **Chaîne d'Acceptation Déterministe pour Rédaction Assistée LLM (`src/lib/server/edp/edpDrafting.ts`) (#184)** :
+  - Pipeline de validation automatique imposé avant toute présentation à l'humain enchaînant : schéma formel, pureté d'intension (zéro fuite IP/MAC/hostnames), contrôle des liaisons d'ontologie, conformité des fixtures, auto-test OPA natif et garde de mutation.
+  - Exigence stricte Invariant II : interdiction absolue pour un draft LLM de revendiquer le statut `validated` sans approbation humaine formelle (assignation obligatoire du statut `proposed` et de la provenance `llm-proposed-human-approved`).
+  - Journalisation en mémoire des métriques de génération (durée d'exécution, score de mutation, nombre de mutants tués, étape de rejet) pour analyse d'évaluation.
+- **Composant Fiche EDP dans l'IHM Workbench (`src/lib/components/edp/EdpCard.svelte`) (#186)** :
+  - Panneau dédié conditionné par le drapeau `ARCHINEX_EXPERIMENTAL_EDP=1` (invisible et sans aucun impact de rendu si le drapeau est absent).
+  - Affichage complet du statut, mode de production, validateur humain, révisions d'ontologie liées, score de mutation (100% garanti) et dernier verdict d'évaluation avec violations.
+  - Alerte visuelle immédiate en cas de statut `stale` (caducité Invariant VI) avec désactivation de l'action de validation.
+  - Restriction de l'action de validation aux seuls rôles d'architectes habilités (`Lead Architect`, `Domain Architect`, `Security Architect`).
+  - Dialogue de contestation d'architecture obligeant la saisie d'un énoncé humain (`human-authored`, Invariant III).
+- **Second EDP de Référence : Isolation de Zones de Sécurité NIS2 (`edp/examples/adr015-security-zones/`) (#187)** :
+  - Implémentation complète de l'oracle de décision ADR-015 pour tester la généralité du système sur un domaine différent du substrat bare-metal.
+  - Résolution d'adresses IP vers les zones réseau projetées par l'ontologie, contrôle d'isolation stricte et gestion des exceptions autorisées par classe de trafic (ex: télémétrie).
+  - Score de mutation atteint : **2/2 mutants tués (100 %)**.
+  - Mocks complets en adresses de documentation réservées RFC 5737 : entrée conforme (`pass.json`), défaillances unitaires ciblées (`fail_rule_1` et `fail_rule_2`) et cas d'adresses inconnues retournant `insufficient_input`.
+- **Guide Intégrateur Hors-Ligne (`docs/edp/integrator-guide.md`) (#188)** :
+  - Manuel pas à pas complet pour les intégrateurs et auditeurs tiers : installation d'OPA avec contrôle de somme de contrôle SHA-256, préparation d'entrée `refined_input`, exécution de `edp verify` hors-ligne et interprétation des lots de preuves cryptographiques et des codes de sortie (0, 1, 2, 3).
+  - Section d'honnêteté méthodologique : "Ce qu'un vert ne prouve pas" détaillant les limites intrinsèques sur les artefacts et les champs non modélisés.
+- **Plan d'Évaluation, Rapport & Décision de Promotion (`docs/edp/`, `docs/adr/ADR-016-promotion-edp-experimental.md`) (#189)** :
+  - Critères objectifs C1 à C5 figés dans `docs/edp/evaluation-plan.md`.
+  - Rapport consolidé `docs/edp/evaluation-report.md` démontrant l'atteinte des 5 critères avec preuves d'exécution.
+  - ADR-016 prononçant le **GO** pour la promotion progressive de l'EDP sous condition du maintien du feature flag et des invariants constitutionnels.
+- **Tests** : 14 nouveaux tests de contrat dans `tests/contract/edp-palier-5.test.ts` portant la suite complète à **85 tests de contrat EDP passants** à 100 %.
+
+
 ### Paquet de Décision Exécutable (EDP) : Vérification, Adaptateurs & CI Gate (Palier 4 - Issues #182, #178, #179, #183, #185)
 - **Service et Commande `edp verify` (`src/lib/server/edp/edpVerify.ts`, `scripts/edp-verify.ts`) (#182)** :
   - Orchestration complète d'évaluation d'un EDP : validation structurelle du paquet, validation de non-vacuité des entrées de raffinement, compilation déterministe de la projection d'ontologie (`data.ontology`) et évaluation via OPA.

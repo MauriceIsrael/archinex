@@ -64,13 +64,13 @@
   - [x] 18.1 Créer le script d'orchestration de vérification pour la CI
 
 ## Palier 5 : Rédaction Assistée, IHM & Évaluation Finale
-- [ ] 19. Rédaction assistée par LLM d'un EDP (#184)
-  - [ ] 19.1 Chaîne d'acceptation déterministe avec passage obligatoire par la Porte G3
-- [ ] 20. Fiche EDP dans l'IHM Workbench (#186)
-  - [ ] 20.1 Composant UI dédié sur la décision (statut, verdict, mutations, validation)
-- [ ] 21. Second EDP de référence (Zoning de Sécurité) (#187)
-  - [ ] 21.1 Implémenter l'EDP d'isolation de zones de sécurité (test de généralité)
-- [ ] 22. Guide intégrateur (#188)
-  - [ ] 22.1 Rédiger la documentation d'exécution d'EDP hors ligne
-- [ ] 23. Plan d'évaluation & décision de promotion (#189)
-  - [ ] 23.1 Rédiger le rapport d'évaluation globale et la recommandation de promotion
+- [x] 19. Rédaction assistée par LLM d'un EDP (#184)
+  - [x] 19.1 Chaîne d'acceptation déterministe avec passage obligatoire par la Porte G3
+- [x] 20. Fiche EDP dans l'IHM Workbench (#186)
+  - [x] 20.1 Composant UI dédié sur la décision (statut, verdict, mutations, validation)
+- [x] 21. Second EDP de référence (Zoning de Sécurité) (#187)
+  - [x] 21.1 Implémenter l'EDP d'isolation de zones de sécurité (test de généralité)
+- [x] 22. Guide intégrateur (#188)
+  - [x] 22.1 Rédiger la documentation d'exécution d'EDP hors ligne
+- [x] 23. Plan d'évaluation & décision de promotion (#189)
+  - [x] 23.1 Rédiger le rapport d'évaluation globale et la recommandation de promotion

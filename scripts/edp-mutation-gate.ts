@@ -73,7 +73,7 @@ export async function runMutationGate(options: MutationGateOptions): Promise<Mut
     // On remplace le bloc de la règle par un commentaire
     const mutatedContent = policyRaw.replace(
       new RegExp(`deny_${targetRule.replace('deny_', '')}\\s*(?:contains|:=|=)[\\s\\S]*?if\\s*\\{[\\s\\S]*?\\n\\}`, 'g'),
-      `# [MUTANT DROP ${targetRule}]`
+      `${targetRule} contains "__MUTANT_INERT__" if { false }`
     );
 
     const tempMutantPath = join(tmpdir(), `mutant_${randomUUID()}.rego`);

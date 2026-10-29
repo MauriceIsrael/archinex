@@ -1,4 +1,5 @@
 import { untrack } from 'svelte';
+import { toast } from '$lib/toast/index.svelte';
 import type { RequirementAuditInput } from '$lib/domain/requirementAudit';
 import type { MaturityLevel, ArchitectRole, Statement } from '$lib/types/epistemic';
 import type { TelegraphicDraft } from '$lib/domain/telegraphic';
@@ -1841,6 +1842,13 @@ class DeliberationStore {
 			},
 			...this.notifications.slice(0, 19)
 		];
+		try {
+			toast(message, {
+				variant: type === 'warning' ? 'error' : type === 'success' ? 'success' : 'info'
+			});
+		} catch {
+			// Environnement sans DOM ou test
+		}
 	}
 }
 

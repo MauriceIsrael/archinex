@@ -475,6 +475,10 @@
 				if (res.ok) {
 					const created = await res.json();
 					handleArgumentCreated(created);
+				} else {
+					const err = await res.json().catch(() => ({}));
+					const msg = err.reason || err.error || err.message;
+					if (msg) deliberationStore.logNotification(msg, 'warning');
 				}
 			} else {
 				deliberationStore.sendSubjectMessage(

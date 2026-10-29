@@ -102,6 +102,15 @@
 
 	function handleInputKeyDown(e: KeyboardEvent, target: 'claim' | 'grounds') {
 		activeInputTarget = target;
+		if (e.key === 'Enter' && (e.ctrlKey || e.metaKey)) {
+			e.preventDefault();
+			if (!validation.valid) {
+				onError(validation.reason || 'Veuillez compléter le fondement avant de soumettre.');
+				return;
+			}
+			submitArgument();
+			return;
+		}
 		if (e.key === '#') {
 			activeMentionType = 'hash';
 			mentionSearch = '';
@@ -144,8 +153,17 @@
 		activeMentionType = null;
 	}
 
-	async function handleSubmit() {
-		if (!validation.valid || isSubmitting || !projectId || !subjectId) return;
+	async function submitArgument() {
+		if (!projectId || !subjectId) {
+			onError('Projet ou sujet non sélectionné.');
+			return;
+		}
+		if (!validation.valid || isSubmitting) {
+			if (!validation.valid && validation.reason) {
+				onError(validation.reason);
+			}
+			return;
+		}
 		isSubmitting = true;
 
 		try {
@@ -165,7 +183,25 @@
 
 			if (!res.ok) {
 				const err = await res.json().catch(() => ({}));
-				throw new Error(err.message || "Erreur lors de l'enregistrement");
+				let message = err.reason || err.error || err.message;
+
+				if (!message) {
+					if (res.status === 401) {
+						message = 'Non authentifié : session requise (veuillez vous connecter sur /login).';
+					} else if (res.status === 403) {
+						message = 'Accès refusé : vous devez être membre du projet pour proposer un argument.';
+					} else {
+						message = `Erreur HTTP ${res.status} lors de l'enregistrement de l'argument.`;
+					}
+				} else {
+					if (res.status === 401 && !message.toLowerCase().includes('connecter')) {
+						message = `${message} (veuillez vous connecter sur /login)`;
+					} else if (res.status === 403 && !message.toLowerCase().includes('projet')) {
+						message = `${message} (action réservée aux membres du projet)`;
+					}
+				}
+
+				throw new Error(message);
 			}
 
 			const data = await res.json();
@@ -345,8 +381,8 @@
 					</span>
 				{/if}
 			{:else if claim.trim().length > 0 || grounds.trim().length > 0}
-				<span class="text-muted-foreground font-medium flex items-center gap-1">
-					<AlertCircle class="h-3.5 w-3.5 text-amber-500 shrink-0" />
+				<span class="text-amber-800 dark:text-amber-300 bg-amber-500/10 border border-amber-500/25 px-2 py-0.5 rounded font-medium flex items-center gap-1">
+					<AlertCircle class="h-3.5 w-3.5 text-amber-600 dark:text-amber-400 shrink-0" />
 					<span>{validation.reason}</span>
 				</span>
 			{/if}
@@ -355,10 +391,11 @@
 		<!-- Bouton d'envoi -->
 		<button
 			type="button"
+			data-testid="btn-submit-argument"
 			disabled={!validation.valid || isSubmitting}
-			onclick={handleSubmit}
+			onclick={submitArgument}
 			class="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 disabled:opacity-40 disabled:cursor-not-allowed text-xs font-semibold shadow-xs transition-colors cursor-pointer shrink-0"
-			title={validation.valid ? 'Publier cet argument' : 'Remplissez le fondement requis pour publier'}
+			title={validation.valid ? 'Publier cet argument' : (validation.reason || 'Remplissez le fondement requis pour publier')}
 		>
 			<Send class="h-3.5 w-3.5" />
 			<span>{isSubmitting ? 'Publication...' : 'Envoyer'}</span>

@@ -8,6 +8,16 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Délibération & Composeur Structuré : Feedback Visuel d'Erreurs, Droits d'Accès et Raccourci Clavier
+- **Routage visuel des notifications vers le système de Toasts (`deliberationStore.svelte.ts`)** : connexion de `deliberationStore.logNotification` au système réactif `toast` (`$lib/toast`), garantissant que les notifications de succès, d'information et d'erreur (HTTP 401, 403, validation) s'affichent immédiatement sous forme d'alertes visuelles à l'écran plutôt que d'être silencieusement conservées en mémoire.
+- **Gestion explicite des erreurs d'authentification et de droits (`StructuredComposer.svelte`, `SubjectThreadView.svelte`)** :
+  - Extraction granulaire des messages d'erreur du backend (`err.reason || err.error || err.message`).
+  - Messages clairs et actionnables en cas de non-authentification (HTTP 401 avec invitation à se connecter sur `/login`) ou de droits insuffisants (HTTP 403 réservé aux membres du projet).
+  - Remontée d'erreur explicite lors de l'adoption d'une hypothèse de cadrage (`handleAdoptHypothesis`).
+- **Ergonomie du composeur structuré (`StructuredComposer.svelte`)** :
+  - Ajout du raccourci clavier `Ctrl+Enter` / `Cmd+Enter` pour soumettre directement un argument ou une hypothèse étayée, ou afficher immédiatement le champ manquant requis.
+  - Signalisation visuelle rehaussée (`bg-amber-500/10 border-amber-500/25`) de la raison de validation (obligation de fondement étayé d'au moins 5 caractères).
+- **Tests** : extension de la suite de contrat `tests/contract/structured-composer.test.ts` validant la propagation des notifications vers la file des toasts réactifs.
 ### Lisibilité & Ergonomie de la Matrice Multi-Critères (Options & Propositions Longues)
 - **Affichage multi-lignes sans tronquage (`OptionsMatrix.svelte`)** : suppression de la coupure forcée `line-clamp-1` sur les titres de propositions au profit d'un retour à la ligne naturel (`whitespace-normal break-words leading-snug`), préservant l'intégralité des intitulés longs même complexes.
 - **Largeur optimisée des colonnes d'options** : passage de `min-w-[170px]` à `min-w-[220px] max-w-[320px]` pour offrir un espace de lecture aéré sans dégrader le défilement horizontal.

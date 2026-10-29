@@ -1,0 +1,45 @@
+{
+  "catalog_version": "1.0",
+  "generated_at": "2026-10-29T10:00:00Z",
+  "entities": {
+    "urn:archinex:ontology:infrastructure:server:baremetal": {
+      "urn": "urn:archinex:ontology:infrastructure:server:baremetal",
+      "revision": 1,
+      "title": "Substrat Serveur Bare-Metal",
+      "domain": "infrastructure",
+      "projections": {
+        "allowed_roles": ["control-plane", "worker"],
+        "baremetal_types": ["Dell-PowerEdge-R750", "HPE-ProLiant-DL380"]
+      }
+    },
+    "urn:archinex:ontology:telecom:network:oob": {
+      "urn": "urn:archinex:ontology:telecom:network:oob",
+      "revision": 1,
+      "title": "Réseau d'Administration Hors-Bande (OOB)",
+      "domain": "telecom",
+      "projections": {
+        "required_status": "planned",
+        "min_interfaces": 2
+      }
+    },
+    "urn:archinex:ontology:security:zone:oam": {
+      "urn": "urn:archinex:ontology:security:zone:oam",
+      "revision": 2,
+      "title": "Zone de Sécurité OAM (Exploitation)",
+      "domain": "security",
+      "projections": {
+        "isolation_level": "strict",
+        "proxy_required": true
+      }
+    },
+    "urn:archinex:ontology:security:zone:user_plane": {
+      "urn": "urn:archinex:ontology:security:zone:user_plane",
+      "revision": 1,
+      "title": "Zone Usager Telecom 5G UPF",
+      "domain": "security",
+      "projections": {
+        "isolation_level": "high_throughput"
+      }
+    }
+  }
+}

@@ -8,6 +8,28 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Paquet de Décision Exécutable (EDP) : Vérification, Adaptateurs & CI Gate (Palier 4 - Issues #182, #178, #179, #183, #185)
+- **Service et Commande `edp verify` (`src/lib/server/edp/edpVerify.ts`, `scripts/edp-verify.ts`) (#182)** :
+  - Orchestration complète d'évaluation d'un EDP : validation structurelle du paquet, validation de non-vacuité des entrées de raffinement, compilation déterministe de la projection d'ontologie (`data.ontology`) et évaluation via OPA.
+  - Émission d'un lot de preuves scellé (`EvidenceBundle`) avec empreintes cryptographiques SHA-256 (EDP, politique, ontologie, entrées), versions des moteurs, verdict à 4 états et violations détaillées.
+  - Codes de sortie standardisés pour intégration CI/CD : 0 (`compliant`), 1 (`violated`), 2 (`insufficient_input` / `not_applicable`), 3 (`unavailable` / erreur exécuteur).
+- **Adaptateur Sylva / CAPI (`src/lib/server/edp/adapters/sylvaAdapter.ts`) (#178)** :
+  - Transformation des manifestes Kubernetes issus d'un rendu Helm (`helm template`) en payload `refined_input` conforme avec traçabilité complète de provenance (outil, version, commande, hash).
+  - Sanitization automatique et suppression stricte de tout manifeste de type `Secret` ou de clés/valeurs sensibles (`password`, `token`, `bearer`, clés privées).
+  - Fixtures de test hors-ligne dans `tests/fixtures/edp/sylva/`.
+- **Adaptateur Nautobot Planned (`src/lib/server/edp/adapters/nautobotAdapter.ts`) (#179)** :
+  - Transformation et normalisation des équipements déclarés dans Nautobot GraphQL au statut `planned` vers le contrat `nautobot_planned_devices`.
+  - Normalisation des adresses OOB sans masque de sous-réseau CIDR pour correspondre exactement aux contrats de conformité bare-metal.
+  - Fixtures de test hors-ligne dans `tests/fixtures/edp/nautobot/`.
+- **Spike d'Architecture : Instanciation Blueprint vers Nautobot Planned (`docs/edp/spike-nautobot-design-builder.md`) (#183)** :
+  - Analyse approfondie de la viabilité d'une instanciation automatisée dans Nautobot Design Builder versus extraction de fixtures.
+  - Décision et recommandation d'architecture argumentée : **NO-GO** sur l'instanciation dynamique d'HLD dans un Nautobot chaud (fragilité, non-idempotence, couplage fort) et **GO** sur le patron d'adaptateur hors-ligne par extraction GraphQL et fixtures scellées.
+- **Porte d'Architecture CI `edp-gate` (`scripts/edp-gate.ts`, `scripts/edp-gate.sh`, `.github/workflows/edp-architecture-gate.yml.example`) (#185)** :
+  - Script unifié validant en chaîne : le schéma JSON de l'EDP, la suite de tests natifs `opa test`, la garde de mutation (exigence de 100 % de mutants tués), la vérification d'entrée conforme (`pass.json`) et le rejet effectif de toutes les entrées à défaut.
+  - Script bash d'exécution CI portable et modèle de workflow GitHub Actions documenté.
+- **Tests** : 9 nouveaux tests de contrat dans `tests/contract/edp-verify-and-gate.test.ts` portant la suite complète à 71 tests de contrat au vert.
+
+
 ### Paquet de Décision Exécutable (EDP) : Ontologie & Persistance Souveraine (Palier 3 - Issues #173, #181, #174, #177)
 - **Client d'Ontologie & Contrôle des Liaisons (`ontologyClient.ts`) (#173)** :
   - Client de lecture du catalogue d'ontologie supportant le mode fixture hors-ligne pour la CI et l'intégration API avec le Knowledge Hub sans aucun appel de modèle.

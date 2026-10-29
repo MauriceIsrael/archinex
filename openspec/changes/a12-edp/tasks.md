@@ -52,16 +52,16 @@
   - [x] 13.1 Basculer l'EDP à `stale` dès qu'un antécédent devient caduc (Invariant VI)
 
 ## Palier 4 : Vérification, Adaptateurs & CI Gate
-- [ ] 14. Commande et service `edp verify` (#182)
-  - [ ] 14.1 Exécuter l'oracle sur une entrée fournie et sceller le lot de preuves
-- [ ] 15. Adaptateur Sylva / CAPI (#178)
-  - [ ] 15.1 Rendu Helm vers `k8s_manifests` (fixtures hors ligne)
-- [ ] 16. Adaptateur Nautobot (#179)
-  - [ ] 16.1 Export GraphQL `status: planned` vers `nautobot_planned_devices`
-- [ ] 17. Spike instanciation Blueprint vers Nautobot Planned (#183)
-  - [ ] 17.1 Rédiger le rapport de faisabilité et d'architecture go/no-go
-- [ ] 18. Garde d'architecture CI `edp-gate` (#185)
-  - [ ] 18.1 Créer le script d'orchestration de vérification pour la CI
+- [x] 14. Commande et service `edp verify` (#182)
+  - [x] 14.1 Exécuter l'oracle sur une entrée fournie et sceller le lot de preuves
+- [x] 15. Adaptateur Sylva / CAPI (#178)
+  - [x] 15.1 Rendu Helm vers `k8s_manifests` (fixtures hors ligne)
+- [x] 16. Adaptateur Nautobot (#179)
+  - [x] 16.1 Export GraphQL `status: planned` vers `nautobot_planned_devices`
+- [x] 17. Spike instanciation Blueprint vers Nautobot Planned (#183)
+  - [x] 17.1 Rédiger le rapport de faisabilité et d'architecture go/no-go
+- [x] 18. Garde d'architecture CI `edp-gate` (#185)
+  - [x] 18.1 Créer le script d'orchestration de vérification pour la CI
 
 ## Palier 5 : Rédaction Assistée, IHM & Évaluation Finale
 - [ ] 19. Rédaction assistée par LLM d'un EDP (#184)

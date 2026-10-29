@@ -1,0 +1,257 @@
+{
+  "SUBJ-LUMICC-01": {
+    "section_id": "§4.1",
+    "subject": "Topologie 3 DC POST (RCE/RCS/RCW), socle RKE2 & RTO UDR 15 min",
+    "maturity": "L1_framed",
+    "is_provisional": true,
+    "retenu": [
+      "POST:Datacentres Tier IV actifs RCE (Gasperich) et RCS (Bettembourg)",
+      "POST:3e Datacenter RCW (Windhof) pour arbitre de quorum et reprise froide",
+      "Ericsson 5GC CCDM avec base UDR géorépliquée synchrone",
+      "Socle COTS RKE2 durci Telco Profile v1.30"
+    ],
+    "suppose": [
+      {
+        "text": "Liaison fibre noire diversifiée < 10 km entre RCE et RCS avec RTT < 0.8 ms",
+        "consequence": "Garantit le RPO = 0 sur écriture synchrone des profils UDR",
+        "cost_hint": "+180 k€ CAPEX réseau inter-DC"
+      }
+    ],
+    "conflit": [
+      {
+        "text": "RTO < 15 min intenable en cas de réinstanciation bare-metal froide complète",
+        "opposing_reference": "HARV-ADR-001-UDR-RTO Capacité réelle brique UDR",
+        "requires_arbitration": true
+      }
+    ],
+    "manque": [
+      {
+        "id": "Q-LUMI-001",
+        "question": "Le donneur d'ordre accepte-t-il un RTO > 4h si les deux sites RCE et RCS sont détruits simultanément ?",
+        "assigned_role": "lead_architect"
+      }
+    ],
+    "variante_b": {
+      "title": "3 Datacentres tous actifs avec réplication 3-voies",
+      "cost_delta": "+450 k€ licences & fabric EVPN",
+      "trade_off": "Surdimensionné pour le volume PPDR luxembourgeois (50 000 abonnés)"
+    }
+  },
+  "SUBJ-LUMICC-02": {
+    "section_id": "§4.2",
+    "subject": "Interworking Wi-Fi / WLAN Offload UE sans N3IWF/ePDG ni ATSSS",
+    "maturity": "L1_framed",
+    "is_provisional": true,
+    "retenu": [
+      "Doctrine Cœur 5G Ericsson : pas d'exposition N3IWF/ePDG sur cœur PPDR durci",
+      "Offload Wi-Fi local au niveau de l'équipement terminal (UE-driven)",
+      "Statut Partially compliant déclaré en Colonne F avec réserve explicite en Colonne G"
+    ],
+    "suppose": [
+      {
+        "text": "Les terminaux MCX des forces de sécurité disposent d'un client de bascule automatique",
+        "consequence": "Pas de charge de signalisation Wi-Fi non sécurisée sur la SBA",
+        "cost_hint": "Économie de 120 k€ en passerelles N3IWF"
+      }
+    ],
+    "conflit": [
+      {
+        "text": "Le client demande le support WLAN dans REQ-Lot1-11/12, mais introduire N3IWF/ATSSS fragilise le cœur 5G souverain",
+        "opposing_reference": "Doctrine Cœur 5G PPDR & NIS2 Art. 21",
+        "requires_arbitration": true
+      }
+    ],
+    "manque": [
+      {
+        "id": "Q-LUMI-002",
+        "question": "Faut-il exposer une passerelle N3IWF sur la SBA du cœur 5G ou confier l'offload Wi-Fi au terminal MCX ?",
+        "assigned_role": "domain_architect"
+      }
+    ],
+    "variante_b": {
+      "title": "Passerelle N3IWF complète avec tunnel IPsec",
+      "cost_delta": "+120 k€ + maintenance cyber",
+      "trade_off": "Augmente la surface d'attaque du cœur 5G souverain"
+    }
+  },
+  "SUBJ-LUMICC-03": {
+    "section_id": "§4.3",
+    "subject": "Holdover Horloge 30j sans GNSS (Rubidium/OCXO) & Détection Passive RF",
+    "maturity": "L1_framed",
+    "is_provisional": true,
+    "retenu": [
+      "Cascade d'oscillateurs atomiques au Rubidium sur RCE et RCS",
+      "Distribution temporelle PTP ITU-T G.8275.1 profil Telecom grand réseau",
+      "Détection passive de brouillage GNSS par corrélation d'horloges locales"
+    ],
+    "suppose": [
+      {
+        "text": "Stabilité d'oscillateur Rubidium certifiée < 1 µs de dérive sur 30 jours",
+        "consequence": "Maintien de la synchronisation TDD inter-sites sans GPS",
+        "cost_hint": "+85 k€ sur les serveurs de temps primaires"
+      }
+    ],
+    "conflit": [
+      {
+        "text": "Exigence CCTP demande 'l'atténuation physique du brouillage' : impossible au niveau logiciel",
+        "opposing_reference": "REQ-Lot1-233 Bornage logiciel Core/NOC",
+        "requires_arbitration": true
+      }
+    ],
+    "manque": [
+      {
+        "id": "Q-LUMI-003",
+        "question": "Le périmètre de contre-mesure physique RF inclut-il les antennes des sites MNO commerciaux du Lot 3 ?",
+        "assigned_role": "infra_expert_architect"
+      }
+    ],
+    "variante_b": {
+      "title": "Oscillateurs à quartz OCXO simples",
+      "cost_delta": "-60 k€",
+      "trade_off": "Dérive > 1.5 µs dès 48h de déni GNSS : non conforme"
+    }
+  },
+  "SUBJ-LUMICC-04": {
+    "section_id": "§4.4",
+    "subject": "Médiation FCAPS via EMS (TS 28.532), Human-in-the-Loop & Salle de Repli NOC",
+    "maturity": "L1_framed",
+    "is_provisional": true,
+    "retenu": [
+      "Médiation EMS 3GPP TS 28.532 standardisée en lecture seule sur RANs tiers",
+      "Création automatique de tickets ITSM (REQ-Lot1-216) pré-remplis pour incidents P1/P2",
+      "Porte de validation opérateur Human-in-the-Loop avant déclenchement d'actions correctives",
+      "Salle de repli NOC physique dédiée distincte du NOC principal"
+    ],
+    "suppose": [
+      {
+        "text": "Les opérateurs RAN tiers exposent une passerelle EMS conforme 3GPP Release 16+",
+        "consequence": "Pas de développement de connecteur propriétaire sur mesure",
+        "cost_hint": "Inclus au devis nominal"
+      }
+    ],
+    "conflit": [],
+    "manque": [
+      {
+        "id": "Q-LUMI-004",
+        "question": "Le client exige-t-il une intégration bidirectionnelle en écriture sur les équipements Nokia des MNO ?",
+        "assigned_role": "domain_architect"
+      }
+    ],
+    "variante_b": {
+      "title": "Automatisation fermée sans validation humaine",
+      "cost_delta": "Risque d'escalade d'incidents majeurs",
+      "trade_off": "Interdit par la doctrine de sécurité"
+    }
+  },
+  "SUBJ-LUMICC-05": {
+    "section_id": "§4.5",
+    "subject": "Gouvernance eSIM SM-DP+ (GSMA SGP.22), HSM FIPS 140-3 L3 & 4-Yeux",
+    "maturity": "L1_framed",
+    "is_provisional": true,
+    "retenu": [
+      "Hébergement SM-DP+ certifié SAS-SM sur territoire de l'Union Européenne",
+      "Module de sécurité matériel HSM certifié FIPS 140-3 Niveau 3",
+      "Cérémonie formelle 4-yeux et authentification multifacteur (MFA) pour génération des profils d'urgence"
+    ],
+    "suppose": [
+      {
+        "text": "Fournisseur de carte SIM certifié GSMA SAS-SM pour le Luxembourg",
+        "consequence": "Conformité totale à la doctrine NIS2 / PSF",
+        "cost_hint": "Compris dans le lot de gestion des identités"
+      }
+    ],
+    "conflit": [
+      {
+        "text": "Une option SaaS sur cloud public viole les exigences GSMA SGP.22 et la souveraineté PSF/NIS2",
+        "opposing_reference": "GSMA SGP.22 & NIS2 Art. 21(2)(c)",
+        "requires_arbitration": true
+      }
+    ],
+    "manque": [
+      {
+        "id": "Q-LUMI-005",
+        "question": "Quel niveau d'assurance HSM et quelle gouvernance opérationnelle pour la génération des clés eSIM ?",
+        "assigned_role": "security_architect"
+      }
+    ],
+    "variante_b": {
+      "title": "SM-DP+ hébergé sur cloud public hyperscaler américain",
+      "cost_delta": "-30% OPEX hébergement",
+      "trade_off": "Violation directe de la souveraineté des données régaliennes"
+    }
+  },
+  "SUBJ-LUMICC-06": {
+    "section_id": "§4.6",
+    "subject": "Démarcation Inter-Lots sur Réseaux MNO Tiers (Lot 3) & Calendrier EUCCS",
+    "maturity": "L1_framed",
+    "is_provisional": true,
+    "retenu": [
+      "Démarcation stricte de la responsabilité aux passerelles Lot 1 (SGi-LAN / N6)",
+      "Exclusion des sondes SIEM invasives à l'intérieur des équipements RAN MNO tiers",
+      "Interconnexion Disaster Roaming conforme 3GPP Rel-17 sous réserve des déploiements MNO"
+    ],
+    "suppose": [
+      {
+        "text": "Le donneur d'ordre valide la question de clarification sur le calendrier EUCCS / BroadNet",
+        "consequence": "Alignement contractuel sans pénalité de retard",
+        "cost_hint": "Risque juridique neutralisé"
+      }
+    ],
+    "conflit": [
+      {
+        "text": "Demande client d'installer des sondes deep-packet inspection sur le RAN du Lot 3",
+        "opposing_reference": "REQ-Lot1-74 Refus légal et technique des opérateurs tiers",
+        "requires_arbitration": true
+      }
+    ],
+    "manque": [
+      {
+        "id": "Q-LUMI-006",
+        "question": "Sur quelle base contractuelle le titulaire du Lot 1 peut-il imposer des sondes au titulaire du Lot 3 ?",
+        "assigned_role": "lead_architect"
+      }
+    ],
+    "variante_b": {
+      "title": "Engagement sans réserve sur les équipements tiers",
+      "cost_delta": "Risque de non-conformité contractuelle majeure",
+      "trade_off": "Intenable sans accord tripartite préalable"
+    }
+  },
+  "SUBJ-LUMICC-07": {
+    "section_id": "§4.7",
+    "subject": "Exclusions Contractuelles de Lotissement (Ferroviaire FRMCS CFL & Verrouillage PEI)",
+    "maturity": "L1_framed",
+    "is_provisional": true,
+    "retenu": [
+      "Confirmation du statut Non-compliant sur le périmètre ferroviaire FRMCS (REQ-Lot1-478)",
+      "Suppression formelle des 5 gNodeBs promis par erreur au §3.7 du HLD Lot 1 humain",
+      "Fourniture limitée aux passerelles de raccordement IP en datacentre pour les CFL"
+    ],
+    "suppose": [
+      {
+        "text": "Les Chemins de Fer Luxembourgeois (CFL) déploient leur propre RAN FRMCS n100/n101",
+        "consequence": "Élimine le risque financier d'avoir à fournir gratuitement 5 stations de base et leurs batteries",
+        "cost_hint": "Économie de 380 k€ de matériel hors devis"
+      }
+    ],
+    "conflit": [
+      {
+        "text": "Le §3.7 du HLD Lot 1 mentionne la fourniture de 5 gNodeBs FRMCS alors que la matrice Excel est Non-compliant",
+        "opposing_reference": "REQ-Lot1-478 Exclusion ferroviaire CFL",
+        "requires_arbitration": true
+      }
+    ],
+    "manque": [
+      {
+        "id": "Q-LUMI-007",
+        "question": "Confirme-t-on l'exclusion contractuelle de la fourniture du RAN FRMCS pour s'aligner sur la matrice ?",
+        "assigned_role": "lead_architect"
+      }
+    ],
+    "variante_b": {
+      "title": "Maintien de la fourniture des 5 gNodeBs FRMCS au Lot 1",
+      "cost_delta": "+380 k€ de surcoût non financé",
+      "trade_off": "Contradiction directe avec la matrice Excel"
+    }
+  }
+}

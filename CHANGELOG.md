@@ -8,6 +8,17 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Démonstrateur LUMICC ("Lulu") : Ensemencement "Juste Après Ingestion" (`seed:lulu`)
+- **Jeu d'essai LUMICC "Juste Après Ingestion" (`examples/lumicc-ingested/`)** :
+  - Fourniture d'un état d'ingestion authentique issu de l'audit ArcKit J0 sur le Lot 1 (NOC, Cœur 5G PPDR & Résilience, 92 clauses).
+  - Les 7 sujets d'architecture sont positionnés au niveau `L1_framed` avec dilemmes cadrés, options contrastées et critères multicritères pré-positionnés en statut `draft`.
+  - Fil de délibération (`dialogue.json`) et énoncés scellés (`statements.json`) vierges, permettant de rejouer en séance les 4 scénarios clés de délibération architecturale (nominal, débat d'experts, blocage réglementaire, capitalisation Porte G4).
+- **Script d'ensemencement idempotent (`scripts/seed-lulu.ts` & `npm run seed:lulu`)** :
+  - Réinitialisation instantanée de l'espace projet `lumicc-lot1-noc` dans Prisma (`dev.db`).
+  - Enregistrement automatique de l'audit de dépouillement `run_lumicc_live_j0` dans `factorization_runs` pour démonstration immédiate du jalon J0 depuis l'IHM.
+- **Tests** : suite de tests de contrat dédiée `tests/contract/seed-lulu.test.ts`.
+
+
 ### Dépouillement RFP : suivi en arrière-plan, notifications Web, reprise sur quota et partitionnement résilient
 - **Notifications d'arrière-plan & mise à jour du titre d'onglet (`backgroundAuditNotifier.ts`, `+layout.svelte`, `RfpConfrontationDialog.svelte`)** :
   - Support de l'API Web Notifications (`new Notification(...)`) informant l'utilisateur dès que le dépouillement en tâche de fond est terminé ou requiert une action, même si l'onglet est masqué ou en arrière-plan.

@@ -72,6 +72,15 @@
 	let decisionReversibility = $state<'reversible' | 'costly' | 'irreversible'>('reversible');
 	let decisionError = $state<string | null>(null);
 
+	// Option header UI state (détails / résumé dépliable)
+	let expandedSummaryOptionId = $state<string | null>(null);
+	function toggleSummary(id: string) {
+		expandedSummaryOptionId = expandedSummaryOptionId === id ? null : id;
+	}
+	function formatOptionBadge(idx: number): string {
+		return idx < 26 ? `Option ${String.fromCharCode(65 + idx)}` : `Option ${idx + 1}`;
+	}
+
 	// Conformité réglementaire des options (LLMOps, contre les référentiels de l'espace)
 	interface ComplianceViolation { optionId: string; typedId: string; message: string; validated: boolean; matchedTerms: string[] }
 	let compliance = $state<{ frameworks: string[]; offline: boolean; violations: ComplianceViolation[]; unassessedCount: number; coverageWarnings?: string[] } | null>(null);
@@ -430,20 +439,62 @@
 						<th class="p-2.5 text-left font-bold text-foreground min-w-[200px] border-r">
 							Critères d'évaluation
 						</th>
-						{#each options as opt}
+						{#each options as opt, optIdx}
 							{@const isRetained = decision?.retainedOptionId === opt.id}
-							<th class="p-2.5 text-center min-w-[170px] border-r last:border-r-0 {isRetained ? 'bg-emerald-500/10' : ''}">
-								<div class="space-y-1">
-									<div class="flex items-center justify-center gap-1.5">
-										{#if opt.origin === 'human'}
-											<span class="p-0.5 rounded bg-blue-500/10 text-blue-600" title="Origine humaine"><UserCheck class="h-3 w-3" /></span>
-										{:else if opt.origin === 'llm-proposed'}
-											<span class="p-0.5 rounded bg-purple-500/10 text-purple-600" title="Généré par LLM"><Bot class="h-3 w-3" /></span>
-										{:else}
-											<span class="p-0.5 rounded bg-amber-500/10 text-amber-600" title="Pattern KB"><Award class="h-3 w-3" /></span>
+							{@const optionBadge = formatOptionBadge(optIdx)}
+							<th
+								class="p-2.5 text-center min-w-[220px] max-w-[320px] align-top border-r last:border-r-0 {isRetained ? 'bg-emerald-500/10' : ''}"
+								title={`${optionBadge} : ${opt.title}${opt.summary ? '\n\n' + opt.summary : ''}`}
+							>
+								<div class="space-y-1.5">
+									<!-- Barre d'identification : Badge Option + Origine + Bouton Info Résumé -->
+									<div class="flex items-center justify-between gap-1 flex-wrap">
+										<div class="flex items-center gap-1">
+											<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono font-bold uppercase tracking-wider bg-primary/10 text-primary border border-primary/20">
+												{optionBadge}
+											</span>
+											{#if opt.origin === 'human'}
+												<span class="p-0.5 rounded bg-blue-500/10 text-blue-600" title="Origine humaine"><UserCheck class="h-3 w-3" /></span>
+											{:else if opt.origin === 'llm-proposed'}
+												<span class="p-0.5 rounded bg-purple-500/10 text-purple-600" title="Généré par LLM"><Bot class="h-3 w-3" /></span>
+											{:else}
+												<span class="p-0.5 rounded bg-amber-500/10 text-amber-600" title="Pattern KB"><Award class="h-3 w-3" /></span>
+											{/if}
+										</div>
+
+										{#if opt.summary}
+											<button
+												type="button"
+												onclick={() => toggleSummary(opt.id)}
+												class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors cursor-pointer border border-transparent hover:border-border"
+												title={`Résumé technique :\n${opt.summary}\n\n(Cliquer pour afficher/masquer le détail)`}
+												aria-label={`Détail de ${optionBadge}`}
+											>
+												<Info class="h-3 w-3 {expandedSummaryOptionId === opt.id ? 'text-primary' : ''}" />
+												<span class="text-[9px] font-medium hidden sm:inline">Détails</span>
+											</button>
 										{/if}
-										<span class="font-bold text-foreground line-clamp-1">{opt.title}</span>
 									</div>
+
+									<!-- Titre complet de la proposition (enveloppant sur plusieurs lignes) -->
+									<div class="text-center px-0.5">
+										<span
+											class="font-bold text-foreground text-xs leading-snug whitespace-normal break-words block"
+											title={opt.title}
+										>
+											{opt.title}
+										</span>
+									</div>
+
+									<!-- Résumé dépliable si activé -->
+									{#if expandedSummaryOptionId === opt.id && opt.summary}
+										<div class="p-2 rounded-md bg-muted/70 border border-border/70 text-[11px] font-normal text-muted-foreground text-left whitespace-normal break-words leading-relaxed animate-in fade-in duration-150">
+											<div class="font-semibold text-foreground text-[10px] uppercase tracking-wider mb-0.5">Résumé :</div>
+											{opt.summary}
+										</div>
+									{/if}
+
+									<!-- Violations / conformité -->
 									{#each violationsOf(opt.id) as v (v.typedId)}
 										<div
 											class="mx-auto w-fit rounded px-1.5 py-0.5 text-[10px] font-bold border {v.validated ? 'border-destructive/40 bg-destructive/10 text-destructive' : 'border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300'}"
@@ -452,7 +503,9 @@
 											{v.validated ? 'Non conforme' : 'À vérifier'} · {v.typedId}
 										</div>
 									{/each}
-									<div class="flex items-center justify-center gap-1 flex-wrap">
+
+									<!-- Badges Mode de production et Retenue -->
+									<div class="flex items-center justify-center gap-1 flex-wrap pt-0.5">
 										<span class="text-[9px] font-mono uppercase px-1 py-0.2 rounded bg-muted text-muted-foreground">
 											{opt.productionMode}
 										</span>
@@ -505,7 +558,7 @@
 											{badge.label}
 										</span>
 										{#if ev?.justification}
-											<span class="text-[10px] text-muted-foreground truncate max-w-[140px] mt-0.5 block italic">
+											<span class="text-[10px] text-muted-foreground truncate max-w-[190px] mt-0.5 block italic">
 												« {ev.justification} »
 											</span>
 										{:else}

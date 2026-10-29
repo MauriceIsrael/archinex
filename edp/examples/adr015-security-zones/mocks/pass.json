@@ -1,0 +1,29 @@
+{
+  "sources": {
+    "network_flows": {
+      "provenance": {
+        "tool": "pcap-flow-aggregator",
+        "version": "1.3.0",
+        "command": "flow-dump --format json --active-only",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+        "generated_at": "2026-10-29T10:00:00Z"
+      },
+      "content": {
+        "traffic_flows": [
+          {
+            "id": "flow-pass-01",
+            "src_ip": "192.0.2.10",
+            "dst_ip": "192.0.2.20",
+            "traffic_class": "management"
+          },
+          {
+            "id": "flow-pass-02",
+            "src_ip": "192.0.2.15",
+            "dst_ip": "198.51.100.25",
+            "traffic_class": "telemetry"
+          }
+        ]
+      }
+    }
+  }
+}

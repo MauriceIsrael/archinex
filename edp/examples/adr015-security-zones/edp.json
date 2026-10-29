@@ -1,0 +1,103 @@
+{
+  "metadata": {
+    "id": "EDP-ADR015-01",
+    "title": "Isolation Stricte des Zones de Sécurité NIS2 (ADR-015)",
+    "status": "proposed",
+    "revision": 1,
+    "decision_ref": {
+      "subjectId": "SUBJ-SEC-02",
+      "decisionId": "ADR-015",
+      "version": 1
+    }
+  },
+  "decision_context": {
+    "problem": "Exigence de cloisonnement entre le plan de controle OAM et le plan usager conformement a NIS2.",
+    "decision": "Interdiction de routage direct inter-zones sans passerelle d inspection et restriction des protocoles entrants OAM.",
+    "tradeoffs": [
+      "Deploiement de regles de filtrage strictes eliminant les risques de rebond vers le plan de gestion",
+      "Complexite accrue d audit de conformite reseau compensee par l automatisation OPA"
+    ],
+    "ontology_bindings": [
+      {
+        "urn": "urn:archinex:ontology:security:zone:oam",
+        "revision": 1
+      },
+      {
+        "urn": "urn:archinex:ontology:security:zone:user_plane",
+        "revision": 1
+      }
+    ]
+  },
+  "refinement_contract": {
+    "expected_inputs": [
+      {
+        "source": "network_flows",
+        "schema_version": "1.0"
+      }
+    ]
+  },
+  "verification_oracle": {
+    "engine": "opa",
+    "entrypoint": "data.archinex.adr015.status",
+    "policy_files": [
+      {
+        "filename": "policy.rego",
+        "sha256": "f895c4f7680a5dc4ec90909b1ba78b2251b0c686a1c3e05160013b029ec08614"
+      }
+    ],
+    "self_test": {
+      "cases": [
+        {
+          "name": "intra_zone_compliant",
+          "description": "Flux intra-zone conforme autorise",
+          "expected_verdict": "compliant"
+        },
+        {
+          "name": "exception_flow_telemetry",
+          "description": "Flux d exception autorise en telemetrie",
+          "expected_verdict": "compliant"
+        },
+        {
+          "name": "cross_zone_violation",
+          "description": "Violation d isolation entre OAM et user plane",
+          "expected_verdict": "violated",
+          "expected_violations": ["rule_cross_zone_isolation"]
+        },
+        {
+          "name": "unsecured_oam_violation",
+          "description": "Flux entrant non securise vers la zone OAM",
+          "expected_verdict": "violated",
+          "expected_violations": ["rule_unsecured_oam"]
+        },
+        {
+          "name": "unresolved_ip",
+          "description": "IP source ou destination hors prefixe de zone",
+          "expected_verdict": "insufficient_input"
+        },
+        {
+          "name": "empty_flows",
+          "description": "Aucun flux reseau observe",
+          "expected_verdict": "not_applicable"
+        }
+      ]
+    },
+    "mutation_manifest": {
+      "mutants": [
+        {
+          "id": "mutant-drop-deny_cross_zone_isolation-1",
+          "description": "Suppression du contrôle d isolation cross-zone",
+          "target_rule": "deny_cross_zone_isolation"
+        },
+        {
+          "id": "mutant-drop-deny_unsecured_oam-2",
+          "description": "Suppression du contrôle d acces securise OAM",
+          "target_rule": "deny_unsecured_oam"
+        }
+      ]
+    }
+  },
+  "provenance": {
+    "production_mode": "human-authored",
+    "created_at": "2026-10-29T10:15:00Z"
+  }
+}

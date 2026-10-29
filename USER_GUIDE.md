@@ -346,17 +346,71 @@ Accessible depuis le dialogue d'homologation (`FreezeSectionDialog`) :
 
 ---
 
-## 12. D�monstrateur & Ensemencements D�mo (LUMICC / "Lulu")
+## 12. D�monstrateur & Ensemencements D�mo (LUMICC / "Lulu")
 
-Pour pr�parer rapidement une session de d�mo ou des tests interactifs sans ressaisie manuelle, Archinex fournit un ensemencement d�di� du dossier r�el **LUMICC Lot 1** :
+Pour pr�parer rapidement une session de d�mo ou des tests interactifs sans ressaisie manuelle, Archinex fournit un ensemencement d�di� du dossier r�el **LUMICC Lot 1** :
 
 ``bash
-# R�initialisation � l'�tat "Juste Apr�s Ingestion" (7 sujets L1_framed, 0 d�cision scell�e)
+# R�initialisation � l'�tat "Juste Apr�s Ingestion" (7 sujets L1_framed, 0 d�cision scell�e)
 npm run seed:lulu
 ``n
-Cette commande r�initialise l'espace projet `lumicc-lot1-noc` dans la base SQLite locale (`dev.db`) et ins�re l'audit J0 de 92 clauses dans l'historique des d�pouillements. Elle permet de d�rouler en direct les 4 sc�narios de d�lib�ration :
+Cette commande r�initialise l'espace projet `lumicc-lot1-noc` dans la base SQLite locale (`dev.db`) et ins�re l'audit J0 de 92 clauses dans l'historique des d�pouillements. Elle permet de d�rouler en direct les 4 sc�narios de d�lib�ration :
 1. **Cas nominal** (`SUBJ-LUMICC-01`) : arbitrage fluide sur la matrice d'options 3 DC & RTO UDR.
-2. **D�bat contradictoire** (`SUBJ-LUMICC-03`) : controverse infra/s�curit� sur l'oscillateur GNSS 30j et lev�e d'objection.
-3. **Contradiction r�glementaire** (`SUBJ-LUMICC-05`) : blocage Porte G3 sur violation GSMA SGP.22 / NIS2 et alignement souverain.
-4. **Capitalisation doctrinale** (`SUBJ-LUMICC-02`) : passage Porte G4, qualification de portabilit� et transmission au Knowledge Hub LLMOps.
+2. **D�bat contradictoire** (`SUBJ-LUMICC-03`) : controverse infra/s�curit� sur l'oscillateur GNSS 30j et lev�e d'objection.
+3. **Contradiction r�glementaire** (`SUBJ-LUMICC-05`) : blocage Porte G3 sur violation GSMA SGP.22 / NIS2 et alignement souverain.
+4. **Capitalisation doctrinale** (`SUBJ-LUMICC-02`) : passage Porte G4, qualification de portabilit� et transmission au Knowledge Hub LLMOps.
 
+
+---
+
+## 13. Paquets de Décision Exécutables (EDP) & Oracles OPA [Expérimental]
+
+Dans le cadre du lot expérimental (`ARCHINEX_EXPERIMENTAL_EDP=1`), Archinex permet de lier à chaque décision d'architecture arbitrée un **Paquet de Décision Exécutable** (EDP). Ce paquet permet de confronter automatiquement les décisions d'architecture de haut niveau (HLD) aux configurations et manifestes techniques réels ou planifiés (LLD).
+
+### 13.1 Activation du Mode Expérimental
+Le sous-système EDP est strictement hermétique et n'altère en rien le fonctionnement standard d'Archinex s'il n'est pas activé :
+```bash
+# Activation via variable d'environnement (Linux / macOS)
+export ARCHINEX_EXPERIMENTAL_EDP=1
+
+# Activation sous Windows PowerShell
+$env:ARCHINEX_EXPERIMENTAL_EDP="1"
+```
+
+### 13.2 Visualisation dans l'IHM Workbench (`EdpCard`)
+Lorsque le drapeau est actif, la fiche de chaque décision affiche un panneau dédié **Paquet de Décision Exécutable** :
+- **Badge d'état** : `PROPOSÉ`, `VALIDÉ` ou `⚠️ STALE (CADUC)`.
+- **Mode de production** : `human-authored` (rédigé par l'architecte) ou `llm-proposed-human-approved` (assisté par l'IA sous chaîne déterministe).
+- **Validateur humain (Invariant II)** : Nom et rôle de l'architecte ayant formellement homologué le paquet.
+- **Score de mutation** : Pourcentage de mutants tués par la suite d'auto-test (exigence de 100 %).
+- **Dernier verdict** : Statut d'évaluation (`COMPLIANT`, `VIOLATED`, `INSUFFICIENT_INPUT`, `NOT_APPLICABLE`) et liste des violations constatées.
+- **Actions disponibles** :
+  - *Valider le Paquet (G3)* : réservé aux rôles d'architectes habilités (`Lead Architect`, `Domain Architect`).
+  - *Contester (Human Statement)* : ouvre un formulaire d'objection architecturale motivée (**Invariant III**).
+
+### 13.3 Vérification Hors-Ligne sur un Cas Simple (`edp verify`)
+Les intégrateurs peuvent tester la conformité de leurs artefacts en local, sans accès réseau :
+
+```bash
+# 1. Vérification du paquet de référence ADR-012 sur une entrée conforme :
+npx tsx scripts/edp-verify.ts \
+  --edp edp/examples/adr012-baremetal/edp.json \
+  --input edp/examples/adr012-baremetal/mocks/pass.json
+
+# 2. Vérification sur une entrée défaillante (violation BMC URL / OOB IP) :
+npx tsx scripts/edp-verify.ts \
+  --edp edp/examples/adr012-baremetal/edp.json \
+  --input edp/examples/adr012-baremetal/mocks/fail_rule_2_bmc_url_mismatch.json
+```
+
+### 13.4 Exécution de la Porte d'Architecture CI (`edp-gate`)
+Pour valider l'intégrité globale d'un paquet en intégration continue (schéma, tests OPA, mutation à 100 % et vérification d'entrées) :
+```bash
+# Exécution de la porte d'architecture complète :
+npx tsx scripts/edp-gate.ts
+```
+Codes de sortie retournés :
+- **0** (`compliant`) : Tous les contrôles et artefacts sont conformes.
+- **1** (`violated`) : Défaillance architecturale détectée.
+- **2** (`insufficient_input`) : Entrée incomplète ou source manquante (anti-vacuité).
+- **3** (`unavailable`) : OPA absent ou anomalie d'exécution.

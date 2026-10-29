@@ -170,6 +170,28 @@
 		isEvaluatingCell = true;
 	}
 
+	function extractErrorMessage(err: any, res: Response, fallback: string): string {
+		let message = err.reason || err.error || err.message;
+		if (!message) {
+			if (res.status === 401) {
+				return 'Non authentifié : session requise (veuillez vous connecter sur /login).';
+			} else if (res.status === 403) {
+				return 'Accès refusé : vous devez être membre du projet pour effectuer cette action.';
+			} else if (res.status === 400 && err.details) {
+				return 'Erreur de validation des données : ' + JSON.stringify(err.details);
+			} else {
+				return fallback + ' (HTTP ' + res.status + ')';
+			}
+		}
+		if (res.status === 401 && !message.toLowerCase().includes('connecter')) {
+			return message + ' (veuillez vous connecter sur /login)';
+		}
+		if (res.status === 403 && !message.toLowerCase().includes('projet')) {
+			return message + ' (action réservée aux membres du projet)';
+		}
+		return message;
+	}
+
 	async function handleSaveEvaluation() {
 		if (!activeOption || !activeCriterion) return;
 
@@ -201,18 +223,19 @@
 
 			if (!res.ok) {
 				const err = await res.json().catch(() => ({}));
-				throw new Error(err.message || 'Erreur lors de la sauvegarde de l\'évaluation');
+				throw new Error(extractErrorMessage(err, res, 'Erreur lors de la sauvegarde de l\'évaluation'));
 			}
 
 			const saved = await res.json();
+			const evaluation = saved.evaluation ?? saved;
 			// Update local evaluations
 			const idx = evaluations.findIndex(
 				(e) => e.optionId === activeOption!.id && e.criterionId === activeCriterion!.id
 			);
 			if (idx >= 0) {
-				evaluations[idx] = saved;
+				evaluations[idx] = evaluation;
 			} else {
-				evaluations.push(saved);
+				evaluations.push(evaluation);
 			}
 
 			isEvaluatingCell = false;
@@ -231,13 +254,15 @@
 
 			if (!res.ok) {
 				const err = await res.json().catch(() => ({}));
-				throw new Error(err.message || 'Erreur lors de la création du critère');
+				throw new Error(extractErrorMessage(err, res, 'Erreur lors de la création du critère'));
 			}
 
 			const created = await res.json();
-			criteria.push(created);
+			const criterion = created.criterion ?? created;
+			criteria.push(criterion);
 		} catch (err: any) {
 			onError(err.message);
+			throw err;
 		}
 	}
 
@@ -251,13 +276,15 @@
 
 			if (!res.ok) {
 				const err = await res.json().catch(() => ({}));
-				throw new Error(err.message || 'Erreur lors de la création de l\'option');
+				throw new Error(extractErrorMessage(err, res, 'Erreur lors de la création de l\'option'));
 			}
 
 			const created = await res.json();
-			options.push(created);
+			const option = created.option ?? created;
+			options.push(option);
 		} catch (err: any) {
 			onError(err.message);
+			throw err;
 		}
 	}
 
@@ -271,13 +298,15 @@
 
 			if (!res.ok) {
 				const err = await res.json().catch(() => ({}));
-				throw new Error(err.message || 'Erreur lors de l\'enregistrement du compromis');
+				throw new Error(extractErrorMessage(err, res, 'Erreur lors de l\'enregistrement du compromis'));
 			}
 
 			const created = await res.json();
-			tradeOffs.push(created);
+			const tradeOff = created.tradeOff ?? created;
+			tradeOffs.push(tradeOff);
 		} catch (err: any) {
 			onError(err.message);
+			throw err;
 		}
 	}
 

@@ -8,6 +8,19 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Matrice Multi-Critères : Déblocage de la Création d'Options/Critères (Schéma Zod API) & Ajout Réactif
+- **Correction du schéma de validation de l'API (`optionsApiSchemas.ts`, `optionsDb.ts`)** :
+  - Rendu du champ `id` optionnel (`id: z.string().min(1).optional()`) dans `CreateOptionSchema`, `CreateCriterionSchema` et `CreateTradeOffSchema`, levant l'erreur HTTP 400 (Validation failed) lors de l'ajout manuel d'une proposition par un opérateur.
+  - Génération automatique déterministe de l'identifiant côté backend dans `createTradeOff` si non spécifié par le client (aligné sur `createOption` et `createCriterion`).
+- **Déballage réactif et remontée granulaire des erreurs (`OptionsMatrix.svelte`)** :
+  - Déballage systématique de la réponse API (`created.option ?? created`, `created.criterion ?? created`, etc.), garantissant l'apparition instantanée de la 4ᵉ colonne (et des suivantes) avec son libellé et son icône d'origine humaine dans la matrice sans nécessiter de rafraîchir la page.
+  - Extraction granulaire des erreurs HTTP (`err.reason || err.error || err.message`) avec messages d'action explicites en cas d'expiration de session (401) ou de droits restreints (403).
+- **Attente asynchrone et maintien de la saisie (`OptionEditor.svelte`, `CriteriaEditor.svelte`)** :
+  - Attente de la validation serveur (`await onSave(...)`) avant fermeture de la modale pour éviter les fermetures silencieuses sur échec réseau ou d'autorisation, et conservation des champs saisis en cas d'erreur.
+  - État de soumission (`isSubmitting`) désactivant le bouton pendant le traitement pour éviter les doubles créations.
+- **Tests** : extension des suites de contrat `tests/contract/options-evaluations.test.ts` (validation Zod avec/sans id) et `tests/contract/options-matrix-view.test.ts` (apparition dynamique de la 4ᵉ colonne).
+
+
 ### Lisibilité & Ergonomie de la Matrice Multi-Critères (Options & Propositions Longues)
 - **Affichage multi-lignes sans tronquage (`OptionsMatrix.svelte`)** : suppression de la coupure forcée `line-clamp-1` sur les titres de propositions au profit d'un retour à la ligne naturel (`whitespace-normal break-words leading-snug`), préservant l'intégralité des intitulés longs même complexes.
 - **Largeur optimisée des colonnes d'options** : passage de `min-w-[170px]` à `min-w-[220px] max-w-[320px]` pour offrir un espace de lecture aéré sans dégrader le défilement horizontal.

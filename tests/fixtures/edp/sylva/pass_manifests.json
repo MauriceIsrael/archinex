@@ -1,0 +1,32 @@
+[
+  {
+    "apiVersion": "cluster.x-k8s.io/v1beta1",
+    "kind": "Cluster",
+    "metadata": {
+      "name": "telco-edge-01",
+      "namespace": "sylva-system"
+    },
+    "spec": {
+      "infrastructureRef": {
+        "apiVersion": "infrastructure.cluster.x-k8s.io/v1beta1",
+        "kind": "Metal3Cluster",
+        "name": "telco-edge-infra"
+      }
+    }
+  },
+  {
+    "apiVersion": "metal3.io/v1alpha1",
+    "kind": "BareMetalHost",
+    "metadata": {
+      "name": "srv-edge-01",
+      "namespace": "sylva-system"
+    },
+    "spec": {
+      "role": "control-plane",
+      "bmc": {
+        "address": "https://192.0.2.10/redfish/v1",
+        "credentialsName": "srv-edge-01-bmc-secret"
+      }
+    }
+  }
+]

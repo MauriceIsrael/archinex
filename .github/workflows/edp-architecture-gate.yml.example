@@ -1,0 +1,43 @@
+name: EDP Architecture Gate (Experimental)
+
+on:
+  pull_request:
+    paths:
+      - 'edp/**'
+      - 'policies/**'
+      - 'src/lib/**/edp/**'
+      - 'scripts/edp-*'
+  workflow_dispatch:
+
+jobs:
+  edp-gate:
+    name: Architecture Governance Gate
+    runs-on: ubuntu-latest
+    env:
+      ARCHINEX_EXPERIMENTAL_EDP: '1'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Install Pinned OPA (v1.21.4)
+        run: |
+          chmod +x scripts/install-opa.sh
+          ./scripts/install-opa.sh
+
+      - name: Run Contract Tests
+        run: npx vitest run tests/contract/edp-*.test.ts
+
+      - name: Run Architecture Gate
+        run: |
+          chmod +x scripts/edp-gate.sh
+          ./scripts/edp-gate.sh

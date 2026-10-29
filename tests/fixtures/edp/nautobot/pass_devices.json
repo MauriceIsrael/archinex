@@ -1,0 +1,25 @@
+[
+  {
+    "name": "srv-edge-01",
+    "status": {
+      "name": "Planned",
+      "value": "planned"
+    },
+    "role": "edge-server",
+    "oob_ip": {
+      "address": "192.0.2.10/24"
+    },
+    "interfaces": [
+      {
+        "name": "oob0",
+        "type": "management",
+        "enabled": true
+      },
+      {
+        "name": "eth0",
+        "type": "10gbase-t",
+        "enabled": true
+      }
+    ]
+  }
+]

@@ -18,6 +18,12 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
   - Ajout du raccourci clavier `Ctrl+Enter` / `Cmd+Enter` pour soumettre directement un argument ou une hypothèse étayée, ou afficher immédiatement le champ manquant requis.
   - Signalisation visuelle rehaussée (`bg-amber-500/10 border-amber-500/25`) de la raison de validation (obligation de fondement étayé d'au moins 5 caractères).
 - **Tests** : extension de la suite de contrat `tests/contract/structured-composer.test.ts` validant la propagation des notifications vers la file des toasts réactifs.
+### Lisibilité & Ergonomie de la Matrice Multi-Critères (Options & Propositions Longues)
+- **Affichage multi-lignes sans tronquage (`OptionsMatrix.svelte`)** : suppression de la coupure forcée `line-clamp-1` sur les titres de propositions au profit d'un retour à la ligne naturel (`whitespace-normal break-words leading-snug`), préservant l'intégralité des intitulés longs même complexes.
+- **Largeur optimisée des colonnes d'options** : passage de `min-w-[170px]` à `min-w-[220px] max-w-[320px]` pour offrir un espace de lecture aéré sans dégrader le défilement horizontal.
+- **Badges d'identification rapides (`Option A`, `Option B`...)** : attribution automatique d'un repère visuel standardisé pour chaque colonne facilitant le repérage et la comparaison.
+- **Tiroir / bouton de détails pour le résumé technique** : intégration d'un bouton `Détails` (`Info`) dans chaque en-tête permettant de déplier/replier le résumé technique (`opt.summary`) de la proposition directement dans la grille, complété par des infobulles natives (`title`) complètes au survol.
+- **Tests** : suite de tests de contrat dédiée `tests/contract/options-matrix-view.test.ts` validant l'affichage des badges, l'enroulement multi-lignes, les infobulles et les dimensions des colonnes.
 
 ### Ergonomie de la Délibération : Espace Sujet Unifié, Vue Split par Défaut, Liste Repliable et Capitalisation G4 Contextualisée
 - **Fusion du panneau principal et du Dossier du sujet (`DeliberationWorkbench.svelte`, `SubjectThreadView.svelte`)** : suppression de la 3e colonne redondante au profit d’un **Espace Sujet Unifié** (9 à 12 colonnes) structuré autour d’un en-tête unique, de la timeline horizontale de maturation en haut et de 4 volets complémentaires sans doublon (`💬 Délibération & Cadrage`, `⚖️ Options, Matrice & Arbitrage`, `📚 Doctrines, RFP & Brouillon`, `🌿 Cascade & Règles`).

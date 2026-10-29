@@ -6,37 +6,37 @@
   - [x] 1.2 Citer et documenter les impacts des Invariants I, II, III, IV, V, VI, VII et X
   - [x] 1.3 Fixer le vocabulaire du verdict (`compliant | violated | not_applicable | insufficient_input`)
   - [x] 1.4 Documenter le cadre expérimental (`ARCHINEX_EXPERIMENTAL_EDP=1` et branche `experimental/edp`)
-- [ ] 2. JSON Schema du Paquet de Décision Exécutable + Fixtures (#168)
-  - [ ] 2.1 Créer `src/lib/schemas/edp.schema.json`
-  - [ ] 2.2 Créer au moins 2 fixtures valides (dont ADR-012) et 8 fixtures invalides
-  - [ ] 2.3 Écrire les tests paramétrés de validation de schéma
-- [ ] 3. Contrôle de Pureté de l'Intension (#169)
-  - [ ] 3.1 Créer `src/lib/domain/edp/intentionPurity.ts` (détection IPv4, IPv6, CIDR, MAC, hostname pointé)
-  - [ ] 3.2 Implémenter la liste blanche d'exceptions (versions, 3GPP, 5QI, exemples balisés)
-  - [ ] 3.3 Écrire les tests unitaires purs (zéro faux positif)
-- [ ] 4. Contrat d'Entrée de Raffinement (`refined_input`) (#170)
-  - [ ] 4.1 Créer `src/lib/schemas/refined_input.schema.json` avec métadonnées de provenance
-  - [ ] 4.2 Créer le validateur de complétude `src/lib/domain/edp/validateRefinedInput.ts`
-  - [ ] 4.3 Écrire les tests de contrat (refus des entrées incomplètes, vides ou non déclarées)
+- [x] 2. JSON Schema du Paquet de Décision Exécutable + Fixtures (#168)
+  - [x] 2.1 Créer `src/lib/schemas/edp.schema.json`
+  - [x] 2.2 Créer au moins 2 fixtures valides (dont ADR-012) et 8 fixtures invalides
+  - [x] 2.3 Écrire les tests paramétrés de validation de schéma
+- [x] 3. Contrôle de Pureté de l'Intension (#169)
+  - [x] 3.1 Créer `src/lib/domain/edp/intentionPurity.ts` (détection IPv4, IPv6, CIDR, MAC, hostname pointé)
+  - [x] 3.2 Implémenter la liste blanche d'exceptions (versions, 3GPP, 5QI, exemples balisés)
+  - [x] 3.3 Écrire les tests unitaires purs (zéro faux positif)
+- [x] 4. Contrat d'Entrée de Raffinement (`refined_input`) (#170)
+  - [x] 4.1 Créer `src/lib/schemas/refined_input.schema.json` avec métadonnées de provenance
+  - [x] 4.2 Créer le validateur de complétude `src/lib/domain/edp/validateRefinedInput.ts`
+  - [x] 4.3 Écrire les tests de contrat (refus des entrées incomplètes, vides ou non déclarées)
 
 ## Palier 2 : Moteur OPA, Bibliothèque Rego & EDP Référence
-- [ ] 5. Exécuteur OPA déterministe (#171)
-  - [ ] 5.1 Créer `src/lib/server/edp/opaRunner.ts` (timeout, typage strict, gestion d'indisponibilité)
-  - [ ] 5.2 Créer le script de téléchargement et vérification SHA-256 d'OPA pour la CI
-  - [ ] 5.3 Tests de contrat avec faux binaire et binaire absent (`unavailable`, jamais `pass`)
-- [ ] 6. Bibliothèque Rego commune & convention de verdict à 4 états (#175)
-  - [ ] 6.1 Créer `policies/lib/edp_common.rego` (`host_of`, `missing_inputs`, statut standard)
-  - [ ] 6.2 Écrire la suite de tests OPA unitaires
-- [ ] 7. EDP de référence ADR-012 (substrat bare-metal) (#180)
-  - [ ] 7.1 Intégrer le paquet `edp/examples/adr012-baremetal/`
-  - [ ] 7.2 Corriger l'hôte BMC, la détection des champs absents et isoler l'ontologie
-  - [ ] 7.3 Fournir le mock conforme et les mocks à défaut unique par règle
-- [ ] 8. Garde de mutation (#176)
-  - [ ] 8.1 Créer le script `scripts/edp-mutation-gate.ts`
-  - [ ] 8.2 Valider le score de mutation 6/6 sur l'EDP ADR-012
-- [ ] 9. Contrat des fixtures (#172)
-  - [ ] 9.1 Créer le validateur de fixtures (1 pass, 1 fail par règle, adresses de doc RFC 5737/3849)
-  - [ ] 9.2 Remplacer les adresses privées du PoC ADR-012 par les plages réservées
+- [x] 5. Exécuteur OPA déterministe (#171)
+  - [x] 5.1 Créer `src/lib/server/edp/opaRunner.ts` (timeout, typage strict, gestion d'indisponibilité)
+  - [x] 5.2 Créer le script de téléchargement et vérification SHA-256 d'OPA pour la CI
+  - [x] 5.3 Tests de contrat avec faux binaire et binaire absent (`unavailable`, jamais `pass`)
+- [x] 6. Bibliothèque Rego commune & convention de verdict à 4 états (#175)
+  - [x] 6.1 Créer `policies/lib/edp_common.rego` (`host_of`, `missing_inputs`, statut standard)
+  - [x] 6.2 Écrire la suite de tests OPA unitaires
+- [x] 7. EDP de référence ADR-012 (substrat bare-metal) (#180)
+  - [x] 7.1 Intégrer le paquet `edp/examples/adr012-baremetal/`
+  - [x] 7.2 Corriger l'hôte BMC, la détection des champs absents et isoler l'ontologie
+  - [x] 7.3 Fournir le mock conforme et les mocks à défaut unique par règle
+- [x] 8. Garde de mutation (#176)
+  - [x] 8.1 Créer le script `scripts/edp-mutation-gate.ts`
+  - [x] 8.2 Valider le score de mutation 6/6 sur l'EDP ADR-012
+- [x] 9. Contrat des fixtures (#172)
+  - [x] 9.1 Créer le validateur de fixtures (1 pass, 1 fail par règle, adresses de doc RFC 5737/3849)
+  - [x] 9.2 Remplacer les adresses privées du PoC ADR-012 par les plages réservées
 
 ## Palier 3 : Ontologie & Persistance
 - [ ] 10. Client d'ontologie & contrôle des liaisons (#173)
@@ -74,4 +74,3 @@
   - [ ] 22.1 Rédiger la documentation d'exécution d'EDP hors ligne
 - [ ] 23. Plan d'évaluation & décision de promotion (#189)
   - [ ] 23.1 Rédiger le rapport d'évaluation globale et la recommandation de promotion
-

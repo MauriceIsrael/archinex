@@ -34,12 +34,21 @@ export const PATCH: RequestHandler = async (event) => {
 		if (!parsed.success) {
 			return json({ error: 'Validation failed', details: parsed.error.format() }, { status: 400 });
 		}
-		// L3 et au-delà ne s'obtiennent que par l'arbitrage formel (POST …/decision), qui enregistre la décision.
-		if (parsed.data.maturityLevel && ['L3_decided', 'L4_specified', 'L5_archived'].includes(parsed.data.maturityLevel)) {
+		// L3 s'obtient uniquement par l'arbitrage formel (POST …/decision), qui enregistre la décision.
+		if (parsed.data.maturityLevel === 'L3_decided') {
 			return json(
 				{ error: "Le niveau L3 (décidé) s'obtient uniquement par l'arbitrage formel du sujet (POST …/decision).", code: 'FORMAL_DECISION_REQUIRED' },
 				{ status: 422 }
 			);
+		}
+		if (parsed.data.maturityLevel && ['L4_specified', 'L5_archived'].includes(parsed.data.maturityLevel)) {
+			const currentSubj = await getSubject(params.projectId, params.subjectId);
+			if (currentSubj && !['L3_decided', 'L4_specified', 'L5_archived'].includes(currentSubj.maturityLevel)) {
+				return json(
+					{ error: "Le niveau L3 (décidé) préalable est requis avant d'homologuer ou d'archiver (L4/L5).", code: 'FORMAL_DECISION_REQUIRED' },
+					{ status: 422 }
+				);
+			}
 		}
 
 		const actor = getActorFromEvent(event);

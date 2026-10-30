@@ -8,6 +8,16 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Délibération & Homologation : Franchissement du Jalon L4 et Visibilité de l'Affirmation (#35)
+- **Affirmation formelle de décision (`DecisionSurveyCard` & `arbitrationDb`)** :
+  - Restitution systématique de l'événement `DECISION_ASSERTED` dans `getSubjectArbitrationContext` via le champ `validatedBy`.
+  - Masquage automatique du bouton d'action *"Affirmer la décision et ses faits"* une fois l'affirmation actée par un pair, au profit du bandeau vert d'autorité certifiant le décideur habilité.
+- **Homologation de la Spécification Technique (Jalon L4)** :
+  - **Correction du faux blocage `FORMAL_DECISION_REQUIRED`** : `deliberationStore.setSubjectLevel` et la route API `PATCH /subjects/[id]` n'exigent plus l'arbitrage formel lorsqu'un sujet est déjà acté (`L3_decided`) et qu'il franchit le jalon d'ingénierie `L4_specified`.
+  - **Prise en compte réactive de la spécification rédigée** : le critère `specification_drafted` est immédiatement validé dès lors qu'un contenu de spécification DLD est renseigné dans l'atelier, et synchronisé en base (`deliberationStatus: 'specified'`).
+  - **Résolution des sous-sujets dérivés (A28)** : le bouton d'action du critère de sous-sujets non cadrés oriente directement vers l'onglet *Questions en cascade* pour cadrer les sous-sujets en attente.
+
+
 ### Délibération : Nettoyage syntaxique du composant fil de délibération (#35)
 - **Correction du gabarit Svelte (`SubjectThreadView.svelte`)** :
   - Élimination d'un fragment dupliqué résiduel (balises fermantes orphelines et ré-instanciation de l'en-tête de spécification DLD) provoquant une erreur de compilation Svelte `block_unexpected_close`.

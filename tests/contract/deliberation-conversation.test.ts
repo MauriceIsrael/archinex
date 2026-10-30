@@ -378,5 +378,41 @@ describe('A24 — Délibération : Un sujet = une conversation (Issue #35)', () 
 			expect(html).toContain('data-testid="prepare-kb-candidates-cta"');
 			expect(html).toContain('Préparer les Candidats KB maintenant');
 		});
+		it("SubjectThreadView affiche l'atelier de specification DLD et la decision haut niveau en onglet Doctrines & Brouillon", () => {
+			const targetSubject = deliberationStore.subjects[0];
+			const testDecision = {
+				id: 'dec_test_1',
+				subjectId: targetSubject.id,
+				retainedOptionId: 'opt-a',
+				rejected: [],
+				rationale: "Validation de l'hybridation pour performance et souverainete.",
+				reversibility: 'reversible' as const,
+				arbiterId: 'Alice',
+				arbiterRole: 'lead_architect',
+				decidedAt: new Date().toISOString(),
+				acceptedViolations: [],
+				kbCandidateIds: []
+			};
+
+			const { html } = render(SubjectThreadView, {
+				props: {
+					subjectId: targetSubject.id,
+					projectId: deliberationStore.activeEngagement.id,
+					userRole: 'lead_architect',
+					isHumanUser: true,
+					initialActiveWorkspaceTab: 'kb',
+					initialDecision: testDecision
+				}
+			});
+
+			expect(html).toContain('Spécification Haut Niveau : Décision L3 Opposable');
+			expect(html).toContain("Validation de l'hybridation pour performance et souverainete.");
+			expect(html).toContain('data-testid="toggle-doctrine-drawer-btn"');
+			expect(html).toContain('Doctrines applicables');
+			expect(html).toContain('data-testid="detailed-spec-textarea"');
+			expect(html).toContain('data-testid="bootstrap-spec-ai-btn"');
+			expect(html).toContain('data-testid="save-detailed-spec-btn"');
+			expect(html).toContain('data-testid="validate-l4-spec-btn"');
+		});
 	});
 });

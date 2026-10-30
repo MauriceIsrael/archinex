@@ -1326,6 +1326,34 @@
 					<span class="font-bold text-foreground text-xs">
 						Doctrines applicables & Règles (#base)
 					</span>
+					</span>
+				</div>
+				<button
+					type="button"
+					onclick={() => {
+						activeWorkspaceTab = 'matrix';
+						void refreshMatrixData();
+					}}
+					class="px-2.5 py-1 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-semibold shrink-0 cursor-pointer text-[11px]"
+				>
+					Aller à la Matrice →
+				</button>
+			</div>
+		{/if}
+
+		<!-- 2. BANDEAU ACCORDÉON COMPACT : Référentiel Doctrinal (LLMOps) repliable -->
+		<div class="rounded-xl border border-indigo-500/25 bg-card/60 overflow-hidden shadow-2xs">
+			<button
+				type="button"
+				data-testid="toggle-doctrine-drawer-btn"
+				onclick={() => (isDoctrineDrawerOpen = !isDoctrineDrawerOpen)}
+				class="w-full flex items-center justify-between p-3 bg-indigo-500/5 hover:bg-indigo-500/10 transition-colors text-left cursor-pointer"
+			>
+				<div class="flex items-center gap-2">
+					<BookOpen class="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+					<span class="font-bold text-foreground text-xs">
+						Doctrines applicables & Règles (#base)
+					</span>
 					<span class="font-mono text-[10px] px-1.5 py-0.2 rounded bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-500/20">
 						{doctrineItems.length} exigences · {citedKbRefs.length} citées
 					</span>
@@ -1531,6 +1559,72 @@
 						<TelegraphicDraftView readOnlyMode={true} />
 					</div>
 				{/if}
+
+					{#each requiredByFramework as [framework, items] (framework)}
+						<details class="rounded-lg border bg-muted/20 p-2">
+							<summary class="cursor-pointer font-semibold text-[11px]">
+								Contrôles {framework} imposés par les référentiels déclarés ({items.length})
+							</summary>
+							<ul class="mt-2 space-y-1 pl-2">
+								{#each items as item (item.id)}
+									<li><span class="font-mono font-semibold">{item.id}</span> — {item.title}</li>
+								{/each}
+							</ul>
+						</details>
+					{/each}
+				</div>
+			{/if}
+		</div>
+
+		<!-- 3. ATELIER DE SPÉCIFICATION TECHNIQUE DÉTAILLÉE (DLD) -->
+		<div class="rounded-xl border bg-card p-4 space-y-4 shadow-2xs">
+			<div class="flex items-center justify-between pb-3 border-b flex-wrap gap-2">
+				<div class="flex items-center gap-2">
+					<FileText class="h-4 w-4 text-primary" />
+					<div>
+						<h4 class="font-bold text-foreground text-xs">Spécification Technique & Déclinaison d'Ingénierie (DLD)</h4>
+						<p class="text-[11px] text-muted-foreground">Formalisation des composants cibles, protocoles, interfaces, matrice de flux et exigences de mise en œuvre.</p>
+					</div>
+				</div>
+
+				<div class="flex items-center gap-2 flex-wrap">
+					<!-- Bouton Assistant IA -->
+					{#if subjectDecision}
+						<button
+							type="button"
+							data-testid="bootstrap-spec-ai-btn"
+							onclick={handleGenerateSpecFromDecision}
+							class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-semibold text-xs shadow-2xs transition-colors cursor-pointer"
+							title="Pré-remplir la spécification technique détaillée à partir de la décision L3"
+						>
+							<Sparkles class="h-3.5 w-3.5 text-amber-300" />
+							<span>✨ Pré-remplir avec l'IA</span>
+						</button>
+					{/if}
+
+					<!-- Bouton Sauvegarder -->
+					<button
+						type="button"
+						data-testid="save-detailed-spec-btn"
+						onclick={handleSaveDetailedSpec}
+						class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border bg-card hover:bg-muted font-semibold text-xs transition-colors cursor-pointer"
+					>
+						<Check class="h-3.5 w-3.5 text-emerald-600" />
+						<span>Enregistrer</span>
+					</button>
+
+					<!-- Bouton Homologation L4 (Lead Architect) -->
+					<button
+						type="button"
+						data-testid="validate-l4-spec-btn"
+						onclick={handleApproveSpecL4}
+						class="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs shadow-2xs transition-colors cursor-pointer"
+						title="Valider la spécification technique et acter le jalon L4"
+					>
+						<CheckCircle2 class="h-3.5 w-3.5" />
+						<span>✅ Homologuer Spécification (L4)</span>
+					</button>
+				</div>
 			</div>
 
 			<!-- Éditeur de la Spécification Détaillée -->
@@ -1538,6 +1632,14 @@
 				<div class="flex items-center justify-between text-[11px] text-muted-foreground">
 					<span class="font-semibold text-foreground">Rédigez ou affinez la spécification d'ingénierie (Markdown supporté) :</span>
 					<span class="italic text-[10px]">Persistance automatique locale</span>
+					<span>Rédigez ou affinez la spécification ci-dessous (Markdown supporté) :</span>
+					<button
+						type="button"
+						onclick={() => (showLegacyTelegraphic = !showLegacyTelegraphic)}
+						class="text-primary hover:underline cursor-pointer"
+					>
+						{showLegacyTelegraphic ? 'Masquer la grille 5 colonnes' : 'Voir la grille télégraphique (5 colonnes) →'}
+					</button>
 				</div>
 
 				<textarea
@@ -1548,6 +1650,14 @@
 					class="w-full rounded-lg border bg-background px-3 py-2.5 text-xs text-foreground font-mono leading-relaxed placeholder:text-muted-foreground/60 focus:ring-1 focus:ring-primary shadow-inner"
 				></textarea>
 			</div>
+
+			<!-- Vue Télégraphique d'appoint (si demandée) -->
+			{#if showLegacyTelegraphic}
+				<div class="pt-3 border-t space-y-2">
+					<span class="text-[11px] font-bold text-foreground">Repères d'affirmation télégraphique :</span>
+					<TelegraphicDraftView readOnlyMode={true} />
+				</div>
+			{/if}
 		</div>
 	</div>
 {/snippet}

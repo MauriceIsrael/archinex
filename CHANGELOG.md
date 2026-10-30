@@ -17,6 +17,7 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
     4. *Critères & Conformité* : « Sur quoi juge-t-on le choix ? » (compteur des critères opposables)
     5. *Arbitrage L3 Acté* : « Quelle option retenue et pourquoi ? » (décision arbitrée et motivée)
   - Clarification du bouton d'accès aux notes télégraphiques d'appoint (*« Consulter les notes télégraphiques brutes (5 colonnes) »*).
+### Délibération & Ingénierie : Atelier de Spécification Détaillée (DLD) et Bandeau Doctrinal Rétractable (#35)
 - **Bannière de Spécification Haut Niveau (Décision L3)** :
   - Dès qu'une décision d'arbitrage est opposable (`L3_decided`), le volet *« 📚 Doctrines, RFP & Brouillon »* ancre en tout début la décision d'arbitrage actée : option retenue, réversibilité, contresignature de l'arbitre et justification technique (`rationale`).
   - La rédaction de la spécification détaillée découle ainsi directement et formellement de la décision prise en amont.

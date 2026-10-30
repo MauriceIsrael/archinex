@@ -81,6 +81,7 @@ export interface Decision {
 	decidedAt: string; // ISO date
 	acceptedViolations: AcceptedViolation[];
 	kbCandidateIds: string[];
+	validatedBy?: string;
 	version?: number;
 }
 

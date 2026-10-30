@@ -1902,12 +1902,12 @@ class DeliberationStore {
 	 * Change le niveau de maturité d'un sujet (ex: passage à L2_decomposed lors de l'élicitation)
 	 */
 	setSubjectLevel(subjectId: string, level: MaturityLevel) {
-		// L3 et au-delà ne s'obtiennent que par l'arbitrage formel.
-		if (level === 'L3_decided' || level === 'L4_specified' || level === 'L5_archived') {
+		const subj = this.subjects.find((s) => s.id === subjectId);
+		// L3 exige l'arbitrage formel s'il n'est pas encore acté
+		if (level === 'L3_decided' && subj?.level !== 'L3_decided') {
 			this.requestFormalDecision(subjectId);
 			return;
 		}
-		const subj = this.subjects.find((s) => s.id === subjectId);
 		if (subj) {
 			subj.level = level;
 			subj.last_transition_date = new Date().toISOString();

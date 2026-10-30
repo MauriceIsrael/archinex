@@ -202,19 +202,32 @@
 		handleSaveDetailedSpec();
 	}
 
-	function handleSaveDetailedSpec() {
+	async function handleSaveDetailedSpec() {
 		if (typeof window !== 'undefined' && projectId && subjectId) {
 			try {
 				localStorage.setItem(`archinex:spec:${projectId}:${subjectId}`, detailedSpecText);
+			} catch {}
+		}
+		if (projectId && subjectId && detailedSpecText && detailedSpecText.trim().length > 0) {
+			try {
+				await patchSubject({ deliberationStatus: 'specified' });
 			} catch {}
 		}
 		deliberationStore.logNotification('Spécification technique détaillée enregistrée.', 'success');
 	}
 
 	async function handleApproveSpecL4() {
-		handleSaveDetailedSpec();
+		await handleSaveDetailedSpec();
 		deliberationStore.setSubjectLevel(subjectId, 'L4_specified');
-		deliberationStore.logNotification('Spécification technique homologuée ! Le sujet franchit le jalon L4 (Spécifié).', 'success');
+		if (projectId && subjectId) {
+			try {
+				await patchSubject({ maturityLevel: 'L4_specified', deliberationStatus: 'specified' });
+				await loadArgumentsAndContext();
+			} catch (err) {
+				console.warn('[Homologation L4] Erreur backend :', err);
+			}
+		}
+		deliberationStore.logNotification('✅ Spécification technique homologuée ! Le sujet franchit le jalon L4 (Spécifié).', 'success');
 	}
 	const activeSubject = $derived(deliberationStore.activeSubject);
 	const activeDraft = $derived(deliberationStore.activeDraft);
@@ -280,6 +293,23 @@
 			options: subjectOptions.map((o) => ({ id: o.id, title: o.title })),
 			arguments: argumentsList,
 			doctrineConstraintsCount: doctrineCount,
+			specificationPresent: Boolean(detailedSpecText && detailedSpecText.trim().length > 0),
+			derivedSubjects: deliberationStore.subjects
+				.filter(
+					(s) =>
+						s.id !== activeSubject.id &&
+						(s.parent_subject_id === activeSubject.id ||
+							(activeSubject.section_ref && s.section_ref?.startsWith(activeSubject.section_ref + '.')))
+				)
+				.map((s) => ({ id: s.id, level: s.level })),
+			decision: subjectDecision
+				? {
+						authorId: subjectDecision.arbiterId,
+						authorRole: subjectDecision.arbiterRole,
+						affirmedBy: subjectDecision.validatedBy,
+						status: subjectDecision.validatedBy ? 'active' : 'proposed'
+				  }
+				: null,
 			actor: {
 				userId: 'current-user',
 				role: userRole,
@@ -288,7 +318,26 @@
 		});
 	});
 
-	const effectiveReport = $derived(criteriaReport || computedReport);
+	const effectiveReport = $derived.by<MaturityTransitionsReport | null>(() => {
+		const base = criteriaReport || computedReport;
+		if (!base) return null;
+		if (detailedSpecText && detailedSpecText.trim().length > 0) {
+			const l4 = base.transitions?.L4_specified;
+			if (l4) {
+				const specCrit = l4.criteria.find((c) => c.id === 'specification_drafted');
+				if (specCrit && !specCrit.satisfied) {
+					specCrit.satisfied = true;
+					l4.missingReasons = l4.missingReasons.filter(
+						(r) => !r.includes('Spécification technique rédigée')
+					);
+					if (l4.missingReasons.length === 0) {
+						l4.allowed = true;
+					}
+				}
+			}
+		}
+		return base;
+	});
 
 	// Objections ouvertes (épinglées en haut)
 	const openObjections = $derived(
@@ -478,11 +527,11 @@
 	}
 
 	async function handleTransitionMaturity(targetLevel: MaturityLevel) {
-		if (
-			targetLevel === 'L3_decided' ||
-			targetLevel === 'L4_specified' ||
-			targetLevel === 'L5_archived'
-		) {
+		if (targetLevel === 'L4_specified') {
+			await handleApproveSpecL4();
+			return;
+		}
+		if (targetLevel === 'L3_decided' && activeSubject?.level !== 'L3_decided') {
 			activeWorkspaceTab = 'matrix';
 			deliberationStore.requestFormalDecision(subjectId);
 			return;
@@ -605,7 +654,7 @@
 				handleInvokeAgent('verifier');
 				break;
 			case 'derive_subjects':
-				isSplitDialogOpen = true;
+				activeWorkspaceTab = 'cascade';
 				break;
 			case 'edit_problem': {
 				activeWorkspaceTab = 'thread';

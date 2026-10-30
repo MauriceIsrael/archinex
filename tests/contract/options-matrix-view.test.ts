@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { render } from 'svelte/server';
 import OptionsMatrix from '$lib/components/deliberation/OptionsMatrix.svelte';
-import type { Option, Criterion, OptionEvaluation } from '$lib/domain/options';
+import type { Option, Criterion, OptionEvaluation, Decision } from '$lib/domain/options';
 
 describe('OptionsMatrix Column Titles & Readability Contract (Lot A2)', () => {
 	const sampleCriteria: Criterion[] = [

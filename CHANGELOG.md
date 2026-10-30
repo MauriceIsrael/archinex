@@ -8,6 +8,12 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Matrice Multi-Critères : Explicitation des Termes Déclencheurs / Violés dans les Alertes de Conformité
+- **Infobulle et diagnostic granulaire de conformité (`OptionsMatrix.svelte`)** :
+  - Enrichissement de l'infobulle (`title`) de l'étiquette « Non conforme » au survol : mention explicite des termes détectés dans le texte de l'option (`matchedTerms`) ayant déclenché la clause ou l'interdiction (`• Termes détectés / déclencheurs : « ... »`).
+  - Affichage direct des termes déclencheurs dans le bandeau rouge de décision L3 (« Conformité réglementaire de l'option retenue ») pour guider l'architecte dans la justification de l'écart ou la rectification du texte.
+- **Tests** : extension de la suite de contrat `tests/contract/options-matrix-view.test.ts`.
+
 ### Préférence Utilisateur : Mémorisation du Dernier Sujet de Délibération dans le LocalStorage
 - **Persistance automatique et scopée par espace (`deliberationStore.svelte.ts`)** :
   - Enregistrement réactif du sujet actif sélectionné dans le `localStorage` sous la clé `archinex:activeSubjectId:<engagementId>` lors de l'appel à `selectSubject(id)`.

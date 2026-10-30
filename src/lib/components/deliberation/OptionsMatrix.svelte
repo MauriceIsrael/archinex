@@ -29,6 +29,7 @@
 	import CriteriaEditor from './CriteriaEditor.svelte';
 	import OptionEditor from './OptionEditor.svelte';
 	import TradeOffList from './TradeOffList.svelte';
+	import CapitalizationPanel from './CapitalizationPanel.svelte';
 
 	let {
 		projectId = '',
@@ -733,6 +734,13 @@
 		{options}
 		onAddTradeOff={handleAddTradeOff}
 	/>
+
+	<!-- Section Capitalisation Knowledge Hub (Porte G4) -->
+	{#if decision}
+		<div id="capitalization-section" class="pt-4 border-t border-border/60">
+			<CapitalizationPanel {projectId} {subjectId} {decision} {options} />
+		</div>
+	{/if}
 </div>
 
 <!-- Modal Évaluation d'une Cellule -->

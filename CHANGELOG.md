@@ -19,6 +19,12 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
   - **Support API souverain** : prise en charge du paramètre `exclude_own=true` et transmission du handle d'acteur sur `GET /api/knowledge/reviews/inbox` et `LLMOpsClient.getReviewInbox`.
 - **Tests** :
   - Nouvelle suite de tests de contrat `tests/contract/kb-review-inbox-authorship.test.ts` validant le marquage `isAuthor`, le filtrage avec `excludeOwn`, la visibilité croisée pour les pairs et l'interdiction constitutionnelle d'auto-évaluation.
+### Capitalisation Knowledge Hub : Intégration Directe du Panneau Porte G4 dans la Matrice Multi-Critères
+- **Intégration et scroll fluide (`OptionsMatrix.svelte`, `SubjectThreadView.svelte`)** :
+  - Montage direct du composant `CapitalizationPanel` sous la grille d'options (`#capitalization-section`) dès qu'une décision d'architecture est actée (`L3_decided`).
+  - Fonctionnement immédiat du bouton « Candidats KB (G4) » de la bannière de fil de délibération : le clic bascule sur l'onglet matrice et défile directement jusqu'à la section de capitalisation, permettant à tout architecte de préparer et soumettre les candidats sans navigation superflue.
+- **Tests** : extension de la suite de contrat `tests/contract/options-matrix-view.test.ts` validant la présence de `id="capitalization-section"` et du bouton de préparation des candidats.
+
 ### Matrice Multi-Critères : Amélioration de la Visibilité du Bouton « Modifier » des Options Humaines
 - **Affichage et ergonomie renforcée (`OptionsMatrix.svelte`)** :
   - Style visuel rehaussé pour le bouton `Modifier` dans l'en-tête de colonne avec badge violet contrasté (`bg-purple-500/10 text-purple-700 border-purple-500/30`), supprimant le masquage adaptatif (`hidden sm:inline`) pour garantir la présence permanente du libellé textuel quelle que soit la largeur de colonne ou la taille d'écran.

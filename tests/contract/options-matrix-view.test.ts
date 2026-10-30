@@ -201,4 +201,36 @@ describe('OptionsMatrix Column Titles & Readability Contract (Lot A2)', () => {
 		expect(html).not.toContain('aria-label="Modifier Option B"');
 		expect(html).toContain('Modifier');
 	});
+
+	it('intègre la section de capitalisation KB (id=capitalization-section) dès qu\'une décision est actée', () => {
+		const sampleDecision: Decision = {
+			id: 'dec-1',
+			subjectId: 'subj-architecture-data',
+			retainedOptionId: 'opt-kafka-event-streaming',
+			rejected: [{ optionId: 'opt-rabbitmq-amqp', reason: 'Moins adapté' }],
+			rationale: 'Solution souveraine hautement résiliente.',
+			reversibility: 'reversible',
+			arbiterId: 'Alice',
+			arbiterRole: 'lead_architect',
+			decidedAt: new Date().toISOString(),
+			acceptedViolations: [],
+			kbCandidateIds: []
+		};
+
+		const { html } = render(OptionsMatrix, {
+			props: {
+				projectId: 'proj-1',
+				subjectId: 'subj-architecture-data',
+				criteria: sampleCriteria,
+				options: sampleOptions,
+				evaluations: sampleEvaluations,
+				tradeOffs: [],
+				decision: sampleDecision
+			}
+		});
+
+		expect(html).toContain('id="capitalization-section"');
+		expect(html).toContain('Capitalisation vers le Knowledge Hub (Porte G4)');
+		expect(html).toContain('Préparer les Candidats KB');
+	});
 });

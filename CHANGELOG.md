@@ -8,6 +8,12 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Délibération : Clarté et restitution détaillée des erreurs de validation de décision (#35)
+- **Restitution explicite des contraintes d'arbitrage (`POST /decision` & IHM)** :
+  - Restitution dans le message d'erreur des champs en défaut précis (ex: motivation trop courte, option retenue absente, justification de dispense incomplète) plutôt qu'un message générique bloquant « Données de décision invalides ».
+  - Intégration du détail des erreurs de validation dans `OptionsMatrix.svelte`, `DecisionSurveyCard.svelte` et `ArbitrationPanel.svelte`.
+  - Ajout des tests de contrat validant les contraintes Zod de `CreateDecisionSchema` et l'explicitation des erreurs.
+
 ### Délibération : Élimination de la mutation d'état interdite dans le calcul du rapport de maturité (#35)
 - **Correction Svelte 5 (`state_unsafe_mutation` dans `SubjectThreadView.svelte`)** :
   - Remplacement de la mutation directe en place de l'objet `$state criteriaReport` au sein de la rune `$derived.by(effectiveReport)` par une dérivation pure et fonctionnelle.

@@ -417,8 +417,13 @@
 
 			if (!res.ok) {
 				const err = await res.json().catch(() => ({}));
+				const fieldErrors = err.details?.fieldErrors
+					? Object.values(err.details.fieldErrors).flat().join(' ')
+					: '';
+				const formErrors = err.details?.formErrors?.join(' ') || '';
+				const detailsMsg = [fieldErrors, formErrors].filter(Boolean).join(' ');
 				const blockers = Array.isArray(err.blockers) ? err.blockers.map((b: { message: string }) => b.message).join(' ') : '';
-				throw new Error(blockers || err.error || 'Erreur lors de l\'enregistrement de la décision');
+				throw new Error(detailsMsg || blockers || err.error || 'Erreur lors de l\'enregistrement de la décision');
 			}
 
 			const body = await res.json();

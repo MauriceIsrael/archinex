@@ -203,9 +203,10 @@ sequenceDiagram
     Engine->>DB: Upsert KbEventCursor & crée KbNotification (dédoublonnées)
     
     Expert->>Archinex: GET /kb/reviews
-    Archinex->>LLMOps: GET /api/knowledge/reviews/inbox [X-Actor-Email]
-    LLMOps-->>Archinex: 200 OK (Candidats filtrés, is_overdue recalculé)
-    Archinex-->>Expert: Boîte de revue avec alertes retards (≥ 5 jours)
+    Archinex->>LLMOps: GET /api/knowledge/reviews/inbox [X-Actor-Email, actorHandle, exclude_own]
+    Note over Archinex: Séparation des tâches (Hub 1.37) : calcul isAuthor,<br/>masquage par défaut des propres clauses et substitution du bouton Examiner par Consulter (Auteur)
+    LLMOps-->>Archinex: 200 OK (Candidats enrichis avec isAuthor, is_overdue recalculé)
+    Archinex-->>Expert: Boîte de revue filtrée (clauses examinables uniquement par défaut)
 
     Expert->>Archinex: PATCH /api/knowledge/candidates/{id} (action: accept/amend/reject)
     Note over Archinex: Vérifie habilitation domaine (403 si non possédé)<br/>Vérifie état non terminal (409 si déjà finalisé)

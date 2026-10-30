@@ -1,6 +1,7 @@
 import http from 'node:http';
 import crypto from 'node:crypto';
 import type { AddressInfo } from 'node:net';
+import { isCandidateAuthor } from '../../src/lib/domain/candidateAuthorship';
 import type {
   LLMOpsHealth,
   DoctrineContext,
@@ -1399,6 +1400,7 @@ export async function startFakeLlmopsServer(initialState?: Partial<FakeLlmopsSta
       }
       const domainFilter = parsedUrl.searchParams.get('domain');
       const kindFilter = parsedUrl.searchParams.get('kind');
+      const excludeOwn = parsedUrl.searchParams.get('exclude_own') === 'true';
 
       let items = state.inbox;
       if (domainFilter) {
@@ -1406,6 +1408,9 @@ export async function startFakeLlmopsServer(initialState?: Partial<FakeLlmopsSta
       }
       if (kindFilter) {
         items = items.filter((i) => i.kind.toLowerCase() === kindFilter.toLowerCase());
+      }
+      if (excludeOwn) {
+        items = items.filter((i) => !isCandidateAuthor(i.author, { email: actorEmail }));
       }
 
       const now = Date.now();

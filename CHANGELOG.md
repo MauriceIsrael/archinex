@@ -24,6 +24,18 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 - **Tests** : extension de la suite de contrat `tests/contract/options-matrix-view.test.ts`.
 
 
+### Préférence Utilisateur : Mémorisation du Dernier Sujet de Délibération dans le LocalStorage
+- **Persistance automatique et scopée par espace (`deliberationStore.svelte.ts`)** :
+  - Enregistrement réactif du sujet actif sélectionné dans le `localStorage` sous la clé `archinex:activeSubjectId:<engagementId>` lors de l'appel à `selectSubject(id)`.
+  - Scoping par projet / engagement évitant toute collision ou incohérence de référence d'un projet à l'autre.
+- **Restauration fluide et sécurisée** :
+  - Restauration automatique du dernier sujet consulté lors de l'hydratation initiale (`initFromDb`) et lors du basculement d'espace de travail (`switchEngagement`).
+  - Validation défensive d'intégrité : vérification que le sujet mémorisé appartient bien aux sujets actifs de l'engagement, avec repli gracieux et transparent sur le sujet par défaut (`defaultSubjectId` ou premier sujet) en cas de suppression ou d'incohérence.
+- **Navigation unifiée (`KnowledgeNodePanel.svelte`)** :
+  - Alignement de la navigation depuis la vue graphe de connaissances (`navigateToSubject`) pour utiliser `selectSubject` et bénéficier de la persistance locale automatique.
+- **Tests** :
+  - Suite de tests de contrat dédiée `tests/contract/deliberation-localstorage-subject.test.ts` validant la persistance sous clé scopée, la restauration lors de `initFromDb`, le rabat en cas d'identifiant obsolète et la rétention lors d'allers-retours entre différents projets.
+
 ### Matrice Multi-Critères : Déblocage de la Création d'Options/Critères (Schéma Zod API) & Ajout Réactif
 - **Correction du schéma de validation de l'API (`optionsApiSchemas.ts`, `optionsDb.ts`)** :
   - Rendu du champ `id` optionnel (`id: z.string().min(1).optional()`) dans `CreateOptionSchema`, `CreateCriterionSchema` et `CreateTradeOffSchema`, levant l'erreur HTTP 400 (Validation failed) lors de l'ajout manuel d'une proposition par un opérateur.

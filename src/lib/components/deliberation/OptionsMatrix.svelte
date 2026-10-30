@@ -312,7 +312,7 @@
 					options[idx] = updated;
 				}
 
-				// Relancer la vérification de conformité en direct
+				// Relancer la vérification de conformit\u00e9 en direct
 				fetch(`/api/projects/${projectId}/subjects/${subjectId}/compliance`)
 					.then((r) => (r.ok ? r.json() : null))
 					.then((data) => (compliance = data?.status === 'ok' ? data : null))
@@ -322,7 +322,7 @@
 				throw err;
 			}
 		} else {
-			// Création d'une nouvelle option (POST)
+			// Cr\u00e9ation d'une nouvelle option (POST)
 			try {
 				const res = await fetch(`/api/projects/${projectId}/subjects/${subjectId}/options`, {
 					method: 'POST',
@@ -339,7 +339,7 @@
 				const option = created.option ?? created;
 				options.push(option);
 
-				// Relancer la vérification de conformité
+				// Relancer la vérification de conformit\u00e9
 				fetch(`/api/projects/${projectId}/subjects/${subjectId}/compliance`)
 					.then((r) => (r.ok ? r.json() : null))
 					.then((data) => (compliance = data?.status === 'ok' ? data : null))

@@ -44,7 +44,7 @@
     if (!activeProject) return;
     const subj = activeProject.subjects.find((s) => s.name === subjectName || s.id === subjectName);
     if (subj) {
-      deliberationStore.activeSubjectId = subj.id;
+      deliberationStore.selectSubject(subj.id);
     }
     goto('/deliberation');
   }

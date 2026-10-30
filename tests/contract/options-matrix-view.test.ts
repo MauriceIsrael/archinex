@@ -182,4 +182,23 @@ describe('OptionsMatrix Column Titles & Readability Contract (Lot A2)', () => {
 		const thMatches = html.match(/<th\b/g);
 		expect(thMatches?.length).toBe(4);
 	});
+
+	it('affiche un bouton Modifier pour les options d\'origine humaine mais pas pour les propositions LLM', () => {
+		const { html } = render(OptionsMatrix, {
+			props: {
+				projectId: 'proj-1',
+				subjectId: 'subj-architecture-data',
+				criteria: sampleCriteria,
+				options: sampleOptions,
+				evaluations: sampleEvaluations,
+				tradeOffs: [],
+				decision: null
+			}
+		});
+
+		// Option A est 'human', Option B est 'llm-proposed'
+		expect(html).toContain('aria-label="Modifier Option A"');
+		expect(html).not.toContain('aria-label="Modifier Option B"');
+		expect(html).toContain('Modifier');
+	});
 });

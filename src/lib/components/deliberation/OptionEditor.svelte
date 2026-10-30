@@ -1,15 +1,17 @@
 <script lang="ts">
-	import { Plus, X, Sparkles, Lightbulb } from 'lucide-svelte';
+	import { Plus, X, Sparkles, Lightbulb, Check } from 'lucide-svelte';
 	import type { OptionOrigin } from '$lib/domain/options';
 
 	let {
 		isOpen = false,
+		initialData = null,
 		onClose = () => {},
-		onSave = (option: { title: string; summary: string; origin: OptionOrigin }) => {}
+		onSave = (option: { id?: string; title: string; summary: string; origin: OptionOrigin; expectedVersion?: number }) => {}
 	}: {
 		isOpen: boolean;
+		initialData?: { id: string; title: string; summary: string; origin: OptionOrigin; version?: number } | null;
 		onClose: () => void;
-		onSave: (option: { title: string; summary: string; origin: OptionOrigin }) => Promise<void> | void;
+		onSave: (option: { id?: string; title: string; summary: string; origin: OptionOrigin; expectedVersion?: number }) => Promise<void> | void;
 	} = $props();
 
 	let title = $state('');
@@ -17,6 +19,22 @@
 	let origin = $state<OptionOrigin>('human');
 	let error = $state<string | null>(null);
 	let isSubmitting = $state(false);
+
+	$effect(() => {
+		if (isOpen) {
+			if (initialData) {
+				title = initialData.title || '';
+				summary = initialData.summary || '';
+				origin = initialData.origin || 'human';
+			} else {
+				title = '';
+				summary = '';
+				origin = 'human';
+			}
+			error = null;
+			isSubmitting = false;
+		}
+	});
 
 	async function handleSubmit() {
 		const trimmedTitle = title.trim();
@@ -35,9 +53,11 @@
 		isSubmitting = true;
 		try {
 			await onSave({
+				id: initialData?.id,
 				title: trimmedTitle,
 				summary: trimmedSummary,
-				origin
+				origin,
+				expectedVersion: initialData?.version
 			});
 			title = '';
 			summary = '';
@@ -57,7 +77,7 @@
 			<div class="flex items-center justify-between border-b pb-3">
 				<div class="flex items-center gap-2 font-bold text-sm text-foreground">
 					<Lightbulb class="h-4 w-4 text-purple-600 dark:text-purple-400" />
-					<span>Proposer une Alternative / Option d'Architecture</span>
+					<span>{initialData ? "Modifier l'Option d'Architecture" : "Proposer une Alternative / Option d'Architecture"}</span>
 				</div>
 				<button
 					type="button"
@@ -108,7 +128,8 @@
 					<select
 						id="option-origin"
 						bind:value={origin}
-						class="w-full rounded-md border bg-background px-2.5 py-1.5 text-xs text-foreground"
+						disabled={!!initialData}
+						class="w-full rounded-md border bg-background px-2.5 py-1.5 text-xs text-foreground disabled:opacity-60"
 					>
 						<option value="human">Proposition Expert Humain</option>
 						<option value="llm-proposed">Générée par LLM (assistée)</option>
@@ -132,8 +153,13 @@
 					disabled={isSubmitting}
 					class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white text-xs font-semibold shadow-xs cursor-pointer"
 				>
-					<Plus class="h-3.5 w-3.5" />
-					<span>{isSubmitting ? 'Enregistrement...' : 'Verser au débat'}</span>
+					{#if initialData}
+						<Check class="h-3.5 w-3.5" />
+						<span>{isSubmitting ? 'Mise à jour...' : "Enregistrer les modifications"}</span>
+					{:else}
+						<Plus class="h-3.5 w-3.5" />
+						<span>{isSubmitting ? 'Enregistrement...' : 'Verser au débat'}</span>
+					{/if}
 				</button>
 			</div>
 		</div>

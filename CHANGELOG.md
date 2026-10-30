@@ -19,6 +19,12 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
   - **Support API souverain** : prise en charge du paramètre `exclude_own=true` et transmission du handle d'acteur sur `GET /api/knowledge/reviews/inbox` et `LLMOpsClient.getReviewInbox`.
 - **Tests** :
   - Nouvelle suite de tests de contrat `tests/contract/kb-review-inbox-authorship.test.ts` validant le marquage `isAuthor`, le filtrage avec `excludeOwn`, la visibilité croisée pour les pairs et l'interdiction constitutionnelle d'auto-évaluation.
+### Matrice Multi-Critères : Amélioration de la Visibilité du Bouton « Modifier » des Options Humaines
+- **Affichage et ergonomie renforcée (`OptionsMatrix.svelte`)** :
+  - Style visuel rehaussé pour le bouton `Modifier` dans l'en-tête de colonne avec badge violet contrasté (`bg-purple-500/10 text-purple-700 border-purple-500/30`), supprimant le masquage adaptatif (`hidden sm:inline`) pour garantir la présence permanente du libellé textuel quelle que soit la largeur de colonne ou la taille d'écran.
+  - Correction du typage strict TypeScript sur le filtre d'origine (`opt.origin === 'human'`).
+  - Bouton `Éditer` mis en valeur dans le cadre de détails déplié.
+
 ### Matrice Multi-Critères : Édition Directe des Propositions d'Architecture Humaines & Re-jeu de Conformité
 - **Modification des options humaines (`OptionEditor.svelte`, `OptionsMatrix.svelte`)** :
   - Ajout d'un bouton `Modifier` (`Edit3`) directement dans l'en-tête de colonne des options proposées par un opérateur ou architecte (`origin === 'human' || origin === 'architect'`), ainsi qu'un bouton d'action `Éditer` dans le bloc déplié de résumé technique (`Détails`).

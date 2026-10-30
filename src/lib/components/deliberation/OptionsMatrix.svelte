@@ -87,6 +87,14 @@
 	let violationJustifications = $state<Record<string, string>>({});
 	const violationsOf = (optionId: string) => (compliance?.violations ?? []).filter((v) => v.optionId === optionId);
 
+	function formatViolationTooltip(v: ComplianceViolation): string {
+		const base = v.validated ? v.message : `${v.message} (règle encore en brouillon : à confirmer par l'expert du domaine)`;
+		if (v.matchedTerms && v.matchedTerms.length > 0) {
+			return `${base}\n\n• Termes détectés / déclencheurs : « ${v.matchedTerms.join(' », « ')} »`;
+		}
+		return base;
+	}
+
 	$effect(() => {
 		const optionCount = options.length;
 		if (!projectId || !subjectId || optionCount === 0) return;
@@ -527,7 +535,7 @@
 									{#each violationsOf(opt.id) as v (v.typedId)}
 										<div
 											class="mx-auto w-fit rounded px-1.5 py-0.5 text-[10px] font-bold border {v.validated ? 'border-destructive/40 bg-destructive/10 text-destructive' : 'border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300'}"
-											title={v.validated ? v.message : `${v.message} (règle encore en brouillon : à confirmer par l'expert du domaine)`}
+											title={formatViolationTooltip(v)}
 										>
 											{v.validated ? 'Non conforme' : 'À vérifier'} · {v.typedId}
 										</div>
@@ -715,7 +723,14 @@
 						<p class="font-bold text-foreground">Conformité réglementaire de l'option retenue</p>
 						{#each violationsOf(selectedRetainedOptionId) as v (v.typedId)}
 							<div class="space-y-1">
-								<p><span class="font-mono font-bold">{v.typedId}</span> — {v.message}</p>
+								<div class="space-y-0.5">
+									<p><span class="font-mono font-bold">{v.typedId}</span> — {v.message}</p>
+									{#if v.matchedTerms && v.matchedTerms.length > 0}
+										<p class="text-[11px] text-destructive/90 font-medium">
+											• Termes détectés dans votre texte : <span class="font-mono bg-destructive/10 px-1 py-0.5 rounded">{v.matchedTerms.join(', ')}</span>
+										</p>
+									{/if}
+								</div>
 								{#if v.validated}
 									<textarea
 										bind:value={violationJustifications[v.typedId]}

@@ -8,6 +8,13 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Matrice Multi-Critères : Explicitation des Termes Déclencheurs / Violés dans les Alertes de Conformité
+- **Infobulle et diagnostic granulaire de conformité (`OptionsMatrix.svelte`)** :
+  - Enrichissement de l'infobulle (`title`) de l'étiquette « Non conforme » au survol : mention explicite des termes détectés dans le texte de l'option (`matchedTerms`) ayant déclenché la clause ou l'interdiction (`• Termes détectés / déclencheurs : « ... »`).
+  - Affichage direct des termes déclencheurs dans le bandeau rouge de décision L3 (« Conformité réglementaire de l'option retenue ») pour guider l'architecte dans la justification de l'écart ou la rectification du texte.
+- **Tests** : extension de la suite de contrat `tests/contract/options-matrix-view.test.ts`.
+
+
 ### Matrice Multi-Critères : Déblocage de la Création d'Options/Critères (Schéma Zod API) & Ajout Réactif
 - **Correction du schéma de validation de l'API (`optionsApiSchemas.ts`, `optionsDb.ts`)** :
   - Rendu du champ `id` optionnel (`id: z.string().min(1).optional()`) dans `CreateOptionSchema`, `CreateCriterionSchema` et `CreateTradeOffSchema`, levant l'erreur HTTP 400 (Validation failed) lors de l'ajout manuel d'une proposition par un opérateur.

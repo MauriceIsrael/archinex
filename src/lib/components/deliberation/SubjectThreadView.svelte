@@ -63,7 +63,11 @@
 		FileText,
 		PanelLeftOpen,
 		Database,
-		CheckCircle2
+		CheckCircle2,
+		Compass,
+		HelpCircle,
+		Lightbulb,
+		Split
 	} from 'lucide-svelte';
 
 	let {
@@ -1426,17 +1430,114 @@
 				</div>
 			</div>
 
+			<!-- RAPPELS STRUCTURANTS : Les 5 Piliers de la Délibération d'Architecture -->
+			<div class="rounded-xl border border-border/80 bg-background/60 p-3.5 space-y-3 shadow-2xs">
+				<div class="flex items-center justify-between flex-wrap gap-2">
+					<div class="flex items-center gap-2">
+						<Compass class="h-4 w-4 text-primary" />
+						<h5 class="text-xs font-bold text-foreground">
+							Fil Directeur : Les 5 Piliers Structurants de la Délibération
+						</h5>
+					</div>
+					<button
+						type="button"
+						data-testid="toggle-pillars-btn"
+						onclick={() => (showLegacyTelegraphic = !showLegacyTelegraphic)}
+						class="text-[11px] text-primary hover:underline font-semibold cursor-pointer"
+					>
+						{showLegacyTelegraphic ? 'Masquer les notes télégraphiques brutes' : 'Consulter les notes télégraphiques brutes (5 colonnes) →'}
+					</button>
+				</div>
+
+				<p class="text-[11px] text-muted-foreground leading-relaxed">
+					Cette spécification détaillée formalise les engagements d'ingénierie qui découlent de l'enchaînement méthodique ci-dessous :
+				</p>
+
+				<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2 pt-1">
+					<!-- Pilier 1 : Question d'architecture -->
+					<div class="rounded-lg border border-blue-500/30 bg-blue-500/5 p-2.5 space-y-1">
+						<div class="flex items-center gap-1.5 text-blue-700 dark:text-blue-300 font-bold text-[10px] uppercase tracking-wide">
+							<HelpCircle class="h-3.5 w-3.5 shrink-0" />
+							<span>1. Question (Problème)</span>
+						</div>
+						<p class="text-[11px] font-semibold text-foreground line-clamp-2" title={activeDraft?.manque?.[0]?.question || activeSubject?.name || "Question d'architecture"}>
+							{activeDraft?.manque?.[0]?.question || activeSubject?.name || "Question d'architecture"}
+						</p>
+						<p class="text-[10px] text-muted-foreground italic">« Quel problème résout-on ? »</p>
+					</div>
+
+					<!-- Pilier 2 : Hypothèse de cadrage -->
+					<div class="rounded-lg border border-indigo-500/30 bg-indigo-500/5 p-2.5 space-y-1">
+						<div class="flex items-center gap-1.5 text-indigo-700 dark:text-indigo-300 font-bold text-[10px] uppercase tracking-wide">
+							<Lightbulb class="h-3.5 w-3.5 shrink-0" />
+							<span>2. Cadrage & Hypothèse</span>
+						</div>
+						<p class="text-[11px] font-semibold text-foreground line-clamp-2" title={activeDraft?.suppose?.[0]?.text || activeSubject?.name || "Hypothèse de cadrage"}>
+							{activeDraft?.suppose?.[0]?.text || 'Recommandation initiale de référence'}
+						</p>
+						<p class="text-[10px] text-muted-foreground italic">« Quelle est la cible initiale ? »</p>
+					</div>
+
+					<!-- Pilier 3 : Options & Variantes -->
+					<div class="rounded-lg border border-purple-500/30 bg-purple-500/5 p-2.5 space-y-1">
+						<div class="flex items-center justify-between gap-1">
+							<div class="flex items-center gap-1.5 text-purple-700 dark:text-purple-300 font-bold text-[10px] uppercase tracking-wide">
+								<Split class="h-3.5 w-3.5 shrink-0" />
+								<span>3. Options & Variantes</span>
+							</div>
+							<span class="text-[9px] font-mono px-1.5 py-0.2 rounded bg-purple-500/10 text-purple-700 font-bold">
+								{subjectOptions.length}
+							</span>
+						</div>
+						<p class="text-[11px] font-semibold text-foreground">
+							{subjectOptions.length > 0 ? `${subjectOptions.length} alternatives explorées` : 'Alternatives en cours'}
+						</p>
+						<p class="text-[10px] text-muted-foreground italic">« Quelles alternatives comparées ? »</p>
+					</div>
+
+					<!-- Pilier 4 : Critères & Conformité -->
+					<div class="rounded-lg border border-amber-500/30 bg-amber-500/5 p-2.5 space-y-1">
+						<div class="flex items-center justify-between gap-1">
+							<div class="flex items-center gap-1.5 text-amber-700 dark:text-amber-300 font-bold text-[10px] uppercase tracking-wide">
+								<Scale class="h-3.5 w-3.5 shrink-0" />
+								<span>4. Critères & Conformité</span>
+							</div>
+							<span class="text-[9px] font-mono px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-700 font-bold">
+								{matrixCriteria.length}
+							</span>
+						</div>
+						<p class="text-[11px] font-semibold text-foreground">
+							{matrixCriteria.length > 0 ? `${matrixCriteria.length} critères opposables` : 'Grille en cours'}
+						</p>
+						<p class="text-[10px] text-muted-foreground italic">« Sur quoi juge-t-on le choix ? »</p>
+					</div>
+
+					<!-- Pilier 5 : Arbitrage & Décision -->
+					<div class="rounded-lg border border-emerald-500/40 bg-emerald-500/10 p-2.5 space-y-1 shadow-2xs">
+						<div class="flex items-center gap-1.5 text-emerald-800 dark:text-emerald-300 font-bold text-[10px] uppercase tracking-wide">
+							<Gavel class="h-3.5 w-3.5 shrink-0 text-emerald-600" />
+							<span>5. Arbitrage L3 Acté</span>
+						</div>
+						<p class="text-[11px] font-bold text-foreground line-clamp-2" title={retainedOpt?.title || subjectDecision?.retainedOptionId || 'En attente'}>
+							{retainedOpt?.title || subjectDecision?.retainedOptionId || 'Arbitrage en attente'}
+						</p>
+						<p class="text-[10px] text-muted-foreground italic">« Quelle option retenue et pourquoi ? »</p>
+					</div>
+				</div>
+
+				{#if showLegacyTelegraphic}
+					<div class="pt-3 border-t space-y-2 animate-in fade-in duration-150">
+						<span class="text-[11px] font-bold text-foreground">Notes télégraphiques brutes :</span>
+						<TelegraphicDraftView readOnlyMode={true} />
+					</div>
+				{/if}
+			</div>
+
 			<!-- Éditeur de la Spécification Détaillée -->
 			<div class="space-y-2">
 				<div class="flex items-center justify-between text-[11px] text-muted-foreground">
-					<span>Rédigez ou affinez la spécification ci-dessous (Markdown supporté) :</span>
-					<button
-						type="button"
-						onclick={() => (showLegacyTelegraphic = !showLegacyTelegraphic)}
-						class="text-primary hover:underline cursor-pointer"
-					>
-						{showLegacyTelegraphic ? 'Masquer la grille 5 colonnes' : 'Voir la grille télégraphique (5 colonnes) →'}
-					</button>
+					<span class="font-semibold text-foreground">Rédigez ou affinez la spécification d'ingénierie (Markdown supporté) :</span>
+					<span class="italic text-[10px]">Persistance automatique locale</span>
 				</div>
 
 				<textarea
@@ -1447,14 +1548,6 @@
 					class="w-full rounded-lg border bg-background px-3 py-2.5 text-xs text-foreground font-mono leading-relaxed placeholder:text-muted-foreground/60 focus:ring-1 focus:ring-primary shadow-inner"
 				></textarea>
 			</div>
-
-			<!-- Vue Télégraphique d'appoint (si demandée) -->
-			{#if showLegacyTelegraphic}
-				<div class="pt-3 border-t space-y-2">
-					<span class="text-[11px] font-bold text-foreground">Repères d'affirmation télégraphique :</span>
-					<TelegraphicDraftView readOnlyMode={true} />
-				</div>
-			{/if}
 		</div>
 	</div>
 {/snippet}

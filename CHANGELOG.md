@@ -8,7 +8,15 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
-### Délibération & Ingénierie : Atelier de Spécification Détaillée (DLD) et Bandeau Doctrinal Rétractable (#35)
+### Délibération & Ingénierie : Pédagogie des 5 Piliers Structurants et Atelier de Spécification DLD (#35)
+- **Fil Directeur Pédagogique : Les 5 Piliers de la Délibération d'Architecture** :
+  - Intégration dans le volet de spécification d'un bandeau visuel rappelant l'enchaînement logique et les questions clés pour l'architecte :
+    1. *Question (Problème)* : « Quel problème résout-on ? » (affichage de la question d'architecture)
+    2. *Cadrage & Hypothèse* : « Quelle est la cible initiale ? » (affichage de l'hypothèse de référence)
+    3. *Options & Variantes* : « Quelles alternatives comparées ? » (compteur et état des options explorées)
+    4. *Critères & Conformité* : « Sur quoi juge-t-on le choix ? » (compteur des critères opposables)
+    5. *Arbitrage L3 Acté* : « Quelle option retenue et pourquoi ? » (décision arbitrée et motivée)
+  - Clarification du bouton d'accès aux notes télégraphiques d'appoint (*« Consulter les notes télégraphiques brutes (5 colonnes) »*).
 - **Bannière de Spécification Haut Niveau (Décision L3)** :
   - Dès qu'une décision d'arbitrage est opposable (`L3_decided`), le volet *« 📚 Doctrines, RFP & Brouillon »* ancre en tout début la décision d'arbitrage actée : option retenue, réversibilité, contresignature de l'arbitre et justification technique (`rationale`).
   - La rédaction de la spécification détaillée découle ainsi directement et formellement de la décision prise en amont.

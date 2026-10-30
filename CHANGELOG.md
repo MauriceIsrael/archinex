@@ -8,6 +8,18 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Boîte de Réception des Revues KB : Filtrage Anti-Auto-Évaluation & Séparation des Tâches (#131)
+- **Prévention de l'auto-évaluation dans la Boîte de Réception (`/kb/reviews`)** :
+  - **Filtre par défaut « À examiner uniquement (exclure mes clauses) »** : la boîte de réception n'affiche par défaut que les clauses soumises par des tiers pour lesquelles l'expert connecté est habilité à statuer, évitant de découvrir a posteriori sur la page d'examen qu'il est l'auteur de la clause et qu'il ne peut pas s'auto-évaluer.
+  - **Distingo clair Auteur vs Relecteur** :
+    - Calcul automatique de `isAuthor` via `isCandidateAuthor` comparant l'auteur au handle d'expert (`@handle`) ou à l'adresse e-mail de session.
+    - Remplacement du bouton d'action principal `Examiner` par un bouton secondaire `Consulter (Auteur)` (`btn-view-own-candidate`) avec infobulle rappelant la règle de séparation des tâches.
+    - Ajout du badge visible *« Votre clause (Auteur) »* avec icône de cadenas et mention explicite *(Vous)* à côté du nom de l'auteur.
+  - **Comptage et alertes de retard contextualisés** : les alertes de retard (Porte G5) ne comptabilisent que les revues en retard que l'expert connecté peut effectivement débloquer.
+  - **Support API souverain** : prise en charge du paramètre `exclude_own=true` et transmission du handle d'acteur sur `GET /api/knowledge/reviews/inbox` et `LLMOpsClient.getReviewInbox`.
+- **Tests** :
+  - Nouvelle suite de tests de contrat `tests/contract/kb-review-inbox-authorship.test.ts` validant le marquage `isAuthor`, le filtrage avec `excludeOwn`, la visibilité croisée pour les pairs et l'interdiction constitutionnelle d'auto-évaluation.
+
 ### Préférence Utilisateur : Mémorisation du Dernier Sujet de Délibération dans le LocalStorage
 - **Persistance automatique et scopée par espace (`deliberationStore.svelte.ts`)** :
   - Enregistrement réactif du sujet actif sélectionné dans le `localStorage` sous la clé `archinex:activeSubjectId:<engagementId>` lors de l'appel à `selectSubject(id)`.

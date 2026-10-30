@@ -112,6 +112,7 @@ import type {
 
 import { HubApiError } from '$lib/types/llmops';
 import { parseHubFactVocabulary, type HubFactVocabulary } from '$lib/domain/hubFactVocabulary';
+import { isCandidateAuthor } from '$lib/domain/candidateAuthorship';
 export { HubApiError };
 
 export interface LLMOpsClientConfig {
@@ -1403,7 +1404,7 @@ export class LLMOpsClient {
    */
   async getReviewInbox(
     actorEmail: string,
-    filters?: { domain?: string; kind?: string }
+    filters?: { domain?: string; kind?: string; excludeOwn?: boolean; actorHandle?: string }
   ): Promise<KbInboxResponse> {
     if (!this.isLocalNetworkUrl(this.baseUrl)) {
       return { status: 'unavailable', error: 'Enclave locale non configurée' };
@@ -1413,6 +1414,7 @@ export class LLMOpsClient {
       const url = new URL(`${this.baseUrl}/api/knowledge/reviews/inbox`);
       if (filters?.domain) url.searchParams.set('domain', filters.domain);
       if (filters?.kind) url.searchParams.set('kind', filters.kind);
+      if (filters?.excludeOwn) url.searchParams.set('exclude_own', 'true');
 
       const res = await this.fetchWithTimeout(url.toString(), {
         headers: this.getHeaders(undefined, actorEmail)
@@ -1476,7 +1478,8 @@ export class LLMOpsClient {
             is_overdue: item.is_overdue ?? is_overdue,
             author: item.author || '',
             author_role: item.author_role,
-            severity: item.severity
+            severity: item.severity,
+            isAuthor: isCandidateAuthor(item.author, { email: actorEmail, handle: filters?.actorHandle })
           };
         });
 
@@ -1486,6 +1489,9 @@ export class LLMOpsClient {
         }
         if (filters?.kind) {
           filtered = filtered.filter((i) => i.kind.toLowerCase() === filters.kind!.toLowerCase());
+        }
+        if (filters?.excludeOwn) {
+          filtered = filtered.filter((i) => !i.isAuthor);
         }
 
         return {

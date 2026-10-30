@@ -313,6 +313,7 @@ export interface KbReviewInboxItem {
   author: string;
   author_role?: string;
   severity?: 'critical' | 'major' | 'minor' | 'info';
+  isAuthor?: boolean;
 }
 
 export interface KbCandidateHistoryEntry {

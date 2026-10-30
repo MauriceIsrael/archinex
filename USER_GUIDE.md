@@ -125,7 +125,9 @@ Les experts disposant du rôle `kb:review` participent à la collégialité doct
 
 ### 5.1 Boîte de Réception (`/kb/reviews`)
 - **Accès direct** : Via le menu utilisateur en haut à droite > **Boîte de Revue KB**.
-- **Alertes de Retard (&ge; 5 jours ouvrés)** : Les candidats dont l'échéance `due_at` est dépassée sont mis en évidence par un bandeau d'alerte et un badge rouge animé.
+- **Séparation des tâches & Prévention de l'auto-évaluation** : Conformément à la règle constitutionnelle des 4 yeux (Hub contrat 1.37), un expert ne peut ni examiner ni s'auto-évaluer sur une clause dont il est l'auteur. Par défaut, la boîte de réception active le filtre *« À examiner uniquement (exclure mes clauses) »* afin de ne présenter pour examen que les clauses rédigées par des tiers.
+- **Consultation de ses propres clauses** : Si le filtre est décoché, les clauses rédigées par l'expert connecté apparaissent avec le badge explicite *« Votre clause (Auteur) »* et le bouton d'action bascule de **Examiner** à **Consulter (Auteur)** (l'auto-évaluation étant rigoureusement impossible).
+- **Alertes de Retard (&ge; 5 jours ouvrés)** : Les candidats dont l'échéance `due_at` est dépassée sont mis en évidence par un bandeau d'alerte et un badge rouge animé (le décompte exclut les clauses propres de l'expert lorsqu'elles sont masquées).
 - **Filtres** : Filtrez par domaine de compétence (`security`, `cloud`, etc.), par nature d'actif (`principle`, `new_asset`, `amendment`, `rex`), ou isolez uniquement les retards critiques.
 - **Centre de Notifications** : La cloche en haut à droite affiche les alertes instantanées de gouvernance (assignations, demandes d'avis, rappels) avec acquittement de lecture.
 

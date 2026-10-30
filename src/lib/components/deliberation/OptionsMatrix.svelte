@@ -555,16 +555,16 @@
 											{/if}
 										</div>
 
-										{#if opt.origin === 'human' || opt.origin === 'architect'}
+										{#if opt.origin === 'human'}
 											<button
 												type="button"
 												onclick={() => openEditOption(opt)}
-												class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors cursor-pointer border border-transparent hover:border-border"
+												class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold text-purple-700 bg-purple-500/10 hover:bg-purple-500/20 dark:text-purple-300 border border-purple-500/30 transition-colors cursor-pointer"
 												title="Modifier cette proposition d'architecture"
 												aria-label={`Modifier ${optionBadge}`}
 											>
 												<Edit3 class="h-3 w-3 text-purple-600 dark:text-purple-400" />
-												<span class="text-[9px] font-medium hidden sm:inline">Modifier</span>
+												<span>Modifier</span>
 											</button>
 										{/if}
 
@@ -597,13 +597,14 @@
 										<div class="p-2 rounded-md bg-muted/70 border border-border/70 text-[11px] font-normal text-muted-foreground text-left whitespace-normal break-words leading-relaxed animate-in fade-in duration-150 space-y-1.5">
 											<div class="flex items-center justify-between">
 												<span class="font-semibold text-foreground text-[10px] uppercase tracking-wider">Résumé :</span>
-												{#if opt.origin === 'human' || opt.origin === 'architect'}
+												{#if opt.origin === 'human'}
 													<button
 														type="button"
 														onclick={() => openEditOption(opt)}
-														class="inline-flex items-center gap-1 text-[10px] text-purple-600 dark:text-purple-400 hover:underline cursor-pointer"
+														class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium text-purple-700 bg-purple-500/10 hover:bg-purple-500/20 dark:text-purple-300 border border-purple-500/30 hover:underline cursor-pointer"
+														title="Modifier le titre et le résumé de cette proposition"
 													>
-														<Edit3 class="h-2.5 w-2.5" />
+														<Edit3 class="h-2.5 w-2.5 text-purple-600 dark:text-purple-400" />
 														<span>Éditer</span>
 													</button>
 												{/if}

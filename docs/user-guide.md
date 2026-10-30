@@ -41,6 +41,7 @@ L'interface est structurée autour de zones opérationnelles claires :
 - **Explorer le Board de Maturité & Ouvrir un Sujet** :
   - Les sujets en haut du tableau sont ceux qui possèdent le plus fort effet multiplicateur (`Débloque`).
   - Un simple clic sur une ligne du tableau ouvre directement le **Fil de Délibération du sujet** dans le Workbench 3 colonnes sans changer d'écran.
+  - **Mémorisation du dernier sujet actif (`localStorage`)** : Le dernier sujet sélectionné par l'utilisateur est automatiquement mémorisé dans le stockage local du navigateur (clé scopée par espace : `archinex:activeSubjectId:<engagementId>`). Lors de toute nouvelle visite sur la page ou lors d'un basculement de projet, le dernier sujet de travail est immédiatement restauré sans recherche manuelle.
 - **Workbench de Délibération (3 colonnes)** :
   - **Colonne de gauche (Liste des sujets)** : navigation instantanée entre toutes les conversations de sujets avec filtres rapides (Bloquants, À faire, Actés).
   - **Colonne centrale (Fil du sujet)** :

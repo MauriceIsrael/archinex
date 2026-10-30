@@ -8,6 +8,11 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Délibération : Nettoyage syntaxique du composant fil de délibération (#35)
+- **Correction du gabarit Svelte (`SubjectThreadView.svelte`)** :
+  - Élimination d'un fragment dupliqué résiduel (balises fermantes orphelines et ré-instanciation de l'en-tête de spécification DLD) provoquant une erreur de compilation Svelte `block_unexpected_close`.
+
+
 ### Délibération & Ingénierie : Pédagogie des 5 Piliers Structurants et Atelier de Spécification DLD (#35)
 - **Fil Directeur Pédagogique : Les 5 Piliers de la Délibération d'Architecture** :
   - Intégration dans le volet de spécification d'un bandeau visuel rappelant l'enchaînement logique et les questions clés pour l'architecte :

@@ -321,22 +321,33 @@
 	const effectiveReport = $derived.by<MaturityTransitionsReport | null>(() => {
 		const base = criteriaReport || computedReport;
 		if (!base) return null;
-		if (detailedSpecText && detailedSpecText.trim().length > 0) {
-			const l4 = base.transitions?.L4_specified;
-			if (l4) {
-				const specCrit = l4.criteria.find((c) => c.id === 'specification_drafted');
-				if (specCrit && !specCrit.satisfied) {
-					specCrit.satisfied = true;
-					l4.missingReasons = l4.missingReasons.filter(
-						(r) => !r.includes('Spécification technique rédigée')
-					);
-					if (l4.missingReasons.length === 0) {
-						l4.allowed = true;
-					}
+		if (!detailedSpecText || detailedSpecText.trim().length === 0) {
+			return base;
+		}
+		const l4 = base.transitions?.L4_specified;
+		if (!l4) return base;
+		const specCrit = l4.criteria.find((c) => c.id === 'specification_drafted');
+		if (!specCrit || specCrit.satisfied) return base;
+
+		const updatedCriteria = l4.criteria.map((c) =>
+			c.id === 'specification_drafted' ? { ...c, satisfied: true } : c
+		);
+		const updatedMissing = l4.missingReasons.filter(
+			(r) => !r.includes('Spécification technique rédigée')
+		);
+
+		return {
+			...base,
+			transitions: {
+				...base.transitions,
+				L4_specified: {
+					...l4,
+					criteria: updatedCriteria,
+					missingReasons: updatedMissing,
+					allowed: updatedMissing.length === 0
 				}
 			}
-		}
-		return base;
+		};
 	});
 
 	// Objections ouvertes (épinglées en haut)

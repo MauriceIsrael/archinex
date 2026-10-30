@@ -13,7 +13,8 @@
 		Award,
 		Sliders,
 		Check,
-		X
+		X,
+		Edit3
 	} from 'lucide-svelte';
 	import type {
 		Criterion,
@@ -56,6 +57,7 @@
 	// Modal states
 	let isAddingCriterion = $state(false);
 	let isAddingOption = $state(false);
+	let editingOption = $state<Option | null>(null);
 	let isEvaluatingCell = $state(false);
 	let isDeciding = $state(false);
 
@@ -274,27 +276,81 @@
 		}
 	}
 
-	async function handleAddOption(data: { title: string; summary: string; origin: OptionOrigin }) {
-		try {
-			const res = await fetch(`/api/projects/${projectId}/subjects/${subjectId}/options`, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify(data)
-			});
+	function openEditOption(opt: Option) {
+		editingOption = opt;
+		isAddingOption = true;
+	}
 
-			if (!res.ok) {
-				const err = await res.json().catch(() => ({}));
-				throw new Error(extractErrorMessage(err, res, 'Erreur lors de la création de l\'option'));
+	function closeOptionModal() {
+		isAddingOption = false;
+		editingOption = null;
+	}
+
+	async function handleSaveOption(data: { id?: string; title: string; summary: string; origin: OptionOrigin; expectedVersion?: number }) {
+		if (data.id) {
+			// Modification d'une option existante (PATCH)
+			try {
+				const res = await fetch(`/api/projects/${projectId}/subjects/${subjectId}/options/${data.id}`, {
+					method: 'PATCH',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({
+						expectedVersion: data.expectedVersion ?? 1,
+						title: data.title,
+						summary: data.summary
+					})
+				});
+
+				if (!res.ok) {
+					const err = await res.json().catch(() => ({}));
+					throw new Error(extractErrorMessage(err, res, 'Erreur lors de la modification de l\'option'));
+				}
+
+				const result = await res.json();
+				const updated = result.option ?? result;
+				const idx = options.findIndex((o) => o.id === data.id);
+				if (idx >= 0) {
+					options[idx] = updated;
+				}
+
+				// Relancer la vérification de conformit\u00e9 en direct
+				fetch(`/api/projects/${projectId}/subjects/${subjectId}/compliance`)
+					.then((r) => (r.ok ? r.json() : null))
+					.then((data) => (compliance = data?.status === 'ok' ? data : null))
+					.catch(() => (compliance = null));
+			} catch (err: any) {
+				onError(err.message);
+				throw err;
 			}
+		} else {
+			// Cr\u00e9ation d'une nouvelle option (POST)
+			try {
+				const res = await fetch(`/api/projects/${projectId}/subjects/${subjectId}/options`, {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify(data)
+				});
 
-			const created = await res.json();
-			const option = created.option ?? created;
-			options.push(option);
-		} catch (err: any) {
-			onError(err.message);
-			throw err;
+				if (!res.ok) {
+					const err = await res.json().catch(() => ({}));
+					throw new Error(extractErrorMessage(err, res, 'Erreur lors de la création de l\'option'));
+				}
+
+				const created = await res.json();
+				const option = created.option ?? created;
+				options.push(option);
+
+				// Relancer la vérification de conformit\u00e9
+				fetch(`/api/projects/${projectId}/subjects/${subjectId}/compliance`)
+					.then((r) => (r.ok ? r.json() : null))
+					.then((data) => (compliance = data?.status === 'ok' ? data : null))
+					.catch(() => (compliance = null));
+			} catch (err: any) {
+				onError(err.message);
+				throw err;
+			}
 		}
 	}
+
 
 	async function handleAddTradeOff(data: { optionId: string; gains: string; sacrifices: string; criterionIds?: string[] }) {
 		try {
@@ -499,6 +555,19 @@
 											{/if}
 										</div>
 
+										{#if opt.origin === 'human' || opt.origin === 'architect'}
+											<button
+												type="button"
+												onclick={() => openEditOption(opt)}
+												class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors cursor-pointer border border-transparent hover:border-border"
+												title="Modifier cette proposition d'architecture"
+												aria-label={`Modifier ${optionBadge}`}
+											>
+												<Edit3 class="h-3 w-3 text-purple-600 dark:text-purple-400" />
+												<span class="text-[9px] font-medium hidden sm:inline">Modifier</span>
+											</button>
+										{/if}
+
 										{#if opt.summary}
 											<button
 												type="button"
@@ -525,9 +594,21 @@
 
 									<!-- Résumé dépliable si activé -->
 									{#if expandedSummaryOptionId === opt.id && opt.summary}
-										<div class="p-2 rounded-md bg-muted/70 border border-border/70 text-[11px] font-normal text-muted-foreground text-left whitespace-normal break-words leading-relaxed animate-in fade-in duration-150">
-											<div class="font-semibold text-foreground text-[10px] uppercase tracking-wider mb-0.5">Résumé :</div>
-											{opt.summary}
+										<div class="p-2 rounded-md bg-muted/70 border border-border/70 text-[11px] font-normal text-muted-foreground text-left whitespace-normal break-words leading-relaxed animate-in fade-in duration-150 space-y-1.5">
+											<div class="flex items-center justify-between">
+												<span class="font-semibold text-foreground text-[10px] uppercase tracking-wider">Résumé :</span>
+												{#if opt.origin === 'human' || opt.origin === 'architect'}
+													<button
+														type="button"
+														onclick={() => openEditOption(opt)}
+														class="inline-flex items-center gap-1 text-[10px] text-purple-600 dark:text-purple-400 hover:underline cursor-pointer"
+													>
+														<Edit3 class="h-2.5 w-2.5" />
+														<span>Éditer</span>
+													</button>
+												{/if}
+											</div>
+											<p>{opt.summary}</p>
 										</div>
 									{/if}
 
@@ -871,6 +952,7 @@
 
 <OptionEditor
 	isOpen={isAddingOption}
-	onClose={() => (isAddingOption = false)}
-	onSave={handleAddOption}
+	initialData={editingOption}
+	onClose={closeOptionModal}
+	onSave={handleSaveOption}
 />

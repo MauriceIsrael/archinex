@@ -19,11 +19,21 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
   - **Support API souverain** : prise en charge du paramètre `exclude_own=true` et transmission du handle d'acteur sur `GET /api/knowledge/reviews/inbox` et `LLMOpsClient.getReviewInbox`.
 - **Tests** :
   - Nouvelle suite de tests de contrat `tests/contract/kb-review-inbox-authorship.test.ts` validant le marquage `isAuthor`, le filtrage avec `excludeOwn`, la visibilité croisée pour les pairs et l'interdiction constitutionnelle d'auto-évaluation.
+### Matrice Multi-Critères : Édition Directe des Propositions d'Architecture Humaines & Re-jeu de Conformité
+- **Modification des options humaines (`OptionEditor.svelte`, `OptionsMatrix.svelte`)** :
+  - Ajout d'un bouton `Modifier` (`Edit3`) directement dans l'en-tête de colonne des options proposées par un opérateur ou architecte (`origin === 'human' || origin === 'architect'`), ainsi qu'un bouton d'action `Éditer` dans le bloc déplié de résumé technique (`Détails`).
+  - Pré-remplissage complet de la modale (`OptionEditor.svelte`) avec les données existantes (titre, résumé, origine) via la prop `initialData`.
+  - Prise en charge de la mise à jour asynchrone via `PATCH /api/projects/:projectId/subjects/:subjectId/options/:optionId` avec contrôle de concurrence optimiste (`expectedVersion`).
+  - Réévaluation et rafraîchissement automatique instantané de la conformité doctrinale (`/compliance`) dès l'enregistrement de l'option modifiée, permettant de vérifier en direct si la reformulation lève ou non une clause de non-conformité (ex: négation levée).
+- **Tests** : extension de la suite de contrat `tests/contract/options-matrix-view.test.ts` validant la présence du bouton `Modifier` sur les propositions humaines et son masquage sur les propositions LLM.
+
+
 ### Matrice Multi-Critères : Explicitation des Termes Déclencheurs / Violés dans les Alertes de Conformité
 - **Infobulle et diagnostic granulaire de conformité (`OptionsMatrix.svelte`)** :
   - Enrichissement de l'infobulle (`title`) de l'étiquette « Non conforme » au survol : mention explicite des termes détectés dans le texte de l'option (`matchedTerms`) ayant déclenché la clause ou l'interdiction (`• Termes détectés / déclencheurs : « ... »`).
   - Affichage direct des termes déclencheurs dans le bandeau rouge de décision L3 (« Conformité réglementaire de l'option retenue ») pour guider l'architecte dans la justification de l'écart ou la rectification du texte.
 - **Tests** : extension de la suite de contrat `tests/contract/options-matrix-view.test.ts`.
+
 
 ### Préférence Utilisateur : Mémorisation du Dernier Sujet de Délibération dans le LocalStorage
 - **Persistance automatique et scopée par espace (`deliberationStore.svelte.ts`)** :

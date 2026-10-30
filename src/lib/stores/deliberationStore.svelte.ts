@@ -254,7 +254,14 @@ class DeliberationStore {
 			this.drafts = { ...targetProfile.drafts };
 			this.statements = [...targetProfile.statements];
 			this.corpusDocuments = [...targetProfile.corpusDocuments];
-			this.activeSubjectId = targetProfile.defaultSubjectId;
+			let restoredSubjectId: string | null = null;
+			if (typeof window !== 'undefined') {
+				try {
+					restoredSubjectId = localStorage.getItem(`archinex:activeSubjectId:${targetId}`);
+				} catch {}
+			}
+			const isValid = !!(restoredSubjectId && this.subjects.some((s) => s.id === restoredSubjectId));
+			this.activeSubjectId = isValid ? restoredSubjectId! : targetProfile.defaultSubjectId;
 			this.activeDocumentId = targetProfile.defaultDocId;
 			this.dialogueMessages = [...(targetProfile.dialogueMessages || [])];
 		}
@@ -264,6 +271,9 @@ class DeliberationStore {
 		if (typeof window !== 'undefined') {
 			try {
 				localStorage.setItem('archinex:activeEngagementId', targetId);
+				if (this.activeSubjectId) {
+					localStorage.setItem(`archinex:activeSubjectId:${targetId}`, this.activeSubjectId);
+				}
 			} catch {}
 		}
 
@@ -349,7 +359,16 @@ class DeliberationStore {
 				this.drafts = current.drafts || {};
 				this.statements = current.statements || [];
 				this.corpusDocuments = current.corpusDocuments || [];
-				this.activeSubjectId = current.defaultSubjectId || current.subjects[0]?.id || '';
+				let restoredSubjectId: string | null = null;
+				if (typeof window !== 'undefined') {
+					try {
+						restoredSubjectId = localStorage.getItem(`archinex:activeSubjectId:${current.id}`);
+					} catch {}
+				}
+				const isValid = !!(restoredSubjectId && this.subjects.some((s) => s.id === restoredSubjectId));
+				this.activeSubjectId = isValid
+					? restoredSubjectId!
+					: (current.defaultSubjectId || current.subjects[0]?.id || '');
 				this.activeDocumentId = current.defaultDocId || current.corpusDocuments[0]?.id || '';
 				this.dialogueMessages = current.dialogueMessages || [];
 			}
@@ -664,6 +683,11 @@ class DeliberationStore {
 	selectSubject(id: string) {
 		this.activeSubjectId = id;
 		this.deliberationViewMode = 'conversation';
+		if (typeof window !== 'undefined' && this.activeEngagementId && id) {
+			try {
+				localStorage.setItem(`archinex:activeSubjectId:${this.activeEngagementId}`, id);
+			} catch {}
+		}
 	}
 
 	setDeliberationViewMode(mode: 'board' | 'conversation') {

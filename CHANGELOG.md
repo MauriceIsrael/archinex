@@ -8,6 +8,15 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Délibération & Ingénierie : Pédagogie des 5 Piliers Structurants et Atelier de Spécification DLD (#35)
+- **Fil Directeur Pédagogique : Les 5 Piliers de la Délibération d'Architecture** :
+  - Intégration dans le volet de spécification d'un bandeau visuel rappelant l'enchaînement logique et les questions clés pour l'architecte :
+    1. *Question (Problème)* : « Quel problème résout-on ? » (affichage de la question d'architecture)
+    2. *Cadrage & Hypothèse* : « Quelle est la cible initiale ? » (affichage de l'hypothèse de référence)
+    3. *Options & Variantes* : « Quelles alternatives comparées ? » (compteur et état des options explorées)
+    4. *Critères & Conformité* : « Sur quoi juge-t-on le choix ? » (compteur des critères opposables)
+    5. *Arbitrage L3 Acté* : « Quelle option retenue et pourquoi ? » (décision arbitrée et motivée)
+  - Clarification du bouton d'accès aux notes télégraphiques d'appoint (*« Consulter les notes télégraphiques brutes (5 colonnes) »*).
 ### Délibération : Persistance du Mode de Vue & Synchronisation LLMOps Silencieuse en Tâche de Fond
 - **Persistance intégrale de la vue de délibération (`deliberationStore.svelte.ts`)** :
   - **Mémorisation du mode d'affichage et de la posture** : persistance automatique dans le `localStorage` du navigateur sous les clés `archinex:deliberationViewMode:<id>` (`board` vs `conversation`) et `archinex:activePosture:<id>` (`appropriation`, `deliberation`, `rendu`), en complément de `archinex:activeSubjectId:<id>`.

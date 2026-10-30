@@ -413,6 +413,15 @@ describe('A24 — Délibération : Un sujet = une conversation (Issue #35)', () 
 			expect(html).toContain('data-testid="bootstrap-spec-ai-btn"');
 			expect(html).toContain('data-testid="save-detailed-spec-btn"');
 			expect(html).toContain('data-testid="validate-l4-spec-btn"');
+
+			// Piliers structurants de la délibération
+			expect(html).toContain('Fil Directeur : Les 5 Piliers Structurants de la Délibération');
+			expect(html).toContain('1. Question (Problème)');
+			expect(html).toContain('2. Cadrage &amp; Hypothèse');
+			expect(html).toContain('3. Options &amp; Variantes');
+			expect(html).toContain('4. Critères &amp; Conformité');
+			expect(html).toContain('5. Arbitrage L3 Acté');
+			expect(html).toContain('data-testid="toggle-pillars-btn"');
 		});
 	});
 });

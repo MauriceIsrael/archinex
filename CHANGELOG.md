@@ -8,6 +8,21 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Délibération & Ingénierie : Atelier de Spécification Détaillée (DLD) et Bandeau Doctrinal Rétractable (#35)
+- **Bannière de Spécification Haut Niveau (Décision L3)** :
+  - Dès qu'une décision d'arbitrage est opposable (`L3_decided`), le volet *« 📚 Doctrines, RFP & Brouillon »* ancre en tout début la décision d'arbitrage actée : option retenue, réversibilité, contresignature de l'arbitre et justification technique (`rationale`).
+  - La rédaction de la spécification détaillée découle ainsi directement et formellement de la décision prise en amont.
+- **Tiroir Doctrinal Rétractable (`isDoctrineDrawerOpen`)** :
+  - Remplacement de l'ancienne colonne doctrine de 50% par un bandeau accordéon compact cliquable, libérant l'intégralité de la largeur d'écran pour le travail d'ingénierie et de rédaction.
+- **Atelier de Rédaction Technique (DLD - Spécification Détaillée)** :
+  - Assistant IA (`✨ Pré-remplir avec l'IA`) pour pré-remplir instantanément la trame d'ingénierie (composants, flux, interfaces, protocoles) à partir de l'option arbitrée et de ses motivations.
+  - Espace de saisie markdown libre avec persistance locale automatique par sujet (`localStorage`).
+  - Actions immédiates : bouton de sauvegarde `💾 Enregistrer` et bouton d'homologation formelle `✅ Homologuer Spécification (L4)`.
+  - Bascule optionnelle vers la vue grille télégraphique en 5 colonnes.
+- **Tests** :
+  - Extension de la suite de contrat `tests/contract/deliberation-conversation.test.ts` vérifiant l'affichage de la spécification haut niveau, la présence du tiroir de doctrine et des commandes de l'atelier DLD.
+
+
 ### Boîte de Réception des Revues KB : Filtrage Anti-Auto-Évaluation & Séparation des Tâches (#131)
 - **Prévention de l'auto-évaluation dans la Boîte de Réception (`/kb/reviews`)** :
   - **Filtre par défaut « À examiner uniquement (exclure mes clauses) »** : la boîte de réception n'affiche par défaut que les clauses soumises par des tiers pour lesquelles l'expert connecté est habilité à statuer, évitant de découvrir a posteriori sur la page d'examen qu'il est l'auteur de la clause et qu'il ne peut pas s'auto-évaluer.

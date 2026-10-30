@@ -8,6 +8,12 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Délibération : Élimination de la mutation d'état interdite dans le calcul du rapport de maturité (#35)
+- **Correction Svelte 5 (`state_unsafe_mutation` dans `SubjectThreadView.svelte`)** :
+  - Remplacement de la mutation directe en place de l'objet `$state criteriaReport` au sein de la rune `$derived.by(effectiveReport)` par une dérivation pure et fonctionnelle.
+  - Résolution du crash complet du Workbench de délibération à l'exécution.
+
+
 ### Délibération & RBAC : Clarification du Critère d'Homologation Lead Architect (#35)
 - **Conservation du jalon L4/L5 validé (`maturityCriteria.ts`)** :
   - Dès lors qu'un sujet a été homologué (`L4_specified` ou `L5_archived`), le critère `lead_architect_approval` reste marqué comme satisfait pour tous les profils consultant le dossier.

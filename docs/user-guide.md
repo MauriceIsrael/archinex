@@ -41,7 +41,10 @@ L'interface est structurée autour de zones opérationnelles claires :
 - **Explorer le Board de Maturité & Ouvrir un Sujet** :
   - Les sujets en haut du tableau sont ceux qui possèdent le plus fort effet multiplicateur (`Débloque`).
   - Un simple clic sur une ligne du tableau ouvre directement le **Fil de Délibération du sujet** dans le Workbench 3 colonnes sans changer d'écran.
-  - **Mémorisation du dernier sujet actif (`localStorage`)** : Le dernier sujet sélectionné par l'utilisateur est automatiquement mémorisé dans le stockage local du navigateur (clé scopée par espace : `archinex:activeSubjectId:<engagementId>`). Lors de toute nouvelle visite sur la page ou lors d'un basculement de projet, le dernier sujet de travail est immédiatement restauré sans recherche manuelle.
+  - **Mémorisation du sujet, du mode de vue et de la posture active (`localStorage`)** :
+    - Le dernier sujet sélectionné, le mode d'affichage (`board` pour le Tableau de maturité / vue d'ensemble ou `conversation` pour le Fil de délibération) ainsi que la posture active (`appropriation`, `deliberation`, `rendu`) sont automatiquement mémorisés dans le stockage local du navigateur (clés scopées par projet : `archinex:activeSubjectId:<id>`, `archinex:deliberationViewMode:<id>`, `archinex:activePosture:<id>`).
+    - Lors de toute navigation transversale ou rafraîchissement de page, votre position exacte de travail est fidèlement restaurée sans vous faire resauter sur le tableau global.
+    - La synchronisation avec LLMOps en arrière-plan opère en mode silencieux (`silent: true`) : elle ne déclenche pas de toasts intempestifs lors du chargement de page et préserve scrupuleusement la vue courante. Les notifications visuelles restent réservées aux clics manuels de resynchronisation.
 - **Workbench de Délibération (3 colonnes)** :
   - **Colonne de gauche (Liste des sujets)** : navigation instantanée entre toutes les conversations de sujets avec filtres rapides (Bloquants, À faire, Actés).
   - **Colonne centrale (Fil du sujet)** :

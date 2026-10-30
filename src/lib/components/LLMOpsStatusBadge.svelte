@@ -5,7 +5,7 @@
 
 	onMount(() => {
 		if (deliberationStore.llmopsStatus === 'idle') {
-			deliberationStore.syncWithLLMOps().catch((err) => {
+			deliberationStore.syncWithLLMOps(undefined, undefined, { silent: true }).catch((err) => {
 				console.warn('[LLMOpsStatus] Synchro initiale différée :', err);
 			});
 		}
@@ -26,7 +26,7 @@
 
 <button
 	type="button"
-	onclick={() => deliberationStore.syncWithLLMOps()}
+	onclick={() => deliberationStore.syncWithLLMOps(undefined, undefined, { silent: false })}
 	disabled={isSyncing}
 	class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium border transition-colors cursor-pointer shrink-0 mr-1 {isConnected
 		? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/20'

@@ -8,6 +8,12 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Délibération & RBAC : Clarification du Critère d'Homologation Lead Architect (#35)
+- **Conservation du jalon L4/L5 validé (`maturityCriteria.ts`)** :
+  - Dès lors qu'un sujet a été homologué (`L4_specified` ou `L5_archived`), le critère `lead_architect_approval` reste marqué comme satisfait pour tous les profils consultant le dossier.
+  - Lorsque le sujet est en attente d'homologation (`L3_decided`), la description du critère explicite clairement le rôle requis (`Lead Architect`) en miroir du rôle actif de la session (ex: `expert`, `contributeur`), dissipant tout malentendu avec une désynchronisation de données.
+
+
 ### Délibération & Homologation : Franchissement du Jalon L4 et Visibilité de l'Affirmation (#35)
 - **Affirmation formelle de décision (`DecisionSurveyCard` & `arbitrationDb`)** :
   - Restitution systématique de l'événement `DECISION_ASSERTED` dans `getSubjectArbitrationContext` via le champ `validatedBy`.

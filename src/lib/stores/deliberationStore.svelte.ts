@@ -78,6 +78,14 @@ class DeliberationStore {
 				const savedId = localStorage.getItem('archinex:activeEngagementId');
 				if (savedId) {
 					this.activeEngagementId = savedId;
+					const savedMode = localStorage.getItem(`archinex:deliberationViewMode:${savedId}`) as 'board' | 'conversation' | null;
+					if (savedMode === 'board' || savedMode === 'conversation') {
+						this.deliberationViewMode = savedMode;
+					}
+					const savedPosture = localStorage.getItem(`archinex:activePosture:${savedId}`) as DeliberationPosture | null;
+					if (savedPosture === 'appropriation' || savedPosture === 'deliberation' || savedPosture === 'rendu') {
+						this.activePosture = savedPosture;
+					}
 				}
 			} catch {}
 			// Chargement différé : si la page SSR initialise déjà le store via initFromDb, on évite un fetch réseau redondant
@@ -212,6 +220,8 @@ class DeliberationStore {
 			activeSubjectId: string;
 			activeDocumentId: string;
 			dialogueMessages: DialogueMessage[];
+			deliberationViewMode?: 'board' | 'conversation';
+			activePosture?: DeliberationPosture;
 		}
 	> = {};
 
@@ -229,7 +239,9 @@ class DeliberationStore {
 			corpusDocuments: $state.snapshot(this.corpusDocuments),
 			activeSubjectId: this.activeSubjectId,
 			activeDocumentId: this.activeDocumentId,
-			dialogueMessages: $state.snapshot(this.dialogueMessages)
+			dialogueMessages: $state.snapshot(this.dialogueMessages),
+			deliberationViewMode: this.deliberationViewMode,
+			activePosture: this.activePosture
 		};
 
 		// 2. Trouver la cible
@@ -249,21 +261,37 @@ class DeliberationStore {
 			this.activeSubjectId = cached.activeSubjectId;
 			this.activeDocumentId = cached.activeDocumentId;
 			this.dialogueMessages = cached.dialogueMessages;
+			if (cached.deliberationViewMode) {
+				this.deliberationViewMode = cached.deliberationViewMode;
+			}
+			if (cached.activePosture) {
+				this.activePosture = cached.activePosture;
+			}
 		} else {
 			this.subjects = [...targetProfile.subjects];
 			this.drafts = { ...targetProfile.drafts };
 			this.statements = [...targetProfile.statements];
 			this.corpusDocuments = [...targetProfile.corpusDocuments];
 			let restoredSubjectId: string | null = null;
+			let restoredViewMode: 'board' | 'conversation' | null = null;
+			let restoredPosture: DeliberationPosture | null = null;
 			if (typeof window !== 'undefined') {
 				try {
 					restoredSubjectId = localStorage.getItem(`archinex:activeSubjectId:${targetId}`);
+					restoredViewMode = localStorage.getItem(`archinex:deliberationViewMode:${targetId}`) as 'board' | 'conversation' | null;
+					restoredPosture = localStorage.getItem(`archinex:activePosture:${targetId}`) as DeliberationPosture | null;
 				} catch {}
 			}
 			const isValid = !!(restoredSubjectId && this.subjects.some((s) => s.id === restoredSubjectId));
 			this.activeSubjectId = isValid ? restoredSubjectId! : targetProfile.defaultSubjectId;
 			this.activeDocumentId = targetProfile.defaultDocId;
 			this.dialogueMessages = [...(targetProfile.dialogueMessages || [])];
+			if (restoredViewMode === 'board' || restoredViewMode === 'conversation') {
+				this.deliberationViewMode = restoredViewMode;
+			}
+			if (restoredPosture === 'appropriation' || restoredPosture === 'deliberation' || restoredPosture === 'rendu') {
+				this.activePosture = restoredPosture;
+			}
 		}
 
 		this.activeEngagementId = targetId;
@@ -274,6 +302,8 @@ class DeliberationStore {
 				if (this.activeSubjectId) {
 					localStorage.setItem(`archinex:activeSubjectId:${targetId}`, this.activeSubjectId);
 				}
+				localStorage.setItem(`archinex:deliberationViewMode:${targetId}`, this.deliberationViewMode);
+				localStorage.setItem(`archinex:activePosture:${targetId}`, this.activePosture);
 			} catch {}
 		}
 
@@ -360,9 +390,13 @@ class DeliberationStore {
 				this.statements = current.statements || [];
 				this.corpusDocuments = current.corpusDocuments || [];
 				let restoredSubjectId: string | null = null;
+				let restoredViewMode: 'board' | 'conversation' | null = null;
+				let restoredPosture: DeliberationPosture | null = null;
 				if (typeof window !== 'undefined') {
 					try {
 						restoredSubjectId = localStorage.getItem(`archinex:activeSubjectId:${current.id}`);
+						restoredViewMode = localStorage.getItem(`archinex:deliberationViewMode:${current.id}`) as 'board' | 'conversation' | null;
+						restoredPosture = localStorage.getItem(`archinex:activePosture:${current.id}`) as DeliberationPosture | null;
 					} catch {}
 				}
 				const isValid = !!(restoredSubjectId && this.subjects.some((s) => s.id === restoredSubjectId));
@@ -371,6 +405,12 @@ class DeliberationStore {
 					: (current.defaultSubjectId || current.subjects[0]?.id || '');
 				this.activeDocumentId = current.defaultDocId || current.corpusDocuments[0]?.id || '';
 				this.dialogueMessages = current.dialogueMessages || [];
+				if (restoredViewMode === 'board' || restoredViewMode === 'conversation') {
+					this.deliberationViewMode = restoredViewMode;
+				}
+				if (restoredPosture === 'appropriation' || restoredPosture === 'deliberation' || restoredPosture === 'rendu') {
+					this.activePosture = restoredPosture;
+				}
 			}
 		});
 	}
@@ -683,15 +723,23 @@ class DeliberationStore {
 	selectSubject(id: string) {
 		this.activeSubjectId = id;
 		this.deliberationViewMode = 'conversation';
-		if (typeof window !== 'undefined' && this.activeEngagementId && id) {
+		if (typeof window !== 'undefined' && this.activeEngagementId) {
 			try {
-				localStorage.setItem(`archinex:activeSubjectId:${this.activeEngagementId}`, id);
+				if (id) {
+					localStorage.setItem(`archinex:activeSubjectId:${this.activeEngagementId}`, id);
+				}
+				localStorage.setItem(`archinex:deliberationViewMode:${this.activeEngagementId}`, 'conversation');
 			} catch {}
 		}
 	}
 
 	setDeliberationViewMode(mode: 'board' | 'conversation') {
 		this.deliberationViewMode = mode;
+		if (typeof window !== 'undefined' && this.activeEngagementId) {
+			try {
+				localStorage.setItem(`archinex:deliberationViewMode:${this.activeEngagementId}`, mode);
+			} catch {}
+		}
 	}
 
 	/** Sujet dont la décision formelle est demandée : l'atelier ouvre son dossier (matrice et arbitrage). */
@@ -1050,6 +1098,11 @@ class DeliberationStore {
 
 	setPosture(posture: DeliberationPosture) {
 		this.activePosture = posture;
+		if (typeof window !== 'undefined' && this.activeEngagementId) {
+			try {
+				localStorage.setItem(`archinex:activePosture:${this.activeEngagementId}`, posture);
+			} catch {}
+		}
 	}
 
 	setRole(role: ArchitectRole) {
@@ -1598,7 +1651,11 @@ class DeliberationStore {
 	 * Synchronisation avec le moteur Knowledge Hub / LLMOps
 	 * Récupère le board de maturité, les énoncés et les conflits depuis LLMOps (aucune donnée de repli si injoignable)
 	 */
-	async syncWithLLMOps(engagementId?: string, customFetch?: typeof fetch) {
+	async syncWithLLMOps(
+		engagementId?: string,
+		customFetch?: typeof fetch,
+		options: { silent?: boolean } = {}
+	) {
 		const eng = engagementId || this.activeEngagementId;
 		this.isSyncingLLMOps = true;
 		this.llmopsStatus = 'syncing';
@@ -1616,7 +1673,7 @@ class DeliberationStore {
 			}
 			const payload = (await res.json()) as LLMOpsSyncPayload;
 
-			if (!this.activeEngagementId) {
+			if (!this.activeEngagementId && this.engagements.some((e) => e.id === payload.engagement)) {
 				this.activeEngagementId = payload.engagement;
 			}
 			this.llmopsStatus = payload.source === 'live' ? 'connected' : 'offline';
@@ -1625,16 +1682,18 @@ class DeliberationStore {
 			this.lastSyncTime = payload.syncedAt;
 			this.llmopsConflicts = payload.conflicts || [];
 
-			if (payload.source === 'live') {
-				this.logNotification(
-					`Synchronisation réussie avec LLMOps (${payload.engagement}) · En direct`,
-					'success'
-				);
-			} else {
-				this.logNotification(
-					`LLMOps injoignable : aucune donnée synchronisée pour ${payload.engagement}. Vos données locales sont conservées.`,
-					'info'
-				);
+			if (!options.silent) {
+				if (payload.source === 'live') {
+					this.logNotification(
+						`Synchronisation réussie avec LLMOps (${payload.engagement}) · En direct`,
+						'success'
+					);
+				} else {
+					this.logNotification(
+						`LLMOps injoignable : aucune donnée synchronisée pour ${payload.engagement}. Vos données locales sont conservées.`,
+						'info'
+					);
+				}
 			}
 
 			// Fusionner / hydrater les sujets de LLMOps dans le board
@@ -1747,16 +1806,20 @@ class DeliberationStore {
 			}
 
 			const sourceLabel = payload.source === 'live' ? 'Cloud Run (Direct)' : 'Instantané Hors-Ligne';
-			this.logNotification(
-				`Synchronisation LLMOps réussie (${sourceLabel} · ${payload.engagement} · ${payload.board.length} sujets · ${payload.statements.length} énoncés)`,
-				'success'
-			);
+			if (!options.silent) {
+				this.logNotification(
+					`Synchronisation LLMOps réussie (${sourceLabel} · ${payload.engagement} · ${payload.board.length} sujets · ${payload.statements.length} énoncés)`,
+					'success'
+				);
+			}
 
 			return { success: true, payload };
 		} catch (err: unknown) {
 			this.llmopsStatus = 'error';
 			const msg = err instanceof Error ? err.message : 'Erreur inconnue';
-			this.logNotification(`Échec synchronisation LLMOps : ${msg}`, 'warning');
+			if (!options.silent) {
+				this.logNotification(`Échec synchronisation LLMOps : ${msg}`, 'warning');
+			}
 			return { success: false, error: msg };
 		} finally {
 			this.isSyncingLLMOps = false;

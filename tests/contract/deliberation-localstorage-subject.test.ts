@@ -2,7 +2,7 @@ import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
 import { deliberationStore } from '$lib/stores/deliberationStore.svelte';
 import { createTestDefaultEngagements } from '../fixtures/sample-data';
 
-describe('Préférence utilisateur — Mémorisation du dernier sujet dans le localStorage', () => {
+describe('Préférence utilisateur — Mémorisation du sujet, de la vue et de la posture dans le localStorage', () => {
 	let mockStorage: Record<string, string> = {};
 
 	beforeEach(() => {
@@ -23,6 +23,9 @@ describe('Préférence utilisateur — Mémorisation du dernier sujet dans le lo
 		vi.stubGlobal('localStorage', localStorageMock);
 		vi.stubGlobal('window', { localStorage: localStorageMock });
 		deliberationStore.activeEngagementId = '';
+		deliberationStore.deliberationViewMode = 'board';
+		deliberationStore.activePosture = 'deliberation';
+		deliberationStore.notifications = [];
 	});
 
 	afterEach(() => {
@@ -41,6 +44,21 @@ describe('Préférence utilisateur — Mémorisation du dernier sujet dans le lo
 
 		expect(deliberationStore.activeSubjectId).toBe(secondSubject.id);
 		expect(mockStorage[`archinex:activeSubjectId:${activeEngId}`]).toBe(secondSubject.id);
+		expect(mockStorage[`archinex:deliberationViewMode:${activeEngId}`]).toBe('conversation');
+	});
+
+	it('persiste deliberationViewMode et activePosture lors de changements explicites', () => {
+		const engagements = createTestDefaultEngagements();
+		deliberationStore.initFromDb(engagements, []);
+		const activeEngId = deliberationStore.activeEngagementId;
+
+		deliberationStore.setDeliberationViewMode('conversation');
+		expect(deliberationStore.deliberationViewMode).toBe('conversation');
+		expect(mockStorage[`archinex:deliberationViewMode:${activeEngId}`]).toBe('conversation');
+
+		deliberationStore.setPosture('appropriation');
+		expect(deliberationStore.activePosture).toBe('appropriation');
+		expect(mockStorage[`archinex:activePosture:${activeEngId}`]).toBe('appropriation');
 	});
 
 	it('restaure le dernier sujet mémorisé lors de initFromDb si valide', () => {
@@ -55,6 +73,20 @@ describe('Préférence utilisateur — Mémorisation du dernier sujet dans le lo
 		deliberationStore.initFromDb(engagements, []);
 
 		expect(deliberationStore.activeSubjectId).toBe(targetSubject.id);
+	});
+
+	it('restaure deliberationViewMode et activePosture mémorisés lors de initFromDb', () => {
+		const engagements = createTestDefaultEngagements();
+		const eng = engagements[0];
+
+		mockStorage['archinex:activeEngagementId'] = eng.id;
+		mockStorage[`archinex:deliberationViewMode:${eng.id}`] = 'conversation';
+		mockStorage[`archinex:activePosture:${eng.id}`] = 'rendu';
+
+		deliberationStore.initFromDb(engagements, []);
+
+		expect(deliberationStore.deliberationViewMode).toBe('conversation');
+		expect(deliberationStore.activePosture).toBe('rendu');
 	});
 
 	it("rabat sur le sujet par défaut si l'identifiant mémorisé n'existe plus dans les sujets", () => {
@@ -77,12 +109,16 @@ describe('Préférence utilisateur — Mémorisation du dernier sujet dans le lo
 		expect(secondEngSubject).toBeDefined();
 
 		mockStorage[`archinex:activeSubjectId:${secondEng.id}`] = secondEngSubject.id;
+		mockStorage[`archinex:deliberationViewMode:${secondEng.id}`] = 'conversation';
+		mockStorage[`archinex:activePosture:${secondEng.id}`] = 'appropriation';
 
 		deliberationStore.initFromDb(engagements, []);
 		deliberationStore.switchEngagement(secondEng.id);
 
 		expect(deliberationStore.activeEngagementId).toBe(secondEng.id);
 		expect(deliberationStore.activeSubjectId).toBe(secondEngSubject.id);
+		expect(deliberationStore.deliberationViewMode).toBe('conversation');
+		expect(deliberationStore.activePosture).toBe('appropriation');
 	});
 
 	it("met à jour le localStorage lors du changement de sujet et le conserve lors d'allers-retours entre engagements", () => {
@@ -106,5 +142,47 @@ describe('Préférence utilisateur — Mémorisation du dernier sujet dans le lo
 		// Re-bascule vers engagement 1 : il doit retrouver sub1
 		deliberationStore.switchEngagement(eng1.id);
 		expect(deliberationStore.activeSubjectId).toBe(sub1.id);
+	});
+
+	it("syncWithLLMOps avec l'option silent: true ne génère aucune notification visuelle intempestive", async () => {
+		const engagements = createTestDefaultEngagements();
+		deliberationStore.initFromDb(engagements, []);
+		deliberationStore.notifications = [];
+
+		const mockPayload = {
+			engagement: engagements[0].id,
+			source: 'live',
+			health: { status: 'healthy', version: '1.0' },
+			syncedAt: new Date().toISOString(),
+			conflicts: [],
+			board: [],
+			statements: []
+		};
+
+		const mockFetch = vi.fn().mockResolvedValue({
+			ok: true,
+			status: 200,
+			json: async () => mockPayload
+		});
+
+		// 1. Appel silencieux
+		const resSilent = await deliberationStore.syncWithLLMOps(
+			engagements[0].id,
+			mockFetch as unknown as typeof fetch,
+			{ silent: true }
+		);
+
+		expect(resSilent.success).toBe(true);
+		expect(deliberationStore.notifications).toHaveLength(0);
+
+		// 2. Appel non silencieux (clic manuel utilisateur)
+		const resLoud = await deliberationStore.syncWithLLMOps(
+			engagements[0].id,
+			mockFetch as unknown as typeof fetch,
+			{ silent: false }
+		);
+
+		expect(resLoud.success).toBe(true);
+		expect(deliberationStore.notifications.length).toBeGreaterThan(0);
 	});
 });

@@ -1424,7 +1424,7 @@
 			{#if deliberationStore.llmopsStatus === 'connected'}
 				<button
 					type="button"
-					onclick={() => deliberationStore.syncWithLLMOps()}
+					onclick={() => deliberationStore.syncWithLLMOps(undefined, undefined, { silent: false })}
 					disabled={deliberationStore.isSyncingLLMOps}
 					class="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg border text-xs font-medium bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/20 transition-colors cursor-pointer"
 					title="Connecté au Knowledge Hub LLMOps · Cliquez pour resynchroniser"
@@ -1439,7 +1439,7 @@
 			{:else}
 				<button
 					type="button"
-					onclick={() => deliberationStore.syncWithLLMOps()}
+					onclick={() => deliberationStore.syncWithLLMOps(undefined, undefined, { silent: false })}
 					disabled={deliberationStore.isSyncingLLMOps}
 					class="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg border text-xs font-medium bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-500/30 hover:bg-rose-500/20 transition-colors cursor-pointer"
 					title="Non connecté à LLMOps · Cliquez pour tester la connexion"

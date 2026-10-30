@@ -8,6 +8,19 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Délibération : Persistance du Mode de Vue & Synchronisation LLMOps Silencieuse en Tâche de Fond
+- **Persistance intégrale de la vue de délibération (`deliberationStore.svelte.ts`)** :
+  - **Mémorisation du mode d'affichage et de la posture** : persistance automatique dans le `localStorage` du navigateur sous les clés `archinex:deliberationViewMode:<id>` (`board` vs `conversation`) et `archinex:activePosture:<id>` (`appropriation`, `deliberation`, `rendu`), en complément de `archinex:activeSubjectId:<id>`.
+  - **Navigation et rechargement sans perte de contexte** : lors d'un rechargement de page ou d'une navigation transversale, l'utilisateur conserve sa posture et son panneau exact (ex: le fil de délibération sur un sujet spécifique), évitant le renvoi automatique et intempestif sur le tableau de maturité global.
+  - **Support des paramètres d'URL explicites** : dans `src/routes/deliberation/+page.svelte`, prise en compte prioritaire des paramètres de requête (`mode`, `subject`, `posture`) si présents.
+- **Synchronisation d'arrière-plan silencieuse (`silent: true`)** :
+  - **Suppression des alertes / toasts intempestifs** : ajout du drapeau `options.silent` dans `deliberationStore.syncWithLLMOps`. Les vérifications et synchronisations automatiques en tâche de fond (sur `onMount` de `/deliberation` et du badge d'en-tête `LLMOpsStatusBadge`) opèrent désormais silencieusement sans bombarder l'utilisateur de notifications toast.
+  - **Conservation du retour visuel sur action explicite** : les clics manuels sur les boutons de synchronisation ou de test de connexion continuent d'afficher les notifications de confirmation ou d'erreur.
+  - **Protection contre la réinitialisation de l'engagement actif** : validation de l'existence de l'identifiant d'engagement retourné par LLMOps avant toute affectation pour prévenir la désélection inopinée du projet courant.
+- **Tests** :
+  - Extension de la suite de contrat `tests/contract/deliberation-localstorage-subject.test.ts` (8 tests) couvrant la persistance et la restauration de `deliberationViewMode` et `activePosture` lors de `initFromDb` et `switchEngagement`, ainsi que le comportement sans toast de `syncWithLLMOps(..., { silent: true })`.
+
+
 ### Boîte de Réception des Revues KB : Filtrage Anti-Auto-Évaluation & Séparation des Tâches (#131)
 - **Prévention de l'auto-évaluation dans la Boîte de Réception (`/kb/reviews`)** :
   - **Filtre par défaut « À examiner uniquement (exclure mes clauses) »** : la boîte de réception n'affiche par défaut que les clauses soumises par des tiers pour lesquelles l'expert connecté est habilité à statuer, évitant de découvrir a posteriori sur la page d'examen qu'il est l'auteur de la clause et qu'il ne peut pas s'auto-évaluer.

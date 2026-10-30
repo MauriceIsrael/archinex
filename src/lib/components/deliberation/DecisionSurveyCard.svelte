@@ -162,7 +162,12 @@
 
 			if (!res.ok) {
 				const err = await res.json().catch(() => ({}));
-				throw new Error(err.message || err.error || "Erreur lors de l'enregistrement de la décision");
+				const fieldErrors = err.details?.fieldErrors
+					? Object.values(err.details.fieldErrors).flat().join(' ')
+					: '';
+				const formErrors = err.details?.formErrors?.join(' ') || '';
+				const detailsMsg = [fieldErrors, formErrors].filter(Boolean).join(' ');
+				throw new Error(detailsMsg || err.message || err.error || "Erreur lors de l'enregistrement de la décision");
 			}
 
 			const data = await res.json();

@@ -123,7 +123,12 @@
 				if (data.blockers) {
 					errorMessage = `Arbitrage refusé : ${data.blockers.map((b: MaturityBlocker) => b.message).join(' | ')}`;
 				} else {
-					errorMessage = data.error || 'Erreur lors de l’arbitrage.';
+					const fieldErrors = data.details?.fieldErrors
+						? Object.values(data.details.fieldErrors).flat().join(' ')
+						: '';
+					const formErrors = data.details?.formErrors?.join(' ') || '';
+					const detailsMsg = [fieldErrors, formErrors].filter(Boolean).join(' ');
+					errorMessage = detailsMsg || data.error || 'Erreur lors de l’arbitrage.';
 				}
 				return;
 			}

@@ -197,11 +197,14 @@ export function computeMaturityCriteria(input: MaturityCriteriaInput): MaturityT
 		derived.every((d) => d.level !== 'L0_named');
 
 	const hasSpec = input.specificationPresent === true;
-	const isLead =
+	const alreadyHomologatedL4 =
+		input.subject.level === 'L4_specified' || input.subject.level === 'L5_archived';
+	const isLeadRole =
 		input.actor?.isHuman === true &&
 		(input.actor?.role === 'lead_architect' ||
 			input.actor?.role === 'admin' ||
 			input.actor?.role === 'Lead Architect');
+	const isLead = alreadyHomologatedL4 || isLeadRole;
 
 	// 1. Transition L0 -> L1
 	const l0Criteria: MaturityCriterion[] = [
@@ -334,7 +337,11 @@ export function computeMaturityCriteria(input: MaturityCriteriaInput): MaturityT
 		{
 			id: 'lead_architect_approval',
 			label: 'Validation par le Lead Architect',
-			description: 'L’homologation à L4 est strictement réservée au Lead Architect.',
+			description: alreadyHomologatedL4
+				? 'Jalon d’ingénierie formellement homologué par le Lead Architect.'
+				: isLeadRole
+					? 'Votre profil (Lead Architect) vous habilite à homologuer ce sujet au niveau L4.'
+					: `Homologation réservée au Lead Architect. Votre profil actuel (${input.actor?.role || 'contributeur'}) n\'a pas cette habilitation.`,
 			satisfied: isLead,
 			actionLabel: 'Homologation Lead Architect',
 			actionType: 'lead_gate',

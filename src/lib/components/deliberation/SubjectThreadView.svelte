@@ -210,22 +210,47 @@
 		}
 		if (projectId && subjectId && detailedSpecText && detailedSpecText.trim().length > 0) {
 			try {
-				await patchSubject({ deliberationStatus: 'specified' });
-			} catch {}
+				const res = await patchSubject({ deliberationStatus: 'specified' });
+				if (!res.ok) {
+					const err = await res.json().catch(() => ({}));
+					deliberationStore.logNotification(
+						err.error || (res.status === 401 ? 'Non authentifié : veuillez vous connecter pour enregistrer.' : 'Échec de sauvegarde'),
+						'warning'
+					);
+					return false;
+				}
+			} catch {
+				return false;
+			}
 		}
 		deliberationStore.logNotification('Spécification technique détaillée enregistrée.', 'success');
+		return true;
 	}
 
 	async function handleApproveSpecL4() {
 		await handleSaveDetailedSpec();
-		deliberationStore.setSubjectLevel(subjectId, 'L4_specified');
 		if (projectId && subjectId) {
 			try {
-				await patchSubject({ maturityLevel: 'L4_specified', deliberationStatus: 'specified' });
+				const res = await patchSubject({ maturityLevel: 'L4_specified', deliberationStatus: 'specified' });
+				if (!res.ok) {
+					const err = await res.json().catch(() => ({}));
+					console.warn('[Homologation L4] Erreur backend :', err);
+					deliberationStore.logNotification(
+						err.error || (res.status === 401 ? 'Non authentifié : veuillez vous connecter en Lead Architect pour homologuer le jalon L4.' : "Échec de l'homologation L4"),
+						'warning'
+					);
+					await loadArgumentsAndContext();
+					return;
+				}
+				deliberationStore.setSubjectLevel(subjectId, 'L4_specified');
 				await loadArgumentsAndContext();
 			} catch (err) {
 				console.warn('[Homologation L4] Erreur backend :', err);
+				deliberationStore.logNotification("Erreur de communication lors de l'homologation L4", 'warning');
+				return;
 			}
+		} else {
+			deliberationStore.setSubjectLevel(subjectId, 'L4_specified');
 		}
 		deliberationStore.logNotification('✅ Spécification technique homologuée ! Le sujet franchit le jalon L4 (Spécifié).', 'success');
 	}
@@ -547,9 +572,8 @@
 			deliberationStore.requestFormalDecision(subjectId);
 			return;
 		}
-		deliberationStore.setSubjectLevel(subjectId, targetLevel);
-
 		if (!projectId || !subjectId) {
+			deliberationStore.setSubjectLevel(subjectId, targetLevel);
 			deliberationStore.logNotification(`Jalon ${targetLevel} validé avec succès !`, 'success');
 			return;
 		}
@@ -559,11 +583,18 @@
 			if (!res.ok) {
 				const err = await res.json().catch(() => ({}));
 				console.warn('[Espace Sujet] Transition backend non persistée:', err);
+				deliberationStore.logNotification(
+					err.error || (res.status === 401 ? 'Non authentifié : veuillez vous connecter pour valider ce jalon.' : `Échec de validation du jalon ${targetLevel}`),
+					'warning'
+				);
+				await loadArgumentsAndContext();
+				return;
 			}
+			deliberationStore.setSubjectLevel(subjectId, targetLevel);
 			await loadArgumentsAndContext();
 			deliberationStore.logNotification(`Jalon ${targetLevel} validé avec succès !`, 'success');
 		} catch {
-			deliberationStore.logNotification(`Jalon ${targetLevel} appliqué.`, 'info');
+			deliberationStore.logNotification(`Erreur de communication pour le jalon ${targetLevel}.`, 'warning');
 		}
 	}
 

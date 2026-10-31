@@ -8,9 +8,14 @@ Bienvenue dans le guide d'utilisation de la plateforme **Archinex** — Moteur d
 
 Le système utilise une gestion de session sécurisée avec hachage **bcrypt**.
 
+- **Mode Visiteur (Anonyme)** :
+  - Lorsqu'aucun utilisateur n'est authentifié, l'application est restreinte au **Dashboard Global** (« Executive Cockpit »).
+  - Le menu latéral et le tiroir mobile n'exposent que le tableau de bord et un lien direct vers la mire de connexion.
+  - Les espaces de travail (`/workspaces`), l'atelier de délibération (`/deliberation`), et le graphe de connaissances (`/knowledge`) sont protégés par un garde serveur (`requireAuth`) qui redirige automatiquement vers `/login?redirectTo=...`.
+  - Après authentification, l'utilisateur est automatiquement redirigé vers sa destination initiale.
 - **Connexion** : Rendez-vous sur `/login` avec votre adresse e-mail et mot de passe.
 - **Rôles supportés** :
-  - `lead_architect` : Responsable d'architecture, habilité à arbitrer tous les domaines et à sceller les livrables.
+  - `lead_architect` : Responsable d'architecture, habilité à arbitrer tous les domaines et à homologuer les spécifications L4 et sceller les livrables L5.
   - `domain_expert` / `domain_architect` : Expert technique spécialisé (infrastructure, sécurité, réseau, cloud, data). Habilité à arbitrer les sujets relevant de ses domaines attribués.
   - `contributor` : Participe aux débats, évalue les options et propose des alternatives.
   - `viewer` : Consultation seule du tableau de maturité et des dossiers.

@@ -297,15 +297,18 @@ sequenceDiagram
     UI->>Archinex: POST /api/frameworks/ingestions (multipart/form-data)
     Archinex->>LLMOps: POST /api/frameworks/ingestions [X-Actor-Email]
     LLMOps-->>Archinex: 201 Created (Découpage en exigences + ID d'ingestion)
-    Archinex-->>UI: Affichage du tableau de bord d'instruction
+    opt Auto-enrichissement immédiat dès l'ingestion (Zéro Friction)
+        Archinex->>Archinex: Inférence locale (LocalLlmClient / repli heuristique)
+        Archinex->>LLMOps: POST /api/frameworks/ingestions/{id}/link-proposals
+    end
+    Archinex-->>UI: Affichage du tableau de bord avec critères et liaisons pré-remplis
 
     loop Instruction Ligne par Ligne
         Expert->>UI: Sélectionne une exigence
-        opt Suggestions de Liaisons Doctrinales
+        opt Suggestions de Liaisons Doctrinales (unitaire ou rafraîchissement)
             UI->>Archinex: POST .../requirements/{id}/suggest-links
-            Archinex->>LLMOps: POST .../suggest-links
-            LLMOps-->>Archinex: 200 OK { suggested_assets, llm_derived: true }
-            Archinex-->>UI: Affiche suggestions avec étiquette d'assistance IA
+            Archinex->>Archinex: Inférence locale (LocalLlmClient / repli heuristique)
+            Archinex-->>UI: 200 OK { suggested_assets, acceptance_criteria, llm_derived: true }
         end
         Expert->>UI: Statut (accept / amend / reject avec motif)
         UI->>Archinex: PATCH .../requirements/{id}

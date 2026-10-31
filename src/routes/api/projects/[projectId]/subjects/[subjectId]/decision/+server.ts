@@ -52,9 +52,15 @@ export const POST: RequestHandler = async (event) => {
 
 	const parsed = CreateDecisionSchema.safeParse(body);
 	if (!parsed.success) {
+		const fieldErrors = Object.entries(parsed.error.flatten().fieldErrors)
+			.map(([field, msgs]) => `${field} : ${msgs?.join(', ')}`)
+			.join(' ; ');
+		const formErrors = parsed.error.flatten().formErrors.join(' ; ');
+		const combined = [fieldErrors, formErrors].filter(Boolean).join(' ; ');
+
 		return json(
 			{
-				error: 'Données de décision invalides.',
+				error: combined ? `Données de décision invalides (${combined})` : 'Données de décision invalides.',
 				details: parsed.error.flatten()
 			},
 			{ status: 400 }

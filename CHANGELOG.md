@@ -8,6 +8,16 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Initialisation d'Espace de Travail : Allègement des Étapes 1 et 3
+- **Étape 1 (Cadrage & Description)** :
+  - Retrait du bloc « Démarrage Éclair · Présets Métiers » (et « Démarrage Rapide » dans la modale) au profit d'une interface épurée sans présélection ferroviaire ou cloud souverain par défaut.
+- **Étape 3 (Docs Amonts)** :
+  - Suppression de la bannière redondante « Invariant Épistémique · Patrimoine Commun Enrichi » pour aérer l'espace visuel.
+  - Suppression du bloc « Lier des Normes & Standards Déjà Présents dans le Socle Commun », les référentiels réglementaires et standards applicables étant déjà formellement sélectionnés à l'Étape 2.
+- **Alignement Complet** :
+  - Application synchronisée sur la page pleine `/workspaces/new` et la boîte de dialogue modale `CreateWorkspaceDialog.svelte`.
+  - Ajout du test de non-régression dans `tests/contract/workspace-creation.test.ts`.
+
 ### Démo LUMICC : Ensemencement Complet des 16 Sujets d'Architecture (seed:lulu)
 - **Extension de l'engagement lumicc-lot1-noc post-ingestion** :
   - Passage de 7 à 16 sujets d'architecture d'entreprise et de solution au niveau L1_framed.

@@ -1,7 +1,9 @@
 import type { PageServerLoad } from './$types';
+import { requireAuth } from '$lib/auth/guard.server';
 
 export const load: PageServerLoad = async (event) => {
-	const sessionUser = event.locals.session?.user;
+	requireAuth(event.locals, '/login?redirectTo=/deliberation');
+	const sessionUser = event.locals.session.user;
 	// Rôle de session extrait de manière stricte et inviolable depuis le token/session serveur
 	const sessionRole =
 		(sessionUser?.attributes as any)?.projectRole ||
@@ -10,12 +12,10 @@ export const load: PageServerLoad = async (event) => {
 
 	return {
 		sessionRole,
-		sessionUser: sessionUser
-			? {
-					id: sessionUser.id,
-					email: sessionUser.email,
-					role: sessionRole
-				}
-			: null
+		sessionUser: {
+			id: sessionUser.id,
+			email: sessionUser.email,
+			role: sessionRole
+		}
 	};
 };

@@ -74,12 +74,16 @@
    * Navigation items.
    */
   const menuItems = [
-    { href: '/',             labelKey: 'nav.dashboard',    icon: LayoutDashboard, adminOnly: false },
-    { href: '/workspaces',   labelKey: 'nav.workspaces',   icon: FolderPlus,      adminOnly: false },
-    { href: '/deliberation', labelKey: 'nav.deliberation', icon: GitBranch,       adminOnly: false },
-    { href: '/knowledge',    labelKey: 'nav.knowledge',    icon: Network,         adminOnly: false },
-    { href: '/users',        labelKey: 'nav.users',        icon: Users,           adminOnly: false },
+    { href: '/',             labelKey: 'nav.dashboard',    icon: LayoutDashboard, adminOnly: false, authOnly: false },
+    { href: '/workspaces',   labelKey: 'nav.workspaces',   icon: FolderPlus,      adminOnly: false, authOnly: true },
+    { href: '/deliberation', labelKey: 'nav.deliberation', icon: GitBranch,       adminOnly: false, authOnly: true },
+    { href: '/knowledge',    labelKey: 'nav.knowledge',    icon: Network,         adminOnly: false, authOnly: true },
+    { href: '/users',        labelKey: 'nav.users',        icon: Users,           adminOnly: false, authOnly: true },
   ];
+
+  const displayedMenuItems = $derived(
+    menuItems.filter((item) => !item.authOnly || Boolean(session))
+  );
 
   const adminMenuItems = [
     { href: '/admin', labelKey: 'nav.admin', icon: Shield },
@@ -166,7 +170,7 @@
           <Sheet.Description class="text-sm">{$t('menu.subtitle', { default: '' })}</Sheet.Description>
         </Sheet.Header>
         <nav class="flex flex-col gap-1 px-3 py-4">
-          {#each menuItems as item}
+          {#each displayedMenuItems as item}
             {@const Icon = item.icon}
             {@const active = $page.url.pathname === item.href}
             <a
@@ -332,7 +336,7 @@
              {sidebarCollapsed ? 'w-16' : 'w-60'}"
     >
       <nav class="flex flex-col gap-1 px-2 py-4 flex-1">
-        {#each menuItems as item}
+        {#each displayedMenuItems as item}
           {@const Icon = item.icon}
           {@const active = $page.url.pathname === item.href}
           <a
@@ -347,6 +351,21 @@
             {/if}
           </a>
         {/each}
+
+        {#if !session}
+          <div class="mt-4 pt-3 border-t border-border/60 {sidebarCollapsed ? 'px-0' : 'px-1'}">
+            <a
+              href="/login"
+              title={sidebarCollapsed ? $t('auth.signIn') : undefined}
+              class="flex items-center gap-3 rounded-lg px-3 py-2 text-xs font-semibold text-primary hover:bg-primary/10 transition-colors"
+            >
+              <LogIn class="h-4 w-4 shrink-0" />
+              {#if !sidebarCollapsed}
+                <span class="truncate">{$t('auth.signIn')}</span>
+              {/if}
+            </a>
+          </div>
+        {/if}
 
         {#if isAdmin}
           <div class="mt-4 mb-1 {sidebarCollapsed ? 'px-1' : 'px-3'}">

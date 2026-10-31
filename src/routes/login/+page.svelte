@@ -59,7 +59,7 @@
 </script>
 
 <svelte:head>
-  <title>Sign In — Template App</title>
+  <title>Sign In — Archinex</title>
 </svelte:head>
 
 <div class="min-h-screen flex items-center justify-center bg-muted/30 p-4">

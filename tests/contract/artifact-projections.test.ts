@@ -248,4 +248,58 @@ describe('Projections dynamiques d\'architecture (No Doc Drift - Issue #64)', ()
 		expect(diagram).toContain('flowchart TB');
 		expect(diagram).toContain('Architecture Cible en Attente d\'Arbitrage L3');
 	});
+	it('9. Génère la topologie de sécurité réseau pour flux S6a avec terminaison IPsec SecGW et médiation DEA', () => {
+		const s6aSubject = {
+			id: 'sub-s6a-crypto',
+			section_ref: '§4.1',
+			name: 'Sécurité des flux S6a inter-lots'
+		};
+
+		const s6aContext: ProjectionContext = {
+			decision: {
+				retainedOptionId: 'opt-ipsec-dea',
+				retainedOptionTitle: 'Obligation de chiffrement IPsec ESP et médiation DEA pour les flux S6a Lot 3 ↔ Lot 1',
+				rationale: 'Tout échange S6a initié par un MME tiers doit obligatoirement terminer son tunnel IPsec sur le SecGW-Lot1, puis être inspecté par le DEA-Lot1. Tous les flux directs vers le HSS-Lot1 doivent être chiffrés.'
+			}
+		};
+
+		const diagram = generateTargetArchitectureDiagram(s6aSubject, null, [], s6aContext);
+
+		expect(diagram).toContain('flowchart TB');
+		expect(diagram).toContain('MME_Lot3');
+		expect(diagram).toContain('SecGW_Lot1');
+		expect(diagram).toContain('DEA_Lot1');
+		expect(diagram).toContain('HSS_Lot1');
+		expect(diagram).toContain('Tunnel IPsec ESP chiffré (IKEv2 / AES-256)');
+		expect(diagram).toContain('Médiation S6a, filtrage AVP & masquage topologique TH');
+		expect(diagram).toContain('INTERDIT : Flux direct non chiffré ou sans DEA');
+	});
+
+	it('10. Génère le diagramme de séquence télécom 3GPP pour la négociation IPsec ESP et médiation S6a', () => {
+		const s6aSubject = {
+			id: 'sub-s6a-crypto',
+			section_ref: '§4.1',
+			name: 'Sécurité des flux S6a inter-lots'
+		};
+
+		const s6aContext: ProjectionContext = {
+			decision: {
+				retainedOptionId: 'opt-ipsec-dea',
+				retainedOptionTitle: 'Obligation de chiffrement IPsec ESP et médiation DEA pour les flux S6a Lot 3 ↔ Lot 1',
+				rationale: 'Tout échange S6a initié par un MME tiers doit obligatoirement terminer son tunnel IPsec sur le SecGW-Lot1, puis être inspecté par le DEA-Lot1.'
+			}
+		};
+
+		const seq = generateDeploymentSequenceDiagram(s6aSubject, null, [], s6aContext);
+
+		expect(seq).toContain('sequenceDiagram');
+		expect(seq).toContain('MME as MME Tiers (Lot 3)');
+		expect(seq).toContain('SecGW as SecGW-Lot1 (Security Gateway)');
+		expect(seq).toContain('DEA as DEA-Lot1 (Diameter Edge Agent)');
+		expect(seq).toContain('HSS as HSS-Lot1 (Home Subscriber Server)');
+		expect(seq).toContain('Phase 1 : Négociation IKEv2 et Établissement du Tunnel IPsec ESP');
+		expect(seq).toContain('Phase 2 : Envoi Sécurisé du Flux S6a Encapsulé');
+		expect(seq).toContain('Phase 3 : Médiation & Inspection Applicative Diameter');
+		expect(seq).toContain("Phase 4 : Résolution et Réponse de l'Authentification");
+	});
 });

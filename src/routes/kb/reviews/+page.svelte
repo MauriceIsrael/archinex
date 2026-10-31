@@ -12,6 +12,8 @@
   import RefreshCw from 'lucide-svelte/icons/refresh-cw';
   import Lock from 'lucide-svelte/icons/lock';
   import Sparkles from 'lucide-svelte/icons/sparkles';
+  import Eye from 'lucide-svelte/icons/eye';
+  import { isCandidateAuthor } from '$lib/domain/candidateAuthorship';
   import { invalidateAll } from '$app/navigation';
 
   let { data } = $props();
@@ -19,12 +21,27 @@
   let selectedDomain = $state<string>('all');
   let selectedKind = $state<string>('all');
   let showOverdueOnly = $state<boolean>(false);
+  let hideOwnCandidates = $state<boolean>(true);
   let isPolling = $state<boolean>(false);
   let showNotifications = $state<boolean>(false);
+
+  function checkIsAuthor(item: any): boolean {
+    if (typeof item.isAuthor === 'boolean') {
+      return item.isAuthor;
+    }
+    return isCandidateAuthor(item.author, {
+      handle: data.expert.kbHandle,
+      email: data.user.email
+    });
+  }
 
   // Filtrage réactif
   let filteredItems = $derived(
     data.inbox.items.filter((item: any) => {
+      const isAuthor = checkIsAuthor(item);
+      if (hideOwnCandidates && isAuthor) {
+        return false;
+      }
       if (selectedDomain !== 'all' && item.domain.toLowerCase() !== selectedDomain.toLowerCase()) {
         return false;
       }
@@ -38,7 +55,13 @@
     })
   );
 
-  let overdueCount = $derived(data.inbox.items.filter((i: any) => i.is_overdue).length);
+  let ownCandidatesCount = $derived(
+    data.inbox.items.filter((i: any) => checkIsAuthor(i)).length
+  );
+
+  let overdueCount = $derived(
+    data.inbox.items.filter((i: any) => i.is_overdue && (!hideOwnCandidates || !checkIsAuthor(i))).length
+  );
   let unreadNotificationsCount = $derived(data.notifications.filter((n: any) => !n.read).length);
 
   async function triggerPoll() {
@@ -317,6 +340,18 @@
         <label class="flex items-center gap-2 cursor-pointer select-none">
           <input
             type="checkbox"
+            bind:checked={hideOwnCandidates}
+            data-testid="filter-hide-own"
+            class="h-3.5 w-3.5 rounded border-input"
+          />
+          <span class="text-xs {hideOwnCandidates ? 'font-bold text-foreground' : 'text-muted-foreground'}">
+            À examiner uniquement (exclure mes clauses)
+          </span>
+        </label>
+
+        <label class="flex items-center gap-2 cursor-pointer select-none">
+          <input
+            type="checkbox"
             bind:checked={showOverdueOnly}
             class="h-3.5 w-3.5 rounded border-input"
           />
@@ -326,8 +361,13 @@
         </label>
       </div>
 
-      <div class="text-xs text-muted-foreground">
+      <div class="text-xs text-muted-foreground flex flex-wrap items-center gap-2">
         <span>{filteredItems.length} candidat(s) affiché(s)</span>
+        {#if ownCandidatesCount > 0}
+          <span class="text-[11px] text-amber-600 dark:text-amber-400 font-medium">
+            ({ownCandidatesCount} clause(s) de votre plume{hideOwnCandidates ? ' masquée(s)' : ''})
+          </span>
+        {/if}
       </div>
     </Card.Content>
   </Card.Root>
@@ -358,18 +398,31 @@
             </div>
             <h3 class="font-bold text-base">Boîte de revue à jour</h3>
             <p class="text-xs text-muted-foreground max-w-md mx-auto">
-              Aucun candidat en attente d'examen ne correspond à vos filtres actuels. Dès qu'un projet ou un architecte soumet une clause dans vos domaines, elle apparaîtra ici.
+              {#if hideOwnCandidates && ownCandidatesCount > 0}
+                Toutes les clauses en attente dans vos domaines ont été rédigées par vous ({ownCandidatesCount} clause(s) soumise(s)). Conformément au principe de séparation des tâches, elles doivent être examinées par d'autres experts du domaine.
+              {:else}
+                Aucun candidat en attente d'examen ne correspond à vos filtres actuels. Dès qu'un projet ou un architecte soumet une clause dans vos domaines, elle apparaîtra ici.
+              {/if}
             </p>
+            {#if hideOwnCandidates && ownCandidatesCount > 0}
+              <div class="pt-2">
+                <Button size="sm" variant="outline" onclick={() => (hideOwnCandidates = false)} class="gap-1.5 text-xs">
+                  <Eye class="h-3.5 w-3.5" />
+                  <span>Afficher mes {ownCandidatesCount} clause(s) soumise(s)</span>
+                </Button>
+              </div>
+            {/if}
           {/if}
         </Card.Content>
       </Card.Root>
     {:else}
       {#each filteredItems as item}
+        {@const isAuthor = checkIsAuthor(item)}
         {@const kindInfo = getKindLabel(item.kind)}
         {@const reasonInfo = getReasonBadge(item.reason)}
         <div
           data-testid="review-candidate-item"
-          class="rounded-xl border bg-card p-4 transition-all hover:border-primary/40 hover:shadow-sm space-y-3 {item.is_overdue ? 'border-destructive/40 bg-destructive/5' : ''}"
+          class="rounded-xl border bg-card p-4 transition-all hover:border-primary/40 hover:shadow-sm space-y-3 {item.is_overdue ? 'border-destructive/40 bg-destructive/5' : ''} {isAuthor ? 'border-amber-500/30 bg-amber-500/[0.02]' : ''}"
         >
           <div class="flex flex-col sm:flex-row sm:items-start justify-between gap-3">
             <div class="space-y-1.5 flex-1">
@@ -389,6 +442,17 @@
                   {reasonInfo.label}
                 </span>
 
+                <!-- Badge Auteur / Séparation des tâches -->
+                {#if isAuthor}
+                  <span
+                    data-testid="badge-own-author"
+                    class="inline-flex items-center gap-1 rounded-full border border-amber-500/40 bg-amber-500/10 px-2.5 py-0.5 text-[11px] font-semibold text-amber-800 dark:text-amber-200"
+                    title="Vous êtes l’auteur de cette clause. Auto-évaluation interdite par le principe de séparation des tâches."
+                  >
+                    <Lock class="h-3 w-3 text-amber-600" /> Votre clause (Auteur)
+                  </span>
+                {/if}
+
                 <!-- Badge Overdue -->
                 {#if item.is_overdue}
                   <span class="inline-flex items-center gap-1 rounded-full border border-destructive/40 bg-destructive/20 px-2.5 py-0.5 text-[11px] font-bold text-destructive animate-pulse">
@@ -403,7 +467,7 @@
               </h3>
 
               <div class="flex flex-wrap items-center gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                <span>Auteur : <strong class="text-foreground">{item.author}</strong></span>
+                <span>Auteur : <strong class="text-foreground">{item.author}</strong> {#if isAuthor}<span class="text-amber-600 font-medium">(Vous)</span>{/if}</span>
                 <span>•</span>
                 <span>En attente depuis : {new Date(item.waiting_since).toLocaleDateString('fr-FR')}</span>
                 <span>•</span>
@@ -413,18 +477,32 @@
               </div>
             </div>
 
-            <!-- Action bouton examen -->
+            <!-- Action bouton examen ou consultation auteur -->
             <div class="sm:self-center">
-              <Button
-                variant={item.is_overdue ? 'destructive' : 'default'}
-                size="sm"
-                href="/kb/reviews/{item.candidate_id}"
-                data-testid="btn-examine-candidate"
-                class="gap-1.5 w-full sm:w-auto"
-              >
-                <span>Examiner</span>
-                <ArrowRight class="h-3.5 w-3.5" />
-              </Button>
+              {#if isAuthor}
+                <Button
+                  variant="outline"
+                  size="sm"
+                  href="/kb/reviews/{item.candidate_id}"
+                  data-testid="btn-view-own-candidate"
+                  class="gap-1.5 w-full sm:w-auto border-amber-500/30 text-amber-800 dark:text-amber-200 hover:bg-amber-500/10"
+                  title="Séparation des tâches : vous êtes l’auteur, l’auto-évaluation est interdite. Cliquez pour consulter l’avancement ou commenter."
+                >
+                  <Eye class="h-3.5 w-3.5 text-amber-600" />
+                  <span>Consulter (Auteur)</span>
+                </Button>
+              {:else}
+                <Button
+                  variant={item.is_overdue ? 'destructive' : 'default'}
+                  size="sm"
+                  href="/kb/reviews/{item.candidate_id}"
+                  data-testid="btn-examine-candidate"
+                  class="gap-1.5 w-full sm:w-auto"
+                >
+                  <span>Examiner</span>
+                  <ArrowRight class="h-3.5 w-3.5" />
+                </Button>
+              {/if}
             </div>
           </div>
         </div>

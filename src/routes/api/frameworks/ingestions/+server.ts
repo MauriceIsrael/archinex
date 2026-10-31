@@ -1,5 +1,6 @@
 import { json } from '@sveltejs/kit';
 import { llmopsClient } from '$lib/server/llmops/client';
+import { autoEnrichFrameworkIngestion } from '$lib/server/frameworks/frameworkEnricher';
 import {
   lookupDefaultFrameworkVersion,
   isGenericFrameworkVersion
@@ -171,6 +172,20 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
   if (result.status === 'error' || !result.data) {
     return json({ status: 'error', error: result.error || 'Erreur lors de l’ingestion' }, { status: 400 });
+  }
+
+  // Auto-enrichissement assisté par IA dès l'ingestion (Invariants I & II : propositions étiquetées llm-derived)
+  if (result.data.id && Array.isArray(result.data.requirements) && result.data.requirements.length > 0) {
+    try {
+      await autoEnrichFrameworkIngestion(
+        result.data.id,
+        result.data.requirements,
+        framework_id,
+        actorEmail
+      );
+    } catch (e: any) {
+      console.warn(`[Ingestion] Auto-enrichissement post-ingestion ignoré:`, e?.message || e);
+    }
   }
 
   return json(

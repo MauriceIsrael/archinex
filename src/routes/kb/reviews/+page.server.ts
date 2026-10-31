@@ -10,13 +10,13 @@ export const load: PageServerLoad = async ({ locals }) => {
   const user = locals.session!.user;
   const localExpert = await getKbExpertByUserId(user.id);
 
-  // Appel souverain de la boîte de revue avec X-Actor-Email
-  const inboxRes = await llmopsClient.getReviewInbox(user.email);
-  const notifications = await kbNotificationService.getUserNotifications(user.id);
-
   const ownedDomains = localExpert?.ownedDomains || [];
   const kbRoles = localExpert?.kbRoles || [];
   const kbHandle = localExpert?.kbHandle || `@${user.email.split('@')[0]}`;
+
+  // Appel souverain de la boîte de revue avec X-Actor-Email et handle d'expert
+  const inboxRes = await llmopsClient.getReviewInbox(user.email, { actorHandle: kbHandle });
+  const notifications = await kbNotificationService.getUserNotifications(user.id);
 
   return {
     user: {

@@ -219,4 +219,20 @@ describe('Workspace Creation & Common Knowledge Base Contract', () => {
 			expect(newUpstreamDocuments[0].keyClauses.length).toBeGreaterThanOrEqual(1);
 		}
 	});
+	it('5. Vérifie l’allègement des écrans d’initialisation d’espace (retrait des présets et blocs superflus)', async () => {
+		const fs = await import('node:fs');
+		const path = await import('node:path');
+
+		const pageSource = fs.readFileSync(path.resolve('src/routes/workspaces/new/+page.svelte'), 'utf8');
+		const dialogSource = fs.readFileSync(path.resolve('src/lib/components/deliberation/CreateWorkspaceDialog.svelte'), 'utf8');
+
+		for (const source of [pageSource, dialogSource]) {
+			expect(source).not.toContain('Démarrage Éclair');
+			expect(source).not.toContain('Démarrage Rapide · Présets');
+			expect(source).not.toContain('Invariant Épistémique · Patrimoine Commun Enrichi');
+			expect(source).not.toContain("Principe d'Invariant : Base de Connaissance Commune");
+			expect(source).not.toContain('Lier des Normes & Standards Déjà Présents');
+			expect(source).not.toContain('Standards & Doctrines Transverses Applicables (Patrimoine Existant)');
+		}
+	});
 });

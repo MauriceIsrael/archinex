@@ -6,6 +6,7 @@
 	type TabType = 'mermaid' | 'structurizr' | 'sysml' | 'config' | 'compliance';
 
 	let activeTab = $state<TabType>('mermaid');
+	let mermaidSubView = $state<'target' | 'sequence' | 'causal'>('target');
 	let copied = $state(false);
 	let isRegenerating = $state(false);
 	let lastSyncTime = $state<string>(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
@@ -74,7 +75,9 @@
 		if (!projections) return '';
 		switch (activeTab) {
 			case 'mermaid':
-				return projections.mermaid;
+				if (mermaidSubView === 'sequence') return (projections as any).deploymentSequenceMermaid || projections.mermaid;
+				if (mermaidSubView === 'causal') return projections.mermaid;
+				return (projections as any).targetArchitectureMermaid || projections.mermaid;
 			case 'structurizr':
 				return projections.structurizrDSL;
 			case 'sysml':
@@ -99,7 +102,9 @@
 
 		switch (activeTab) {
 			case 'mermaid':
-				filename = `${activeSubject?.id || 'arch'}_diagram.mmd`;
+				if (mermaidSubView === 'sequence') filename = `${activeSubject?.id || 'arch'}_deployment_sequence.mmd`;
+				else if (mermaidSubView === 'causal') filename = `${activeSubject?.id || 'arch'}_causal_graph.mmd`;
+				else filename = `${activeSubject?.id || 'arch'}_target_architecture.mmd`;
 				break;
 			case 'structurizr':
 				filename = `${activeSubject?.id || 'arch'}_workspace.dsl`;
@@ -187,7 +192,7 @@
 					: 'text-muted-foreground hover:text-foreground hover:bg-muted/60'}"
 			>
 				<Layers class="h-3.5 w-3.5" />
-				<span>Diagramme Mermaid (Interprété)</span>
+				<span>Diagrammes d'Architecture (Mermaid)</span>
 			</button>
 
 			<button
@@ -283,11 +288,52 @@
 	{#if projections}
 		<div class="space-y-4">
 			{#if activeTab === 'mermaid'}
-				<MermaidViewer
-					code={projections.mermaid}
-					title="Flux Causal d'Architecture · {activeSubject?.section_ref} {activeSubject?.name}"
-					defaultView="visual"
-				/>
+				<div class="flex flex-wrap items-center gap-1.5 p-1 rounded-lg bg-muted/60 border border-border/40 w-fit text-xs" data-testid="mermaid-view-switcher">
+					<button
+						type="button"
+						onclick={() => (mermaidSubView = 'target')}
+						class="px-2.5 py-1 rounded-md font-medium transition-colors {mermaidSubView === 'target' ? 'bg-background shadow-xs text-foreground font-bold' : 'text-muted-foreground hover:text-foreground'}"
+						data-testid="tab-target-arch"
+					>
+						🎯 Architecture Spécifiée (Cible)
+					</button>
+					<button
+						type="button"
+						onclick={() => (mermaidSubView = 'sequence')}
+						class="px-2.5 py-1 rounded-md font-medium transition-colors {mermaidSubView === 'sequence' ? 'bg-background shadow-xs text-foreground font-bold' : 'text-muted-foreground hover:text-foreground'}"
+						data-testid="tab-sequence-arch"
+					>
+						🔄 Chaîne de Déploiement & Homologation
+					</button>
+					<button
+						type="button"
+						onclick={() => (mermaidSubView = 'causal')}
+						class="px-2.5 py-1 rounded-md font-medium transition-colors {mermaidSubView === 'causal' ? 'bg-background shadow-xs text-foreground font-bold' : 'text-muted-foreground hover:text-foreground'}"
+						data-testid="tab-causal-arch"
+					>
+						⚖️ Graphe Décisionnel (Auditabilité)
+					</button>
+				</div>
+
+				{#if mermaidSubView === 'target'}
+					<MermaidViewer
+						code={(projections as any).targetArchitectureMermaid || projections.mermaid}
+						title="Architecture Cible Spécifiée · {activeSubject?.section_ref} {activeSubject?.name}"
+						defaultView="visual"
+					/>
+				{:else if mermaidSubView === 'sequence'}
+					<MermaidViewer
+						code={(projections as any).deploymentSequenceMermaid || projections.mermaid}
+						title="Chaîne de Déploiement Sécurisée & Homologation · {activeSubject?.section_ref}"
+						defaultView="visual"
+					/>
+				{:else}
+					<MermaidViewer
+						code={projections.mermaid}
+						title="Graphe Décisionnel & Justification Épistémique · {activeSubject?.section_ref} {activeSubject?.name}"
+						defaultView="visual"
+					/>
+				{/if}
 			{:else if activeTab === 'structurizr'}
 				<div class="space-y-3">
 					<MermaidViewer

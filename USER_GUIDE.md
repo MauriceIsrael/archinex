@@ -48,7 +48,7 @@ Lorsqu'un sujet est sélectionné dans l'arbre de gauche, tout l'écran de droit
 ### Étape 2 : Critères & Alternatives Contrastées (Onglet 1)
 1. **Critères** : Ajoutez au moins deux critères pondérés (technique, réglementaire/sécurité, coût, résilience).
 2. **Options** : Formulez au moins deux options d'architecture viables. Vous pouvez saisir une alternative manuellement ou solliciter l'agent *Proposer* pour compléter la matrice.
-3. **Matrice d'Évaluation** : Notez chaque option sur l'échelle [-2; +2] avec une justification textuelle concise. Dès que toutes les options sont évaluées, le sujet atteint le niveau `L2_decomposed`.
+3. **Matrice d'Évaluation** : Notez chaque option sur l'échelle [-2; +2] avec une justification textuelle concise. Dès que toutes les options sont évaluées, le sujet atteint le niveau `L2_decomposed`. Chaque colonne d'option présente un badge distinctif (`Option A`, `Option B`), un titre complet enveloppé sur plusieurs lignes (sans tronquage) et un bouton d'information « Détails » dépliant son résumé technique.
 
 ### Étape 3 : Débat Multi-Agents Contradictoire (Onglet 2)
 1. Cliquez sur **Lancer le débat multi-agents**.
@@ -125,7 +125,9 @@ Les experts disposant du rôle `kb:review` participent à la collégialité doct
 
 ### 5.1 Boîte de Réception (`/kb/reviews`)
 - **Accès direct** : Via le menu utilisateur en haut à droite > **Boîte de Revue KB**.
-- **Alertes de Retard (&ge; 5 jours ouvrés)** : Les candidats dont l'échéance `due_at` est dépassée sont mis en évidence par un bandeau d'alerte et un badge rouge animé.
+- **Séparation des tâches & Prévention de l'auto-évaluation** : Conformément à la règle constitutionnelle des 4 yeux (Hub contrat 1.37), un expert ne peut ni examiner ni s'auto-évaluer sur une clause dont il est l'auteur. Par défaut, la boîte de réception active le filtre *« À examiner uniquement (exclure mes clauses) »* afin de ne présenter pour examen que les clauses rédigées par des tiers.
+- **Consultation de ses propres clauses** : Si le filtre est décoché, les clauses rédigées par l'expert connecté apparaissent avec le badge explicite *« Votre clause (Auteur) »* et le bouton d'action bascule de **Examiner** à **Consulter (Auteur)** (l'auto-évaluation étant rigoureusement impossible).
+- **Alertes de Retard (&ge; 5 jours ouvrés)** : Les candidats dont l'échéance `due_at` est dépassée sont mis en évidence par un bandeau d'alerte et un badge rouge animé (le décompte exclut les clauses propres de l'expert lorsqu'elles sont masquées).
 - **Filtres** : Filtrez par domaine de compétence (`security`, `cloud`, etc.), par nature d'actif (`principle`, `new_asset`, `amendment`, `rex`), ou isolez uniquement les retards critiques.
 - **Centre de Notifications** : La cloche en haut à droite affiche les alertes instantanées de gouvernance (assignations, demandes d'avis, rappels) avec acquittement de lecture.
 
@@ -226,7 +228,10 @@ Depuis `/kb/frameworks`, téléversez le document réglementaire :
 
 ### 7.2 Revue Ligne par Ligne Interactive (`/kb/frameworks/[id]`)
 Chaque exigence réglementaire dispose de son cycle d'instruction :
-1. **Correspondances Assistées par l'IA** : Cliquez sur *"Suggérer correspondances IA"* pour obtenir des propositions de liaisons doctrinales vers des contrôles ou principes existants, validées formellement et étiquetées `llm-derived`.
+1. **Correspondances et Critères Assistés par l'IA** :
+   - **Auto-enrichissement dès l'ingestion** : Dès le découpage du document, Archinex mobilise son modèle local (`LocalLlmClient`) pour pré-remplir les critères d'acceptation opérationnels et les correspondances doctrinales étiquetés `llm-derived`.
+   - **Bouton « Auto-enrichir par l'IA »** : Disponible en haut de l'écran pour relancer ou enrichir un référentiel complet en un clic.
+   - **Bouton « Suggérer correspondances IA »** : Permet de régénérer unitairement sur une ligne spécifique les liaisons et critères recommandés sans dépendre d'un LLM sur le Hub LLMOps.
 2. **Décisions Unitaires** :
    - **Accepter** : L'exigence est alignée sur les contrôles et principes sélectionnés.
    - **Amender** : Préciser des notes d'adaptation opérationnelle ou des restrictions spécifiques.
@@ -344,21 +349,46 @@ Accessible depuis le dialogue d'homologation (`FreezeSectionDialog`) :
 - **Comparateur de dossiers (`diffEngagementBundles`)** : Détecte les ajouts, suppressions et modifications entre deux versions scellées, et signale toute **régression épistémique** (`asserted` $\rightarrow$ `proposed`).
 - **Retour vers la capitalisation (`extractBundleKbCandidates`)** : Les décisions validées natives créées au cours du projet sont automatiquement extraites comme candidats pour la base de connaissances et déposées dans la boîte de revue d'experts au statut `in_review`.
 
+### 11.5 Projections Visuelles en Phase 3 (Rendu & Homologation)
+En Phase 3 (« Rendu & Homologation »), Archinex permet de visualiser et d'exporter l'architecture retenue sous trois prismes complémentaires via le sélecteur Mermaid d'`ArtifactRegenerationHub` et le fragment `HldFragmentView` :
+1. **🎯 Architecture Spécifiée (Cible)** *(Vue par défaut)* : Diagramme de conteneurs et de flux (C4 / Flowchart) matérialisant la topologie de la solution retenue, ses composants embarqués autonomes (agents, métrologie, console), ses interfaces avec le SI existant (alarmes SNMP, métriques API, logs Syslog TLS) et les nœuds cibles.
+2. **🔄 Chaîne de Déploiement & Homologation** : Diagramme de séquence modélisant la chaîne de confiance et de validation humaine (construction du paquet signé par l'éditeur/titulaire, soumission au guichet d'homologation/recette, approbation formelle et déploiement contrôlé vers les agents).
+3. **⚖️ Graphe Décisionnel (Auditabilité)** : Graphe épistémique traçant l'arbre causal de la délibération (hypothèses, énoncés prouvés, conflits et options retenues) pour la traçabilité d'audit.
+
+Ces schémas sont directement intégrés dans le fragment Markdown HLD exporté (`renderHldFragmentMarkdown`) et téléchargeables au format `.mmd`.
+
 ---
 
-## 12. D�monstrateur & Ensemencements D�mo (LUMICC / "Lulu")
 
-Pour pr�parer rapidement une session de d�mo ou des tests interactifs sans ressaisie manuelle, Archinex fournit un ensemencement d�di� du dossier r�el **LUMICC Lot 1** :
+
+### 11.6 Sélecteur de Sujets et Pré-filtrage L4 en Phase 3
+En Phase 3 (« Rendu & Homologation »), un bandeau supérieur dédié (`Phase3SubjectSelector`) permet d'explorer et de basculer entre les sujets d'architecture :
+1. **🎯 Pré-filtrage par défaut L4 Spécifiés** : Isole immédiatement les sujets dont l'architecture technique a été entièrement spécifiée (composants autonomes, chaîne de déploiement WAPT, flux réseau étiquetés) et prêts pour l'homologation.
+2. **⚖️ Bascule rapide vers L3+ ou Tous** : Permet de visualiser également les sujets arbitrés ou en cours de cadrage si nécessaire.
+3. **📁 Segmentation par Lots / Parties** : Permet d'isoler un sous-ensemble (ex. LOT-02 Socle Infra ou LOT-05 Ops).
+4. **💬 Conservation dans le fil de délibération** : Ce même filtre par Lots/Parties est accessible dans la colonne latérale du fil de délibération (`SubjectConversationList`), avec mémorisation de l'état actif dans le projet.
+
+
+### 11.7 Lisibilité des Diagrammes : Aperçu Plein Écran au Maintien du Clic
+Pour faciliter la lecture des graphes d'architecture denses (topologie C4, séquences de déploiement, arbres de causalité) :
+1. **Maintien du clic (Press & Hold)** : En maintenant le clic gauche enfoncé sur n'importe quel diagramme Mermaid, celui-ci s'ouvre instantanément en plein écran agrandi sur fond sombre.
+2. **Retour immédiat** : Dès que le bouton de la souris est relâché, le plein écran se referme sans perturber le scroll ou l'état de la page.
+3. **Plein écran fixe & Zoom** : Il est également possible de verrouiller l'affichage en plein écran via le bouton dédié dans la barre d'outils ou de naviguer avec la touche Échap.
+
+## 12. Démonstrateur & Ensemencements Démo (LUMICC / "Lulu")
+
+Pour préparer rapidement une session de démo ou des tests interactifs sans ressaisie manuelle, Archinex fournit un ensemencement dédié du dossier réel **LUMICC Lot 1** :
 
 ``bash
-# R�initialisation � l'�tat "Juste Apr�s Ingestion" (7 sujets L1_framed, 0 d�cision scell�e)
+# Réinitialisation à l'état "Juste Après Ingestion" (7 sujets L1_framed, 0 décision scellée)
 npm run seed:lulu
 ``n
-Cette commande r�initialise l'espace projet `lumicc-lot1-noc` dans la base SQLite locale (`dev.db`) et ins�re l'audit J0 de 92 clauses dans l'historique des d�pouillements. Elle permet de d�rouler en direct les 4 sc�narios de d�lib�ration :
+Cette commande réinitialise l'espace projet `lumicc-lot1-noc` dans la base SQLite locale (`dev.db`) et insère l'audit J0 de 92 clauses dans l'historique des dépouillements. Elle permet de dérouler en direct les 4 scénarios de délibération :
 1. **Cas nominal** (`SUBJ-LUMICC-01`) : arbitrage fluide sur la matrice d'options 3 DC & RTO UDR.
-2. **D�bat contradictoire** (`SUBJ-LUMICC-03`) : controverse infra/s�curit� sur l'oscillateur GNSS 30j et lev�e d'objection.
-3. **Contradiction r�glementaire** (`SUBJ-LUMICC-05`) : blocage Porte G3 sur violation GSMA SGP.22 / NIS2 et alignement souverain.
-4. **Capitalisation doctrinale** (`SUBJ-LUMICC-02`) : passage Porte G4, qualification de portabilit� et transmission au Knowledge Hub LLMOps.
+2. **Débat contradictoire** (`SUBJ-LUMICC-03`) : controverse infra/sécurité sur l'oscillateur GNSS 30j et levée d'objection.
+3. **Contradiction réglementaire** (`SUBJ-LUMICC-05`) : blocage Porte G3 sur violation GSMA SGP.22 / NIS2 et alignement souverain.
+4. **Capitalisation doctrinale** (`SUBJ-LUMICC-02`) : passage Porte G4, qualification de portabilité et transmission au Knowledge Hub LLMOps.
+
 
 
 ---

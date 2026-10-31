@@ -102,6 +102,17 @@ describe('Fragment de HLD construit depuis la délibération', () => {
 		expect(f.consequences.coverageWarnings).toEqual(['Avertissement 1']);
 		expect(f.requirements.items.length).toBe(1);
 	});
+
+	it('embarque automatiquement le schéma d\'architecture spécifiée dans le fragment et son rendu Markdown', () => {
+		const f = buildHldFragment(base());
+		expect(f.targetArchitectureMermaid).toBeDefined();
+		expect(f.targetArchitectureMermaid).toContain('flowchart TB');
+
+		const md = renderHldFragmentMarkdown(f);
+		expect(md).toContain('### Schéma d\'architecture spécifiée');
+		expect(md).toContain('```mermaid');
+		expect(md).toContain('flowchart TB');
+	});
 });
 /**
  * Lecture « tableau blanc » : la réponse d'abord, le détail ensuite, et rien qui ne dise ce qu'une décision n'a pas encore dit.

@@ -8,17 +8,35 @@
 	import RegulatoryFrameworksPanel from '$lib/components/deliberation/RegulatoryFrameworksPanel.svelte';
 	import ArtifactRegenerationHub from '$lib/components/deliberation/ArtifactRegenerationHub.svelte';
 	import HldFragmentView from '$lib/components/deliberation/HldFragmentView.svelte';
+	import Phase3SubjectSelector from '$lib/components/deliberation/Phase3SubjectSelector.svelte';
 	import WhyInspector from '$lib/components/deliberation/WhyInspector.svelte';
 	import FreezeSectionDialog from '$lib/components/deliberation/FreezeSectionDialog.svelte';
 	import { deliberationStore } from '$lib/stores/deliberationStore.svelte';
+	import { page } from '$app/stores';
 	import { Layers, MessagesSquare } from 'lucide-svelte';
 
 	let { data } = $props();
 
 	onMount(() => {
-		// Synchronisation non-bloquante en arrière-plan (Stale-While-Revalidate) :
-		// Les sujets et la matrice s'affichent immédiatement sans attendre le réseau externe
-		deliberationStore.syncWithLLMOps().catch((err) => {
+		// 1. Prise en compte prioritaire des paramètres d'URL explicites si renseignés
+		const searchParams = $page.url.searchParams;
+		const querySubject = searchParams.get('subject');
+		const queryMode = searchParams.get('mode');
+		const queryPosture = searchParams.get('posture');
+
+		if (querySubject && deliberationStore.subjects.some((s) => s.id === querySubject)) {
+			deliberationStore.selectSubject(querySubject);
+		} else if (queryMode === 'board' || queryMode === 'conversation') {
+			deliberationStore.setDeliberationViewMode(queryMode);
+		}
+
+		if (queryPosture === 'appropriation' || queryPosture === 'deliberation' || queryPosture === 'rendu') {
+			deliberationStore.setPosture(queryPosture);
+		}
+
+		// 2. Synchronisation silencieuse en arrière-plan (Stale-While-Revalidate) :
+		// N'émet pas de toasts intempestifs et préserve la vue de l'utilisateur
+		deliberationStore.syncWithLLMOps(undefined, undefined, { silent: true }).catch((err) => {
 			console.warn('[Deliberation] Synchro LLMOps différée en tâche de fond :', err);
 		});
 	});
@@ -113,6 +131,7 @@
 	<!-- ═════════════════════════════════════════════════════════════════════════ -->
 	{:else if deliberationStore.activePosture === 'rendu'}
 		<div class="space-y-4 animate-in fade-in duration-150">
+			<Phase3SubjectSelector />
 			<HldFragmentView />
 			<ArtifactRegenerationHub />
 		</div>

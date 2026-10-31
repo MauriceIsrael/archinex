@@ -32,6 +32,18 @@ L'interface est structurée autour de zones opérationnelles claires :
 
 ## 3. Guide Pas-à-Pas des 3 Postures Contextuelles
 
+### 1.1 Initialisation Guidée d'un Espace de Travail (5 Étapes)
+L'assistant de création d'espace (`/workspaces/new` ou modale du bandeau de projet) guide l'équipe à travers 5 étapes épurées :
+1. **Cadrage & Description** : Saisie du titre du projet, type d'engagement (RFP, Blueprint, Audit NIS2, POC) et slug d'identification.
+2. **Stratégie Globale, Principes & Référentiels** :
+   - *Objectifs Stratégiques Macro* : Orientent la délibération et pondèrent les critères d'évaluation des variantes.
+   - *Principes Directeurs d'Architecture* : Règles transverses opposables (ex: Zero-Trust, souveraineté).
+   - *Contraintes Non Négociables (Lignes Rouges)* : Verrous stricts interdisant certaines solutions.
+   - *Référentiels Réglementaires Applicables* : Déclaration des cadres opposables (NIS2, SecNumCloud, ISO 27001, etc.) dont les contrôles accompagneront chaque sujet.
+3. **Documents Amonts** : Versement des pièces contractuelles (CCTP, RFP, spécifications métier) ou confrontation directe via le moteur de dépouillement.
+4. **Participants & Équipe Habilitée** : Affectation des Lead Architects, Experts et Sachants Métier.
+5. **Lancement & Scellement Initial** : Création de l'espace et transition vers la phase d'appropriation.
+
 ### Posture 1 : Appropriation & Cadrage Pédagogique
 - **Quand l'activer ?** Lors de l'ingestion initiale d'un dossier, à l'arrivée d'un nouvel intervenant, ou lorsqu'un doute subsiste sur une contrainte normative.
 - **Ce que vous voyez** : Les fiches de synthèse vulgarisées des standards régissant la section (ex: 3GPP Release 17 pour la radio 5G, Directive NIS2 pour la continuité d'activité, Uptime Institute pour les datacenters).
@@ -41,6 +53,10 @@ L'interface est structurée autour de zones opérationnelles claires :
 - **Explorer le Board de Maturité & Ouvrir un Sujet** :
   - Les sujets en haut du tableau sont ceux qui possèdent le plus fort effet multiplicateur (`Débloque`).
   - Un simple clic sur une ligne du tableau ouvre directement le **Fil de Délibération du sujet** dans le Workbench 3 colonnes sans changer d'écran.
+  - **Mémorisation du sujet, du mode de vue et de la posture active (`localStorage`)** :
+    - Le dernier sujet sélectionné, le mode d'affichage (`board` pour le Tableau de maturité / vue d'ensemble ou `conversation` pour le Fil de délibération) ainsi que la posture active (`appropriation`, `deliberation`, `rendu`) sont automatiquement mémorisés dans le stockage local du navigateur (clés scopées par projet : `archinex:activeSubjectId:<id>`, `archinex:deliberationViewMode:<id>`, `archinex:activePosture:<id>`).
+    - Lors de toute navigation transversale ou rafraîchissement de page, votre position exacte de travail est fidèlement restaurée sans vous faire resauter sur le tableau global.
+    - La synchronisation avec LLMOps en arrière-plan opère en mode silencieux (`silent: true`) : elle ne déclenche pas de toasts intempestifs lors du chargement de page et préserve scrupuleusement la vue courante. Les notifications visuelles restent réservées aux clics manuels de resynchronisation.
 - **Workbench de Délibération (3 colonnes)** :
   - **Colonne de gauche (Liste des sujets)** : navigation instantanée entre toutes les conversations de sujets avec filtres rapides (Bloquants, À faire, Actés).
   - **Colonne centrale (Fil du sujet)** :
@@ -77,8 +93,13 @@ L'interface est structurée autour de zones opérationnelles claires :
 
 ## 4. Méthodologie d'Ingestion & Délibération (Méthodologie ArcKit)
 
-### 4.0 Vérification préalable du découpage PDF sur échantillon & Rapport d'extraction (#50)
-Avant de lancer l'audit ou la factorisation sémantique d'un RFP, Archinex génère et affiche un **rapport d'extraction complet** pour permettre une relecture humaine sur échantillon :
+### 4.0 Ingestion Épurée, Vérification sur Échantillon & Rapport d'Extraction (#50)
+Avant de lancer l'audit ou la factorisation sémantique d'un RFP, Archinex propose une interface épurée et génère un **rapport d'extraction complet** pour permettre une relecture humaine sur échantillon :
+
+- **Interface de saisie allégée** :
+  - Accès direct aux trois modes réels d'ingestion : **Fichier Local** (PDF avec calque vectoriel, Markdown, Texte brut, JSON), **Coller le texte** ou **URL Web distante**.
+  - Suppression des modèles pré-intégrés factices au profit d'un écran vierge, focalisé sur le document réel de l'opérateur.
+  - Le rapport de contrôle et l'échantillon ne s'activent qu'une fois un document réel chargé ou collé, évitant la surcharge visuelle à l'ouverture de la boîte de dialogue.
 
 - **Rapport d'extraction automatique** :
   - **Statistiques globales** : nombre d'exigences extraites, nombre de pages du document source, taux de couverture textuelle effective du document (`coverageRate`) avec seuil d'alerte si la couverture est inférieure à 60 %.
@@ -89,13 +110,22 @@ Avant de lancer l'audit ou la factorisation sémantique d'un RFP, Archinex gén�
     - *Références sans numéro* (ex: `REQ-Lot1-?`) ou *atypiques* ne suivant pas la convention dominante.
     - *Clauses anormalement courtes* (< 25 caractères) ou *volumineuses* (> 2 500 caractères, signalant une possible concaténation d'exigences sans séparateur).
     - *Pages sans clause* (sommaires, pages de garde, annexes non structurées).
-- **Échantillon de vérification humaine côte à côte** :
-  - Sélection prioritaire de toutes les clauses présentant une anomalie, complétée d'un échantillon représentatif de clauses nominales réparties sur le document.
-  - Présentation en double vue : à gauche, l'exigence découpée (référence, titre, texte, criticité, anomalies associées) ; à droite, le calque textuel de la **page source correspondante** du PDF avec son numéro de page.
-  - Confirmation par l'architecte (« Valider le découpage ») ou signalement d'un problème sur une clause spécifique.
+
+- **Échantillon de vérification humaine côte à côte : Ce qu'il apporte** :
+  - **Faisabilité cognitive (2 minutes vs 3 jours)** : Un CCTP compte souvent 300 à 1 500 exigences. Il est impossible pour un architecte de tout relire avant de lancer un dépouillement. L'échantillon (10 à 20 clauses) sélectionne en priorité absolue **100 % des clauses détectées avec anomalie**, complétées d'un échantillon représentatif de clauses nominales réparties sur le document.
+  - **Garantie anti-hallucination & intégrité amont** : Le découpage PDF est le maillon le plus critique. Si un tableau à double colonne a fusionné deux exigences ou sauté une page, l'IA aval factorisera sur une base viciée (*garbage in, garbage out*).
+  - **Traçabilité & Conformité AI Act / ISO 42001** : L'attestation de validation humaine (identité de l'opérateur, horodatage ISO, clauses examinées, anomalies acceptées) est persistée avec l'audit scellé.
+
+- **Protocole Opérateur : Que faire en cas de problème ?** :
+  1. *Clause mal découpée ou tronquée dans l'échantillon* : Cliquer sur **« Signaler »** (Flag) pour consigner le défaut dans la traçabilité. L'opérateur peut ensuite ajuster ou corriger la clause directement dans la zone de texte brut avant validation.
+  2. *Échec d'extraction PDF (scan image, 0% de couverture, pages vides)* : Si le PDF ne contient pas de calque texte (document numérisé), appliquer un OCR préalable (ex: OCRmyPDF, Acrobat) ou basculer sur le mode **« Coller le texte »** ou un export Markdown / `.txt`.
+  3. *Anomalie bénigne / Faux positif (ex: saut de numérotation normal dans le document client)* : Vérifier dans la colonne droite (calque source du PDF) que le numéro manquant n'existe effectivement pas dans le document. Cliquer sur **« Confirmer »** ou **« Valider tout l'échantillon »** : l'anomalie est enregistrée comme acceptée et ne bloque pas l'audit.
+  4. *Lancement sans validation* : L'analyse reste possible même sans validation humaine préalable, mais le rapport final portera la mention explicite d'avertissement *« Validation humaine non effectuée »*.
+
 - **Traçabilité & Persistance** :
   - L'attestation de validation humaine (identité de l'architecte, horodatage ISO, clauses examinées, anomalies acceptées) est persistée avec l'exécution de factorisation (`FactorizationRun`).
   - Toute analyse lancée sans validation préalable est marquée comme non vérifiée et affiche un bandeau d'avertissement dans la synthèse des résultats (`RfpFactorizationReview`).
+
 
 ### 4.1 Audit des exigences : le modèle propose, vous disposez
 À l'import d'un RFP, le modèle de langage classe **chaque clause** dans l'un de quatre états. Ce sont des **propositions** : rien n'est décidé tant que vous ne les avez pas relues.

@@ -1,3 +1,5 @@
+import fs from 'node:fs';
+import path from 'node:path';
 import { describe, it, expect } from 'vitest';
 import {
 	shredRfpTextToClauses,
@@ -175,5 +177,19 @@ describe('Découpage d\'un RFP extrait de PDF : mobilier de page et références
 	it('ne retire rien d\'un texte sans marqueurs de page', () => {
 		const plain = 'Clause 1.1 - Titre\nLigne répétée\nClause 1.2 - Autre\nLigne répétée\nClause 1.3 - Encore\nLigne répétée';
 		expect(shredRfpTextToClauses(plain).map((c) => c.text)).toEqual(['Ligne répétée', 'Ligne répétée', 'Ligne répétée']);
+	});
+});
+
+describe('RFP Confrontation Dialog Ergonomics', () => {
+	it('allège la boîte de dialogue en retirant les modèles pré-intégrés au profit de l’import réel', () => {
+		const dialogSource = fs.readFileSync(
+			path.resolve('src/lib/components/deliberation/RfpConfrontationDialog.svelte'),
+			'utf8'
+		);
+
+		expect(dialogSource).not.toContain('Modèles Pré-intégrés');
+		expect(dialogSource).not.toContain('template-btn-');
+		expect(dialogSource).not.toContain('SAMPLE_RFP_TEMPLATES');
+		expect(dialogSource).toContain("inputMode = $state<InputMode>('file')");
 	});
 });

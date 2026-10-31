@@ -17,6 +17,15 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 - **Documentation et Protocole Opérateur** :
   - Clarification de la valeur ajoutée de l'échantillon de vérification humaine (contrôle rapide anti-hallucination sur les anomalies prioritaires, faisabilité en 2 minutes).
   - Guide opérationnel détaillé dans `docs/user-guide.md` sur la conduite à tenir par l'opérateur en cas d'anomalie de découpage.
+### Initialisation d'Espace de Travail : Allègement des Étapes 1 et 3
+- **Étape 1 (Cadrage & Description)** :
+  - Retrait du bloc « Démarrage Éclair · Présets Métiers » (et « Démarrage Rapide » dans la modale) au profit d'une interface épurée sans présélection ferroviaire ou cloud souverain par défaut.
+- **Étape 3 (Docs Amonts)** :
+  - Suppression de la bannière redondante « Invariant Épistémique · Patrimoine Commun Enrichi » pour aérer l'espace visuel.
+  - Suppression du bloc « Lier des Normes & Standards Déjà Présents dans le Socle Commun », les référentiels réglementaires et standards applicables étant déjà formellement sélectionnés à l'Étape 2.
+- **Alignement Complet** :
+  - Application synchronisée sur la page pleine `/workspaces/new` et la boîte de dialogue modale `CreateWorkspaceDialog.svelte`.
+  - Ajout du test de non-régression dans `tests/contract/workspace-creation.test.ts`.
 ### Titre de l'Application : Remplacement du Titre Boilerplate par « archinex »
 - **Harmonisation de la bannière et des locales** :
   - Remplacement de la chaîne boilerplate `A small app to have fun` (et ses déclinaisons `Une petite app pour rigoler` / `Una pequeña aplicación para divertirse`) par `archinex` dans tous les dictionnaires de localisation (`en.json`, `en-UK.json`, `fr-FR.json`, `es.json`).

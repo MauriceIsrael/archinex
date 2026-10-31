@@ -8,6 +8,13 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Démo LUMICC : Ensemencement Complet des 16 Sujets d'Architecture (seed:lulu)
+- **Extension de l'engagement lumicc-lot1-noc post-ingestion** :
+  - Passage de 7 à 16 sujets d'architecture d'entreprise et de solution au niveau L1_framed.
+  - Couverture exhaustive des 12 thématiques factorisées du RFP Section 4 (NOC & Résilience) : haute disponibilité, médiation OSS/NRM, supervision RAN MNO, RCA/AIOps, collecte NOC/SOC, automatisation SMO, gouvernance QoS 5QI, assurance de service (sondes E2E) et CMDB.
+  - Préservation des options en draft et des pondérations multicritères MCDA sur l'ensemble des sujets.
+  - Mise à jour du contrat de test seed-lulu.test.ts.
+
 ### Référentiels & Doctrine : Auto-enrichissement IA et Suggestions Locales Sans Dépendance Serveur Hub (#93 & #99)
 - **Suppression de la dépendance LLM côté LLMOps & Résolution du 404** :
   - Déplacement de l'inférence des suggestions doctrinales dans Archinex via `LocalLlmClient` (Ollama local / API Claude) et heuristiques déterministes `FRAMEWORK_TOPIC_PATTERNS`.

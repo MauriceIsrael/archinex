@@ -253,5 +253,310 @@
       "cost_delta": "+380 k€ de surcoût non financé",
       "trade_off": "Contradiction directe avec la matrice Excel"
     }
+  },
+  "SUBJ-LUMICC-08": {
+    "section_id": "NOC – haute disponibilité, DR, infrastructure sécurisée",
+    "subject": "Haute disponibilité NOC : actif-actif ou actif-passif à bascule rapide",
+    "maturity": "L1_framed",
+    "is_provisional": true,
+    "retenu": [
+      "REQ-Lot1-268 : suppression des SPOF sur application, base de données et collecte (bloquant)",
+      "REQ-Lot1-271 : actif-actif ou actif-standby, sans SPOF sur calcul, stockage et réseau, DR testé (bloquant)",
+      "REQ-Lot1-269 : alimentations et matériel redondants, sauvegarde automatisée, RBAC, MFA, moindre privilège, journalisation d'audit",
+      "REQ-Lot1-270 : liens WAN redondants à basculement automatique et chemins physiques distincts"
+    ],
+    "suppose": [
+      "Hypothèse de départ : une architecture mixte par couche. Actif-actif pour la collecte et les services applicatifs sans état, car un nœud perdu n'interrompt pas la supervision. Actif-passif à bascule automatique pour les bases de données et le stockage, où la cohérence prime et où la réplication synchrone entre sites est coûteuse et complexe. Les deux exigences bloquantes (268 et 271) admettent explicitement « actif ou bascule rapide », donc rien n'impose l'actif-actif intégral. L'actif-actif intégral est écarté tant que les RTO/RPO ne le justifient pas. Le tout actif-passif est écarté pour la collecte, où une bascule créerait des trous de données. Cette hypothèse reste à valider dès que les RTO/RPO sont connus."
+    ],
+    "interroge": [
+      "Quels sont les RTO et RPO cibles du NOC, globalement et par fonction (collecte, corrélation, bases, interfaces opérateurs) ? Aucune valeur n'est donnée et elles déterminent le choix.",
+      "Les deux sites du NOC (primaire et secours) sont-ils imposés, et quelle latence et quelle bande passante sont disponibles entre eux pour une réplication synchrone ?",
+      "Une perte de données de collecte pendant une bascule est-elle tolérable, ou la continuité de la supervision doit-elle être sans interruption ?",
+      "Quelle fréquence et quelle portée de test de DR le donneur d'ordre attend-il (bascule réelle ou simulée, périodicité) ? Peut-on imposer des opérateurs de liens WAN distincts avec des chemins physiques séparés ?"
+    ],
+    "options": [
+      "Actif-actif intégral",
+      "Actif-passif à bascule rapide",
+      "Mixte par couche"
+    ],
+    "criteres": [
+      "RTO/RPO atteignable",
+      "Absence de SPOF",
+      "Coût d'infrastructure et d'exploitation",
+      "Complexité et risque opérationnel"
+    ]
+  },
+  "SUBJ-LUMICC-09": {
+    "section_id": "NOC – médiation, NRM, dashboards, hypervision, SLA",
+    "subject": "Médiation OSS avec NRM unifié ou adaptateurs propriétaires par fournisseur",
+    "maturity": "L1_framed",
+    "is_provisional": true,
+    "retenu": [
+      "REQ-Lot1-249 : consistance des KPI et taxonomie d'alarmes normalisée dans une couche de médiation OSS, traduction des compteurs propriétaires vers un NRM unifié",
+      "REQ-Lot1-238 : topologie complète et attributs des éléments réseau non affectés par le caractère multi-fournisseur (bloquant)",
+      "REQ-Lot1-211 : alarmes interprétées selon la spécification du fournisseur de l'élément réseau concerné",
+      "REQ-Lot1-234 : KPI et suivi de SLA agrégeant les mesures d'actifs potentiellement multi-fournisseurs",
+      "REQ-Lot1-252 : NRM définissant architecture INFRA/RAN, inventaire RAN, configuration de cellule, supervision de performance, réception d'alarmes",
+      "REQ-Lot1-233 : dashboards NOC agrégeant les actifs de l'inventaire LUMICC, potentiellement multi-fournisseurs"
+    ],
+    "suppose": [
+      "Hypothèse de départ : une couche de médiation OSS avec NRM unifié, conservant en parallèle l'identifiant et la sémantique d'origine du fournisseur (compteur, code d'alarme, spécification applicable). Elle découle de REQ-Lot1-249, qui la demande explicitement, et de REQ-Lot1-238 (bloquant), qui exige une topologie indépendante du fournisseur. Les adaptateurs propres à chaque fournisseur sans modèle commun sont écartés : ils ne garantiraient ni sémantique de KPI cohérente pour le SLA (REQ-Lot1-234) ni une agrégation homogène pour les dashboards (REQ-Lot1-233) et multiplieraient les intégrations. Une variante hybride (adaptateurs en entrée, modèle canonique en sortie) est retenue comme mode de mise en œuvre de la médiation, pas comme alternative. Le coût de mapping et le risque de perte de fidélité sont à maîtriser par un périmètre de normalisation progressif et un référentiel de mapping versionné."
+    ],
+    "interroge": [
+      "Quels fournisseurs, quelles familles d'équipements (RAN, cœur, transmission, MCX, infrastructure) et quelles interfaces de collecte sont dans l'inventaire des actifs LUMICC, et lesquels sont déjà connus au moment de l'offre ?",
+      "Le NRM doit-il s'appuyer sur un modèle de référence existant (standard 3GPP/TM Forum ou autre) ou le donneur d'ordre a-t-il un modèle propre à respecter pour REQ-Lot1-252 ?",
+      "Quelles règles de calcul des KPI et de pénalités de SLA sont contractuelles, et le donneur d'ordre exige-t-il d'auditer la traçabilité entre compteur brut fournisseur et KPI normalisé ?",
+      "Le donneur d'ordre exige-t-il la réversibilité ou le remplacement d'un fournisseur sans refonte des dashboards, et la propriété du référentiel de mapping lui revient-elle ?"
+    ],
+    "options": [
+      "Médiation OSS avec NRM unifié",
+      "Médiation avec NRM et sémantique native conservée",
+      "Adaptateurs propres à chaque fournisseur"
+    ],
+    "criteres": [
+      "Conformité aux exigences bloquantes",
+      "Fidélité sémantique des alarmes et KPI",
+      "Cohérence des KPI et du SLA",
+      "Coût de mapping et de maintenance",
+      "Indépendance vis-à-vis des fournisseurs"
+    ]
+  },
+  "SUBJ-LUMICC-10": {
+    "section_id": "NOC – RAN MNO partagée (MOCN)",
+    "subject": "Supervision de la RAN MNO partagée : adaptation aux interfaces OSS imposées du MNO",
+    "maturity": "L1_framed",
+    "is_provisional": true,
+    "retenu": [
+      "REQ-Lot1-200 : accès NOC aux KPI, statuts de stations et indicateurs de couverture/QoS RAN, couverture MNO partagée à confirmer par l'opérateur",
+      "REQ-Lot1-206 : ne pas désactiver la RAN MNO partagée tant que le service commercial MNO est actif dans la zone",
+      "REQ-Lot1-250 : en MOCN, l'INFRA s'adapte aux interfaces OSS/ENM du MNO (REST, NETCONF, Kafka, Syslog, SNMP, SFTP)",
+      "REQ-Lot1-253 : NRM définissant l'architecture MOCN, ressources partagées et exclusives LUMICC, configuration de cellules, supervision de la performance, réception d'alarmes"
+    ],
+    "suppose": [
+      "Hypothèse de départ : une couche d'adaptation côté INFRA, avec un connecteur par interface MNO réellement exposée (REST/RESTCONF, NETCONF, Kafka, Syslog, SNMP, SFTP XML/CSV), alimentant un NRM MOCN unique qui sépare ressources partagées et ressources exclusives LUMICC. Le REQ-Lot1-250 impose l'adaptation à l'OSS du MNO et exclut donc un modèle où l'on imposerait notre propre interface. Le REQ-Lot1-206 est traité comme une règle de gouvernance contractuelle (engagement du MNO et notification avant tout changement), complétée d'un contrôle de cohérence côté NOC. Option écartée : la supervision uniquement indirecte par sondes de service, car elle ne donne ni statut des stations ni KPI radio (REQ-Lot1-200) ni alarmes. Option écartée aussi : s'en remettre à des rapports périodiques du MNO, trop peu réactifs pour un service critique. Cette hypothèse reste à confirmer selon le périmètre de supervision que le LUMICC Network operator indiquera."
+    ],
+    "interroge": [
+      "Le LUMICC Network operator confirme-t-il que la supervision de la RAN MNO partagée est dans le périmètre (REQ-Lot1-200) ? Si non, les REQ-Lot1-250 et -253 se réduisent-ils à un modèle de données et à un accueil d'alarmes ?",
+      "Quelles interfaces OSS/ENM le MNO s'engage-t-il à exposer, avec quelle granularité (par PLMN, par cellule, par slice) et quelle latence, et sont-elles contractualisées ou indicatives ?",
+      "Comment le MNO identifie-t-il techniquement les ressources exclusives LUMICC (PLMN-ID, cellules, tranches) dans son OSS, et accepte-t-il de les filtrer à notre intention sans exposer ses données propres ?",
+      "Que prévoit le contrat pour REQ-Lot1-206 : engagement du MNO, préavis avant désactivation, ou simple obligation de moyens, et quelles pénalités ?"
+    ],
+    "options": [
+      "Adaptateurs INFRA + NRM MOCN",
+      "Passerelle d'exposition imposée au MNO",
+      "Supervision indirecte par sondes de service"
+    ],
+    "criteres": [
+      "Conformité aux exigences",
+      "Visibilité sur le service partagé",
+      "Dépendance au MNO",
+      "Effort d'intégration"
+    ]
+  },
+  "SUBJ-LUMICC-11": {
+    "section_id": "NOC – gestion des alarmes, corrélation, RCA",
+    "subject": "Corrélation d'alarmes et RCA : règles déterministes, analytique ML ou approche hybride",
+    "maturity": "L1_framed",
+    "is_provisional": true,
+    "retenu": [
+      "REQ-Lot1-197 : conformité 3GPP MDA pour les domaines cœur et RAN",
+      "REQ-Lot1-212 : éviter surcharge d'alarmes, fausses alarmes sans impact service et RCA tardive",
+      "REQ-Lot1-214 : agrégation et corrélation avec déduplication, suppression, filtres personnalisables, enrichissement topologie/géolocalisation/services/Service areas",
+      "REQ-Lot1-215 : RCA préliminaire automatique et support des fenêtres de maintenance pour supprimer les alarmes attendues",
+      "REQ-Lot1-257 : console d'alarmes affichant les alarmes enrichies et corrélées"
+    ],
+    "suppose": [
+      "Hypothèse de départ : une approche hybride par couches. Un socle déterministe (déduplication, suppression, filtres, fenêtres de maintenance, corrélation topologique et services affectés) couvre REQ-214, REQ-215 et REQ-257 de façon explicable et auditable. Une couche analytique alignée 3GPP MDA est exposée en complément (REQ-197), en mode d'aide à la décision, sans action automatique sur diagnostic non validé. Le tout règles seul est écarté car il tient mal face à un parc multi-fournisseurs évolutif et à la réduction des fausses alarmes sans impact service ; le tout ML est écarté car le risque de faux diagnostic, l'explicabilité et la dépendance à la qualité des données d'inventaire sont mal maîtrisés au démarrage. Le dosage reste à valider par l'équipe."
+    ],
+    "interroge": [
+      "Quel niveau de conformité 3GPP MDA est attendu (fonctions MDA et cas d'usage précis, exposition d'interfaces, ou simple alignement) et est-il vérifiable en recette ?",
+      "Quelle est la tolérance du donneur d'ordre à un diagnostic erroné sur un service critique, et la RCA automatique doit-elle rester indicative ou peut-elle déclencher des actions ?",
+      "Existe-t-il des données historiques d'alarmes et d'incidents exploitables, avec quelle qualité, pour entraîner ou calibrer des modèles ML ?",
+      "L'inventaire et la topologie multi-fournisseurs seront-ils disponibles et fiables dès la mise en service pour alimenter l'enrichissement et la corrélation ?"
+    ],
+    "options": [
+      "Moteur de règles déterministes",
+      "Analytique ML/MDA native",
+      "Hybride règles + analytique MDA"
+    ],
+    "criteres": [
+      "Maîtrise du risque de faux diagnostic",
+      "Réduction du bruit et des fausses alarmes",
+      "Conformité 3GPP MDA",
+      "Dépendance aux données d'inventaire et d'historique",
+      "Coût et effort de mise en œuvre et d'exploitation"
+    ]
+  },
+  "SUBJ-LUMICC-12": {
+    "section_id": "NOC – collecte, FMS, syslog, logs",
+    "subject": "Pipeline de collecte unique ou chaînes séparées NOC et SOC/SIEM",
+    "maturity": "L1_framed",
+    "is_provisional": true,
+    "retenu": [
+      "REQ-Lot1-210 : collecte temps réel des alarmes, événements, compteurs de performance et journaux de tous les domaines LUMICC",
+      "REQ-Lot1-213 : agrégateur syslog protégé dans un bastion de l'INFRA, destinataire des logs de tous les éléments de l'inventaire, pour le NOC et le SOC/SIEM",
+      "REQ-Lot1-255 : FMS collectant et stockant les événements et alarmes temps réel, YANG de préférence, sinon SNMPv3 ou syslog",
+      "REQ-Lot1-256 : alarmes et événements convertis en syslog et envoyés à l'agrégateur connecté au NOC et au SOC/SIEM",
+      "REQ-Lot1-264 : gestion de logs avec ingestion et parsing syslog, indexation et recherche, corrélation avec alarmes et KPI",
+      "REQ-Lot1-244 : outils avec ingestion temps réel, rétention historique et export standardisé"
+    ],
+    "suppose": [
+      "Hypothèse de départ : un point de collecte unique côté éléments réseau, l'agrégateur syslog en bastion de l'INFRA (REQ-213), avec un double flux de sortie, l'un vers le NOC (FMS, plateforme de logs) et l'autre vers le SOC/SIEM. Les droits d'accès, la rétention et les index restent distincts par domaine. Cela respecte le texte de REQ-213 et REQ-256, évite de multiplier les flux depuis chaque équipement et rend l'intégrité des journaux plus simple à démontrer. Option écartée : deux chaînes totalement séparées, qui doublent les flux et les points d'intégration et vont à l'encontre de REQ-213. Option écartée aussi : le pipeline entièrement mutualisé jusqu'à la plateforme de données, qui ferait dépendre la sécurité de la disponibilité et des choix du NOC. Le FMS reçoit en parallèle les alarmes natives YANG ou SNMPv3 (REQ-255) afin de ne pas dépendre de la seule conversion en syslog."
+    ],
+    "interroge": [
+      "Le SOC/SIEM est-il fourni et exploité par le donneur d'ordre (produit, formats d'ingestion attendus) ? Quelle responsabilité pour l'agrégateur et le bastion : titulaire ou INFRA ?",
+      "Quelles volumétries (événements par seconde, volume quotidien) et quelles durées de rétention sont attendues, séparément pour le NOC et pour le SOC ? Y a-t-il des exigences légales ou d'intégrité (horodatage, scellement) ?",
+      "Le SOC exige-t-il une copie brute et non modifiée des logs, ou accepte-t-il les alarmes converties en syslog (REQ-256, criticité info) ? Quel est le niveau de perte d'information acceptable ?",
+      "Le périmètre de l'inventaire d'actifs inclut-il des équipements de tiers (MNO partagé en MOCN) dont on ne contrôle pas l'émission de logs ? Quel mode de transport est attendu (TLS, relais, mise en tampon en cas de coupure) ?"
+    ],
+    "options": [
+      "Agrégateur commun en bastion, double sortie",
+      "Chaînes NOC et SOC totalement séparées",
+      "Pipeline unique mutualisé jusqu'à la plateforme de données"
+    ],
+    "criteres": [
+      "Conformité aux exigences",
+      "Séparation des domaines et intégrité",
+      "Préservation de l'information",
+      "Volumétrie et tenue en charge",
+      "Coût et complexité d'exploitation"
+    ]
+  },
+  "SUBJ-LUMICC-13": {
+    "section_id": "NOC – OSS/SMO, automatisation, optimisation",
+    "subject": "Degré d'automatisation SMO/OSS : boucle fermée, approbation humaine ou graduée",
+    "maturity": "L1_framed",
+    "is_provisional": true,
+    "retenu": [
+      "REQ-Lot1-207 : le NOC optimise et économise l'énergie des éléments réseau, RAN en particulier",
+      "REQ-Lot1-246 : OSS associé à une couche SMO et à un EMS",
+      "REQ-Lot1-247 : moteur de politiques et d'intentions dans le SMO et NWDAF (traduction SLA, automatisation des politiques et des règles QoS, détection de non-conformité)",
+      "REQ-Lot1-263 : runbooks et playbooks, automatisation événementielle, remédiation en boucle fermée avec options d'approbation opérateur"
+    ],
+    "suppose": [
+      "Hypothèse de départ : une autonomie graduée par classe d'action, sur une architecture modulaire OSS + SMO + EMS à responsabilités séparées. Les actions réversibles à faible impact (enrichissement, ticketing, collecte de diagnostic, runbooks de site) s'exécutent en boucle fermée. Les actions à impact sur le service (reconfiguration QoS, remédiation sur éléments critiques) passent par approbation opérateur, conformément à REQ-263 qui prévoit des « options d'approbation ». Les économies d'énergie RAN sont encadrées par des garde-fous (fenêtres, zones exclues, seuils de couverture et de capacité). Écartée : la boucle fermée généralisée, car le risque opérationnel et sécuritaire est trop élevé pour de la mission critique. Écartée aussi : l'approbation systématique, qui annule le bénéfice de l'automatisation événementielle et du moteur d'intentions (REQ-247). La plateforme intégrée mono-fournisseur est écartée à ce stade, car elle verrouille le découpage des responsabilités exigé par REQ-246, mais elle reste à confronter à l'effort d'intégration."
+    ],
+    "interroge": [
+      "Quelles classes d'actions le donneur d'ordre accepte-t-il de voir exécutées sans approbation humaine (remédiation, QoS, énergie), et quelles sont les zones ou services (mission critique) exclus de toute boucle fermée ?",
+      "Quelles contraintes de disponibilité, de couverture et de capacité minimales encadrent les économies d'énergie RAN, et y a-t-il une cible chiffrée d'économie ?",
+      "Quelles exigences d'auditabilité, de traçabilité, de réversibilité (rollback) et de séparation des rôles pèsent sur les actions automatiques, côté sécurité et réglementation ?",
+      "Le donneur d'ordre a-t-il une préférence ou une contrainte sur l'architecture O-RAN (SMO ouvert modulaire) face à une suite OSS intégrée d'un seul fournisseur ?"
+    ],
+    "options": [
+      "Autonomie graduée par classe d'action",
+      "Boucle fermée généralisée",
+      "Approbation opérateur systématique",
+      "Suite OSS/SMO intégrée mono-fournisseur"
+    ],
+    "criteres": [
+      "Maîtrise du risque opérationnel",
+      "Réactivité et couverture des exigences d'automatisation",
+      "Contrôle opérateur et auditabilité",
+      "Modularité et découpage OSS/SMO/EMS",
+      "Charge d'exploitation NOC"
+    ]
+  },
+  "SUBJ-LUMICC-14": {
+    "section_id": "NOC – QoS, QCI/5QI, trafic",
+    "subject": "Gouvernance QoS NOC : référentiel 5QI unique ou mapping par domaine",
+    "maturity": "L1_framed",
+    "is_provisional": true,
+    "retenu": [
+      "REQ-Lot1-193 : le NOC gère le mapping QCI/5QI 6, 7, 8 et mission critical vers les caractéristiques QoS",
+      "REQ-Lot1-194 : le NOC crée et gère des QCI/5QI opérateur (plage 128-254, TS 29.212)",
+      "REQ-Lot1-195 : 5QI aérien opérateur (priorité, PDB, PER) pour steering vers déployables et streaming UAV en uplink",
+      "REQ-Lot1-208 : optimisation du trafic par équilibrage de charge, traffic steering et mobilité",
+      "REQ-Lot1-209 : aide à la décision pour suggérer COW MNO ou système déployable GOV",
+      "REQ-Lot1-231 : analytique de trafic par 5QI sur RAN GOV, RAN MNO, EUCCS et roaming"
+    ],
+    "suppose": [
+      "Hypothèse de départ : un catalogue QoS central dans le NOC, source de vérité des QCI/5QI standard (6, 7, 8, mission critical), opérateur (128-254) et du 5QI aérien, avec des profils de mapping explicites par domaine (cœur, RAN GOV, RAN MNO partagée). Sur la RAN MNO, le mapping est contractualisé et vérifié par supervision plutôt que piloté directement. Le catalogue alimente l'analytique par 5QI (REQ-231) et un moteur de recommandation COW/déployable fondé sur règles et seuils, validé par un opérateur (REQ-209 est de niveau info). Écartées : le pilotage direct de chaque domaine par ses outils propres (dérive de cohérence, REQ-193) et une décision de renfort entièrement automatique (coûts, délais et choix MNO/GOV à arbitrer humainement)."
+    ],
+    "interroge": [
+      "Le contrat MNO donne-t-il le droit de définir ou d'imposer des 5QI opérateur (128-254), dont le 5QI aérien, sur la RAN partagée, et quelles données de charge et de QoS par 5QI le MNO expose-t-il au NOC ?",
+      "Le 5QI aérien doit-il être appliqué sur les deux RAN (GOV et MNO) ou seulement sur la RAN GOV et les déployables, et quelles valeurs cibles de priorité, PDB et PER sont attendues ?",
+      "Pour REQ-209, quel niveau d'automatisation le donneur d'ordre attend-il (suggestion simple ou déclenchement), quels critères de choix COW MNO ou déployable GOV (délai, coût, couverture) et quels événements planifiés alimentent le moteur ?",
+      "Quelles interfaces d'exposition de la QoS sont disponibles côté EUCCS et roaming pour la ventilation du trafic par 5QI (REQ-231) ?"
+    ],
+    "options": [
+      "Catalogue QoS central et mapping par domaine",
+      "Pilotage par les outils de chaque domaine",
+      "Orchestration QoS automatisée bout en bout"
+    ],
+    "criteres": [
+      "Cohérence QoS bout en bout",
+      "Faisabilité vis-à-vis du MNO partagé",
+      "Maîtrise de la capacité et du renfort",
+      "Coût et complexité de mise en œuvre"
+    ]
+  },
+  "SUBJ-LUMICC-15": {
+    "section_id": "NOC – supervision des domaines, sondes, KPI",
+    "subject": "Assurance de service : sondes actives de bout en bout ou déduction par compteurs ?",
+    "maturity": "L1_framed",
+    "is_provisional": true,
+    "retenu": [
+      "REQ-Lot1-217 : sondes configurables MCPTT, MC-Video, MC-Data, fréquence de 30 s à 5 min, protocoles SIP OPTIONS, RTP/RTCP, HTTP/REST",
+      "REQ-Lot1-219 : mesure RAN et couverture par sondes et automatisation de test du réseau jusqu'aux terminaux, KPI1 à KPI5",
+      "REQ-Lot1-220 : comparaison des résultats de sondes aux cibles (300 ms, 1000 ms, 350 ms, MOS > 4.0) avec ticket de non-conformité",
+      "REQ-Lot1-221 : KPI6 handover > 99 %, interruption < 150 ms, pas de RLF dans les 3000 ms",
+      "REQ-Lot1-222 : KPI7 FRMCS, interruption < 50 ms en moyenne et forte mobilité",
+      "REQ-Lot1-260 : PMS collectant les KPI RAN, cœur, transmission, MCX et IT, avec SLA, alertes et analytique prédictive"
+    ],
+    "suppose": [
+      "Hypothèse de départ : architecture hybride dans laquelle les sondes actives de bout en bout (terminaux ou émulateurs pilotés par automatisation de test) constituent la source opposable des KPI contractuels MCX. REQ-219 et REQ-220 imposent en effet une mesure « from network up to Devices » comparée à des cibles chiffrées avec ticket automatique, ce qu'aucun compteur réseau ne prouve seul (mouth-to-ear, MOS P.863). Les compteurs et la supervision par domaine (REQ-202, 203, 204, 205, 218) alimentent le PMS (REQ-260) pour la corrélation, le diagnostic et la couverture continue entre deux passes de sonde. L'option « compteurs seuls » est écartée comme source contractuelle : fidélité insuffisante pour KPI2, KPI3 et KPI5. L'option « sondes seules » est écartée : elle n'offre pas de vision des causes ni de couverture fine, et la charge sur un service critique serait maîtrisée uniquement par la fréquence de test."
+    ],
+    "interroge": [
+      "Quelle est la source de mesure opposable convenue avec l'autorité contractante pour chaque KPI (sonde, compteur OSS, mesure terrain), et la méthode de calcul (percentiles, fenêtres, exclusions) est-elle déjà définie ?",
+      "Quelle charge de test l'autorité contractante tolère-t-elle sur le service MCX en production (fréquence, appels synthétiques, impact sur la capacité et la priorité), et les sondes peuvent-elles s'exécuter sur un environnement ou des abonnés dédiés ?",
+      "Quelles interfaces et API les fournisseurs MCX et RAN (Lot 2) exposent-ils pour la collecte d'événements et de compteurs, et quels terminaux (y compris FRMCS) sont disponibles pour l'automatisation de test ?",
+      "Les KPI6 et KPI7 doivent-ils être mesurés en mobilité réelle (campagnes de drive-test, corridor FRMCS) ou peuvent-ils être établis à partir des compteurs RAN ?"
+    ],
+    "options": [
+      "Sondes actives de bout en bout",
+      "Déduction par compteurs et supervision",
+      "Hybride sondes et compteurs au PMS"
+    ],
+    "criteres": [
+      "Fidélité et opposabilité des KPI",
+      "Charge induite sur le service critique",
+      "Couverture des KPI handover et mobilité",
+      "Dépendance aux interfaces tierces",
+      "Coût et complexité d'exploitation"
+    ]
+  },
+  "SUBJ-LUMICC-16": {
+    "section_id": "NOC – CMS, topologie, ITSM, support terrain",
+    "subject": "Source de référence inventaire/CMDB et découverte automatique encadrée par le changement",
+    "maturity": "L1_framed",
+    "is_provisional": true,
+    "retenu": [
+      "REQ-Lot1-262 (bloquant) : la découverte automatique ne doit pas appliquer de changement de configuration sans autorisation de la gestion des changements",
+      "REQ-Lot1-245 : les outils ITSM assurent la cohérence de la CMDB avec l'inventaire OSS par synchronisation des données et des relations",
+      "REQ-Lot1-261 : le CMS assure sauvegarde et versionnage de configuration, snapshots avant/après changement, détection de dérive et suivi des versions firmware/logiciel",
+      "REQ-Lot1-266 : la solution NOC s'appuie sur le back-office pour les workflows ITIL incident, problème et changement, avec SLA, MTTA/MTTR",
+      "REQ-Lot1-267 : dispatch d'équipes par technologie, type de panne, priorité et localisation, avec pointage GNSS, mise à jour ETR et synchronisation ITSM"
+    ],
+    "suppose": [
+      "Hypothèse de départ : inventaire/CMS du NOC maître pour les éléments techniques, topologie et configurations (découverte, réconciliation, baselines, dérive), CMDB de l'ITSM maître pour les services, les relations métier et le lien aux changements. La CMDB serait alimentée par synchronisation unidirectionnelle contrôlée depuis le CMS, avec file d'écarts traitée par le processus de changement. La découverte alimente l'inventaire en lecture, jamais la configuration des équipements sans ticket de changement approuvé. Plateforme ITSM intégrée au back-office (REQ-Lot1-266) avec module de dispatch, plutôt qu'outils assemblés : un seul modèle de données et un seul workflow de changement limitent les points de synchronisation et d'écart. Écartées : CMDB maître unique (ne porte pas la découverte multiprotocole ni les snapshots) et inventaire unique sans CMDB (contredit REQ-Lot1-245 et l'ITSM exigé)."
+    ],
+    "interroge": [
+      "Le back-office du donneur d'ordre fournit-il déjà une plateforme ITSM et une CMDB imposées ou à réutiliser, et quel périmètre y est attendu (incident, problème, changement, dispatch) ?",
+      "Quelle tolérance d'écart entre inventaire et CMDB est acceptable, et qui arbitre les écarts (exploitation NOC, gestion des changements, propriétaire de service) ?",
+      "Les changements standards ou d'urgence peuvent-ils être préautorisés pour la remédiation de dérive, ou tout changement passe-t-il par une approbation individuelle ?",
+      "Les données de localisation GNSS des équipes terrain ont-elles des contraintes de conservation, de souveraineté ou de protection des données personnelles qui conditionnent l'hébergement du dispatch ?"
+    ],
+    "options": [
+      "ITSM intégré, CMS maître technique",
+      "Outils assemblés et bus d'intégration",
+      "CMDB ITSM maître unique"
+    ],
+    "criteres": [
+      "Contrôle des changements",
+      "Cohérence inventaire/CMDB",
+      "Couverture CMS et découverte",
+      "Complexité d'intégration",
+      "Coût et dépendance éditeur"
+    ]
   }
 }

@@ -8,6 +8,7 @@ import SubjectThreadView from '$lib/components/deliberation/SubjectThreadView.sv
 import SubjectProblemCard from '$lib/components/deliberation/SubjectProblemCard.svelte';
 import MaturityStepper from '$lib/components/deliberation/MaturityStepper.svelte';
 import CapitalizationPanel from '$lib/components/deliberation/CapitalizationPanel.svelte';
+import DecisionSurveyCard from '$lib/components/deliberation/DecisionSurveyCard.svelte';
 import {
 	computeMaturityCriteria,
 	getMilestoneContextualActions
@@ -377,6 +378,88 @@ describe('A24 — Délibération : Un sujet = une conversation (Issue #35)', () 
 			});
 			expect(html).toContain('data-testid="prepare-kb-candidates-cta"');
 			expect(html).toContain('Préparer les Candidats KB maintenant');
+		});
+		it("SubjectThreadView affiche l'atelier de specification DLD et la decision haut niveau en onglet Doctrines & Brouillon", () => {
+			const targetSubject = deliberationStore.subjects[0];
+			const testDecision = {
+				id: 'dec_test_1',
+				subjectId: targetSubject.id,
+				retainedOptionId: 'opt-a',
+				rejected: [],
+				rationale: "Validation de l'hybridation pour performance et souverainete.",
+				reversibility: 'reversible' as const,
+				arbiterId: 'Alice',
+				arbiterRole: 'lead_architect',
+				decidedAt: new Date().toISOString(),
+				acceptedViolations: [],
+				kbCandidateIds: []
+			};
+
+			const { html } = render(SubjectThreadView, {
+				props: {
+					subjectId: targetSubject.id,
+					projectId: deliberationStore.activeEngagement.id,
+					userRole: 'lead_architect',
+					isHumanUser: true,
+					initialActiveWorkspaceTab: 'kb',
+					initialDecision: testDecision
+				}
+			});
+
+			expect(html).toContain('Spécification Haut Niveau : Décision L3 Opposable');
+			expect(html).toContain("Validation de l'hybridation pour performance et souverainete.");
+			expect(html).toContain('data-testid="toggle-doctrine-drawer-btn"');
+			expect(html).toContain('Doctrines applicables');
+			expect(html).toContain('data-testid="detailed-spec-textarea"');
+			expect(html).toContain('data-testid="bootstrap-spec-ai-btn"');
+			expect(html).toContain('data-testid="save-detailed-spec-btn"');
+			expect(html).toContain('data-testid="validate-l4-spec-btn"');
+
+			// Piliers structurants de la délibération
+			expect(html).toContain('Fil Directeur : Les 5 Piliers Structurants de la Délibération');
+			expect(html).toContain('1. Question (Problème)');
+			expect(html).toContain('2. Cadrage &amp; Hypothèse');
+			expect(html).toContain('3. Options &amp; Variantes');
+			expect(html).toContain('4. Critères &amp; Conformité');
+			expect(html).toContain('5. Arbitrage L3 Acté');
+			expect(html).toContain('data-testid="toggle-pillars-btn"');
+		});
+
+		it('setSubjectLevel autorise la transition vers L4_specified pour un sujet deja arbitre sans declencher FORMAL_DECISION_REQUIRED', () => {
+			const targetSubject = deliberationStore.subjects[0];
+			targetSubject.level = 'L3_decided';
+			deliberationStore.setSubjectLevel(targetSubject.id, 'L4_specified');
+			expect(targetSubject.level).toBe('L4_specified');
+			expect(deliberationStore.pendingDecisionSubjectId).toBeNull();
+		});
+
+		it('DecisionSurveyCard affiche le bandeau vert d affirmation formelle et masque le bouton quand validatedBy est renseigne', () => {
+			const { html } = render(DecisionSurveyCard, {
+				props: {
+					projectId: 'proj-1',
+					subjectId: 'sub-1',
+					decision: {
+						id: 'dec-1',
+						subjectId: 'sub-1',
+						retainedOptionId: 'opt-1',
+						rejected: [],
+						rationale: 'Validation architecture',
+						reversibility: 'reversible',
+						arbiterId: 'alice',
+						arbiterRole: 'lead_architect',
+						decidedAt: new Date().toISOString(),
+						acceptedViolations: [],
+						kbCandidateIds: [],
+						validatedBy: 'bob@enterprise.test'
+					} as any,
+					options: [{ id: 'opt-1', title: 'Option 1' }] as any,
+					sessionUser: { id: 'charlie', email: 'charlie@enterprise.test', role: 'lead_architect' }
+				}
+			});
+
+			expect(html).toContain('Décision formellement affirmée par');
+			expect(html).toContain('bob@enterprise.test');
+			expect(html).not.toContain('data-testid="assert-decision-btn"');
 		});
 	});
 });

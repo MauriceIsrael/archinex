@@ -37,7 +37,7 @@ async function main() {
 
 	try {
 		// 1. Ensemencement de l'espace projet lumicc-lot1-noc
-		console.log(`[1/2] Chargement du projet et des 7 sujets L1_framed depuis examples/lumicc-ingested...`);
+		console.log(`[1/2] Chargement du projet et des 16 sujets L1_framed depuis examples/lumicc-ingested...`);
 		await seedProject('examples/lumicc-ingested', prisma);
 
 		// 2. Enregistrement de l'audit live J0 dans factorization_runs pour l'IHM

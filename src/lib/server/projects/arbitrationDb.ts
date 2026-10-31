@@ -191,6 +191,16 @@ export async function getSubjectArbitrationContext(subjectId: string): Promise<{
 				? (portabilityEntry.typedId.replace('PORTABILITY:', '') as any)
 				: 'project_specific';
 
+		const assertedEvent = await prisma.domainEvent.findFirst({
+			where: {
+				projectId: subject.projectId,
+				entityType: 'decision',
+				entityId: subject.decision.id,
+				type: 'DECISION_ASSERTED'
+			},
+			orderBy: { createdAt: 'desc' }
+		});
+
 		parsedDecision = {
 			id: subject.decision.id,
 			subjectId: subject.decision.subjectId,
@@ -206,6 +216,7 @@ export async function getSubjectArbitrationContext(subjectId: string): Promise<{
 			decidedAt: subject.decision.decidedAt.toISOString(),
 			acceptedViolations: realViolations,
 			kbCandidateIds: JSON.parse(subject.decision.kbCandidateIds || '[]'),
+			validatedBy: assertedEvent?.actorId || undefined,
 			version: subject.decision.version
 		};
 	}

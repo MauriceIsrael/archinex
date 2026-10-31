@@ -23,9 +23,9 @@ describe('Ensemencement Démo Lulu "Juste Après Ingestion" (seed-lulu)', () => 
 		expect(statements).toEqual([]);
 	});
 
-	it('cadre les 7 sujets d’architecture au niveau L1_framed avec options en draft', () => {
+	it('cadre l’ensemble complet des 16 sujets d’architecture au niveau L1_framed avec options en draft', () => {
 		const subjects = JSON.parse(readFileSync(resolve(dir, 'subjects.json'), 'utf-8'));
-		expect(subjects).toHaveLength(7);
+		expect(subjects).toHaveLength(16);
 
 		for (const subj of subjects) {
 			expect(subj.level).toBe('L1_framed');
@@ -33,6 +33,7 @@ describe('Ensemencement Démo Lulu "Juste Après Ingestion" (seed-lulu)', () => 
 			expect(subj.problem_statement).toBeDefined();
 
 			if (subj.proposal?.options) {
+				expect(subj.proposal.options.length).toBeGreaterThanOrEqual(2);
 				for (const opt of subj.proposal.options) {
 					expect(opt.status).toBe('draft');
 				}
@@ -52,5 +53,20 @@ describe('Ensemencement Démo Lulu "Juste Après Ingestion" (seed-lulu)', () => 
 		expect(subjectIds).toContain('SUBJ-LUMICC-05');
 		// Cas 4 : Capitalisation base de connaissances (Wi-Fi offload sans N3IWF)
 		expect(subjectIds).toContain('SUBJ-LUMICC-02');
+	});
+
+	it('couvre les nouveaux sujets factorisés de supervision, QoS, médiation et automatisation', () => {
+		const subjects = JSON.parse(readFileSync(resolve(dir, 'subjects.json'), 'utf-8'));
+		const subjectIds = subjects.map((s: { id: string }) => s.id);
+
+		expect(subjectIds).toContain('SUBJ-LUMICC-08'); // HA NOC
+		expect(subjectIds).toContain('SUBJ-LUMICC-09'); // Médiation OSS NRM
+		expect(subjectIds).toContain('SUBJ-LUMICC-10'); // Supervision RAN MNO
+		expect(subjectIds).toContain('SUBJ-LUMICC-11'); // Corrélation alarmes RCA
+		expect(subjectIds).toContain('SUBJ-LUMICC-12'); // Pipeline collecte NOC / SOC
+		expect(subjectIds).toContain('SUBJ-LUMICC-13'); // Automatisation SMO/OSS
+		expect(subjectIds).toContain('SUBJ-LUMICC-14'); // Gouvernance QoS 5QI
+		expect(subjectIds).toContain('SUBJ-LUMICC-15'); // Assurance de service sondes
+		expect(subjectIds).toContain('SUBJ-LUMICC-16'); // Inventaire / CMDB
 	});
 });

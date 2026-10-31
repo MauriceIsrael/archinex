@@ -8,6 +8,7 @@
  */
 import type { Criterion, Option, OptionEvaluation, Decision } from './options';
 import type { Argument } from './debate';
+import { generateTargetArchitectureDiagram } from './artifactProjections';
 
 export type HldFragmentStatus = 'decided' | 'awaiting_review' | 'undecided';
 
@@ -43,6 +44,7 @@ export interface HldFragmentInput {
 	affirmedBy?: string | null;
 	/** Référentiels applicables pas encore couverts par la base de connaissances (alertes). */
 	coverageWarnings?: string[];
+	targetArchitectureMermaid?: string;
 	generatedAt: string;
 }
 
@@ -74,6 +76,7 @@ export interface HldFragment {
 	consequences: { acceptedRisks: string[]; acceptedViolations: string[]; reversibility?: string; coverageWarnings: string[] };
 	openPoints: string[];
 	provenance: { modelProposedOptions: number; humanOptions: number; modelEvaluations: number; humanEvaluations: number };
+	targetArchitectureMermaid?: string;
 	generatedAt: string;
 }
 
@@ -195,6 +198,28 @@ export function buildHldFragment(input: HldFragmentInput): HldFragment {
 				details: [options.length ? `En lice : ${options.map((o) => `« ${o.title} »`).join(', ')}.` : "Aucune option posée pour l'instant.", counts]
 			};
 
+	const retainedOption = options.find((o) => o.status === 'retained');
+	const targetArchitectureMermaid = input.targetArchitectureMermaid ?? (retainedOption ? generateTargetArchitectureDiagram(
+		{
+			id: subject.id,
+			name: subject.name,
+			sectionRef: subject.sectionRef,
+			level: subject.maturityLevel
+		},
+		null,
+		[],
+		{
+			decision: decisionBlock ? {
+				retainedOptionId: input.decision?.retainedOptionId,
+				retainedOptionTitle: retainedOption.title,
+				rationale: input.decision?.rationale,
+				reversibility: input.decision?.reversibility
+			} : null,
+			options: options.map((o) => ({ id: o.id, title: o.title, summary: o.summary, status: o.status })),
+			requirements: items.map((r) => ({ clauseRef: r.clauseRef, title: r.title }))
+		}
+	) : undefined);
+
 	return {
 		subjectId: subject.id,
 		title: `${subject.sectionRef} ${subject.name}`,
@@ -225,6 +250,7 @@ export function buildHldFragment(input: HldFragmentInput): HldFragment {
 			modelEvaluations: input.evaluations.filter((e) => isModel(e.productionMode)).length,
 			humanEvaluations: input.evaluations.filter((e) => !isModel(e.productionMode)).length
 		},
+		targetArchitectureMermaid,
 		generatedAt: input.generatedAt
 	};
 }
@@ -271,6 +297,10 @@ export function renderHldFragmentMarkdown(f: HldFragment): string {
 		// Le Y-statement porte déjà la justification : la répéter en dessous doublait le paragraphe.
 		out.push(f.decision.yStatement, '', `Réversibilité : ${f.decision.reversibility}.`, '');
 	} else out.push('_Sujet non tranché._', '');
+
+	if (f.targetArchitectureMermaid) {
+		out.push('### Schéma d\'architecture spécifiée', '', '```' + 'mermaid', f.targetArchitectureMermaid, '```', '');
+	}
 
 	if (f.consequences.acceptedViolations.length || f.consequences.acceptedRisks.length) {
 		out.push(f.status === 'awaiting_review' ? '### Conséquences et risques acceptés (décision en revue)' : '### Conséquences et risques acceptés', '');

@@ -238,7 +238,7 @@
 
     <!-- App title -->
     <span class="text-lg font-bold tracking-tight truncate">
-      {$t('app.title', { default: 'SvelteKit Admin' })}
+      {$t('app.title', { default: 'archinex' })}
     </span>
 
     <!-- Right-side controls -->

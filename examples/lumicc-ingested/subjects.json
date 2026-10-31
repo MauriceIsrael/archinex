@@ -18,7 +18,13 @@
     "requirement_ids": [
       "REQ-Lot1-191",
       "REQ-Lot1-192",
-      "REQ-Lot1-20"
+      "REQ-Lot1-20",
+      "REQ-Lot1-276",
+      "REQ-Lot1-277",
+      "REQ-Lot1-278",
+      "REQ-Lot1-280",
+      "REQ-Lot1-281",
+      "REQ-Lot1-282"
     ],
     "problem_statement": "Comment concilier la haute disponibilité 99,999 %, le RPO=0 et le RTO < 15 min sur la base UDR Ericsson face aux contraintes de latence inter-sites et d'arbitrage de split-brain ?",
     "nature": "architecture",
@@ -38,17 +44,59 @@
         }
       ],
       "criteria": [
-        { "id": "CRIT-01", "name": "RTO Base UDR", "weight": 0.4 },
-        { "id": "CRIT-02", "name": "Surcoût CAPEX/OPEX", "weight": 0.3 },
-        { "id": "CRIT-03", "name": "Immunité Split-Brain", "weight": 0.3 }
+        {
+          "id": "CRIT-01",
+          "name": "RTO Base UDR",
+          "weight": 0.4
+        },
+        {
+          "id": "CRIT-02",
+          "name": "Surcoût CAPEX/OPEX",
+          "weight": 0.3
+        },
+        {
+          "id": "CRIT-03",
+          "name": "Immunité Split-Brain",
+          "weight": 0.3
+        }
       ],
       "evaluations": [
-        { "optionId": "OPT-01-A", "criterionId": "CRIT-01", "score": 9, "justification": "RTO garanti < 12 min sur CNF chaud." },
-        { "optionId": "OPT-01-A", "criterionId": "CRIT-02", "score": 8, "justification": "Budget maîtrisé dans l'enveloppe Lot 1." },
-        { "optionId": "OPT-01-A", "criterionId": "CRIT-03", "score": 9, "justification": "Témoin tiers sur site RCW indépendant." },
-        { "optionId": "OPT-01-B", "criterionId": "CRIT-01", "score": 7, "justification": "Complexité de ré-alignement en cas de partition." },
-        { "optionId": "OPT-01-B", "criterionId": "CRIT-02", "score": 4, "justification": "Surcoût de +450 k€ non justifié par la charge." },
-        { "optionId": "OPT-01-B", "criterionId": "CRIT-03", "score": 8, "justification": "Quorum 3 sites natif." }
+        {
+          "optionId": "OPT-01-A",
+          "criterionId": "CRIT-01",
+          "score": 9,
+          "justification": "RTO garanti < 12 min sur CNF chaud."
+        },
+        {
+          "optionId": "OPT-01-A",
+          "criterionId": "CRIT-02",
+          "score": 8,
+          "justification": "Budget maîtrisé dans l'enveloppe Lot 1."
+        },
+        {
+          "optionId": "OPT-01-A",
+          "criterionId": "CRIT-03",
+          "score": 9,
+          "justification": "Témoin tiers sur site RCW indépendant."
+        },
+        {
+          "optionId": "OPT-01-B",
+          "criterionId": "CRIT-01",
+          "score": 7,
+          "justification": "Complexité de ré-alignement en cas de partition."
+        },
+        {
+          "optionId": "OPT-01-B",
+          "criterionId": "CRIT-02",
+          "score": 4,
+          "justification": "Surcoût de +450 k€ non justifié par la charge."
+        },
+        {
+          "optionId": "OPT-01-B",
+          "criterionId": "CRIT-03",
+          "score": 8,
+          "justification": "Quorum 3 sites natif."
+        }
       ]
     }
   },
@@ -88,14 +136,42 @@
         }
       ],
       "criteria": [
-        { "id": "CRIT-02-1", "name": "Sécurité & Surface d'attaque Cœur 5G", "weight": 0.5 },
-        { "id": "CRIT-02-2", "name": "Conformité CCTP & Simplicité", "weight": 0.5 }
+        {
+          "id": "CRIT-02-1",
+          "name": "Sécurité & Surface d'attaque Cœur 5G",
+          "weight": 0.5
+        },
+        {
+          "id": "CRIT-02-2",
+          "name": "Conformité CCTP & Simplicité",
+          "weight": 0.5
+        }
       ],
       "evaluations": [
-        { "optionId": "OPT-02-A", "criterionId": "CRIT-02-1", "score": 9, "justification": "Cloisonnement total : aucun flux Wi-Fi non authentifié n'atteint la SBA." },
-        { "optionId": "OPT-02-A", "criterionId": "CRIT-02-2", "score": 8, "justification": "Partially compliant explicité avec réserve en matrice." },
-        { "optionId": "OPT-02-B", "criterionId": "CRIT-02-1", "score": 3, "justification": "Risque cyber inacceptable sur réseau critique d'urgence." },
-        { "optionId": "OPT-02-B", "criterionId": "CRIT-02-2", "score": 7, "justification": "Répond formellement au mot-clé mais viole l'esprit de sécurité." }
+        {
+          "optionId": "OPT-02-A",
+          "criterionId": "CRIT-02-1",
+          "score": 9,
+          "justification": "Cloisonnement total : aucun flux Wi-Fi non authentifié n'atteint la SBA."
+        },
+        {
+          "optionId": "OPT-02-A",
+          "criterionId": "CRIT-02-2",
+          "score": 8,
+          "justification": "Partially compliant explicité avec réserve en matrice."
+        },
+        {
+          "optionId": "OPT-02-B",
+          "criterionId": "CRIT-02-1",
+          "score": 3,
+          "justification": "Risque cyber inacceptable sur réseau critique d'urgence."
+        },
+        {
+          "optionId": "OPT-02-B",
+          "criterionId": "CRIT-02-2",
+          "score": 7,
+          "justification": "Répond formellement au mot-clé mais viole l'esprit de sécurité."
+        }
       ]
     }
   },
@@ -114,7 +190,14 @@
     "dependent_subject_ids": [],
     "requirement_ids": [
       "REQ-Lot1-223",
-      "REQ-Lot1-233"
+      "REQ-Lot1-233",
+      "REQ-Lot1-224",
+      "REQ-Lot1-225",
+      "REQ-Lot1-226",
+      "REQ-Lot1-227",
+      "REQ-Lot1-228",
+      "REQ-Lot1-229",
+      "REQ-Lot1-230"
     ],
     "problem_statement": "REQ-Lot1-223 exige un maintien de synchronisation de 30 jours sans GNSS. Quelle chaîne d'horlogerie primaire déployer pour garantir la dérive < 1.5 µs requise par le TDD 5G ?",
     "nature": "architecture",
@@ -134,17 +217,59 @@
         }
       ],
       "criteria": [
-        { "id": "CRIT-03-1", "name": "Tenue temporelle 30j (< 1.5 µs)", "weight": 0.5 },
-        { "id": "CRIT-03-2", "name": "Surcoût CAPEX oscillateurs", "weight": 0.25 },
-        { "id": "CRIT-03-3", "name": "Maturité opérationnelle", "weight": 0.25 }
+        {
+          "id": "CRIT-03-1",
+          "name": "Tenue temporelle 30j (< 1.5 µs)",
+          "weight": 0.5
+        },
+        {
+          "id": "CRIT-03-2",
+          "name": "Surcoût CAPEX oscillateurs",
+          "weight": 0.25
+        },
+        {
+          "id": "CRIT-03-3",
+          "name": "Maturité opérationnelle",
+          "weight": 0.25
+        }
       ],
       "evaluations": [
-        { "optionId": "OPT-03-A", "criterionId": "CRIT-03-1", "score": 10, "justification": "Dérive certifiée < 1 µs après 30 jours complets sans signal GNSS." },
-        { "optionId": "OPT-03-A", "criterionId": "CRIT-03-2", "score": 6, "justification": "+85 k€ sur les deux serveurs primaires RCE/RCS." },
-        { "optionId": "OPT-03-A", "criterionId": "CRIT-03-3", "score": 9, "justification": "Profil ITU-T G.8275.1 éprouvé sur les cœurs télécom critiques." },
-        { "optionId": "OPT-03-B", "criterionId": "CRIT-03-1", "score": 2, "justification": "Échec critique : désynchronisation TDD dès le 3e jour." },
-        { "optionId": "OPT-03-B", "criterionId": "CRIT-03-2", "score": 9, "justification": "Économie de 60 k€." },
-        { "optionId": "OPT-03-B", "criterionId": "CRIT-03-3", "score": 6, "justification": "Standard IT courant mais inadapté au PPDR." }
+        {
+          "optionId": "OPT-03-A",
+          "criterionId": "CRIT-03-1",
+          "score": 10,
+          "justification": "Dérive certifiée < 1 µs après 30 jours complets sans signal GNSS."
+        },
+        {
+          "optionId": "OPT-03-A",
+          "criterionId": "CRIT-03-2",
+          "score": 6,
+          "justification": "+85 k€ sur les deux serveurs primaires RCE/RCS."
+        },
+        {
+          "optionId": "OPT-03-A",
+          "criterionId": "CRIT-03-3",
+          "score": 9,
+          "justification": "Profil ITU-T G.8275.1 éprouvé sur les cœurs télécom critiques."
+        },
+        {
+          "optionId": "OPT-03-B",
+          "criterionId": "CRIT-03-1",
+          "score": 2,
+          "justification": "Échec critique : désynchronisation TDD dès le 3e jour."
+        },
+        {
+          "optionId": "OPT-03-B",
+          "criterionId": "CRIT-03-2",
+          "score": 9,
+          "justification": "Économie de 60 k€."
+        },
+        {
+          "optionId": "OPT-03-B",
+          "criterionId": "CRIT-03-3",
+          "score": 6,
+          "justification": "Standard IT courant mais inadapté au PPDR."
+        }
       ]
     }
   },
@@ -164,7 +289,14 @@
     "requirement_ids": [
       "REQ-Lot1-201",
       "REQ-Lot1-216",
-      "REQ-Lot1-247"
+      "REQ-Lot1-247",
+      "REQ-Lot1-239",
+      "REQ-Lot1-240",
+      "REQ-Lot1-241",
+      "REQ-Lot1-242",
+      "REQ-Lot1-243",
+      "REQ-Lot1-251",
+      "REQ-Lot1-254"
     ],
     "problem_statement": "Comment orchestrer la supervision des alarmes et la remédiation réseau multi-vendeurs sans risquer d'actions automatisées incontrôlées sur les équipements tiers ?",
     "nature": "architecture",
@@ -184,14 +316,42 @@
         }
       ],
       "criteria": [
-        { "id": "CRIT-04-1", "name": "Contrôle opérationnel & Sécurité", "weight": 0.6 },
-        { "id": "CRIT-04-2", "name": "Efficacité & Rapidité d'automatisation", "weight": 0.4 }
+        {
+          "id": "CRIT-04-1",
+          "name": "Contrôle opérationnel & Sécurité",
+          "weight": 0.6
+        },
+        {
+          "id": "CRIT-04-2",
+          "name": "Efficacité & Rapidité d'automatisation",
+          "weight": 0.4
+        }
       ],
       "evaluations": [
-        { "optionId": "OPT-04-A", "criterionId": "CRIT-04-1", "score": 9, "justification": "Zéro modification non approuvée sur les équipements de production." },
-        { "optionId": "OPT-04-A", "criterionId": "CRIT-04-2", "score": 8, "justification": "Pré-remplissage complet des tickets ITSM." },
-        { "optionId": "OPT-04-B", "criterionId": "CRIT-04-1", "score": 2, "justification": "Risque d'effondrement global en cas de fausse détection." },
-        { "optionId": "OPT-04-B", "criterionId": "CRIT-04-2", "score": 9, "justification": "Temps de réaction sub-seconde." }
+        {
+          "optionId": "OPT-04-A",
+          "criterionId": "CRIT-04-1",
+          "score": 9,
+          "justification": "Zéro modification non approuvée sur les équipements de production."
+        },
+        {
+          "optionId": "OPT-04-A",
+          "criterionId": "CRIT-04-2",
+          "score": 8,
+          "justification": "Pré-remplissage complet des tickets ITSM."
+        },
+        {
+          "optionId": "OPT-04-B",
+          "criterionId": "CRIT-04-1",
+          "score": 2,
+          "justification": "Risque d'effondrement global en cas de fausse détection."
+        },
+        {
+          "optionId": "OPT-04-B",
+          "criterionId": "CRIT-04-2",
+          "score": 9,
+          "justification": "Temps de réaction sub-seconde."
+        }
       ]
     }
   },
@@ -230,17 +390,59 @@
         }
       ],
       "criteria": [
-        { "id": "CRIT-05-1", "name": "Conformité NIS2 / PSF / GSMA SGP.22", "weight": 0.5 },
-        { "id": "CRIT-05-2", "name": "Délai de mise en service & Simplicité", "weight": 0.25 },
-        { "id": "CRIT-05-3", "name": "Souveraineté des clés & Contrôle d'accès", "weight": 0.25 }
+        {
+          "id": "CRIT-05-1",
+          "name": "Conformité NIS2 / PSF / GSMA SGP.22",
+          "weight": 0.5
+        },
+        {
+          "id": "CRIT-05-2",
+          "name": "Délai de mise en service & Simplicité",
+          "weight": 0.25
+        },
+        {
+          "id": "CRIT-05-3",
+          "name": "Souveraineté des clés & Contrôle d'accès",
+          "weight": 0.25
+        }
       ],
       "evaluations": [
-        { "optionId": "OPT-05-A", "criterionId": "CRIT-05-1", "score": 1, "justification": "Violation majeure de GSMA SGP.22 et non-conformité NIS2 Art. 21." },
-        { "optionId": "OPT-05-A", "criterionId": "CRIT-05-2", "score": 9, "justification": "Mise en œuvre rapide sans approvisionnement matériel." },
-        { "optionId": "OPT-05-A", "criterionId": "CRIT-05-3", "score": 2, "justification": "Clés cryptographiques exposées aux lois extraterritoriales." },
-        { "optionId": "OPT-05-B", "criterionId": "CRIT-05-1", "score": 10, "justification": "Conformité intégrale aux standards bancaires et PPDR européens." },
-        { "optionId": "OPT-05-B", "criterionId": "CRIT-05-2", "score": 6, "justification": "Cycle de déploiement et approvisionnement HSM de 8 semaines." },
-        { "optionId": "OPT-05-B", "criterionId": "CRIT-05-3", "score": 10, "justification": "Règle des 4-yeux stricte et clés scellées dans le matériel." }
+        {
+          "optionId": "OPT-05-A",
+          "criterionId": "CRIT-05-1",
+          "score": 1,
+          "justification": "Violation majeure de GSMA SGP.22 et non-conformité NIS2 Art. 21."
+        },
+        {
+          "optionId": "OPT-05-A",
+          "criterionId": "CRIT-05-2",
+          "score": 9,
+          "justification": "Mise en œuvre rapide sans approvisionnement matériel."
+        },
+        {
+          "optionId": "OPT-05-A",
+          "criterionId": "CRIT-05-3",
+          "score": 2,
+          "justification": "Clés cryptographiques exposées aux lois extraterritoriales."
+        },
+        {
+          "optionId": "OPT-05-B",
+          "criterionId": "CRIT-05-1",
+          "score": 10,
+          "justification": "Conformité intégrale aux standards bancaires et PPDR européens."
+        },
+        {
+          "optionId": "OPT-05-B",
+          "criterionId": "CRIT-05-2",
+          "score": 6,
+          "justification": "Cycle de déploiement et approvisionnement HSM de 8 semaines."
+        },
+        {
+          "optionId": "OPT-05-B",
+          "criterionId": "CRIT-05-3",
+          "score": 10,
+          "justification": "Règle des 4-yeux stricte et clés scellées dans le matériel."
+        }
       ]
     }
   },
@@ -280,14 +482,42 @@
         }
       ],
       "criteria": [
-        { "id": "CRIT-06-1", "name": "Responsabilité juridique & Maîtrise des risques", "weight": 0.7 },
-        { "id": "CRIT-06-2", "name": "Satisfaction commerciale immédiate", "weight": 0.3 }
+        {
+          "id": "CRIT-06-1",
+          "name": "Responsabilité juridique & Maîtrise des risques",
+          "weight": 0.7
+        },
+        {
+          "id": "CRIT-06-2",
+          "name": "Satisfaction commerciale immédiate",
+          "weight": 0.3
+        }
       ],
       "evaluations": [
-        { "optionId": "OPT-06-A", "criterionId": "CRIT-06-1", "score": 9, "justification": "Protection contractuelle contre les défaillances de tiers." },
-        { "optionId": "OPT-06-A", "criterionId": "CRIT-06-2", "score": 7, "justification": "Nécessite d'expliciter le périmètre en soutenance." },
-        { "optionId": "OPT-06-B", "criterionId": "CRIT-06-1", "score": 2, "justification": "Pénalités certaines dès qu'un MNO subit une avarie." },
-        { "optionId": "OPT-06-B", "criterionId": "CRIT-06-2", "score": 8, "justification": "Réponse complaisante de type Yes-Man." }
+        {
+          "optionId": "OPT-06-A",
+          "criterionId": "CRIT-06-1",
+          "score": 9,
+          "justification": "Protection contractuelle contre les défaillances de tiers."
+        },
+        {
+          "optionId": "OPT-06-A",
+          "criterionId": "CRIT-06-2",
+          "score": 7,
+          "justification": "Nécessite d'expliciter le périmètre en soutenance."
+        },
+        {
+          "optionId": "OPT-06-B",
+          "criterionId": "CRIT-06-1",
+          "score": 2,
+          "justification": "Pénalités certaines dès qu'un MNO subit une avarie."
+        },
+        {
+          "optionId": "OPT-06-B",
+          "criterionId": "CRIT-06-2",
+          "score": 8,
+          "justification": "Réponse complaisante de type Yes-Man."
+        }
       ]
     }
   },
@@ -326,14 +556,1511 @@
         }
       ],
       "criteria": [
-        { "id": "CRIT-07-1", "name": "Cohérence Matrice / HLD", "weight": 0.6 },
-        { "id": "CRIT-07-2", "name": "Intégrité de la marge financière", "weight": 0.4 }
+        {
+          "id": "CRIT-07-1",
+          "name": "Cohérence Matrice / HLD",
+          "weight": 0.6
+        },
+        {
+          "id": "CRIT-07-2",
+          "name": "Intégrité de la marge financière",
+          "weight": 0.4
+        }
       ],
       "evaluations": [
-        { "optionId": "OPT-07-A", "criterionId": "CRIT-07-1", "score": 10, "justification": "Zéro incohérence entre offre technique et offre de prix." },
-        { "optionId": "OPT-07-A", "criterionId": "CRIT-07-2", "score": 9, "justification": "Économie de 380 k€ préservée." },
-        { "optionId": "OPT-07-B", "criterionId": "CRIT-07-1", "score": 1, "justification": "Incohérence frontale détectée à la soutenance." },
-        { "optionId": "OPT-07-B", "criterionId": "CRIT-07-2", "score": 2, "justification": "Perte financière non couverte." }
+        {
+          "optionId": "OPT-07-A",
+          "criterionId": "CRIT-07-1",
+          "score": 10,
+          "justification": "Zéro incohérence entre offre technique et offre de prix."
+        },
+        {
+          "optionId": "OPT-07-A",
+          "criterionId": "CRIT-07-2",
+          "score": 9,
+          "justification": "Économie de 380 k€ préservée."
+        },
+        {
+          "optionId": "OPT-07-B",
+          "criterionId": "CRIT-07-1",
+          "score": 1,
+          "justification": "Incohérence frontale détectée à la soutenance."
+        },
+        {
+          "optionId": "OPT-07-B",
+          "criterionId": "CRIT-07-2",
+          "score": 2,
+          "justification": "Perte financière non couverte."
+        }
+      ]
+    }
+  },
+  {
+    "id": "SUBJ-LUMICC-08",
+    "section_ref": "NOC – haute disponibilité, DR, infrastructure sécurisée",
+    "name": "Haute disponibilité NOC : actif-actif ou actif-passif à bascule rapide",
+    "level": "L1_framed",
+    "blocking_count": 0,
+    "unlocks_count": 1,
+    "waiting_for_role": "lead_architect",
+    "relative_effort": "L",
+    "last_transition_date": "2026-10-31T08:00:00Z",
+    "stall_days": 0,
+    "is_stalled": false,
+    "dependent_subject_ids": [
+      "SUBJ-LUMICC-01"
+    ],
+    "requirement_ids": [
+      "REQ-Lot1-268",
+      "REQ-Lot1-269",
+      "REQ-Lot1-270",
+      "REQ-Lot1-271"
+    ],
+    "problem_statement": "Quel mode de haute disponibilité (actif-actif, actif-passif à bascule rapide, ou mixte selon les couches) permet de supprimer tout point unique de défaillance sur calcul, stockage, réseau et collecte, avec des procédures de DR testées, à un coût et une complexité acceptables, sans RTO/RPO chiffrés dans les exigences ?",
+    "nature": "architecture",
+    "proposal": {
+      "options": [
+        {
+          "id": "OPT-08-A",
+          "title": "Actif-actif intégral",
+          "summary": "Tous les niveaux (collecte, applicatif, bases, stockage) fonctionnent simultanément sur deux sites avec réplication synchrone ou multi-maître et répartition de charge.",
+          "status": "draft"
+        },
+        {
+          "id": "OPT-08-B",
+          "title": "Actif-passif à bascule rapide",
+          "summary": "Site primaire actif et site secours en attente chaud, avec réplication des données et bascule automatisée ou semi-automatisée, pour toutes les couches.",
+          "status": "draft"
+        },
+        {
+          "id": "OPT-08-C",
+          "title": "Mixte par couche",
+          "summary": "Actif-actif pour la collecte et les services sans état ; actif-passif à bascule automatique pour les bases et le stockage ; WAN redondant à chemins distincts.",
+          "status": "draft"
+        }
+      ],
+      "criteria": [
+        {
+          "id": "CRIT-08-01",
+          "name": "RTO/RPO atteignable",
+          "weight": 0.29
+        },
+        {
+          "id": "CRIT-08-02",
+          "name": "Absence de SPOF",
+          "weight": 0.29
+        },
+        {
+          "id": "CRIT-08-03",
+          "name": "Coût d'infrastructure et d'exploitation",
+          "weight": 0.18
+        },
+        {
+          "id": "CRIT-08-04",
+          "name": "Complexité et risque opérationnel",
+          "weight": 0.24
+        }
+      ],
+      "evaluations": [
+        {
+          "optionId": "OPT-08-A",
+          "criterionId": "CRIT-08-01",
+          "score": 10,
+          "justification": "Pas de bascule pour les services répartis, d'où un RTO proche de zéro et un RPO minimal si la réplication est synchrone."
+        },
+        {
+          "optionId": "OPT-08-A",
+          "criterionId": "CRIT-08-02",
+          "score": 10,
+          "justification": "Chaque couche est dupliquée en service, ce qui répond pleinement à 268 et 271."
+        },
+        {
+          "optionId": "OPT-08-A",
+          "criterionId": "CRIT-08-03",
+          "score": 2,
+          "justification": "Capacité à dimensionner sur les deux sites, liaisons inter-sites à forte capacité et licences doublées."
+        },
+        {
+          "optionId": "OPT-08-A",
+          "criterionId": "CRIT-08-04",
+          "score": 2,
+          "justification": "La cohérence multi-site des bases et la gestion du split-brain sont complexes, et le DR est plus difficile à tester."
+        },
+        {
+          "optionId": "OPT-08-B",
+          "criterionId": "CRIT-08-01",
+          "score": 6,
+          "justification": "Le RTO dépend de la durée de bascule et le RPO de la réplication ; acceptable si les cibles sont modérées, mais non chiffrées ici."
+        },
+        {
+          "optionId": "OPT-08-B",
+          "criterionId": "CRIT-08-02",
+          "score": 8,
+          "justification": "Aucun SPOF si le site secours et la bascule sont eux-mêmes redondants ; admis explicitement par 268 et 271."
+        },
+        {
+          "optionId": "OPT-08-B",
+          "criterionId": "CRIT-08-03",
+          "score": 8,
+          "justification": "Le site en attente peut être dimensionné de façon plus économe et la réplication asynchrone limite les besoins inter-sites."
+        },
+        {
+          "optionId": "OPT-08-B",
+          "criterionId": "CRIT-08-04",
+          "score": 6,
+          "justification": "Modèle bien connu et testable, mais la bascule reste un événement à risque et peut créer des trous de collecte."
+        },
+        {
+          "optionId": "OPT-08-C",
+          "criterionId": "CRIT-08-01",
+          "score": 8,
+          "justification": "Continuité de la collecte sans interruption et bascule maîtrisée pour les données, bon compromis en l'absence de cibles."
+        },
+        {
+          "optionId": "OPT-08-C",
+          "criterionId": "CRIT-08-02",
+          "score": 10,
+          "justification": "Redondance traitée couche par couche, plus WAN à chemins distincts (270), avec une couverture complète."
+        },
+        {
+          "optionId": "OPT-08-C",
+          "criterionId": "CRIT-08-03",
+          "score": 6,
+          "justification": "Surcoût ciblé sur les couches où il apporte un gain, sans doubler l'ensemble."
+        },
+        {
+          "optionId": "OPT-08-C",
+          "criterionId": "CRIT-08-04",
+          "score": 4,
+          "justification": "Deux modèles à exploiter et à tester, ce qui demande une gouvernance de DR plus rigoureuse."
+        }
+      ]
+    }
+  },
+  {
+    "id": "SUBJ-LUMICC-09",
+    "section_ref": "NOC – médiation, NRM, dashboards, hypervision, SLA",
+    "name": "Médiation OSS avec NRM unifié ou adaptateurs propriétaires par fournisseur",
+    "level": "L1_framed",
+    "blocking_count": 0,
+    "unlocks_count": 1,
+    "waiting_for_role": "domain_architect",
+    "relative_effort": "L",
+    "last_transition_date": "2026-10-31T08:00:00Z",
+    "stall_days": 0,
+    "is_stalled": false,
+    "dependent_subject_ids": [
+      "SUBJ-LUMICC-01"
+    ],
+    "requirement_ids": [
+      "REQ-Lot1-211",
+      "REQ-Lot1-232",
+      "REQ-Lot1-233",
+      "REQ-Lot1-234",
+      "REQ-Lot1-236",
+      "REQ-Lot1-238",
+      "REQ-Lot1-249",
+      "REQ-Lot1-252"
+    ],
+    "problem_statement": "Comment réaliser la normalisation des compteurs, alarmes et topologie multi-fournisseurs : couche de médiation OSS vers un NRM unifié (REQ-Lot1-249), ou adaptateurs propres à chaque fournisseur alimentant dashboards, hyperviseur et SLA ? Et si médiation, avec quel niveau de conservation de la sémantique d'origine pour respecter REQ-Lot1-211 ?",
+    "nature": "architecture",
+    "proposal": {
+      "options": [
+        {
+          "id": "OPT-09-A",
+          "title": "Médiation OSS avec NRM unifié",
+          "summary": "Couche de médiation unique traduisant compteurs, alarmes et topologie de chaque fournisseur vers un NRM et une taxonomie communs, consommés par dashboards, hyperviseur et SLA.",
+          "status": "draft"
+        },
+        {
+          "id": "OPT-09-B",
+          "title": "Médiation avec NRM et sémantique native conservée",
+          "summary": "Même couche de médiation et NRM unifié, mais chaque objet normalisé conserve la référence au compteur ou à l'alarme d'origine et à sa spécification fournisseur, pour une interprétation fidèle et la traçabilité.",
+          "status": "draft"
+        },
+        {
+          "id": "OPT-09-C",
+          "title": "Adaptateurs propres à chaque fournisseur",
+          "summary": "Chaque fournisseur est intégré via un adaptateur ou EMS dédié ; dashboards, hyperviseur et SLA consomment directement des données hétérogènes sans modèle commun.",
+          "status": "draft"
+        }
+      ],
+      "criteria": [
+        {
+          "id": "CRIT-09-01",
+          "name": "Conformité aux exigences bloquantes",
+          "weight": 0.26
+        },
+        {
+          "id": "CRIT-09-02",
+          "name": "Fidélité sémantique des alarmes et KPI",
+          "weight": 0.21
+        },
+        {
+          "id": "CRIT-09-03",
+          "name": "Cohérence des KPI et du SLA",
+          "weight": 0.21
+        },
+        {
+          "id": "CRIT-09-04",
+          "name": "Coût de mapping et de maintenance",
+          "weight": 0.16
+        },
+        {
+          "id": "CRIT-09-05",
+          "name": "Indépendance vis-à-vis des fournisseurs",
+          "weight": 0.16
+        }
+      ],
+      "evaluations": [
+        {
+          "optionId": "OPT-09-A",
+          "criterionId": "CRIT-09-01",
+          "score": 10,
+          "justification": "Répond directement à REQ-Lot1-249 et fournit la base commune requise par REQ-Lot1-238 et REQ-Lot1-252."
+        },
+        {
+          "optionId": "OPT-09-A",
+          "criterionId": "CRIT-09-02",
+          "score": 4,
+          "justification": "La normalisation seule risque d'écraser les particularités fournisseur, en tension avec REQ-Lot1-211."
+        },
+        {
+          "optionId": "OPT-09-A",
+          "criterionId": "CRIT-09-03",
+          "score": 10,
+          "justification": "Un modèle commun garantit une sémantique unique de KPI pour l'agrégation de REQ-Lot1-234."
+        },
+        {
+          "optionId": "OPT-09-A",
+          "criterionId": "CRIT-09-04",
+          "score": 4,
+          "justification": "Mapping initial lourd de tous les compteurs et alarmes de chaque fournisseur, puis maintenance à chaque évolution."
+        },
+        {
+          "optionId": "OPT-09-A",
+          "criterionId": "CRIT-09-05",
+          "score": 10,
+          "justification": "Les consommateurs ne voient que le NRM ; un fournisseur se remplace en réécrivant son seul mapping."
+        },
+        {
+          "optionId": "OPT-09-B",
+          "criterionId": "CRIT-09-01",
+          "score": 10,
+          "justification": "Satisfait REQ-Lot1-249 et REQ-Lot1-238 tout en préservant les attributs d'origine des éléments réseau."
+        },
+        {
+          "optionId": "OPT-09-B",
+          "criterionId": "CRIT-09-02",
+          "score": 10,
+          "justification": "La référence à la spécification fournisseur permet l'interprétation exigée par REQ-Lot1-211 et la traçabilité."
+        },
+        {
+          "optionId": "OPT-09-B",
+          "criterionId": "CRIT-09-03",
+          "score": 10,
+          "justification": "KPI normalisés pour le SLA avec traçabilité vers le compteur brut, utile en cas de contestation de pénalités."
+        },
+        {
+          "optionId": "OPT-09-B",
+          "criterionId": "CRIT-09-04",
+          "score": 2,
+          "justification": "Charge la plus élevée : mapping complet plus conservation et versionnage des métadonnées natives."
+        },
+        {
+          "optionId": "OPT-09-B",
+          "criterionId": "CRIT-09-05",
+          "score": 8,
+          "justification": "Bonne indépendance côté consommateurs, mais les métadonnées natives créent un couplage résiduel à gérer."
+        },
+        {
+          "optionId": "OPT-09-C",
+          "criterionId": "CRIT-09-01",
+          "score": 2,
+          "justification": "Ne satisfait pas REQ-Lot1-249 (NRM unifié explicitement requis) et rend REQ-Lot1-238 difficile à garantir."
+        },
+        {
+          "optionId": "OPT-09-C",
+          "criterionId": "CRIT-09-02",
+          "score": 10,
+          "justification": "Les données restent dans la sémantique native, conformément à REQ-Lot1-211."
+        },
+        {
+          "optionId": "OPT-09-C",
+          "criterionId": "CRIT-09-03",
+          "score": 2,
+          "justification": "KPI hétérogènes, agrégation multi-fournisseurs incohérente (REQ-Lot1-234) avec risque contractuel."
+        },
+        {
+          "optionId": "OPT-09-C",
+          "criterionId": "CRIT-09-04",
+          "score": 8,
+          "justification": "Pas de modèle commun à construire, mais les intégrations se multiplient dans les dashboards et le SLA."
+        },
+        {
+          "optionId": "OPT-09-C",
+          "criterionId": "CRIT-09-05",
+          "score": 2,
+          "justification": "Dashboards, hyperviseur et SLA sont couplés à chaque fournisseur ; tout changement impacte les consommateurs."
+        }
+      ]
+    }
+  },
+  {
+    "id": "SUBJ-LUMICC-10",
+    "section_ref": "NOC – RAN MNO partagée (MOCN)",
+    "name": "Supervision de la RAN MNO partagée : adaptation aux interfaces OSS imposées du MNO",
+    "level": "L1_framed",
+    "blocking_count": 0,
+    "unlocks_count": 1,
+    "waiting_for_role": "domain_architect",
+    "relative_effort": "L",
+    "last_transition_date": "2026-10-31T08:00:00Z",
+    "stall_days": 0,
+    "is_stalled": false,
+    "dependent_subject_ids": [
+      "SUBJ-LUMICC-01"
+    ],
+    "requirement_ids": [
+      "REQ-Lot1-200",
+      "REQ-Lot1-206",
+      "REQ-Lot1-250",
+      "REQ-Lot1-253"
+    ],
+    "problem_statement": "Comment l'INFRA obtient-elle, via les interfaces OSS/ENM imposées par le MNO, une visibilité suffisante pour superviser la RAN MNO partagée, distinguer ressources partagées et ressources exclusives LUMICC (NRM MOCN), et vérifier que le service reste actif tant que le service commercial du MNO l'est ?",
+    "nature": "architecture",
+    "proposal": {
+      "options": [
+        {
+          "id": "OPT-10-A",
+          "title": "Adaptateurs INFRA + NRM MOCN",
+          "summary": "Connecteurs côté INFRA pour chaque interface OSS exposée par le MNO, alimentant un NRM MOCN unique qui qualifie chaque ressource comme partagée ou exclusive LUMICC.",
+          "status": "draft"
+        },
+        {
+          "id": "OPT-10-B",
+          "title": "Passerelle d'exposition imposée au MNO",
+          "summary": "Le MNO déploie ou expose une interface normalisée unique, dédiée à LUMICC, filtrée sur ses ressources, que l'INFRA consomme sans adaptation multiple.",
+          "status": "draft"
+        },
+        {
+          "id": "OPT-10-C",
+          "title": "Supervision indirecte par sondes de service",
+          "summary": "L'INFRA infère l'état de la RAN partagée à partir de sondes actives et de la remontée terminaux, sans intégration OSS du MNO.",
+          "status": "draft"
+        }
+      ],
+      "criteria": [
+        {
+          "id": "CRIT-10-01",
+          "name": "Conformité aux exigences",
+          "weight": 0.31
+        },
+        {
+          "id": "CRIT-10-02",
+          "name": "Visibilité sur le service partagé",
+          "weight": 0.25
+        },
+        {
+          "id": "CRIT-10-03",
+          "name": "Dépendance au MNO",
+          "weight": 0.25
+        },
+        {
+          "id": "CRIT-10-04",
+          "name": "Effort d'intégration",
+          "weight": 0.19
+        }
+      ],
+      "evaluations": [
+        {
+          "optionId": "OPT-10-A",
+          "criterionId": "CRIT-10-01",
+          "score": 10,
+          "justification": "Répond directement à REQ-Lot1-250 (adaptation aux interfaces du MNO) et à REQ-Lot1-253 (NRM)."
+        },
+        {
+          "optionId": "OPT-10-A",
+          "criterionId": "CRIT-10-02",
+          "score": 8,
+          "justification": "Donne accès aux données de l'OSS, mais limitée à ce que le MNO expose."
+        },
+        {
+          "optionId": "OPT-10-A",
+          "criterionId": "CRIT-10-03",
+          "score": 4,
+          "justification": "Reste exposé aux évolutions d'interface du MNO, atténuées par la couche d'adaptation."
+        },
+        {
+          "optionId": "OPT-10-A",
+          "criterionId": "CRIT-10-04",
+          "score": 4,
+          "justification": "Plusieurs protocoles possibles (REST, NETCONF, Kafka, Syslog, SNMP, SFTP) à intégrer et maintenir."
+        },
+        {
+          "optionId": "OPT-10-B",
+          "criterionId": "CRIT-10-01",
+          "score": 4,
+          "justification": "Contredit le principe de REQ-Lot1-250, selon lequel l'INFRA s'adapte à l'interface du MNO."
+        },
+        {
+          "optionId": "OPT-10-B",
+          "criterionId": "CRIT-10-02",
+          "score": 8,
+          "justification": "Un flux filtré et normalisé faciliterait la séparation partagé/exclusif, si le MNO l'accepte."
+        },
+        {
+          "optionId": "OPT-10-B",
+          "criterionId": "CRIT-10-03",
+          "score": 2,
+          "justification": "Dépend entièrement du développement et de l'acceptation du MNO."
+        },
+        {
+          "optionId": "OPT-10-B",
+          "criterionId": "CRIT-10-04",
+          "score": 8,
+          "justification": "Un seul connecteur côté INFRA, mais l'effort est reporté sur le MNO."
+        },
+        {
+          "optionId": "OPT-10-C",
+          "criterionId": "CRIT-10-01",
+          "score": 2,
+          "justification": "Ne fournit ni statut de stations, ni KPI radio, ni alarmes exigés par REQ-Lot1-200 et REQ-Lot1-253."
+        },
+        {
+          "optionId": "OPT-10-C",
+          "criterionId": "CRIT-10-02",
+          "score": 4,
+          "justification": "Détecte l'indisponibilité de bout en bout mais pas sa cause ni le découpage partagé/exclusif."
+        },
+        {
+          "optionId": "OPT-10-C",
+          "criterionId": "CRIT-10-03",
+          "score": 8,
+          "justification": "Indépendante de l'OSS du MNO."
+        },
+        {
+          "optionId": "OPT-10-C",
+          "criterionId": "CRIT-10-04",
+          "score": 8,
+          "justification": "Pas d'intégration OSS à développer."
+        }
+      ]
+    }
+  },
+  {
+    "id": "SUBJ-LUMICC-11",
+    "section_ref": "NOC – gestion des alarmes, corrélation, RCA",
+    "name": "Corrélation d'alarmes et RCA : règles déterministes, analytique ML ou approche hybride",
+    "level": "L1_framed",
+    "blocking_count": 0,
+    "unlocks_count": 1,
+    "waiting_for_role": "domain_architect",
+    "relative_effort": "L",
+    "last_transition_date": "2026-10-31T08:00:00Z",
+    "stall_days": 0,
+    "is_stalled": false,
+    "dependent_subject_ids": [
+      "SUBJ-LUMICC-01"
+    ],
+    "requirement_ids": [
+      "REQ-Lot1-197",
+      "REQ-Lot1-212",
+      "REQ-Lot1-214",
+      "REQ-Lot1-215",
+      "REQ-Lot1-257"
+    ],
+    "problem_statement": "Quel moteur de corrélation et de RCA retenir pour le NOC LUMICC (règles déterministes enrichies par la topologie, analytique ML/MDA, ou combinaison des deux) afin de maîtriser les tempêtes d'alarmes, les fausses alarmes et le délai de RCA, tout en restant conforme au cadre 3GPP MDA sur le cœur et la RAN, sans risque inacceptable de faux diagnostic sur un service critique ?",
+    "nature": "architecture",
+    "proposal": {
+      "options": [
+        {
+          "id": "OPT-11-A",
+          "title": "Moteur de règles déterministes",
+          "summary": "Corrélation et RCA par règles et modèles de dépendance topologique, avec déduplication, suppression, filtres et fenêtres de maintenance, sans apprentissage.",
+          "status": "draft"
+        },
+        {
+          "id": "OPT-11-B",
+          "title": "Analytique ML/MDA native",
+          "summary": "Corrélation et RCA fondées sur l'analytique avancée et l'apprentissage, conformes aux fonctions 3GPP MDA, avec peu de règles explicites.",
+          "status": "draft"
+        },
+        {
+          "id": "OPT-11-C",
+          "title": "Hybride règles + analytique MDA",
+          "summary": "Socle déterministe topologique pour la corrélation et la RCA explicables, complété par une couche analytique MDA en aide à la décision et à la réduction de bruit.",
+          "status": "draft"
+        }
+      ],
+      "criteria": [
+        {
+          "id": "CRIT-11-01",
+          "name": "Maîtrise du risque de faux diagnostic",
+          "weight": 0.26
+        },
+        {
+          "id": "CRIT-11-02",
+          "name": "Réduction du bruit et des fausses alarmes",
+          "weight": 0.21
+        },
+        {
+          "id": "CRIT-11-03",
+          "name": "Conformité 3GPP MDA",
+          "weight": 0.21
+        },
+        {
+          "id": "CRIT-11-04",
+          "name": "Dépendance aux données d'inventaire et d'historique",
+          "weight": 0.16
+        },
+        {
+          "id": "CRIT-11-05",
+          "name": "Coût et effort de mise en œuvre et d'exploitation",
+          "weight": 0.16
+        }
+      ],
+      "evaluations": [
+        {
+          "optionId": "OPT-11-A",
+          "criterionId": "CRIT-11-01",
+          "score": 10,
+          "justification": "Raisonnement explicable et reproductible, adapté à un service critique."
+        },
+        {
+          "optionId": "OPT-11-A",
+          "criterionId": "CRIT-11-02",
+          "score": 6,
+          "justification": "Dédoublonnage, suppression et filtres couvrent REQ-214, mais les fausses alarmes inédites exigent une maintenance manuelle des règles."
+        },
+        {
+          "optionId": "OPT-11-A",
+          "criterionId": "CRIT-11-03",
+          "score": 4,
+          "justification": "Ne répond pas par nature aux fonctions d'analytique de REQ-197 sans couche complémentaire."
+        },
+        {
+          "optionId": "OPT-11-A",
+          "criterionId": "CRIT-11-04",
+          "score": 6,
+          "justification": "Dépend de la topologie pour l'enrichissement mais pas d'historique d'entraînement."
+        },
+        {
+          "optionId": "OPT-11-A",
+          "criterionId": "CRIT-11-05",
+          "score": 6,
+          "justification": "Mise en œuvre simple au départ, mais maintenance des règles lourde sur un parc multi-fournisseurs évolutif."
+        },
+        {
+          "optionId": "OPT-11-B",
+          "criterionId": "CRIT-11-01",
+          "score": 2,
+          "justification": "Risque de diagnostic erroné et d'explicabilité limitée sur un service critique, surtout au démarrage."
+        },
+        {
+          "optionId": "OPT-11-B",
+          "criterionId": "CRIT-11-02",
+          "score": 8,
+          "justification": "Potentiel d'identification des fausses alarmes et corrélations non modélisées, sous réserve de données de qualité."
+        },
+        {
+          "optionId": "OPT-11-B",
+          "criterionId": "CRIT-11-03",
+          "score": 10,
+          "justification": "Réponse directe au cadre MDA demandé par REQ-197."
+        },
+        {
+          "optionId": "OPT-11-B",
+          "criterionId": "CRIT-11-04",
+          "score": 2,
+          "justification": "Fortement tributaire de la qualité des données et de l'inventaire pour l'enrichissement de REQ-214."
+        },
+        {
+          "optionId": "OPT-11-B",
+          "criterionId": "CRIT-11-05",
+          "score": 4,
+          "justification": "Effort de calibrage et de gouvernance des modèles, coût et compétences à prévoir."
+        },
+        {
+          "optionId": "OPT-11-C",
+          "criterionId": "CRIT-11-01",
+          "score": 8,
+          "justification": "Socle explicable, l'analytique restant en aide à la décision et non en action automatique."
+        },
+        {
+          "optionId": "OPT-11-C",
+          "criterionId": "CRIT-11-02",
+          "score": 10,
+          "justification": "Combine suppression déterministe (REQ-214, maintenance REQ-215) et détection analytique des fausses alarmes (REQ-212)."
+        },
+        {
+          "optionId": "OPT-11-C",
+          "criterionId": "CRIT-11-03",
+          "score": 8,
+          "justification": "La couche analytique répond à REQ-197, à confirmer selon le périmètre MDA exigé."
+        },
+        {
+          "optionId": "OPT-11-C",
+          "criterionId": "CRIT-11-04",
+          "score": 4,
+          "justification": "Hérite de la dépendance topologique et d'une partie de celle de l'analytique, mais la montée en charge est progressive."
+        },
+        {
+          "optionId": "OPT-11-C",
+          "criterionId": "CRIT-11-05",
+          "score": 4,
+          "justification": "Deux couches à intégrer et à gouverner, coût supérieur au règles seul."
+        }
+      ]
+    }
+  },
+  {
+    "id": "SUBJ-LUMICC-12",
+    "section_ref": "NOC – collecte, FMS, syslog, logs",
+    "name": "Pipeline de collecte unique ou chaînes séparées NOC et SOC/SIEM",
+    "level": "L1_framed",
+    "blocking_count": 0,
+    "unlocks_count": 1,
+    "waiting_for_role": "lead_architect",
+    "relative_effort": "L",
+    "last_transition_date": "2026-10-31T08:00:00Z",
+    "stall_days": 0,
+    "is_stalled": false,
+    "dependent_subject_ids": [
+      "SUBJ-LUMICC-01"
+    ],
+    "requirement_ids": [
+      "REQ-Lot1-210",
+      "REQ-Lot1-213",
+      "REQ-Lot1-244",
+      "REQ-Lot1-255",
+      "REQ-Lot1-256",
+      "REQ-Lot1-264"
+    ],
+    "problem_statement": "La collecte temps réel (YANG, SNMPv3, syslog) et les logs doivent-ils alimenter NOC et SOC/SIEM via un pipeline unique et un agrégateur syslog en bastion, ou via deux chaînes séparées ? Comment garantir l'absence de perte d'information lors de la conversion en syslog, la séparation des domaines et la rétention ?",
+    "nature": "architecture",
+    "proposal": {
+      "options": [
+        {
+          "id": "OPT-12-A",
+          "title": "Agrégateur commun en bastion, double sortie",
+          "summary": "Un agrégateur syslog unique dans le bastion de l'INFRA reçoit les logs de tous les éléments, puis alimente séparément le NOC et le SOC/SIEM. Le FMS reçoit en parallèle les alarmes natives YANG ou SNMPv3.",
+          "status": "draft"
+        },
+        {
+          "id": "OPT-12-B",
+          "title": "Chaînes NOC et SOC totalement séparées",
+          "summary": "Chaque domaine dispose de sa propre collecte et de ses propres collecteurs, les éléments réseau émettant vers deux destinations indépendantes. L'agrégateur en bastion ne sert alors qu'au SOC.",
+          "status": "draft"
+        },
+        {
+          "id": "OPT-12-C",
+          "title": "Pipeline unique mutualisé jusqu'à la plateforme de données",
+          "summary": "Un seul pipeline de collecte et une seule plateforme de données et d'observabilité servent le NOC et le SOC, avec une séparation logique par droits d'accès et index.",
+          "status": "draft"
+        }
+      ],
+      "criteria": [
+        {
+          "id": "CRIT-12-01",
+          "name": "Conformité aux exigences",
+          "weight": 0.26
+        },
+        {
+          "id": "CRIT-12-02",
+          "name": "Séparation des domaines et intégrité",
+          "weight": 0.26
+        },
+        {
+          "id": "CRIT-12-03",
+          "name": "Préservation de l'information",
+          "weight": 0.21
+        },
+        {
+          "id": "CRIT-12-04",
+          "name": "Volumétrie et tenue en charge",
+          "weight": 0.16
+        },
+        {
+          "id": "CRIT-12-05",
+          "name": "Coût et complexité d'exploitation",
+          "weight": 0.11
+        }
+      ],
+      "evaluations": [
+        {
+          "optionId": "OPT-12-A",
+          "criterionId": "CRIT-12-01",
+          "score": 10,
+          "justification": "Correspond directement au texte de REQ-213 et REQ-256 et laisse le FMS recevoir YANG ou SNMPv3 selon REQ-255."
+        },
+        {
+          "optionId": "OPT-12-A",
+          "criterionId": "CRIT-12-02",
+          "score": 8,
+          "justification": "Sorties distinctes avec droits et rétentions propres, mais l'agrégateur reste un composant partagé à durcir dans le bastion."
+        },
+        {
+          "optionId": "OPT-12-A",
+          "criterionId": "CRIT-12-03",
+          "score": 8,
+          "justification": "Le flux natif vers le FMS évite de dépendre de la seule conversion syslog, la perte subsiste côté SOC."
+        },
+        {
+          "optionId": "OPT-12-A",
+          "criterionId": "CRIT-12-04",
+          "score": 6,
+          "justification": "Point de concentration à dimensionner et à redonder, volumétrie non chiffrée dans les exigences."
+        },
+        {
+          "optionId": "OPT-12-A",
+          "criterionId": "CRIT-12-05",
+          "score": 8,
+          "justification": "Un seul point de collecte côté équipements, moins de flux à configurer que deux chaînes."
+        },
+        {
+          "optionId": "OPT-12-B",
+          "criterionId": "CRIT-12-01",
+          "score": 4,
+          "justification": "S'écarte de REQ-213 et REQ-256, qui prévoient un agrégateur connecté aux deux domaines."
+        },
+        {
+          "optionId": "OPT-12-B",
+          "criterionId": "CRIT-12-02",
+          "score": 10,
+          "justification": "Isolation maximale entre exploitation et sécurité, sans dépendance croisée."
+        },
+        {
+          "optionId": "OPT-12-B",
+          "criterionId": "CRIT-12-03",
+          "score": 8,
+          "justification": "Chaque chaîne peut conserver son format natif, mais la cohérence entre les deux vues n'est pas assurée."
+        },
+        {
+          "optionId": "OPT-12-B",
+          "criterionId": "CRIT-12-04",
+          "score": 8,
+          "justification": "Charge répartie entre deux chaînes, au prix d'une double émission depuis les équipements."
+        },
+        {
+          "optionId": "OPT-12-B",
+          "criterionId": "CRIT-12-05",
+          "score": 2,
+          "justification": "Double les flux, les collecteurs et les configurations sur tous les éléments de l'inventaire."
+        },
+        {
+          "optionId": "OPT-12-C",
+          "criterionId": "CRIT-12-01",
+          "score": 8,
+          "justification": "Compatible avec REQ-213, 244 et 264, mais va au-delà de ce que demande le texte quant au SOC."
+        },
+        {
+          "optionId": "OPT-12-C",
+          "criterionId": "CRIT-12-02",
+          "score": 2,
+          "justification": "Une séparation uniquement logique expose les journaux de sécurité aux choix et incidents du NOC."
+        },
+        {
+          "optionId": "OPT-12-C",
+          "criterionId": "CRIT-12-03",
+          "score": 8,
+          "justification": "Une base unique facilite la corrélation logs, alarmes et KPI demandée par REQ-264."
+        },
+        {
+          "optionId": "OPT-12-C",
+          "criterionId": "CRIT-12-04",
+          "score": 4,
+          "justification": "Concentre toute la volumétrie temps réel sur une seule plateforme, avec un risque de contention entre usages."
+        },
+        {
+          "optionId": "OPT-12-C",
+          "criterionId": "CRIT-12-05",
+          "score": 10,
+          "justification": "Un seul pipeline et une seule plateforme à exploiter."
+        }
+      ]
+    }
+  },
+  {
+    "id": "SUBJ-LUMICC-13",
+    "section_ref": "NOC – OSS/SMO, automatisation, optimisation",
+    "name": "Degré d'automatisation SMO/OSS : boucle fermée, approbation humaine ou graduée",
+    "level": "L1_framed",
+    "blocking_count": 0,
+    "unlocks_count": 1,
+    "waiting_for_role": "lead_architect",
+    "relative_effort": "L",
+    "last_transition_date": "2026-10-31T08:00:00Z",
+    "stall_days": 0,
+    "is_stalled": false,
+    "dependent_subject_ids": [
+      "SUBJ-LUMICC-01"
+    ],
+    "requirement_ids": [
+      "REQ-Lot1-207",
+      "REQ-Lot1-246",
+      "REQ-Lot1-247",
+      "REQ-Lot1-263"
+    ],
+    "problem_statement": "Quel niveau d'autonomie accorder au SMO, au moteur de politiques et d'intentions (avec NWDAF) et aux runbooks OSS (remédiation, optimisation QoS, économies d'énergie RAN) sur un réseau de mission critique ? Boucle fermée, approbation opérateur systématique ou autonomie graduée par classe d'action ? Et avec quel découpage OSS/SMO/EMS, intégré ou modulaire ?",
+    "nature": "architecture",
+    "proposal": {
+      "options": [
+        {
+          "id": "OPT-13-A",
+          "title": "Autonomie graduée par classe d'action",
+          "summary": "SMO, moteur d'intentions et runbooks modulaires. Boucle fermée pour les actions réversibles à faible impact, approbation opérateur pour les actions à impact service, garde-fous et rollback sur l'énergie RAN.",
+          "status": "draft"
+        },
+        {
+          "id": "OPT-13-B",
+          "title": "Boucle fermée généralisée",
+          "summary": "Les remédiations, politiques QoS et économies d'énergie sont exécutées automatiquement par le SMO et le moteur d'intentions, l'opérateur supervisant a posteriori.",
+          "status": "draft"
+        },
+        {
+          "id": "OPT-13-C",
+          "title": "Approbation opérateur systématique",
+          "summary": "Le SMO et les runbooks proposent des actions, mais chaque exécution est validée par un opérateur du NOC.",
+          "status": "draft"
+        },
+        {
+          "id": "OPT-13-D",
+          "title": "Suite OSS/SMO intégrée mono-fournisseur",
+          "summary": "Plateforme unique couvrant OSS, SMO, moteur d'intentions et runbooks, avec un niveau d'autonomie configuré globalement par le fournisseur.",
+          "status": "draft"
+        }
+      ],
+      "criteria": [
+        {
+          "id": "CRIT-13-01",
+          "name": "Maîtrise du risque opérationnel",
+          "weight": 0.28
+        },
+        {
+          "id": "CRIT-13-02",
+          "name": "Réactivité et couverture des exigences d'automatisation",
+          "weight": 0.22
+        },
+        {
+          "id": "CRIT-13-03",
+          "name": "Contrôle opérateur et auditabilité",
+          "weight": 0.22
+        },
+        {
+          "id": "CRIT-13-04",
+          "name": "Modularité et découpage OSS/SMO/EMS",
+          "weight": 0.17
+        },
+        {
+          "id": "CRIT-13-05",
+          "name": "Charge d'exploitation NOC",
+          "weight": 0.11
+        }
+      ],
+      "evaluations": [
+        {
+          "optionId": "OPT-13-A",
+          "criterionId": "CRIT-13-01",
+          "score": 10,
+          "justification": "Le risque est borné par classe d'action, avec approbation sur les actions à impact et garde-fous sur l'énergie RAN."
+        },
+        {
+          "optionId": "OPT-13-A",
+          "criterionId": "CRIT-13-02",
+          "score": 8,
+          "justification": "Les actions à faible impact sont réactives, mais les actions soumises à approbation ralentissent le traitement."
+        },
+        {
+          "optionId": "OPT-13-A",
+          "criterionId": "CRIT-13-03",
+          "score": 10,
+          "justification": "Elle correspond aux « options d'approbation opérateur » de REQ-263 et permet une traçabilité par classe."
+        },
+        {
+          "optionId": "OPT-13-A",
+          "criterionId": "CRIT-13-04",
+          "score": 8,
+          "justification": "Elle s'appuie sur une architecture modulaire cohérente avec REQ-246, au prix d'un effort d'intégration."
+        },
+        {
+          "optionId": "OPT-13-A",
+          "criterionId": "CRIT-13-05",
+          "score": 6,
+          "justification": "Elle réduit les validations triviales, mais la définition et la maintenance des classes d'action demandent un effort."
+        },
+        {
+          "optionId": "OPT-13-B",
+          "criterionId": "CRIT-13-01",
+          "score": 2,
+          "justification": "Les actions autonomes sur QoS et énergie RAN peuvent dégrader couverture et disponibilité d'un réseau de mission critique."
+        },
+        {
+          "optionId": "OPT-13-B",
+          "criterionId": "CRIT-13-02",
+          "score": 10,
+          "justification": "Elle offre la réactivité maximale sur l'événementiel, les politiques et la détection de non-conformité."
+        },
+        {
+          "optionId": "OPT-13-B",
+          "criterionId": "CRIT-13-03",
+          "score": 2,
+          "justification": "Le contrôle est exercé a posteriori seulement, ce qui contredit l'esprit des options d'approbation de REQ-263."
+        },
+        {
+          "optionId": "OPT-13-B",
+          "criterionId": "CRIT-13-04",
+          "score": 6,
+          "justification": "Elle est neutre sur le découpage, qui dépend de l'architecture retenue."
+        },
+        {
+          "optionId": "OPT-13-B",
+          "criterionId": "CRIT-13-05",
+          "score": 8,
+          "justification": "Peu de validations manuelles, mais le NOC doit gérer les incidents causés par des actions autonomes erronées."
+        },
+        {
+          "optionId": "OPT-13-C",
+          "criterionId": "CRIT-13-01",
+          "score": 10,
+          "justification": "Aucune action à impact n'est exécutée sans validation humaine."
+        },
+        {
+          "optionId": "OPT-13-C",
+          "criterionId": "CRIT-13-02",
+          "score": 4,
+          "justification": "Elle ralentit la remédiation événementielle et affaiblit la valeur du moteur d'intentions (REQ-247)."
+        },
+        {
+          "optionId": "OPT-13-C",
+          "criterionId": "CRIT-13-03",
+          "score": 10,
+          "justification": "Chaque action est validée et tracée par un opérateur."
+        },
+        {
+          "optionId": "OPT-13-C",
+          "criterionId": "CRIT-13-04",
+          "score": 6,
+          "justification": "Elle n'impose aucun découpage particulier."
+        },
+        {
+          "optionId": "OPT-13-C",
+          "criterionId": "CRIT-13-05",
+          "score": 2,
+          "justification": "Elle sature le NOC de validations, y compris sur les actions répétitives (REQ-263)."
+        },
+        {
+          "optionId": "OPT-13-D",
+          "criterionId": "CRIT-13-01",
+          "score": 6,
+          "justification": "Le risque dépend des garde-fous du fournisseur, avec peu de maîtrise fine de la politique d'autonomie."
+        },
+        {
+          "optionId": "OPT-13-D",
+          "criterionId": "CRIT-13-02",
+          "score": 8,
+          "justification": "L'intégration native facilite l'automatisation de bout en bout."
+        },
+        {
+          "optionId": "OPT-13-D",
+          "criterionId": "CRIT-13-03",
+          "score": 6,
+          "justification": "Le contrôle est limité à ce que la suite expose, sans garantie d'une approbation granulaire."
+        },
+        {
+          "optionId": "OPT-13-D",
+          "criterionId": "CRIT-13-04",
+          "score": 2,
+          "justification": "Elle contredit le découpage modulaire OSS/SMO/EMS suggéré par REQ-246 et crée un verrouillage."
+        },
+        {
+          "optionId": "OPT-13-D",
+          "criterionId": "CRIT-13-05",
+          "score": 8,
+          "justification": "Une console et un outillage uniques simplifient l'exploitation courante."
+        }
+      ]
+    }
+  },
+  {
+    "id": "SUBJ-LUMICC-14",
+    "section_ref": "NOC – QoS, QCI/5QI, trafic",
+    "name": "Gouvernance QoS NOC : référentiel 5QI unique ou mapping par domaine",
+    "level": "L1_framed",
+    "blocking_count": 0,
+    "unlocks_count": 1,
+    "waiting_for_role": "domain_architect",
+    "relative_effort": "L",
+    "last_transition_date": "2026-10-31T08:00:00Z",
+    "stall_days": 0,
+    "is_stalled": false,
+    "dependent_subject_ids": [
+      "SUBJ-LUMICC-01"
+    ],
+    "requirement_ids": [
+      "REQ-Lot1-193",
+      "REQ-Lot1-194",
+      "REQ-Lot1-195",
+      "REQ-Lot1-208",
+      "REQ-Lot1-209",
+      "REQ-Lot1-231"
+    ],
+    "problem_statement": "Le NOC doit-il porter un référentiel QoS unique (QCI/5QI standard, opérateur 128-254, 5QI aérien) poussé vers cœur, RAN GOV et RAN MNO partagée, ou un référentiel central avec mapping négocié par domaine, et comment y adosser l'aide à la décision COW/déployable sans maîtrise de l'OSS du MNO ?",
+    "nature": "architecture",
+    "proposal": {
+      "options": [
+        {
+          "id": "OPT-14-A",
+          "title": "Catalogue QoS central et mapping par domaine",
+          "summary": "Le NOC détient le référentiel 5QI (standard, opérateur, aérien) et en dérive des profils de mapping par domaine (cœur, RAN GOV, RAN MNO), avec vérification de conformité et recommandation COW/déployable validée par un opérateur.",
+          "status": "draft"
+        },
+        {
+          "id": "OPT-14-B",
+          "title": "Pilotage par les outils de chaque domaine",
+          "summary": "Chaque domaine (cœur, RAN GOV, RAN MNO) gère ses propres QCI/5QI avec ses outils ; le NOC consolide uniquement la vue et les rapports.",
+          "status": "draft"
+        },
+        {
+          "id": "OPT-14-C",
+          "title": "Orchestration QoS automatisée bout en bout",
+          "summary": "Le NOC pousse automatiquement les politiques QoS et déclenche le renfort de capacité (COW ou déployable) en boucle fermée selon la charge par 5QI.",
+          "status": "draft"
+        }
+      ],
+      "criteria": [
+        {
+          "id": "CRIT-14-01",
+          "name": "Cohérence QoS bout en bout",
+          "weight": 0.33
+        },
+        {
+          "id": "CRIT-14-02",
+          "name": "Faisabilité vis-à-vis du MNO partagé",
+          "weight": 0.27
+        },
+        {
+          "id": "CRIT-14-03",
+          "name": "Maîtrise de la capacité et du renfort",
+          "weight": 0.2
+        },
+        {
+          "id": "CRIT-14-04",
+          "name": "Coût et complexité de mise en œuvre",
+          "weight": 0.2
+        }
+      ],
+      "evaluations": [
+        {
+          "optionId": "OPT-14-A",
+          "criterionId": "CRIT-14-01",
+          "score": 10,
+          "justification": "Une source de vérité unique des 5QI standard, opérateur et aérien répond directement à REQ-193 et REQ-194."
+        },
+        {
+          "optionId": "OPT-14-A",
+          "criterionId": "CRIT-14-02",
+          "score": 8,
+          "justification": "Le mapping contractualisé et supervisé évite de supposer un pilotage direct de l'OSS du MNO, mais dépend de la visibilité exposée."
+        },
+        {
+          "optionId": "OPT-14-A",
+          "criterionId": "CRIT-14-03",
+          "score": 8,
+          "justification": "Le catalogue alimente l'analytique par 5QI et une recommandation COW/déployable validée, sans automatisme risqué."
+        },
+        {
+          "optionId": "OPT-14-A",
+          "criterionId": "CRIT-14-04",
+          "score": 6,
+          "justification": "Une gouvernance et un outil de catalogue à construire, mais effort maîtrisé et incrémental."
+        },
+        {
+          "optionId": "OPT-14-B",
+          "criterionId": "CRIT-14-01",
+          "score": 2,
+          "justification": "Risque élevé de dérive des mappings entre domaines et fournisseurs, contraire à REQ-193."
+        },
+        {
+          "optionId": "OPT-14-B",
+          "criterionId": "CRIT-14-02",
+          "score": 8,
+          "justification": "Respecte l'autonomie du MNO sur sa RAN, sans exigence de visibilité supplémentaire."
+        },
+        {
+          "optionId": "OPT-14-B",
+          "criterionId": "CRIT-14-03",
+          "score": 4,
+          "justification": "Vue fragmentée qui dégrade l'optimisation (REQ-208) et la détection des pics pour REQ-209."
+        },
+        {
+          "optionId": "OPT-14-B",
+          "criterionId": "CRIT-14-04",
+          "score": 8,
+          "justification": "Peu de développements spécifiques au NOC, mais coût d'exploitation et de coordination reporté sur les domaines."
+        },
+        {
+          "optionId": "OPT-14-C",
+          "criterionId": "CRIT-14-01",
+          "score": 10,
+          "justification": "Le push automatisé maximise la cohérence sur les domaines que le NOC maîtrise."
+        },
+        {
+          "optionId": "OPT-14-C",
+          "criterionId": "CRIT-14-02",
+          "score": 2,
+          "justification": "Suppose un pilotage de la RAN MNO partagée et de son OSS que le NOC ne maîtrise pas."
+        },
+        {
+          "optionId": "OPT-14-C",
+          "criterionId": "CRIT-14-03",
+          "score": 8,
+          "justification": "Réactivité maximale, mais le déclenchement automatique de COW ou déployable engage coûts et délais sans arbitrage humain."
+        },
+        {
+          "optionId": "OPT-14-C",
+          "criterionId": "CRIT-14-04",
+          "score": 2,
+          "justification": "Intégration en boucle fermée multi-fournisseurs lourde, avec risque élevé et dépendance à des interfaces non garanties."
+        }
+      ]
+    }
+  },
+  {
+    "id": "SUBJ-LUMICC-15",
+    "section_ref": "NOC – supervision des domaines, sondes, KPI",
+    "name": "Assurance de service : sondes actives de bout en bout ou déduction par compteurs ?",
+    "level": "L1_framed",
+    "blocking_count": 0,
+    "unlocks_count": 1,
+    "waiting_for_role": "lead_architect",
+    "relative_effort": "XL",
+    "last_transition_date": "2026-10-31T08:00:00Z",
+    "stall_days": 0,
+    "is_stalled": false,
+    "dependent_subject_ids": [
+      "SUBJ-LUMICC-01"
+    ],
+    "requirement_ids": [
+      "REQ-Lot1-202",
+      "REQ-Lot1-203",
+      "REQ-Lot1-204",
+      "REQ-Lot1-205",
+      "REQ-Lot1-217",
+      "REQ-Lot1-218",
+      "REQ-Lot1-219",
+      "REQ-Lot1-220",
+      "REQ-Lot1-221",
+      "REQ-Lot1-222",
+      "REQ-Lot1-260"
+    ],
+    "problem_statement": "Les KPI contractuels MCX (KPI1 à KPI5), handover (KPI6) et FRMCS (KPI7) seront-ils mesurés par des sondes actives et une automatisation de test jusqu'aux terminaux, par déduction des compteurs et de la supervision de chaque domaine, ou par une combinaison dont il faut fixer la répartition ? Quelle source fait foi pour l'opposabilité et le ticket de non-conformité automatique ?",
+    "nature": "architecture",
+    "proposal": {
+      "options": [
+        {
+          "id": "OPT-15-A",
+          "title": "Sondes actives de bout en bout",
+          "summary": "Tous les KPI sont mesurés par sondes et automatisation de test jusqu'aux terminaux, la supervision des domaines ne servant qu'à l'exploitation courante.",
+          "status": "draft"
+        },
+        {
+          "id": "OPT-15-B",
+          "title": "Déduction par compteurs et supervision",
+          "summary": "Les KPI sont calculés à partir des compteurs réseau, des événements MCX et de la supervision de chaque domaine, sans sonde active de bout en bout.",
+          "status": "draft"
+        },
+        {
+          "id": "OPT-15-C",
+          "title": "Hybride sondes et compteurs au PMS",
+          "summary": "Les sondes actives fournissent les KPI opposables de bout en bout (MCX, accès, qualité audio), les compteurs RAN et cœur couvrent handover et couverture continue, le tout consolidé et corrélé dans le PMS.",
+          "status": "draft"
+        }
+      ],
+      "criteria": [
+        {
+          "id": "CRIT-15-01",
+          "name": "Fidélité et opposabilité des KPI",
+          "weight": 0.28
+        },
+        {
+          "id": "CRIT-15-02",
+          "name": "Charge induite sur le service critique",
+          "weight": 0.22
+        },
+        {
+          "id": "CRIT-15-03",
+          "name": "Couverture des KPI handover et mobilité",
+          "weight": 0.17
+        },
+        {
+          "id": "CRIT-15-04",
+          "name": "Dépendance aux interfaces tierces",
+          "weight": 0.17
+        },
+        {
+          "id": "CRIT-15-05",
+          "name": "Coût et complexité d'exploitation",
+          "weight": 0.17
+        }
+      ],
+      "evaluations": [
+        {
+          "optionId": "OPT-15-A",
+          "criterionId": "CRIT-15-01",
+          "score": 10,
+          "justification": "La mesure jusqu'aux terminaux répond directement à REQ-219 et fonde des tickets de non-conformité défendables (REQ-220)."
+        },
+        {
+          "optionId": "OPT-15-A",
+          "criterionId": "CRIT-15-02",
+          "score": 4,
+          "justification": "Des tests fréquents (30 s à 5 min) sur tous les services ajoutent une charge permanente à un service critique."
+        },
+        {
+          "optionId": "OPT-15-A",
+          "criterionId": "CRIT-15-03",
+          "score": 6,
+          "justification": "Mesurable en campagne de mobilité, mais le suivi continu de KPI6 et KPI7 par sonde seule est lourd et peu représentatif."
+        },
+        {
+          "optionId": "OPT-15-A",
+          "criterionId": "CRIT-15-04",
+          "score": 8,
+          "justification": "Moins dépendante des API des fournisseurs, même si les terminaux et accès de test restent nécessaires."
+        },
+        {
+          "optionId": "OPT-15-A",
+          "criterionId": "CRIT-15-05",
+          "score": 4,
+          "justification": "Parc de terminaux, automatisation et maintenance des scénarios sur tous les services et zones sont coûteux."
+        },
+        {
+          "optionId": "OPT-15-B",
+          "criterionId": "CRIT-15-01",
+          "score": 2,
+          "justification": "Les compteurs ne prouvent pas mouth-to-ear, MOS P.863 ni l'accès de bout en bout, ce qui contredit l'esprit de REQ-219 et REQ-220."
+        },
+        {
+          "optionId": "OPT-15-B",
+          "criterionId": "CRIT-15-02",
+          "score": 10,
+          "justification": "Collecte passive, sans trafic de test sur le service MCX."
+        },
+        {
+          "optionId": "OPT-15-B",
+          "criterionId": "CRIT-15-03",
+          "score": 10,
+          "justification": "Les compteurs RAN fournissent naturellement les taux de succès de handover en continu, sous réserve de leur granularité."
+        },
+        {
+          "optionId": "OPT-15-B",
+          "criterionId": "CRIT-15-04",
+          "score": 2,
+          "justification": "Dépend entièrement des compteurs exposés par les fournisseurs et par un MNO dont l'OSS n'est pas maîtrisé."
+        },
+        {
+          "optionId": "OPT-15-B",
+          "criterionId": "CRIT-15-05",
+          "score": 8,
+          "justification": "S'appuie sur la supervision déjà exigée (REQ-202 à 205) et le PMS, sans outillage de test supplémentaire."
+        },
+        {
+          "optionId": "OPT-15-C",
+          "criterionId": "CRIT-15-01",
+          "score": 10,
+          "justification": "Les sondes portent les KPI opposables de bout en bout, les compteurs servent de corroboration et de diagnostic."
+        },
+        {
+          "optionId": "OPT-15-C",
+          "criterionId": "CRIT-15-02",
+          "score": 8,
+          "justification": "Les sondes peuvent être ciblées et leur fréquence modulée par service, les compteurs couvrant le reste."
+        },
+        {
+          "optionId": "OPT-15-C",
+          "criterionId": "CRIT-15-03",
+          "score": 8,
+          "justification": "KPI6 s'appuie sur les compteurs RAN et KPI7 sur des campagnes ciblées dans le corridor FRMCS ; la mesure de 50 ms reste à confirmer."
+        },
+        {
+          "optionId": "OPT-15-C",
+          "criterionId": "CRIT-15-04",
+          "score": 6,
+          "justification": "Dépendance partielle aux API des fournisseurs, atténuée par les sondes comme source de repli indépendante."
+        },
+        {
+          "optionId": "OPT-15-C",
+          "criterionId": "CRIT-15-05",
+          "score": 4,
+          "justification": "Deux chaînes de mesure à intégrer et à réconcilier dans le PMS (REQ-260), donc un effort d'intégration supérieur."
+        }
+      ]
+    }
+  },
+  {
+    "id": "SUBJ-LUMICC-16",
+    "section_ref": "NOC – CMS, topologie, ITSM, support terrain",
+    "name": "Source de référence inventaire/CMDB et découverte automatique encadrée par le changement",
+    "level": "L1_framed",
+    "blocking_count": 0,
+    "unlocks_count": 1,
+    "waiting_for_role": "domain_architect",
+    "relative_effort": "L",
+    "last_transition_date": "2026-10-31T08:00:00Z",
+    "stall_days": 0,
+    "is_stalled": false,
+    "dependent_subject_ids": [
+      "SUBJ-LUMICC-01"
+    ],
+    "requirement_ids": [
+      "REQ-Lot1-245",
+      "REQ-Lot1-261",
+      "REQ-Lot1-262",
+      "REQ-Lot1-266",
+      "REQ-Lot1-267"
+    ],
+    "problem_statement": "Quelle est la source de référence pour les éléments réseau et leurs relations entre l'inventaire OSS/CMS et la CMDB de l'ITSM, comment la découverte automatique et la réconciliation sont-elles soumises à autorisation par le processus de changement (REQ-Lot1-262), et l'ITSM (incident, problème, changement, dispatch terrain) est-il une plateforme intégrée au back-office ou un assemblage d'outils synchronisés ?",
+    "nature": "architecture",
+    "proposal": {
+      "options": [
+        {
+          "id": "OPT-16-A",
+          "title": "ITSM intégré, CMS maître technique",
+          "summary": "Plateforme ITSM du back-office avec CMDB et dispatch natifs. Le CMS/inventaire OSS reste maître des éléments techniques et alimente la CMDB par synchronisation contrôlée. La découverte est soumise à des changements autorisés.",
+          "status": "draft"
+        },
+        {
+          "id": "OPT-16-B",
+          "title": "Outils assemblés et bus d'intégration",
+          "summary": "Outils spécialisés distincts pour inventaire, CMS, ITSM et dispatch terrain, reliés par des interfaces et un bus d'intégration. Chaque outil garde son modèle de données.",
+          "status": "draft"
+        },
+        {
+          "id": "OPT-16-C",
+          "title": "CMDB ITSM maître unique",
+          "summary": "La CMDB de l'ITSM est la seule référence. Le CMS et la découverte n'y écrivent qu'après changement approuvé, et l'inventaire OSS n'est qu'une vue ou un cache.",
+          "status": "draft"
+        }
+      ],
+      "criteria": [
+        {
+          "id": "CRIT-16-01",
+          "name": "Contrôle des changements",
+          "weight": 0.28
+        },
+        {
+          "id": "CRIT-16-02",
+          "name": "Cohérence inventaire/CMDB",
+          "weight": 0.22
+        },
+        {
+          "id": "CRIT-16-03",
+          "name": "Couverture CMS et découverte",
+          "weight": 0.22
+        },
+        {
+          "id": "CRIT-16-04",
+          "name": "Complexité d'intégration",
+          "weight": 0.17
+        },
+        {
+          "id": "CRIT-16-05",
+          "name": "Coût et dépendance éditeur",
+          "weight": 0.11
+        }
+      ],
+      "evaluations": [
+        {
+          "optionId": "OPT-16-A",
+          "criterionId": "CRIT-16-01",
+          "score": 10,
+          "justification": "Un workflow de changement unique, natif au back-office, peut conditionner directement les actions issues de la découverte."
+        },
+        {
+          "optionId": "OPT-16-A",
+          "criterionId": "CRIT-16-02",
+          "score": 8,
+          "justification": "Deux maîtres aux périmètres distincts avec une synchronisation unidirectionnelle limitent les écarts, mais une réconciliation reste nécessaire."
+        },
+        {
+          "optionId": "OPT-16-A",
+          "criterionId": "CRIT-16-03",
+          "score": 8,
+          "justification": "Le CMS dédié garde la découverte et la dérive, à condition de confirmer la couverture multi-fournisseurs."
+        },
+        {
+          "optionId": "OPT-16-A",
+          "criterionId": "CRIT-16-04",
+          "score": 8,
+          "justification": "Dispatch et ITSM partagent un modèle commun, avec une seule interface principale CMS-ITSM à maintenir."
+        },
+        {
+          "optionId": "OPT-16-A",
+          "criterionId": "CRIT-16-05",
+          "score": 4,
+          "justification": "Dépendance accrue à la plateforme ITSM du back-office et risque de surcoût de modules complémentaires."
+        },
+        {
+          "optionId": "OPT-16-B",
+          "criterionId": "CRIT-16-01",
+          "score": 6,
+          "justification": "Le contrôle dépend de la qualité des interfaces entre outils et peut être contourné s'ils ne sont pas verrouillés."
+        },
+        {
+          "optionId": "OPT-16-B",
+          "criterionId": "CRIT-16-02",
+          "score": 4,
+          "justification": "Chaque outil a son modèle, donc davantage de synchronisations et de risques d'écart sur données et relations."
+        },
+        {
+          "optionId": "OPT-16-B",
+          "criterionId": "CRIT-16-03",
+          "score": 10,
+          "justification": "Le choix d'outils spécialisés permet la meilleure couverture de découverte, de snapshots et de dérive."
+        },
+        {
+          "optionId": "OPT-16-B",
+          "criterionId": "CRIT-16-04",
+          "score": 2,
+          "justification": "Multiplication des interfaces entre ITSM, CMS et dispatch terrain, avec maintenance et tests de bout en bout lourds."
+        },
+        {
+          "optionId": "OPT-16-B",
+          "criterionId": "CRIT-16-05",
+          "score": 8,
+          "justification": "Remplaçabilité de chaque brique, mais coût d'intégration et d'exploitation supplémentaire."
+        },
+        {
+          "optionId": "OPT-16-C",
+          "criterionId": "CRIT-16-01",
+          "score": 10,
+          "justification": "Toute modification de la référence passe par le changement approuvé, ce qui s'aligne directement sur REQ-Lot1-262."
+        },
+        {
+          "optionId": "OPT-16-C",
+          "criterionId": "CRIT-16-02",
+          "score": 6,
+          "justification": "Référence unique sans doublon, mais la CMDB risque de diverger du réseau réel faute de mise à jour continue."
+        },
+        {
+          "optionId": "OPT-16-C",
+          "criterionId": "CRIT-16-03",
+          "score": 2,
+          "justification": "Une CMDB ITSM couvre mal la topologie physique et logique, la découverte multiprotocole et les snapshots attendus par REQ-Lot1-261 et REQ-Lot1-262."
+        },
+        {
+          "optionId": "OPT-16-C",
+          "criterionId": "CRIT-16-04",
+          "score": 6,
+          "justification": "Moins de synchronisations de données, mais il faut des alimentations contrôlées depuis la découverte."
+        },
+        {
+          "optionId": "OPT-16-C",
+          "criterionId": "CRIT-16-05",
+          "score": 4,
+          "justification": "Forte dépendance à la CMDB de l'ITSM, avec des extensions probables pour porter la topologie réseau."
+        }
       ]
     }
   }

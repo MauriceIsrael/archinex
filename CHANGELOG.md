@@ -114,6 +114,239 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
   - Rejet des sources non déclarées (`verdict: violated`).
 - **Tests** : 25 tests de contrat dans `tests/contract/edp-schema.test.ts`, `tests/contract/edp-intention-purity.test.ts` et `tests/contract/edp-refined-input.test.ts`.
 
+### Rendu Graphique : Aperçu Plein Écran au Maintien du Clic & Spécification Sécurité Télécom S6a
+- **Aperçu Plein Écran Dynamique au Maintien du Clic (`MermaidViewer`)** :
+  - L'appui maintenu (clic gauche enfoncé) sur n'importe quel diagramme Mermaid l'affiche instantanément en surcouche plein écran haute lisibilité (`backdrop-blur`, dimensions maximales de l'écran, zoom optimisé).
+  - Le relâchement de la souris (`pointerup`, `mouseup` ou sortie d'écran) referme immédiatement l'overlay et replace l'utilisateur dans son flux de travail.
+  - Possibilité complémentaire de verrouiller le mode plein écran via le bouton dédié ou de quitter avec la touche Échap.
+  - Ajout d'un indicateur discret d'aide ergonomique au survol du graphe.
+- **Topologie & Séquence Télécom 3GPP S6a (IPsec ESP & Médiation DEA)** :
+  - Prise en charge des architectures réseau critiques avec interconnexion sécurisée entre lots (ex: Lot 3 MME Tiers ↔ Lot 1 Cœur / HSS).
+  - Diagramme d'architecture cible générant les 3 zones de confiance : Réseau Tiers (MME), DMZ de sécurité (SecGW-Lot1 en terminaison IPsec ESP + DEA-Lot1 en médiation Diameter / masquage topologique TH), et Cœur souverain (HSS-Lot1) avec matérialisation explicite du flux direct non chiffré formellement interdit.
+  - Diagramme de séquence 3GPP en 4 phases : négociation IKEv2 / SA ESP, encapsulation/décapsulation IPsec, inspection Diameter S6a (AVP / TH) par le DEA, et résolution sécurisée HSS.
+- **Tests & Assurance Qualité** :
+  - Nouveaux tests de contrat dans `tests/contract/artifact-projections.test.ts` validant la projection déterministe de la topologie réseau et de la séquence S6a.
+
+### Ergonomie de Délibération & Phase 3 : Filtrage par Lots/Parties et Sélecteur de Sujets L4
+- **Filtre Lots / Parties dans le Fil de Délibération (`SubjectConversationList`)** :
+  - Intégration de la barre de filtrage par lots d'architecture (`FolderKanban`) dans le fil de délibération, alignée sur celle du tableau de maturité.
+  - Synchronisation bidirectionnelle de `selectedPartId` via le store `deliberationStore`, garantissant que le lot sélectionné est conservé lors du passage entre le Tableau de maturité, le Fil de conversation et la Phase 3.
+  - Mise à jour dynamique des compteurs de filtres rapides (« Tous », « Bloqués », « À faire », « Arbitrés ») en fonction du lot sélectionné.
+- **Sélecteur de Sujet en Phase 3 Rendu & Homologation (`Phase3SubjectSelector`)** :
+  - Composant interactif en tête de la Phase 3 permettant de re-sélectionner instantanément le sujet ciblé sans devoir retourner en Phase 2.
+  - Pré-filtrage par défaut sur les sujets **🎯 Spécifiés L4** (prêts pour l'homologation), avec bascule vers les sujets **⚖️ Arbitrés L3+** ou **Tous les sujets**.
+  - Repli intelligent automatique vers L3+ ou Tous si aucun sujet n'a encore atteint le palier L4 dans le projet actif.
+  - Sélecteur de lots d'architecture intégré (`FolderKanban`) et recherche textuelle rapide (§11, WAPT, réseau, etc.).
+  - Sélection réactive du sujet (`deliberationStore.selectSubject(id, false)`) sans altérer le mode de vue actif.
+- **Tests & Assurance Qualité** :
+  - Nouveau test de contrat dans `tests/contract/phase3-subject-selector.test.ts` validant le pré-filtrage L4, la synchronisation du store et le repli sans erreur.
+
+### Phase 3 Rendu & Homologation : Intégration du Schéma d'Architecture Cible Spécifiée et Déploiement Sécurisé
+- **Rendu d'Architecture Technique vs Graphe Décisionnel** :
+  - Introduction du générateur déterministe `generateTargetArchitectureDiagram` dans `artifactProjections.ts`, aligné sur les patterns ArcKit (`arckit-diagram` C4 Container / Flowchart).
+  - Matérialisation concrète des frontières architecturales : périmètre de la solution autonome (modules, agents embarqués, console, métrologie locale) vs périmètre du SI existant/client (supervision, logs/SIEM, dépôts).
+  - Représentation explicite des flux d'interfaces avec leurs protocoles (SNMP Trap, API REST, Syslog TLS) et de la chaîne de confiance (paquets signés, guichet de validation humaine, agents de déploiement).
+- **Chaîne de Déploiement et Séquence d'Homologation** :
+  - Ajout de `generateDeploymentSequenceDiagram` modélisant les 3 phases de déploiement et d'homologation : 1. Construction & signature cryptographique, 2. Porte d'homologation / validation humaine en recette/INT, 3. Déploiement sécurisé avec vérification de signature.
+- **Expérience Utilisateur en Phase 3 (Rendu & Homologation)** :
+  - Dans `ArtifactRegenerationHub.svelte`, ajout d'un sélecteur de vues Mermaid : **🎯 Architecture Spécifiée (Cible)** (vue par défaut), **🔄 Chaîne de Déploiement & Homologation** (séquence) et **⚖️ Graphe Décisionnel (Auditabilité)** (arbre causal épistémique).
+  - Dans `HldFragmentView.svelte`, affichage interactif direct du schéma d'architecture spécifiée sous la décision actée.
+  - Dans `renderHldFragmentMarkdown`, inclusion automatique du bloc ```mermaid` dans le dossier Markdown exporté.
+- **Tests & Assurance Qualité** :
+  - Nouveaux tests de contrat dans `tests/contract/artifact-projections.test.ts` et `tests/contract/hld-fragment.test.ts` couvrant les cas hybrides complexes (supervision RATP, WAPT, validation humaine) et le fallback propre sans décision.
+
+
+### Dépouillement RFP : Allègement de l'Interface & Retrait des Modèles Pré-intégrés Factices
+- **Allègement de la modale de confrontation et factorisation RFP (`RfpConfrontationDialog`)** :
+  - Retrait du mode et du bouton « Modèles Pré-intégrés » au profit d'un flux d'entrée épuré par défaut centré sur les documents réels (**Fichier Local**, **Coller le texte**, **URL Web**).
+  - Suppression de la grille encombrante des cartes de modèles d'exemple à l'ouverture de la boîte de dialogue.
+  - La zone de texte et les métadonnées s'initialisent désormais vierges pour un traitement direct sans artefacts de démonstration.
+  - L'échantillon de vérification humaine et le rapport d'extraction ne s'affichent que dynamiquement lorsqu'un texte réel est chargé ou saisi.
+- **Documentation et Protocole Opérateur** :
+  - Clarification de la valeur ajoutée de l'échantillon de vérification humaine (contrôle rapide anti-hallucination sur les anomalies prioritaires, faisabilité en 2 minutes).
+  - Guide opérationnel détaillé dans `docs/user-guide.md` sur la conduite à tenir par l'opérateur en cas d'anomalie de découpage.
+### Initialisation d'Espace de Travail : Allègement des Étapes 1 et 3
+- **Étape 1 (Cadrage & Description)** :
+  - Retrait du bloc « Démarrage Éclair · Présets Métiers » (et « Démarrage Rapide » dans la modale) au profit d'une interface épurée sans présélection ferroviaire ou cloud souverain par défaut.
+- **Étape 3 (Docs Amonts)** :
+  - Suppression de la bannière redondante « Invariant Épistémique · Patrimoine Commun Enrichi » pour aérer l'espace visuel.
+  - Suppression du bloc « Lier des Normes & Standards Déjà Présents dans le Socle Commun », les référentiels réglementaires et standards applicables étant déjà formellement sélectionnés à l'Étape 2.
+- **Alignement Complet** :
+  - Application synchronisée sur la page pleine `/workspaces/new` et la boîte de dialogue modale `CreateWorkspaceDialog.svelte`.
+  - Ajout du test de non-régression dans `tests/contract/workspace-creation.test.ts`.
+
+### Titre de l'Application : Remplacement du Titre Boilerplate par « archinex »
+- **Harmonisation de la bannière et des locales** :
+  - Remplacement de la chaîne boilerplate `A small app to have fun` (et ses déclinaisons `Une petite app pour rigoler` / `Una pequeña aplicación para divertirse`) par `archinex` dans tous les dictionnaires de localisation (`en.json`, `en-UK.json`, `fr-FR.json`, `es.json`).
+  - Alignement de la valeur par défaut dans `src/routes/+layout.svelte` et de la balise `<title>` sur la page de connexion (`src/routes/login/+page.svelte`).
+  - Ajout du test de contrat de non-régression dans `tests/contract/app-title.test.ts`.
+
+
+### Démo LUMICC : Ensemencement Complet des 16 Sujets d'Architecture (seed:lulu)
+- **Extension de l'engagement lumicc-lot1-noc post-ingestion** :
+  - Passage de 7 à 16 sujets d'architecture d'entreprise et de solution au niveau L1_framed.
+  - Couverture exhaustive des 12 thématiques factorisées du RFP Section 4 (NOC & Résilience) : haute disponibilité, médiation OSS/NRM, supervision RAN MNO, RCA/AIOps, collecte NOC/SOC, automatisation SMO, gouvernance QoS 5QI, assurance de service (sondes E2E) et CMDB.
+  - Préservation des options en draft et des pondérations multicritères MCDA sur l'ensemble des sujets.
+  - Mise à jour du contrat de test seed-lulu.test.ts.
+
+### Référentiels & Doctrine : Auto-enrichissement IA et Suggestions Locales Sans Dépendance Serveur Hub (#93 & #99)
+- **Suppression de la dépendance LLM côté LLMOps & Résolution du 404** :
+  - Déplacement de l'inférence des suggestions doctrinales dans Archinex via `LocalLlmClient` (Ollama local / API Claude) et heuristiques déterministes `FRAMEWORK_TOPIC_PATTERNS`.
+  - L'endpoint unitaire `POST /api/frameworks/ingestions/[id]/requirements/[reqId]/suggest-links` prend le relais localement si le Hub ne sert pas la route (évite l'erreur HTTP 404).
+- **Auto-enrichissement « Zéro Friction » post-ingestion** :
+  - À chaque ingestion de référentiel (`POST /api/frameworks/ingestions`), Archinex pré-génère immédiatement les critères d'acceptation, les liaisons vers les principes/patrons actifs et les termes de recherche, puis les soumet au Hub via `POST .../link-proposals`.
+  - Ajout d'une route `POST /api/frameworks/ingestions/[id]/auto-suggest` et du bouton « Auto-enrichir par l'IA » dans l'interface pour enrichir un référentiel existant en un clic.
+  - Intégration de tests de contrat complets dans `tests/contract/framework-auto-suggest.test.ts`.
+
+### Délibération : Clarté et restitution détaillée des erreurs de validation de décision (#35)
+- **Restitution explicite des contraintes d'arbitrage (`POST /decision` & IHM)** :
+  - Restitution dans le message d'erreur des champs en défaut précis (ex: motivation trop courte, option retenue absente, justification de dispense incomplète) plutôt qu'un message générique bloquant « Données de décision invalides ».
+  - Intégration du détail des erreurs de validation dans `OptionsMatrix.svelte`, `DecisionSurveyCard.svelte` et `ArbitrationPanel.svelte`.
+  - Ajout des tests de contrat validant les contraintes Zod de `CreateDecisionSchema` et l'explicitation des erreurs.
+
+### Délibération : Élimination de la mutation d'état interdite dans le calcul du rapport de maturité (#35)
+- **Correction Svelte 5 (`state_unsafe_mutation` dans `SubjectThreadView.svelte`)** :
+  - Remplacement de la mutation directe en place de l'objet `$state criteriaReport` au sein de la rune `$derived.by(effectiveReport)` par une dérivation pure et fonctionnelle.
+  - Résolution du crash complet du Workbench de délibération à l'exécution.
+
+
+### Délibération & RBAC : Clarification du Critère d'Homologation Lead Architect (#35)
+- **Conservation du jalon L4/L5 validé (`maturityCriteria.ts`)** :
+  - Dès lors qu'un sujet a été homologué (`L4_specified` ou `L5_archived`), le critère `lead_architect_approval` reste marqué comme satisfait pour tous les profils consultant le dossier.
+  - Lorsque le sujet est en attente d'homologation (`L3_decided`), la description du critère explicite clairement le rôle requis (`Lead Architect`) en miroir du rôle actif de la session (ex: `expert`, `contributeur`), dissipant tout malentendu avec une désynchronisation de données.
+
+
+### Délibération & Homologation : Franchissement du Jalon L4 et Visibilité de l'Affirmation (#35)
+- **Affirmation formelle de décision (`DecisionSurveyCard` & `arbitrationDb`)** :
+  - Restitution systématique de l'événement `DECISION_ASSERTED` dans `getSubjectArbitrationContext` via le champ `validatedBy`.
+  - Masquage automatique du bouton d'action *"Affirmer la décision et ses faits"* une fois l'affirmation actée par un pair, au profit du bandeau vert d'autorité certifiant le décideur habilité.
+- **Homologation de la Spécification Technique (Jalon L4)** :
+  - **Correction du faux blocage `FORMAL_DECISION_REQUIRED`** : `deliberationStore.setSubjectLevel` et la route API `PATCH /subjects/[id]` n'exigent plus l'arbitrage formel lorsqu'un sujet est déjà acté (`L3_decided`) et qu'il franchit le jalon d'ingénierie `L4_specified`.
+  - **Prise en compte réactive de la spécification rédigée** : le critère `specification_drafted` est immédiatement validé dès lors qu'un contenu de spécification DLD est renseigné dans l'atelier, et synchronisé en base (`deliberationStatus: 'specified'`).
+  - **Résolution des sous-sujets dérivés (A28)** : le bouton d'action du critère de sous-sujets non cadrés oriente directement vers l'onglet *Questions en cascade* pour cadrer les sous-sujets en attente.
+
+
+### Délibération : Nettoyage syntaxique du composant fil de délibération (#35)
+- **Correction du gabarit Svelte (`SubjectThreadView.svelte`)** :
+  - Élimination d'un fragment dupliqué résiduel (balises fermantes orphelines et ré-instanciation de l'en-tête de spécification DLD) provoquant une erreur de compilation Svelte `block_unexpected_close`.
+
+
+### Délibération & Ingénierie : Pédagogie des 5 Piliers Structurants et Atelier de Spécification DLD (#35)
+- **Fil Directeur Pédagogique : Les 5 Piliers de la Délibération d'Architecture** :
+  - Intégration dans le volet de spécification d'un bandeau visuel rappelant l'enchaînement logique et les questions clés pour l'architecte :
+    1. *Question (Problème)* : « Quel problème résout-on ? » (affichage de la question d'architecture)
+    2. *Cadrage & Hypothèse* : « Quelle est la cible initiale ? » (affichage de l'hypothèse de référence)
+    3. *Options & Variantes* : « Quelles alternatives comparées ? » (compteur et état des options explorées)
+    4. *Critères & Conformité* : « Sur quoi juge-t-on le choix ? » (compteur des critères opposables)
+    5. *Arbitrage L3 Acté* : « Quelle option retenue et pourquoi ? » (décision arbitrée et motivée)
+  - Clarification du bouton d'accès aux notes télégraphiques d'appoint (*« Consulter les notes télégraphiques brutes (5 colonnes) »*).
+### Délibération : Persistance du Mode de Vue & Synchronisation LLMOps Silencieuse en Tâche de Fond
+- **Persistance intégrale de la vue de délibération (`deliberationStore.svelte.ts`)** :
+  - **Mémorisation du mode d'affichage et de la posture** : persistance automatique dans le `localStorage` du navigateur sous les clés `archinex:deliberationViewMode:<id>` (`board` vs `conversation`) et `archinex:activePosture:<id>` (`appropriation`, `deliberation`, `rendu`), en complément de `archinex:activeSubjectId:<id>`.
+  - **Navigation et rechargement sans perte de contexte** : lors d'un rechargement de page ou d'une navigation transversale, l'utilisateur conserve sa posture et son panneau exact (ex: le fil de délibération sur un sujet spécifique), évitant le renvoi automatique et intempestif sur le tableau de maturité global.
+  - **Support des paramètres d'URL explicites** : dans `src/routes/deliberation/+page.svelte`, prise en compte prioritaire des paramètres de requête (`mode`, `subject`, `posture`) si présents.
+- **Synchronisation d'arrière-plan silencieuse (`silent: true`)** :
+  - **Suppression des alertes / toasts intempestifs** : ajout du drapeau `options.silent` dans `deliberationStore.syncWithLLMOps`. Les vérifications et synchronisations automatiques en tâche de fond (sur `onMount` de `/deliberation` et du badge d'en-tête `LLMOpsStatusBadge`) opèrent désormais silencieusement sans bombarder l'utilisateur de notifications toast.
+  - **Conservation du retour visuel sur action explicite** : les clics manuels sur les boutons de synchronisation ou de test de connexion continuent d'afficher les notifications de confirmation ou d'erreur.
+  - **Protection contre la réinitialisation de l'engagement actif** : validation de l'existence de l'identifiant d'engagement retourné par LLMOps avant toute affectation pour prévenir la désélection inopinée du projet courant.
+- **Tests** :
+  - Extension de la suite de contrat `tests/contract/deliberation-localstorage-subject.test.ts` (8 tests) couvrant la persistance et la restauration de `deliberationViewMode` et `activePosture` lors de `initFromDb` et `switchEngagement`, ainsi que le comportement sans toast de `syncWithLLMOps(..., { silent: true })`.
+### Délibération & Ingénierie : Atelier de Spécification Détaillée (DLD) et Bandeau Doctrinal Rétractable (#35)
+- **Bannière de Spécification Haut Niveau (Décision L3)** :
+  - Dès qu'une décision d'arbitrage est opposable (`L3_decided`), le volet *« 📚 Doctrines, RFP & Brouillon »* ancre en tout début la décision d'arbitrage actée : option retenue, réversibilité, contresignature de l'arbitre et justification technique (`rationale`).
+  - La rédaction de la spécification détaillée découle ainsi directement et formellement de la décision prise en amont.
+- **Tiroir Doctrinal Rétractable (`isDoctrineDrawerOpen`)** :
+  - Remplacement de l'ancienne colonne doctrine de 50% par un bandeau accordéon compact cliquable, libérant l'intégralité de la largeur d'écran pour le travail d'ingénierie et de rédaction.
+- **Atelier de Rédaction Technique (DLD - Spécification Détaillée)** :
+  - Assistant IA (`✨ Pré-remplir avec l'IA`) pour pré-remplir instantanément la trame d'ingénierie (composants, flux, interfaces, protocoles) à partir de l'option arbitrée et de ses motivations.
+  - Espace de saisie markdown libre avec persistance locale automatique par sujet (`localStorage`).
+  - Actions immédiates : bouton de sauvegarde `💾 Enregistrer` et bouton d'homologation formelle `✅ Homologuer Spécification (L4)`.
+  - Bascule optionnelle vers la vue grille télégraphique en 5 colonnes.
+- **Tests** :
+  - Extension de la suite de contrat `tests/contract/deliberation-conversation.test.ts` vérifiant l'affichage de la spécification haut niveau, la présence du tiroir de doctrine et des commandes de l'atelier DLD.
+
+
+### Boîte de Réception des Revues KB : Filtrage Anti-Auto-Évaluation & Séparation des Tâches (#131)
+- **Prévention de l'auto-évaluation dans la Boîte de Réception (`/kb/reviews`)** :
+  - **Filtre par défaut « À examiner uniquement (exclure mes clauses) »** : la boîte de réception n'affiche par défaut que les clauses soumises par des tiers pour lesquelles l'expert connecté est habilité à statuer, évitant de découvrir a posteriori sur la page d'examen qu'il est l'auteur de la clause et qu'il ne peut pas s'auto-évaluer.
+  - **Distingo clair Auteur vs Relecteur** :
+    - Calcul automatique de `isAuthor` via `isCandidateAuthor` comparant l'auteur au handle d'expert (`@handle`) ou à l'adresse e-mail de session.
+    - Remplacement du bouton d'action principal `Examiner` par un bouton secondaire `Consulter (Auteur)` (`btn-view-own-candidate`) avec infobulle rappelant la règle de séparation des tâches.
+    - Ajout du badge visible *« Votre clause (Auteur) »* avec icône de cadenas et mention explicite *(Vous)* à côté du nom de l'auteur.
+  - **Comptage et alertes de retard contextualisés** : les alertes de retard (Porte G5) ne comptabilisent que les revues en retard que l'expert connecté peut effectivement débloquer.
+  - **Support API souverain** : prise en charge du paramètre `exclude_own=true` et transmission du handle d'acteur sur `GET /api/knowledge/reviews/inbox` et `LLMOpsClient.getReviewInbox`.
+- **Tests** :
+  - Nouvelle suite de tests de contrat `tests/contract/kb-review-inbox-authorship.test.ts` validant le marquage `isAuthor`, le filtrage avec `excludeOwn`, la visibilité croisée pour les pairs et l'interdiction constitutionnelle d'auto-évaluation.
+### Capitalisation Knowledge Hub : Intégration Directe du Panneau Porte G4 dans la Matrice Multi-Critères
+- **Intégration et scroll fluide (`OptionsMatrix.svelte`, `SubjectThreadView.svelte`)** :
+  - Montage direct du composant `CapitalizationPanel` sous la grille d'options (`#capitalization-section`) dès qu'une décision d'architecture est actée (`L3_decided`).
+  - Fonctionnement immédiat du bouton « Candidats KB (G4) » de la bannière de fil de délibération : le clic bascule sur l'onglet matrice et défile directement jusqu'à la section de capitalisation, permettant à tout architecte de préparer et soumettre les candidats sans navigation superflue.
+- **Tests** : extension de la suite de contrat `tests/contract/options-matrix-view.test.ts` validant la présence de `id="capitalization-section"` et du bouton de préparation des candidats.
+
+### Matrice Multi-Critères : Amélioration de la Visibilité du Bouton « Modifier » des Options Humaines
+- **Affichage et ergonomie renforcée (`OptionsMatrix.svelte`)** :
+  - Style visuel rehaussé pour le bouton `Modifier` dans l'en-tête de colonne avec badge violet contrasté (`bg-purple-500/10 text-purple-700 border-purple-500/30`), supprimant le masquage adaptatif (`hidden sm:inline`) pour garantir la présence permanente du libellé textuel quelle que soit la largeur de colonne ou la taille d'écran.
+  - Correction du typage strict TypeScript sur le filtre d'origine (`opt.origin === 'human'`).
+  - Bouton `Éditer` mis en valeur dans le cadre de détails déplié.
+
+### Matrice Multi-Critères : Édition Directe des Propositions d'Architecture Humaines & Re-jeu de Conformité
+- **Modification des options humaines (`OptionEditor.svelte`, `OptionsMatrix.svelte`)** :
+  - Ajout d'un bouton `Modifier` (`Edit3`) directement dans l'en-tête de colonne des options proposées par un opérateur ou architecte (`origin === 'human' || origin === 'architect'`), ainsi qu'un bouton d'action `Éditer` dans le bloc déplié de résumé technique (`Détails`).
+  - Pré-remplissage complet de la modale (`OptionEditor.svelte`) avec les données existantes (titre, résumé, origine) via la prop `initialData`.
+  - Prise en charge de la mise à jour asynchrone via `PATCH /api/projects/:projectId/subjects/:subjectId/options/:optionId` avec contrôle de concurrence optimiste (`expectedVersion`).
+  - Réévaluation et rafraîchissement automatique instantané de la conformité doctrinale (`/compliance`) dès l'enregistrement de l'option modifiée, permettant de vérifier en direct si la reformulation lève ou non une clause de non-conformité (ex: négation levée).
+- **Tests** : extension de la suite de contrat `tests/contract/options-matrix-view.test.ts` validant la présence du bouton `Modifier` sur les propositions humaines et son masquage sur les propositions LLM.
+
+
+### Matrice Multi-Critères : Explicitation des Termes Déclencheurs / Violés dans les Alertes de Conformité
+- **Infobulle et diagnostic granulaire de conformité (`OptionsMatrix.svelte`)** :
+  - Enrichissement de l'infobulle (`title`) de l'étiquette « Non conforme » au survol : mention explicite des termes détectés dans le texte de l'option (`matchedTerms`) ayant déclenché la clause ou l'interdiction (`• Termes détectés / déclencheurs : « ... »`).
+  - Affichage direct des termes déclencheurs dans le bandeau rouge de décision L3 (« Conformité réglementaire de l'option retenue ») pour guider l'architecte dans la justification de l'écart ou la rectification du texte.
+- **Tests** : extension de la suite de contrat `tests/contract/options-matrix-view.test.ts`.
+
+
+### Préférence Utilisateur : Mémorisation du Dernier Sujet de Délibération dans le LocalStorage
+- **Persistance automatique et scopée par espace (`deliberationStore.svelte.ts`)** :
+  - Enregistrement réactif du sujet actif sélectionné dans le `localStorage` sous la clé `archinex:activeSubjectId:<engagementId>` lors de l'appel à `selectSubject(id)`.
+  - Scoping par projet / engagement évitant toute collision ou incohérence de référence d'un projet à l'autre.
+- **Restauration fluide et sécurisée** :
+  - Restauration automatique du dernier sujet consulté lors de l'hydratation initiale (`initFromDb`) et lors du basculement d'espace de travail (`switchEngagement`).
+  - Validation défensive d'intégrité : vérification que le sujet mémorisé appartient bien aux sujets actifs de l'engagement, avec repli gracieux et transparent sur le sujet par défaut (`defaultSubjectId` ou premier sujet) en cas de suppression ou d'incohérence.
+- **Navigation unifiée (`KnowledgeNodePanel.svelte`)** :
+  - Alignement de la navigation depuis la vue graphe de connaissances (`navigateToSubject`) pour utiliser `selectSubject` et bénéficier de la persistance locale automatique.
+- **Tests** :
+  - Suite de tests de contrat dédiée `tests/contract/deliberation-localstorage-subject.test.ts` validant la persistance sous clé scopée, la restauration lors de `initFromDb`, le rabat en cas d'identifiant obsolète et la rétention lors d'allers-retours entre différents projets.
+
+### Matrice Multi-Critères : Déblocage de la Création d'Options/Critères (Schéma Zod API) & Ajout Réactif
+- **Correction du schéma de validation de l'API (`optionsApiSchemas.ts`, `optionsDb.ts`)** :
+  - Rendu du champ `id` optionnel (`id: z.string().min(1).optional()`) dans `CreateOptionSchema`, `CreateCriterionSchema` et `CreateTradeOffSchema`, levant l'erreur HTTP 400 (Validation failed) lors de l'ajout manuel d'une proposition par un opérateur.
+  - Génération automatique déterministe de l'identifiant côté backend dans `createTradeOff` si non spécifié par le client (aligné sur `createOption` et `createCriterion`).
+- **Déballage réactif et remontée granulaire des erreurs (`OptionsMatrix.svelte`)** :
+  - Déballage systématique de la réponse API (`created.option ?? created`, `created.criterion ?? created`, etc.), garantissant l'apparition instantanée de la 4ᵉ colonne (et des suivantes) avec son libellé et son icône d'origine humaine dans la matrice sans nécessiter de rafraîchir la page.
+  - Extraction granulaire des erreurs HTTP (`err.reason || err.error || err.message`) avec messages d'action explicites en cas d'expiration de session (401) ou de droits restreints (403).
+- **Attente asynchrone et maintien de la saisie (`OptionEditor.svelte`, `CriteriaEditor.svelte`)** :
+  - Attente de la validation serveur (`await onSave(...)`) avant fermeture de la modale pour éviter les fermetures silencieuses sur échec réseau ou d'autorisation, et conservation des champs saisis en cas d'erreur.
+  - État de soumission (`isSubmitting`) désactivant le bouton pendant le traitement pour éviter les doubles créations.
+- **Tests** : extension des suites de contrat `tests/contract/options-evaluations.test.ts` (validation Zod avec/sans id) et `tests/contract/options-matrix-view.test.ts` (apparition dynamique de la 4ᵉ colonne).
+
+
+### Délibération & Composeur Structuré : Feedback Visuel d'Erreurs, Droits d'Accès et Raccourci Clavier
+- **Routage visuel des notifications vers le système de Toasts (`deliberationStore.svelte.ts`)** : connexion de `deliberationStore.logNotification` au système réactif `toast` (`$lib/toast`), garantissant que les notifications de succès, d'information et d'erreur (HTTP 401, 403, validation) s'affichent immédiatement sous forme d'alertes visuelles à l'écran plutôt que d'être silencieusement conservées en mémoire.
+- **Gestion explicite des erreurs d'authentification et de droits (`StructuredComposer.svelte`, `SubjectThreadView.svelte`)** :
+  - Extraction granulaire des messages d'erreur du backend (`err.reason || err.error || err.message`).
+  - Messages clairs et actionnables en cas de non-authentification (HTTP 401 avec invitation à se connecter sur `/login`) ou de droits insuffisants (HTTP 403 réservé aux membres du projet).
+  - Remontée d'erreur explicite lors de l'adoption d'une hypothèse de cadrage (`handleAdoptHypothesis`).
+- **Ergonomie du composeur structuré (`StructuredComposer.svelte`)** :
+  - Ajout du raccourci clavier `Ctrl+Enter` / `Cmd+Enter` pour soumettre directement un argument ou une hypothèse étayée, ou afficher immédiatement le champ manquant requis.
+  - Signalisation visuelle rehaussée (`bg-amber-500/10 border-amber-500/25`) de la raison de validation (obligation de fondement étayé d'au moins 5 caractères).
+- **Tests** : extension de la suite de contrat `tests/contract/structured-composer.test.ts` validant la propagation des notifications vers la file des toasts réactifs.
+### Lisibilité & Ergonomie de la Matrice Multi-Critères (Options & Propositions Longues)
+- **Affichage multi-lignes sans tronquage (`OptionsMatrix.svelte`)** : suppression de la coupure forcée `line-clamp-1` sur les titres de propositions au profit d'un retour à la ligne naturel (`whitespace-normal break-words leading-snug`), préservant l'intégralité des intitulés longs même complexes.
+- **Largeur optimisée des colonnes d'options** : passage de `min-w-[170px]` à `min-w-[220px] max-w-[320px]` pour offrir un espace de lecture aéré sans dégrader le défilement horizontal.
+- **Badges d'identification rapides (`Option A`, `Option B`...)** : attribution automatique d'un repère visuel standardisé pour chaque colonne facilitant le repérage et la comparaison.
+- **Tiroir / bouton de détails pour le résumé technique** : intégration d'un bouton `Détails` (`Info`) dans chaque en-tête permettant de déplier/replier le résumé technique (`opt.summary`) de la proposition directement dans la grille, complété par des infobulles natives (`title`) complètes au survol.
+- **Tests** : suite de tests de contrat dédiée `tests/contract/options-matrix-view.test.ts` validant l'affichage des badges, l'enroulement multi-lignes, les infobulles et les dimensions des colonnes.
+
 ### Ergonomie de la Délibération : Espace Sujet Unifié, Vue Split par Défaut, Liste Repliable et Capitalisation G4 Contextualisée
 - **Fusion du panneau principal et du Dossier du sujet (`DeliberationWorkbench.svelte`, `SubjectThreadView.svelte`)** : suppression de la 3e colonne redondante au profit d’un **Espace Sujet Unifié** (9 à 12 colonnes) structuré autour d’un en-tête unique, de la timeline horizontale de maturation en haut et de 4 volets complémentaires sans doublon (`💬 Délibération & Cadrage`, `⚖️ Options, Matrice & Arbitrage`, `📚 Doctrines, RFP & Brouillon`, `🌿 Cascade & Règles`).
 - **Repli de l'arbre des sujets (`SubjectConversationList.svelte`, `DeliberationWorkbench.svelte`)** : ajout d'un bouton `⇥ Replier` masquant la colonne des sujets pour donner 100% de la largeur de l'écran (12 colonnes) au workbench, et bouton `📂 Sujets` dans l'en-tête du fil pour la redéplier à la demande.

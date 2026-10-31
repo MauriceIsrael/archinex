@@ -4,7 +4,6 @@
 	import {
 		shredRfpTextToClauses,
 		confrontClausesWithKnowledgeBase,
-		SAMPLE_RFP_TEMPLATES,
 		type RfpConfrontationResult,
 		type ClauseConfrontation
 	} from '$lib/domain/rfpConfrontation';
@@ -76,12 +75,11 @@
 	let selectedSimilarAsset = $state<SimilarKnowledgeItem | null>(null);
 	let selectedFingerprint = $state<string>('');
 
-	type InputMode = 'templates' | 'paste' | 'url' | 'file';
-	let inputMode = $state<InputMode>('templates');
+	type InputMode = 'file' | 'paste' | 'url';
+	let inputMode = $state<InputMode>('file');
 
-	let rfpText = $state<string>(SAMPLE_RFP_TEMPLATES[0].text);
-	let selectedTemplateId = $state<string>(SAMPLE_RFP_TEMPLATES[0].id);
-	let documentTitle = $state<string>(SAMPLE_RFP_TEMPLATES[0].name);
+	let rfpText = $state<string>('');
+	let documentTitle = $state<string>('');
 	let documentSource = $state<string>('Maîtrise d\'Ouvrage (RFP)');
 	let documentVersion = $state<string>('v1.0');
 
@@ -375,20 +373,6 @@
 		}
 	});
 
-	function selectTemplate(tmpl: typeof SAMPLE_RFP_TEMPLATES[0]) {
-		selectedTemplateId = tmpl.id;
-		rfpText = tmpl.text;
-		documentTitle = tmpl.name;
-		fileParseSuccess = null;
-		fileParseWarning = null;
-		fileParseError = null;
-		confrontationResult = null;
-		factorizationResponse = null;
-		similarAssetsByClause = {};
-		clauseReuseConfirmations = {};
-		extractedPages = undefined;
-		extractionValidation = null;
-	}
 
 	async function handleFetchUrl() {
 		if (!remoteUrl.trim()) return;
@@ -769,12 +753,12 @@
 								<div class="flex items-center gap-1 bg-muted/50 p-1 rounded-lg">
 									<button
 										type="button"
-										onclick={() => (inputMode = 'templates')}
-										class="px-2.5 py-1 rounded-md transition-colors {inputMode === 'templates'
+										onclick={() => (inputMode = 'file')}
+										class="px-2.5 py-1 rounded-md transition-colors {inputMode === 'file'
 											? 'bg-background shadow-xs font-bold text-foreground'
 											: 'text-muted-foreground hover:text-foreground'}"
 									>
-										Modèles Pré-intégrés
+										Fichier Local
 									</button>
 									<button
 										type="button"
@@ -794,44 +778,8 @@
 									>
 										URL Web
 									</button>
-									<button
-										type="button"
-										onclick={() => (inputMode = 'file')}
-										class="px-2.5 py-1 rounded-md transition-colors {inputMode === 'file'
-											? 'bg-background shadow-xs font-bold text-foreground'
-											: 'text-muted-foreground hover:text-foreground'}"
-									>
-										Fichier Local
-									</button>
 								</div>
 							</div>
-
-							<!-- Option 1 : Modèles Pré-intégrés -->
-							{#if inputMode === 'templates'}
-								<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-2">
-									{#each SAMPLE_RFP_TEMPLATES as tmpl}
-										{@const isSelected = selectedTemplateId === tmpl.id}
-										<button
-											type="button"
-											data-testid={`template-btn-${tmpl.id}`}
-											onclick={() => selectTemplate(tmpl)}
-											class="p-3 rounded-xl border text-left transition-all space-y-1 {isSelected
-												? 'bg-primary/10 border-primary text-foreground ring-1 ring-primary/30'
-												: 'bg-card border-border hover:border-border/80 text-muted-foreground'}"
-										>
-											<div class="font-bold text-xs text-foreground flex items-center justify-between">
-												<span>{tmpl.name}</span>
-												{#if isSelected}
-													<CheckCircle2 class="h-3.5 w-3.5 text-primary" />
-												{/if}
-											</div>
-											<p class="text-[11px] leading-tight text-muted-foreground line-clamp-2">
-												{tmpl.description}
-											</p>
-										</button>
-									{/each}
-								</div>
-							{/if}
 
 							<!-- Option 2 : Coller le texte -->
 							{#if inputMode === 'paste'}

@@ -13,7 +13,8 @@
 		Award,
 		Sliders,
 		Check,
-		X
+		X,
+		Edit3
 	} from 'lucide-svelte';
 	import type {
 		Criterion,
@@ -28,6 +29,7 @@
 	import CriteriaEditor from './CriteriaEditor.svelte';
 	import OptionEditor from './OptionEditor.svelte';
 	import TradeOffList from './TradeOffList.svelte';
+	import CapitalizationPanel from './CapitalizationPanel.svelte';
 
 	let {
 		projectId = '',
@@ -56,6 +58,7 @@
 	// Modal states
 	let isAddingCriterion = $state(false);
 	let isAddingOption = $state(false);
+	let editingOption = $state<Option | null>(null);
 	let isEvaluatingCell = $state(false);
 	let isDeciding = $state(false);
 
@@ -72,11 +75,28 @@
 	let decisionReversibility = $state<'reversible' | 'costly' | 'irreversible'>('reversible');
 	let decisionError = $state<string | null>(null);
 
+	// Option header UI state (détails / résumé dépliable)
+	let expandedSummaryOptionId = $state<string | null>(null);
+	function toggleSummary(id: string) {
+		expandedSummaryOptionId = expandedSummaryOptionId === id ? null : id;
+	}
+	function formatOptionBadge(idx: number): string {
+		return idx < 26 ? `Option ${String.fromCharCode(65 + idx)}` : `Option ${idx + 1}`;
+	}
+
 	// Conformité réglementaire des options (LLMOps, contre les référentiels de l'espace)
 	interface ComplianceViolation { optionId: string; typedId: string; message: string; validated: boolean; matchedTerms: string[] }
 	let compliance = $state<{ frameworks: string[]; offline: boolean; violations: ComplianceViolation[]; unassessedCount: number; coverageWarnings?: string[] } | null>(null);
 	let violationJustifications = $state<Record<string, string>>({});
 	const violationsOf = (optionId: string) => (compliance?.violations ?? []).filter((v) => v.optionId === optionId);
+
+	function formatViolationTooltip(v: ComplianceViolation): string {
+		const base = v.validated ? v.message : `${v.message} (règle encore en brouillon : à confirmer par l'expert du domaine)`;
+		if (v.matchedTerms && v.matchedTerms.length > 0) {
+			return `${base}\n\n• Termes détectés / déclencheurs : « ${v.matchedTerms.join(' », « ')} »`;
+		}
+		return base;
+	}
 
 	$effect(() => {
 		const optionCount = options.length;
@@ -161,6 +181,28 @@
 		isEvaluatingCell = true;
 	}
 
+	function extractErrorMessage(err: any, res: Response, fallback: string): string {
+		let message = err.reason || err.error || err.message;
+		if (!message) {
+			if (res.status === 401) {
+				return 'Non authentifié : session requise (veuillez vous connecter sur /login).';
+			} else if (res.status === 403) {
+				return 'Accès refusé : vous devez être membre du projet pour effectuer cette action.';
+			} else if (res.status === 400 && err.details) {
+				return 'Erreur de validation des données : ' + JSON.stringify(err.details);
+			} else {
+				return fallback + ' (HTTP ' + res.status + ')';
+			}
+		}
+		if (res.status === 401 && !message.toLowerCase().includes('connecter')) {
+			return message + ' (veuillez vous connecter sur /login)';
+		}
+		if (res.status === 403 && !message.toLowerCase().includes('projet')) {
+			return message + ' (action réservée aux membres du projet)';
+		}
+		return message;
+	}
+
 	async function handleSaveEvaluation() {
 		if (!activeOption || !activeCriterion) return;
 
@@ -192,18 +234,19 @@
 
 			if (!res.ok) {
 				const err = await res.json().catch(() => ({}));
-				throw new Error(err.message || 'Erreur lors de la sauvegarde de l\'évaluation');
+				throw new Error(extractErrorMessage(err, res, 'Erreur lors de la sauvegarde de l\'évaluation'));
 			}
 
 			const saved = await res.json();
+			const evaluation = saved.evaluation ?? saved;
 			// Update local evaluations
 			const idx = evaluations.findIndex(
 				(e) => e.optionId === activeOption!.id && e.criterionId === activeCriterion!.id
 			);
 			if (idx >= 0) {
-				evaluations[idx] = saved;
+				evaluations[idx] = evaluation;
 			} else {
-				evaluations.push(saved);
+				evaluations.push(evaluation);
 			}
 
 			isEvaluatingCell = false;
@@ -222,35 +265,93 @@
 
 			if (!res.ok) {
 				const err = await res.json().catch(() => ({}));
-				throw new Error(err.message || 'Erreur lors de la création du critère');
+				throw new Error(extractErrorMessage(err, res, 'Erreur lors de la création du critère'));
 			}
 
 			const created = await res.json();
-			criteria.push(created);
+			const criterion = created.criterion ?? created;
+			criteria.push(criterion);
 		} catch (err: any) {
 			onError(err.message);
+			throw err;
 		}
 	}
 
-	async function handleAddOption(data: { title: string; summary: string; origin: OptionOrigin }) {
-		try {
-			const res = await fetch(`/api/projects/${projectId}/subjects/${subjectId}/options`, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify(data)
-			});
+	function openEditOption(opt: Option) {
+		editingOption = opt;
+		isAddingOption = true;
+	}
 
-			if (!res.ok) {
-				const err = await res.json().catch(() => ({}));
-				throw new Error(err.message || 'Erreur lors de la création de l\'option');
+	function closeOptionModal() {
+		isAddingOption = false;
+		editingOption = null;
+	}
+
+	async function handleSaveOption(data: { id?: string; title: string; summary: string; origin: OptionOrigin; expectedVersion?: number }) {
+		if (data.id) {
+			// Modification d'une option existante (PATCH)
+			try {
+				const res = await fetch(`/api/projects/${projectId}/subjects/${subjectId}/options/${data.id}`, {
+					method: 'PATCH',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({
+						expectedVersion: data.expectedVersion ?? 1,
+						title: data.title,
+						summary: data.summary
+					})
+				});
+
+				if (!res.ok) {
+					const err = await res.json().catch(() => ({}));
+					throw new Error(extractErrorMessage(err, res, 'Erreur lors de la modification de l\'option'));
+				}
+
+				const result = await res.json();
+				const updated = result.option ?? result;
+				const idx = options.findIndex((o) => o.id === data.id);
+				if (idx >= 0) {
+					options[idx] = updated;
+				}
+
+				// Relancer la vérification de conformit\u00e9 en direct
+				fetch(`/api/projects/${projectId}/subjects/${subjectId}/compliance`)
+					.then((r) => (r.ok ? r.json() : null))
+					.then((data) => (compliance = data?.status === 'ok' ? data : null))
+					.catch(() => (compliance = null));
+			} catch (err: any) {
+				onError(err.message);
+				throw err;
 			}
+		} else {
+			// Cr\u00e9ation d'une nouvelle option (POST)
+			try {
+				const res = await fetch(`/api/projects/${projectId}/subjects/${subjectId}/options`, {
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify(data)
+				});
 
-			const created = await res.json();
-			options.push(created);
-		} catch (err: any) {
-			onError(err.message);
+				if (!res.ok) {
+					const err = await res.json().catch(() => ({}));
+					throw new Error(extractErrorMessage(err, res, 'Erreur lors de la création de l\'option'));
+				}
+
+				const created = await res.json();
+				const option = created.option ?? created;
+				options.push(option);
+
+				// Relancer la vérification de conformit\u00e9
+				fetch(`/api/projects/${projectId}/subjects/${subjectId}/compliance`)
+					.then((r) => (r.ok ? r.json() : null))
+					.then((data) => (compliance = data?.status === 'ok' ? data : null))
+					.catch(() => (compliance = null));
+			} catch (err: any) {
+				onError(err.message);
+				throw err;
+			}
 		}
 	}
+
 
 	async function handleAddTradeOff(data: { optionId: string; gains: string; sacrifices: string; criterionIds?: string[] }) {
 		try {
@@ -262,13 +363,15 @@
 
 			if (!res.ok) {
 				const err = await res.json().catch(() => ({}));
-				throw new Error(err.message || 'Erreur lors de l\'enregistrement du compromis');
+				throw new Error(extractErrorMessage(err, res, 'Erreur lors de l\'enregistrement du compromis'));
 			}
 
 			const created = await res.json();
-			tradeOffs.push(created);
+			const tradeOff = created.tradeOff ?? created;
+			tradeOffs.push(tradeOff);
 		} catch (err: any) {
 			onError(err.message);
+			throw err;
 		}
 	}
 
@@ -314,8 +417,13 @@
 
 			if (!res.ok) {
 				const err = await res.json().catch(() => ({}));
+				const fieldErrors = err.details?.fieldErrors
+					? Object.values(err.details.fieldErrors).flat().join(' ')
+					: '';
+				const formErrors = err.details?.formErrors?.join(' ') || '';
+				const detailsMsg = [fieldErrors, formErrors].filter(Boolean).join(' ');
 				const blockers = Array.isArray(err.blockers) ? err.blockers.map((b: { message: string }) => b.message).join(' ') : '';
-				throw new Error(blockers || err.error || 'Erreur lors de l\'enregistrement de la décision');
+				throw new Error(detailsMsg || blockers || err.error || 'Erreur lors de l\'enregistrement de la décision');
 			}
 
 			const body = await res.json();
@@ -430,29 +538,99 @@
 						<th class="p-2.5 text-left font-bold text-foreground min-w-[200px] border-r">
 							Critères d'évaluation
 						</th>
-						{#each options as opt}
+						{#each options as opt, optIdx}
 							{@const isRetained = decision?.retainedOptionId === opt.id}
-							<th class="p-2.5 text-center min-w-[170px] border-r last:border-r-0 {isRetained ? 'bg-emerald-500/10' : ''}">
-								<div class="space-y-1">
-									<div class="flex items-center justify-center gap-1.5">
+							{@const optionBadge = formatOptionBadge(optIdx)}
+							<th
+								class="p-2.5 text-center min-w-[220px] max-w-[320px] align-top border-r last:border-r-0 {isRetained ? 'bg-emerald-500/10' : ''}"
+								title={`${optionBadge} : ${opt.title}${opt.summary ? '\n\n' + opt.summary : ''}`}
+							>
+								<div class="space-y-1.5">
+									<!-- Barre d'identification : Badge Option + Origine + Bouton Info Résumé -->
+									<div class="flex items-center justify-between gap-1 flex-wrap">
+										<div class="flex items-center gap-1">
+											<span class="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-mono font-bold uppercase tracking-wider bg-primary/10 text-primary border border-primary/20">
+												{optionBadge}
+											</span>
+											{#if opt.origin === 'human'}
+												<span class="p-0.5 rounded bg-blue-500/10 text-blue-600" title="Origine humaine"><UserCheck class="h-3 w-3" /></span>
+											{:else if opt.origin === 'llm-proposed'}
+												<span class="p-0.5 rounded bg-purple-500/10 text-purple-600" title="Généré par LLM"><Bot class="h-3 w-3" /></span>
+											{:else}
+												<span class="p-0.5 rounded bg-amber-500/10 text-amber-600" title="Pattern KB"><Award class="h-3 w-3" /></span>
+											{/if}
+										</div>
+
 										{#if opt.origin === 'human'}
-											<span class="p-0.5 rounded bg-blue-500/10 text-blue-600" title="Origine humaine"><UserCheck class="h-3 w-3" /></span>
-										{:else if opt.origin === 'llm-proposed'}
-											<span class="p-0.5 rounded bg-purple-500/10 text-purple-600" title="Généré par LLM"><Bot class="h-3 w-3" /></span>
-										{:else}
-											<span class="p-0.5 rounded bg-amber-500/10 text-amber-600" title="Pattern KB"><Award class="h-3 w-3" /></span>
+											<button
+												type="button"
+												onclick={() => openEditOption(opt)}
+												class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-semibold text-purple-700 bg-purple-500/10 hover:bg-purple-500/20 dark:text-purple-300 border border-purple-500/30 transition-colors cursor-pointer"
+												title="Modifier cette proposition d'architecture"
+												aria-label={`Modifier ${optionBadge}`}
+											>
+												<Edit3 class="h-3 w-3 text-purple-600 dark:text-purple-400" />
+												<span>Modifier</span>
+											</button>
 										{/if}
-										<span class="font-bold text-foreground line-clamp-1">{opt.title}</span>
+
+										{#if opt.summary}
+											<button
+												type="button"
+												onclick={() => toggleSummary(opt.id)}
+												class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] text-muted-foreground hover:text-foreground hover:bg-muted/80 transition-colors cursor-pointer border border-transparent hover:border-border"
+												title={`Résumé technique :\n${opt.summary}\n\n(Cliquer pour afficher/masquer le détail)`}
+												aria-label={`Détail de ${optionBadge}`}
+											>
+												<Info class="h-3 w-3 {expandedSummaryOptionId === opt.id ? 'text-primary' : ''}" />
+												<span class="text-[9px] font-medium hidden sm:inline">Détails</span>
+											</button>
+										{/if}
 									</div>
+
+									<!-- Titre complet de la proposition (enveloppant sur plusieurs lignes) -->
+									<div class="text-center px-0.5">
+										<span
+											class="font-bold text-foreground text-xs leading-snug whitespace-normal break-words block"
+											title={opt.title}
+										>
+											{opt.title}
+										</span>
+									</div>
+
+									<!-- Résumé dépliable si activé -->
+									{#if expandedSummaryOptionId === opt.id && opt.summary}
+										<div class="p-2 rounded-md bg-muted/70 border border-border/70 text-[11px] font-normal text-muted-foreground text-left whitespace-normal break-words leading-relaxed animate-in fade-in duration-150 space-y-1.5">
+											<div class="flex items-center justify-between">
+												<span class="font-semibold text-foreground text-[10px] uppercase tracking-wider">Résumé :</span>
+												{#if opt.origin === 'human'}
+													<button
+														type="button"
+														onclick={() => openEditOption(opt)}
+														class="inline-flex items-center gap-1 px-1.5 py-0.5 rounded text-[10px] font-medium text-purple-700 bg-purple-500/10 hover:bg-purple-500/20 dark:text-purple-300 border border-purple-500/30 hover:underline cursor-pointer"
+														title="Modifier le titre et le résumé de cette proposition"
+													>
+														<Edit3 class="h-2.5 w-2.5 text-purple-600 dark:text-purple-400" />
+														<span>Éditer</span>
+													</button>
+												{/if}
+											</div>
+											<p>{opt.summary}</p>
+										</div>
+									{/if}
+
+									<!-- Violations / conformité -->
 									{#each violationsOf(opt.id) as v (v.typedId)}
 										<div
 											class="mx-auto w-fit rounded px-1.5 py-0.5 text-[10px] font-bold border {v.validated ? 'border-destructive/40 bg-destructive/10 text-destructive' : 'border-amber-500/40 bg-amber-500/10 text-amber-700 dark:text-amber-300'}"
-											title={v.validated ? v.message : `${v.message} (règle encore en brouillon : à confirmer par l'expert du domaine)`}
+											title={formatViolationTooltip(v)}
 										>
 											{v.validated ? 'Non conforme' : 'À vérifier'} · {v.typedId}
 										</div>
 									{/each}
-									<div class="flex items-center justify-center gap-1 flex-wrap">
+
+									<!-- Badges Mode de production et Retenue -->
+									<div class="flex items-center justify-center gap-1 flex-wrap pt-0.5">
 										<span class="text-[9px] font-mono uppercase px-1 py-0.2 rounded bg-muted text-muted-foreground">
 											{opt.productionMode}
 										</span>
@@ -505,7 +683,7 @@
 											{badge.label}
 										</span>
 										{#if ev?.justification}
-											<span class="text-[10px] text-muted-foreground truncate max-w-[140px] mt-0.5 block italic">
+											<span class="text-[10px] text-muted-foreground truncate max-w-[190px] mt-0.5 block italic">
 												« {ev.justification} »
 											</span>
 										{:else}
@@ -561,6 +739,13 @@
 		{options}
 		onAddTradeOff={handleAddTradeOff}
 	/>
+
+	<!-- Section Capitalisation Knowledge Hub (Porte G4) -->
+	{#if decision}
+		<div id="capitalization-section" class="pt-4 border-t border-border/60">
+			<CapitalizationPanel {projectId} {subjectId} {decision} {options} />
+		</div>
+	{/if}
 </div>
 
 <!-- Modal Évaluation d'une Cellule -->
@@ -633,7 +818,14 @@
 						<p class="font-bold text-foreground">Conformité réglementaire de l'option retenue</p>
 						{#each violationsOf(selectedRetainedOptionId) as v (v.typedId)}
 							<div class="space-y-1">
-								<p><span class="font-mono font-bold">{v.typedId}</span> — {v.message}</p>
+								<div class="space-y-0.5">
+									<p><span class="font-mono font-bold">{v.typedId}</span> — {v.message}</p>
+									{#if v.matchedTerms && v.matchedTerms.length > 0}
+										<p class="text-[11px] text-destructive/90 font-medium">
+											• Termes détectés dans votre texte : <span class="font-mono bg-destructive/10 px-1 py-0.5 rounded">{v.matchedTerms.join(', ')}</span>
+										</p>
+									{/if}
+								</div>
 								{#if v.validated}
 									<textarea
 										bind:value={violationJustifications[v.typedId]}
@@ -774,6 +966,7 @@
 
 <OptionEditor
 	isOpen={isAddingOption}
-	onClose={() => (isAddingOption = false)}
-	onSave={handleAddOption}
+	initialData={editingOption}
+	onClose={closeOptionModal}
+	onSave={handleSaveOption}
 />

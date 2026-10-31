@@ -303,6 +303,14 @@
       const resData = await res.json();
       if (res.ok && resData.data?.suggested_assets) {
         activeSuggestions[req.id] = resData.data.suggested_assets;
+        if (
+          Array.isArray(resData.data.acceptance_criteria) &&
+          resData.data.acceptance_criteria.length > 0 &&
+          (!req.proposed_acceptance_criteria || req.proposed_acceptance_criteria.length === 0)
+        ) {
+          req.proposed_acceptance_criteria = resData.data.acceptance_criteria;
+          req.links_production_mode = 'llm-derived';
+        }
       } else {
         alert(resData.error || 'Impossible de charger les suggestions');
       }
@@ -310,6 +318,31 @@
       alert(err.message || 'Erreur réseau');
     } finally {
       loadingSuggestionsFor = null;
+    }
+  }
+
+  let isEnrichingAll = $state(false);
+  async function triggerAutoEnrich() {
+    isEnrichingAll = true;
+    coverageError = null;
+    try {
+      const res = await fetch(`/api/frameworks/ingestions/${ingestion.id}/auto-suggest`, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'X-Actor-Email': data.user.email
+        }
+      });
+      const resData = await res.json();
+      if (res.ok) {
+        window.location.reload();
+      } else {
+        alert(resData.error || "Impossible d'enrichir le référentiel");
+      }
+    } catch (e: any) {
+      alert(e?.message || 'Erreur réseau');
+    } finally {
+      isEnrichingAll = false;
     }
   }
 
@@ -477,6 +510,21 @@
     <!-- Bouton Déclaration de Couverture -->
     <div class="flex items-center gap-3">
       {#if ingestion.status !== 'abandoned'}
+      <button
+        onclick={triggerAutoEnrich}
+        disabled={isEnrichingAll}
+        data-testid="btn-auto-enrich"
+        class="px-4 py-2.5 bg-purple-600 hover:bg-purple-700 disabled:opacity-50 text-white font-semibold text-sm rounded-lg shadow-xs flex items-center gap-2 transition-colors cursor-pointer"
+        title="Génère automatiquement les critères d'acceptation et correspondances par l'IA locale (llm-derived)"
+      >
+        {#if isEnrichingAll}
+          <RefreshCw class="w-4 h-4 animate-spin" />
+          <span>Génération IA en cours...</span>
+        {:else}
+          <Sparkles class="w-4 h-4" />
+          <span>Auto-enrichir par l'IA</span>
+        {/if}
+      </button>
       <label
         class="px-4 py-2.5 border border-purple-400 text-purple-700 hover:bg-purple-50 font-semibold text-sm rounded-lg cursor-pointer"
         title="Fichier JSON de propositions (critères d'acceptation, liens) préparé dans le dépôt LLMOps : data/proposals/frameworks/"

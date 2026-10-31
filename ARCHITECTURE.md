@@ -204,9 +204,10 @@ sequenceDiagram
     Engine->>DB: Upsert KbEventCursor & crée KbNotification (dédoublonnées)
     
     Expert->>Archinex: GET /kb/reviews
-    Archinex->>LLMOps: GET /api/knowledge/reviews/inbox [X-Actor-Email]
-    LLMOps-->>Archinex: 200 OK (Candidats filtrés, is_overdue recalculé)
-    Archinex-->>Expert: Boîte de revue avec alertes retards (≥ 5 jours)
+    Archinex->>LLMOps: GET /api/knowledge/reviews/inbox [X-Actor-Email, actorHandle, exclude_own]
+    Note over Archinex: Séparation des tâches (Hub 1.37) : calcul isAuthor,<br/>masquage par défaut des propres clauses et substitution du bouton Examiner par Consulter (Auteur)
+    LLMOps-->>Archinex: 200 OK (Candidats enrichis avec isAuthor, is_overdue recalculé)
+    Archinex-->>Expert: Boîte de revue filtrée (clauses examinables uniquement par défaut)
 
     Expert->>Archinex: PATCH /api/knowledge/candidates/{id} (action: accept/amend/reject)
     Note over Archinex: Vérifie habilitation domaine (403 si non possédé)<br/>Vérifie état non terminal (409 si déjà finalisé)
@@ -297,15 +298,18 @@ sequenceDiagram
     UI->>Archinex: POST /api/frameworks/ingestions (multipart/form-data)
     Archinex->>LLMOps: POST /api/frameworks/ingestions [X-Actor-Email]
     LLMOps-->>Archinex: 201 Created (Découpage en exigences + ID d'ingestion)
-    Archinex-->>UI: Affichage du tableau de bord d'instruction
+    opt Auto-enrichissement immédiat dès l'ingestion (Zéro Friction)
+        Archinex->>Archinex: Inférence locale (LocalLlmClient / repli heuristique)
+        Archinex->>LLMOps: POST /api/frameworks/ingestions/{id}/link-proposals
+    end
+    Archinex-->>UI: Affichage du tableau de bord avec critères et liaisons pré-remplis
 
     loop Instruction Ligne par Ligne
         Expert->>UI: Sélectionne une exigence
-        opt Suggestions de Liaisons Doctrinales
+        opt Suggestions de Liaisons Doctrinales (unitaire ou rafraîchissement)
             UI->>Archinex: POST .../requirements/{id}/suggest-links
-            Archinex->>LLMOps: POST .../suggest-links
-            LLMOps-->>Archinex: 200 OK { suggested_assets, llm_derived: true }
-            Archinex-->>UI: Affiche suggestions avec étiquette d'assistance IA
+            Archinex->>Archinex: Inférence locale (LocalLlmClient / repli heuristique)
+            Archinex-->>UI: 200 OK { suggested_assets, acceptance_criteria, llm_derived: true }
         end
         Expert->>UI: Statut (accept / amend / reject avec motif)
         UI->>Archinex: PATCH .../requirements/{id}

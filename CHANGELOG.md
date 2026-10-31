@@ -8,6 +8,19 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Isolation Inter-Projets des Artefacts & Socle Multi-Plateformes (LUMICC)
+- **Isolation Stricte des Contextes de Projet (`deliberationStore`)** :
+  - Sauvegarde et restauration complètes des `decisionContexts` et des `frozenSnapshots` par identifiant d'engagement dans `engagementCache`.
+  - Réinitialisation propre à vide lors de l'ouverture d'un nouvel engagement non mis en cache, éliminant toute fuite ou persistance d'artefacts d'un projet précédent (ex: spécifications ou schémas RATP affichés par erreur sur le projet luxembourgeois LUMICC).
+- **Suppression Définitive des Libellés en Dur dans les Projections Cibles (`artifactProjections`)** :
+  - Conditionnement systématique des mentions d'outillage RATP et PCC (`mentionsRATP`) : utilisation par défaut de libellés agnostiques et souverains (`Passerelle d'Export & Connecteurs d'Intégration`, `Supervision & Exploitation Externe`, `Responsable Exploitation / RSSI`).
+- **Modélisation Dédiée du Socle Multi-Plateformes & Qualification Industrielle** :
+  - Prise en charge des topologies à 3 plateformes : **Plateforme de Production (PROD)**, **Pré-production Unique Iso-État** (accueil de l'état candidat, réplique technique exacte de la PROD), et **Plateforme de Test Réduit avec Test-RAN**.
+  - Intégration de la zone décentralisée **Qualification Fournisseurs** avec porte de **Contrôle d'Audit & Représentativité** des bancs d'essais usine.
+  - Diagramme de séquence de déploiement et qualification en 3 phases (Usine & audit, banc radio Test-RAN, pré-production iso-état vers bascule de production).
+- **Tests de Non-Régression & Isolation** :
+  - Nouveaux tests de contrat dans `tests/contract/artifact-projections.test.ts` garantissant l'absence totale de mentions RATP/PCC sur les spécifications LUMICC et la bonne génération de la topologie multi-plateformes.
+
 ### Rendu Graphique : Aperçu Plein Écran au Maintien du Clic & Spécification Sécurité Télécom S6a
 - **Aperçu Plein Écran Dynamique au Maintien du Clic (`MermaidViewer`)** :
   - L'appui maintenu (clic gauche enfoncé) sur n'importe quel diagramme Mermaid l'affiche instantanément en surcouche plein écran haute lisibilité (`backdrop-blur`, dimensions maximales de l'écran, zoom optimisé).

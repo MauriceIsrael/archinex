@@ -355,6 +355,8 @@ En Phase 3 (« Rendu & Homologation »), Archinex permet de visualiser et d'expo
 2. **🔄 Chaîne de Déploiement & Homologation** : Diagramme de séquence modélisant la chaîne de confiance et de validation humaine (construction du paquet signé par l'éditeur/titulaire, soumission au guichet d'homologation/recette, approbation formelle et déploiement contrôlé vers les agents).
 3. **⚖️ Graphe Décisionnel (Auditabilité)** : Graphe épistémique traçant l'arbre causal de la délibération (hypothèses, énoncés prouvés, conflits et options retenues) pour la traçabilité d'audit.
 
+Pour les sujets d'infrastructure et d'environnements (ex. *Socle 3 plateformes, pré-prod iso-état* du projet LUMICC), Archinex projette automatiquement la topologie à trois niveaux (Production, Pré-production Iso-État répliquant l'état technique et accueillant l'état candidat, Test Réduit avec Test-RAN) ainsi que la filière de qualification usine chez les fournisseurs avec contrôle d'audit et de représentativité. L'isolation des contextes garantit qu'aucun outillage ou libellé d'un projet tiers (ex. RATP/PCC) n'est injecté dans les rendus d'un autre projet.
+
 Ces schémas sont directement intégrés dans le fragment Markdown HLD exporté (`renderHldFragmentMarkdown`) et téléchargeables au format `.mmd`.
 
 ---

@@ -302,4 +302,71 @@ describe('Projections dynamiques d\'architecture (No Doc Drift - Issue #64)', ()
 		expect(seq).toContain('Phase 3 : Médiation & Inspection Applicative Diameter');
 		expect(seq).toContain("Phase 4 : Résolution et Réponse de l'Authentification");
 	});
+	it('11. Isole les spécifications multi-plateformes (LUMICC) : génère le socle 3 plateformes sans fuite RATP/PCC', () => {
+		const lumiccSubject = {
+			id: 'sub-lumicc-env',
+			section_ref: '§2.4',
+			name: "Socle d'environnements et représentativité des bancs"
+		};
+
+		const lumiccContext: ProjectionContext = {
+			projectName: 'LUMICC',
+			enterpriseName: 'Grand-Duché de Luxembourg',
+			decision: {
+				retainedOptionId: 'opt-lumicc-3p',
+				retainedOptionTitle: 'Socle 3 plateformes, pré-prod iso-état',
+				rationale: "Production, pré-production unique au Luxembourg répliquant l'état technique de la production (et capable d'accueillir un état candidat), test réduit avec Test-RAN. Qualification fournisseurs chez les fournisseurs, avec contrôle d'audit et de représentativité."
+			}
+		};
+
+		const diagram = generateTargetArchitectureDiagram(lumiccSubject, null, [], lumiccContext);
+
+		// Doit refléter fidèlement le socle 3 plateformes
+		expect(diagram).toContain('Socle National 3 Plateformes (Luxembourg)');
+		expect(diagram).toContain('Plateforme de Production (PROD)');
+		expect(diagram).toContain('Pré-production Unique Iso-État');
+		expect(diagram).toContain('Test Réduit avec Test-RAN');
+		expect(diagram).toContain('Qualification Fournisseurs');
+		expect(diagram).toContain("Contrôle d'Audit & Représentativité");
+
+		// Isolation stricte : aucune mention de la RATP ou du PCC
+		expect(diagram).not.toContain('RATP');
+		expect(diagram).not.toContain('PCC');
+		expect(diagram).not.toContain('WAPT');
+
+		const seq = generateDeploymentSequenceDiagram(lumiccSubject, null, [], lumiccContext);
+		expect(seq).toContain('sequenceDiagram');
+		expect(seq).toContain('Fournisseur as Fournisseur / Équipementier');
+		expect(seq).toContain('Auditeur as Responsable Audit & Représentativité');
+		expect(seq).toContain('TestRAN as Plateforme Test Réduit (Test-RAN)');
+		expect(seq).toContain('PreProd as Pré-production Iso-État (Luxembourg)');
+		expect(seq).toContain('Prod as Production (Luxembourg)');
+		expect(seq).not.toContain('RATP');
+		expect(seq).not.toContain('WAPT');
+	});
+
+	it("12. Isole les connecteurs d'intégration génériques : aucune fuite RATP sans mention explicite", () => {
+		const genericSubject = {
+			id: 'sub-generic-integration',
+			section_ref: '§1.2',
+			name: 'Supervision et Métrologie Externe'
+		};
+
+		const genericContext: ProjectionContext = {
+			projectName: 'Projet Souverain',
+			decision: {
+				retainedOptionId: 'opt-gen-sup',
+				retainedOptionTitle: "Architecture hybride avec connecteurs d'export standardisés",
+				rationale: "Le système embarque sa métrologie locale et exporte les métriques et logs vers le SI d'exploitation existant."
+			}
+		};
+
+		const diagram = generateTargetArchitectureDiagram(genericSubject, null, [], genericContext);
+
+		// Ne doit pas mentionner la RATP ni le PCC si non présent dans la spec
+		expect(diagram).not.toContain('RATP');
+		expect(diagram).not.toContain('PCC');
+		expect(diagram).toContain("Passerelle d'Export & Connecteurs d'Intégration");
+		expect(diagram).toContain('Supervision & Exploitation Externe');
+	});
 });

@@ -376,6 +376,16 @@ Pour faciliter la lecture des graphes d'architecture denses (topologie C4, séqu
 2. **Retour immédiat** : Dès que le bouton de la souris est relâché, le plein écran se referme sans perturber le scroll ou l'état de la page.
 3. **Plein écran fixe & Zoom** : Il est également possible de verrouiller l'affichage en plein écran via le bouton dédié dans la barre d'outils ou de naviguer avec la touche Échap.
 
+
+### 11.8 Cycle de Vie & Réactivité en Direct des Artefacts Graphiques
+Les diagrammes et rendus techniques d'Archinex (Mermaid C4, séquences de déploiement, SysML, Structurizr) sont conçus pour éliminer tout risque de dérive documentaire (*No Doc Drift*) :
+1. **Liaison formelle au projet (`projectId`)** : Chaque diagramme porte formellement l'identifiant unique du projet et son nom dans le titre du sous-graphe racine (`subgraph SYSTEM["Système : ${projectName} (...) [Projet: ${projectId}]"]`). Aucune règle en dur ni aucun nom de client tiers n'est figé dans le code.
+2. **Réactivité en temps réel lors de la frappe (Workbench L4)** : Lorsque vous rédigez ou éditez la spécification technique dans l'atelier du sujet (`SubjectThreadView`), chaque frappe met immédiatement à jour le store réactif (`deliberationStore.setDetailedSpec`). Les projections graphiques sont définies sous forme d'expressions dérivées Svelte 5 (`$derived`) et se recalculent instantanément sans nécessiter de rechargement de page.
+3. **Moments de régénération des artefacts** :
+   - **En direct (Svelte 5 `$derived`)** : Dès qu'une option est retenue dans la Matrice, qu'une motivation est modifiée, ou que la spécification L4 est éditée.
+   - **À la demande (Bouton « Régénérer »)** : Le bouton d'actualisation dans l'en-tête d'`ArtifactRegenerationHub` permet de re-synchroniser explicitement les données depuis l'API serveur ou de recharger le graphe d'architecture.
+   - **Lors du scellement d'homologation (Jalon L5)** : Lors de la signature cryptographique du livrable (`freezeSubjectSnapshot`), l'empreinte SHA-256 scelle définitivement la version des artefacts, les rendant opposables et inaltérables dans le temps.
+
 ## 12. Démonstrateur & Ensemencements Démo (LUMICC / "Lulu")
 
 Pour préparer rapidement une session de démo ou des tests interactifs sans ressaisie manuelle, Archinex fournit un ensemencement dédié du dossier réel **LUMICC Lot 1** :

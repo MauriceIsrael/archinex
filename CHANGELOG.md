@@ -8,6 +8,25 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Architecture Cible Générique : Élimination des Règles Projet en Dur & Réactivité en Direct des Spécifications
+- **Suppression Intégrale des Règles Spécifiques en Dur (`artifactProjections.ts`)** :
+  - Élimination formelle de toutes les conditions et chaînes codées en dur liées à un projet particulier (`ratp`, `pcc`, `luxembourg`, `lumicc`, `apres-tetra`).
+  - Chaque artefact graphique (Mermaid C4, séquence de déploiement, SysML, Structurizr) est désormais formellement étiqueté et compartimenté par son identifiant de projet `projectId` (`subgraph SYSTEM["Système : ${projectName} (${sectionRef}) [Projet: ${projectId}]"]`).
+  - Déduction dynamique de l'écosystème externe à partir des métadonnées du projet (`enterpriseName` et `projectName`) : `SI ${enterpriseName} (Existant)`, `Supervision Externe (${enterpriseName})`, `Guichet Homologation / Validation Humaine (${enterpriseName})`, `Plateforme Logs & Audit (${enterpriseName})`, etc.
+  - Détection architecturale par archétypes génériques (`hasTelecomCrypto`, `hasMultiEnv`, `hasSupervision`, `hasLogs`, `hasDeployment`, `hasAuth`) opérant sans présupposé de marque ou de client.
+- **Réactivité en Direct des Artefacts lors de l'Édition de Spécification (`deliberationStore`, `SubjectThreadView`)** :
+  - Ajout de l'état réactif `detailedSpecs = $state<Record<string, string>>({})` dans `deliberationStore`, avec mise en cache et restauration par engagement lors des bascules de projet.
+  - Liaison bidirectionnelle instantanée sur la zone de saisie du workbench L4 (`SubjectThreadView`) : chaque frappe (`oninput`) met à jour le texte de la spécification détaillée dans le store.
+  - Le calcul des projections (`getProjectionContext`) injecte `detailedSpecText` en temps réel : dès qu'une exigence ou contrainte est rédigée (ex: chiffrement IPsec ESP, médiation DEA, ou topologie 3 plateformes), les schémas de la Phase 3 se reconfigurent immédiatement sans action manuelle.
+- **Cycle de Vie & Déclencheurs de Régénération** :
+  - *Automatique réactif* : recalcul immédiat via les expressions dérivées Svelte 5 (`$derived`) dès modification des décisions L3 ou de la spécification L4.
+  - *Manuel* : bouton « Régénérer » dans `ArtifactRegenerationHub` pour forcer le recalcul à partir de la version serveur.
+  - *Scellement & Export* : génération figée et horodatée lors de la signature cryptographique SHA-256 (Jalon L5) ou de l'export du fragment HLD.
+- **Tests & Assurance Qualité** :
+  - Test de contrat n°13 dans `tests/contract/artifact-projections.test.ts` validant la réactivité en direct des diagrammes lors de l'évolution de `detailedSpecText` sans altérer la décision L3.
+  - Mise à niveau des tests de non-régression (13/13 réussis).
+
+
 ### Isolation Inter-Projets des Artefacts & Socle Multi-Plateformes (LUMICC)
 - **Isolation Stricte des Contextes de Projet (`deliberationStore`)** :
   - Sauvegarde et restauration complètes des `decisionContexts` et des `frozenSnapshots` par identifiant d'engagement dans `engagementCache`.

@@ -163,12 +163,18 @@
 	let detailedSpecText = $state('');
 
 	$effect(() => {
-		if (subjectId && typeof window !== 'undefined') {
-			try {
-				const saved = localStorage.getItem(`archinex:spec:${projectId}:${subjectId}`);
-				detailedSpecText = saved || '';
-			} catch {
-				detailedSpecText = '';
+		if (subjectId) {
+			const storeVal = deliberationStore.getDetailedSpec(subjectId);
+			if (storeVal) {
+				detailedSpecText = storeVal;
+			} else if (typeof window !== 'undefined') {
+				try {
+					const saved = localStorage.getItem(`archinex:spec:${projectId}:${subjectId}`);
+					detailedSpecText = saved || '';
+					if (saved) deliberationStore.setDetailedSpec(subjectId, saved);
+				} catch {
+					detailedSpecText = '';
+				}
 			}
 		}
 	});
@@ -203,6 +209,9 @@
 	}
 
 	async function handleSaveDetailedSpec() {
+		if (subjectId) {
+			deliberationStore.setDetailedSpec(subjectId, detailedSpecText);
+		}
 		if (typeof window !== 'undefined' && projectId && subjectId) {
 			try {
 				localStorage.setItem(`archinex:spec:${projectId}:${subjectId}`, detailedSpecText);
@@ -1601,6 +1610,7 @@
 				<textarea
 					data-testid="detailed-spec-textarea"
 					bind:value={detailedSpecText}
+					oninput={() => deliberationStore.setDetailedSpec(subjectId, detailedSpecText)}
 					rows={14}
 					placeholder="1. Architecture Cible & Composants :&#10;• Passerelle DEA : ...&#10;• Chiffrement IPsec ESP : ...&#10;&#10;2. Interfaces, Protocoles & Flux :&#10;• Protocoles : IKEv2, AES-256-GCM...&#10;• Ports et liaisons sécurisées : ...&#10;&#10;3. Exploitation & Supervision :&#10;• Intégration NOC et supervision : ...&#10;&#10;4. Points de mise en œuvre résiduels :&#10;• ..."
 					class="w-full rounded-lg border bg-background px-3 py-2.5 text-xs text-foreground font-mono leading-relaxed placeholder:text-muted-foreground/60 focus:ring-1 focus:ring-primary shadow-inner"

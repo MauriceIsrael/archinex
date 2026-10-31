@@ -8,6 +8,20 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Ergonomie de Délibération & Phase 3 : Filtrage par Lots/Parties et Sélecteur de Sujets L4
+- **Filtre Lots / Parties dans le Fil de Délibération (`SubjectConversationList`)** :
+  - Intégration de la barre de filtrage par lots d'architecture (`FolderKanban`) dans le fil de délibération, alignée sur celle du tableau de maturité.
+  - Synchronisation bidirectionnelle de `selectedPartId` via le store `deliberationStore`, garantissant que le lot sélectionné est conservé lors du passage entre le Tableau de maturité, le Fil de conversation et la Phase 3.
+  - Mise à jour dynamique des compteurs de filtres rapides (« Tous », « Bloqués », « À faire », « Arbitrés ») en fonction du lot sélectionné.
+- **Sélecteur de Sujet en Phase 3 Rendu & Homologation (`Phase3SubjectSelector`)** :
+  - Composant interactif en tête de la Phase 3 permettant de re-sélectionner instantanément le sujet ciblé sans devoir retourner en Phase 2.
+  - Pré-filtrage par défaut sur les sujets **🎯 Spécifiés L4** (prêts pour l'homologation), avec bascule vers les sujets **⚖️ Arbitrés L3+** ou **Tous les sujets**.
+  - Repli intelligent automatique vers L3+ ou Tous si aucun sujet n'a encore atteint le palier L4 dans le projet actif.
+  - Sélecteur de lots d'architecture intégré (`FolderKanban`) et recherche textuelle rapide (§11, WAPT, réseau, etc.).
+  - Sélection réactive du sujet (`deliberationStore.selectSubject(id, false)`) sans altérer le mode de vue actif.
+- **Tests & Assurance Qualité** :
+  - Nouveau test de contrat dans `tests/contract/phase3-subject-selector.test.ts` validant le pré-filtrage L4, la synchronisation du store et le repli sans erreur.
+
 ### Phase 3 Rendu & Homologation : Intégration du Schéma d'Architecture Cible Spécifiée et Déploiement Sécurisé
 - **Rendu d'Architecture Technique vs Graphe Décisionnel** :
   - Introduction du générateur déterministe `generateTargetArchitectureDiagram` dans `artifactProjections.ts`, aligné sur les patterns ArcKit (`arckit-diagram` C4 Container / Flowchart).

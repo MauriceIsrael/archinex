@@ -2,6 +2,7 @@
 	import { deliberationStore } from '$lib/stores/deliberationStore.svelte';
 	import type { MaturitySubject } from '$lib/domain/maturityBoard';
 	import { calculateMaturityPercent, formatMaturityLevel, getMaturityBadgeClass } from '$lib/domain/debate';
+import { partitionSubjectsByParts, type SubjectPart } from '$lib/domain/subjectPartitioning';
 	import {
 		MessagesSquare,
 		Search,
@@ -12,7 +13,8 @@
 		Layers,
 		UserCheck,
 		Plus,
-		PanelLeftClose
+		PanelLeftClose,
+		FolderKanban
 	} from 'lucide-svelte';
 	import CreateSubjectDialog from './CreateSubjectDialog.svelte';
 
@@ -38,6 +40,18 @@
 	let isCreateDialogOpen = $state(false);
 
 	const allSubjects = $derived(deliberationStore.sortedSubjects);
+	const parts = $derived(partitionSubjectsByParts(allSubjects));
+	const selectedPartId = $derived(deliberationStore.selectedPartId);
+
+	const selectedPart = $derived.by(() => {
+		if (selectedPartId === 'all') return null;
+		return parts.find((p) => p.id === selectedPartId) || null;
+	});
+
+	const partSubjects = $derived.by(() => {
+		if (selectedPartId === 'all') return allSubjects;
+		return selectedPart ? selectedPart.subjects : allSubjects;
+	});
 
 	function getSubjectRequirementsInfo(sub: MaturitySubject): { total: number; bloquant: number; refs: string[] } {
 		const allClauses = deliberationStore.clientDocuments.flatMap((d) => d.keyClauses || []);
@@ -155,6 +169,42 @@
 			</div>
 		</div>
 
+		<!-- ─── Barre de Découpage par Lots / Parties ────────── -->
+		{#if parts.length > 1}
+			<div class="flex items-center gap-1 overflow-x-auto text-xs pb-1 pt-0.5 no-scrollbar shrink-0">
+				<span class="text-[10px] font-bold text-muted-foreground uppercase tracking-wider shrink-0 mr-1 flex items-center gap-1">
+					<FolderKanban class="h-3 w-3 text-primary" />
+					Lots :
+				</span>
+				<button
+					type="button"
+					onclick={() => deliberationStore.setSelectedPartId('all')}
+					class="px-2 py-0.5 rounded-md text-[10px] font-semibold transition-all whitespace-nowrap cursor-pointer {selectedPartId === 'all'
+						? 'bg-primary text-primary-foreground shadow-2xs'
+						: 'bg-background hover:bg-muted text-muted-foreground hover:text-foreground border'}"
+				>
+					<span>Toutes ({allSubjects.length})</span>
+				</button>
+				{#each parts as part}
+					{@const isSelected = selectedPartId === part.id}
+					<button
+						type="button"
+						onclick={() => deliberationStore.setSelectedPartId(part.id)}
+						class="px-2 py-0.5 rounded-md text-[10px] font-semibold transition-all whitespace-nowrap flex items-center gap-1 cursor-pointer {isSelected
+							? 'bg-primary text-primary-foreground shadow-2xs ring-1 ring-primary'
+							: 'bg-background hover:bg-muted text-foreground border'}"
+						title="{part.name} ({part.sectionRange})"
+					>
+						<span class="font-mono text-[9px] opacity-80">{part.code}</span>
+						<span class="truncate max-w-[80px]">{part.name}</span>
+						<span class="text-[9px] px-1 py-0.1 rounded-full {isSelected ? 'bg-primary-foreground/20 text-primary-foreground' : 'bg-muted text-muted-foreground'}">
+							{part.subjects.length}
+						</span>
+					</button>
+				{/each}
+			</div>
+		{/if}
+
 		<!-- Champ de recherche rapide -->
 		<div class="relative">
 			<Search class="h-3.5 w-3.5 text-muted-foreground absolute left-2.5 top-1/2 -translate-y-1/2" />
@@ -175,7 +225,7 @@
 					? 'bg-primary text-primary-foreground font-semibold'
 					: 'bg-muted text-muted-foreground hover:text-foreground'}"
 			>
-				Tous ({allSubjects.length})
+				Tous ({partSubjects.length})
 			</button>
 			<button
 				type="button"
@@ -184,7 +234,7 @@
 					? 'bg-destructive text-destructive-foreground font-semibold'
 					: 'bg-muted text-muted-foreground hover:text-foreground'}"
 			>
-				Bloqués ({allSubjects.filter((s) => s.blocking_count > 0).length})
+				Bloqués ({partSubjects.filter((s) => s.blocking_count > 0).length})
 			</button>
 			<button
 				type="button"
@@ -193,7 +243,7 @@
 					? 'bg-amber-600 text-white font-semibold'
 					: 'bg-muted text-muted-foreground hover:text-foreground'}"
 			>
-				À faire ({allSubjects.filter((s) => s.level < 'L3').length})
+				À faire ({partSubjects.filter((s) => s.level < 'L3').length})
 			</button>
 			<button
 				type="button"

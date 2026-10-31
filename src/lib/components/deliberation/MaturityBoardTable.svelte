@@ -27,7 +27,7 @@
 	} = $props();
 
 	let activeFilter = $state<FilterType>('all');
-	let selectedPartId = $state<string>('all');
+	const selectedPartId = $derived(deliberationStore.selectedPartId);
 	let isCreateDialogOpen = $state(false);
 
 	const allSubjects = $derived(deliberationStore.sortedSubjects);
@@ -79,7 +79,7 @@
 			</span>
 			<button
 				type="button"
-				onclick={() => (selectedPartId = 'all')}
+				onclick={() => deliberationStore.setSelectedPartId('all')}
 				class="px-2.5 py-1 rounded-lg text-xs font-semibold transition-all whitespace-nowrap flex items-center gap-1.5 cursor-pointer {selectedPartId === 'all'
 					? 'bg-primary text-primary-foreground shadow-xs'
 					: 'bg-background hover:bg-muted text-muted-foreground hover:text-foreground border'}"
@@ -91,7 +91,7 @@
 				{@const isSelected = selectedPartId === part.id}
 				<button
 					type="button"
-					onclick={() => (selectedPartId = part.id)}
+					onclick={() => deliberationStore.setSelectedPartId(part.id)}
 					class="px-2.5 py-1 rounded-lg text-xs font-semibold transition-all whitespace-nowrap flex items-center gap-1.5 cursor-pointer {isSelected
 						? 'bg-primary text-primary-foreground shadow-xs ring-1 ring-primary'
 						: 'bg-background hover:bg-muted text-foreground border'}"

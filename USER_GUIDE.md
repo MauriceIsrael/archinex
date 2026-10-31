@@ -359,6 +359,14 @@ Ces schémas sont directement intégrés dans le fragment Markdown HLD exporté 
 
 ---
 
+
+### 11.6 Sélecteur de Sujets et Pré-filtrage L4 en Phase 3
+En Phase 3 (« Rendu & Homologation »), un bandeau supérieur dédié (`Phase3SubjectSelector`) permet d'explorer et de basculer entre les sujets d'architecture :
+1. **🎯 Pré-filtrage par défaut L4 Spécifiés** : Isole immédiatement les sujets dont l'architecture technique a été entièrement spécifiée (composants autonomes, chaîne de déploiement WAPT, flux réseau étiquetés) et prêts pour l'homologation.
+2. **⚖️ Bascule rapide vers L3+ ou Tous** : Permet de visualiser également les sujets arbitrés ou en cours de cadrage si nécessaire.
+3. **📁 Segmentation par Lots / Parties** : Permet d'isoler un sous-ensemble (ex. LOT-02 Socle Infra ou LOT-05 Ops).
+4. **💬 Conservation dans le fil de délibération** : Ce même filtre par Lots/Parties est accessible dans la colonne latérale du fil de délibération (`SubjectConversationList`), avec mémorisation de l'état actif dans le projet.
+
 ## 12. Démonstrateur & Ensemencements Démo (LUMICC / "Lulu")
 
 Pour préparer rapidement une session de démo ou des tests interactifs sans ressaisie manuelle, Archinex fournit un ensemencement dédié du dossier réel **LUMICC Lot 1** :

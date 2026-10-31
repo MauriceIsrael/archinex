@@ -8,6 +8,19 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Rendu Graphique : Aperçu Plein Écran au Maintien du Clic & Spécification Sécurité Télécom S6a
+- **Aperçu Plein Écran Dynamique au Maintien du Clic (`MermaidViewer`)** :
+  - L'appui maintenu (clic gauche enfoncé) sur n'importe quel diagramme Mermaid l'affiche instantanément en surcouche plein écran haute lisibilité (`backdrop-blur`, dimensions maximales de l'écran, zoom optimisé).
+  - Le relâchement de la souris (`pointerup`, `mouseup` ou sortie d'écran) referme immédiatement l'overlay et replace l'utilisateur dans son flux de travail.
+  - Possibilité complémentaire de verrouiller le mode plein écran via le bouton dédié ou de quitter avec la touche Échap.
+  - Ajout d'un indicateur discret d'aide ergonomique au survol du graphe.
+- **Topologie & Séquence Télécom 3GPP S6a (IPsec ESP & Médiation DEA)** :
+  - Prise en charge des architectures réseau critiques avec interconnexion sécurisée entre lots (ex: Lot 3 MME Tiers ↔ Lot 1 Cœur / HSS).
+  - Diagramme d'architecture cible générant les 3 zones de confiance : Réseau Tiers (MME), DMZ de sécurité (SecGW-Lot1 en terminaison IPsec ESP + DEA-Lot1 en médiation Diameter / masquage topologique TH), et Cœur souverain (HSS-Lot1) avec matérialisation explicite du flux direct non chiffré formellement interdit.
+  - Diagramme de séquence 3GPP en 4 phases : négociation IKEv2 / SA ESP, encapsulation/décapsulation IPsec, inspection Diameter S6a (AVP / TH) par le DEA, et résolution sécurisée HSS.
+- **Tests & Assurance Qualité** :
+  - Nouveaux tests de contrat dans `tests/contract/artifact-projections.test.ts` validant la projection déterministe de la topologie réseau et de la séquence S6a.
+
 ### Ergonomie de Délibération & Phase 3 : Filtrage par Lots/Parties et Sélecteur de Sujets L4
 - **Filtre Lots / Parties dans le Fil de Délibération (`SubjectConversationList`)** :
   - Intégration de la barre de filtrage par lots d'architecture (`FolderKanban`) dans le fil de délibération, alignée sur celle du tableau de maturité.

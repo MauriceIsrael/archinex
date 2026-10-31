@@ -436,6 +436,7 @@ export function generateTargetArchitectureDiagram(
 	}
 
 	const lower = fullSpec.toLowerCase();
+	const hasTelecomCrypto = /s6a|diameter|dea|secgw|hss|mme|lot 3.*lot 1|esp.*chiffrement/.test(lower);
 	const mentionsRATP = lower.includes('ratp');
 	const hasSupervision = /supervision|m[eé]trologie|alarmes?|m[eé]triques?|centreon|hypervis|zabbix|prometheus/.test(lower);
 	const hasLogs = /logs?|audit|siem|syslog|splunk|elk/.test(lower);
@@ -453,6 +454,47 @@ export function generateTargetArchitectureDiagram(
 		externalLabel = 'Fédération Nationale & Services Régaliens (Pro Santé Connect)';
 	} else if (context?.enterpriseName && context.enterpriseName !== context.projectName) {
 		externalLabel = `SI ${context.enterpriseName} (Existant)`;
+	}
+
+	// Cas Spécial Télécom / Sécurité : Chiffrement IPsec ESP & Médiation DEA pour S6a (Lot 3 <-> Lot 1)
+	if (hasTelecomCrypto) {
+		return [
+			'flowchart TB',
+			...targetArchitectureClassDefs(),
+			'',
+			'    %% Zone Distante : Lot 3 (Réseau Tiers / Partenaire)',
+			'    subgraph LOT3["Réseau Tiers / Partenaire (Lot 3)"]',
+			'        direction TB',
+			'        MME_Lot3["📡 MME Tiers (Mobility Management Entity)<br/><small>Initie les requêtes d\'authentification S6a</small>"]:::ext',
+			'    end',
+			'    class LOT3 boundary',
+			'',
+			'    %% Zone de Sécurité Périmétrique : Lot 1 (Frontière & Médiation)',
+			'    subgraph DMZ_LOT1["DMZ de Sécurité & Frontière Réseau (Lot 1)"]',
+			'        direction TB',
+			'        SecGW_Lot1["🛡️ SecGW-Lot1 (Security Gateway)<br/><small>Terminaison IPsec ESP (IKEv2 / AES-GCM-256)</small>"]:::core',
+			'        DEA_Lot1["🔍 DEA-Lot1 (Diameter Edge Agent)<br/><small>Médiation S6a, filtrage AVP & masquage topologique TH</small>"]:::agent',
+			'    end',
+			'    class DMZ_LOT1 boundary',
+			'',
+			'    %% Zone Sécurisée Cœur : Lot 1 (Données Critiques)',
+			'    subgraph CORE_LOT1["Cœur de Réseau & Données Abonnés (Lot 1)"]',
+			'        direction TB',
+			'        HSS_Lot1["🔐 HSS-Lot1 (Home Subscriber Server)<br/><small>Bases abonnés, profils & vecteurs d\'authentification AKA</small>"]:::core',
+			'    end',
+			'    class CORE_LOT1 boundary',
+			'',
+			'    %% Flux autorisés et chiffrés',
+			'    MME_Lot3 ==>|"1. Tunnel IPsec ESP chiffré (IKEv2 / AES-256)"| SecGW_Lot1',
+			'    SecGW_Lot1 -->|"2. Flux Diameter S6a décapsulé (interne sécurisé)"| DEA_Lot1',
+			'    DEA_Lot1 -->|"3. Requête S6a inspectée & médiée (AIR / ULR)"| HSS_Lot1',
+			'    HSS_Lot1 -->|"4. Réponse d\'authentification chiffrée (AIA / ULA)"| DEA_Lot1',
+			'    DEA_Lot1 -->|"5. Masquage de topologie (TH) & contrôle AVP"| SecGW_Lot1',
+			'    SecGW_Lot1 ==>|"6. Réponse ré-encapsulée IPsec ESP"| MME_Lot3',
+			'',
+			'    %% Règle d\'interdiction stricte',
+			'    MME_Lot3 -.-x|"⛔ INTERDIT : Flux direct non chiffré ou sans DEA"| HSS_Lot1'
+		].join('\n');
 	}
 
 	let systemLabel = `Système : ${subjectName} (Périmètre Solution - Autonome)`;
@@ -606,6 +648,37 @@ export function generateDeploymentSequenceDiagram(
 	const fullSpec = `${decision?.retainedOptionTitle || ''} ${retainedOpt?.summary || ''} ${decision?.rationale || ''}`.toLowerCase();
 	const isRATP = fullSpec.includes('ratp');
 	const isWapt = fullSpec.includes('wapt');
+
+	const hasTelecomCrypto = /s6a|diameter|dea|secgw|hss|mme|lot 3.*lot 1|esp.*chiffrement/.test(fullSpec);
+	if (hasTelecomCrypto) {
+		return [
+			'sequenceDiagram',
+			'    autonumber',
+			'    actor MME as MME Tiers (Lot 3)',
+			'    participant SecGW as SecGW-Lot1 (Security Gateway)',
+			'    participant DEA as DEA-Lot1 (Diameter Edge Agent)',
+			'    participant HSS as HSS-Lot1 (Home Subscriber Server)',
+			'',
+			'    Note over MME,SecGW: Phase 1 : Négociation IKEv2 et Établissement du Tunnel IPsec ESP',
+			'    MME->>SecGW: IKE_SA_INIT / IKE_AUTH (Certificats X.509 mutuels)',
+			'    SecGW-->>MME: SA IPsec établie (Chiffrement AES-GCM-256 actif)',
+			'',
+			'    Note over MME,SecGW: Phase 2 : Envoi Sécurisé du Flux S6a Encapsulé',
+			'    MME->>SecGW: Requête Diameter S6a encapsulée dans le paquet IPsec ESP',
+			'    SecGW->>SecGW: Terminaison IPsec, vérification d\'intégrité & décapsulation ESP',
+			'',
+			'    Note over SecGW,DEA: Phase 3 : Médiation & Inspection Applicative Diameter',
+			'    SecGW->>DEA: Requête S6a décapsulée (Diameter / SCTP over TLS interne)',
+			'    DEA->>DEA: Contrôle de conformité AVP, masquage topologique (TH) & rate limiting',
+			'',
+			'    Note over DEA,HSS: Phase 4 : Résolution et Réponse de l\'Authentification',
+			'    DEA->>HSS: Requête S6a vérifiée transmise au HSS-Lot1 (AIR / ULR)',
+			'    HSS->>HSS: Calcul des vecteurs AKA & génération du profil de souscription',
+			'    HSS-->>DEA: Réponse Diameter S6a (AIA / ULA)',
+			'    DEA-->>SecGW: Réponse avec masquage topologique réappliqué',
+			'    SecGW-->>MME: Réponse chiffrée et encapsulée dans le tunnel IPsec ESP'
+		].join('\n');
+	}
 
 	const tituActor = 'Titulaire (Ingénierie & Packaging)';
 	const clientActor = isRATP ? 'Responsable Exploitation RATP' : 'Responsable Exploitation / RSSI';

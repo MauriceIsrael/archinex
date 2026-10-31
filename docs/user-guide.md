@@ -32,6 +32,18 @@ L'interface est structurée autour de zones opérationnelles claires :
 
 ## 3. Guide Pas-à-Pas des 3 Postures Contextuelles
 
+### 1.1 Initialisation Guidée d'un Espace de Travail (5 Étapes)
+L'assistant de création d'espace (`/workspaces/new` ou modale du bandeau de projet) guide l'équipe à travers 5 étapes épurées :
+1. **Cadrage & Description** : Saisie du titre du projet, type d'engagement (RFP, Blueprint, Audit NIS2, POC) et slug d'identification.
+2. **Stratégie Globale, Principes & Référentiels** :
+   - *Objectifs Stratégiques Macro* : Orientent la délibération et pondèrent les critères d'évaluation des variantes.
+   - *Principes Directeurs d'Architecture* : Règles transverses opposables (ex: Zero-Trust, souveraineté).
+   - *Contraintes Non Négociables (Lignes Rouges)* : Verrous stricts interdisant certaines solutions.
+   - *Référentiels Réglementaires Applicables* : Déclaration des cadres opposables (NIS2, SecNumCloud, ISO 27001, etc.) dont les contrôles accompagneront chaque sujet.
+3. **Documents Amonts** : Versement des pièces contractuelles (CCTP, RFP, spécifications métier) ou confrontation directe via le moteur de dépouillement.
+4. **Participants & Équipe Habilitée** : Affectation des Lead Architects, Experts et Sachants Métier.
+5. **Lancement & Scellement Initial** : Création de l'espace et transition vers la phase d'appropriation.
+
 ### Posture 1 : Appropriation & Cadrage Pédagogique
 - **Quand l'activer ?** Lors de l'ingestion initiale d'un dossier, à l'arrivée d'un nouvel intervenant, ou lorsqu'un doute subsiste sur une contrainte normative.
 - **Ce que vous voyez** : Les fiches de synthèse vulgarisées des standards régissant la section (ex: 3GPP Release 17 pour la radio 5G, Directive NIS2 pour la continuité d'activité, Uptime Institute pour les datacenters).

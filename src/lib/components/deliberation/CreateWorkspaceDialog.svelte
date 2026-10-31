@@ -379,29 +379,6 @@
 				<!-- ═════════════════════════════════════════════════════════════ -->
 				{#if currentStep === 1}
 					<div class="space-y-4 animate-in fade-in duration-100">
-						<!-- Démarrage rapide avec présélection -->
-						<div class="rounded-xl border bg-primary/5 border-primary/20 p-3.5 space-y-2">
-							<div class="flex items-center justify-between">
-								<span class="text-xs font-bold text-primary flex items-center gap-1.5">
-									<Sparkles class="h-3.5 w-3.5" />
-									Démarrage Rapide · Présets d'Architecture
-								</span>
-								<span class="text-[11px] text-muted-foreground">Pré-remplit les 5 étapes en 1 clic</span>
-							</div>
-							<div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-								{#each WORKSPACE_PRESETS as p}
-									<button
-										type="button"
-										onclick={() => applyPreset(p.id)}
-										class="text-left p-2.5 rounded-lg border bg-card hover:bg-muted/60 transition-all border-border hover:border-primary/40"
-									>
-										<div class="font-bold text-foreground text-xs">{p.name}</div>
-										<div class="text-[11px] text-muted-foreground line-clamp-1 mt-0.5">{p.description}</div>
-									</button>
-								{/each}
-							</div>
-						</div>
-
 						<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
 							<div class="space-y-1.5 sm:col-span-2">
 								<label for="p-title" class="font-bold text-foreground">Titre du Projet / Contexte de Réflexion *</label>
@@ -601,19 +578,6 @@
 				<!-- ═════════════════════════════════════════════════════════════ -->
 				{:else if currentStep === 3}
 					<div class="space-y-4 animate-in fade-in duration-100">
-						<!-- Invariant Épistémique Rappelé -->
-						<div class="rounded-xl border bg-emerald-500/10 border-emerald-500/30 p-3.5 flex items-start gap-3">
-							<ShieldCheck class="h-5 w-5 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
-							<div class="space-y-1">
-								<h4 class="font-bold text-emerald-800 dark:text-emerald-300 text-xs">
-									Principe d'Invariant : Base de Connaissance Commune & Pérenne
-								</h4>
-								<p class="text-[11px] text-muted-foreground leading-relaxed">
-									Seule la base de connaissance s'enrichit au gré des engagements et reste <strong>commune et valide de facto</strong> pour tous les projets. Tout document amont versé ici rejoint le patrimoine commun de l'entreprise.
-								</p>
-							</div>
-						</div>
-
 						<!-- Documents Amonts Fournis pour ce Projet -->
 						<div class="space-y-2">
 							<div class="flex items-center justify-between gap-2">
@@ -710,38 +674,6 @@
 							</div>
 						</div>
 
-						<!-- Sélection des Standards Transverses Déjà dans la Base Commune -->
-						<div class="space-y-2 pt-2 border-t">
-							<h4 class="font-bold text-foreground">
-								Standards & Doctrines Transverses Applicables (Patrimoine Existant)
-							</h4>
-							<p class="text-[11px] text-muted-foreground">
-								Cochez les normes et doctrines de référence déjà capitalisées dans Archinex à lier à ce projet :
-							</p>
-							<div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-								{#each deliberationStore.commonKnowledgeBase.filter((d) => d.origin === 'contributor_external' || d.category === 'standard' || d.category === 'regulation') as std}
-									{@const isChecked = selectedStandards.includes(std.id)}
-									<button
-										type="button"
-										onclick={() => toggleStandard(std.id)}
-										class="flex items-start gap-2.5 p-2 rounded-lg border text-left transition-colors {isChecked
-											? 'bg-primary/10 border-primary text-foreground'
-											: 'bg-muted/30 border-border text-muted-foreground hover:text-foreground'}"
-									>
-										<input
-											type="checkbox"
-											checked={isChecked}
-											class="mt-1 rounded text-primary"
-											tabindex="-1"
-										/>
-										<div class="min-w-0 flex-1">
-											<div class="font-bold text-[11px] truncate">{std.title}</div>
-											<div class="text-[10px] text-muted-foreground line-clamp-1">{std.sourceOrAuthor} · {std.categoryLabel}</div>
-										</div>
-									</button>
-								{/each}
-							</div>
-						</div>
 					</div>
 
 				<!-- ═════════════════════════════════════════════════════════════ -->

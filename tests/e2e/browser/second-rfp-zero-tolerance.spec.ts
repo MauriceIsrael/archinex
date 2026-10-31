@@ -1,5 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 import { resolve } from 'node:path';
+import { SAMPLE_RFP_TEMPLATES } from '../../../src/lib/domain/rfpConfrontation';
 
 /**
  * Tolérance zéro (D8) — chemins NÉGATIFS du « deuxième RFP » (issue A15, cas 2 à 7).
@@ -23,7 +24,10 @@ async function openModal(page: Page, shape?: (results: any[]) => any[]) {
   await page.goto('/workspaces/new', { waitUntil: 'networkidle' });
   await page.locator('button:has-text("Docs Amonts")').click();
   await page.locator('[data-testid="btn-open-rfp-confrontation"], button:has-text("Importer & Confronter un RFP")').click();
-  await page.locator('[data-testid="template-btn-rfp-second-loop"], button:has-text("Deuxième RFP")').click();
+  await page.locator('button:has-text("Coller le texte")').click();
+  const secondLoopTmpl = SAMPLE_RFP_TEMPLATES.find((t) => t.id === 'rfp-second-loop')!;
+  await page.locator('#rfp-doc-title').fill(secondLoopTmpl.name);
+  await page.locator('textarea#rfp-raw-content').fill(secondLoopTmpl.text);
   await page.locator('[data-testid="btn-run-shred-and-confront"], button:has-text("Dépouillement Brut Clause-par-Clause")').click();
   await expect(page.locator('text=Résultat de Confrontation au Patrimoine')).toBeVisible({ timeout: 20000 });
   await expect(page.locator('text=Actif proche détecté :').first()).toBeVisible();

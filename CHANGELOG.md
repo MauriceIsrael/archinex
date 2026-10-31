@@ -8,6 +8,13 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Titre de l'Application : Remplacement du Titre Boilerplate par « archinex »
+- **Harmonisation de la bannière et des locales** :
+  - Remplacement de la chaîne boilerplate `A small app to have fun` (et ses déclinaisons `Une petite app pour rigoler` / `Una pequeña aplicación para divertirse`) par `archinex` dans tous les dictionnaires de localisation (`en.json`, `en-UK.json`, `fr-FR.json`, `es.json`).
+  - Alignement de la valeur par défaut dans `src/routes/+layout.svelte` et de la balise `<title>` sur la page de connexion (`src/routes/login/+page.svelte`).
+  - Ajout du test de contrat de non-régression dans `tests/contract/app-title.test.ts`.
+
+
 ### Démo LUMICC : Ensemencement Complet des 16 Sujets d'Architecture (seed:lulu)
 - **Extension de l'engagement lumicc-lot1-noc post-ingestion** :
   - Passage de 7 à 16 sujets d'architecture d'entreprise et de solution au niveau L1_framed.

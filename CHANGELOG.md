@@ -8,6 +8,33 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Rendu Graphique : Aperçu Plein Écran au Maintien du Clic & Spécification Sécurité Télécom S6a
+- **Aperçu Plein Écran Dynamique au Maintien du Clic (`MermaidViewer`)** :
+  - L'appui maintenu (clic gauche enfoncé) sur n'importe quel diagramme Mermaid l'affiche instantanément en surcouche plein écran haute lisibilité (`backdrop-blur`, dimensions maximales de l'écran, zoom optimisé).
+  - Le relâchement de la souris (`pointerup`, `mouseup` ou sortie d'écran) referme immédiatement l'overlay et replace l'utilisateur dans son flux de travail.
+  - Possibilité complémentaire de verrouiller le mode plein écran via le bouton dédié ou de quitter avec la touche Échap.
+  - Ajout d'un indicateur discret d'aide ergonomique au survol du graphe.
+- **Topologie & Séquence Télécom 3GPP S6a (IPsec ESP & Médiation DEA)** :
+  - Prise en charge des architectures réseau critiques avec interconnexion sécurisée entre lots (ex: Lot 3 MME Tiers ↔ Lot 1 Cœur / HSS).
+  - Diagramme d'architecture cible générant les 3 zones de confiance : Réseau Tiers (MME), DMZ de sécurité (SecGW-Lot1 en terminaison IPsec ESP + DEA-Lot1 en médiation Diameter / masquage topologique TH), et Cœur souverain (HSS-Lot1) avec matérialisation explicite du flux direct non chiffré formellement interdit.
+  - Diagramme de séquence 3GPP en 4 phases : négociation IKEv2 / SA ESP, encapsulation/décapsulation IPsec, inspection Diameter S6a (AVP / TH) par le DEA, et résolution sécurisée HSS.
+- **Tests & Assurance Qualité** :
+  - Nouveaux tests de contrat dans `tests/contract/artifact-projections.test.ts` validant la projection déterministe de la topologie réseau et de la séquence S6a.
+
+### Ergonomie de Délibération & Phase 3 : Filtrage par Lots/Parties et Sélecteur de Sujets L4
+- **Filtre Lots / Parties dans le Fil de Délibération (`SubjectConversationList`)** :
+  - Intégration de la barre de filtrage par lots d'architecture (`FolderKanban`) dans le fil de délibération, alignée sur celle du tableau de maturité.
+  - Synchronisation bidirectionnelle de `selectedPartId` via le store `deliberationStore`, garantissant que le lot sélectionné est conservé lors du passage entre le Tableau de maturité, le Fil de conversation et la Phase 3.
+  - Mise à jour dynamique des compteurs de filtres rapides (« Tous », « Bloqués », « À faire », « Arbitrés ») en fonction du lot sélectionné.
+- **Sélecteur de Sujet en Phase 3 Rendu & Homologation (`Phase3SubjectSelector`)** :
+  - Composant interactif en tête de la Phase 3 permettant de re-sélectionner instantanément le sujet ciblé sans devoir retourner en Phase 2.
+  - Pré-filtrage par défaut sur les sujets **🎯 Spécifiés L4** (prêts pour l'homologation), avec bascule vers les sujets **⚖️ Arbitrés L3+** ou **Tous les sujets**.
+  - Repli intelligent automatique vers L3+ ou Tous si aucun sujet n'a encore atteint le palier L4 dans le projet actif.
+  - Sélecteur de lots d'architecture intégré (`FolderKanban`) et recherche textuelle rapide (§11, WAPT, réseau, etc.).
+  - Sélection réactive du sujet (`deliberationStore.selectSubject(id, false)`) sans altérer le mode de vue actif.
+- **Tests & Assurance Qualité** :
+  - Nouveau test de contrat dans `tests/contract/phase3-subject-selector.test.ts` validant le pré-filtrage L4, la synchronisation du store et le repli sans erreur.
+
 ### Phase 3 Rendu & Homologation : Intégration du Schéma d'Architecture Cible Spécifiée et Déploiement Sécurisé
 - **Rendu d'Architecture Technique vs Graphe Décisionnel** :
   - Introduction du générateur déterministe `generateTargetArchitectureDiagram` dans `artifactProjections.ts`, aligné sur les patterns ArcKit (`arckit-diagram` C4 Container / Flowchart).
@@ -21,6 +48,7 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
   - Dans `renderHldFragmentMarkdown`, inclusion automatique du bloc ```mermaid` dans le dossier Markdown exporté.
 - **Tests & Assurance Qualité** :
   - Nouveaux tests de contrat dans `tests/contract/artifact-projections.test.ts` et `tests/contract/hld-fragment.test.ts` couvrant les cas hybrides complexes (supervision RATP, WAPT, validation humaine) et le fallback propre sans décision.
+
 
 ### Dépouillement RFP : Allègement de l'Interface & Retrait des Modèles Pré-intégrés Factices
 - **Allègement de la modale de confrontation et factorisation RFP (`RfpConfrontationDialog`)** :
@@ -40,6 +68,7 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 - **Alignement Complet** :
   - Application synchronisée sur la page pleine `/workspaces/new` et la boîte de dialogue modale `CreateWorkspaceDialog.svelte`.
   - Ajout du test de non-régression dans `tests/contract/workspace-creation.test.ts`.
+
 ### Titre de l'Application : Remplacement du Titre Boilerplate par « archinex »
 - **Harmonisation de la bannière et des locales** :
   - Remplacement de la chaîne boilerplate `A small app to have fun` (et ses déclinaisons `Une petite app pour rigoler` / `Una pequeña aplicación para divertirse`) par `archinex` dans tous les dictionnaires de localisation (`en.json`, `en-UK.json`, `fr-FR.json`, `es.json`).

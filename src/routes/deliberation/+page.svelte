@@ -8,6 +8,7 @@
 	import RegulatoryFrameworksPanel from '$lib/components/deliberation/RegulatoryFrameworksPanel.svelte';
 	import ArtifactRegenerationHub from '$lib/components/deliberation/ArtifactRegenerationHub.svelte';
 	import HldFragmentView from '$lib/components/deliberation/HldFragmentView.svelte';
+	import Phase3SubjectSelector from '$lib/components/deliberation/Phase3SubjectSelector.svelte';
 	import WhyInspector from '$lib/components/deliberation/WhyInspector.svelte';
 	import FreezeSectionDialog from '$lib/components/deliberation/FreezeSectionDialog.svelte';
 	import { deliberationStore } from '$lib/stores/deliberationStore.svelte';
@@ -130,6 +131,7 @@
 	<!-- ═════════════════════════════════════════════════════════════════════════ -->
 	{:else if deliberationStore.activePosture === 'rendu'}
 		<div class="space-y-4 animate-in fade-in duration-150">
+			<Phase3SubjectSelector />
 			<HldFragmentView />
 			<ArtifactRegenerationHub />
 		</div>

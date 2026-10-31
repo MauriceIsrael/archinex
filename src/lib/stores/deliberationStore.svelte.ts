@@ -88,6 +88,10 @@ class DeliberationStore {
 					if (savedPosture === 'appropriation' || savedPosture === 'deliberation' || savedPosture === 'rendu') {
 						this.activePosture = savedPosture;
 					}
+					const savedPartId = localStorage.getItem('archinex:selectedPartId:' + savedId);
+					if (savedPartId) {
+						this.selectedPartId = savedPartId;
+					}
 				}
 			} catch {}
 			// Chargement différé : si la page SSR initialise déjà le store via initFromDb, on évite un fetch réseau redondant
@@ -151,6 +155,7 @@ class DeliberationStore {
 
 	activeSubjectId = $state<string>('');
 	activePosture = $state<DeliberationPosture>('deliberation');
+	selectedPartId = $state<string>('all');
 	deliberationViewMode = $state<'board' | 'conversation'>('board');
 	currentRole = $state<ArchitectRole>('lead_architect');
 	currentUser = $state<{ id: string; email: string; name?: string; role?: string } | null>(null);
@@ -224,6 +229,7 @@ class DeliberationStore {
 			dialogueMessages: DialogueMessage[];
 			deliberationViewMode?: 'board' | 'conversation';
 			activePosture?: DeliberationPosture;
+			selectedPartId?: string;
 		}
 	> = {};
 
@@ -243,7 +249,8 @@ class DeliberationStore {
 			activeDocumentId: this.activeDocumentId,
 			dialogueMessages: $state.snapshot(this.dialogueMessages),
 			deliberationViewMode: this.deliberationViewMode,
-			activePosture: this.activePosture
+			activePosture: this.activePosture,
+			selectedPartId: this.selectedPartId
 		};
 
 		// 2. Trouver la cible
@@ -269,6 +276,7 @@ class DeliberationStore {
 			if (cached.activePosture) {
 				this.activePosture = cached.activePosture;
 			}
+			this.selectedPartId = cached.selectedPartId || 'all';
 		} else {
 			this.subjects = [...targetProfile.subjects];
 			this.drafts = { ...targetProfile.drafts };
@@ -722,15 +730,28 @@ class DeliberationStore {
 		this.activeRecalls = recalls;
 	}
 
-	selectSubject(id: string) {
+	selectSubject(id: string, switchView = true) {
 		this.activeSubjectId = id;
-		this.deliberationViewMode = 'conversation';
+		if (switchView) {
+			this.deliberationViewMode = 'conversation';
+		}
 		if (typeof window !== 'undefined' && this.activeEngagementId) {
 			try {
 				if (id) {
-					localStorage.setItem(`archinex:activeSubjectId:${this.activeEngagementId}`, id);
+					localStorage.setItem('archinex:activeSubjectId:' + this.activeEngagementId, id);
 				}
-				localStorage.setItem(`archinex:deliberationViewMode:${this.activeEngagementId}`, 'conversation');
+				if (switchView) {
+					localStorage.setItem('archinex:deliberationViewMode:' + this.activeEngagementId, 'conversation');
+				}
+			} catch {}
+		}
+	}
+
+	setSelectedPartId(partId: string) {
+		this.selectedPartId = partId;
+		if (typeof window !== 'undefined' && this.activeEngagementId) {
+			try {
+				localStorage.setItem('archinex:selectedPartId:' + this.activeEngagementId, partId);
 			} catch {}
 		}
 	}

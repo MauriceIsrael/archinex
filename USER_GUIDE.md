@@ -349,6 +349,14 @@ Accessible depuis le dialogue d'homologation (`FreezeSectionDialog`) :
 - **Comparateur de dossiers (`diffEngagementBundles`)** : Détecte les ajouts, suppressions et modifications entre deux versions scellées, et signale toute **régression épistémique** (`asserted` $\rightarrow$ `proposed`).
 - **Retour vers la capitalisation (`extractBundleKbCandidates`)** : Les décisions validées natives créées au cours du projet sont automatiquement extraites comme candidats pour la base de connaissances et déposées dans la boîte de revue d'experts au statut `in_review`.
 
+### 11.5 Projections Visuelles en Phase 3 (Rendu & Homologation)
+En Phase 3 (« Rendu & Homologation »), Archinex permet de visualiser et d'exporter l'architecture retenue sous trois prismes complémentaires via le sélecteur Mermaid d'`ArtifactRegenerationHub` et le fragment `HldFragmentView` :
+1. **🎯 Architecture Spécifiée (Cible)** *(Vue par défaut)* : Diagramme de conteneurs et de flux (C4 / Flowchart) matérialisant la topologie de la solution retenue, ses composants embarqués autonomes (agents, métrologie, console), ses interfaces avec le SI existant (alarmes SNMP, métriques API, logs Syslog TLS) et les nœuds cibles.
+2. **🔄 Chaîne de Déploiement & Homologation** : Diagramme de séquence modélisant la chaîne de confiance et de validation humaine (construction du paquet signé par l'éditeur/titulaire, soumission au guichet d'homologation/recette, approbation formelle et déploiement contrôlé vers les agents).
+3. **⚖️ Graphe Décisionnel (Auditabilité)** : Graphe épistémique traçant l'arbre causal de la délibération (hypothèses, énoncés prouvés, conflits et options retenues) pour la traçabilité d'audit.
+
+Ces schémas sont directement intégrés dans le fragment Markdown HLD exporté (`renderHldFragmentMarkdown`) et téléchargeables au format `.mmd`.
+
 ---
 
 ## 12. Démonstrateur & Ensemencements Démo (LUMICC / "Lulu")

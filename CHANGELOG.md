@@ -8,6 +8,20 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Phase 3 Rendu & Homologation : Intégration du Schéma d'Architecture Cible Spécifiée et Déploiement Sécurisé
+- **Rendu d'Architecture Technique vs Graphe Décisionnel** :
+  - Introduction du générateur déterministe `generateTargetArchitectureDiagram` dans `artifactProjections.ts`, aligné sur les patterns ArcKit (`arckit-diagram` C4 Container / Flowchart).
+  - Matérialisation concrète des frontières architecturales : périmètre de la solution autonome (modules, agents embarqués, console, métrologie locale) vs périmètre du SI existant/client (supervision, logs/SIEM, dépôts).
+  - Représentation explicite des flux d'interfaces avec leurs protocoles (SNMP Trap, API REST, Syslog TLS) et de la chaîne de confiance (paquets signés, guichet de validation humaine, agents de déploiement).
+- **Chaîne de Déploiement et Séquence d'Homologation** :
+  - Ajout de `generateDeploymentSequenceDiagram` modélisant les 3 phases de déploiement et d'homologation : 1. Construction & signature cryptographique, 2. Porte d'homologation / validation humaine en recette/INT, 3. Déploiement sécurisé avec vérification de signature.
+- **Expérience Utilisateur en Phase 3 (Rendu & Homologation)** :
+  - Dans `ArtifactRegenerationHub.svelte`, ajout d'un sélecteur de vues Mermaid : **🎯 Architecture Spécifiée (Cible)** (vue par défaut), **🔄 Chaîne de Déploiement & Homologation** (séquence) et **⚖️ Graphe Décisionnel (Auditabilité)** (arbre causal épistémique).
+  - Dans `HldFragmentView.svelte`, affichage interactif direct du schéma d'architecture spécifiée sous la décision actée.
+  - Dans `renderHldFragmentMarkdown`, inclusion automatique du bloc ```mermaid` dans le dossier Markdown exporté.
+- **Tests & Assurance Qualité** :
+  - Nouveaux tests de contrat dans `tests/contract/artifact-projections.test.ts` et `tests/contract/hld-fragment.test.ts` couvrant les cas hybrides complexes (supervision RATP, WAPT, validation humaine) et le fallback propre sans décision.
+
 ### Dépouillement RFP : Allègement de l'Interface & Retrait des Modèles Pré-intégrés Factices
 - **Allègement de la modale de confrontation et factorisation RFP (`RfpConfrontationDialog`)** :
   - Retrait du mode et du bouton « Modèles Pré-intégrés » au profit d'un flux d'entrée épuré par défaut centré sur les documents réels (**Fichier Local**, **Coller le texte**, **URL Web**).

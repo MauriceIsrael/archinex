@@ -4,6 +4,8 @@ import type { TelegraphicDraft } from '$lib/domain/telegraphic';
 import type { Statement } from '$lib/types/epistemic';
 import {
 	generateMermaidDiagram,
+	generateTargetArchitectureDiagram,
+	generateDeploymentSequenceDiagram,
 	generateStructurizrDSL,
 	generateSysMLv2,
 	generateConfigJSON,
@@ -137,5 +139,113 @@ describe('Projections dynamiques d\'architecture (No Doc Drift - Issue #64)', ()
 		expect(mmd).toContain('flowchart TD');
 		expect(mmd).toContain('Fédération OIDC avec Pro Santé Connect');
 		expect(mmd).toContain('session_ttl_minutes');
+	});
+
+
+	it('6. Schéma d\'architecture cible (C4 / Flowchart) génère la topologie spécifiée (Cas Hybride RATP / WAPT)', () => {
+		const ratpSubject: MaturitySubject = {
+			id: 'sub-supervision',
+			section_ref: '§11, §1.3',
+			name: 'Outillage de supervision, logs et déploiement WAPT',
+			level: 'L3_decided',
+			blocking_count: 0,
+			unlocks_count: 0,
+			waiting_for_role: 'lead_architect',
+			relative_effort: 'M',
+			last_transition_date: '2026-10-14T00:00:00Z',
+			stall_days: 0,
+			is_stalled: false,
+			dependent_subject_ids: []
+		};
+
+		const ratpContext: ProjectionContext = {
+			projectName: 'Système Après-TETRA',
+			enterpriseName: 'RATP',
+			decision: {
+				retainedOptionId: 'opt-hybrid',
+				retainedOptionTitle: 'Hybride : outils propres interfacés à l\'existant',
+				rationale: 'Le système embarque ses agents, sa métrologie et sa console, et exporte alarmes, métriques et logs vers l\'outillage RATP. Le déploiement passe par WAPT avec paquets signés et validation humaine.',
+				reversibility: 'costly',
+				decidedAt: '2026-10-31T19:00:00Z',
+				arbiterRole: 'lead_architect'
+			},
+			options: [
+				{
+					id: 'opt-hybrid',
+					title: 'Hybride : outils propres interfacés à l\'existant',
+					summary: 'Le système embarque ses agents, sa métrologie et sa console, et exporte alarmes, métriques et logs vers l\'outillage RATP. Le déploiement passe par WAPT avec paquets signés et validation humaine.',
+					status: 'retained'
+				}
+			]
+		};
+
+		const diagram = generateTargetArchitectureDiagram(ratpSubject, null, [], ratpContext);
+
+		// Doit contenir le flowchart avec les styles C4
+		expect(diagram).toContain('flowchart TB');
+		expect(diagram).toContain('classDef boundary');
+		expect(diagram).toContain('classDef core');
+		expect(diagram).toContain('classDef deploy');
+
+		// Doit contenir les frontières Système (Après-TETRA) et SI RATP Existant
+		expect(diagram).toContain('Système Après-TETRA');
+		expect(diagram).toContain('Outillage de Maintenance & Exploitation RATP');
+
+		// Doit contenir les composants internes autonomes
+		expect(diagram).toContain('AgentLocal');
+		expect(diagram).toContain('MetrologieLocale');
+		expect(diagram).toContain('ConsoleAdmin');
+		expect(diagram).toContain('ModuleExport');
+
+		// Doit contenir les interfaces d\'exportation vers la RATP
+		expect(diagram).toContain('Supervision RATP');
+		expect(diagram).toContain('Plateforme Logs RATP');
+		expect(diagram).toContain('Alarmes (SNMP Trap / Webhook)');
+		expect(diagram).toContain('Export logs d\'audit (Syslog TLS)');
+
+		// Doit contenir la chaîne WAPT avec signature et validation humaine
+		expect(diagram).toContain('ValideurHumain');
+		expect(diagram).toContain('Guichet Homologation / Validation Humaine (RATP)');
+		expect(diagram).toContain('Paquet WAPT Signé');
+		expect(diagram).toContain('Agent WAPT Client');
+		expect(diagram).toContain('Dépôt & Serveur WAPT RATP');
+	});
+
+	it('7. Diagramme de séquence de déploiement modélise les 3 phases avec validation humaine', () => {
+		const ratpSubject = {
+			id: 'sub-supervision',
+			section_ref: '§11, §1.3',
+			name: 'Outillage de supervision'
+		};
+
+		const ratpContext: ProjectionContext = {
+			decision: {
+				retainedOptionId: 'opt-hybrid',
+				retainedOptionTitle: 'Hybride RATP WAPT validation humaine',
+				rationale: 'Validation humaine requise sur INT avant déploiement en production'
+			}
+		};
+
+		const seq = generateDeploymentSequenceDiagram(ratpSubject, null, [], ratpContext);
+
+		expect(seq).toContain('sequenceDiagram');
+		expect(seq).toContain('autonumber');
+		expect(seq).toContain('Phase 1 : Construction et Signature Cryptographique');
+		expect(seq).toContain('Phase 2 : Porte d\'Homologation (Validation Humaine)');
+		expect(seq).toContain('Phase 3 : Déploiement Sécurisé & Exécution Contrôlée');
+		expect(seq).toContain('Responsable Exploitation RATP');
+		expect(seq).toContain('Serveur WAPT');
+		expect(seq).toContain('Hôte Après-TETRA');
+	});
+
+	it('8. Schéma cible affiche un état d\'attente propre sans décision L3', () => {
+		const emptySubject = {
+			id: 'sub-draft',
+			section_ref: '§4.2',
+			name: 'Stockage Distribué'
+		};
+		const diagram = generateTargetArchitectureDiagram(emptySubject, null, []);
+		expect(diagram).toContain('flowchart TB');
+		expect(diagram).toContain('Architecture Cible en Attente d\'Arbitrage L3');
 	});
 });

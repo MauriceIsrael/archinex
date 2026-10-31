@@ -228,7 +228,10 @@ Depuis `/kb/frameworks`, téléversez le document réglementaire :
 
 ### 7.2 Revue Ligne par Ligne Interactive (`/kb/frameworks/[id]`)
 Chaque exigence réglementaire dispose de son cycle d'instruction :
-1. **Correspondances Assistées par l'IA** : Cliquez sur *"Suggérer correspondances IA"* pour obtenir des propositions de liaisons doctrinales vers des contrôles ou principes existants, validées formellement et étiquetées `llm-derived`.
+1. **Correspondances et Critères Assistés par l'IA** :
+   - **Auto-enrichissement dès l'ingestion** : Dès le découpage du document, Archinex mobilise son modèle local (`LocalLlmClient`) pour pré-remplir les critères d'acceptation opérationnels et les correspondances doctrinales étiquetés `llm-derived`.
+   - **Bouton « Auto-enrichir par l'IA »** : Disponible en haut de l'écran pour relancer ou enrichir un référentiel complet en un clic.
+   - **Bouton « Suggérer correspondances IA »** : Permet de régénérer unitairement sur une ligne spécifique les liaisons et critères recommandés sans dépendre d'un LLM sur le Hub LLMOps.
 2. **Décisions Unitaires** :
    - **Accepter** : L'exigence est alignée sur les contrôles et principes sélectionnés.
    - **Amender** : Préciser des notes d'adaptation opérationnelle ou des restrictions spécifiques.

@@ -8,6 +8,15 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Référentiels & Doctrine : Auto-enrichissement IA et Suggestions Locales Sans Dépendance Serveur Hub (#93 & #99)
+- **Suppression de la dépendance LLM côté LLMOps & Résolution du 404** :
+  - Déplacement de l'inférence des suggestions doctrinales dans Archinex via `LocalLlmClient` (Ollama local / API Claude) et heuristiques déterministes `FRAMEWORK_TOPIC_PATTERNS`.
+  - L'endpoint unitaire `POST /api/frameworks/ingestions/[id]/requirements/[reqId]/suggest-links` prend le relais localement si le Hub ne sert pas la route (évite l'erreur HTTP 404).
+- **Auto-enrichissement « Zéro Friction » post-ingestion** :
+  - À chaque ingestion de référentiel (`POST /api/frameworks/ingestions`), Archinex pré-génère immédiatement les critères d'acceptation, les liaisons vers les principes/patrons actifs et les termes de recherche, puis les soumet au Hub via `POST .../link-proposals`.
+  - Ajout d'une route `POST /api/frameworks/ingestions/[id]/auto-suggest` et du bouton « Auto-enrichir par l'IA » dans l'interface pour enrichir un référentiel existant en un clic.
+  - Intégration de tests de contrat complets dans `tests/contract/framework-auto-suggest.test.ts`.
+
 ### Délibération : Clarté et restitution détaillée des erreurs de validation de décision (#35)
 - **Restitution explicite des contraintes d'arbitrage (`POST /decision` & IHM)** :
   - Restitution dans le message d'erreur des champs en défaut précis (ex: motivation trop courte, option retenue absente, justification de dispense incomplète) plutôt qu'un message générique bloquant « Données de décision invalides ».

@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import { resolve } from 'node:path';
+import { SAMPLE_RFP_TEMPLATES } from '../../../src/lib/domain/rfpConfrontation';
 
 const AUTH_DIR = resolve(process.cwd(), 'tests/e2e/.auth');
 const AUTH_STATES = {
@@ -28,11 +29,11 @@ test.describe('E2E Navigateur : « Deuxième RFP » — reconnaissance de sujets
 
     // 4. Vérification de la présence de la boîte de dialogue
     await expect(page.locator('text=Dépouillement RFP & Factorisation en Sujets d\'Architecture')).toBeVisible();
-
-    // 5. Sélection du modèle pré-configuré "Deuxième RFP"
-    const secondRfpTemplateBtn = page.locator('[data-testid="template-btn-rfp-second-loop"], button:has-text("Deuxième RFP")');
-    await expect(secondRfpTemplateBtn).toBeVisible();
-    await secondRfpTemplateBtn.click();
+    // 5. Saisie du texte du deuxième RFP via collage
+    await page.locator('button:has-text("Coller le texte")').click();
+    const secondLoopTmpl = SAMPLE_RFP_TEMPLATES.find((t) => t.id === 'rfp-second-loop')!;
+    await page.locator('#rfp-doc-title').fill(secondLoopTmpl.name);
+    await page.locator('textarea#rfp-raw-content').fill(secondLoopTmpl.text);
 
     // 6. Déclenchement du dépouillement analytique clause-par-clause
     const shredBtn = page.locator('[data-testid="btn-run-shred-and-confront"], button:has-text("Dépouillement Brut Clause-par-Clause")');

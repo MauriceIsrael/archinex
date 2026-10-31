@@ -441,29 +441,6 @@
 		{#if currentStep === 1}
 			<!-- Étape 1 : Cadrage & Description -->
 			<div class="space-y-6">
-				<!-- Présets Rapides -->
-				<div class="rounded-xl border bg-primary/5 border-primary/20 p-4 space-y-3">
-					<div class="flex items-center justify-between">
-						<span class="text-xs font-bold text-primary flex items-center gap-1.5">
-							<Sparkles class="h-4 w-4" />
-							Démarrage Éclair · Présets Métiers
-						</span>
-						<span class="text-xs text-muted-foreground">Pré-remplit les 5 étapes en 1 clic</span>
-					</div>
-					<div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
-						{#each WORKSPACE_PRESETS as p}
-							<button
-								type="button"
-								onclick={() => applyPreset(p.id)}
-								class="text-left p-3 rounded-lg border bg-card hover:bg-muted/60 transition-all border-border hover:border-primary/40"
-							>
-								<div class="font-bold text-foreground text-xs">{p.name}</div>
-								<div class="text-[11px] text-muted-foreground line-clamp-2 mt-1 leading-relaxed">{p.description}</div>
-							</button>
-						{/each}
-					</div>
-				</div>
-
 				<div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
 					<div class="space-y-1.5 sm:col-span-2">
 						<label for="step1-title" class="font-bold text-foreground">Titre du Projet / Contexte de Réflexion *</label>
@@ -682,18 +659,6 @@
 		{:else if currentStep === 3}
 			<!-- Étape 3 : Documents Amonts & Patrimoine Commun -->
 			<div class="space-y-6 text-xs">
-				<div class="rounded-xl border bg-emerald-500/10 border-emerald-500/30 p-4 flex items-start gap-3">
-					<ShieldCheck class="h-5 w-5 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
-					<div class="space-y-1">
-						<h3 class="font-bold text-emerald-900 dark:text-emerald-200">
-							Invariant Épistémique · Patrimoine Commun Enrichi
-						</h3>
-						<p class="text-xs text-muted-foreground leading-relaxed">
-							Chaque document amont fourni ici rejoint la base de connaissances partagée d'Archinex. Il est conservé et reste valide de facto pour la délibération de ce projet et des futurs engagements.
-						</p>
-					</div>
-				</div>
-
 				<!-- Documents Amonts Spécifiques -->
 				<div class="space-y-3">
 					<div class="flex items-center justify-between gap-3">
@@ -791,35 +756,6 @@
 					</div>
 				</div>
 
-				<!-- Standards Transverses du Socle Commun -->
-				<div class="space-y-3 pt-3 border-t">
-					<h3 class="text-sm font-bold text-foreground">
-						Lier des Normes & Standards Déjà Présents dans le Socle Commun
-					</h3>
-					<div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
-						{#each deliberationStore.commonKnowledgeBase.filter((d) => d.origin === 'contributor_external' || d.category === 'standard' || d.category === 'regulation') as std}
-							{@const isChecked = selectedStandards.includes(std.id)}
-							<button
-								type="button"
-								onclick={() => toggleStandard(std.id)}
-								class="flex items-start gap-3 p-3 rounded-xl border text-left transition-colors {isChecked
-									? 'bg-primary/10 border-primary text-foreground'
-									: 'bg-muted/20 border-border text-muted-foreground hover:text-foreground'}"
-							>
-								<input
-									type="checkbox"
-									checked={isChecked}
-									class="mt-1 rounded text-primary"
-									tabindex="-1"
-								/>
-								<div class="min-w-0 flex-1">
-									<div class="font-bold text-xs truncate">{std.title}</div>
-									<div class="text-[11px] text-muted-foreground line-clamp-1 mt-0.5">{std.sourceOrAuthor} · {std.categoryLabel}</div>
-								</div>
-							</button>
-						{/each}
-					</div>
-				</div>
 			</div>
 
 		{:else if currentStep === 4}

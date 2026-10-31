@@ -1,7 +1,8 @@
 <script lang="ts">
 	import { deliberationStore } from '$lib/stores/deliberationStore.svelte';
 	import type { HldFragment } from '$lib/domain/hldFragment';
-	import { FileText, Download, Copy, Check, RefreshCw, AlertTriangle, Bot } from 'lucide-svelte';
+	import { FileText, Download, Copy, Check, RefreshCw, AlertTriangle, Bot, Layers } from 'lucide-svelte';
+	import MermaidViewer from './MermaidViewer.svelte';
 
 	const activeSubject = $derived(deliberationStore.activeSubject);
 	const projectId = $derived(deliberationStore.activeEngagement?.id);
@@ -214,11 +215,27 @@
 			{#if fragment.singleOptionRationale}<p><span class="font-semibold">Option unique :</span> {fragment.singleOptionRationale}</p>{/if}
 		</div>
 
-		<div class="space-y-1">
+		<div class="space-y-2">
 			<h4 class="font-bold text-foreground">Décision</h4>
 			{#if fragment.decision}
 				<p class="rounded-lg bg-primary/5 border border-primary/20 p-2 leading-relaxed">{fragment.decision.yStatement}</p>
 				<p class="text-muted-foreground">Réversibilité : {fragment.decision.reversibility}</p>
+				{#if fragment.targetArchitectureMermaid}
+					<div class="space-y-1.5 pt-2 border-t border-border/40">
+						<div class="flex items-center justify-between text-xs">
+							<span class="font-bold text-foreground flex items-center gap-1.5">
+								<Layers class="h-3.5 w-3.5 text-primary" />
+								Schéma d'architecture spécifiée (Option retenue)
+							</span>
+							<span class="text-[10px] text-muted-foreground font-mono">Conforme ArcKit</span>
+						</div>
+						<MermaidViewer
+							code={fragment.targetArchitectureMermaid}
+							title="Architecture Spécifiée · ${fragment.title}"
+							defaultView="visual"
+						/>
+					</div>
+				{/if}
 			{:else}<p class="text-muted-foreground">Sujet non tranché.</p>{/if}
 		</div>
 

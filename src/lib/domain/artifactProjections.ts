@@ -379,3 +379,260 @@ export function generateSysMLVisualMermaid(
 
 	return lines.join('\n');
 }
+
+
+/** Styles standards pour les diagrammes d'architecture technique cible (C4 / Flowchart). */
+export function targetArchitectureClassDefs(indent = '    '): string[] {
+	return [
+		`${indent}classDef boundary fill:#f8f9fa,stroke:#495057,stroke-width:2px,stroke-dasharray:4 4`,
+		`${indent}classDef core fill:#e3f2fd,stroke:#1565c0,stroke-width:2px,color:#0d47a1`,
+		`${indent}classDef agent fill:#bbdefb,stroke:#1976d2,stroke-width:1px,color:#0d47a1`,
+		`${indent}classDef ext fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px,color:#4a148c`,
+		`${indent}classDef human fill:#fff3e0,stroke:#e65100,stroke-width:2px,stroke-dasharray:3 3,color:#bf360c`,
+		`${indent}classDef deploy fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px,color:#1b5e20`,
+		`${indent}classDef person fill:#08427b,stroke:#073b6e,color:#fff,font-weight:bold`,
+		`${indent}classDef draft fill:#fff8e1,stroke:#f57f17,stroke-width:2px,stroke-dasharray:5 5,color:#b78103`
+	];
+}
+
+/**
+ * Génère le schéma d'architecture technique spécifiée (Topologie, Conteneurs, Interfaces et Déploiement)
+ * dérivé de l'option retenue et des énoncés techniques d'ingénierie (C4 Container / Flowchart).
+ *
+ * Contrairement au diagramme causal/épistémique (qui trace l'arbre de justification et les débats),
+ * ce diagramme représente littéralement la solution technique retenue pour le dossier d'homologation et de rendu HLD :
+ * - Périmètre Système / Solution (modules internes, agents embarqués, console, stockage)
+ * - Périmètre Existant / SI Tiers (outillage client, supervision externe, SIEM, dépôts)
+ * - Flux d'interfaces étiquetés avec protocoles (Alarmes SNMP, Métriques API, Logs Syslog TLS)
+ * - Chaîne de confiance et déploiement (WAPT, paquets signés, sas de validation humaine)
+ */
+export function generateTargetArchitectureDiagram(
+	subject: MaturitySubject | { id: string; name: string; section_ref?: string; sectionRef?: string; level?: string },
+	_draft?: TelegraphicDraft | null,
+	statements: Statement[] = [],
+	context?: ProjectionContext
+): string {
+	const sectionRef = (subject as any).section_ref || (subject as any).sectionRef || '§0';
+	const subjectName = subject.name || 'Système';
+	const decision = context?.decision;
+	const retainedOptionTitle = decision?.retainedOptionTitle;
+	const retainedOption = context?.options?.find(
+		(o) => o.id === decision?.retainedOptionId || o.title === retainedOptionTitle
+	);
+	const summary = retainedOption?.summary || '';
+	const rationale = decision?.rationale || '';
+	const fullSpec = `${context?.projectName || ''} ${retainedOptionTitle || ''} ${summary} ${rationale}`.trim();
+
+	// Si aucune décision n'est encore actée et aucun énoncé présent
+	if (!retainedOptionTitle && (!statements || statements.length === 0)) {
+		return [
+			'flowchart TB',
+			...targetArchitectureClassDefs(),
+			`    subgraph SYSTEM["Système : ${mmdText(subjectName)} (${mmdText(sectionRef)})"]`,
+			'        direction TB',
+			`        PENDING["⏳ Architecture Cible en Attente d'Arbitrage L3<br/><small>Veuillez acter une option retenue dans la Matrice pour générer le schéma d'architecture spécifiée</small>"]:::draft`,
+			'    end'
+		].join('\n');
+	}
+
+	const lower = fullSpec.toLowerCase();
+	const mentionsRATP = lower.includes('ratp');
+	const hasSupervision = /supervision|m[eé]trologie|alarmes?|m[eé]triques?|centreon|hypervis|zabbix|prometheus/.test(lower);
+	const hasLogs = /logs?|audit|siem|syslog|splunk|elk/.test(lower);
+	const hasWapt = /wapt/.test(lower);
+	const hasDeployment = hasWapt || /d[eé]ploiement|paquets?|mise [aà] jour|ansible|ci\/cd|pipeline/.test(lower);
+	const hasHumanGate = /validation humaine|humain|contr[oô]le humain|homologation|recette|approbation/.test(lower);
+	const hasSignedPackages = /sign[eé]s?|signature|cl[eé]|pki|certificat/.test(lower);
+	const hasAuth = /oidc|oauth|saml|authentification|pro sant[eé]|iam|keycloak|sso|mfa/.test(lower);
+	const isHybrid = /hybride|interfac|existant|remont|export|tiers/.test(lower) || mentionsRATP;
+
+	let externalLabel = 'Écosystème Existant (SI Client / Partenaire)';
+	if (mentionsRATP) {
+		externalLabel = 'Outillage de Maintenance & Exploitation RATP (Existant §11)';
+	} else if (lower.includes('pro santé connect') || lower.includes('pro sante connect')) {
+		externalLabel = 'Fédération Nationale & Services Régaliens (Pro Santé Connect)';
+	} else if (context?.enterpriseName && context.enterpriseName !== context.projectName) {
+		externalLabel = `SI ${context.enterpriseName} (Existant)`;
+	}
+
+	let systemLabel = `Système : ${subjectName} (Périmètre Solution - Autonome)`;
+	if (lower.includes('après-tetra') || lower.includes('apres-tetra') || lower.includes('tetra')) {
+		systemLabel = 'Système Après-TETRA (Périmètre Titulaire - Autonome)';
+	}
+
+	const lines: string[] = ['flowchart TB', ...targetArchitectureClassDefs(), ''];
+
+	// 1. Acteurs
+	const user0Label = 'Équipe Exploitation Titulaire';
+	const user1Label = mentionsRATP ? 'Exploitants PCC RATP' : 'Exploitants & Utilisateurs Externes';
+	lines.push(`    user_0["👤 ${mmdText(user0Label)}"]:::person`);
+	lines.push(`    user_1["👤 ${mmdText(user1Label)}"]:::person`);
+
+	if (hasHumanGate || hasDeployment) {
+		const humanLabel = mentionsRATP
+			? 'Guichet Homologation / Validation Humaine (RATP)'
+			: 'Guichet Validation Humaine & Homologation';
+		lines.push(`    ValideurHumain["🛡️ ${mmdText(humanLabel)}<br/><small>(Contrôle intégrité & recette)</small>"]:::human`);
+		const pkgLabel = hasSignedPackages ? 'Paquet WAPT Signé' : 'Paquet Applicatif Validé';
+		lines.push(`    PaquetSigne["📦 ${mmdText(pkgLabel)}<br/><small>(Signature cryptographique éditeur)</small>"]:::deploy`);
+	}
+	lines.push('');
+
+	// 2. Périmètre Système
+	lines.push(`    subgraph SYSTEM["${mmdText(systemLabel)}"]`);
+	lines.push('        direction TB');
+	lines.push('        subgraph APPS["Noeuds Applicatifs & Métier"]');
+	lines.push('            direction TB');
+	lines.push(`            ServiceMetier["Services Critiques & Cœur Applicatif<br/><small>(Spécification ${mmdText(sectionRef)})</small>"]:::core`);
+	if (hasSupervision) {
+		lines.push('            AgentLocal["Agents de collecte embarqués<br/><small>(Telegraf / Node-Exporter / Fluentbit)</small>"]:::agent');
+	}
+	if (hasDeployment) {
+		const deployAgentLabel = hasWapt ? 'Agent WAPT Client' : 'Agent Client de Déploiement';
+		lines.push(`            AgentDeploy["${deployAgentLabel}<br/><small>(Exécution locale des paquets)</small>"]:::deploy`);
+	}
+	if (statements && statements.length > 0) {
+		const activeStmts = statements.filter((s) => s.status === 'active').slice(0, 3);
+		activeStmts.forEach((s, idx) => {
+			lines.push(`            Param_${idx}["⚙️ ${mmdText(s.triplet.predicate)}: ${mmdText(String(s.triplet.value))}"]:::core`);
+		});
+	}
+	lines.push('        end');
+
+	if (lower.includes('console') || lower.includes('admin') || !hasSupervision) {
+		lines.push(`        ConsoleAdmin["Console d'Exploitation & Admin Titulaire<br/><small>(Gestion locale & exploitation autonome)</small>"]:::core`);
+	}
+	if (hasSupervision) {
+		lines.push('        MetrologieLocale["Moteur Métrologie & Stockage Local<br/><small>(Autonomie locale & TSDB)</small>"]:::core');
+	}
+	if (isHybrid || hasSupervision || hasLogs) {
+		lines.push(`        ModuleExport["Passerelle d'Export & Connecteurs RATP<br/><small>(Interfaçage standardisé vers l'existant)</small>"]:::agent`);
+	}
+	lines.push('    end');
+	lines.push('    class SYSTEM boundary');
+	lines.push('');
+
+	// 3. Périmètre Existant
+	lines.push(`    subgraph EXTERNAL["${mmdText(externalLabel)}"]`);
+	lines.push('        direction TB');
+	if (hasSupervision) {
+		const supLabel = mentionsRATP
+			? 'Supervision RATP<br/><small>(Centreon / Hyperviseur global)</small>'
+			: 'Supervision Externe<br/><small>(Hyperviseur & Alerting)</small>';
+		lines.push(`        SupervisionExt["${supLabel}"]:::ext`);
+	}
+	if (hasLogs) {
+		const logsLabel = mentionsRATP
+			? 'Plateforme Logs RATP<br/><small>(SIEM / Centralisation Syslog)</small>'
+			: 'Plateforme Centralisée de Logs<br/><small>(SIEM / Audit distant)</small>';
+		lines.push(`        CentralLogs["${logsLabel}"]:::ext`);
+	}
+	if (hasDeployment) {
+		const deploySrvLabel = hasWapt
+			? 'Dépôt & Serveur WAPT RATP<br/><small>(Distribution paquets validés)</small>'
+			: 'Serveur de Déploiement Central<br/><small>(Dépôt paquets & orchestration)</small>';
+		lines.push(`        ServeurDeploy["${deploySrvLabel}"]:::ext`);
+	}
+	if (hasAuth) {
+		const idpLabel = lower.includes('pro santé')
+			? 'Fournisseur d\'Identité National<br/><small>(Pro Santé Connect / OIDC)</small>'
+			: 'Fournisseur d\'Identité Externe<br/><small>(IdP / Fédération OIDC)</small>';
+		lines.push(`        IdpExt["${idpLabel}"]:::ext`);
+	}
+	if (!hasSupervision && !hasLogs && !hasDeployment && !hasAuth) {
+		lines.push('        EcosystemeExt["Services & Annuaires Existants<br/><small>(Interfaces d\'intégration)</small>"]:::ext');
+	}
+	lines.push('    end');
+	lines.push('    class EXTERNAL boundary');
+	lines.push('');
+
+	// 4. Flux et Liaisons
+	if (hasSupervision) {
+		lines.push('    ServiceMetier -->|"Métriques & logs internes"| AgentLocal');
+		lines.push('    AgentLocal -->|"Alimentation locale"| MetrologieLocale');
+		if (lower.includes('console') || lower.includes('admin') || !hasSupervision) {
+			lines.push('    MetrologieLocale -->|"Affichage temps réel"| ConsoleAdmin');
+			lines.push('    user_0 -->|"Administration locale"| ConsoleAdmin');
+		}
+		if (isHybrid) {
+			lines.push('    MetrologieLocale -->|"Consolidation flux"| ModuleExport');
+			lines.push('    ModuleExport -->|"Alarmes (SNMP Trap / Webhook)"| SupervisionExt');
+			lines.push('    ModuleExport -->|"Métriques de synthèse (API REST)"| SupervisionExt');
+			if (hasLogs) {
+				lines.push('    ModuleExport -->|"Export logs d\'audit (Syslog TLS)"| CentralLogs');
+			}
+			lines.push('    user_1 -->|"Vue globale PCC"| SupervisionExt');
+		}
+	} else if (hasAuth) {
+		lines.push('    user_1 -->|"Accès applicatif (HTTPS)"| ServiceMetier');
+		lines.push('    ServiceMetier -->|"Fédération OIDC (Auth Code + PKCE)"| IdpExt');
+		lines.push('    user_0 -->|"Gestion des accès"| ConsoleAdmin');
+	} else {
+		lines.push('    user_0 -->|"Administration & Configuration"| ServiceMetier');
+		lines.push('    user_1 -->|"Utilisation & Consommation API"| ServiceMetier');
+		lines.push('    ServiceMetier -->|"Interfaces standards"| EcosystemeExt');
+	}
+
+	if (hasDeployment) {
+		lines.push('    user_0 -->|"1. Package & signature cryptographique"| PaquetSigne');
+		if (hasHumanGate) {
+			lines.push('    PaquetSigne -->|"2. Soumission recette / INT"| ValideurHumain');
+			lines.push('    ValideurHumain -->|"3. Approbation formelle"| ServeurDeploy');
+			lines.push('    ServeurDeploy -->|"4. Déploiement contrôlé (HTTPS)"| AgentDeploy');
+		} else {
+			lines.push('    PaquetSigne -->|"2. Dépôt central"| ServeurDeploy');
+			lines.push('    ServeurDeploy -->|"3. Déploiement (HTTPS)"| AgentDeploy');
+		}
+		lines.push('    AgentDeploy -->|"5. Installation locale & vérification signature"| ServiceMetier');
+	}
+
+	return lines.join('\n');
+}
+
+/**
+ * Génère le diagramme de séquence de la chaîne de déploiement sécurisée et d'homologation.
+ * Modélise les interactions entre Titulaire, Valideur Humain, Dépôt/Serveur WAPT et Hôte cible.
+ */
+export function generateDeploymentSequenceDiagram(
+	subject: MaturitySubject | { id: string; name: string; section_ref?: string; sectionRef?: string },
+	_draft?: TelegraphicDraft | null,
+	_statements?: Statement[],
+	context?: ProjectionContext
+): string {
+	const decision = context?.decision;
+	const retainedOpt = context?.options?.find(
+		(o) => o.id === decision?.retainedOptionId || o.title === decision?.retainedOptionTitle
+	);
+	const fullSpec = `${decision?.retainedOptionTitle || ''} ${retainedOpt?.summary || ''} ${decision?.rationale || ''}`.toLowerCase();
+	const isRATP = fullSpec.includes('ratp');
+	const isWapt = fullSpec.includes('wapt');
+
+	const tituActor = 'Titulaire (Ingénierie & Packaging)';
+	const clientActor = isRATP ? 'Responsable Exploitation RATP' : 'Responsable Exploitation / RSSI';
+	const serverParticipant = isWapt ? 'Serveur WAPT (Dépôt officiel)' : 'Serveur de Déploiement (Dépôt)';
+	const targetParticipant = isRATP ? 'Hôte Après-TETRA (Agent WAPT)' : 'Hôte Cible (Agent Client)';
+
+	return [
+		'sequenceDiagram',
+		'    autonumber',
+		`    actor Dev as ${tituActor}`,
+		`    actor Valideur as ${clientActor}`,
+		`    participant Srv as ${serverParticipant}`,
+		`    participant Host as ${targetParticipant}`,
+		'',
+		'    Note over Dev,Host: Phase 1 : Construction et Signature Cryptographique',
+		'    Dev->>Dev: Construction du paquet applicatif',
+		'    Dev->>Dev: Signature cryptographique avec clé privée Titulaire',
+		`    Dev->>Valideur: Dépôt du paquet signé en environnement d'Intégration / Recette`,
+		'',
+		`    Note over Valideur,Srv: Phase 2 : Porte d'Homologation (Validation Humaine)`,
+		`    Valideur->>Valideur: Contrôle d'intégrité, signature & tests de non-régression (INT)`,
+		'    Valideur->>Srv: Approbation formelle et publication sur le dépôt de production',
+		'',
+		'    Note over Srv,Host: Phase 3 : Déploiement Sécurisé & Exécution Contrôlée',
+		'    Srv->>Host: Notification / Distribution du paquet validé (HTTPS)',
+		'    Host->>Host: Contrôle de validité de la signature avant exécution',
+		'    Host->>Host: Installation locale et mise à jour des services',
+		`    Host-->>Srv: Compte-rendu d'état d'installation (Succès / Échec)`
+	].join('\n');
+}

@@ -29,6 +29,8 @@ import {
 } from '$lib/domain/freezeExport';
 import {
 	generateMermaidDiagram,
+	generateTargetArchitectureDiagram,
+	generateDeploymentSequenceDiagram,
 	generateStructurizrDSL,
 	generateStructurizrVisualMermaid,
 	generateSysMLv2,
@@ -1612,6 +1614,8 @@ class DeliberationStore {
 
 		return {
 			mermaid: generateMermaidDiagram(subject, draft, sectionStatements, context),
+			targetArchitectureMermaid: generateTargetArchitectureDiagram(subject, draft, sectionStatements, context),
+			deploymentSequenceMermaid: generateDeploymentSequenceDiagram(subject, draft, sectionStatements, context),
 			structurizrDSL: generateStructurizrDSL(subject, draft, sectionStatements, context),
 			structurizrVisual: generateStructurizrVisualMermaid(subject, draft, sectionStatements, context),
 			sysmlV2: generateSysMLv2(subject, draft, sectionStatements, context),

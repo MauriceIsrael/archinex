@@ -11,6 +11,7 @@ import {
 	CreateCriterionSchema,
 	CreateTradeOffSchema
 } from '$lib/schemas/optionsApiSchemas';
+import { CreateDecisionSchema } from '$lib/schemas/decisionApiSchemas';
 
 describe('Options & Multi-Criteria Contract (Lot A2)', () => {
 	describe('1. Validation stricte des évaluations d\'options (validateEvaluation)', () => {
@@ -183,6 +184,62 @@ describe('Options & Multi-Criteria Contract (Lot A2)', () => {
 				sacrifices: 'Coût matériel plus élevé'
 			});
 			expect(withoutId.success).toBe(true);
+		});
+	});
+	describe('5. Validation stricte et clarté des erreurs d\'arbitrage (CreateDecisionSchema)', () => {
+		it('rejette une motivation trop courte (< 10 caractères) avec message explicite', () => {
+			const res = CreateDecisionSchema.safeParse({
+				retainedOptionId: 'opt-1',
+				rationale: 'Court',
+				reversibility: 'reversible'
+			});
+			expect(res.success).toBe(false);
+			if (!res.success) {
+				const errors = res.error.flatten().fieldErrors;
+				expect(errors.rationale).toBeDefined();
+				expect(errors.rationale?.[0]).toContain('au moins 10 caractères');
+			}
+		});
+
+		it('rejette une décision sans option retenue', () => {
+			const res = CreateDecisionSchema.safeParse({
+				retainedOptionId: '',
+				rationale: 'Motivation substantielle et claire pour le projet.',
+				reversibility: 'reversible'
+			});
+			expect(res.success).toBe(false);
+			if (!res.success) {
+				const errors = res.error.flatten().fieldErrors;
+				expect(errors.retainedOptionId).toBeDefined();
+				expect(errors.retainedOptionId?.[0]).toContain('obligatoire');
+			}
+		});
+
+		it('exige une justification de conformité explicite si Partially compliant', () => {
+			const res = CreateDecisionSchema.safeParse({
+				retainedOptionId: 'opt-1',
+				rationale: 'Motivation substantielle et claire pour le projet.',
+				reversibility: 'reversible',
+				complianceStatus: 'Partially compliant',
+				complianceRationale: 'Non'
+			});
+			expect(res.success).toBe(false);
+			if (!res.success) {
+				const errors = res.error.flatten().fieldErrors;
+				expect(errors.complianceRationale).toBeDefined();
+				expect(errors.complianceRationale?.[0]).toContain('au moins 5 caractères');
+			}
+		});
+
+		it('valide une décision complète et conforme', () => {
+			const res = CreateDecisionSchema.safeParse({
+				retainedOptionId: 'opt-1',
+				rationale: 'Motivation substantielle et claire pour le projet.',
+				reversibility: 'reversible',
+				rejected: [{ optionId: 'opt-2', reason: 'Trop coûteux' }],
+				complianceStatus: 'Compliant'
+			});
+			expect(res.success).toBe(true);
 		});
 	});
 });

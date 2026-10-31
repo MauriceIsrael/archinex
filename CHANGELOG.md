@@ -8,6 +8,16 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Dépouillement RFP : Allègement de l'Interface & Retrait des Modèles Pré-intégrés Factices
+- **Allègement de la modale de confrontation et factorisation RFP (`RfpConfrontationDialog`)** :
+  - Retrait du mode et du bouton « Modèles Pré-intégrés » au profit d'un flux d'entrée épuré par défaut centré sur les documents réels (**Fichier Local**, **Coller le texte**, **URL Web**).
+  - Suppression de la grille encombrante des cartes de modèles d'exemple à l'ouverture de la boîte de dialogue.
+  - La zone de texte et les métadonnées s'initialisent désormais vierges pour un traitement direct sans artefacts de démonstration.
+  - L'échantillon de vérification humaine et le rapport d'extraction ne s'affichent que dynamiquement lorsqu'un texte réel est chargé ou saisi.
+- **Documentation et Protocole Opérateur** :
+  - Clarification de la valeur ajoutée de l'échantillon de vérification humaine (contrôle rapide anti-hallucination sur les anomalies prioritaires, faisabilité en 2 minutes).
+  - Guide opérationnel détaillé dans `docs/user-guide.md` sur la conduite à tenir par l'opérateur en cas d'anomalie de découpage.
+
 ### Démo LUMICC : Ensemencement Complet des 16 Sujets d'Architecture (seed:lulu)
 - **Extension de l'engagement lumicc-lot1-noc post-ingestion** :
   - Passage de 7 à 16 sujets d'architecture d'entreprise et de solution au niveau L1_framed.

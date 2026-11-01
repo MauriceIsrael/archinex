@@ -40,6 +40,11 @@ jobs:
       - name: Installer les dépendances
         run: npm ci
 
+      - name: Installer Open Policy Agent (OPA)
+        run: |
+          chmod +x scripts/install-opa.sh
+          bash scripts/install-opa.sh
+
       - name: Créer la base SQLite et générer le client Prisma
         run: npx prisma generate && npx prisma db push
 

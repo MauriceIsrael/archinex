@@ -444,3 +444,19 @@ Codes de sortie retournés :
 - **1** (`violated`) : Défaillance architecturale détectée.
 - **2** (`insufficient_input`) : Entrée incomplète ou source manquante (anti-vacuité).
 - **3** (`unavailable`) : OPA absent ou anomalie d'exécution.
+
+
+### 13.5 Pile Docker d'Intégration & Outillage (Nautobot, Batfish, OPA Server)
+Pour tester les décisions et oracles dans un environnement d'intégration réel :
+- **Démarrage de la stack d'outils** :
+  ```powershell
+  cd deploy\integrator-tools
+  .\tools.ps1 up      # Démarre Nautobot 2.x, PostgreSQL 15, Redis 7, Batfish et OPA Server
+  .\tools.ps1 status  # Affiche les URLs d'accès et l'état des conteneurs
+  .\tools.ps1 test    # Valide la connectivité GraphQL Nautobot et l'API REST OPA
+  ```
+- **Points d'accès fournis** :
+  - **Nautobot Web UI** : `http://localhost:8080` (admin / adminpassword / Token `0123456789abcdef0123456789abcdef01234567`)
+  - **Nautobot GraphQL** : `http://localhost:8080/api/graphql/`
+  - **Batfish API** : `http://localhost:9997`
+  - **OPA Server REST** : `http://localhost:8181/v1/data`

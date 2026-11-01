@@ -20,7 +20,7 @@ export const GET: RequestHandler = async ({ params, url }) => {
 
   try {
     // 1. Recherche en base SQLite
-    const fromDb = await (prisma as any).executableDecisionPackage.findFirst({
+    const fromDb = await (prisma as any).executableDecisionPackage?.findFirst({
       where: { subjectId },
       orderBy: { revision: 'desc' }
     });

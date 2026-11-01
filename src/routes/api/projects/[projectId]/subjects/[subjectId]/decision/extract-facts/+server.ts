@@ -1,7 +1,7 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { extractFactsForDecision, DEFAULT_ARCHINEX_VOCABULARY } from '$lib/server/agents/factExtractor';
-import { prisma } from '$lib/server/prisma';
+import { DEFAULT_ARCHINEX_VOCABULARY } from '$lib/server/agents/factExtractor';
+import { getOrExtractFactsWithCache } from '$lib/server/agents/decisionFactsCache';
 import { authorizeProjectAccess } from '$lib/server/projects/projectAccess';
 import { isProjectCutOverToHub } from '$lib/server/projects/hubMigrationService';
 import { llmopsClient } from '$lib/server/llmops/client';
@@ -40,7 +40,9 @@ export const POST: RequestHandler = async (event) => {
 				Array.isArray(allowedVocabularyKeys) && allowedVocabularyKeys.length > 0 ? allowedVocabularyKeys : DEFAULT_ARCHINEX_VOCABULARY;
 		}
 
-		const facts = await extractFactsForDecision({
+		const result = await getOrExtractFactsWithCache({
+			projectId,
+			subjectId,
 			decisionRationale,
 			retainedOptionTitle,
 			retainedOptionSummary,
@@ -50,8 +52,10 @@ export const POST: RequestHandler = async (event) => {
 
 		return json({
 			status: 'ok',
-			facts,
-			allowedVocabularyKeys: allowedKeys
+			facts: result.facts,
+			allowedVocabularyKeys: allowedKeys,
+			cached: result.source !== 'live',
+			source: result.source
 		});
 	} catch (err: any) {
 		console.error('[ExtractFacts API] Erreur :', err);

@@ -8,6 +8,20 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Optimisation & Cache de l'Extraction de Faits de Décision (Agent Synthesizer)
+- **Mise en cache multi-niveaux et déduplication Singleflight (`src/lib/server/agents/decisionFactsCache.ts`)** :
+  - Clé de hachage SHA-256 déterministe basée sur le contenu de la décision (`rationale`, `retainedOptionTitle`, résumé) et la liste normalisée du vocabulaire autorisé.
+  - Cache mémoire ultra-rapide (< 1 ms) pour les accès répétés en cours d'exécution.
+  - Déduplication *Singleflight* des requêtes concurrentes en vol, interdisant tout doublon d'appel externe au LLM pour la même décision.
+  - Persistance asynchrone dans la table de cache de base (`FactorizationStageCache`) pour survivre aux redémarrages de l'application.
+  - Route API mise à jour (`/api/projects/[projectId]/subjects/[subjectId]/decision/extract-facts`) pour renvoyer le statut de cache et la source (`cache-memory`, `cache-db` ou `live`).
+- **Fluidification & Cache Client (`src/lib/components/deliberation/DecisionSurveyCard.svelte`)** :
+  - Mémorisation de l'état d'extraction et cache en mémoire côté client pour éviter toute réémission de requête HTTP lors des bascules d'onglets ou des retours sur un sujet déjà consulté.
+  - Élimination des boucles de requêtes lorsque Claude renvoie une liste de faits vide (`{"facts": []}`).
+- **Tests unitaires et de non-régression (`tests/unit/decision-facts-cache.test.ts`)** :
+  - 4 tests unitaires validant le calcul de clé déterministe, le service live vs cache-mémoire (0 token LLM additionnel), la déduplication de requêtes en vol et le mécanisme d'invalidation.
+
+
 ### Architecture Cible Générique : Élimination des Règles Projet en Dur & Réactivité en Direct des Spécifications
 - **Suppression Intégrale des Règles Spécifiques en Dur (`artifactProjections.ts`)** :
   - Élimination formelle de toutes les conditions et chaînes codées en dur liées à un projet particulier (`ratp`, `pcc`, `luxembourg`, `lumicc`, `apres-tetra`).

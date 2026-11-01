@@ -133,6 +133,63 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
   - Élimination des faux positifs par vacuité : verdict `insufficient_input` dès qu'une source déclarée est manquante ou vide.
   - Rejet des sources non déclarées (`verdict: violated`).
 - **Tests** : 25 tests de contrat dans `tests/contract/edp-schema.test.ts`, `tests/contract/edp-intention-purity.test.ts` et `tests/contract/edp-refined-input.test.ts`.
+### Optimisation & Cache de l'Extraction de Faits de Décision (Agent Synthesizer)
+- **Mise en cache multi-niveaux et déduplication Singleflight (`src/lib/server/agents/decisionFactsCache.ts`)** :
+  - Clé de hachage SHA-256 déterministe basée sur le contenu de la décision (`rationale`, `retainedOptionTitle`, résumé) et la liste normalisée du vocabulaire autorisé.
+  - Cache mémoire ultra-rapide (< 1 ms) pour les accès répétés en cours d'exécution.
+  - Déduplication *Singleflight* des requêtes concurrentes en vol, interdisant tout doublon d'appel externe au LLM pour la même décision.
+  - Persistance asynchrone dans la table de cache de base (`FactorizationStageCache`) pour survivre aux redémarrages de l'application.
+  - Route API mise à jour (`/api/projects/[projectId]/subjects/[subjectId]/decision/extract-facts`) pour renvoyer le statut de cache et la source (`cache-memory`, `cache-db` ou `live`).
+- **Fluidification & Cache Client (`src/lib/components/deliberation/DecisionSurveyCard.svelte`)** :
+  - Mémorisation de l'état d'extraction et cache en mémoire côté client pour éviter toute réémission de requête HTTP lors des bascules d'onglets ou des retours sur un sujet déjà consulté.
+  - Élimination des boucles de requêtes lorsque Claude renvoie une liste de faits vide (`{"facts": []}`).
+- **Tests unitaires et de non-régression (`tests/unit/decision-facts-cache.test.ts`)** :
+  - 4 tests unitaires validant le calcul de clé déterministe, le service live vs cache-mémoire (0 token LLM additionnel), la déduplication de requêtes en vol et le mécanisme d'invalidation.
+
+
+### Architecture Cible Générique : Élimination des Règles Projet en Dur & Réactivité en Direct des Spécifications
+- **Suppression Intégrale des Règles Spécifiques en Dur (`artifactProjections.ts`)** :
+  - Élimination formelle de toutes les conditions et chaînes codées en dur liées à un projet particulier (`ratp`, `pcc`, `luxembourg`, `lumicc`, `apres-tetra`).
+  - Chaque artefact graphique (Mermaid C4, séquence de déploiement, SysML, Structurizr) est désormais formellement étiqueté et compartimenté par son identifiant de projet `projectId` (`subgraph SYSTEM["Système : ${projectName} (${sectionRef}) [Projet: ${projectId}]"]`).
+  - Déduction dynamique de l'écosystème externe à partir des métadonnées du projet (`enterpriseName` et `projectName`) : `SI ${enterpriseName} (Existant)`, `Supervision Externe (${enterpriseName})`, `Guichet Homologation / Validation Humaine (${enterpriseName})`, `Plateforme Logs & Audit (${enterpriseName})`, etc.
+  - Détection architecturale par archétypes génériques (`hasTelecomCrypto`, `hasMultiEnv`, `hasSupervision`, `hasLogs`, `hasDeployment`, `hasAuth`) opérant sans présupposé de marque ou de client.
+- **Réactivité en Direct des Artefacts lors de l'Édition de Spécification (`deliberationStore`, `SubjectThreadView`)** :
+  - Ajout de l'état réactif `detailedSpecs = $state<Record<string, string>>({})` dans `deliberationStore`, avec mise en cache et restauration par engagement lors des bascules de projet.
+  - Liaison bidirectionnelle instantanée sur la zone de saisie du workbench L4 (`SubjectThreadView`) : chaque frappe (`oninput`) met à jour le texte de la spécification détaillée dans le store.
+  - Le calcul des projections (`getProjectionContext`) injecte `detailedSpecText` en temps réel : dès qu'une exigence ou contrainte est rédigée (ex: chiffrement IPsec ESP, médiation DEA, ou topologie 3 plateformes), les schémas de la Phase 3 se reconfigurent immédiatement sans action manuelle.
+- **Cycle de Vie & Déclencheurs de Régénération** :
+  - *Automatique réactif* : recalcul immédiat via les expressions dérivées Svelte 5 (`$derived`) dès modification des décisions L3 ou de la spécification L4.
+  - *Manuel* : bouton « Régénérer » dans `ArtifactRegenerationHub` pour forcer le recalcul à partir de la version serveur.
+  - *Scellement & Export* : génération figée et horodatée lors de la signature cryptographique SHA-256 (Jalon L5) ou de l'export du fragment HLD.
+- **Tests & Assurance Qualité** :
+  - Test de contrat n°13 dans `tests/contract/artifact-projections.test.ts` validant la réactivité en direct des diagrammes lors de l'évolution de `detailedSpecText` sans altérer la décision L3.
+  - Mise à niveau des tests de non-régression (13/13 réussis).
+
+
+### Isolation Inter-Projets des Artefacts & Socle Multi-Plateformes (LUMICC)
+- **Isolation Stricte des Contextes de Projet (`deliberationStore`)** :
+  - Sauvegarde et restauration complètes des `decisionContexts` et des `frozenSnapshots` par identifiant d'engagement dans `engagementCache`.
+  - Réinitialisation propre à vide lors de l'ouverture d'un nouvel engagement non mis en cache, éliminant toute fuite ou persistance d'artefacts d'un projet précédent (ex: spécifications ou schémas RATP affichés par erreur sur le projet luxembourgeois LUMICC).
+- **Suppression Définitive des Libellés en Dur dans les Projections Cibles (`artifactProjections`)** :
+  - Conditionnement systématique des mentions d'outillage RATP et PCC (`mentionsRATP`) : utilisation par défaut de libellés agnostiques et souverains (`Passerelle d'Export & Connecteurs d'Intégration`, `Supervision & Exploitation Externe`, `Responsable Exploitation / RSSI`).
+- **Modélisation Dédiée du Socle Multi-Plateformes & Qualification Industrielle** :
+  - Prise en charge des topologies à 3 plateformes : **Plateforme de Production (PROD)**, **Pré-production Unique Iso-État** (accueil de l'état candidat, réplique technique exacte de la PROD), et **Plateforme de Test Réduit avec Test-RAN**.
+  - Intégration de la zone décentralisée **Qualification Fournisseurs** avec porte de **Contrôle d'Audit & Représentativité** des bancs d'essais usine.
+  - Diagramme de séquence de déploiement et qualification en 3 phases (Usine & audit, banc radio Test-RAN, pré-production iso-état vers bascule de production).
+- **Tests de Non-Régression & Isolation** :
+  - Nouveaux tests de contrat dans `tests/contract/artifact-projections.test.ts` garantissant l'absence totale de mentions RATP/PCC sur les spécifications LUMICC et la bonne génération de la topologie multi-plateformes.
+
+### Sécurité & Gouvernance : Garde d'Accès Anonyme (Dashboard Seul) & Fiabilité de l'Homologation L4
+- **Restriction des Visiteurs Anonymes au Dashboard Global (`+layout.svelte`, `+page.svelte`)** :
+  - Pour les visiteurs non authentifiés (`!session`), la barre latérale et le menu mobile ne présentent que le Dashboard (« Executive Cockpit ») ainsi qu'un bouton direct de connexion (`/login`).
+  - Les accès directs par URL aux espaces de travail (`/workspaces`, `/workspaces/new`), à l'atelier de délibération (`/deliberation`), et au graphe de connaissances (`/knowledge`, `/knowledge/[id]`) sont protégés côté serveur via `requireAuth(locals, '/login?redirectTo=...')`.
+  - Mémorisation et validation sécurisée du paramètre `redirectTo` sur la mire de connexion pour rediriger l'utilisateur vers la page initialement demandée après authentification.
+- **Fiabilisation des Transitions de Maturité & Homologation L4 (`SubjectThreadView.svelte`)** :
+  - Vérification systématique du code de retour HTTP (`res.ok`) sur `patchSubject` lors de l'homologation d'une spécification L4 et des changements de jalons.
+  - En cas d'erreur de requête (notamment `401 Unauthorized` si la session a expiré ou est absente), affichage immédiat d'une notification explicite et rechargement de l'état serveur pour éviter les faux succès visuels.
+- **Tests & Assurance Qualité** :
+  - Nouveau test de contrat dans `tests/contract/anonymous-dashboard-guard.test.ts` validant les redirections vers `/login`, le filtrage du menu et la préservation de `redirectTo`.
+
 
 ### Rendu Graphique : Aperçu Plein Écran au Maintien du Clic & Spécification Sécurité Télécom S6a
 - **Aperçu Plein Écran Dynamique au Maintien du Clic (`MermaidViewer`)** :

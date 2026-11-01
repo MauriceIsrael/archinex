@@ -159,6 +159,7 @@ describe('Projections dynamiques d\'architecture (No Doc Drift - Issue #64)', ()
 		};
 
 		const ratpContext: ProjectionContext = {
+			projectId: 'csft-tetra-ratp',
 			projectName: 'Système Après-TETRA',
 			enterpriseName: 'RATP',
 			decision: {
@@ -187,9 +188,9 @@ describe('Projections dynamiques d\'architecture (No Doc Drift - Issue #64)', ()
 		expect(diagram).toContain('classDef core');
 		expect(diagram).toContain('classDef deploy');
 
-		// Doit contenir les frontières Système (Après-TETRA) et SI RATP Existant
-		expect(diagram).toContain('Système Après-TETRA');
-		expect(diagram).toContain('Outillage de Maintenance & Exploitation RATP');
+		// Doit contenir les frontières Système (Après-TETRA) et SI RATP Existant avec tag de projet formel
+		expect(diagram).toContain('Système : Système Après-TETRA (§11, §1.3) [Projet: csft-tetra-ratp]');
+		expect(diagram).toContain('SI RATP (Existant)');
 
 		// Doit contenir les composants internes autonomes
 		expect(diagram).toContain('AgentLocal');
@@ -197,9 +198,9 @@ describe('Projections dynamiques d\'architecture (No Doc Drift - Issue #64)', ()
 		expect(diagram).toContain('ConsoleAdmin');
 		expect(diagram).toContain('ModuleExport');
 
-		// Doit contenir les interfaces d\'exportation vers la RATP
-		expect(diagram).toContain('Supervision RATP');
-		expect(diagram).toContain('Plateforme Logs RATP');
+		// Doit contenir les interfaces d\'exportation dynamiquement liées à l\'entreprise
+		expect(diagram).toContain('Supervision Externe (RATP)');
+		expect(diagram).toContain('Plateforme Logs (RATP)');
 		expect(diagram).toContain('Alarmes (SNMP Trap / Webhook)');
 		expect(diagram).toContain('Export logs d\'audit (Syslog TLS)');
 
@@ -208,7 +209,7 @@ describe('Projections dynamiques d\'architecture (No Doc Drift - Issue #64)', ()
 		expect(diagram).toContain('Guichet Homologation / Validation Humaine (RATP)');
 		expect(diagram).toContain('Paquet WAPT Signé');
 		expect(diagram).toContain('Agent WAPT Client');
-		expect(diagram).toContain('Dépôt & Serveur WAPT RATP');
+		expect(diagram).toContain('Dépôt & Serveur WAPT (RATP)');
 	});
 
 	it('7. Diagramme de séquence de déploiement modélise les 3 phases avec validation humaine', () => {
@@ -219,6 +220,8 @@ describe('Projections dynamiques d\'architecture (No Doc Drift - Issue #64)', ()
 		};
 
 		const ratpContext: ProjectionContext = {
+			projectName: 'Système Après-TETRA',
+			enterpriseName: 'RATP',
 			decision: {
 				retainedOptionId: 'opt-hybrid',
 				retainedOptionTitle: 'Hybride RATP WAPT validation humaine',
@@ -233,9 +236,9 @@ describe('Projections dynamiques d\'architecture (No Doc Drift - Issue #64)', ()
 		expect(seq).toContain('Phase 1 : Construction et Signature Cryptographique');
 		expect(seq).toContain('Phase 2 : Porte d\'Homologation (Validation Humaine)');
 		expect(seq).toContain('Phase 3 : Déploiement Sécurisé & Exécution Contrôlée');
-		expect(seq).toContain('Responsable Exploitation RATP');
+		expect(seq).toContain('Responsable Exploitation (RATP)');
 		expect(seq).toContain('Serveur WAPT');
-		expect(seq).toContain('Hôte Après-TETRA');
+		expect(seq).toContain('Hôte Cible (Système Après-TETRA)');
 	});
 
 	it('8. Schéma cible affiche un état d\'attente propre sans décision L3', () => {
@@ -301,5 +304,123 @@ describe('Projections dynamiques d\'architecture (No Doc Drift - Issue #64)', ()
 		expect(seq).toContain('Phase 2 : Envoi Sécurisé du Flux S6a Encapsulé');
 		expect(seq).toContain('Phase 3 : Médiation & Inspection Applicative Diameter');
 		expect(seq).toContain("Phase 4 : Résolution et Réponse de l'Authentification");
+	});
+	it('11. Isole les spécifications multi-plateformes (LUMICC) : génère le socle 3 plateformes sans fuite RATP/PCC', () => {
+		const lumiccSubject = {
+			id: 'sub-lumicc-env',
+			section_ref: '§2.4',
+			name: "Socle d'environnements et représentativité des bancs"
+		};
+
+		const lumiccContext: ProjectionContext = {
+			projectId: 'lumicc-lot1-noc',
+			projectName: 'LUMICC',
+			enterpriseName: 'Grand-Duché de Luxembourg',
+			decision: {
+				retainedOptionId: 'opt-lumicc-3p',
+				retainedOptionTitle: 'Socle 3 plateformes, pré-prod iso-état',
+				rationale: "Production, pré-production unique au Luxembourg répliquant l'état technique de la production (et capable d'accueillir un état candidat), test réduit avec Test-RAN. Qualification fournisseurs chez les fournisseurs, avec contrôle d'audit et de représentativité."
+			}
+		};
+
+		const diagram = generateTargetArchitectureDiagram(lumiccSubject, null, [], lumiccContext);
+
+		// Doit refléter fidèlement le socle 3 plateformes lié formellement à son projet
+		expect(diagram).toContain('Socle d\'Environnements Multi-Plateformes (Grand-Duché de Luxembourg) [Projet: lumicc-lot1-noc]');
+		expect(diagram).toContain('Plateforme de Production (PROD)');
+		expect(diagram).toContain('Pré-production Unique Iso-État');
+		expect(diagram).toContain('Test Réduit avec Test-RAN');
+		expect(diagram).toContain('Qualification Fournisseurs');
+		expect(diagram).toContain("Contrôle d'Audit & Représentativité");
+
+		// Isolation stricte : aucune mention de la RATP ou du PCC
+		expect(diagram).not.toContain('RATP');
+		expect(diagram).not.toContain('PCC');
+		expect(diagram).not.toContain('WAPT');
+
+		const seq = generateDeploymentSequenceDiagram(lumiccSubject, null, [], lumiccContext);
+		expect(seq).toContain('sequenceDiagram');
+		expect(seq).toContain('Fournisseur as Fournisseur / Équipementier');
+		expect(seq).toContain('Auditeur as Responsable Audit & Représentativité');
+		expect(seq).toContain('TestRAN as Plateforme Test Réduit (Test-RAN)');
+		expect(seq).toContain('PreProd as Pré-production Iso-État (Grand-Duché de Luxembourg)');
+		expect(seq).toContain('Prod as Production (Grand-Duché de Luxembourg)');
+		expect(seq).not.toContain('RATP');
+		expect(seq).not.toContain('WAPT');
+	});
+
+	it("12. Isole les connecteurs d'intégration génériques : aucune fuite RATP sans mention explicite", () => {
+		const genericSubject = {
+			id: 'sub-generic-integration',
+			section_ref: '§1.2',
+			name: 'Supervision et Métrologie Externe'
+		};
+
+		const genericContext: ProjectionContext = {
+			projectName: 'Projet Souverain',
+			decision: {
+				retainedOptionId: 'opt-gen-sup',
+				retainedOptionTitle: "Architecture hybride avec connecteurs d'export standardisés",
+				rationale: "Le système embarque sa métrologie locale et exporte les métriques et logs vers le SI d'exploitation existant."
+			}
+		};
+
+		const diagram = generateTargetArchitectureDiagram(genericSubject, null, [], genericContext);
+
+		// Ne doit pas mentionner la RATP ni le PCC si non présent dans la spec
+		expect(diagram).not.toContain('RATP');
+		expect(diagram).not.toContain('PCC');
+		expect(diagram).toContain("Passerelle d'Export & Connecteurs d'Intégration");
+		expect(diagram).toContain('Supervision & Exploitation Externe');
+	});
+	it('13. Réactivité en direct : la modification de detailedSpecText transforme dynamiquement l\'architecture sans altérer la décision L3', () => {
+		const subject: MaturitySubject = {
+			id: 'sub-crypto',
+			section_ref: '§4.1',
+			name: 'Sécurité et flux inter-lots',
+			level: 'L3_decided',
+			blocking_count: 0,
+			unlocks_count: 0,
+			waiting_for_role: 'lead_architect',
+			relative_effort: 'M',
+			last_transition_date: '2026-10-14T00:00:00Z',
+			stall_days: 0,
+			is_stalled: false,
+			dependent_subject_ids: []
+		};
+
+		const baseContext: ProjectionContext = {
+			projectId: 'projet-interop',
+			projectName: 'Système Interop',
+			enterpriseName: 'Entité Opératrice',
+			decision: {
+				retainedOptionId: 'opt-base',
+				retainedOptionTitle: 'Option de base approuvée',
+				rationale: 'Conforme aux exigences générales'
+			}
+		};
+
+		// Sans spec détaillée : schéma général
+		const initialDiagram = generateTargetArchitectureDiagram(subject, null, [], baseContext);
+		expect(initialDiagram).not.toContain('SecGW-Lot1');
+		expect(initialDiagram).not.toContain('DEA-Lot1');
+
+		// Mise à jour de detailedSpecText (saisie live dans le workbench L4)
+		const updatedContext: ProjectionContext = {
+			...baseContext,
+			detailedSpecText: 'Obligation de chiffrement IPsec ESP et médiation DEA pour les flux S6a Lot 3 <-> Lot 1'
+		};
+
+		const liveDiagram = generateTargetArchitectureDiagram(subject, null, [], updatedContext);
+		// Le schéma doit immédiatement basculer vers la topologie télécom S6a sécurisée
+		expect(liveDiagram).toContain('SecGW-Lot1');
+		expect(liveDiagram).toContain('DEA-Lot1');
+		expect(liveDiagram).toContain('HSS-Lot1');
+		expect(liveDiagram).toContain('Tunnel IPsec ESP chiffré');
+		expect(liveDiagram).toContain('INTERDIT : Flux direct non chiffré');
+
+		const liveSeq = generateDeploymentSequenceDiagram(subject, null, [], updatedContext);
+		expect(liveSeq).toContain('Phase 1 : Négociation IKEv2 et Établissement du Tunnel IPsec ESP');
+		expect(liveSeq).toContain('Phase 2 : Envoi Sécurisé du Flux S6a Encapsulé');
 	});
 });

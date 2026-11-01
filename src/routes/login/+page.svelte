@@ -49,7 +49,10 @@
     }
 
     toast('Welcome back!', { variant: 'success' });
-    window.location.href = '/';
+    const urlParams = new URLSearchParams(window.location.search);
+    const target = urlParams.get('redirectTo');
+    const redirectTo = target && target.startsWith('/') && !target.startsWith('//') ? target : '/';
+    window.location.href = redirectTo;
   }
 
   function fillDemo(user: typeof demoUsers[0]) {

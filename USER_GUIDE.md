@@ -8,9 +8,14 @@ Bienvenue dans le guide d'utilisation de la plateforme **Archinex** — Moteur d
 
 Le système utilise une gestion de session sécurisée avec hachage **bcrypt**.
 
+- **Mode Visiteur (Anonyme)** :
+  - Lorsqu'aucun utilisateur n'est authentifié, l'application est restreinte au **Dashboard Global** (« Executive Cockpit »).
+  - Le menu latéral et le tiroir mobile n'exposent que le tableau de bord et un lien direct vers la mire de connexion.
+  - Les espaces de travail (`/workspaces`), l'atelier de délibération (`/deliberation`), et le graphe de connaissances (`/knowledge`) sont protégés par un garde serveur (`requireAuth`) qui redirige automatiquement vers `/login?redirectTo=...`.
+  - Après authentification, l'utilisateur est automatiquement redirigé vers sa destination initiale.
 - **Connexion** : Rendez-vous sur `/login` avec votre adresse e-mail et mot de passe.
 - **Rôles supportés** :
-  - `lead_architect` : Responsable d'architecture, habilité à arbitrer tous les domaines et à sceller les livrables.
+  - `lead_architect` : Responsable d'architecture, habilité à arbitrer tous les domaines et à homologuer les spécifications L4 et sceller les livrables L5.
   - `domain_expert` / `domain_architect` : Expert technique spécialisé (infrastructure, sécurité, réseau, cloud, data). Habilité à arbitrer les sujets relevant de ses domaines attribués.
   - `contributor` : Participe aux débats, évalue les options et propose des alternatives.
   - `viewer` : Consultation seule du tableau de maturité et des dossiers.
@@ -355,6 +360,8 @@ En Phase 3 (« Rendu & Homologation »), Archinex permet de visualiser et d'expo
 2. **🔄 Chaîne de Déploiement & Homologation** : Diagramme de séquence modélisant la chaîne de confiance et de validation humaine (construction du paquet signé par l'éditeur/titulaire, soumission au guichet d'homologation/recette, approbation formelle et déploiement contrôlé vers les agents).
 3. **⚖️ Graphe Décisionnel (Auditabilité)** : Graphe épistémique traçant l'arbre causal de la délibération (hypothèses, énoncés prouvés, conflits et options retenues) pour la traçabilité d'audit.
 
+Pour les sujets d'infrastructure et d'environnements (ex. *Socle 3 plateformes, pré-prod iso-état* du projet LUMICC), Archinex projette automatiquement la topologie à trois niveaux (Production, Pré-production Iso-État répliquant l'état technique et accueillant l'état candidat, Test Réduit avec Test-RAN) ainsi que la filière de qualification usine chez les fournisseurs avec contrôle d'audit et de représentativité. L'isolation des contextes garantit qu'aucun outillage ou libellé d'un projet tiers (ex. RATP/PCC) n'est injecté dans les rendus d'un autre projet.
+
 Ces schémas sont directement intégrés dans le fragment Markdown HLD exporté (`renderHldFragmentMarkdown`) et téléchargeables au format `.mmd`.
 
 ---
@@ -374,6 +381,16 @@ Pour faciliter la lecture des graphes d'architecture denses (topologie C4, séqu
 1. **Maintien du clic (Press & Hold)** : En maintenant le clic gauche enfoncé sur n'importe quel diagramme Mermaid, celui-ci s'ouvre instantanément en plein écran agrandi sur fond sombre.
 2. **Retour immédiat** : Dès que le bouton de la souris est relâché, le plein écran se referme sans perturber le scroll ou l'état de la page.
 3. **Plein écran fixe & Zoom** : Il est également possible de verrouiller l'affichage en plein écran via le bouton dédié dans la barre d'outils ou de naviguer avec la touche Échap.
+
+
+### 11.8 Cycle de Vie & Réactivité en Direct des Artefacts Graphiques
+Les diagrammes et rendus techniques d'Archinex (Mermaid C4, séquences de déploiement, SysML, Structurizr) sont conçus pour éliminer tout risque de dérive documentaire (*No Doc Drift*) :
+1. **Liaison formelle au projet (`projectId`)** : Chaque diagramme porte formellement l'identifiant unique du projet et son nom dans le titre du sous-graphe racine (`subgraph SYSTEM["Système : ${projectName} (...) [Projet: ${projectId}]"]`). Aucune règle en dur ni aucun nom de client tiers n'est figé dans le code.
+2. **Réactivité en temps réel lors de la frappe (Workbench L4)** : Lorsque vous rédigez ou éditez la spécification technique dans l'atelier du sujet (`SubjectThreadView`), chaque frappe met immédiatement à jour le store réactif (`deliberationStore.setDetailedSpec`). Les projections graphiques sont définies sous forme d'expressions dérivées Svelte 5 (`$derived`) et se recalculent instantanément sans nécessiter de rechargement de page.
+3. **Moments de régénération des artefacts** :
+   - **En direct (Svelte 5 `$derived`)** : Dès qu'une option est retenue dans la Matrice, qu'une motivation est modifiée, ou que la spécification L4 est éditée.
+   - **À la demande (Bouton « Régénérer »)** : Le bouton d'actualisation dans l'en-tête d'`ArtifactRegenerationHub` permet de re-synchroniser explicitement les données depuis l'API serveur ou de recharger le graphe d'architecture.
+   - **Lors du scellement d'homologation (Jalon L5)** : Lors de la signature cryptographique du livrable (`freezeSubjectSnapshot`), l'empreinte SHA-256 scelle définitivement la version des artefacts, les rendant opposables et inaltérables dans le temps.
 
 ## 12. Démonstrateur & Ensemencements Démo (LUMICC / "Lulu")
 

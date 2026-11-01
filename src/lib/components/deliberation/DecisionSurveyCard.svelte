@@ -1,3 +1,8 @@
+<script module lang="ts">
+	// Cache client partagé entre instances et bascules de navigation pour la session en cours
+	const clientFactsCache = new Map<string, ExtractedFact[]>();
+</script>
+
 <script lang="ts">
 	import { untrack } from 'svelte';
 	import type { Option, Decision } from '$lib/domain/options';
@@ -99,19 +104,30 @@
 		Boolean(decision && decision.id) && !isAuthor && isQualifiedDecider && !decision?.validatedBy
 	);
 
-	// Une seule extraction par décision : une extraction sans fait (liste vide) ne doit pas relancer l'appel au modèle.
-	let factsRequestedFor: string | null = null;
+	// Une seule extraction par décision : mémoriser pour ne jamais boucler sur une liste vide
+	let extractionDoneFor = $state<string | null>(null);
+
 	$effect(() => {
 		const decisionId = decision?.id;
-		if (!decisionId || decisionId === factsRequestedFor) return;
-		factsRequestedFor = decisionId;
+		if (!decisionId || decisionId === extractionDoneFor) return;
+
+		// 1. Si déjà en cache client pour cette décision, restaurer instantanément sans requête réseau
+		if (clientFactsCache.has(decisionId)) {
+			extractionDoneFor = decisionId;
+			facts = clientFactsCache.get(decisionId)!;
+			return;
+		}
+
+		// 2. Sinon déclencher l'extraction une seule fois
+		extractionDoneFor = decisionId;
 		untrack(() => {
-			if (facts.length === 0) void loadOrExtractFacts();
+			void loadOrExtractFacts();
 		});
 	});
 
 	async function loadOrExtractFacts() {
 		if (!decision || !decision.id || isExtractingFacts) return;
+		const decisionId = decision.id;
 		isExtractingFacts = true;
 		try {
 			const res = await fetch(
@@ -130,6 +146,7 @@
 			if (res.ok) {
 				const data = await res.json();
 				facts = data.facts || [];
+				clientFactsCache.set(decisionId, facts);
 			}
 		} catch (err) {
 			console.warn('[DecisionSurveyCard] Erreur extraction faits :', err);

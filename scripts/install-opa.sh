@@ -5,7 +5,7 @@
 set -euo pipefail
 
 OPA_VERSION="v1.21.4"
-EXPECTED_SHA256="ed073d3c5a15724e7c3d9c16db22f38cb51ce0e26e7310df1b94f74e06acca3f"
+EXPECTED_SHA256="2ab571f367f293bb19523b76f92f1945bbf245003392c7f392903f95c2b9b630"
 DOWNLOAD_URL="https://github.com/open-policy-agent/opa/releases/download/${OPA_VERSION}/opa_linux_amd64_static"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"

@@ -1,4 +1,5 @@
 import type { PageServerLoad } from './$types';
+import { isEdpFeatureEnabled } from '$lib/server/edp/edpRepository';
 
 export const load: PageServerLoad = async (event) => {
 	const sessionUser = event.locals.session?.user;
@@ -8,8 +9,12 @@ export const load: PageServerLoad = async (event) => {
 		sessionUser?.role ||
 		'lead_architect';
 
+	const isExperimentalEnabled =
+		isEdpFeatureEnabled() || event.url.searchParams.get('edp') === '1';
+
 	return {
 		sessionRole,
+		isExperimentalEnabled,
 		sessionUser: sessionUser
 			? {
 					id: sessionUser.id,

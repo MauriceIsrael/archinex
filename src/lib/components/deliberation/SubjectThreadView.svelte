@@ -26,6 +26,7 @@
 	import SubjectProblemCard from './SubjectProblemCard.svelte';
 	import SplitSubjectDialog from './SplitSubjectDialog.svelte';
 	import OptionsMatrix from './OptionsMatrix.svelte';
+	import EdpCard from '$lib/components/edp/EdpCard.svelte';
 	import TelegraphicDraftView from './TelegraphicDraftView.svelte';
 	import CapitalizationPanel from './CapitalizationPanel.svelte';
 	import ProjectRulesPanel from './ProjectRulesPanel.svelte';
@@ -82,7 +83,8 @@
 		onToggleDossier = () => {},
 		onBackToBoard = () => {},
 		initialActiveWorkspaceTab = 'thread',
-		initialDecision = null
+		initialDecision = null,
+		isExperimentalEnabled = false
 	}: {
 		subjectId: string;
 		projectId: string;
@@ -96,6 +98,7 @@
 		onBackToBoard?: () => void;
 		initialActiveWorkspaceTab?: UnifiedWorkspaceTab;
 		initialDecision?: Decision | null;
+		isExperimentalEnabled?: boolean;
 	} = $props();
 
 	// ─── État de navigation unifié (Onglets pleine largeur + Mode Split optionnel) ───
@@ -377,6 +380,85 @@
 			loadArgumentsAndContext();
 		}
 	});
+
+	
+	// ─── État & Actions EDP (Paquet de Décision Exécutable) ──────────────────────────
+	let currentEdp = $state<any>(null);
+	let isLoadingEdp = $state(false);
+
+	async function loadEdpForSubject() {
+		if (!isExperimentalEnabled || !subjectId) {
+			currentEdp = null;
+			return;
+		}
+		isLoadingEdp = true;
+		try {
+			const res = await fetch(`/api/projects/${projectId}/subjects/${subjectId}/edp`);
+			if (res.ok) {
+				const data = await res.json();
+				currentEdp = data.edp;
+			} else {
+				currentEdp = null;
+			}
+		} catch {
+			currentEdp = null;
+		} finally {
+			isLoadingEdp = false;
+		}
+	}
+
+	async function handleValidateEdp(event: any) {
+		try {
+			const res = await fetch(`/api/projects/${projectId}/subjects/${subjectId}/edp`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ action: 'validate', ...(event.detail || event) })
+			});
+			if (res.ok) {
+				deliberationStore.logNotification('Paquet de Décision Exécutable validé (G3) !', 'success');
+				await loadEdpForSubject();
+			}
+		} catch (e: any) {
+			deliberationStore.logNotification(e.message, 'error');
+		}
+	}
+
+	async function handleChallengeEdp(event: any) {
+		try {
+			const res = await fetch(`/api/projects/${projectId}/subjects/${subjectId}/edp`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ action: 'challenge', ...(event.detail || event) })
+			});
+			if (res.ok) {
+				deliberationStore.logNotification('Contestation de décision enregistrée.', 'info');
+				await loadEdpForSubject();
+			}
+		} catch (e: any) {
+			deliberationStore.logNotification(e.message, 'error');
+		}
+	}
+
+	async function handleRunVerifyEdp(event: any) {
+		try {
+			const res = await fetch(`/api/projects/${projectId}/subjects/${subjectId}/edp`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ action: 'verify', ...(event.detail || event) })
+			});
+			if (res.ok) {
+				const data = await res.json();
+				if (data.verdict === 'compliant') {
+					deliberationStore.logNotification('Vérification OPA : CONFORME (0 violation)', 'success');
+				} else {
+					deliberationStore.logNotification(`Vérification OPA : ${data.verdict}`, 'warning');
+				}
+				await loadEdpForSubject();
+			}
+		} catch (e: any) {
+			deliberationStore.logNotification(e.message, 'error');
+		}
+	}
 
 	async function loadArgumentsAndContext() {
 		if (!projectId || !subjectId) return;
@@ -1304,6 +1386,35 @@
 				}}
 			/>
 		</div>
+	
+		<!-- 3. Paquet de Décision Exécutable (EDP) & Oracles OPA [Expérimental] -->
+		{#if isExperimentalEnabled && (currentEdp || subjectDecision)}
+			<div class="pt-4 border-t border-border/60" data-testid="edp-section-matrix">
+				<EdpCard
+					edp={currentEdp}
+					{isExperimentalEnabled}
+					currentUserRole={userRole}
+					currentUserId={sessionUser?.id || 'lead-architect'}
+					on:validate={handleValidateEdp}
+					on:challenge={handleChallengeEdp}
+					on:runVerify={handleRunVerifyEdp}
+				/>
+			</div>
+		{#if isExperimentalEnabled && currentEdp}
+			<div class="pt-2" data-testid="edp-section-doctrines">
+				<EdpCard
+					edp={currentEdp}
+					{isExperimentalEnabled}
+					currentUserRole={userRole}
+					currentUserId={sessionUser?.id || 'lead-architect'}
+					on:validate={handleValidateEdp}
+					on:challenge={handleChallengeEdp}
+					on:runVerify={handleRunVerifyEdp}
+				/>
+			</div>
+		{/if}
+
+		{/if}
 	</div>
 {/snippet}
 

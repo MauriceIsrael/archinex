@@ -1,4 +1,4 @@
-import { spawn } from 'node:child_process';
+import { spawn, spawnSync } from 'node:child_process';
 import { existsSync, writeFileSync, unlinkSync } from 'node:fs';
 import { resolve, join } from 'node:path';
 import { tmpdir } from 'node:os';
@@ -62,6 +62,17 @@ export function resolveOpaBinary(customPath?: string): string | null {
   const localBin = resolve(process.cwd(), 'tools/bin', isWin ? 'opa.exe' : 'opa');
   if (existsSync(localBin)) {
     return localBin;
+  }
+
+  // 4. Binaire global disponible dans le PATH
+  try {
+    const cmd = isWin ? 'opa.exe' : 'opa';
+    const check = spawnSync(cmd, ['version'], { stdio: 'ignore' });
+    if (check.status === 0) {
+      return cmd;
+    }
+  } catch {
+    // Absent du PATH
   }
 
   return null;

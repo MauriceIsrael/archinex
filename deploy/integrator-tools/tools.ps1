@@ -33,13 +33,13 @@ switch ($Command) {
 
         Write-Host ">>> Attente de la disponibilité de Nautobot (initialisation de la base)..." -ForegroundColor Cyan
         $attempts = 0
-        $maxAttempts = 30
+        $maxAttempts = 40
         $ready = $false
         while ($attempts -lt $maxAttempts -and -not $ready) {
             Start-Sleep -Seconds 3
             $attempts++
             try {
-                $res = Invoke-RestMethod -Uri "http://127.0.0.1:8080/api/" -Method Get -TimeoutSec 3 -ErrorAction SilentlyContinue
+                $res = Invoke-RestMethod -Uri "http://127.0.0.1:8080/health/" -Method Get -TimeoutSec 3 -ErrorAction SilentlyContinue
                 if ($res) { $ready = $true }
             } catch {
                 Write-Host "." -NoNewline
@@ -49,7 +49,7 @@ switch ($Command) {
 
         if ($ready) {
             Write-Host ">>> Nautobot est prêt ! Injection de l'inventaire témoin (seed)..." -ForegroundColor Green
-            Get-Content -Raw "$ScriptDir\seed-nautobot.py" | docker compose -f compose.yml exec -T nautobot nautobot-server nbshell
+            docker compose -f compose.yml exec -T nautobot python /opt/nautobot/seed-nautobot.py
             Write-Host ">>> Stack intégrateur opérationnelle !" -ForegroundColor Green
             & $MyInvocation.MyCommand.Path status
         } else {
@@ -75,7 +75,7 @@ switch ($Command) {
         if (-not (Check-Docker)) { exit 1 }
         Write-Host ">>> Exécution du script de seed dans Nautobot..." -ForegroundColor Cyan
         Set-Location $ScriptDir
-        Get-Content -Raw "$ScriptDir\seed-nautobot.py" | docker compose -f compose.yml exec -T nautobot nautobot-server nbshell
+        docker compose -f compose.yml exec -T nautobot python /opt/nautobot/seed-nautobot.py
     }
 
     "status" {
@@ -120,10 +120,8 @@ switch ($Command) {
                 "Authorization" = "Token 0123456789abcdef0123456789abcdef01234567"
                 "Content-Type"  = "application/json"
             }
-            $query = @{
-                query = "query { devices(name: [`"srv-telco-bm-01`"]) { name status { name } role { name } } }"
-            } | ConvertTo-Json
-            $res = Invoke-RestMethod -Uri "http://127.0.0.1:8080/api/graphql/" -Method Post -Headers $headers -Body $query
+            $queryBody = '{"query": "query { devices { name status { name } role { name } } }"}'
+            $res = Invoke-RestMethod -Uri "http://127.0.0.1:8080/api/graphql/" -Method Post -Headers $headers -Body $queryBody
             Write-Host "[OK] Nautobot GraphQL : Réponse reçue -> $($res | ConvertTo-Json -Compress)" -ForegroundColor Green
         } catch {
             Write-Host "[FAIL] Nautobot GraphQL non joignable : $_" -ForegroundColor Red

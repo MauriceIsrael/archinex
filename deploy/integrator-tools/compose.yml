@@ -1,7 +1,7 @@
 # Environnement d'intégration local pour la validation EDP & Telco-Cloud
 # Fournit :
 #  - Nautobot 2.x (DCIM SSOT) + PostgreSQL 15 + Redis 7 + Celery Worker
-#  - Batfish All-in-One (Simulateur de plan de contrôle et matrice de flux réseau)
+#  - Batfish (Simulateur de plan de contrôle et matrice de flux réseau)
 #  - Open Policy Agent (OPA) en mode serveur HTTP REST
 #
 # Usage :
@@ -44,6 +44,7 @@ services:
   nautobot:
     image: ghcr.io/nautobot/nautobot:2.2-py3.11
     container_name: archinex-nautobot-app
+    user: "0:0"
     depends_on:
       nautobot-db:
         condition: service_healthy
@@ -67,21 +68,21 @@ services:
       NAUTOBOT_SUPERUSER_API_TOKEN: "0123456789abcdef0123456789abcdef01234567"
       NAUTOBOT_AUTO_MIGRATE: "true"
     volumes:
-      - nautobot-media:/opt/nautobot/media
       - ./seed-nautobot.py:/opt/nautobot/seed-nautobot.py:ro
     ports:
       - "127.0.0.1:8080:8080"
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/api/ || exit 1"]
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/health/ || exit 1"]
       interval: 10s
       timeout: 10s
-      start_period: 45s
-      retries: 12
+      start_period: 60s
+      retries: 20
     restart: unless-stopped
 
   nautobot-worker:
     image: ghcr.io/nautobot/nautobot:2.2-py3.11
     container_name: archinex-nautobot-worker
+    user: "0:0"
     depends_on:
       nautobot:
         condition: service_healthy
@@ -116,4 +117,3 @@ services:
 
 volumes:
   nautobot-db-data:
-  nautobot-media:

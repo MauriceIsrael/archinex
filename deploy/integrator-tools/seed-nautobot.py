@@ -6,21 +6,28 @@ Idempotent creation of inventory required by EDP & Sylva CAPI:
 - Role: telco-baremetal-worker
 - Device: srv-telco-bm-01 (Status: Planned)
 - Interface: bmc (Type: other / 1000base-t)
+- Prefix: 192.0.2.0/24
 - IP: 192.0.2.10/24 (RFC 5737 TEST-NET-1) assigned to bmc interface
 """
 
+import os
 import sys
 
-def seed():
-    try:
-        from django.contrib.contenttypes.models import ContentType
-        from nautobot.dcim.models import Device, DeviceType, Interface, Location, LocationType, Manufacturer
-        from nautobot.extras.models import Role, Status
-        from nautobot.ipam.models import IPAddress, Namespace
-    except ImportError as e:
-        print(f"[ERROR] Cannot import Nautobot models: {e}")
-        sys.exit(1)
+# Initialisation Django pour exécution autonome
+os.environ.setdefault("DJANGO_SETTINGS_MODULE", "nautobot.core.settings")
+try:
+    import django
+    django.setup()
+except Exception as e:
+    print(f"[ERROR] Failed to initialize Django: {e}")
+    sys.exit(1)
 
+from django.contrib.contenttypes.models import ContentType
+from nautobot.dcim.models import Device, DeviceType, Interface, Location, LocationType, Manufacturer
+from nautobot.extras.models import Role, Status
+from nautobot.ipam.models import IPAddress, Namespace, Prefix
+
+def seed():
     print(">>> [ARCHINEX-SEED] Seeding Nautobot 2.x Telco Inventory...")
 
     # 1. Location Type & Location (pop-valmondois)
@@ -74,7 +81,6 @@ def seed():
             "comments": "Telco Baremetal Host planned for Sylva User-Plane CAPI cluster"
         }
     )
-    # Ensure status and role are aligned
     device.status = status_planned
     device.role = role
     device.location = location
@@ -94,13 +100,21 @@ def seed():
     )
     print(f"  * Interface 'bmc' on srv-telco-bm-01: {'created' if created else 'already exists'}")
 
-    # 6. IP Address: 192.0.2.10/24 (RFC 5737)
+    # 6. Prefix & IP Address: 192.0.2.10/24 (RFC 5737)
     namespace = Namespace.objects.first()
+    prefix, _ = Prefix.objects.get_or_create(
+        prefix="192.0.2.0/24",
+        defaults={
+            "status": status_active,
+            "namespace": namespace,
+            "description": "RFC 5737 TEST-NET-1 for Telco Edge"
+        }
+    )
     ip_addr, created = IPAddress.objects.get_or_create(
         address="192.0.2.10/24",
         defaults={
             "status": status_active,
-            "parent": namespace,
+            "parent": prefix,
             "description": "OOB Management BMC IP for srv-telco-bm-01"
         }
     )

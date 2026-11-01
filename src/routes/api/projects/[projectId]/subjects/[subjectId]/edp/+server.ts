@@ -5,10 +5,14 @@ import { resolve } from 'node:path';
 import { prisma } from '$lib/server/prisma';
 import { isEdpFeatureEnabled, transitionEdpStatus } from '$lib/server/edp/edpRepository';
 import { verifyEdp } from '$lib/server/edp/edpVerify';
+import { authorizeProjectAccess } from '$lib/server/projects/projectAccess';
 
 export const GET: RequestHandler = async ({ params, url }) => {
   const { subjectId } = params;
-  const isEnabled = isEdpFeatureEnabled() || url.searchParams.get('edp') === '1';
+  const isEnabled =
+    isEdpFeatureEnabled() ||
+    url.searchParams.get('edp') === '1' ||
+    process.env.NODE_ENV !== 'production';
 
   if (!isEnabled) {
     return json({ edp: null, isExperimentalEnabled: false });
@@ -78,8 +82,11 @@ export const GET: RequestHandler = async ({ params, url }) => {
   }
 };
 
-export const POST: RequestHandler = async ({ params, request }) => {
-  const { subjectId } = params;
+export const POST: RequestHandler = async (event) => {
+  const { params, request } = event;
+  const { projectId, subjectId } = params;
+  const auth = await authorizeProjectAccess(event, projectId);
+  if (auth.error) return auth.error;
   let body: any;
   try {
     body = await request.json();

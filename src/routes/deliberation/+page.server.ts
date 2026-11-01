@@ -10,7 +10,11 @@ export const load: PageServerLoad = async (event) => {
 		'lead_architect';
 
 	const isExperimentalEnabled =
-		isEdpFeatureEnabled() || event.url.searchParams.get('edp') === '1';
+		event.url.searchParams.get('edp') === '0'
+			? false
+			: isEdpFeatureEnabled() ||
+				event.url.searchParams.get('edp') === '1' ||
+				process.env.NODE_ENV !== 'production';
 
 	return {
 		sessionRole,

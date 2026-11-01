@@ -230,6 +230,8 @@ class DeliberationStore {
 			deliberationViewMode?: 'board' | 'conversation';
 			activePosture?: DeliberationPosture;
 			selectedPartId?: string;
+			decisionContexts?: Record<string, { decision: any; options: any[] }>;
+			frozenSnapshots?: Record<string, any>;
 		}
 	> = {};
 
@@ -250,7 +252,9 @@ class DeliberationStore {
 			dialogueMessages: $state.snapshot(this.dialogueMessages),
 			deliberationViewMode: this.deliberationViewMode,
 			activePosture: this.activePosture,
-			selectedPartId: this.selectedPartId
+			selectedPartId: this.selectedPartId,
+			decisionContexts: $state.snapshot(this.decisionContexts),
+			frozenSnapshots: $state.snapshot(this.frozenSnapshots)
 		};
 
 		// 2. Trouver la cible
@@ -277,6 +281,8 @@ class DeliberationStore {
 				this.activePosture = cached.activePosture;
 			}
 			this.selectedPartId = cached.selectedPartId || 'all';
+			this.decisionContexts = cached.decisionContexts ? $state.snapshot(cached.decisionContexts) : {};
+			this.frozenSnapshots = cached.frozenSnapshots ? $state.snapshot(cached.frozenSnapshots) : {};
 		} else {
 			this.subjects = [...targetProfile.subjects];
 			this.drafts = { ...targetProfile.drafts };
@@ -302,6 +308,8 @@ class DeliberationStore {
 			if (restoredPosture === 'appropriation' || restoredPosture === 'deliberation' || restoredPosture === 'rendu') {
 				this.activePosture = restoredPosture;
 			}
+			this.decisionContexts = {};
+			this.frozenSnapshots = {};
 		}
 
 		this.activeEngagementId = targetId;

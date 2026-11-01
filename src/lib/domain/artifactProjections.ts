@@ -436,7 +436,8 @@ export function generateTargetArchitectureDiagram(
 	}
 
 	const lower = fullSpec.toLowerCase();
-	const hasTelecomCrypto = /s6a|diameter|dea|secgw|hss|mme|lot 3.*lot 1|esp.*chiffrement/.test(lower);
+		const hasTelecomCrypto = /s6a|diameter|dea|secgw|hss|mme|lot 3.*lot 1|esp.*chiffrement/.test(lower);
+	const hasMultiEnv = /plateformes?|pr[eé]-prod|iso-[eé]tat|test-ran|qualification fournisseurs/.test(lower);
 	const mentionsRATP = lower.includes('ratp');
 	const hasSupervision = /supervision|m[eé]trologie|alarmes?|m[eé]triques?|centreon|hypervis|zabbix|prometheus/.test(lower);
 	const hasLogs = /logs?|audit|siem|syslog|splunk|elk/.test(lower);
@@ -497,6 +498,57 @@ export function generateTargetArchitectureDiagram(
 		].join('\n');
 	}
 
+
+	// Cas Spécial Multi-Plateformes / Environnements & Qualification (ex: Socle 3 plateformes, pré-prod iso-état, test-ran)
+	if (hasMultiEnv) {
+		const isLuxembourg = lower.includes('luxembourg') || lower.includes('lumicc');
+		const socleTitle = isLuxembourg
+			? 'Socle National 3 Plateformes (Luxembourg)'
+			: 'Socle d\'Environnements Multi-Plateformes (3 Niveaux)';
+
+		return [
+			'flowchart TB',
+			...targetArchitectureClassDefs(),
+			'',
+			'    %% Acteurs',
+			'    user_exploitant["👤 Équipe Exploitation & Ingénierie"]:::person',
+			'    user_auditeur["👤 Responsable Audit & Représentativité"]:::person',
+			'',
+			'    %% Zone Souveraine / Opérationnelle',
+			`    subgraph SOCLE["${socleTitle}"]`,
+			'        direction TB',
+			'        subgraph PROD_ENV["1. Plateforme de Production (PROD)"]',
+			'            PROD["🏭 Production Cœur & NOC<br/><small>(État nominal actif & services critiques réels)</small>"]:::core',
+			'        end',
+			'        subgraph PREPROD_ENV["2. Plateforme de Pré-production (PRE-PROD)"]',
+			'            PREPROD["🔄 Pré-production Unique Iso-État<br/><small>(Réplique technique exacte de la PROD, accueil état candidat)</small>"]:::core',
+			'        end',
+			'        subgraph TEST_ENV["3. Plateforme de Test Réduit (TEST)"]',
+			'            TESTRAN["🧪 Test Réduit avec Test-RAN<br/><small>(Banc d\'essais & validation fonctionnelle radio)</small>"]:::core',
+			'        end',
+			'    end',
+			'    class SOCLE boundary',
+			'',
+			'    %% Zone Fournisseurs / Équipementiers Tiers',
+			'    subgraph FOURNISSEURS_ZONE["Périmètre Fournisseurs & Usine (Décentralisé)"]',
+			'        direction TB',
+			'        FournisseursBanc["🏢 Qualification Fournisseurs<br/><small>(Bancs d\'essais usine chez les constructeurs)</small>"]:::ext',
+			'        AuditRepresentativite["🛡️ Contrôle d\'Audit & Représentativité<br/><small>(Contrôle d\'audit strict & certification des bancs)</small>"]:::agent',
+			'    end',
+			'    class FOURNISSEURS_ZONE boundary',
+			'',
+			'    %% Flux de qualification, vérification et promotion',
+			'    FournisseursBanc -->|"1. Tests d\'usine & métrologie"| AuditRepresentativite',
+			'    user_auditeur -->|"Audit & vérification de conformité"| AuditRepresentativite',
+			'    AuditRepresentativite -->|"2. Version candidate certifiée représentative"| TESTRAN',
+			'    TESTRAN -->|"3. Validation intégration fonctionnelle & radio"| PREPROD',
+			'    PREPROD -->|"4. Qualification sur état candidat iso-production"| PROD',
+			'    PROD -.->|"Réplication continue d\'état technique"| PREPROD',
+			'    user_exploitant -->|"Exploitation & gestion état candidat"| PREPROD',
+			'    user_exploitant -->|"MCO & supervision nominale"| PROD'
+		].join('\n');
+	}
+
 	let systemLabel = `Système : ${subjectName} (Périmètre Solution - Autonome)`;
 	if (lower.includes('après-tetra') || lower.includes('apres-tetra') || lower.includes('tetra')) {
 		systemLabel = 'Système Après-TETRA (Périmètre Titulaire - Autonome)';
@@ -548,7 +600,10 @@ export function generateTargetArchitectureDiagram(
 		lines.push('        MetrologieLocale["Moteur Métrologie & Stockage Local<br/><small>(Autonomie locale & TSDB)</small>"]:::core');
 	}
 	if (isHybrid || hasSupervision || hasLogs) {
-		lines.push(`        ModuleExport["Passerelle d'Export & Connecteurs RATP<br/><small>(Interfaçage standardisé vers l'existant)</small>"]:::agent`);
+		const exportLabel = mentionsRATP
+			? "Passerelle d'Export & Connecteurs RATP<br/><small>(Interfaçage standardisé vers l'existant)</small>"
+			: "Passerelle d'Export & Connecteurs d'Intégration<br/><small>(Interfaçage standardisé vers l'existant)</small>";
+		lines.push(`        ModuleExport["${exportLabel}"]:::agent`);
 	}
 	lines.push('    end');
 	lines.push('    class SYSTEM boundary');
@@ -603,7 +658,8 @@ export function generateTargetArchitectureDiagram(
 			if (hasLogs) {
 				lines.push('    ModuleExport -->|"Export logs d\'audit (Syslog TLS)"| CentralLogs');
 			}
-			lines.push('    user_1 -->|"Vue globale PCC"| SupervisionExt');
+			const user1Action = mentionsRATP ? 'Vue globale PCC' : 'Supervision & Exploitation Externe';
+			lines.push(`    user_1 -->|"${user1Action}"| SupervisionExt`);
 		}
 	} else if (hasAuth) {
 		lines.push('    user_1 -->|"Accès applicatif (HTTPS)"| ServiceMetier');
@@ -648,6 +704,35 @@ export function generateDeploymentSequenceDiagram(
 	const fullSpec = `${decision?.retainedOptionTitle || ''} ${retainedOpt?.summary || ''} ${decision?.rationale || ''}`.toLowerCase();
 	const isRATP = fullSpec.includes('ratp');
 	const isWapt = fullSpec.includes('wapt');
+
+	
+	const hasMultiEnv = /plateformes?|pr[eé]-prod|iso-[eé]tat|test-ran|qualification fournisseurs/.test(fullSpec);
+	if (hasMultiEnv) {
+		return [
+			'sequenceDiagram',
+			'    autonumber',
+			'    actor Fournisseur as Fournisseur / Équipementier',
+			'    actor Auditeur as Responsable Audit & Représentativité',
+			'    participant TestRAN as Plateforme Test Réduit (Test-RAN)',
+			'    participant PreProd as Pré-production Iso-État (Luxembourg)',
+			'    participant Prod as Production (Luxembourg)',
+			'',
+			'    Note over Fournisseur,Auditeur: Phase 1 : Qualification Usine et Contrôle d\'Audit',
+			'    Fournisseur->>Fournisseur: Exécution des tests d\'intégration chez le fournisseur',
+			'    Auditeur->>Fournisseur: Audit sur site et contrôle de représentativité du banc',
+			'    Auditeur->>TestRAN: Livraison de la version candidate avec rapport d\'audit certifié',
+			'',
+			'    Note over TestRAN,PreProd: Phase 2 : Validation Fonctionnelle & Radio Réduite',
+			'    TestRAN->>TestRAN: Validation sur banc Test-RAN avec scénarios réels',
+			'    TestRAN->>PreProd: Promotion vers la pré-production luxembourgeoise',
+			'',
+			'    Note over PreProd,Prod: Phase 3 : Qualification Iso-État & Bascule Production',
+			'    Prod-->>PreProd: Réplication technique de l\'état de production nominal',
+			'    PreProd->>PreProd: Déploiement et tests sur l\'état candidat en conditions réelles',
+			'    PreProd->>Prod: Validation formelle et mise en production sans régression',
+			'    Prod->>Prod: État candidat devient l\'état nominal actif'
+		].join('\n');
+	}
 
 	const hasTelecomCrypto = /s6a|diameter|dea|secgw|hss|mme|lot 3.*lot 1|esp.*chiffrement/.test(fullSpec);
 	if (hasTelecomCrypto) {

@@ -40,6 +40,18 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 - **Tests de Non-Régression & Isolation** :
   - Nouveaux tests de contrat dans `tests/contract/artifact-projections.test.ts` garantissant l'absence totale de mentions RATP/PCC sur les spécifications LUMICC et la bonne génération de la topologie multi-plateformes.
 
+### Sécurité & Gouvernance : Garde d'Accès Anonyme (Dashboard Seul) & Fiabilité de l'Homologation L4
+- **Restriction des Visiteurs Anonymes au Dashboard Global (`+layout.svelte`, `+page.svelte`)** :
+  - Pour les visiteurs non authentifiés (`!session`), la barre latérale et le menu mobile ne présentent que le Dashboard (« Executive Cockpit ») ainsi qu'un bouton direct de connexion (`/login`).
+  - Les accès directs par URL aux espaces de travail (`/workspaces`, `/workspaces/new`), à l'atelier de délibération (`/deliberation`), et au graphe de connaissances (`/knowledge`, `/knowledge/[id]`) sont protégés côté serveur via `requireAuth(locals, '/login?redirectTo=...')`.
+  - Mémorisation et validation sécurisée du paramètre `redirectTo` sur la mire de connexion pour rediriger l'utilisateur vers la page initialement demandée après authentification.
+- **Fiabilisation des Transitions de Maturité & Homologation L4 (`SubjectThreadView.svelte`)** :
+  - Vérification systématique du code de retour HTTP (`res.ok`) sur `patchSubject` lors de l'homologation d'une spécification L4 et des changements de jalons.
+  - En cas d'erreur de requête (notamment `401 Unauthorized` si la session a expiré ou est absente), affichage immédiat d'une notification explicite et rechargement de l'état serveur pour éviter les faux succès visuels.
+- **Tests & Assurance Qualité** :
+  - Nouveau test de contrat dans `tests/contract/anonymous-dashboard-guard.test.ts` validant les redirections vers `/login`, le filtrage du menu et la préservation de `redirectTo`.
+
+
 ### Rendu Graphique : Aperçu Plein Écran au Maintien du Clic & Spécification Sécurité Télécom S6a
 - **Aperçu Plein Écran Dynamique au Maintien du Clic (`MermaidViewer`)** :
   - L'appui maintenu (clic gauche enfoncé) sur n'importe quel diagramme Mermaid l'affiche instantanément en surcouche plein écran haute lisibilité (`backdrop-blur`, dimensions maximales de l'écran, zoom optimisé).

@@ -20,10 +20,14 @@
 		Layers,
 		CheckCircle2,
 		ShieldCheck,
-		ArrowRight
+		ArrowRight,
+		LogIn
 	} from 'lucide-svelte';
+	import { page } from '$app/stores';
 
 	let { data }: { data: PageData } = $props();
+
+	const session = $derived($page.data.session);
 
 	let lastInitializedKey = '';
 
@@ -106,29 +110,44 @@
 
 			<!-- Actions d'accès direct -->
 			<div class="flex items-center gap-2 flex-wrap">
-				<a
-					href="/workspaces/new"
-					class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 font-bold text-xs shadow-xs transition-colors"
-				>
-					<FolderPlus class="h-4 w-4" />
-					<span>Nouvel Engagement</span>
-				</a>
+				{#if session}
+					<a
+						href="/workspaces/new"
+						class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 font-bold text-xs shadow-xs transition-colors"
+					>
+						<FolderPlus class="h-4 w-4" />
+						<span>Nouvel Engagement</span>
+					</a>
 
-				<a
-					href="/deliberation"
-					class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border bg-background hover:bg-muted font-semibold text-xs transition-colors shadow-2xs"
-				>
-					<GitBranch class="h-4 w-4 text-primary" />
-					<span>Atelier Workbench</span>
-				</a>
+					<a
+						href="/deliberation"
+						class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border bg-background hover:bg-muted font-semibold text-xs transition-colors shadow-2xs"
+					>
+						<GitBranch class="h-4 w-4 text-primary" />
+						<span>Atelier Workbench</span>
+					</a>
 
-				<a
-					href="/knowledge"
-					class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border bg-background hover:bg-muted font-semibold text-xs transition-colors shadow-2xs"
-				>
-					<Network class="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
-					<span>Base de Connaissance</span>
-				</a>
+					<a
+						href="/knowledge"
+						class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border bg-background hover:bg-muted font-semibold text-xs transition-colors shadow-2xs"
+					>
+						<Network class="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+						<span>Base de Connaissance</span>
+					</a>
+				{:else}
+					<div class="flex items-center gap-2">
+						<span class="inline-flex items-center px-2 py-1 rounded-lg text-xs font-medium bg-muted text-muted-foreground border">
+							Mode Visiteur (Consultation du Cockpit)
+						</span>
+						<a
+							href="/login?redirectTo=/deliberation"
+							class="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 font-bold text-xs shadow-xs transition-colors"
+						>
+							<LogIn class="h-4 w-4" />
+							<span>Se connecter pour délibérer</span>
+						</a>
+					</div>
+				{/if}
 			</div>
 		</div>
 

@@ -99,7 +99,7 @@ services:
     restart: unless-stopped
 
   batfish:
-    image: batfish/all-in-one:latest
+    image: batfish/batfish:latest
     container_name: archinex-batfish
     ports:
       - "127.0.0.1:9997:9997" # Client API / pybatfish

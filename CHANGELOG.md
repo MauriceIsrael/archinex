@@ -11,7 +11,7 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 ### Environnement Docker d'Intégration & Outillage (Nautobot, Batfish, OPA Server)
 - **Pile Conteneurisée d'Outillage Intégrateur (`deploy/integrator-tools/compose.yml`)** :
   - Déploiement local de Nautobot 2.2 avec PostgreSQL 15, Redis 7 et worker Celery pour servir de source de vérité DCIM.
-  - Intégration de Batfish (`batfish/all-in-one:latest`) sur les ports 9997 (API pybatfish) et 9996 pour la simulation et la vérification des matrices de flux réseau.
+  - Intégration de Batfish (`batfish/batfish:latest`) sur les ports 9997 (API pybatfish) et 9996 pour la simulation et la vérification des matrices de flux réseau.
   - Intégration d'un serveur OPA REST (`openpolicyagent/opa:latest`) sur le port 8181 en complément du binaire CLI local `tools/bin/opa.exe`.
 - **Script d'Ensemencement Témoin Nautobot (`deploy/integrator-tools/seed-nautobot.py`)** :
   - Injection idempotente de la topologie requise par les oracles Sylva CAPI : site `pop-valmondois`, rôle `telco-baremetal-worker`, serveur `srv-telco-bm-01` au statut `Planned`, interface `bmc` et adresse de management `192.0.2.10/24` (RFC 5737).

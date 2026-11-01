@@ -3,7 +3,7 @@ import { resolve } from 'node:path';
 import { readFileSync } from 'node:fs';
 import { verifyEdp } from '../../src/lib/server/edp/edpVerify.js';
 import { sanitizeManifests, transformSylvaManifestsToRefinedInput } from '../../src/lib/server/edp/adapters/sylvaAdapter.js';
-import { normalizeNautobotDevice, transformNautobotExportToRefinedInput } from '../../src/lib/server/edp/adapters/nautobotAdapter.js';
+import { normalizeNautobotDevice, transformNautobotExportToRefinedInput, parseNautobotGraphqlResponse, NAUTOBOT_PLANNED_EXTRACT_QUERY } from '../../src/lib/server/edp/adapters/nautobotAdapter.js';
 import { runEdpArchitectureGate } from '../../scripts/edp-gate.js';
 import { validateRefinedInput } from '../../src/lib/domain/edp/validateRefinedInput.js';
 
@@ -63,6 +63,17 @@ describe('EDP Verify and Gate Contract Tests (Palier 4, Issues #182, #178, #179,
       expect(refined.sources.k8s_manifests.provenance.tool).toBe('helm');
       expect((refined.sources.k8s_manifests.content as any[])).toHaveLength(2);
     });
+
+    it('validates candidate values for Sylva CAPI cluster (ADR-012)', () => {
+      const yamlContent = readFileSync(
+        resolve(process.cwd(), 'tests/fixtures/edp/sylva/sylva_values_candidate.yaml'),
+        'utf-8'
+      );
+      expect(yamlContent).toContain('infra_provider: capm3');
+      expect(yamlContent).toContain('bootstrap_provider: cabpr');
+      expect(yamlContent).toContain('image_key: sle-micro-rt-5.5');
+      expect(yamlContent).toContain('redfish-virtualmedia://192.0.2.10');
+    });
   });
 
   describe('Nautobot Adapter (#179)', () => {
@@ -98,6 +109,52 @@ describe('EDP Verify and Gate Contract Tests (Palier 4, Issues #182, #178, #179,
       expect(validation.valid).toBe(true);
       expect(refined.sources.nautobot_planned_devices.provenance.tool).toBe('nautobot-gql-exporter');
       expect((refined.sources.nautobot_planned_devices.content as any[])).toHaveLength(1);
+    });
+
+    it('parses raw Nautobot GraphQL response and extracts BMC OOB IP accurately', () => {
+      expect(NAUTOBOT_PLANNED_EXTRACT_QUERY).toContain('devices(location: $site_slug, status: "planned")');
+
+      const mockGqlResponse = {
+        data: {
+          devices: [
+            {
+              name: 'srv-telco-bm-01',
+              status: { name: 'Planned' },
+              role: { name: 'telco-baremetal-worker' },
+              _custom_field_data: { site: 'pop-valmondois' },
+              interfaces: [
+                {
+                  name: 'bmc',
+                  type: '1000base-t',
+                  mac_address: 'aa:bb:cc:00:11:01',
+                  ip_addresses: [
+                    {
+                      address: '192.0.2.10/24',
+                      host: '192.0.2.10'
+                    }
+                  ]
+                },
+                {
+                  name: 'eth0',
+                  type: '10gbase-x-sfpp',
+                  ip_addresses: []
+                }
+              ]
+            }
+          ]
+        }
+      };
+
+      const parsed = parseNautobotGraphqlResponse(mockGqlResponse);
+      expect(parsed).toHaveLength(1);
+      expect(parsed[0].name).toBe('srv-telco-bm-01');
+      expect(parsed[0].role).toBe('telco-baremetal-worker');
+      expect(parsed[0].oob_ip).toBe('192.0.2.10');
+
+      const normalized = normalizeNautobotDevice(parsed[0]);
+      expect(normalized.status).toBe('planned');
+      expect(normalized.oob_ip).toBe('192.0.2.10');
+      expect(normalized.interfaces).toHaveLength(2);
     });
   });
 

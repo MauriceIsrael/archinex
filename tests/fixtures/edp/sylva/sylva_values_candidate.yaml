@@ -1,0 +1,20 @@
+# Fixture de valeurs de référence Sylva CAPI Cluster (ADR-012)
+# Profils : Provider Metal3 (capm3), Bootstrap RKE2 (cabpr), Image SLE Micro RT 5.5
+name: upf-edge-valmondois-01
+capi_providers:
+  infra_provider: capm3    # Cluster API Provider Metal3 (Bare-Metal)
+  bootstrap_provider: cabpr # Cluster API Bootstrap Provider RKE2
+
+control_plane:
+  replicas: 3
+  machine_deployment_default:
+    image_key: sle-micro-rt-5.5
+
+baremetal_hosts:
+  srv-telco-bm-01:
+    bmc:
+      address: redfish-virtualmedia://192.0.2.10/redfish/v1/Systems/1
+      credentialsName: srv-telco-bm-01-bmc-secret
+    bootMACAddress: "aa:bb:cc:00:11:01"
+    node_labels:
+      sec.archinex.io/zone: "user-plane"

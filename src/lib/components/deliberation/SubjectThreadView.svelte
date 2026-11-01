@@ -1791,7 +1791,7 @@
 				<div class="space-y-1">
 					<p class="font-semibold text-foreground text-sm">🧪 Paquet de Décision Exécutable (EDP)</p>
 					<p class="text-xs text-muted-foreground max-w-md mx-auto">
-						L'oracle Rego et les projections d'infrastructure (Nautobot DCIM, SUSE-Sylva CAPI) permettent d'évaluer automatiquement la conformité de l'architecture.
+						L'oracle Rego et les projections d'infrastructure (Nautobot DCIM, Sylva CAPI) permettent d'évaluer automatiquement la conformité de l'architecture.
 					</p>
 				</div>
 				<button
@@ -1811,7 +1811,7 @@
 					}}
 				>
 					<Play class="h-3.5 w-3.5" />
-					Charger l'oracle témoin ADR-012 (Baremetal / SUSE-Sylva)
+					Charger l'oracle témoin ADR-012 (Baremetal / Sylva CAPI)
 				</button>
 			</div>
 		{/if}

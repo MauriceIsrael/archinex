@@ -21,13 +21,6 @@ export const load: PageServerLoad = async (event) => {
 	return {
 		sessionRole,
 		isExperimentalEnabled,
-		sessionUser: sessionUser
-			? {
-					id: sessionUser.id,
-					email: sessionUser.email,
-					role: sessionRole
-				}
-			: null
 		sessionUser: {
 			id: sessionUser.id,
 			email: sessionUser.email,

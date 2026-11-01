@@ -49,7 +49,7 @@ switch ($Command) {
 
         if ($ready) {
             Write-Host ">>> Nautobot est prêt ! Injection de l'inventaire témoin (seed)..." -ForegroundColor Green
-            docker compose -f compose.yml exec -T nautobot nautobot-server nbshell < seed-nautobot.py
+            Get-Content -Raw "$ScriptDir\seed-nautobot.py" | docker compose -f compose.yml exec -T nautobot nautobot-server nbshell
             Write-Host ">>> Stack intégrateur opérationnelle !" -ForegroundColor Green
             & $MyInvocation.MyCommand.Path status
         } else {
@@ -75,7 +75,7 @@ switch ($Command) {
         if (-not (Check-Docker)) { exit 1 }
         Write-Host ">>> Exécution du script de seed dans Nautobot..." -ForegroundColor Cyan
         Set-Location $ScriptDir
-        docker compose -f compose.yml exec -T nautobot nautobot-server nbshell < seed-nautobot.py
+        Get-Content -Raw "$ScriptDir\seed-nautobot.py" | docker compose -f compose.yml exec -T nautobot nautobot-server nbshell
     }
 
     "status" {

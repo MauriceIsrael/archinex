@@ -497,6 +497,53 @@
 		}
 	}
 
+	async function handleHydrateEdp(event: any) {
+		try {
+			const res = await fetch(`/api/projects/${projectId}/subjects/${subjectId}/edp?edp=1`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ action: 'hydrate', ...(event?.detail || event || {}) })
+			});
+			if (res.ok) {
+				const data = await res.json();
+				deliberationStore.logNotification(
+					data.message || 'Inventaire Planned (Nautobot & Sylva) hydraté avec succès !',
+					'success'
+				);
+				await loadEdpForSubject();
+			} else {
+				const err = await res.json();
+				deliberationStore.logNotification(err.error || 'Erreur hydratation', 'warning');
+			}
+		} catch (e: any) {
+			deliberationStore.logNotification(e.message, 'warning');
+		}
+	}
+
+	async function handleSynthesizeEdp(event?: any) {
+		try {
+			const res = await fetch(`/api/projects/${projectId}/subjects/${subjectId}/edp?edp=1`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ action: 'synthesize', ...(event?.detail || event || {}) })
+			});
+			if (res.ok) {
+				const data = await res.json();
+				currentEdp = data.edp;
+				deliberationStore.logNotification(
+					data.message || 'EDP synthétisé avec succès pour ce sujet !',
+					'success'
+				);
+				await loadEdpForSubject();
+			} else {
+				const err = await res.json();
+				deliberationStore.logNotification(err.error || 'Erreur synthèse EDP', 'warning');
+			}
+		} catch (e: any) {
+			deliberationStore.logNotification(e.message, 'warning');
+		}
+	}
+
 	async function loadArgumentsAndContext() {
 		if (!projectId || !subjectId) return;
 		isLoadingArguments = true;
@@ -1441,6 +1488,8 @@
 					on:validate={handleValidateEdp}
 					on:challenge={handleChallengeEdp}
 					on:runVerify={handleRunVerifyEdp}
+					on:hydrate={handleHydrateEdp}
+					on:synthesize={handleSynthesizeEdp}
 				/>
 			</div>
 		{/if}
@@ -1767,6 +1816,8 @@
 					on:validate={handleValidateEdp}
 					on:challenge={handleChallengeEdp}
 					on:runVerify={handleRunVerifyEdp}
+					on:hydrate={handleHydrateEdp}
+					on:synthesize={handleSynthesizeEdp}
 				/>
 			</div>
 		{/if}
@@ -1794,25 +1845,36 @@
 						L'oracle Rego et les projections d'infrastructure (Nautobot DCIM, Sylva CAPI) permettent d'évaluer automatiquement la conformité de l'architecture.
 					</p>
 				</div>
-				<button
-					type="button"
-					class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-medium text-xs transition-colors shadow-sm cursor-pointer"
-					onclick={async () => {
-						try {
-							const res = await fetch(`/api/projects/${projectId}/subjects/${subjectId}/edp?edp=1`);
-							if (res.ok) {
-								const data = await res.json();
-								currentEdp = data.edp;
-								deliberationStore.logNotification('Oracle EDP chargé avec succès !', 'success');
+				<div class="flex items-center justify-center gap-2 flex-wrap">
+					<button
+						type="button"
+						class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-xs transition-colors shadow-sm cursor-pointer"
+						onclick={handleSynthesizeEdp}
+					>
+						<Sparkles class="h-3.5 w-3.5" />
+						✨ Synthétiser l'EDP pour ce sujet
+					</button>
+
+					<button
+						type="button"
+						class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-medium text-xs transition-colors shadow-sm cursor-pointer"
+						onclick={async () => {
+							try {
+								const res = await fetch(`/api/projects/${projectId}/subjects/${subjectId}/edp?edp=1`);
+								if (res.ok) {
+									const data = await res.json();
+									currentEdp = data.edp;
+									deliberationStore.logNotification('Oracle EDP chargé avec succès !', 'success');
+								}
+							} catch {
+								deliberationStore.logNotification('Erreur chargement EDP', 'warning');
 							}
-						} catch (e: any) {
-							deliberationStore.logNotification('Erreur chargement EDP', 'warning');
-						}
-					}}
-				>
-					<Play class="h-3.5 w-3.5" />
-					Charger l'oracle témoin ADR-012 (Baremetal / Sylva CAPI)
-				</button>
+						}}
+					>
+						<Play class="h-3.5 w-3.5" />
+						Charger l'oracle témoin ADR-012 (Baremetal)
+					</button>
+				</div>
 			</div>
 		{/if}
 	</div>

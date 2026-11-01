@@ -34,6 +34,7 @@ graph TD
         Capitalization[capitalization.ts / buildKbCandidates & anonymize]
         Epistemic[epistemicEnvelope.ts / Triplet 5 Facettes]
         DAG[retractation.ts / Truth Maintenance DAG]
+        EDP[EDP Domain / edp.schema, intentionPurity, validateRefinedInput]
     end
     
     subgraph "Couche Agents & Intelligence Locale"
@@ -454,8 +455,36 @@ Pour éliminer toute latence lors du clic sur le Dashboard (`/`) ou lors du basc
 ### 3. Résolution Granulaire des Icônes (`vite.config.ts`)
 - **Plugin de Transformation `lucideOptimizePlugin`** : réécrit à la compilation les imports barils `import { A, B } from 'lucide-svelte'` en imports directs `import A from 'lucide-svelte/icons/a'`, empêchant le navigateur de télécharger et compiler les 1 929 modules d'icônes et d'alias en mode développement (baisse de 3 788 requêtes à quelques dizaines par vue).
 
+---
 
+## 12. Paquet de Décision Exécutable (EDP) & Oracles OPA/Rego (Expérimental)
 
+Dans le cadre de l'initiative expérimentale (`ARCHINEX_EXPERIMENTAL_EDP=1`), Archinex associe à chaque décision d'architecture arbitrée un **Paquet de Décision Exécutable** (EDP) assurant l'opposabilité et la vérifiabilité continue du HLD face aux instanciations LLD réelles ou simulées :
 
-
-
+1. **Séparation Stricte Intension (HLD) vs Extension (LLD)** :
+   - Le contexte de décision (`decision_context`) exprime des règles pures sur l'ontologie d'entreprise sans aucune valeur d'instanciation. Le module `intentionPurity.ts` filtre rigoureusement toute adresse IPv4, IPv6, CIDR, adresse MAC ou nom d'hôte physique ou logique avec une liste blanche stricte de standards et versions autorisées (Invariant X).
+2. **Contrats Formels & Prévention de la Vacuité (`edp.schema.json`, `refined_input.schema.json`)** :
+   - L'EDP formalise ses attentes d'extension via `expected_inputs`. Lors de l'évaluation, `validateRefinedInput.ts` exige la présence de chaque source et une provenance certifiée (`tool`, `version`, `command`, `sha256`, `generated_at`). Toute entrée partielle ou vide reçoit le verdict bloquant `insufficient_input` pour éliminer les faux positifs par vacuité (Invariant I & IV).
+3. **Moteur d'Oracles OPA & Convention Normative à 4 Verdicts** :
+   - Exécution déterministe via le binaire officiel OPA (v1.21.4 épinglé avec contrôle SHA-256) encapsulé dans `opaRunner.ts`. En cas d'indisponibilité du binaire, le résultat `unavailable` n'est jamais confondu avec un succès.
+   - Bibliothèque Rego partagée (`policies/lib/edp_common.rego`) avec gestion des 4 états :
+     - `compliant` : conformité totale aux politiques sans dérogation ni vacuité.
+     - `violated` : non-conformité avérée avec détails et chemins précis des violations.
+     - `not_applicable` : critères d'applicabilité hors périmètre.
+     - `insufficient_input` : source attendue absente, vide ou non prouvée.
+4. **Garde de Mutation Déterministe (`scripts/edp-mutation-gate.ts`)** :
+   - Analyseur de résilience des oracles appliquant l'opérateur de mutation par neutralisation inerte de règles (`drop_rule`). Exigence absolue de tuer 100 % des mutants injectés avant toute acceptation d'oracle.
+5. **Ontologie, Projections & Persistance Souveraine** :
+   - Client de lecture d'ontologie déconnecté (`ontologyClient.ts`) avec contrôle strict des révisions (`stale_binding` si dérive).
+   - Compilateur de projections (`projectionCompiler.ts`) produisant `data.ontology` avec empreinte canonique SHA-256 et détection de duplication littérale.
+   - Modèle Prisma `ExecutableDecisionPackage` avec application directe de l'Invariant II (interdiction absolue de valider automatiquement un EDP produit par LLM sans validation humaine tracée et signée) et Invariant VI (rétractation vers `stale` lors de la caducité d'un antécédent).
+6. **Service d'Évaluation `edp verify` & Adaptateurs LLD** :
+   - Moteur central `edpVerify.ts` émettant un lot de preuves cryptographique (`EvidenceBundle`) avec codes de sortie standardisés (0, 1, 2, 3).
+   - Adaptateur Helm Sylva/CAPI (`sylvaAdapter.ts`) avec sanitization automatique des secrets.
+   - Adaptateur Nautobot Planned (`nautobotAdapter.ts`) normalisant les équipements physiques et interfaces.
+7. **Chaîne de Rédaction Assistée LLM & Composant IHM Workbench** :
+   - Pipeline de garde `edpDrafting.ts` filtrant les propositions d'IA par l'ensemble des contrôles déterministes avant toute présentation humaine.
+   - Composant UI `EdpCard.svelte` sous drapeau `ARCHINEX_EXPERIMENTAL_EDP`, permettant aux architectes habilités de visualiser les verdicts, scores de mutation et de valider ou contester formellement l'EDP.
+8. **Paquets de Référence & Promotion** :
+   - Deux références complètes : `adr012-baremetal` (infrastructure Telco Cloud) et `adr015-security-zones` (cloisonnement de zones NIS2), atteignant chacune 100 % de score de mutation.
+   - Document de promotion formel : [ADR-016](docs/adr/ADR-016-promotion-edp-experimental.md).

@@ -26,6 +26,7 @@
 	import SubjectProblemCard from './SubjectProblemCard.svelte';
 	import SplitSubjectDialog from './SplitSubjectDialog.svelte';
 	import OptionsMatrix from './OptionsMatrix.svelte';
+	import EdpCard from '$lib/components/edp/EdpCard.svelte';
 	import TelegraphicDraftView from './TelegraphicDraftView.svelte';
 	import CapitalizationPanel from './CapitalizationPanel.svelte';
 	import ProjectRulesPanel from './ProjectRulesPanel.svelte';
@@ -67,7 +68,9 @@
 		Compass,
 		HelpCircle,
 		Lightbulb,
-		Split
+		Split,
+		ShieldCheck,
+		Play
 	} from 'lucide-svelte';
 
 	let {
@@ -82,7 +85,8 @@
 		onToggleDossier = () => {},
 		onBackToBoard = () => {},
 		initialActiveWorkspaceTab = 'thread',
-		initialDecision = null
+		initialDecision = null,
+		isExperimentalEnabled = false
 	}: {
 		subjectId: string;
 		projectId: string;
@@ -96,10 +100,11 @@
 		onBackToBoard?: () => void;
 		initialActiveWorkspaceTab?: UnifiedWorkspaceTab;
 		initialDecision?: Decision | null;
+		isExperimentalEnabled?: boolean;
 	} = $props();
 
 	// ─── État de navigation unifié (Onglets pleine largeur + Mode Split optionnel) ───
-	type UnifiedWorkspaceTab = 'thread' | 'matrix' | 'kb' | 'cascade';
+	type UnifiedWorkspaceTab = 'thread' | 'matrix' | 'kb' | 'cascade' | 'edp';
 	let activeWorkspaceTab = $state<UnifiedWorkspaceTab>(initialActiveWorkspaceTab);
 	let isSplitView = $state(true);
 	// En mode Split, la colonne de gauche affiche le fil ('thread') et la colonne de droite affiche l'un des 3 volets d'analyse :
@@ -409,8 +414,88 @@
 	$effect(() => {
 		if (subjectId && projectId) {
 			loadArgumentsAndContext();
+			void loadEdpForSubject();
 		}
 	});
+
+	
+	// ─── État & Actions EDP (Paquet de Décision Exécutable) ──────────────────────────
+	let currentEdp = $state<any>(null);
+	let isLoadingEdp = $state(false);
+
+	async function loadEdpForSubject() {
+		if (!isExperimentalEnabled || !subjectId) {
+			currentEdp = null;
+			return;
+		}
+		isLoadingEdp = true;
+		try {
+			const res = await fetch(`/api/projects/${projectId}/subjects/${subjectId}/edp?edp=1`);
+			if (res.ok) {
+				const data = await res.json();
+				currentEdp = data.edp;
+			} else {
+				currentEdp = null;
+			}
+		} catch {
+			currentEdp = null;
+		} finally {
+			isLoadingEdp = false;
+		}
+	}
+
+	async function handleValidateEdp(event: any) {
+		try {
+			const res = await fetch(`/api/projects/${projectId}/subjects/${subjectId}/edp`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ action: 'validate', ...(event.detail || event) })
+			});
+			if (res.ok) {
+				deliberationStore.logNotification('Paquet de Décision Exécutable validé (G3) !', 'success');
+				await loadEdpForSubject();
+			}
+		} catch (e: any) {
+			deliberationStore.logNotification(e.message, 'warning');
+		}
+	}
+
+	async function handleChallengeEdp(event: any) {
+		try {
+			const res = await fetch(`/api/projects/${projectId}/subjects/${subjectId}/edp`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ action: 'challenge', ...(event.detail || event) })
+			});
+			if (res.ok) {
+				deliberationStore.logNotification('Contestation de décision enregistrée.', 'info');
+				await loadEdpForSubject();
+			}
+		} catch (e: any) {
+			deliberationStore.logNotification(e.message, 'warning');
+		}
+	}
+
+	async function handleRunVerifyEdp(event: any) {
+		try {
+			const res = await fetch(`/api/projects/${projectId}/subjects/${subjectId}/edp`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ action: 'verify', ...(event.detail || event) })
+			});
+			if (res.ok) {
+				const data = await res.json();
+				if (data.verdict === 'compliant') {
+					deliberationStore.logNotification('Vérification OPA : CONFORME (0 violation)', 'success');
+				} else {
+					deliberationStore.logNotification(`Vérification OPA : ${data.verdict}`, 'warning');
+				}
+				await loadEdpForSubject();
+			}
+		} catch (e: any) {
+			deliberationStore.logNotification(e.message, 'warning');
+		}
+	}
 
 	async function loadArgumentsAndContext() {
 		if (!projectId || !subjectId) return;
@@ -1344,6 +1429,21 @@
 				}}
 			/>
 		</div>
+	
+		<!-- 3. Paquet de Décision Exécutable (EDP) & Oracles OPA [Expérimental] -->
+		{#if isExperimentalEnabled}
+			<div class="pt-4 border-t border-border/60" data-testid="edp-section-matrix">
+				<EdpCard
+					edp={currentEdp}
+					{isExperimentalEnabled}
+					currentUserRole={userRole}
+					currentUserId={sessionUser?.id || 'lead-architect'}
+					on:validate={handleValidateEdp}
+					on:challenge={handleChallengeEdp}
+					on:runVerify={handleRunVerifyEdp}
+				/>
+			</div>
+		{/if}
 	</div>
 {/snippet}
 
@@ -1656,6 +1756,65 @@
 				</div>
 			{/if}
 		</div>
+		<!-- Section EDP & Oracles OPA [Expérimental] -->
+		{#if isExperimentalEnabled}
+			<div class="pt-4 border-t border-border/60" data-testid="edp-section-doctrines">
+				<EdpCard
+					edp={currentEdp}
+					{isExperimentalEnabled}
+					currentUserRole={userRole}
+					currentUserId={sessionUser?.id || 'lead-architect'}
+					on:validate={handleValidateEdp}
+					on:challenge={handleChallengeEdp}
+					on:runVerify={handleRunVerifyEdp}
+				/>
+			</div>
+		{/if}
+	</div>
+{/snippet}
+
+{#snippet renderEdpPane()}
+	<div class="h-full overflow-y-auto p-4 space-y-4 text-xs" data-testid="unified-edp-pane">
+		{#if currentEdp}
+			<EdpCard
+				edp={currentEdp}
+				{isExperimentalEnabled}
+				currentUserRole={userRole}
+				currentUserId={sessionUser?.id || 'lead-architect'}
+				on:validate={handleValidateEdp}
+				on:challenge={handleChallengeEdp}
+				on:runVerify={handleRunVerifyEdp}
+			/>
+		{:else}
+			<div class="rounded-xl border border-dashed border-amber-500/40 bg-amber-500/5 p-6 text-center space-y-3">
+				<ShieldCheck class="h-8 w-8 mx-auto text-amber-500" />
+				<div class="space-y-1">
+					<p class="font-semibold text-foreground text-sm">🧪 Paquet de Décision Exécutable (EDP)</p>
+					<p class="text-xs text-muted-foreground max-w-md mx-auto">
+						L'oracle Rego et les projections d'infrastructure (Nautobot DCIM, Sylva CAPI) permettent d'évaluer automatiquement la conformité de l'architecture.
+					</p>
+				</div>
+				<button
+					type="button"
+					class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-medium text-xs transition-colors shadow-sm cursor-pointer"
+					onclick={async () => {
+						try {
+							const res = await fetch(`/api/projects/${projectId}/subjects/${subjectId}/edp?edp=1`);
+							if (res.ok) {
+								const data = await res.json();
+								currentEdp = data.edp;
+								deliberationStore.logNotification('Oracle EDP chargé avec succès !', 'success');
+							}
+						} catch (e: any) {
+							deliberationStore.logNotification('Erreur chargement EDP', 'warning');
+						}
+					}}
+				>
+					<Play class="h-3.5 w-3.5" />
+					Charger l'oracle témoin ADR-012 (Baremetal / Sylva CAPI)
+				</button>
+			</div>
+		{/if}
 	</div>
 {/snippet}
 
@@ -2046,6 +2205,27 @@
 					</span>
 				{/if}
 			</button>
+			{#if isExperimentalEnabled}
+				<button
+					type="button"
+					data-testid="tab-unified-edp"
+					onclick={() => {
+						activeWorkspaceTab = 'edp';
+						void loadEdpForSubject();
+					}}
+					class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer whitespace-nowrap {(isSplitView ? splitRightTab === 'edp' : activeWorkspaceTab === 'edp')
+						? 'bg-amber-500/15 text-amber-800 dark:text-amber-200 shadow-2xs border border-amber-500/40'
+						: 'text-muted-foreground hover:text-foreground hover:bg-background/50'}"
+				>
+					<ShieldCheck class="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+					<span>🧪 Oracle EDP</span>
+					{#if currentEdp}
+						<span class="px-1.5 py-0.2 rounded-full bg-amber-500/20 text-amber-800 dark:text-amber-300 text-[10px] font-mono font-bold">
+							{currentEdp.metadata?.id || 'EDP'}
+						</span>
+					{/if}
+				</button>
+			{/if}
 		</div>
 	</div>
 
@@ -2063,6 +2243,8 @@
 						{@render renderMatrixPane()}
 					{:else if splitRightTab === 'kb'}
 						{@render renderDoctrinesAndDraftPane()}
+					{:else if splitRightTab === 'edp'}
+						{@render renderEdpPane()}
 					{:else}
 						{@render renderCascadeAndRulesPane()}
 					{/if}
@@ -2074,6 +2256,8 @@
 			{@render renderMatrixPane()}
 		{:else if activeWorkspaceTab === 'kb'}
 			{@render renderDoctrinesAndDraftPane()}
+		{:else if activeWorkspaceTab === 'edp'}
+			{@render renderEdpPane()}
 		{:else if activeWorkspaceTab === 'cascade'}
 			{@render renderCascadeAndRulesPane()}
 		{/if}

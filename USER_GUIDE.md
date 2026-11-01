@@ -367,6 +367,7 @@ Ces schémas sont directement intégrés dans le fragment Markdown HLD exporté 
 ---
 
 
+
 ### 11.6 Sélecteur de Sujets et Pré-filtrage L4 en Phase 3
 En Phase 3 (« Rendu & Homologation »), un bandeau supérieur dédié (`Phase3SubjectSelector`) permet d'explorer et de basculer entre les sujets d'architecture :
 1. **🎯 Pré-filtrage par défaut L4 Spécifiés** : Isole immédiatement les sujets dont l'architecture technique a été entièrement spécifiée (composants autonomes, chaîne de déploiement WAPT, flux réseau étiquetés) et prêts pour l'homologation.
@@ -405,3 +406,74 @@ Cette commande réinitialise l'espace projet `lumicc-lot1-noc` dans la base SQLi
 3. **Contradiction réglementaire** (`SUBJ-LUMICC-05`) : blocage Porte G3 sur violation GSMA SGP.22 / NIS2 et alignement souverain.
 4. **Capitalisation doctrinale** (`SUBJ-LUMICC-02`) : passage Porte G4, qualification de portabilité et transmission au Knowledge Hub LLMOps.
 
+
+
+---
+
+## 13. Paquets de Décision Exécutables (EDP) & Oracles OPA [Expérimental]
+
+Dans le cadre du lot expérimental (`ARCHINEX_EXPERIMENTAL_EDP=1`), Archinex permet de lier à chaque décision d'architecture arbitrée un **Paquet de Décision Exécutable** (EDP). Ce paquet permet de confronter automatiquement les décisions d'architecture de haut niveau (HLD) aux configurations et manifestes techniques réels ou planifiés (LLD).
+
+### 13.1 Activation du Mode Expérimental
+Le sous-système EDP est strictement hermétique et n'altère en rien le fonctionnement standard d'Archinex s'il n'est pas activé :
+```bash
+# Activation via variable d'environnement (Linux / macOS)
+export ARCHINEX_EXPERIMENTAL_EDP=1
+
+# Activation sous Windows PowerShell
+$env:ARCHINEX_EXPERIMENTAL_EDP="1"
+```
+
+### 13.2 Visualisation dans l'IHM Workbench (`EdpCard`)
+Lorsque le drapeau est actif, la fiche de chaque décision affiche un panneau dédié **Paquet de Décision Exécutable** :
+- **Badge d'état** : `PROPOSÉ`, `VALIDÉ` ou `⚠️ STALE (CADUC)`.
+- **Mode de production** : `human-authored` (rédigé par l'architecte) ou `llm-proposed-human-approved` (assisté par l'IA sous chaîne déterministe).
+- **Validateur humain (Invariant II)** : Nom et rôle de l'architecte ayant formellement homologué le paquet.
+- **Score de mutation** : Pourcentage de mutants tués par la suite d'auto-test (exigence de 100 %).
+- **Dernier verdict** : Statut d'évaluation (`COMPLIANT`, `VIOLATED`, `INSUFFICIENT_INPUT`, `NOT_APPLICABLE`) et liste des violations constatées.
+- **Actions disponibles** :
+  - *Valider le Paquet (G3)* : réservé aux rôles d'architectes habilités (`Lead Architect`, `Domain Architect`).
+  - *Contester (Human Statement)* : ouvre un formulaire d'objection architecturale motivée (**Invariant III**).
+
+### 13.3 Vérification Hors-Ligne sur un Cas Simple (`edp verify`)
+Les intégrateurs peuvent tester la conformité de leurs artefacts en local, sans accès réseau :
+
+```bash
+# 1. Vérification du paquet de référence ADR-012 sur une entrée conforme :
+npx tsx scripts/edp-verify.ts \
+  --edp edp/examples/adr012-baremetal/edp.json \
+  --input edp/examples/adr012-baremetal/mocks/pass.json
+
+# 2. Vérification sur une entrée défaillante (violation BMC URL / OOB IP) :
+npx tsx scripts/edp-verify.ts \
+  --edp edp/examples/adr012-baremetal/edp.json \
+  --input edp/examples/adr012-baremetal/mocks/fail_rule_2_bmc_url_mismatch.json
+```
+
+### 13.4 Exécution de la Porte d'Architecture CI (`edp-gate`)
+Pour valider l'intégrité globale d'un paquet en intégration continue (schéma, tests OPA, mutation à 100 % et vérification d'entrées) :
+```bash
+# Exécution de la porte d'architecture complète :
+npx tsx scripts/edp-gate.ts
+```
+Codes de sortie retournés :
+- **0** (`compliant`) : Tous les contrôles et artefacts sont conformes.
+- **1** (`violated`) : Défaillance architecturale détectée.
+- **2** (`insufficient_input`) : Entrée incomplète ou source manquante (anti-vacuité).
+- **3** (`unavailable`) : OPA absent ou anomalie d'exécution.
+
+
+### 13.5 Pile Docker d'Intégration & Outillage (Nautobot, Batfish, OPA Server)
+Pour tester les décisions et oracles dans un environnement d'intégration réel :
+- **Démarrage de la stack d'outils** :
+  ```powershell
+  cd deploy\integrator-tools
+  .\tools.ps1 up      # Démarre Nautobot 2.x, PostgreSQL 15, Redis 7, Batfish et OPA Server
+  .\tools.ps1 status  # Affiche les URLs d'accès et l'état des conteneurs
+  .\tools.ps1 test    # Valide la connectivité GraphQL Nautobot et l'API REST OPA
+  ```
+- **Points d'accès fournis** :
+  - **Nautobot Web UI** : `http://localhost:8080` (admin / adminpassword / Token `0123456789abcdef0123456789abcdef01234567`)
+  - **Nautobot GraphQL** : `http://localhost:8080/api/graphql/`
+  - **Batfish API** : `http://localhost:9997`
+  - **OPA Server REST** : `http://localhost:8181/v1/data`

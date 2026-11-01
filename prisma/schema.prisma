@@ -632,3 +632,28 @@ model FactorizationStageCache {
   @@index([stage])
   @@map("factorization_stage_cache")
 }
+
+
+/// Paquet de Décision Exécutable (EDP) associant intension pure et oracles Rego/OPA (Expérimental - Issue #174)
+model ExecutableDecisionPackage {
+  id              String    @id
+  decisionId      String
+  subjectId       String
+  revision        Int       @default(1)
+  status          String    @default("draft") // draft | proposed | validated | stale | retracted
+  content         String    // Contenu complet de l'EDP (JSON)
+  policyHash      String    // SHA-256 de la politique Rego
+  ontologyRefs    String    @default("[]") // JSON array of { urn, revision }
+  productionMode  String    @default("llm-proposed-human-approved") // human-authored | llm-proposed-human-approved | llm-derived
+  validatorId     String?
+  validatorRole   String?
+  validatedAt     DateTime?
+  staleReason     String?   // Cause de passage à l'état stale (Invariant VI)
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+
+  @@index([decisionId])
+  @@index([subjectId])
+  @@index([status])
+  @@map("executable_decision_packages")
+}

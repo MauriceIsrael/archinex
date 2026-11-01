@@ -1,0 +1,119 @@
+# Environnement d'intégration local pour la validation EDP & Telco-Cloud
+# Fournit :
+#  - Nautobot 2.x (DCIM SSOT) + PostgreSQL 15 + Redis 7 + Celery Worker
+#  - Batfish (Simulateur de plan de contrôle et matrice de flux réseau)
+#  - Open Policy Agent (OPA) en mode serveur HTTP REST
+#
+# Usage :
+#   powershell .\tools.ps1 up
+#   ou : docker compose -f compose.yml up -d
+
+name: archinex-integrator-tools
+
+services:
+  nautobot-db:
+    image: postgres:15-alpine
+    container_name: archinex-nautobot-db
+    environment:
+      POSTGRES_DB: nautobot
+      POSTGRES_USER: nautobot
+      POSTGRES_PASSWORD: nautobotpassword
+    volumes:
+      - nautobot-db-data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U nautobot -d nautobot"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    ports:
+      - "127.0.0.1:5433:5432"
+    restart: unless-stopped
+
+  nautobot-redis:
+    image: redis:7-alpine
+    container_name: archinex-nautobot-redis
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    ports:
+      - "127.0.0.1:6380:6379"
+    restart: unless-stopped
+
+  nautobot:
+    image: ghcr.io/nautobot/nautobot:2.2-py3.11
+    container_name: archinex-nautobot-app
+    user: "0:0"
+    depends_on:
+      nautobot-db:
+        condition: service_healthy
+      nautobot-redis:
+        condition: service_healthy
+    environment:
+      NAUTOBOT_DB_ENGINE: django.db.backends.postgresql
+      NAUTOBOT_DB_NAME: nautobot
+      NAUTOBOT_DB_USER: nautobot
+      NAUTOBOT_DB_PASSWORD: nautobotpassword
+      NAUTOBOT_DB_HOST: nautobot-db
+      NAUTOBOT_DB_PORT: "5432"
+      NAUTOBOT_REDIS_HOST: nautobot-redis
+      NAUTOBOT_REDIS_PORT: "6379"
+      NAUTOBOT_SECRET_KEY: "archinex-super-secret-key-for-local-integrator-verification-32chars-min"
+      NAUTOBOT_ALLOWED_HOSTS: "*"
+      NAUTOBOT_CREATE_SUPERUSER: "true"
+      NAUTOBOT_SUPERUSER_NAME: admin
+      NAUTOBOT_SUPERUSER_PASSWORD: adminpassword
+      NAUTOBOT_SUPERUSER_EMAIL: admin@archinex.local
+      NAUTOBOT_SUPERUSER_API_TOKEN: "0123456789abcdef0123456789abcdef01234567"
+      NAUTOBOT_AUTO_MIGRATE: "true"
+    volumes:
+      - ./seed-nautobot.py:/opt/nautobot/seed-nautobot.py:ro
+    ports:
+      - "127.0.0.1:8080:8080"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://localhost:8080/health/ || exit 1"]
+      interval: 10s
+      timeout: 10s
+      start_period: 60s
+      retries: 20
+    restart: unless-stopped
+
+  nautobot-worker:
+    image: ghcr.io/nautobot/nautobot:2.2-py3.11
+    container_name: archinex-nautobot-worker
+    user: "0:0"
+    depends_on:
+      nautobot:
+        condition: service_healthy
+    environment:
+      NAUTOBOT_DB_ENGINE: django.db.backends.postgresql
+      NAUTOBOT_DB_NAME: nautobot
+      NAUTOBOT_DB_USER: nautobot
+      NAUTOBOT_DB_PASSWORD: nautobotpassword
+      NAUTOBOT_DB_HOST: nautobot-db
+      NAUTOBOT_DB_PORT: "5432"
+      NAUTOBOT_REDIS_HOST: nautobot-redis
+      NAUTOBOT_REDIS_PORT: "6379"
+      NAUTOBOT_SECRET_KEY: "archinex-super-secret-key-for-local-integrator-verification-32chars-min"
+    command: ["nautobot-server", "celery", "worker", "-l", "INFO"]
+    restart: unless-stopped
+
+  batfish:
+    image: batfish/batfish:latest
+    container_name: archinex-batfish
+    ports:
+      - "127.0.0.1:9997:9997" # Client API / pybatfish
+      - "127.0.0.1:9996:9996" # Coordinator SSL
+    restart: unless-stopped
+
+  opa:
+    image: openpolicyagent/opa:latest
+    container_name: archinex-opa-server
+    command: ["run", "--server", "--addr", ":8181", "--log-level", "info"]
+    ports:
+      - "127.0.0.1:8181:8181"
+    restart: unless-stopped
+
+volumes:
+  nautobot-db-data:

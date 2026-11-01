@@ -1,0 +1,48 @@
+{
+  "sources": {
+    "k8s_manifests": {
+      "provenance": {
+        "tool": "helm",
+        "version": "3.14.0",
+        "command": "helm template sylva-core",
+        "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+        "generated_at": "2026-10-29T10:00:00Z"
+      },
+      "content": [
+        {
+          "kind": "Cluster",
+          "metadata": { "name": "cluster-telco-01" },
+          "spec": { "infrastructureRef": { "name": "infra-suse" } }
+        },
+        {
+          "kind": "BareMetalHost",
+          "metadata": { "name": "srv-edge-01" },
+          "spec": {
+            "role": "control-plane",
+            "bmc": { "address": "https://192.0.2.10/redfish/v1" }
+          }
+        }
+      ]
+    },
+    "nautobot_planned_devices": {
+      "provenance": {
+        "tool": "nautobot",
+        "version": "2.0.0",
+        "command": "export status=planned",
+        "sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+        "generated_at": "2026-10-29T10:00:00Z"
+      },
+      "content": [
+        {
+          "name": "srv-edge-01",
+          "status": "deployed_active",
+          "oob_ip": "192.0.2.10",
+          "interfaces": [
+            { "name": "oob0", "type": "management" },
+            { "name": "eth0", "type": "data" }
+          ]
+        }
+      ]
+    }
+  }
+}

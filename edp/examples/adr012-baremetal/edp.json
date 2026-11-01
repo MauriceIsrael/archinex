@@ -1,0 +1,141 @@
+{
+  "metadata": {
+    "id": "EDP-ADR012-01",
+    "title": "Substrat Bare-Metal Kubernetes Telco Cloud (ADR-012)",
+    "status": "validated",
+    "revision": 1,
+    "decision_ref": {
+      "subjectId": "SUBJ-SUBSTRATE-01",
+      "decisionId": "ADR-012",
+      "version": 1
+    }
+  },
+  "decision_context": {
+    "problem": "Déploiement de fonctions réseau virtualisées sur serveurs physiques sans surcoût d hyperviseur.",
+    "decision": "Adoption d un substrat bare-metal automatisé par contrôleur BMC dédié et partitionnement strict des interfaces.",
+    "tradeoffs": [
+      "Complexité accrue d orchestration physique compensée par une latence d interruption minimale",
+      "Nécessité d un réseau d administration hors-bande dédié"
+    ],
+    "ontology_bindings": [
+      {
+        "urn": "urn:archinex:ontology:infrastructure:server:baremetal",
+        "revision": 1
+      },
+      {
+        "urn": "urn:archinex:ontology:telecom:network:oob",
+        "revision": 1
+      }
+    ]
+  },
+  "refinement_contract": {
+    "expected_inputs": [
+      {
+        "source": "k8s_manifests",
+        "schema_version": "v1alpha1"
+      },
+      {
+        "source": "nautobot_planned_devices",
+        "schema_version": "v2.0"
+      }
+    ]
+  },
+  "verification_oracle": {
+    "engine": "opa",
+    "entrypoint": "data.archinex.edp.adr012.status",
+    "policy_files": [
+      {
+        "filename": "policy.rego",
+        "sha256": "78892f4c2ebfcbc59aba3803b54687429295455bccff7df203306dd461826046"
+      }
+    ],
+    "self_test": {
+      "cases": [
+        {
+          "name": "pass",
+          "description": "Cluster et serveurs conformes aux exigences d isolation hors-bande",
+          "expected_verdict": "compliant"
+        },
+        {
+          "name": "fail_rule_1_missing_oob",
+          "description": "Serveur dépourvu d interface d administration hors-bande",
+          "expected_verdict": "violated",
+          "expected_violations": ["rule_oob_required"]
+        },
+        {
+          "name": "fail_rule_2_bmc_url_mismatch",
+          "description": "Incohérence entre l URL BMC et l IP OOB déclarée",
+          "expected_verdict": "violated",
+          "expected_violations": ["rule_bmc_exact_match"]
+        },
+        {
+          "name": "fail_rule_3_invalid_role",
+          "description": "Rôle de machine non autorisé",
+          "expected_verdict": "violated",
+          "expected_violations": ["rule_role_valid"]
+        },
+        {
+          "name": "fail_rule_4_missing_partitioning",
+          "description": "Absence de partitionnement réseau",
+          "expected_verdict": "violated",
+          "expected_violations": ["rule_partitioned_interfaces"]
+        },
+        {
+          "name": "fail_rule_5_empty_spec",
+          "description": "Spécification de cluster vide",
+          "expected_verdict": "violated",
+          "expected_violations": ["rule_cluster_spec_non_empty"]
+        },
+        {
+          "name": "fail_rule_6_invalid_status",
+          "description": "Statut d équipement non planifié",
+          "expected_verdict": "violated",
+          "expected_violations": ["rule_planned_status"]
+        }
+      ]
+    },
+    "mutation_manifest": {
+      "mutants": [
+        {
+          "id": "mutant-oob",
+          "description": "Suppression de la règle OOB",
+          "target_rule": "deny_missing_oob"
+        },
+        {
+          "id": "mutant-bmc",
+          "description": "Suppression de la vérification BMC",
+          "target_rule": "deny_bmc_mismatch"
+        },
+        {
+          "id": "mutant-role",
+          "description": "Suppression de la validation de rôle",
+          "target_rule": "deny_invalid_role"
+        },
+        {
+          "id": "mutant-partitioning",
+          "description": "Suppression du contrôle de partitionnement",
+          "target_rule": "deny_missing_partitioning"
+        },
+        {
+          "id": "mutant-spec",
+          "description": "Suppression du contrôle spec cluster",
+          "target_rule": "deny_empty_spec"
+        },
+        {
+          "id": "mutant-status",
+          "description": "Suppression du contrôle statut planned",
+          "target_rule": "deny_invalid_status"
+        }
+      ]
+    }
+  },
+  "provenance": {
+    "production_mode": "llm-proposed-human-approved",
+    "created_at": "2026-10-29T10:00:00Z",
+    "validator": {
+      "id": "USR-LEAD-ARCH",
+      "role": "Lead Architect",
+      "timestamp": "2026-10-29T10:15:00Z"
+    }
+  }
+}

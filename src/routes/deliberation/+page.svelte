@@ -120,6 +120,7 @@
 					<DeliberationWorkbench
 						sessionRole={data?.sessionRole}
 						sessionUser={data?.sessionUser}
+						isExperimentalEnabled={data?.isExperimentalEnabled}
 						onBackToBoard={() => deliberationStore.setDeliberationViewMode('board')}
 					/>
 				</div>

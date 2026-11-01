@@ -1,0 +1,17 @@
+[
+  {
+    "apiVersion": "cluster.x-k8s.io/v1beta1",
+    "kind": "Cluster",
+    "metadata": {
+      "name": "telco-edge-harvester",
+      "namespace": "sylva-system"
+    },
+    "spec": {
+      "infrastructureRef": {
+        "apiVersion": "infrastructure.cluster.x-k8s.io/v1beta1",
+        "kind": "HarvesterCluster",
+        "name": "telco-edge-hci"
+      }
+    }
+  }
+]

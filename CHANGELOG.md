@@ -8,6 +8,131 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Environnement Docker d'Intégration & Outillage (Nautobot, Batfish, OPA Server)
+- **Pile Conteneurisée d'Outillage Intégrateur (`deploy/integrator-tools/compose.yml`)** :
+  - Déploiement local de Nautobot 2.2 avec PostgreSQL 15, Redis 7 et worker Celery pour servir de source de vérité DCIM.
+  - Intégration de Batfish (`batfish/batfish:latest`) sur les ports 9997 (API pybatfish) et 9996 pour la simulation et la vérification des matrices de flux réseau.
+  - Intégration d'un serveur OPA REST (`openpolicyagent/opa:latest`) sur le port 8181 en complément du binaire CLI local `tools/bin/opa.exe`.
+- **Script d'Ensemencement Témoin Nautobot (`deploy/integrator-tools/seed-nautobot.py`)** :
+  - Injection idempotente de la topologie requise par les oracles Sylva CAPI : site `pop-valmondois`, rôle `telco-baremetal-worker`, serveur `srv-telco-bm-01` au statut `Planned`, interface `bmc` et adresse de management `192.0.2.10/24` (RFC 5737).
+- **Scripts d'Exploitation & Automatisation (`tools.ps1`, `tools.sh`, `README.md`)** :
+  - Commandes `up`, `down`, `status`, `seed`, `test`, `reset` avec contrôle automatique du statut du moteur Docker Desktop et diagnostics de connectivité.
+- **Tests de contrat** : ajout de `tests/contract/edp-integrator-tools-docker.test.ts` (4 tests passants, total 91 tests de contrat EDP passants).
+
+### Alignement Sylva CAPI & Nautobot DCIM pour les Paquets de Décision Exécutables (EDP)
+- **Requête d'Extraction GraphQL Nautobot Planned (`src/lib/server/edp/adapters/nautobot_planned_extract.graphql`, `nautobotAdapter.ts`)** :
+  - Intégration de la requête GraphQL officielle ciblant les équipements au statut `planned` avec leurs interfaces `bmc` (type, MAC, adresses IP).
+  - Ajout de la fonction `parseNautobotGraphqlResponse` extrayant automatiquement l'adresse OOB depuis les interfaces BMC pour les formats de réponse GraphQL bruts.
+- **Fixture et Typage Sylva CAPI Cluster (`sylva_values_candidate.yaml`, `sylvaAdapter.ts`)** :
+  - Intégration de la fixture de valeurs de référence `sylva-capi-cluster` avec providers Metal3 (`capm3`), RKE2 (`cabpr`), image SLE Micro RT 5.5 et BMC Redfish.
+  - Définition de l'interface TypeScript `SylvaCapiClusterValues` pour le typage des configurations d'unités Sylva.
+- **Tests de contrat** : enrichissement de `tests/contract/edp-verify-and-gate.test.ts` (11 tests passants).
+
+### Paquet de Décision Exécutable (EDP) : Rédaction Assistée, IHM & Évaluation Finale (Palier 5 - Issues #184, #186, #187, #188, #189)
+- **Chaîne d'Acceptation Déterministe pour Rédaction Assistée LLM (`src/lib/server/edp/edpDrafting.ts`) (#184)** :
+  - Pipeline de validation automatique imposé avant toute présentation à l'humain enchaînant : schéma formel, pureté d'intension (zéro fuite IP/MAC/hostnames), contrôle des liaisons d'ontologie, conformité des fixtures, auto-test OPA natif et garde de mutation.
+  - Exigence stricte Invariant II : interdiction absolue pour un draft LLM de revendiquer le statut `validated` sans approbation humaine formelle (assignation obligatoire du statut `proposed` et de la provenance `llm-proposed-human-approved`).
+  - Journalisation en mémoire des métriques de génération (durée d'exécution, score de mutation, nombre de mutants tués, étape de rejet) pour analyse d'évaluation.
+- **Composant Fiche EDP dans l'IHM Workbench (`src/lib/components/edp/EdpCard.svelte`) (#186)** :
+  - Panneau dédié conditionné par le drapeau `ARCHINEX_EXPERIMENTAL_EDP=1` (invisible et sans aucun impact de rendu si le drapeau est absent).
+  - Affichage complet du statut, mode de production, validateur humain, révisions d'ontologie liées, score de mutation (100% garanti) et dernier verdict d'évaluation avec violations.
+  - Alerte visuelle immédiate en cas de statut `stale` (caducité Invariant VI) avec désactivation de l'action de validation.
+  - Restriction de l'action de validation aux seuls rôles d'architectes habilités (`Lead Architect`, `Domain Architect`, `Security Architect`).
+  - Dialogue de contestation d'architecture obligeant la saisie d'un énoncé humain (`human-authored`, Invariant III).
+- **Second EDP de Référence : Isolation de Zones de Sécurité NIS2 (`edp/examples/adr015-security-zones/`) (#187)** :
+  - Implémentation complète de l'oracle de décision ADR-015 pour tester la généralité du système sur un domaine différent du substrat bare-metal.
+  - Résolution d'adresses IP vers les zones réseau projetées par l'ontologie, contrôle d'isolation stricte et gestion des exceptions autorisées par classe de trafic (ex: télémétrie).
+  - Score de mutation atteint : **2/2 mutants tués (100 %)**.
+  - Mocks complets en adresses de documentation réservées RFC 5737 : entrée conforme (`pass.json`), défaillances unitaires ciblées (`fail_rule_1` et `fail_rule_2`) et cas d'adresses inconnues retournant `insufficient_input`.
+- **Guide Intégrateur Hors-Ligne (`docs/edp/integrator-guide.md`) (#188)** :
+  - Manuel pas à pas complet pour les intégrateurs et auditeurs tiers : installation d'OPA avec contrôle de somme de contrôle SHA-256, préparation d'entrée `refined_input`, exécution de `edp verify` hors-ligne et interprétation des lots de preuves cryptographiques et des codes de sortie (0, 1, 2, 3).
+  - Section d'honnêteté méthodologique : "Ce qu'un vert ne prouve pas" détaillant les limites intrinsèques sur les artefacts et les champs non modélisés.
+- **Plan d'Évaluation, Rapport & Décision de Promotion (`docs/edp/`, `docs/adr/ADR-016-promotion-edp-experimental.md`) (#189)** :
+  - Critères objectifs C1 à C5 figés dans `docs/edp/evaluation-plan.md`.
+  - Rapport consolidé `docs/edp/evaluation-report.md` démontrant l'atteinte des 5 critères avec preuves d'exécution.
+  - ADR-016 prononçant le **GO** pour la promotion progressive de l'EDP sous condition du maintien du feature flag et des invariants constitutionnels.
+- **Tests** : 14 nouveaux tests de contrat dans `tests/contract/edp-palier-5.test.ts` portant la suite complète à **85 tests de contrat EDP passants** à 100 %.
+
+
+### Paquet de Décision Exécutable (EDP) : Vérification, Adaptateurs & CI Gate (Palier 4 - Issues #182, #178, #179, #183, #185)
+- **Service et Commande `edp verify` (`src/lib/server/edp/edpVerify.ts`, `scripts/edp-verify.ts`) (#182)** :
+  - Orchestration complète d'évaluation d'un EDP : validation structurelle du paquet, validation de non-vacuité des entrées de raffinement, compilation déterministe de la projection d'ontologie (`data.ontology`) et évaluation via OPA.
+  - Émission d'un lot de preuves scellé (`EvidenceBundle`) avec empreintes cryptographiques SHA-256 (EDP, politique, ontologie, entrées), versions des moteurs, verdict à 4 états et violations détaillées.
+  - Codes de sortie standardisés pour intégration CI/CD : 0 (`compliant`), 1 (`violated`), 2 (`insufficient_input` / `not_applicable`), 3 (`unavailable` / erreur exécuteur).
+- **Adaptateur Sylva / CAPI (`src/lib/server/edp/adapters/sylvaAdapter.ts`) (#178)** :
+  - Transformation des manifestes Kubernetes issus d'un rendu Helm (`helm template`) en payload `refined_input` conforme avec traçabilité complète de provenance (outil, version, commande, hash).
+  - Sanitization automatique et suppression stricte de tout manifeste de type `Secret` ou de clés/valeurs sensibles (`password`, `token`, `bearer`, clés privées).
+  - Fixtures de test hors-ligne dans `tests/fixtures/edp/sylva/`.
+- **Adaptateur Nautobot Planned (`src/lib/server/edp/adapters/nautobotAdapter.ts`) (#179)** :
+  - Transformation et normalisation des équipements déclarés dans Nautobot GraphQL au statut `planned` vers le contrat `nautobot_planned_devices`.
+  - Normalisation des adresses OOB sans masque de sous-réseau CIDR pour correspondre exactement aux contrats de conformité bare-metal.
+  - Fixtures de test hors-ligne dans `tests/fixtures/edp/nautobot/`.
+- **Spike d'Architecture : Instanciation Blueprint vers Nautobot Planned (`docs/edp/spike-nautobot-design-builder.md`) (#183)** :
+  - Analyse approfondie de la viabilité d'une instanciation automatisée dans Nautobot Design Builder versus extraction de fixtures.
+  - Décision et recommandation d'architecture argumentée : **NO-GO** sur l'instanciation dynamique d'HLD dans un Nautobot chaud (fragilité, non-idempotence, couplage fort) et **GO** sur le patron d'adaptateur hors-ligne par extraction GraphQL et fixtures scellées.
+- **Porte d'Architecture CI `edp-gate` (`scripts/edp-gate.ts`, `scripts/edp-gate.sh`, `.github/workflows/edp-architecture-gate.yml.example`) (#185)** :
+  - Script unifié validant en chaîne : le schéma JSON de l'EDP, la suite de tests natifs `opa test`, la garde de mutation (exigence de 100 % de mutants tués), la vérification d'entrée conforme (`pass.json`) et le rejet effectif de toutes les entrées à défaut.
+  - Script bash d'exécution CI portable et modèle de workflow GitHub Actions documenté.
+- **Tests** : 9 nouveaux tests de contrat dans `tests/contract/edp-verify-and-gate.test.ts` portant la suite complète à 71 tests de contrat au vert.
+
+
+### Paquet de Décision Exécutable (EDP) : Ontologie & Persistance Souveraine (Palier 3 - Issues #173, #181, #174, #177)
+- **Client d'Ontologie & Contrôle des Liaisons (`ontologyClient.ts`) (#173)** :
+  - Client de lecture du catalogue d'ontologie supportant le mode fixture hors-ligne pour la CI et l'intégration API avec le Knowledge Hub sans aucun appel de modèle.
+  - Détection rigoureuse des URNs inconnues (erreur bloquante), des révisions futures inexistantes et avertissement `stale_binding` dès qu'une liaison est sur une révision antérieure.
+  - En cas d'indisponibilité du Hub, levée d'une erreur explicite sans jamais inventer de données.
+- **Compilateur de Projections & Linter de Littéraux (`projectionCompiler.ts`) (#181)** :
+  - Compilateur projetant les entités liées en un document `data.ontology` canonique pour OPA avec empreinte cryptographique SHA-256 déterministe (reproductibilité octet pour octet).
+  - Linter Rego analysant les politiques pour détecter les littéraux codés en dur qui doublonnent des valeurs d'ontologie.
+- **Persistance Prisma & Application Inviolable de l'Invariant II (`edpRepository.ts`, `prisma/schema.prisma`) (#174)** :
+  - Modèle additif `ExecutableDecisionPackage` stockant l'intension, les facettes épistémiques, les hashs de politiques et les métadonnées de validation.
+  - Règle constitutionnelle absolue (Invariant II) : refus bloquant de toute transition vers le statut `validated` pour un EDP dérivé par LLM (`llm-derived`) sans un validateur humain dûment identifié et habilité.
+  - Respect strict des rôles formels (Invariant VII) : seuls les rôles d'architectes habilités peuvent homologuer un EDP.
+  - Isolation étanche par drapeau `ARCHINEX_EXPERIMENTAL_EDP=1`.
+- **Rétractation Automatique & Maintenance de Vérité (`retractEdpOnAntecedentChange`) (#177)** :
+  - Application directe de l'Invariant VI : dès qu'une décision d'architecture source est rétractée ou qu'une URN d'ontologie liée change de révision, l'EDP bascule automatiquement à l'état `stale` avec consignation explicite de la cause (`staleReason`).
+  - Interdiction formelle de présenter un EDP `stale` comme `validated`.
+- **Tests** : 15 tests de contrat dans `tests/contract/edp-ontology-and-persistence.test.ts` (total 62 tests passants sur les Paliers 1, 2 & 3).
+
+### Paquet de Décision Exécutable (EDP) : Moteur OPA, Bibliothèque Rego & Référence ADR-012 (Palier 2 - Issues #171, #175, #180, #176, #172)
+- **Exécuteur OPA Déterministe (`opaRunner.ts`, `install-opa.ps1`, `install-opa.sh`) (#171)** :
+  - Exécuteur OPA encapsulant `opa test` et `opa eval` avec gestion des timeouts, typage strict des résultats et détection de version minimale (Rego v1).
+  - Règle bloquante : le statut `unavailable` en cas d'absence du binaire OPA n'est jamais confondu avec un succès (`pass`).
+  - Scripts d'installation automatique et de contrôle d'intégrité SHA-256 pour OPA v1.21.4 sous Windows et Linux / CI.
+- **Bibliothèque Rego Commune (`policies/lib/edp_common.rego`) (#175)** :
+  - Fonctions helpers standard : extraction sûre de l'hôte `host_of(url)` évitant les fausses correspondances par sous-chaîne (`contains`), `missing_inputs` et `build_status` conforme aux 4 verdicts.
+  - Documentation intégrée des 3 pièges Rego : champ indéfini, comparaison de sous-chaîne et ensemble vide (vacuité).
+  - 7 tests unitaires Rego natifs (`policies/lib/edp_common_test.rego`).
+- **EDP de Référence ADR-012 Substrat Bare-Metal (`edp/examples/adr012-baremetal/`) (#180)** :
+  - Définition complète de l'oracle pour le substrat Kubernetes Telco Cloud (Sylva / CAPI et Nautobot Planned) couvrant 6 règles architecturales ciblées.
+  - Isolation du bloc d'ontologie en tête de politique pour substitution future par `data.ontology`.
+  - Mocks Red/Green complets : `pass.json`, 6 mocks à défaut unique (`fail_rule_1` à `fail_rule_6`) et mock multi-dérive d'agrégation.
+- **Garde de Mutation Déterministe (`scripts/edp-mutation-gate.ts`) (#176)** :
+  - Analyseur de mutation Rego testant la résilience de l'oracle par suppression de règles (`drop_rule`).
+  - Score de mutation atteint : **6/6 mutants tués (100 %)** sur ADR-012.
+- **Contrat des Fixtures & Adresses Réservées (`validateFixturesContract.ts`) (#172)** :
+  - Validateur exigeant exactement 1 mock conforme, 1 mock défaillant par règle ciblant un défaut unique, et le confinement strict de toutes les adresses IP aux plages documentaires RFC 5737 (`192.0.2.0/24`, `198.51.100.0/24`, `203.0.113.0/24`) et RFC 3849 (`2001:db8::/32`).
+- **Tests** : 22 tests de contrat dans `tests/contract/edp-opa-runner.test.ts`, `tests/contract/edp-rego-common.test.ts` et `tests/contract/edp-adr012-reference.test.ts` (total 47 tests passants sur les Paliers 1 & 2).
+
+### Paquet de Décision Exécutable (EDP) : Spécifications, Schémas & Invariants (Palier 1 - Issues #167, #168, #169, #170)
+- **Proposition OpenSpec A12 (`openspec/changes/a12-edp/`) (#167)** :
+  - Cadrage complet, spécification formelle (`proposal.md`, `design.md`, `tasks.md`, `.openspec.yaml`) ancrée dans la Constitution d'Archinex.
+  - Déclinaison concrète des Invariants I (5 facettes), II (`verified × llm-derived` interdit sans validateur humain habilité), III (le silence n'est pas une approbation), IV (brouillon appât percutant), V (portes G3 et G4), VI (rétractation vers `stale`), VII (rôles formels) et X (matérialisation visuelle).
+  - Convention normative de verdict à 4 états : `compliant | violated | not_applicable | insufficient_input`.
+  - Documentation du cadre expérimental (`ARCHINEX_EXPERIMENTAL_EDP=1` et branche socle `experimental/edp`).
+- **JSON Schema du Paquet de Décision Exécutable (`src/lib/schemas/edp.schema.json`, `validateEdp.ts`) (#168)** :
+  - Définition du schéma JSON Draft-07 couvrant `metadata`, `decision_context`, `refinement_contract`, `verification_oracle` et `provenance`.
+  - Rejet systématique de tout paquet dépourvu de `verification_oracle` ou de suite `self_test`.
+  - Fixtures valides (`valid-adr012-baremetal.json`, `valid-adr015-security-zones.json`) et 8 fixtures invalides typées.
+- **Contrôle de Pureté de l'Intension (`src/lib/domain/edp/intentionPurity.ts`) (#169)** :
+  - Détection lexicale et regex des valeurs d'instanciation physique ou logique : IPv4, IPv6, préfixes CIDR, adresses MAC et noms d'hôtes pointés dans `decision_context`.
+  - Liste blanche stricte garantissant zéro faux positif sur les numéros de version logicielle (`RKE2 1.28`, `5.5`), spécifications (`3GPP TS 23.501`, `RFC 5737`), métriques (`5QI 128-254`, `VLAN 100`, `MTU 1500`) et gabarits (`<IP>`, `${NODE_IP}`, `example.com`).
+  - Fonction pure, déterministe et isolée de tout appel réseau.
+- **Contrat d'Entrée de Raffinement (`src/lib/schemas/refined_input.schema.json`, `validateRefinedInput.ts`) (#170)** :
+  - Schéma et validateur des entrées de raffinement (LLD) avec métadonnées de provenance obligatoires (`tool`, `version`, `command`, `sha256`, `generated_at`).
+  - Élimination des faux positifs par vacuité : verdict `insufficient_input` dès qu'une source déclarée est manquante ou vide.
+  - Rejet des sources non déclarées (`verdict: violated`).
+- **Tests** : 25 tests de contrat dans `tests/contract/edp-schema.test.ts`, `tests/contract/edp-intention-purity.test.ts` et `tests/contract/edp-refined-input.test.ts`.
 ### Optimisation & Cache de l'Extraction de Faits de Décision (Agent Synthesizer)
 - **Mise en cache multi-niveaux et déduplication Singleflight (`src/lib/server/agents/decisionFactsCache.ts`)** :
   - Clé de hachage SHA-256 déterministe basée sur le contenu de la décision (`rationale`, `retainedOptionTitle`, résumé) et la liste normalisée du vocabulaire autorisé.

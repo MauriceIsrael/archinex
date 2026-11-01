@@ -195,6 +195,7 @@ class DeliberationStore {
 	 * projections (Mermaid, C4, SysML, JSON) et le gel en ont besoin ici — sans quoi l'option retenue n'apparaît dans aucun schéma.
 	 */
 	decisionContexts = $state<Record<string, { decision: Decision | null; options: Option[] }>>({});
+	detailedSpecs = $state<Record<string, string>>({});
 	selectedStatementForWhy = $state<Statement | null>(null);
 	isFreezeDialogOpen = $state<boolean>(false);
 	isWhyInspectorOpen = $state<boolean>(false);
@@ -230,6 +231,9 @@ class DeliberationStore {
 			deliberationViewMode?: 'board' | 'conversation';
 			activePosture?: DeliberationPosture;
 			selectedPartId?: string;
+			decisionContexts?: Record<string, { decision: any; options: any[] }>;
+			detailedSpecs?: Record<string, string>;
+			frozenSnapshots?: Record<string, any>;
 		}
 	> = {};
 
@@ -250,7 +254,10 @@ class DeliberationStore {
 			dialogueMessages: $state.snapshot(this.dialogueMessages),
 			deliberationViewMode: this.deliberationViewMode,
 			activePosture: this.activePosture,
-			selectedPartId: this.selectedPartId
+			selectedPartId: this.selectedPartId,
+			decisionContexts: $state.snapshot(this.decisionContexts),
+			detailedSpecs: $state.snapshot(this.detailedSpecs),
+			frozenSnapshots: $state.snapshot(this.frozenSnapshots)
 		};
 
 		// 2. Trouver la cible
@@ -277,6 +284,9 @@ class DeliberationStore {
 				this.activePosture = cached.activePosture;
 			}
 			this.selectedPartId = cached.selectedPartId || 'all';
+			this.decisionContexts = cached.decisionContexts ? $state.snapshot(cached.decisionContexts) : {};
+			this.detailedSpecs = cached.detailedSpecs ? $state.snapshot(cached.detailedSpecs) : {};
+			this.frozenSnapshots = cached.frozenSnapshots ? $state.snapshot(cached.frozenSnapshots) : {};
 		} else {
 			this.subjects = [...targetProfile.subjects];
 			this.drafts = { ...targetProfile.drafts };
@@ -302,6 +312,9 @@ class DeliberationStore {
 			if (restoredPosture === 'appropriation' || restoredPosture === 'deliberation' || restoredPosture === 'rendu') {
 				this.activePosture = restoredPosture;
 			}
+			this.decisionContexts = {};
+			this.detailedSpecs = {};
+			this.frozenSnapshots = {};
 		}
 
 		this.activeEngagementId = targetId;
@@ -1547,11 +1560,24 @@ class DeliberationStore {
 	/**
 	 * Construit le contexte de projection dynamique (projet, participants, décision).
 	 */
+
+	/**
+	 * Spécification détaillée (L4) d'un sujet pour la réactivité en direct des projections.
+	 */
+	getDetailedSpec(subjectId: string): string {
+		return this.detailedSpecs[subjectId] || '';
+	}
+
+	setDetailedSpec(subjectId: string, specText: string) {
+		this.detailedSpecs[subjectId] = specText;
+	}
+
 	getProjectionContext(subjectId: string): ProjectionContext {
 		const eng = this.activeEngagement;
 		const subject = this.subjects.find((s) => s.id === subjectId);
 		const { decision, options = [] } = this.decisionContexts[subjectId] ?? {};
 		return {
+			projectId: eng?.id || this.activeEngagementId || 'default-project',
 			projectName: eng?.title || 'Engagement Archinex',
 			enterpriseName: eng?.title || 'Organisation',
 			// Les participants de l'engagement sont les architectes qui délibèrent, pas les utilisateurs du système : ils ne sont pas
@@ -1574,7 +1600,8 @@ class DeliberationStore {
 				clauseRef: id.split(':').pop() || id,
 				title: id
 			})),
-			sealSha256: this.frozenSnapshots[subjectId]?.sealSha256
+			sealSha256: this.frozenSnapshots[subjectId]?.sealSha256,
+			detailedSpecText: this.getDetailedSpec(subjectId)
 		};
 	}
 

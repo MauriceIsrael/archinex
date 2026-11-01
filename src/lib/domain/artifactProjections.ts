@@ -21,6 +21,7 @@ export interface ProjectionDecision {
 }
 
 export interface ProjectionContext {
+	projectId?: string;
 	projectName?: string;
 	enterpriseName?: string;
 	actors?: ProjectionActor[];
@@ -28,6 +29,7 @@ export interface ProjectionContext {
 	options?: Array<{ id: string; title: string; summary?: string; status?: string }>;
 	requirements?: Array<{ clauseRef: string; title: string }>;
 	sealSha256?: string;
+	detailedSpecText?: string;
 }
 
 /** Les énoncés d'une section, partagés en « à dessiner » et « écartés » : le même tri pour tous les artefacts. */
@@ -414,6 +416,9 @@ export function generateTargetArchitectureDiagram(
 ): string {
 	const sectionRef = (subject as any).section_ref || (subject as any).sectionRef || '§0';
 	const subjectName = subject.name || 'Système';
+	const projectId = context?.projectId?.trim() || 'default-project';
+	const projectName = context?.projectName?.trim() || subjectName;
+	const enterpriseName = context?.enterpriseName?.trim() || 'Organisation';
 	const decision = context?.decision;
 	const retainedOptionTitle = decision?.retainedOptionTitle;
 	const retainedOption = context?.options?.find(
@@ -421,14 +426,15 @@ export function generateTargetArchitectureDiagram(
 	);
 	const summary = retainedOption?.summary || '';
 	const rationale = decision?.rationale || '';
-	const fullSpec = `${context?.projectName || ''} ${retainedOptionTitle || ''} ${summary} ${rationale}`.trim();
+	const detailedSpec = context?.detailedSpecText || '';
+	const fullSpec = `${projectName} ${detailedSpec} ${retainedOptionTitle || ''} ${summary} ${rationale} ${(context?.options || []).map((o) => `${o.title} ${o.summary || ''}`).join(' ')}`.trim();
 
-	// Si aucune décision n'est encore actée et aucun énoncé présent
-	if (!retainedOptionTitle && (!statements || statements.length === 0)) {
+	// Si aucune décision n'est encore actée, aucun énoncé présent et aucune spécification détaillée
+	if (!retainedOptionTitle && (!statements || statements.length === 0) && !detailedSpec) {
 		return [
 			'flowchart TB',
 			...targetArchitectureClassDefs(),
-			`    subgraph SYSTEM["Système : ${mmdText(subjectName)} (${mmdText(sectionRef)})"]`,
+			`    subgraph SYSTEM["Système : ${mmdText(projectName)} (${mmdText(sectionRef)}) [Projet: ${mmdText(projectId)}]"]`,
 			'        direction TB',
 			`        PENDING["⏳ Architecture Cible en Attente d'Arbitrage L3<br/><small>Veuillez acter une option retenue dans la Matrice pour générer le schéma d'architecture spécifiée</small>"]:::draft`,
 			'    end'
@@ -437,24 +443,19 @@ export function generateTargetArchitectureDiagram(
 
 	const lower = fullSpec.toLowerCase();
 	const hasTelecomCrypto = /s6a|diameter|dea|secgw|hss|mme|lot 3.*lot 1|esp.*chiffrement/.test(lower);
-	const mentionsRATP = lower.includes('ratp');
+	const hasMultiEnv = /plateformes?|pr[eé]-prod|iso-[eé]tat|test-ran|qualification fournisseurs/.test(lower);
 	const hasSupervision = /supervision|m[eé]trologie|alarmes?|m[eé]triques?|centreon|hypervis|zabbix|prometheus/.test(lower);
 	const hasLogs = /logs?|audit|siem|syslog|splunk|elk/.test(lower);
 	const hasWapt = /wapt/.test(lower);
 	const hasDeployment = hasWapt || /d[eé]ploiement|paquets?|mise [aà] jour|ansible|ci\/cd|pipeline/.test(lower);
 	const hasHumanGate = /validation humaine|humain|contr[oô]le humain|homologation|recette|approbation/.test(lower);
 	const hasSignedPackages = /sign[eé]s?|signature|cl[eé]|pki|certificat/.test(lower);
-	const hasAuth = /oidc|oauth|saml|authentification|pro sant[eé]|iam|keycloak|sso|mfa/.test(lower);
-	const isHybrid = /hybride|interfac|existant|remont|export|tiers/.test(lower) || mentionsRATP;
+	const hasAuth = /oidc|oauth|saml|authentification|iam|keycloak|sso|mfa/.test(lower);
+	const isHybrid = /hybride|interfac|existant|remont|export|tiers/.test(lower);
 
-	let externalLabel = 'Écosystème Existant (SI Client / Partenaire)';
-	if (mentionsRATP) {
-		externalLabel = 'Outillage de Maintenance & Exploitation RATP (Existant §11)';
-	} else if (lower.includes('pro santé connect') || lower.includes('pro sante connect')) {
-		externalLabel = 'Fédération Nationale & Services Régaliens (Pro Santé Connect)';
-	} else if (context?.enterpriseName && context.enterpriseName !== context.projectName) {
-		externalLabel = `SI ${context.enterpriseName} (Existant)`;
-	}
+	const externalLabel = enterpriseName !== 'Organisation'
+		? `SI ${enterpriseName} (Existant)`
+		: 'Écosystème Existant (SI Client / Partenaire)';
 
 	// Cas Spécial Télécom / Sécurité : Chiffrement IPsec ESP & Médiation DEA pour S6a (Lot 3 <-> Lot 1)
 	if (hasTelecomCrypto) {
@@ -497,25 +498,74 @@ export function generateTargetArchitectureDiagram(
 		].join('\n');
 	}
 
-	let systemLabel = `Système : ${subjectName} (Périmètre Solution - Autonome)`;
-	if (lower.includes('après-tetra') || lower.includes('apres-tetra') || lower.includes('tetra')) {
-		systemLabel = 'Système Après-TETRA (Périmètre Titulaire - Autonome)';
+	// Cas Spécial Multi-Plateformes / Environnements & Qualification (ex: Socle 3 plateformes, pré-prod iso-état, test-ran)
+	if (hasMultiEnv) {
+		const socleScope = enterpriseName !== 'Organisation' ? enterpriseName : (projectName || 'Socle 3 Niveaux');
+		const socleTitle = `Socle d'Environnements Multi-Plateformes (${socleScope}) [Projet: ${projectId}]`;
+
+		return [
+			'flowchart TB',
+			...targetArchitectureClassDefs(),
+			'',
+			'    %% Acteurs',
+			'    user_exploitant["👤 Équipe Exploitation & Ingénierie"]:::person',
+			'    user_auditeur["👤 Responsable Audit & Représentativité"]:::person',
+			'',
+			'    %% Zone Souveraine / Opérationnelle',
+			`    subgraph SOCLE["${socleTitle}"]`,
+			'        direction TB',
+			'        subgraph PROD_ENV["1. Plateforme de Production (PROD)"]',
+			'            PROD["🏭 Production Cœur & NOC<br/><small>(État nominal actif & services critiques réels)</small>"]:::core',
+			'        end',
+			'        subgraph PREPROD_ENV["2. Plateforme de Pré-production (PRE-PROD)"]',
+			'            PREPROD["🔄 Pré-production Unique Iso-État<br/><small>(Réplique technique exacte de la PROD, accueil état candidat)</small>"]:::core',
+			'        end',
+			'        subgraph TEST_ENV["3. Plateforme de Test Réduit (TEST)"]',
+			'            TESTRAN["🧪 Test Réduit avec Test-RAN<br/><small>(Banc d\'essais & validation fonctionnelle radio)</small>"]:::core',
+			'        end',
+			'    end',
+			'    class SOCLE boundary',
+			'',
+			'    %% Zone Fournisseurs / Équipementiers Tiers',
+			'    subgraph FOURNISSEURS_ZONE["Périmètre Fournisseurs & Usine (Décentralisé)"]',
+			'        direction TB',
+			'        FournisseursBanc["🏢 Qualification Fournisseurs<br/><small>(Bancs d\'essais usine chez les constructeurs)</small>"]:::ext',
+			'        AuditRepresentativite["🛡️ Contrôle d\'Audit & Représentativité<br/><small>(Contrôle d\'audit strict & certification des bancs)</small>"]:::agent',
+			'    end',
+			'    class FOURNISSEURS_ZONE boundary',
+			'',
+			'    %% Flux de qualification, vérification et promotion',
+			'    FournisseursBanc -->|"1. Tests d\'usine & métrologie"| AuditRepresentativite',
+			'    user_auditeur -->|"Audit & vérification de conformité"| AuditRepresentativite',
+			'    AuditRepresentativite -->|"2. Version candidate certifiée représentative"| TESTRAN',
+			'    TESTRAN -->|"3. Validation intégration fonctionnelle & radio"| PREPROD',
+			'    PREPROD -->|"4. Qualification sur état candidat iso-production"| PROD',
+			'    PROD -.->|"Réplication continue d\'état technique"| PREPROD',
+			'    user_exploitant -->|"Exploitation & gestion état candidat"| PREPROD',
+			'    user_exploitant -->|"MCO & supervision nominale"| PROD'
+		].join('\n');
 	}
+
+	const systemLabel = `Système : ${projectName} (${sectionRef}) [Projet: ${projectId}]`;
 
 	const lines: string[] = ['flowchart TB', ...targetArchitectureClassDefs(), ''];
 
 	// 1. Acteurs
-	const user0Label = 'Équipe Exploitation Titulaire';
-	const user1Label = mentionsRATP ? 'Exploitants PCC RATP' : 'Exploitants & Utilisateurs Externes';
+	const user0Label = `Équipe Exploitation & Ingénierie (${projectName})`;
+	const user1Label = enterpriseName !== 'Organisation'
+		? `Exploitants & Utilisateurs (${enterpriseName})`
+		: 'Exploitants & Utilisateurs Externes';
 	lines.push(`    user_0["👤 ${mmdText(user0Label)}"]:::person`);
 	lines.push(`    user_1["👤 ${mmdText(user1Label)}"]:::person`);
 
 	if (hasHumanGate || hasDeployment) {
-		const humanLabel = mentionsRATP
-			? 'Guichet Homologation / Validation Humaine (RATP)'
+		const humanLabel = enterpriseName !== 'Organisation'
+			? `Guichet Homologation / Validation Humaine (${enterpriseName})`
 			: 'Guichet Validation Humaine & Homologation';
 		lines.push(`    ValideurHumain["🛡️ ${mmdText(humanLabel)}<br/><small>(Contrôle intégrité & recette)</small>"]:::human`);
-		const pkgLabel = hasSignedPackages ? 'Paquet WAPT Signé' : 'Paquet Applicatif Validé';
+		const pkgLabel = hasSignedPackages
+			? (hasWapt ? 'Paquet WAPT Signé' : 'Paquet Applicatif Signé')
+			: 'Paquet Applicatif Validé';
 		lines.push(`    PaquetSigne["📦 ${mmdText(pkgLabel)}<br/><small>(Signature cryptographique éditeur)</small>"]:::deploy`);
 	}
 	lines.push('');
@@ -548,7 +598,10 @@ export function generateTargetArchitectureDiagram(
 		lines.push('        MetrologieLocale["Moteur Métrologie & Stockage Local<br/><small>(Autonomie locale & TSDB)</small>"]:::core');
 	}
 	if (isHybrid || hasSupervision || hasLogs) {
-		lines.push(`        ModuleExport["Passerelle d'Export & Connecteurs RATP<br/><small>(Interfaçage standardisé vers l'existant)</small>"]:::agent`);
+		const exportLabel = enterpriseName !== 'Organisation'
+			? `Passerelle d'Export & Connecteurs (${enterpriseName})<br/><small>(Interfaçage standardisé vers l'existant)</small>`
+			: "Passerelle d'Export & Connecteurs d'Intégration<br/><small>(Interfaçage standardisé vers l'existant)</small>";
+		lines.push(`        ModuleExport["${exportLabel}"]:::agent`);
 	}
 	lines.push('    end');
 	lines.push('    class SYSTEM boundary');
@@ -558,26 +611,26 @@ export function generateTargetArchitectureDiagram(
 	lines.push(`    subgraph EXTERNAL["${mmdText(externalLabel)}"]`);
 	lines.push('        direction TB');
 	if (hasSupervision) {
-		const supLabel = mentionsRATP
-			? 'Supervision RATP<br/><small>(Centreon / Hyperviseur global)</small>'
+		const supLabel = enterpriseName !== 'Organisation'
+			? `Supervision Externe (${enterpriseName})<br/><small>(Hyperviseur global & alerting)</small>`
 			: 'Supervision Externe<br/><small>(Hyperviseur & Alerting)</small>';
 		lines.push(`        SupervisionExt["${supLabel}"]:::ext`);
 	}
 	if (hasLogs) {
-		const logsLabel = mentionsRATP
-			? 'Plateforme Logs RATP<br/><small>(SIEM / Centralisation Syslog)</small>'
+		const logsLabel = enterpriseName !== 'Organisation'
+			? `Plateforme Logs (${enterpriseName})<br/><small>(SIEM / Centralisation Syslog)</small>`
 			: 'Plateforme Centralisée de Logs<br/><small>(SIEM / Audit distant)</small>';
 		lines.push(`        CentralLogs["${logsLabel}"]:::ext`);
 	}
 	if (hasDeployment) {
 		const deploySrvLabel = hasWapt
-			? 'Dépôt & Serveur WAPT RATP<br/><small>(Distribution paquets validés)</small>'
+			? `Dépôt & Serveur WAPT (${enterpriseName !== 'Organisation' ? enterpriseName : 'Central'})<br/><small>(Distribution paquets validés)</small>`
 			: 'Serveur de Déploiement Central<br/><small>(Dépôt paquets & orchestration)</small>';
 		lines.push(`        ServeurDeploy["${deploySrvLabel}"]:::ext`);
 	}
 	if (hasAuth) {
-		const idpLabel = lower.includes('pro santé')
-			? 'Fournisseur d\'Identité National<br/><small>(Pro Santé Connect / OIDC)</small>'
+		const idpLabel = enterpriseName !== 'Organisation'
+			? `Fournisseur d'Identité (${enterpriseName})<br/><small>(IdP / Fédération OIDC)</small>`
 			: 'Fournisseur d\'Identité Externe<br/><small>(IdP / Fédération OIDC)</small>';
 		lines.push(`        IdpExt["${idpLabel}"]:::ext`);
 	}
@@ -603,7 +656,10 @@ export function generateTargetArchitectureDiagram(
 			if (hasLogs) {
 				lines.push('    ModuleExport -->|"Export logs d\'audit (Syslog TLS)"| CentralLogs');
 			}
-			lines.push('    user_1 -->|"Vue globale PCC"| SupervisionExt');
+			const user1Action = enterpriseName !== 'Organisation'
+				? `Supervision Globale (${enterpriseName})`
+				: 'Supervision & Exploitation Externe';
+			lines.push(`    user_1 -->|"${user1Action}"| SupervisionExt`);
 		}
 	} else if (hasAuth) {
 		lines.push('    user_1 -->|"Accès applicatif (HTTPS)"| ServiceMetier');
@@ -641,13 +697,46 @@ export function generateDeploymentSequenceDiagram(
 	_statements?: Statement[],
 	context?: ProjectionContext
 ): string {
+	const subjectName = subject.name || 'Système';
+	const projectId = context?.projectId?.trim() || 'default-project';
+	const projectName = context?.projectName?.trim() || subjectName;
+	const enterpriseName = context?.enterpriseName?.trim() || 'Organisation';
 	const decision = context?.decision;
 	const retainedOpt = context?.options?.find(
 		(o) => o.id === decision?.retainedOptionId || o.title === decision?.retainedOptionTitle
 	);
-	const fullSpec = `${decision?.retainedOptionTitle || ''} ${retainedOpt?.summary || ''} ${decision?.rationale || ''}`.toLowerCase();
-	const isRATP = fullSpec.includes('ratp');
+	const detailedSpec = context?.detailedSpecText || '';
+	const fullSpec = `${projectName} ${detailedSpec} ${decision?.retainedOptionTitle || ''} ${retainedOpt?.summary || ''} ${decision?.rationale || ''}`.toLowerCase();
 	const isWapt = fullSpec.includes('wapt');
+
+	const hasMultiEnv = /plateformes?|pr[eé]-prod|iso-[eé]tat|test-ran|qualification fournisseurs/.test(fullSpec);
+	if (hasMultiEnv) {
+		const envScope = enterpriseName !== 'Organisation' ? enterpriseName : (projectName || 'Cible');
+		return [
+			'sequenceDiagram',
+			'    autonumber',
+			'    actor Fournisseur as Fournisseur / Équipementier',
+			'    actor Auditeur as Responsable Audit & Représentativité',
+			'    participant TestRAN as Plateforme Test Réduit (Test-RAN)',
+			`    participant PreProd as Pré-production Iso-État (${envScope})`,
+			`    participant Prod as Production (${envScope})`,
+			'',
+			'    Note over Fournisseur,Auditeur: Phase 1 : Qualification Usine et Contrôle d\'Audit',
+			'    Fournisseur->>Fournisseur: Exécution des tests d\'intégration chez le fournisseur',
+			'    Auditeur->>Fournisseur: Audit sur site et contrôle de représentativité du banc',
+			'    Auditeur->>TestRAN: Livraison de la version candidate avec rapport d\'audit certifié',
+			'',
+			'    Note over TestRAN,PreProd: Phase 2 : Validation Fonctionnelle & Radio Réduite',
+			'    TestRAN->>TestRAN: Validation sur banc Test-RAN avec scénarios réels',
+			`    TestRAN->>PreProd: Promotion vers la pré-production (${envScope})`,
+			'',
+			'    Note over PreProd,Prod: Phase 3 : Qualification Iso-État & Bascule Production',
+			'    Prod-->>PreProd: Réplication technique de l\'état de production nominal',
+			'    PreProd->>PreProd: Déploiement et tests sur l\'état candidat en conditions réelles',
+			'    PreProd->>Prod: Validation formelle et mise en production sans régression',
+			'    Prod->>Prod: État candidat devient l\'état nominal actif'
+		].join('\n');
+	}
 
 	const hasTelecomCrypto = /s6a|diameter|dea|secgw|hss|mme|lot 3.*lot 1|esp.*chiffrement/.test(fullSpec);
 	if (hasTelecomCrypto) {
@@ -680,10 +769,12 @@ export function generateDeploymentSequenceDiagram(
 		].join('\n');
 	}
 
-	const tituActor = 'Titulaire (Ingénierie & Packaging)';
-	const clientActor = isRATP ? 'Responsable Exploitation RATP' : 'Responsable Exploitation / RSSI';
+	const tituActor = `Titulaire (${projectName})`;
+	const clientActor = enterpriseName !== 'Organisation'
+		? `Responsable Exploitation (${enterpriseName})`
+		: 'Responsable Exploitation / RSSI';
 	const serverParticipant = isWapt ? 'Serveur WAPT (Dépôt officiel)' : 'Serveur de Déploiement (Dépôt)';
-	const targetParticipant = isRATP ? 'Hôte Après-TETRA (Agent WAPT)' : 'Hôte Cible (Agent Client)';
+	const targetParticipant = `Hôte Cible (${projectName})`;
 
 	return [
 		'sequenceDiagram',

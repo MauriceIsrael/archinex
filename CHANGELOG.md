@@ -8,6 +8,17 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Environnement Docker d'Intégration & Outillage (Nautobot, Batfish, OPA Server)
+- **Pile Conteneurisée d'Outillage Intégrateur (`deploy/integrator-tools/compose.yml`)** :
+  - Déploiement local de Nautobot 2.2 avec PostgreSQL 15, Redis 7 et worker Celery pour servir de source de vérité DCIM.
+  - Intégration de Batfish (`batfish/all-in-one:latest`) sur les ports 9997 (API pybatfish) et 9996 pour la simulation et la vérification des matrices de flux réseau.
+  - Intégration d'un serveur OPA REST (`openpolicyagent/opa:latest`) sur le port 8181 en complément du binaire CLI local `tools/bin/opa.exe`.
+- **Script d'Ensemencement Témoin Nautobot (`deploy/integrator-tools/seed-nautobot.py`)** :
+  - Injection idempotente de la topologie requise par les oracles Sylva CAPI : site `pop-valmondois`, rôle `telco-baremetal-worker`, serveur `srv-telco-bm-01` au statut `Planned`, interface `bmc` et adresse de management `192.0.2.10/24` (RFC 5737).
+- **Scripts d'Exploitation & Automatisation (`tools.ps1`, `tools.sh`, `README.md`)** :
+  - Commandes `up`, `down`, `status`, `seed`, `test`, `reset` avec contrôle automatique du statut du moteur Docker Desktop et diagnostics de connectivité.
+- **Tests de contrat** : ajout de `tests/contract/edp-integrator-tools-docker.test.ts` (4 tests passants, total 91 tests de contrat EDP passants).
+
 ### Alignement Sylva CAPI & Nautobot DCIM pour les Paquets de Décision Exécutables (EDP)
 - **Requête d'Extraction GraphQL Nautobot Planned (`src/lib/server/edp/adapters/nautobot_planned_extract.graphql`, `nautobotAdapter.ts`)** :
   - Intégration de la requête GraphQL officielle ciblant les équipements au statut `planned` avec leurs interfaces `bmc` (type, MAC, adresses IP).

@@ -9,6 +9,28 @@ export interface SylvaTransformOptions {
   generatedAt?: string;
 }
 
+export interface SylvaCapiClusterValues {
+  name: string;
+  capi_providers: {
+    infra_provider: string; // ex. 'capm3' (Metal3 Bare-Metal) ou 'capo' (OpenStack)
+    bootstrap_provider: string; // ex. 'cabpr' (RKE2) ou 'cabpk' (Kubeadm)
+  };
+  control_plane?: {
+    replicas?: number;
+    machine_deployment_default?: {
+      image_key?: string; // ex. 'sle-micro-rt-5.5'
+    };
+  };
+  baremetal_hosts?: Record<
+    string,
+    {
+      bmc: { address: string; credentialsName?: string };
+      bootMACAddress?: string;
+      node_labels?: Record<string, string>;
+    }
+  >;
+}
+
 const FORBIDDEN_SECRET_PATTERNS = [
   /password/i,
   /secret/i,

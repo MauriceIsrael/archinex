@@ -8,6 +8,15 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Alignement Sylva CAPI & Nautobot DCIM pour les Paquets de Décision Exécutables (EDP)
+- **Requête d'Extraction GraphQL Nautobot Planned (`src/lib/server/edp/adapters/nautobot_planned_extract.graphql`, `nautobotAdapter.ts`)** :
+  - Intégration de la requête GraphQL officielle ciblant les équipements au statut `planned` avec leurs interfaces `bmc` (type, MAC, adresses IP).
+  - Ajout de la fonction `parseNautobotGraphqlResponse` extrayant automatiquement l'adresse OOB depuis les interfaces BMC pour les formats de réponse GraphQL bruts.
+- **Fixture et Typage Sylva CAPI Cluster (`sylva_values_candidate.yaml`, `sylvaAdapter.ts`)** :
+  - Intégration de la fixture de valeurs de référence `sylva-capi-cluster` avec providers Metal3 (`capm3`), RKE2 (`cabpr`), image SLE Micro RT 5.5 et BMC Redfish.
+  - Définition de l'interface TypeScript `SylvaCapiClusterValues` pour le typage des configurations d'unités Sylva.
+- **Tests de contrat** : enrichissement de `tests/contract/edp-verify-and-gate.test.ts` (11 tests passants).
+
 ### Paquet de Décision Exécutable (EDP) : Rédaction Assistée, IHM & Évaluation Finale (Palier 5 - Issues #184, #186, #187, #188, #189)
 - **Chaîne d'Acceptation Déterministe pour Rédaction Assistée LLM (`src/lib/server/edp/edpDrafting.ts`) (#184)** :
   - Pipeline de validation automatique imposé avant toute présentation à l'humain enchaînant : schéma formel, pureté d'intension (zéro fuite IP/MAC/hostnames), contrôle des liaisons d'ontologie, conformité des fixtures, auto-test OPA natif et garde de mutation.

@@ -35,17 +35,18 @@
 	let isActionRunning = $state(false);
 	let showRawJson = $state(false);
 	let activeDriftScenario = $state<string>('reset_clean');
+	let selectedConceptUrn = $state<string>('AUTO');
 
 	const coverage = $derived(currentEdp?.refinementCoverage || null);
 	const hydrated = $derived(currentEdp?.hydratedInventory || null);
 	const lastVerdict = $derived(currentEdp?.lastVerdict || null);
 
-	async function loadEdpData(subjId: string, projId: string) {
+	async function loadEdpData(subjId: string, projId: string, conceptFilter = selectedConceptUrn) {
 		if (!subjId || !projId) return;
 		isLoading = true;
 		try {
 			const res = await fetch(
-				`/api/projects/${encodeURIComponent(projId)}/subjects/${encodeURIComponent(subjId)}/edp?edp=1`
+				`/api/projects/${encodeURIComponent(projId)}/subjects/${encodeURIComponent(subjId)}/edp?edp=1&concept=${encodeURIComponent(conceptFilter)}`
 			);
 			if (res.ok) {
 				const data = await res.json();
@@ -58,9 +59,15 @@
 		}
 	}
 
+	async function handleSelectConcept(conceptUrn: string) {
+		selectedConceptUrn = conceptUrn;
+		await loadEdpData(subjectId, projectId, conceptUrn);
+	}
+
 	$effect(() => {
 		if (subjectId && projectId) {
-			void loadEdpData(subjectId, projectId);
+			selectedConceptUrn = 'AUTO';
+			void loadEdpData(subjectId, projectId, 'AUTO');
 		}
 	});
 
@@ -292,12 +299,64 @@
 					</div>
 				</div>
 
+				{#if coverage?.allConcepts && coverage.allConcepts.length > 0}
+					<div class="p-3 rounded-lg border bg-muted/20 space-y-2" data-testid="phase4-hld-concepts-bar">
+						<div class="flex items-center justify-between gap-2 flex-wrap">
+							<span class="text-[11px] font-bold uppercase tracking-wider text-muted-foreground">
+								Socle Ontologique · {coverage.allConcepts.length} Grands Concepts HLD (SI / Telco)
+							</span>
+							<div class="flex items-center gap-1.5">
+								<button
+									type="button"
+									onclick={() => handleSelectConcept('AUTO')}
+									class="px-2 py-0.5 rounded text-[10px] font-bold transition-colors cursor-pointer {selectedConceptUrn === 'AUTO'
+										? 'bg-indigo-600 text-white shadow-2xs'
+										: 'bg-background border text-muted-foreground hover:text-foreground'}"
+								>
+									Auto-détection ({coverage.matchedConcepts?.length || 1} retenu)
+								</button>
+								<button
+									type="button"
+									onclick={() => handleSelectConcept('ALL')}
+									class="px-2 py-0.5 rounded text-[10px] font-bold transition-colors cursor-pointer {selectedConceptUrn === 'ALL'
+										? 'bg-indigo-600 text-white shadow-2xs'
+										: 'bg-background border text-muted-foreground hover:text-foreground'}"
+								>
+									Tous les 6 concepts (18 sous-axes)
+								</button>
+							</div>
+						</div>
+						<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-1.5">
+							{#each coverage.allConcepts as concept}
+								{@const isMatched = coverage.matchedConcepts?.some((m: any) => m.urn === concept.urn)}
+								<button
+									type="button"
+									onclick={() => handleSelectConcept(concept.urn)}
+									class="text-left p-2 rounded-lg border text-[11px] transition-all cursor-pointer flex items-center justify-between gap-2 {selectedConceptUrn === concept.urn
+										? 'bg-indigo-600/15 border-indigo-500 text-indigo-900 dark:text-indigo-200 ring-1 ring-indigo-500/40'
+										: isMatched
+											? 'bg-emerald-500/10 border-emerald-500/40 text-foreground'
+											: 'bg-background/80 hover:bg-muted border-border/70 text-muted-foreground'}"
+									data-testid="hld-concept-pill-{concept.urn.split(':').pop()}"
+								>
+									<span class="font-semibold truncate" title={concept.title}>
+										{concept.title.replace(/^Concept HLD\s*:\s*/i, '')}
+									</span>
+									<span class="shrink-0 px-1.5 py-0.5 rounded bg-muted font-mono text-[10px]">
+										{concept.axesCount} axes
+									</span>
+								</button>
+							{/each}
+						</div>
+					</div>
+				{/if}
+
 				{#if isLoading}
 					<div class="p-8 text-center text-xs text-muted-foreground animate-pulse">
 						Interrogation du graphe d'ontologie et calcul de la matrice KAOS...
 					</div>
 				{:else if coverage}
-					<!-- Liste des 5 axes obligatoires -->
+					<!-- Liste des axes obligatoires -->
 					<div class="space-y-2.5">
 						{#each coverage.axes as axis, idx}
 							<div
@@ -681,3 +740,4 @@
 		</div>
 	</div>
 </div>
+

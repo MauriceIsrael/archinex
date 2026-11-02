@@ -182,3 +182,4 @@ evaluation := {
 	"violation_messages": violation_messages,
 	"evaluated_axes_count": count(data.ontology),
 }
+

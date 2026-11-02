@@ -6,16 +6,16 @@
       "urn": "urn:archinex:ontology:infrastructure:server:baremetal",
       "revision": 1,
       "kind": "leaf",
-      "title": "Substrat Serveur Bare-Metal",
+      "title": "Substrat Serveur Bare-Metal (Dell R750 / HPE DL380)",
       "domain": "infrastructure",
-      "keywords": ["baremetal", "bare-metal", "serveur", "worker", "control-plane", "dell", "hpe", "r750", "dl380", "compute", "sylva"],
+      "keywords": ["baremetal", "bare-metal", "serveur", "worker", "control-plane", "dell", "hpe", "r750", "dl380", "compute", "sylva", "metal3"],
       "oracle_rules": [
-        "data.archinex.edp.adr012.deny_unapproved_hardware_profile",
-        "data.archinex.edp.adr012.deny_invalid_node_role"
+        "data.archinex.edp.multiaxis.deny_unapproved_hardware_profile",
+        "data.archinex.edp.multiaxis.deny_invalid_node_role"
       ],
       "hydration_template": {
         "nautobot_device": {
-          "role": "telco-baremetal-worker",
+          "role": "worker",
           "device_type": "Dell-PowerEdge-R750",
           "status": "planned"
         },
@@ -29,16 +29,41 @@
         "baremetal_types": ["Dell-PowerEdge-R750", "HPE-ProLiant-DL380"]
       }
     },
+    "urn:archinex:ontology:infrastructure:compute:hypervisor_kvm": {
+      "urn": "urn:archinex:ontology:infrastructure:compute:hypervisor_kvm",
+      "revision": 1,
+      "kind": "leaf",
+      "title": "Substrat Virtualisé KVM / OpenStack (NUMA Pinning)",
+      "domain": "infrastructure",
+      "keywords": ["kvm", "hyperviseur", "openstack", "vm", "virtualisation", "numa", "vcpu"],
+      "oracle_rules": [
+        "data.archinex.edp.multiaxis.deny_missing_numa_pinning"
+      ],
+      "hydration_template": {
+        "nautobot_device": {
+          "role": "worker",
+          "device_type": "Dell-PowerEdge-R750",
+          "status": "planned"
+        }
+      },
+      "projections": {
+        "hypervisor": "kvm",
+        "numa_pinning_required": true,
+        "overcommit_cpu_ratio": 1.0
+      }
+    },
     "urn:archinex:ontology:telecom:network:oob": {
       "urn": "urn:archinex:ontology:telecom:network:oob",
       "revision": 1,
       "kind": "leaf",
-      "title": "Réseau d'Administration Hors-Bande (OOB)",
+      "title": "Réseau d'Administration Hors-Bande (OOB Redfish)",
       "domain": "telecom",
       "keywords": ["oob", "hors-bande", "bmc", "idrac", "ilo", "redfish", "administration", "management", "ipmi"],
       "oracle_rules": [
-        "data.archinex.edp.adr012.deny_missing_oob_ip",
-        "data.archinex.edp.adr012.deny_insufficient_interfaces"
+        "data.archinex.edp.multiaxis.deny_invalid_device_status",
+        "data.archinex.edp.multiaxis.deny_insufficient_interfaces",
+        "data.archinex.edp.multiaxis.deny_missing_oob_ip",
+        "data.archinex.edp.multiaxis.deny_bmc_oob_drift"
       ],
       "hydration_template": {
         "nautobot_interfaces": [
@@ -51,16 +76,57 @@
         "min_interfaces": 2
       }
     },
+    "urn:archinex:ontology:telecom:network:spine_leaf_evpn": {
+      "urn": "urn:archinex:ontology:telecom:network:spine_leaf_evpn",
+      "revision": 1,
+      "kind": "leaf",
+      "title": "Fabric Datacenter Spine-Leaf BGP EVPN / VXLAN Dual-ToR",
+      "domain": "telecom",
+      "keywords": ["spine", "leaf", "bgp", "evpn", "vxlan", "fabric", "tor", "ecmp", "underlay", "routage"],
+      "oracle_rules": [
+        "data.archinex.edp.multiaxis.deny_single_tor_uplink",
+        "data.archinex.edp.multiaxis.deny_non_evpn_fabric"
+      ],
+      "hydration_template": {
+        "fabric_topology": "spine-leaf-evpn",
+        "min_uplinks_per_host": 2
+      },
+      "projections": {
+        "underlay_protocol": "eBGP",
+        "overlay_protocol": "EVPN-VXLAN",
+        "min_tor_switches_per_rack": 2
+      }
+    },
+    "urn:archinex:ontology:security:crypto:ipsec_ikev2_aes256": {
+      "urn": "urn:archinex:ontology:security:crypto:ipsec_ikev2_aes256",
+      "revision": 1,
+      "kind": "leaf",
+      "title": "Chiffrement de Transport WAN IPsec IKEv2 AES-256-GCM",
+      "domain": "security",
+      "keywords": ["ipsec", "ikev2", "aes-256", "gcm", "vpn", "tunnel", "wan", "interco", "macsec", "chiffrement"],
+      "oracle_rules": [
+        "data.archinex.edp.multiaxis.deny_weak_wan_cipher"
+      ],
+      "hydration_template": {
+        "crypto_profile": "IKEv2-AES256-GCM-DH20"
+      },
+      "projections": {
+        "protocol": "IPsec-ESP-IKEv2",
+        "cipher_suite": "AES-256-GCM",
+        "pfs_dh_group": "DH-20-ECP384"
+      }
+    },
     "urn:archinex:ontology:security:zone:oam": {
       "urn": "urn:archinex:ontology:security:zone:oam",
       "revision": 2,
       "kind": "leaf",
-      "title": "Zone de Sécurité OAM (Exploitation)",
+      "title": "Zone de Sécurité OAM (Exploitation & Bastion)",
       "domain": "security",
       "keywords": ["oam", "exploitation", "bastion", "proxy", "isolation", "nis2", "zone", "sécurité", "admin"],
       "oracle_rules": [
-        "data.archinex.edp.adr015.deny_direct_user_to_oam_flow",
-        "data.archinex.edp.adr015.deny_unproxied_oam_access"
+        "data.archinex.edp.multiaxis.deny_missing_oam_zone",
+        "data.archinex.edp.multiaxis.deny_weak_oam_isolation",
+        "data.archinex.edp.multiaxis.deny_unproxied_oam_access"
       ],
       "hydration_template": {
         "security_zone": {
@@ -78,7 +144,7 @@
       "urn": "urn:archinex:ontology:security:zone:user_plane",
       "revision": 1,
       "kind": "leaf",
-      "title": "Zone Usager Telecom 5G UPF",
+      "title": "Zone Usager Telecom 5G UPF (Haut Débit DPDK/SR-IOV)",
       "domain": "security",
       "keywords": ["upf", "user-plane", "usager", "5g", "trafic", "dpdk", "sriov", "flux"],
       "oracle_rules": [
@@ -103,8 +169,8 @@
       "domain": "platform",
       "keywords": ["environnement", "environnements", "dev", "recette", "pré-prod", "preprod", "prod", "production", "iso-prod", "qualification", "parité"],
       "oracle_rules": [
-        "data.archinex.edp.env.deny_non_isoprod_staging",
-        "data.archinex.edp.env.deny_shared_cluster_dev_prod"
+        "data.archinex.edp.multiaxis.deny_missing_environment_tier",
+        "data.archinex.edp.multiaxis.deny_non_isoprod_staging"
       ],
       "hydration_template": {
         "environments": [
@@ -151,29 +217,307 @@
         "redundancy_mode": "N+1"
       }
     },
+    "urn:archinex:ontology:storage:csi:ceph_rbd_3replicas": {
+      "urn": "urn:archinex:ontology:storage:csi:ceph_rbd_3replicas",
+      "revision": 1,
+      "kind": "leaf",
+      "title": "Stockage Bloc Distribué Rook-Ceph RBD (3 Réplicas Synchrones)",
+      "domain": "storage",
+      "keywords": ["stockage", "ceph", "rook", "rbd", "csi", "bloc", "nvme", "replica", "persistance"],
+      "oracle_rules": [
+        "data.archinex.edp.multiaxis.deny_insufficient_storage_replicas"
+      ],
+      "hydration_template": {
+        "storage_class": "ceph-rbd-sc",
+        "replication_factor": 3
+      },
+      "projections": {
+        "storage_backend": "rook-ceph-rbd",
+        "min_replication_factor": 3,
+        "failure_domain": "rack"
+      }
+    },
+    "urn:archinex:ontology:storage:s3:object_erasure_coding": {
+      "urn": "urn:archinex:ontology:storage:s3:object_erasure_coding",
+      "revision": 1,
+      "kind": "leaf",
+      "title": "Stockage Objet S3 Distribué (Erasure Coding 4+2 Multi-Baies)",
+      "domain": "storage",
+      "keywords": ["s3", "objet", "minio", "rgw", "erasure", "coding", "bucket", "datalake"],
+      "oracle_rules": [
+        "data.archinex.edp.multiaxis.deny_unprotected_s3_bucket"
+      ],
+      "hydration_template": {
+        "object_store": "s3-ec-4plus2"
+      },
+      "projections": {
+        "protection_scheme": "erasure-coding-4-2",
+        "versioning_required": true
+      }
+    },
+    "urn:archinex:ontology:security:crypto:luks2_kms_hsm": {
+      "urn": "urn:archinex:ontology:security:crypto:luks2_kms_hsm",
+      "revision": 1,
+      "kind": "leaf",
+      "title": "Chiffrement au Repos LUKS2 AES-XTS-256 & Clés KMS/HSM",
+      "domain": "security",
+      "keywords": ["luks", "kms", "hsm", "repos", "at-rest", "disque", "aes-xts", "chiffrement"],
+      "oracle_rules": [
+        "data.archinex.edp.multiaxis.deny_unencrypted_storage_volume"
+      ],
+      "hydration_template": {
+        "encryption_at_rest": "LUKS2-AES-XTS-256"
+      },
+      "projections": {
+        "cipher": "AES-XTS-256",
+        "key_management": "external-kms-hsm",
+        "key_rotation_days": 365
+      }
+    },
+    "urn:archinex:ontology:storage:backup:s3_object_lock_worm": {
+      "urn": "urn:archinex:ontology:storage:backup:s3_object_lock_worm",
+      "revision": 1,
+      "kind": "leaf",
+      "title": "Sauvegarde Immuable S3 Object-Lock (WORM Anti-Ransomware)",
+      "domain": "storage",
+      "keywords": ["sauvegarde", "backup", "velero", "immuable", "worm", "object-lock", "ransomware", "rétention"],
+      "oracle_rules": [
+        "data.archinex.edp.multiaxis.deny_mutable_backup_repository"
+      ],
+      "hydration_template": {
+        "backup_policy": "s3-worm-compliance-30d"
+      },
+      "projections": {
+        "immutability_mode": "COMPLIANCE-WORM",
+        "min_retention_days": 30
+      }
+    },
+    "urn:archinex:ontology:security:iam:oidc_fido2_rbac": {
+      "urn": "urn:archinex:ontology:security:iam:oidc_fido2_rbac",
+      "revision": 1,
+      "kind": "leaf",
+      "title": "Fédération IAM OIDC/Keycloak avec MFA FIDO2 & RBAC Moindre Privilège",
+      "domain": "security",
+      "keywords": ["iam", "oidc", "keycloak", "saml", "mfa", "fido2", "rbac", "identité", "authentification", "sso"],
+      "oracle_rules": [
+        "data.archinex.edp.multiaxis.deny_wildcard_cluster_admin_rbac",
+        "data.archinex.edp.multiaxis.deny_missing_mfa_enforcement"
+      ],
+      "hydration_template": {
+        "iam_provider": "oidc-fido2-strict"
+      },
+      "projections": {
+        "protocol": "OIDC-PKCE",
+        "mfa_level": "FIDO2-WebAuthn-AAL3",
+        "forbid_cluster_admin_group": true
+      }
+    },
+    "urn:archinex:ontology:security:pki:cert_manager_spiffe_mtls": {
+      "urn": "urn:archinex:ontology:security:pki:cert_manager_spiffe_mtls",
+      "revision": 1,
+      "kind": "leaf",
+      "title": "PKI Automatisée Cert-Manager & Identité Workload SPIFFE mTLS",
+      "domain": "security",
+      "keywords": ["pki", "mtls", "certificat", "tls", "spiffe", "spire", "cert-manager", "x509", "mesh"],
+      "oracle_rules": [
+        "data.archinex.edp.multiaxis.deny_plaintext_interservice_flow"
+      ],
+      "hydration_template": {
+        "mtls_mode": "STRICT-SPIFFE"
+      },
+      "projections": {
+        "mtls_enforcement": "STRICT",
+        "max_cert_ttl_hours": 24
+      }
+    },
+    "urn:archinex:ontology:security:secrets:vault_dynamic_leases": {
+      "urn": "urn:archinex:ontology:security:secrets:vault_dynamic_leases",
+      "revision": 1,
+      "kind": "leaf",
+      "title": "Coffre-Fort de Secrets (HashiCorp Vault / OpenBao) à Baux Dynamiques",
+      "domain": "security",
+      "keywords": ["secret", "secrets", "vault", "openbao", "external-secrets", "rotation", "credential"],
+      "oracle_rules": [
+        "data.archinex.edp.multiaxis.deny_static_secret_in_git"
+      ],
+      "hydration_template": {
+        "secret_store": "vault-dynamic-eso"
+      },
+      "projections": {
+        "delivery_mechanism": "ExternalSecretsOperator",
+        "allow_static_k8s_secrets": false
+      }
+    },
+    "urn:archinex:ontology:observability:telemetry:otel_prometheus_loki": {
+      "urn": "urn:archinex:ontology:observability:telemetry:otel_prometheus_loki",
+      "revision": 1,
+      "kind": "leaf",
+      "title": "Stack Télémétrie Unifiée OpenTelemetry + Prometheus HA + Loki",
+      "domain": "observability",
+      "keywords": ["observabilité", "télémétrie", "opentelemetry", "otel", "prometheus", "grafana", "loki", "métriques", "traces"],
+      "oracle_rules": [
+        "data.archinex.edp.multiaxis.deny_unmonitored_workload"
+      ],
+      "hydration_template": {
+        "telemetry_stack": "otel-prometheus-loki-ha"
+      },
+      "projections": {
+        "collector_standard": "OpenTelemetry-OTLP",
+        "metrics_retention_days": 90
+      }
+    },
+    "urn:archinex:ontology:observability:soc:siem_syslog_tls_nis2": {
+      "urn": "urn:archinex:ontology:observability:soc:siem_syslog_tls_nis2",
+      "revision": 1,
+      "kind": "leaf",
+      "title": "Piste d'Audit Immuable & Export SIEM SOC en Temps Réel (NIS2)",
+      "domain": "observability",
+      "keywords": ["siem", "soc", "audit", "syslog", "falco", "nis2", "journalisation", "forensic", "intrusion"],
+      "oracle_rules": [
+        "data.archinex.edp.multiaxis.deny_missing_siem_audit_sink"
+      ],
+      "hydration_template": {
+        "audit_sink": "syslog-tls-siem-soc"
+      },
+      "projections": {
+        "transport": "Syslog-RFC5424-TLS1.3",
+        "audit_retention_months": 12
+      }
+    },
+    "urn:archinex:ontology:observability:noc:alertmanager_slo_burnrate": {
+      "urn": "urn:archinex:ontology:observability:noc:alertmanager_slo_burnrate",
+      "revision": 1,
+      "kind": "leaf",
+      "title": "Supervision NOC par Burn-Rate SLO & Runbooks Opérationnels Liés",
+      "domain": "observability",
+      "keywords": ["noc", "slo", "sla", "alerting", "alertmanager", "runbook", "astreinte", "supervision"],
+      "oracle_rules": [
+        "data.archinex.edp.multiaxis.deny_alert_without_runbook_url"
+      ],
+      "hydration_template": {
+        "alerting_profile": "multi-window-slo-burnrate"
+      },
+      "projections": {
+        "require_runbook_annotation": true,
+        "target_availability_slo": "99.95%"
+      }
+    },
+    "urn:archinex:ontology:resilience:drp:active_active_stretched": {
+      "urn": "urn:archinex:ontology:resilience:drp:active_active_stretched",
+      "revision": 1,
+      "kind": "leaf",
+      "title": "PCA Multi-Sites Actif/Actif avec Arbitre Witness (RPO=0, RTO < 5 min)",
+      "domain": "resilience",
+      "keywords": ["pca", "actif-actif", "multi-site", "stretched", "rpo", "rto", "witness", "continuité", "haute-disponibilité"],
+      "oracle_rules": [
+        "data.archinex.edp.multiaxis.deny_missing_quorum_witness_site"
+      ],
+      "hydration_template": {
+        "drp_topology": "active-active-3sites-witness"
+      },
+      "projections": {
+        "rpo_seconds": 0,
+        "rto_seconds": 300,
+        "witness_site_required": true
+      }
+    },
+    "urn:archinex:ontology:resilience:drp:active_passive_warm_standby": {
+      "urn": "urn:archinex:ontology:resilience:drp:active_passive_warm_standby",
+      "revision": 1,
+      "kind": "leaf",
+      "title": "PRA Bi-Sites Actif/Passif Warm-Standby (RPO < 15 min, RTO < 2h)",
+      "domain": "resilience",
+      "keywords": ["pra", "actif-passif", "standby", "bascule", "sinistre", "reprise", "drp"],
+      "oracle_rules": [
+        "data.archinex.edp.multiaxis.deny_rpo_exceeding_threshold"
+      ],
+      "hydration_template": {
+        "drp_topology": "active-passive-warm-standby"
+      },
+      "projections": {
+        "rpo_seconds": 900,
+        "rto_seconds": 7200
+      }
+    },
+    "urn:archinex:ontology:resilience:testing:automated_gameday_quarterly": {
+      "urn": "urn:archinex:ontology:resilience:testing:automated_gameday_quarterly",
+      "revision": 1,
+      "kind": "leaf",
+      "title": "Tests de Bascule PRA Automatisés & Chaos Engineering Trimestriel",
+      "domain": "resilience",
+      "keywords": ["chaos", "gameday", "exercice", "test-pra", "bascule", "homologation", "résilience"],
+      "oracle_rules": [
+        "data.archinex.edp.multiaxis.deny_untested_drp_plan"
+      ],
+      "hydration_template": {
+        "drp_drill_schedule": "quarterly-automated"
+      },
+      "projections": {
+        "max_days_between_drills": 90,
+        "automated_failover_verification": true
+      }
+    },
+
     "urn:archinex:ontology:concept:telco_cloud_platform": {
       "urn": "urn:archinex:ontology:concept:telco_cloud_platform",
       "revision": 1,
       "kind": "concept",
-      "title": "Concept HLD : Plateforme & Environnements Cloud / Infrastructure",
-      "domain": "architecture",
-      "keywords": ["plateforme", "environnement", "environnements", "serveur", "cluster", "infrastructure", "cloud", "baremetal", "lulu", "dev", "recette", "prod", "k8s", "sylva"],
+      "title": "Concept HLD 1 : Compute, Cloud & Environnements d'Exécution",
+      "domain": "infrastructure",
+      "keywords": ["plateforme", "environnement", "environnements", "serveur", "cluster", "infrastructure", "cloud", "baremetal", "lulu", "dev", "recette", "prod", "k8s", "sylva", "compute"],
       "projections": {}
     },
     "urn:archinex:ontology:concept:interconnection_gateway": {
       "urn": "urn:archinex:ontology:concept:interconnection_gateway",
       "revision": 1,
       "kind": "concept",
-      "title": "Concept HLD : Interconnexion Réseau & Zonage de Sécurité",
-      "domain": "security",
-      "keywords": ["interconnexion", "sécurité", "zone", "nis2", "firewall", "cloisonnement", "flux", "oam", "upf", "passerelle"],
+      "title": "Concept HLD 2 : Réseau, Fabric Datacenter & Interconnexion WAN",
+      "domain": "telecom",
+      "keywords": ["interconnexion", "réseau", "network", "fabric", "bgp", "evpn", "wan", "ipsec", "firewall", "flux", "upf", "passerelle", "routage"],
       "projections": {}
     },
+    "urn:archinex:ontology:concept:storage_data_persistence": {
+      "urn": "urn:archinex:ontology:concept:storage_data_persistence",
+      "revision": 1,
+      "kind": "concept",
+      "title": "Concept HLD 3 : Stockage, Persistance, Sauvegarde & Données",
+      "domain": "storage",
+      "keywords": ["stockage", "persistance", "ceph", "s3", "base de données", "bdd", "backup", "sauvegarde", "volume", "csi", "nvme", "données", "data"],
+      "projections": {}
+    },
+    "urn:archinex:ontology:concept:iam_security_zerotrust": {
+      "urn": "urn:archinex:ontology:concept:iam_security_zerotrust",
+      "revision": 1,
+      "kind": "concept",
+      "title": "Concept HLD 4 : Identité, IAM, PKI & Sécurité Zero-Trust (NIS2)",
+      "domain": "security",
+      "keywords": ["iam", "identité", "sécurité", "nis2", "secnumcloud", "pki", "mtls", "oidc", "keycloak", "rbac", "vault", "secrets", "bastion", "oam"],
+      "projections": {}
+    },
+    "urn:archinex:ontology:concept:observability_noc_soc": {
+      "urn": "urn:archinex:ontology:concept:observability_noc_soc",
+      "revision": 1,
+      "kind": "concept",
+      "title": "Concept HLD 5 : Observabilité, Télémétrie & Exploitation NOC / SOC",
+      "domain": "observability",
+      "keywords": ["observabilité", "supervision", "monitoring", "noc", "soc", "siem", "logs", "métriques", "prometheus", "opentelemetry", "alerting", "exploitation"],
+      "projections": {}
+    },
+    "urn:archinex:ontology:concept:resilience_drp_continuity": {
+      "urn": "urn:archinex:ontology:concept:resilience_drp_continuity",
+      "revision": 1,
+      "kind": "concept",
+      "title": "Concept HLD 6 : Résilience, Haute Disponibilité & Continuité PRA / PCA",
+      "domain": "resilience",
+      "keywords": ["résilience", "pra", "pca", "continuité", "sinistre", "bascule", "rto", "rpo", "disponibilité", "drp", "multi-site"],
+      "projections": {}
+    },
+
     "urn:archinex:ontology:axis:compute_substrate": {
       "urn": "urn:archinex:ontology:axis:compute_substrate",
       "revision": 1,
       "kind": "axis",
-      "title": "Axe de Raffinement : Substrat Compute & Profils Matériels",
+      "title": "Axe de Raffinement : Substrat Compute & Profils Matériels / Hyperviseur",
       "domain": "infrastructure",
       "projections": {}
     },
@@ -181,7 +525,7 @@
       "urn": "urn:archinex:ontology:axis:oob_management",
       "revision": 1,
       "kind": "axis",
-      "title": "Axe de Raffinement : Plan d'Administration Hors-Bande (OOB)",
+      "title": "Axe de Raffinement : Plan d'Administration Hors-Bande (OOB / Redfish)",
       "domain": "telecom",
       "projections": {}
     },
@@ -197,7 +541,7 @@
       "urn": "urn:archinex:ontology:axis:env_fidelity",
       "revision": 1,
       "kind": "axis",
-      "title": "Axe de Raffinement : Fidélité & Parité des Environnements",
+      "title": "Axe de Raffinement : Fidélité & Parité des Environnements (Dev/Rec/Prod)",
       "domain": "platform",
       "projections": {}
     },
@@ -205,8 +549,112 @@
       "urn": "urn:archinex:ontology:axis:power_cooling_resilience",
       "revision": 1,
       "kind": "axis",
-      "title": "Axe de Raffinement : Résilience Électrique & PDU (2N)",
+      "title": "Axe de Raffinement : Résilience Électrique & Alimentation (2N)",
       "domain": "facilities",
+      "projections": {}
+    },
+    "urn:archinex:ontology:axis:network_underlay_fabric": {
+      "urn": "urn:archinex:ontology:axis:network_underlay_fabric",
+      "revision": 1,
+      "kind": "axis",
+      "title": "Axe de Raffinement : Topologie Fabric Datacenter (Spine-Leaf / BGP EVPN)",
+      "domain": "telecom",
+      "projections": {}
+    },
+    "urn:archinex:ontology:axis:wan_interco_encryption": {
+      "urn": "urn:archinex:ontology:axis:wan_interco_encryption",
+      "revision": 1,
+      "kind": "axis",
+      "title": "Axe de Raffinement : Chiffrement des Liaisons WAN & Interconnexions",
+      "domain": "security",
+      "projections": {}
+    },
+    "urn:archinex:ontology:axis:storage_replication": {
+      "urn": "urn:archinex:ontology:axis:storage_replication",
+      "revision": 1,
+      "kind": "axis",
+      "title": "Axe de Raffinement : Topologie de Réplication Stockage (CSI Bloc / Objet S3)",
+      "domain": "storage",
+      "projections": {}
+    },
+    "urn:archinex:ontology:axis:encryption_at_rest": {
+      "urn": "urn:archinex:ontology:axis:encryption_at_rest",
+      "revision": 1,
+      "kind": "axis",
+      "title": "Axe de Raffinement : Chiffrement au Repos & Gestion des Clés (KMS / HSM)",
+      "domain": "security",
+      "projections": {}
+    },
+    "urn:archinex:ontology:axis:backup_immutability": {
+      "urn": "urn:archinex:ontology:axis:backup_immutability",
+      "revision": 1,
+      "kind": "axis",
+      "title": "Axe de Raffinement : Sauvegarde Immuable (WORM) & Air-Gap Anti-Ransomware",
+      "domain": "storage",
+      "projections": {}
+    },
+    "urn:archinex:ontology:axis:iam_federation_mfa": {
+      "urn": "urn:archinex:ontology:axis:iam_federation_mfa",
+      "revision": 1,
+      "kind": "axis",
+      "title": "Axe de Raffinement : Fédération d'Identité (OIDC), MFA FIDO2 & Moindre Privilège RBAC",
+      "domain": "security",
+      "projections": {}
+    },
+    "urn:archinex:ontology:axis:pki_mtls_workload": {
+      "urn": "urn:archinex:ontology:axis:pki_mtls_workload",
+      "revision": 1,
+      "kind": "axis",
+      "title": "Axe de Raffinement : PKI Interne, Identité Workload (SPIFFE) & mTLS Strict",
+      "domain": "security",
+      "projections": {}
+    },
+    "urn:archinex:ontology:axis:secrets_vault_management": {
+      "urn": "urn:archinex:ontology:axis:secrets_vault_management",
+      "revision": 1,
+      "kind": "axis",
+      "title": "Axe de Raffinement : Coffre-Fort de Secrets & Rotation Dynamique (Zéro Secret Git)",
+      "domain": "security",
+      "projections": {}
+    },
+    "urn:archinex:ontology:axis:metrics_traces_pipeline": {
+      "urn": "urn:archinex:ontology:axis:metrics_traces_pipeline",
+      "revision": 1,
+      "kind": "axis",
+      "title": "Axe de Raffinement : Pipeline Unifié Métriques, Logs & Traces (OpenTelemetry)",
+      "domain": "observability",
+      "projections": {}
+    },
+    "urn:archinex:ontology:axis:siem_audit_retention": {
+      "urn": "urn:archinex:ontology:axis:siem_audit_retention",
+      "revision": 1,
+      "kind": "axis",
+      "title": "Axe de Raffinement : Journalisation d'Audit Immuable & Corrélation SIEM / SOC",
+      "domain": "observability",
+      "projections": {}
+    },
+    "urn:archinex:ontology:axis:slo_alerting_runbooks": {
+      "urn": "urn:archinex:ontology:axis:slo_alerting_runbooks",
+      "revision": 1,
+      "kind": "axis",
+      "title": "Axe de Raffinement : Contrat SLO, Alerting Burn-Rate & Runbooks NOC",
+      "domain": "observability",
+      "projections": {}
+    },
+    "urn:archinex:ontology:axis:multi_site_failover": {
+      "urn": "urn:archinex:ontology:axis:multi_site_failover",
+      "revision": 1,
+      "kind": "axis",
+      "title": "Axe de Raffinement : Topologie de Bascule Multi-Sites & Objectifs RTO / RPO",
+      "domain": "resilience",
+      "projections": {}
+    },
+    "urn:archinex:ontology:axis:chaos_drp_testing": {
+      "urn": "urn:archinex:ontology:axis:chaos_drp_testing",
+      "revision": 1,
+      "kind": "axis",
+      "title": "Axe de Raffinement : Exercices d'Homologation PRA Automatisés & Chaos Testing",
+      "domain": "resilience",
       "projections": {}
     }
   },
@@ -246,8 +694,23 @@
       "object": "urn:archinex:ontology:axis:power_cooling_resilience",
       "rationale": "La disponibilité physique dépend de la redondance d'alimentation électrique."
     },
+
     {
       "id": "tr-006",
+      "subject": "urn:archinex:ontology:concept:interconnection_gateway",
+      "predicate": "requires_aspect",
+      "object": "urn:archinex:ontology:axis:network_underlay_fabric",
+      "rationale": "L'architecture réseau doit spécifier sa topologie de commutation/routage (Spine-Leaf BGP EVPN) et sa redondance ToR."
+    },
+    {
+      "id": "tr-006b",
+      "subject": "urn:archinex:ontology:concept:interconnection_gateway",
+      "predicate": "requires_aspect",
+      "object": "urn:archinex:ontology:axis:wan_interco_encryption",
+      "rationale": "Toute interconnexion inter-sites ou partenaire doit spécifier son protocole de chiffrement de transport (IPsec/MACsec)."
+    },
+    {
+      "id": "tr-006c",
       "subject": "urn:archinex:ontology:concept:interconnection_gateway",
       "predicate": "requires_aspect",
       "object": "urn:archinex:ontology:axis:security_zoning",
@@ -258,14 +721,124 @@
       "subject": "urn:archinex:ontology:concept:interconnection_gateway",
       "predicate": "requires_aspect",
       "object": "urn:archinex:ontology:axis:oob_management",
-      "rationale": "L'administration des équipements de filtrage doit passer par un canal OOB isolé."
+      "rationale": "L'administration des équipements réseau et passerelles doit passer par un canal OOB isolé."
     },
+
+    {
+      "id": "tr-020",
+      "subject": "urn:archinex:ontology:concept:storage_data_persistence",
+      "predicate": "requires_aspect",
+      "object": "urn:archinex:ontology:axis:storage_replication",
+      "rationale": "Toute brique de persistance doit définir son facteur de réplication ou schéma d'Erasure Coding et son domaine de panne."
+    },
+    {
+      "id": "tr-021",
+      "subject": "urn:archinex:ontology:concept:storage_data_persistence",
+      "predicate": "requires_aspect",
+      "object": "urn:archinex:ontology:axis:encryption_at_rest",
+      "rationale": "La protection des données exige le chiffrement systématique des volumes au repos et la gestion externe des clés (KMS/HSM)."
+    },
+    {
+      "id": "tr-022",
+      "subject": "urn:archinex:ontology:concept:storage_data_persistence",
+      "predicate": "requires_aspect",
+      "object": "urn:archinex:ontology:axis:backup_immutability",
+      "rationale": "La résilience face aux ransomwares impose une sauvegarde externalisée immuable (Object Lock WORM)."
+    },
+
+    {
+      "id": "tr-030",
+      "subject": "urn:archinex:ontology:concept:iam_security_zerotrust",
+      "predicate": "requires_aspect",
+      "object": "urn:archinex:ontology:axis:iam_federation_mfa",
+      "rationale": "Tout contrôle d'accès humain ou API doit reposer sur une fédération d'identité OIDC avec MFA matériel et RBAC moindre privilège."
+    },
+    {
+      "id": "tr-031",
+      "subject": "urn:archinex:ontology:concept:iam_security_zerotrust",
+      "predicate": "requires_aspect",
+      "object": "urn:archinex:ontology:axis:pki_mtls_workload",
+      "rationale": "L'architecture Zero-Trust impose l'authentification mutuelle mTLS et le renouvellement automatisé des certificats."
+    },
+    {
+      "id": "tr-032",
+      "subject": "urn:archinex:ontology:concept:iam_security_zerotrust",
+      "predicate": "requires_aspect",
+      "object": "urn:archinex:ontology:axis:secrets_vault_management",
+      "rationale": "Aucun secret statique ne doit résider dans Git ; les secrets doivent être injectés par baux dynamiques depuis un coffre-fort."
+    },
+    {
+      "id": "tr-033",
+      "subject": "urn:archinex:ontology:concept:iam_security_zerotrust",
+      "predicate": "requires_aspect",
+      "object": "urn:archinex:ontology:axis:security_zoning",
+      "rationale": "Les flux d'administration et d'authentification critique doivent être isolés dans une zone OAM bastionnée."
+    },
+
+    {
+      "id": "tr-040",
+      "subject": "urn:archinex:ontology:concept:observability_noc_soc",
+      "predicate": "requires_aspect",
+      "object": "urn:archinex:ontology:axis:metrics_traces_pipeline",
+      "rationale": "L'exploitabilité requiert une collecte standardisée des métriques, logs et traces (OpenTelemetry)."
+    },
+    {
+      "id": "tr-041",
+      "subject": "urn:archinex:ontology:concept:observability_noc_soc",
+      "predicate": "requires_aspect",
+      "object": "urn:archinex:ontology:axis:siem_audit_retention",
+      "rationale": "La conformité NIS2 impose l'envoi temps réel des journaux de sécurité vers le SIEM SOC avec rétention légale."
+    },
+    {
+      "id": "tr-042",
+      "subject": "urn:archinex:ontology:concept:observability_noc_soc",
+      "predicate": "requires_aspect",
+      "object": "urn:archinex:ontology:axis:slo_alerting_runbooks",
+      "rationale": "Toute alerte envoyée au NOC doit être rattachée à un SLO mesurable et à un Runbook de remédiation."
+    },
+
+    {
+      "id": "tr-050",
+      "subject": "urn:archinex:ontology:concept:resilience_drp_continuity",
+      "predicate": "requires_aspect",
+      "object": "urn:archinex:ontology:axis:multi_site_failover",
+      "rationale": "Le plan de continuité doit formaliser la topologie multi-sites (Actif/Actif ou Actif/Passif) et les seuils RTO/RPO."
+    },
+    {
+      "id": "tr-051",
+      "subject": "urn:archinex:ontology:concept:resilience_drp_continuity",
+      "predicate": "requires_aspect",
+      "object": "urn:archinex:ontology:axis:backup_immutability",
+      "rationale": "La reprise après sinistre majeur dépend de sauvegardes intègres et immuables."
+    },
+    {
+      "id": "tr-052",
+      "subject": "urn:archinex:ontology:concept:resilience_drp_continuity",
+      "predicate": "requires_aspect",
+      "object": "urn:archinex:ontology:axis:power_cooling_resilience",
+      "rationale": "La résilience de site impose une double adduction électrique indépendante (2N)."
+    },
+    {
+      "id": "tr-053",
+      "subject": "urn:archinex:ontology:concept:resilience_drp_continuity",
+      "predicate": "requires_aspect",
+      "object": "urn:archinex:ontology:axis:chaos_drp_testing",
+      "rationale": "Un PRA non testé régulièrement est réputé non fonctionnel ; des exercices de bascule périodiques sont obligatoires."
+    },
+
     {
       "id": "tr-008",
       "subject": "urn:archinex:ontology:axis:compute_substrate",
       "predicate": "implemented_by",
       "object": "urn:archinex:ontology:infrastructure:server:baremetal",
       "rationale": "Implémentation du compute par profils serveurs Bare-Metal qualifiés."
+    },
+    {
+      "id": "tr-008b",
+      "subject": "urn:archinex:ontology:axis:compute_substrate",
+      "predicate": "implemented_by",
+      "object": "urn:archinex:ontology:infrastructure:compute:hypervisor_kvm",
+      "rationale": "Implémentation du compute par cluster d'hyperviseurs KVM avec NUMA Pinning."
     },
     {
       "id": "tr-009",
@@ -310,6 +883,112 @@
       "rationale": "Alternative de secours batterie UPS local (sans sonde SNMP/Rego)."
     },
     {
+      "id": "tr-060",
+      "subject": "urn:archinex:ontology:axis:network_underlay_fabric",
+      "predicate": "implemented_by",
+      "object": "urn:archinex:ontology:telecom:network:spine_leaf_evpn",
+      "rationale": "Implémentation de la fabric DC en topologie Spine-Leaf BGP EVPN Dual-ToR."
+    },
+    {
+      "id": "tr-061",
+      "subject": "urn:archinex:ontology:axis:wan_interco_encryption",
+      "predicate": "implemented_by",
+      "object": "urn:archinex:ontology:security:crypto:ipsec_ikev2_aes256",
+      "rationale": "Chiffrement des flux WAN inter-sites par tunnels IPsec IKEv2 AES-256-GCM."
+    },
+    {
+      "id": "tr-062",
+      "subject": "urn:archinex:ontology:axis:storage_replication",
+      "predicate": "implemented_by",
+      "object": "urn:archinex:ontology:storage:csi:ceph_rbd_3replicas",
+      "rationale": "Persistance bloc distribuée via Rook-Ceph RBD à 3 réplicas synchrones."
+    },
+    {
+      "id": "tr-063",
+      "subject": "urn:archinex:ontology:axis:storage_replication",
+      "predicate": "implemented_by",
+      "object": "urn:archinex:ontology:storage:s3:object_erasure_coding",
+      "rationale": "Persistance objet S3 distribuée en Erasure Coding 4+2."
+    },
+    {
+      "id": "tr-064",
+      "subject": "urn:archinex:ontology:axis:encryption_at_rest",
+      "predicate": "implemented_by",
+      "object": "urn:archinex:ontology:security:crypto:luks2_kms_hsm",
+      "rationale": "Chiffrement systématique des disques via LUKS2 et clés gérées dans un KMS/HSM."
+    },
+    {
+      "id": "tr-065",
+      "subject": "urn:archinex:ontology:axis:backup_immutability",
+      "predicate": "implemented_by",
+      "object": "urn:archinex:ontology:storage:backup:s3_object_lock_worm",
+      "rationale": "Sauvegardes externalisées sur stockage S3 avec verrouillage WORM Object-Lock."
+    },
+    {
+      "id": "tr-066",
+      "subject": "urn:archinex:ontology:axis:iam_federation_mfa",
+      "predicate": "implemented_by",
+      "object": "urn:archinex:ontology:security:iam:oidc_fido2_rbac",
+      "rationale": "Authentification centralisée OIDC avec MFA matériel FIDO2 et contrôle RBAC."
+    },
+    {
+      "id": "tr-067",
+      "subject": "urn:archinex:ontology:axis:pki_mtls_workload",
+      "predicate": "implemented_by",
+      "object": "urn:archinex:ontology:security:pki:cert_manager_spiffe_mtls",
+      "rationale": "Identité cryptographique SPIFFE et mTLS strict automatisé par Cert-Manager."
+    },
+    {
+      "id": "tr-068",
+      "subject": "urn:archinex:ontology:axis:secrets_vault_management",
+      "predicate": "implemented_by",
+      "object": "urn:archinex:ontology:security:secrets:vault_dynamic_leases",
+      "rationale": "Gestion centralisée des secrets dans Vault avec injection dynamique ESO."
+    },
+    {
+      "id": "tr-069",
+      "subject": "urn:archinex:ontology:axis:metrics_traces_pipeline",
+      "predicate": "implemented_by",
+      "object": "urn:archinex:ontology:observability:telemetry:otel_prometheus_loki",
+      "rationale": "Collecte unifiée OTLP vers Prometheus HA et Loki."
+    },
+    {
+      "id": "tr-070",
+      "subject": "urn:archinex:ontology:axis:siem_audit_retention",
+      "predicate": "implemented_by",
+      "object": "urn:archinex:ontology:observability:soc:siem_syslog_tls_nis2",
+      "rationale": "Piste d'audit immuable exportée en Syslog-TLS vers le SIEM SOC."
+    },
+    {
+      "id": "tr-071",
+      "subject": "urn:archinex:ontology:axis:slo_alerting_runbooks",
+      "predicate": "implemented_by",
+      "object": "urn:archinex:ontology:observability:noc:alertmanager_slo_burnrate",
+      "rationale": "Alerting NOC piloté par le burn-rate SLO avec lien Runbook obligatoire."
+    },
+    {
+      "id": "tr-072",
+      "subject": "urn:archinex:ontology:axis:multi_site_failover",
+      "predicate": "implemented_by",
+      "object": "urn:archinex:ontology:resilience:drp:active_active_stretched",
+      "rationale": "Continuité Actif/Actif avec site témoin Witness (RPO=0)."
+    },
+    {
+      "id": "tr-073",
+      "subject": "urn:archinex:ontology:axis:multi_site_failover",
+      "predicate": "implemented_by",
+      "object": "urn:archinex:ontology:resilience:drp:active_passive_warm_standby",
+      "rationale": "Reprise d'activité sur site secondaire en Warm-Standby (RPO < 15 min)."
+    },
+    {
+      "id": "tr-074",
+      "subject": "urn:archinex:ontology:axis:chaos_drp_testing",
+      "predicate": "implemented_by",
+      "object": "urn:archinex:ontology:resilience:testing:automated_gameday_quarterly",
+      "rationale": "Validation trimestrielle automatisée de la bascule PRA."
+    },
+
+    {
       "id": "tr-014",
       "subject": "urn:archinex:ontology:infrastructure:server:baremetal",
       "predicate": "depends_on",
@@ -322,6 +1001,13 @@
       "predicate": "constrains",
       "object": "urn:archinex:ontology:security:zone:oam",
       "rationale": "Les flux OOB doivent être confinés dans la zone de sécurité OAM."
+    },
+    {
+      "id": "tr-016",
+      "subject": "urn:archinex:ontology:storage:csi:ceph_rbd_3replicas",
+      "predicate": "depends_on",
+      "object": "urn:archinex:ontology:security:crypto:luks2_kms_hsm",
+      "rationale": "Les volumes persistants Ceph RBD critiques doivent activer le chiffrement LUKS2 par KMS."
     }
   ]
 }

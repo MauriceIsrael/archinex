@@ -46,6 +46,7 @@ export const GET: RequestHandler = async ({ params, url }) => {
   try {
     const catalog = await loadOntologyCatalog({ includeRuntimeOverlay: true });
     const ctx = await loadSubjectContext(subjectId);
+    const requestedConcept = url.searchParams.get('concept') || undefined;
 
     // 1. Recherche en base SQLite d'un EDP persisté
     const fromDb = await (prisma as any).executableDecisionPackage?.findFirst({
@@ -56,6 +57,7 @@ export const GET: RequestHandler = async ({ params, url }) => {
     if (fromDb) {
       const parsedContent = JSON.parse(fromDb.content);
       const explicitBindings = parsedContent.decision_context?.ontology_bindings || [];
+      const selectedConceptUrn = requestedConcept || parsedContent.selectedConceptUrn || 'AUTO';
       const coverage = computeRefinementCoverage(
         {
           subjectId,
@@ -63,7 +65,8 @@ export const GET: RequestHandler = async ({ params, url }) => {
           problem: parsedContent.decision_context?.problem || ctx.problem,
           decisionText: parsedContent.decision_context?.decision || ctx.decisionText,
           explicitBindings,
-          autoBindFromText: explicitBindings.length === 0
+          autoBindFromText: explicitBindings.length === 0,
+          selectedConceptUrn
         },
         catalog
       );
@@ -117,7 +120,8 @@ export const GET: RequestHandler = async ({ params, url }) => {
         title: ctx.title,
         problem: ctx.problem,
         decisionText: ctx.decisionText,
-        autoBindFromText: true
+        autoBindFromText: true,
+        selectedConceptUrn: requestedConcept || 'AUTO'
       },
       catalog
     );

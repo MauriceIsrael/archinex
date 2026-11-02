@@ -49,8 +49,18 @@ export interface CrossAxisDependencyIssue {
   message: string;
 }
 
+export interface HldConceptSummary {
+  urn: string;
+  title: string;
+  domain: string;
+  axesCount: number;
+  score: number;
+}
+
 export interface RefinementCoverageReport {
   matchedConcepts: Array<{ urn: string; title: string; score: number }>;
+  allConcepts?: HldConceptSummary[];
+  selectedConceptUrn?: string;
   axes: AxisCoverageItem[];
   clauses: ClauseCoverageItem[];
   dependencyIssues: CrossAxisDependencyIssue[];
@@ -84,6 +94,7 @@ export interface SubjectRefinementInput {
   structuredFacts?: StructuredFactInput[];
   explicitBindings?: OntologyBindingItem[];
   autoBindFromText?: boolean;
+  selectedConceptUrn?: string;
 }
 
 export interface LldHydrationOverrides {
@@ -231,10 +242,22 @@ export function resolveSubjectConcepts(
 
   scored.sort((a, b) => b.score - a.score || a.urn.localeCompare(b.urn));
 
+  if (input.selectedConceptUrn && input.selectedConceptUrn !== 'AUTO') {
+    if (input.selectedConceptUrn === 'ALL') {
+      return scored;
+    }
+    const exact = scored.find((s) => s.urn === input.selectedConceptUrn);
+    if (exact) {
+      return [exact];
+    }
+  }
+
   const positiveMatches = scored.filter((s) => s.score > 0);
   if (positiveMatches.length > 0) {
     const maxScore = positiveMatches[0].score;
-    return positiveMatches.filter((s) => s.score >= Math.max(2, Math.floor(maxScore * 0.4)));
+    return positiveMatches.filter(
+      (s, idx) => idx === 0 || s.score >= Math.max(4, Math.ceil(maxScore * 0.65))
+    );
   }
 
   return scored.slice(0, 1);
@@ -482,8 +505,27 @@ export function computeRefinementCoverage(
     coveredNoOracleAxes === 0 &&
     dependencyIssues.length === 0;
 
+  const allConcepts: HldConceptSummary[] = Object.values(catalog.entities)
+    .filter((e) => e.kind === 'concept')
+    .map((e) => {
+      const reqCount = queryOntologyTriplets(catalog, {
+        subject: e.urn,
+        predicate: 'requires_aspect'
+      }).length;
+      const matchEntry = matchedConcepts.find((m) => m.urn === e.urn);
+      return {
+        urn: e.urn,
+        title: e.title || e.urn,
+        domain: e.domain || 'architecture',
+        axesCount: reqCount,
+        score: matchEntry?.score ?? scoreEntityAgainstCorpus(e, corpus)
+      };
+    });
+
   return {
     matchedConcepts,
+    allConcepts,
+    selectedConceptUrn: input.selectedConceptUrn || 'AUTO',
     axes,
     clauses,
     dependencyIssues,

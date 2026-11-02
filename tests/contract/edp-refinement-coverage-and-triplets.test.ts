@@ -232,4 +232,70 @@ describe('EDP Phase 4 : Ontology Triplets, KAOS Multi-Axis Coverage & Real OPA D
     );
     expect(coverageAfterDelete.metrics.totalMandatoryAxes).toBe(5);
   });
+
+  it('couvre le socle complet des 6 grands concepts HLD SI/Telco (Compute/Cloud, Réseau, Stockage, IAM/Sécurité, Observabilité NOC/SOC, Résilience/PRA) et leurs sous-axes', async () => {
+    const catalog = await loadOntologyCatalog({ includeRuntimeOverlay: true });
+
+    const expectedConcepts = [
+      {
+        urn: 'urn:archinex:ontology:concept:telco_cloud_platform',
+        queryTitle: 'Plateforme Cluster Telco Cloud & Bare-Metal',
+        expectedAxesCount: 5
+      },
+      {
+        urn: 'urn:archinex:ontology:concept:interconnection_gateway',
+        queryTitle: 'Interconnexion Réseau BGP EVPN VXLAN & Zonage',
+        expectedAxesCount: 4
+      },
+      {
+        urn: 'urn:archinex:ontology:concept:storage_data_persistence',
+        queryTitle: 'Stockage Distribué Ceph NVMe, Sauvegarde S3 WORM & Chiffrement KMS',
+        expectedAxesCount: 3
+      },
+      {
+        urn: 'urn:archinex:ontology:concept:iam_security_zerotrust',
+        queryTitle: 'Identité IAM Keycloak OIDC MFA, RBAC et PKI Vault mTLS Zero-Trust',
+        expectedAxesCount: 4
+      },
+      {
+        urn: 'urn:archinex:ontology:concept:observability_noc_soc',
+        queryTitle: 'Observabilité Prometheus OpenTelemetry, Logs Loki et Alerting SIEM SOC NIS2',
+        expectedAxesCount: 3
+      },
+      {
+        urn: 'urn:archinex:ontology:concept:resilience_drp_continuity',
+        queryTitle: 'Résilience Haute Disponibilité Multi-AZ, Plan de Reprise PRA/PCA et RPO RTO',
+        expectedAxesCount: 4
+      }
+    ];
+
+    for (const c of expectedConcepts) {
+      expect(catalog.entities[c.urn]).toBeDefined();
+      expect(catalog.entities[c.urn].kind).toBe('concept');
+
+      const report = computeRefinementCoverage(
+        {
+          title: c.queryTitle,
+          decisionText: c.queryTitle,
+          autoBindFromText: true
+        },
+        catalog
+      );
+
+      expect(report.matchedConcepts[0].urn).toBe(c.urn);
+      expect(report.metrics.totalMandatoryAxes).toBe(c.expectedAxesCount);
+      expect(report.allConcepts?.length).toBe(6);
+    }
+
+    // Sélection combinée des 6 concepts ('ALL') -> 18 sous-axes distincts dans le graphe
+    const allReport = computeRefinementCoverage(
+      {
+        title: 'Architecture Globale SI & Telco',
+        selectedConceptUrn: 'ALL',
+        autoBindFromText: false
+      },
+      catalog
+    );
+    expect(allReport.metrics.totalMandatoryAxes).toBe(18);
+  });
 });

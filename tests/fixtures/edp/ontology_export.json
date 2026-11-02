@@ -6,9 +6,10 @@
       "urn": "urn:archinex:ontology:infrastructure:server:baremetal",
       "revision": 1,
       "kind": "leaf",
-      "title": "Substrat Serveur Bare-Metal (Dell R750 / HPE DL380)",
+      "is_default_standard": true,
+      "title": "Substrat Bare-Metal Sylva / Metal3 & SUSE Telco Cloud (Dell R750 / HPE DL380)",
       "domain": "infrastructure",
-      "keywords": ["baremetal", "bare-metal", "serveur", "worker", "control-plane", "dell", "hpe", "r750", "dl380", "compute", "sylva", "metal3"],
+      "keywords": ["baremetal", "bare-metal", "serveur", "worker", "control-plane", "dell", "hpe", "r750", "dl380", "compute", "sylva", "metal3", "suse", "rke2", "rancher", "telco", "cloud", "plateforme", "cluster"],
       "oracle_rules": [
         "data.archinex.edp.multiaxis.deny_unapproved_hardware_profile",
         "data.archinex.edp.multiaxis.deny_invalid_node_role"
@@ -29,27 +30,35 @@
         "baremetal_types": ["Dell-PowerEdge-R750", "HPE-ProLiant-DL380"]
       }
     },
-    "urn:archinex:ontology:infrastructure:compute:hypervisor_kvm": {
-      "urn": "urn:archinex:ontology:infrastructure:compute:hypervisor_kvm",
+    "urn:archinex:ontology:infrastructure:compute:suse_telco_cloud_sylva": {
+      "urn": "urn:archinex:ontology:infrastructure:compute:suse_telco_cloud_sylva",
       "revision": 1,
       "kind": "leaf",
-      "title": "Substrat Virtualisé KVM / OpenStack (NUMA Pinning)",
+      "is_default_standard": true,
+      "title": "Stack SUSE Telco Cloud & Sylva par défaut (Rancher Prime / RKE2 / SLE Micro / CAPI)",
       "domain": "infrastructure",
-      "keywords": ["kvm", "hyperviseur", "openstack", "vm", "virtualisation", "numa", "vcpu"],
+      "keywords": ["suse", "telco", "sylva", "rke2", "rancher", "slemicro", "sle-micro", "capi", "cluster-api", "kubernetes", "cnf", "edge"],
       "oracle_rules": [
-        "data.archinex.edp.multiaxis.deny_missing_numa_pinning"
+        "data.archinex.edp.multiaxis.deny_unapproved_hardware_profile",
+        "data.archinex.edp.multiaxis.deny_invalid_node_role"
       ],
       "hydration_template": {
         "nautobot_device": {
           "role": "worker",
           "device_type": "Dell-PowerEdge-R750",
           "status": "planned"
+        },
+        "k8s_manifest": {
+          "apiVersion": "infrastructure.cluster.x-k8s.io/v1alpha5",
+          "kind": "BareMetalHost"
         }
       },
       "projections": {
-        "hypervisor": "kvm",
-        "numa_pinning_required": true,
-        "overcommit_cpu_ratio": 1.0
+        "distribution": "SUSE-Telco-Cloud-RKE2",
+        "orchestrator": "Sylva-CAPI-Metal3",
+        "host_os": "SLE-Micro-5.5",
+        "allowed_roles": ["control-plane", "worker"],
+        "baremetal_types": ["Dell-PowerEdge-R750", "HPE-ProLiant-DL380"]
       }
     },
     "urn:archinex:ontology:telecom:network:oob": {
@@ -831,14 +840,14 @@
       "subject": "urn:archinex:ontology:axis:compute_substrate",
       "predicate": "implemented_by",
       "object": "urn:archinex:ontology:infrastructure:server:baremetal",
-      "rationale": "Implémentation du compute par profils serveurs Bare-Metal qualifiés."
+      "rationale": "Implémentation par défaut du compute via substrat Bare-Metal Sylva / Metal3 et SUSE Telco Cloud (sans couche OpenStack)."
     },
     {
       "id": "tr-008b",
       "subject": "urn:archinex:ontology:axis:compute_substrate",
       "predicate": "implemented_by",
-      "object": "urn:archinex:ontology:infrastructure:compute:hypervisor_kvm",
-      "rationale": "Implémentation du compute par cluster d'hyperviseurs KVM avec NUMA Pinning."
+      "object": "urn:archinex:ontology:infrastructure:compute:suse_telco_cloud_sylva",
+      "rationale": "Implémentation standardisée via la distribution SUSE Telco Cloud (Rancher Prime / RKE2 / SLE Micro) orchestrée par Sylva CAPI."
     },
     {
       "id": "tr-009",

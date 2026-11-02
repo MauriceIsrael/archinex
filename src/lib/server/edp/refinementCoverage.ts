@@ -415,8 +415,9 @@ export function computeRefinementCoverage(
 
       const isExplicitlyBound = boundLeafUrns.has(leafEntity.urn);
       const semanticScore = shouldAutoBind ? scoreEntityAgainstCorpus(leafEntity, corpus) : 0;
+      const isDefaultStandard = shouldAutoBind && leafEntity.is_default_standard === true;
 
-      if (isExplicitlyBound || semanticScore > 0) {
+      if (isExplicitlyBound || semanticScore > 0 || isDefaultStandard) {
         boundLeafUrns.add(leafEntity.urn);
         boundLeaves.push(summary);
       }
@@ -677,6 +678,9 @@ export function composeMultiAxisHydration(
         namespace: 'sylva-system',
         labels: {
           'archinex.io/device-type': deviceType,
+          'archinex.io/distribution': 'SUSE-Telco-Cloud-RKE2',
+          'archinex.io/orchestrator': 'Sylva-CAPI-Metal3',
+          'archinex.io/host-os': 'SLE-Micro-5.5',
           'archinex.io/security-zones': securityZones.map((z) => z.zone_id).join('-') || 'default'
         }
       },

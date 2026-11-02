@@ -143,6 +143,15 @@
   }
 
   const allUrns = $derived(Object.keys(entities).sort());
+  const conceptEntities = $derived(
+    Object.values(entities).filter((e) => e.kind === 'concept')
+  );
+  const axisEntities = $derived(
+    Object.values(entities).filter((e) => e.kind === 'axis')
+  );
+  const leafEntities = $derived(
+    Object.values(entities).filter((e) => !e.kind || e.kind === 'leaf')
+  );
   const concepts = $derived(
     Object.values(entities).filter(
       (e) => e.kind === 'concept' || triplets.some((t) => t.predicate === 'requires_aspect' && t.subject === e.urn)
@@ -229,16 +238,49 @@
     <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 text-xs">
       <!-- SUJET -->
       <div class="space-y-1.5 p-3 rounded-lg border bg-muted/20">
-        <label for="triplet-subject" class="font-bold text-foreground flex items-center justify-between">
+        <label for="select-triplet-subject" class="font-bold text-foreground flex items-center justify-between">
           <span>1. Sujet (URN Source)</span>
           <span class="text-[10px] font-mono text-muted-foreground">Concept / Axe / Feuille</span>
         </label>
+        <select
+          id="select-triplet-subject"
+          value={entities[newSubject] ? newSubject : '__custom__'}
+          onchange={(e) => {
+            const val = (e.currentTarget as HTMLSelectElement).value;
+            if (val !== '__custom__') {
+              newSubject = val;
+              newSubjectTitle = entities[val]?.title || '';
+            } else {
+              newSubject = 'urn:archinex:ontology:concept:nouveau_concept';
+              newSubjectTitle = '';
+            }
+          }}
+          class="w-full rounded border bg-background px-2.5 py-1.5 text-xs font-medium cursor-pointer"
+          data-testid="select-triplet-subject"
+        >
+          <optgroup label="Concepts de Haut Niveau (HLD)">
+            {#each conceptEntities as ent}
+              <option value={ent.urn}>{ent.title || ent.urn} ({ent.urn.split(':').pop()})</option>
+            {/each}
+          </optgroup>
+          <optgroup label="Sous-Axes de Raffinement (Axes KAOS)">
+            {#each axisEntities as ent}
+              <option value={ent.urn}>{ent.title || ent.urn} ({ent.urn.split(':').pop()})</option>
+            {/each}
+          </optgroup>
+          <optgroup label="Feuilles d'Implémentation & Oracles">
+            {#each leafEntities as ent}
+              <option value={ent.urn}>{ent.title || ent.urn} ({ent.urn.split(':').pop()})</option>
+            {/each}
+          </optgroup>
+          <option value="__custom__">➕ Saisir une nouvelle URN personnalisée...</option>
+        </select>
         <input
           id="triplet-subject"
-          list="ontology-urns-list"
+          type="text"
           bind:value={newSubject}
           placeholder="urn:archinex:ontology:concept:..."
-          class="w-full rounded border bg-background px-2.5 py-1.5 font-mono text-xs"
+          class="w-full rounded border bg-background px-2.5 py-1 font-mono text-[11px]"
           data-testid="input-triplet-subject"
           required
         />
@@ -268,7 +310,7 @@
         <select
           id="triplet-predicate"
           bind:value={newPredicate}
-          class="w-full rounded border bg-background px-2.5 py-1.5 font-mono text-xs"
+          class="w-full rounded border bg-background px-2.5 py-1.5 font-mono text-xs cursor-pointer"
           data-testid="select-triplet-predicate"
         >
           <option value="requires_aspect">requires_aspect (Concept → Axe obligatoire)</option>
@@ -284,16 +326,49 @@
 
       <!-- COMPLÉMENT (OBJET) -->
       <div class="space-y-1.5 p-3 rounded-lg border bg-muted/20">
-        <label for="triplet-object" class="font-bold text-foreground flex items-center justify-between">
+        <label for="select-triplet-object" class="font-bold text-foreground flex items-center justify-between">
           <span>3. Complément (URN Cible)</span>
           <span class="text-[10px] font-mono text-muted-foreground">Axe / Feuille cible</span>
         </label>
+        <select
+          id="select-triplet-object"
+          value={entities[newObject] ? newObject : '__custom__'}
+          onchange={(e) => {
+            const val = (e.currentTarget as HTMLSelectElement).value;
+            if (val !== '__custom__') {
+              newObject = val;
+              newObjectTitle = entities[val]?.title || '';
+            } else {
+              newObject = 'urn:archinex:ontology:axis:observability_telemetry';
+              newObjectTitle = 'Axe de Raffinement : Observabilité & Télémétrie OpenTelemetry';
+            }
+          }}
+          class="w-full rounded border bg-background px-2.5 py-1.5 text-xs font-medium cursor-pointer"
+          data-testid="select-triplet-object"
+        >
+          <optgroup label="Sous-Axes de Raffinement (Axes KAOS)">
+            {#each axisEntities as ent}
+              <option value={ent.urn}>{ent.title || ent.urn} ({ent.urn.split(':').pop()})</option>
+            {/each}
+          </optgroup>
+          <optgroup label="Feuilles d'Implémentation & Oracles">
+            {#each leafEntities as ent}
+              <option value={ent.urn}>{ent.title || ent.urn} ({ent.urn.split(':').pop()})</option>
+            {/each}
+          </optgroup>
+          <optgroup label="Concepts de Haut Niveau (HLD)">
+            {#each conceptEntities as ent}
+              <option value={ent.urn}>{ent.title || ent.urn} ({ent.urn.split(':').pop()})</option>
+            {/each}
+          </optgroup>
+          <option value="__custom__">➕ Saisir une nouvelle URN personnalisée...</option>
+        </select>
         <input
           id="triplet-object"
-          list="ontology-urns-list"
+          type="text"
           bind:value={newObject}
           placeholder="urn:archinex:ontology:axis:..."
-          class="w-full rounded border bg-background px-2.5 py-1.5 font-mono text-xs"
+          class="w-full rounded border bg-background px-2.5 py-1 font-mono text-[11px]"
           data-testid="input-triplet-object"
           required
         />

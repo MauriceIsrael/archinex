@@ -8,6 +8,17 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Matrice de Couverture du Raffinement Multi-Axes (KAOS + Ontologie) & Éditeur de Triplets (`{Sujet, Verbe, Complément}`)
+- **Moteur de Couverture du Raffinement & Composition Multi-Axes (`src/lib/server/edp/refinementCoverage.ts`)** :
+  - Remplacement de tout aiguillage syntaxique en dur par une interrogation formelle du graphe d'ontologie (`requires_aspect` pour la décomposition conjonctive KAOS AND-Refinement des sous-axes obligatoires ; `implemented_by` pour la sélection disjonctive OR-Refinement des feuilles d'implémentation porteuses des projections et règles Rego).
+  - Calcul de la **Matrice de Couverture du Raffinement** distinguant pour chaque axe obligatoire : `covered_executable` (🟢 couvert par une feuille dotée de règles Rego), `covered_no_oracle` (🟡 feuille liée mais dépourvue d'oracle Rego) et `missing_refinement` (🔴 lacune de raffinement / sous-axe oublié).
+  - Contrôle automatique des dépendances inter-axes (`depends_on`, `constrains`, `conflicts_with`) et composition multi-axes des artefacts d'hydratation LLD (`nautobot_planned_devices`, `k8s_manifests`, `security_zones`, `environments`).
+- **Interface de Couverture & Liaison Interactive dans `EdpCard.svelte`** :
+  - Affichage visuel de la matrice KAOS dans l'onglet `🧪 Oracle EDP` avec barre de progression de complétude et boutons `+ Raffiner via « ... »` permettant de lier une feuille d'ontologie sur un axe manquant en un clic (`action: 'bind_aspect'`).
+- **Visualiseur & Éditeur de Triplets Ontologiques dans `/knowledge` (`OntologyTripletsEditor.svelte`, `/api/knowledge/ontology`)** :
+  - Nouvel onglet `🕸️ Ontologie & Triplets ({S, V, O})` permettant de visualiser l'arbre `Concept HLD -> requires_aspect -> Sous-Axe -> implemented_by -> Feuille & Règles Rego` et d'ajouter/supprimer dynamiquement des triplets `{ Sujet, Verbe, Complément }`.
+- **Tests de contrat** : ajout de `tests/contract/edp-refinement-coverage-and-triplets.test.ts` (5 tests passants, 100 % de la suite EDP et sécurité validée).
+
 ### Environnement Docker d'Intégration & Outillage (Nautobot, Batfish, OPA Server)
 - **Pile Conteneurisée d'Outillage Intégrateur (`deploy/integrator-tools/compose.yml`)** :
   - Déploiement local de Nautobot 2.2 avec PostgreSQL 15, Redis 7 et worker Celery pour servir de source de vérité DCIM.

@@ -1,0 +1,531 @@
+import {
+  type OntologyCatalog,
+  type OntologyBindingItem,
+  type OntologyEntity,
+  type OntologyTriplet,
+  queryOntologyTriplets
+} from './ontologyClient.js';
+
+export type AxisCoverageStatus = 'covered_executable' | 'covered_no_oracle' | 'missing_refinement';
+
+export interface CandidateLeafSummary {
+  urn: string;
+  title: string;
+  domain: string;
+  revision: number | string;
+  oracleRules: string[];
+  projections: Record<string, unknown>;
+}
+
+export interface AxisCoverageItem {
+  axisUrn: string;
+  axisTitle: string;
+  domain: string;
+  rationale: string;
+  status: AxisCoverageStatus;
+  boundLeaves: CandidateLeafSummary[];
+  candidateLeaves: CandidateLeafSummary[];
+  oracleRulesCount: number;
+}
+
+export interface ClauseCoverageItem {
+  clauseId: string;
+  text: string;
+  matchedAxisUrn?: string;
+  matchedLeafUrn?: string;
+  matchedLeafTitle?: string;
+  status: 'covered' | 'unmapped';
+}
+
+export interface CrossAxisDependencyIssue {
+  tripletId: string;
+  sourceUrn: string;
+  predicate: 'depends_on' | 'constrains' | 'conflicts_with';
+  targetUrn: string;
+  message: string;
+}
+
+export interface RefinementCoverageReport {
+  matchedConcepts: Array<{ urn: string; title: string; score: number }>;
+  axes: AxisCoverageItem[];
+  clauses: ClauseCoverageItem[];
+  dependencyIssues: CrossAxisDependencyIssue[];
+  composedBindings: OntologyBindingItem[];
+  metrics: {
+    coveredExecutableAxes: number;
+    coveredNoOracleAxes: number;
+    missingAxes: number;
+    totalMandatoryAxes: number;
+    axisCoveragePercent: number;
+    coveredClauses: number;
+    totalClauses: number;
+    clauseCoveragePercent: number;
+    isComplete: boolean;
+  };
+}
+
+export interface SubjectRefinementInput {
+  subjectId?: string;
+  title?: string;
+  problem?: string;
+  decisionText?: string;
+  explicitBindings?: OntologyBindingItem[];
+  autoBindFromText?: boolean;
+}
+
+function normalizeText(str: string): string {
+  return str
+    .toLowerCase()
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '');
+}
+
+function scoreEntityAgainstCorpus(entity: OntologyEntity, normalizedCorpus: string): number {
+  const keywords = Array.isArray(entity.keywords) ? entity.keywords : [];
+  let score = 0;
+  for (const kw of keywords) {
+    const normKw = normalizeText(String(kw));
+    if (normKw && normalizedCorpus.includes(normKw)) {
+      score += 2;
+    }
+  }
+  const titleWords = normalizeText(entity.title || '')
+    .split(/[^a-z0-9]+/)
+    .filter((w) => w.length > 3);
+  for (const w of titleWords) {
+    if (normalizedCorpus.includes(w)) {
+      score += 1;
+    }
+  }
+  return score;
+}
+
+function toCandidateSummary(entity: OntologyEntity): CandidateLeafSummary {
+  return {
+    urn: entity.urn,
+    title: entity.title || entity.urn,
+    domain: entity.domain || 'general',
+    revision: entity.revision ?? 1,
+    oracleRules: Array.isArray(entity.oracle_rules) ? (entity.oracle_rules as string[]) : [],
+    projections: (entity.projections as Record<string, unknown>) || {}
+  };
+}
+
+/**
+ * Identifie les concepts de haut niveau (HLD) dans l'ontologie qui correspondent au sujet,
+ * en interrogeant les triplets `requires_aspect` et les mots-clés du graphe (sans aiguillage en dur).
+ */
+export function resolveSubjectConcepts(
+  input: SubjectRefinementInput,
+  catalog: OntologyCatalog
+): Array<{ urn: string; title: string; score: number }> {
+  const corpus = normalizeText(
+    [input.title || '', input.problem || '', input.decisionText || '', input.subjectId || ''].join(' ')
+  );
+
+  // Tout nœud source d'un triplet `requires_aspect` ou de kind === 'concept' est un concept HLD candidat
+  const requiresTriplets = queryOntologyTriplets(catalog, { predicate: 'requires_aspect' });
+  const conceptUrnSet = new Set<string>();
+
+  for (const t of requiresTriplets) {
+    conceptUrnSet.add(t.subject);
+  }
+  for (const [urn, entity] of Object.entries(catalog.entities)) {
+    if (entity.kind === 'concept') {
+      conceptUrnSet.add(urn);
+    }
+  }
+
+  const scored: Array<{ urn: string; title: string; score: number }> = [];
+
+  for (const conceptUrn of conceptUrnSet) {
+    const conceptEntity = catalog.entities[conceptUrn];
+    if (!conceptEntity) continue;
+
+    let score = scoreEntityAgainstCorpus(conceptEntity, corpus);
+
+    // Propagation ascendante : si le texte mentionne des feuilles d'implémentation rattachées aux sous-axes de ce concept
+    const axisTriplets = queryOntologyTriplets(catalog, {
+      subject: conceptUrn,
+      predicate: 'requires_aspect'
+    });
+    for (const axT of axisTriplets) {
+      const leafTriplets = queryOntologyTriplets(catalog, {
+        subject: axT.object,
+        predicate: 'implemented_by'
+      });
+      for (const lfT of leafTriplets) {
+        const leafEntity = catalog.entities[lfT.object];
+        if (leafEntity) {
+          score += scoreEntityAgainstCorpus(leafEntity, corpus);
+        }
+      }
+    }
+
+    scored.push({
+      urn: conceptUrn,
+      title: conceptEntity.title || conceptUrn,
+      score
+    });
+  }
+
+  scored.sort((a, b) => b.score - a.score || a.urn.localeCompare(b.urn));
+
+  const positiveMatches = scored.filter((s) => s.score > 0);
+  if (positiveMatches.length > 0) {
+    // Retenir le concept principal et tout concept atteignant au moins 40% du score max (sujets hybrides multi-concepts)
+    const maxScore = positiveMatches[0].score;
+    return positiveMatches.filter((s) => s.score >= Math.max(2, Math.floor(maxScore * 0.4)));
+  }
+
+  // Fallback déclaratif : premier concept racine défini dans l'ontologie
+  return scored.slice(0, 1);
+}
+
+/**
+ * Décompose l'énoncé de décision / problème en clauses d'intention atomiques
+ * et vérifie leur ancrage sur les feuilles de l'ontologie.
+ */
+export function decomposeIntentionClauses(
+  input: SubjectRefinementInput,
+  catalog: OntologyCatalog,
+  boundLeafUrns: Set<string>
+): ClauseCoverageItem[] {
+  const rawText = [input.decisionText || '', input.problem || '']
+    .filter(Boolean)
+    .join('. ');
+
+  const segments = rawText
+    .split(/(?:[.;•\n]|\bavec\b|\bet\b|\bainsi que\b)/i)
+    .map((s) => s.trim())
+    .filter((s) => s.length >= 6);
+
+  const uniqueSegments = Array.from(new Set(segments));
+  if (uniqueSegments.length === 0 && input.title) {
+    uniqueSegments.push(input.title.trim());
+  }
+
+  const implTriplets = queryOntologyTriplets(catalog, { predicate: 'implemented_by' });
+  const leafEntities = Object.values(catalog.entities).filter(
+    (e) => e.kind === 'leaf' || implTriplets.some((t) => t.object === e.urn)
+  );
+
+  return uniqueSegments.map((segment, idx) => {
+    const normSeg = normalizeText(segment);
+    let bestLeaf: OntologyEntity | null = null;
+    let bestScore = 0;
+
+    for (const leaf of leafEntities) {
+      const sc = scoreEntityAgainstCorpus(leaf, normSeg);
+      if (sc > bestScore) {
+        bestScore = sc;
+        bestLeaf = leaf;
+      }
+    }
+
+    // Si aucun mot-clé direct mais une feuille est liée sur l'axe correspondant
+    if (!bestLeaf && boundLeafUrns.size > 0) {
+      for (const urn of boundLeafUrns) {
+        const entity = catalog.entities[urn];
+        if (entity && scoreEntityAgainstCorpus(entity, normSeg) > 0) {
+          bestLeaf = entity;
+          break;
+        }
+      }
+    }
+
+    if (bestLeaf) {
+      const parentAxisTriplet = implTriplets.find((t) => t.object === bestLeaf!.urn);
+      const isBound = boundLeafUrns.has(bestLeaf.urn);
+      return {
+        clauseId: `CL-${idx + 1}`,
+        text: segment,
+        matchedAxisUrn: parentAxisTriplet?.subject,
+        matchedLeafUrn: bestLeaf.urn,
+        matchedLeafTitle: bestLeaf.title || bestLeaf.urn,
+        status: isBound ? 'covered' : 'unmapped'
+      };
+    }
+
+    return {
+      clauseId: `CL-${idx + 1}`,
+      text: segment,
+      status: 'unmapped'
+    };
+  });
+}
+
+/**
+ * Calcule la Matrice de Couverture du Raffinement (KAOS AND/OR Goal Refinement + Ontologie)
+ * et compose les liaisons multi-axes d'un sujet.
+ */
+export function computeRefinementCoverage(
+  input: SubjectRefinementInput,
+  catalog: OntologyCatalog
+): RefinementCoverageReport {
+  const matchedConcepts = resolveSubjectConcepts(input, catalog);
+  const corpus = normalizeText(
+    [input.title || '', input.problem || '', input.decisionText || ''].join(' ')
+  );
+
+  // 1. Collecte des axes de raffinement obligatoires (triplets `requires_aspect` issus des concepts retenus)
+  const mandatoryAxisMap = new Map<string, OntologyTriplet>();
+  for (const concept of matchedConcepts) {
+    const reqTriplets = queryOntologyTriplets(catalog, {
+      subject: concept.urn,
+      predicate: 'requires_aspect'
+    });
+    for (const t of reqTriplets) {
+      if (!mandatoryAxisMap.has(t.object)) {
+        mandatoryAxisMap.set(t.object, t);
+      }
+    }
+  }
+
+  // 2. Liaisons explicites déjà présentes sur le paquet + inférence sémantique optionnelle depuis l'ontologie
+  const boundLeafUrns = new Set<string>(
+    (input.explicitBindings || []).map((b) => b.urn)
+  );
+
+  const shouldAutoBind = input.autoBindFromText ?? boundLeafUrns.size === 0;
+
+  const axes: AxisCoverageItem[] = [];
+
+  for (const [axisUrn, reqTriplet] of mandatoryAxisMap.entries()) {
+    const axisEntity = catalog.entities[axisUrn];
+    const implTriplets = queryOntologyTriplets(catalog, {
+      subject: axisUrn,
+      predicate: 'implemented_by'
+    });
+
+    const candidateLeaves: CandidateLeafSummary[] = [];
+    const boundLeaves: CandidateLeafSummary[] = [];
+
+    for (const implT of implTriplets) {
+      const leafEntity = catalog.entities[implT.object];
+      if (!leafEntity) continue;
+
+      const summary = toCandidateSummary(leafEntity);
+      candidateLeaves.push(summary);
+
+      const isExplicitlyBound = boundLeafUrns.has(leafEntity.urn);
+      const semanticScore = shouldAutoBind ? scoreEntityAgainstCorpus(leafEntity, corpus) : 0;
+
+      if (isExplicitlyBound || semanticScore > 0) {
+        boundLeafUrns.add(leafEntity.urn);
+        boundLeaves.push(summary);
+      }
+    }
+
+    const oracleRulesCount = boundLeaves.reduce((acc, l) => acc + l.oracleRules.length, 0);
+
+    let status: AxisCoverageStatus = 'missing_refinement';
+    if (boundLeaves.length > 0) {
+      status = oracleRulesCount > 0 ? 'covered_executable' : 'covered_no_oracle';
+    }
+
+    axes.push({
+      axisUrn,
+      axisTitle: axisEntity?.title || axisUrn,
+      domain: axisEntity?.domain || 'architecture',
+      rationale: reqTriplet.rationale || 'Axe obligatoire requis par le concept parent.',
+      status,
+      boundLeaves,
+      candidateLeaves,
+      oracleRulesCount
+    });
+  }
+
+  // 3. Vérification des dépendances inter-axes (`depends_on`, `constrains`, `conflicts_with`)
+  const dependencyIssues: CrossAxisDependencyIssue[] = [];
+  const allTriplets = catalog.triplets || [];
+  for (const t of allTriplets) {
+    if (t.predicate === 'depends_on' || t.predicate === 'constrains') {
+      if (boundLeafUrns.has(t.subject) && !boundLeafUrns.has(t.object)) {
+        const srcTitle = catalog.entities[t.subject]?.title || t.subject;
+        const dstTitle = catalog.entities[t.object]?.title || t.object;
+        dependencyIssues.push({
+          tripletId: t.id,
+          sourceUrn: t.subject,
+          predicate: t.predicate,
+          targetUrn: t.object,
+          message: `Dépendance inter-axes non résolue : "${srcTitle}" (${t.predicate}) requiert "${dstTitle}" (${t.object}).`
+        });
+      }
+    } else if (t.predicate === 'conflicts_with') {
+      if (boundLeafUrns.has(t.subject) && boundLeafUrns.has(t.object)) {
+        const srcTitle = catalog.entities[t.subject]?.title || t.subject;
+        const dstTitle = catalog.entities[t.object]?.title || t.object;
+        dependencyIssues.push({
+          tripletId: t.id,
+          sourceUrn: t.subject,
+          predicate: 'conflicts_with',
+          targetUrn: t.object,
+          message: `Conflit ontologique : "${srcTitle}" est incompatible avec "${dstTitle}".`
+        });
+      }
+    }
+  }
+
+  // 4. Construction de la liste déterministe des liaisons multi-axes
+  const composedBindings: OntologyBindingItem[] = Array.from(boundLeafUrns)
+    .sort()
+    .map((urn) => ({
+      urn,
+      revision: catalog.entities[urn]?.revision ?? 1
+    }));
+
+  // 5. Analyse des clauses d'intention atomiques
+  const clauses = decomposeIntentionClauses(input, catalog, boundLeafUrns);
+
+  // 6. Calcul des métriques de complétude KAOS
+  const coveredExecutableAxes = axes.filter((a) => a.status === 'covered_executable').length;
+  const coveredNoOracleAxes = axes.filter((a) => a.status === 'covered_no_oracle').length;
+  const missingAxes = axes.filter((a) => a.status === 'missing_refinement').length;
+  const totalMandatoryAxes = axes.length;
+
+  const axisCoveragePercent =
+    totalMandatoryAxes > 0
+      ? Math.round(((coveredExecutableAxes + coveredNoOracleAxes * 0.5) / totalMandatoryAxes) * 100)
+      : 100;
+
+  const coveredClauses = clauses.filter((c) => c.status === 'covered').length;
+  const totalClauses = clauses.length;
+  const clauseCoveragePercent =
+    totalClauses > 0 ? Math.round((coveredClauses / totalClauses) * 100) : 100;
+
+  const isComplete =
+    totalMandatoryAxes > 0 &&
+    missingAxes === 0 &&
+    coveredNoOracleAxes === 0 &&
+    dependencyIssues.length === 0;
+
+  return {
+    matchedConcepts,
+    axes,
+    clauses,
+    dependencyIssues,
+    composedBindings,
+    metrics: {
+      coveredExecutableAxes,
+      coveredNoOracleAxes,
+      missingAxes,
+      totalMandatoryAxes,
+      axisCoveragePercent,
+      coveredClauses,
+      totalClauses,
+      clauseCoveragePercent,
+      isComplete
+    }
+  };
+}
+
+/**
+ * Compose dynamiquement les objets LLD "Planned" (Nautobot, Sylva CAPI, Zones Sécurité, Environnements)
+ * à partir de toutes les feuilles d'ontologie liées sur les différents axes du sujet.
+ */
+export function composeMultiAxisHydration(
+  subjectId: string,
+  bindings: OntologyBindingItem[],
+  catalog: OntologyCatalog
+): {
+  nautobot_planned_devices: Array<Record<string, unknown>>;
+  k8s_manifests: Array<Record<string, unknown>>;
+  security_zones: Array<Record<string, unknown>>;
+  environments: Array<Record<string, unknown>>;
+  coveredDomains: string[];
+} {
+  const cleanSubj = subjectId.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase();
+  const hostname = `srv-${cleanSubj.slice(-12) || 'edge'}-01`;
+
+  const nautobotDevices: Array<Record<string, unknown>> = [];
+  const k8sManifests: Array<Record<string, unknown>> = [];
+  const securityZones: Array<Record<string, unknown>> = [];
+  const environments: Array<Record<string, unknown>> = [];
+  const coveredDomains = new Set<string>();
+
+  let deviceRole = 'telco-baremetal-worker';
+  let deviceType = 'Dell-PowerEdge-R750';
+  let hasComputeLeaf = false;
+  let interfaces: Array<{ name: string; type: string; ip?: string }> = [
+    { name: 'oob0', type: 'management', ip: '192.0.2.10/24' },
+    { name: 'eth0', type: 'data', ip: '10.20.0.10/24' }
+  ];
+
+  for (const b of bindings) {
+    const entity = catalog.entities[b.urn];
+    if (!entity) continue;
+    if (entity.domain) coveredDomains.add(entity.domain);
+
+    const tpl = (entity.hydration_template || {}) as Record<string, any>;
+    const proj = (entity.projections || {}) as Record<string, any>;
+
+    if (tpl.nautobot_device || proj.baremetal_types) {
+      hasComputeLeaf = true;
+      deviceRole = tpl.nautobot_device?.role || (Array.isArray(proj.allowed_roles) ? proj.allowed_roles[0] : deviceRole);
+      deviceType = tpl.nautobot_device?.device_type || (Array.isArray(proj.baremetal_types) ? proj.baremetal_types[0] : deviceType);
+    }
+
+    if (Array.isArray(tpl.nautobot_interfaces)) {
+      interfaces = tpl.nautobot_interfaces;
+    }
+
+    if (tpl.security_zone || entity.domain === 'security') {
+      securityZones.push({
+        urn: entity.urn,
+        zone_id: tpl.security_zone?.zone_id || entity.urn.split(':').pop()?.toUpperCase(),
+        title: entity.title,
+        isolation_level: proj.isolation_level || tpl.security_zone?.isolation_level || 'strict',
+        proxy_required: proj.proxy_required ?? tpl.security_zone?.proxy_required ?? false
+      });
+    }
+
+    if (Array.isArray(tpl.environments) || proj.required_tiers) {
+      const tiers = Array.isArray(tpl.environments)
+        ? tpl.environments
+        : (proj.required_tiers as string[]).map((t: string) => ({
+            env: t,
+            isoprod: t !== 'dev'
+          }));
+      environments.push(...tiers);
+    }
+  }
+
+  if (hasComputeLeaf || bindings.length > 0) {
+    nautobotDevices.push({
+      name: hostname,
+      status: 'planned',
+      device_type: deviceType,
+      oob_ip: '192.0.2.10',
+      role: deviceRole,
+      interfaces,
+      security_zones: securityZones.map((z) => z.zone_id)
+    });
+
+    k8sManifests.push({
+      apiVersion: 'infrastructure.cluster.x-k8s.io/v1alpha5',
+      kind: 'BareMetalHost',
+      metadata: {
+        name: hostname,
+        namespace: 'sylva-system',
+        labels: {
+          'archinex.io/device-type': deviceType,
+          'archinex.io/security-zones': securityZones.map((z) => z.zone_id).join('-') || 'default'
+        }
+      },
+      spec: {
+        role: deviceRole,
+        bmc: { address: 'redfish+http://192.0.2.10/redfish/v1/Systems/1' },
+        bootMACAddress: '52:54:00:12:34:56'
+      }
+    });
+  }
+
+  return {
+    nautobot_planned_devices: nautobotDevices,
+    k8s_manifests: k8sManifests,
+    security_zones: securityZones,
+    environments,
+    coveredDomains: Array.from(coveredDomains)
+  };
+}

@@ -477,3 +477,13 @@ Pour tester les décisions et oracles dans un environnement d'intégration réel
   - **Nautobot GraphQL** : `http://localhost:8080/api/graphql/`
   - **Batfish API** : `http://localhost:9997`
   - **OPA Server REST** : `http://localhost:8181/v1/data`
+
+### 13.6 Matrice de Couverture du Raffinement Multi-Axes (KAOS + Ontologie) & Éditeur de Triplets
+Pour garantir qu'une intention architecturale de haut niveau ne souffre d'aucun oubli silencieux lors de sa déclinaison en objets LLD et règles Rego :
+- **Matrice de Couverture dans `EdpCard`** :
+  - Interroge dynamiquement le graphe d'ontologie (`requires_aspect` pour les sous-axes obligatoires en conjonction *AND-Refinement* ; `implemented_by` pour les feuilles concrètes en disjonction *OR-Refinement*).
+  - Affiche le statut de chaque sous-axe obligatoire (`🟢 Couvert & Exécutable`, `🟡 Lié sans Oracle Rego`, `🔴 Axe Oublié / Non Raffiné`) et permet de lier en un clic une feuille candidate (`+ Raffiner via « ... »`).
+  - Vérifie les dépendances transverses inter-axes (`depends_on`, `constrains`, `conflicts_with`).
+- **Visualiseur & Éditeur de Triplets dans `/knowledge?view=ontology`** :
+  - Accessible depuis l'onglet **`🕸️ Ontologie & Triplets ({S, V, O})`** du Graphe de Connaissances (`/knowledge`).
+  - Permet d'inspecter l'arbre `Concept HLD → Sous-Axes Requis → Feuilles & Oracles` et d'ajouter ou supprimer des triplets `{ Sujet, Verbe, Complément }` à la volée.

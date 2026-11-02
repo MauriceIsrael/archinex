@@ -520,6 +520,24 @@
 		}
 	}
 
+	async function handleBindAspectEdp(event: any) {
+		try {
+			const payload = event?.detail || event || {};
+			const res = await fetch(`/api/projects/${projectId}/subjects/${subjectId}/edp?edp=1`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ action: 'bind_aspect', ...payload })
+			});
+			if (res.ok) {
+				const data = await res.json();
+				if (data.edp) currentEdp = data.edp;
+				deliberationStore.logNotification(data.message || 'Sous-axe lié avec succès !', 'success');
+			}
+		} catch (e: any) {
+			deliberationStore.logNotification(e.message, 'warning');
+		}
+	}
+
 	async function handleSynthesizeEdp(event?: any) {
 		try {
 			const res = await fetch(`/api/projects/${projectId}/subjects/${subjectId}/edp?edp=1`, {
@@ -1490,6 +1508,7 @@
 					on:runVerify={handleRunVerifyEdp}
 					on:hydrate={handleHydrateEdp}
 					on:synthesize={handleSynthesizeEdp}
+					on:bindAspect={handleBindAspectEdp}
 				/>
 			</div>
 		{/if}
@@ -1818,6 +1837,7 @@
 					on:runVerify={handleRunVerifyEdp}
 					on:hydrate={handleHydrateEdp}
 					on:synthesize={handleSynthesizeEdp}
+					on:bindAspect={handleBindAspectEdp}
 				/>
 			</div>
 		{/if}
@@ -1835,6 +1855,9 @@
 				on:validate={handleValidateEdp}
 				on:challenge={handleChallengeEdp}
 				on:runVerify={handleRunVerifyEdp}
+				on:hydrate={handleHydrateEdp}
+				on:synthesize={handleSynthesizeEdp}
+				on:bindAspect={handleBindAspectEdp}
 			/>
 		{:else}
 			<div class="rounded-xl border border-dashed border-amber-500/40 bg-amber-500/5 p-6 text-center space-y-3">

@@ -7,9 +7,9 @@
       "revision": 1,
       "kind": "leaf",
       "is_default_standard": true,
-      "title": "Substrat Bare-Metal Sylva / Metal3 & SUSE Telco Cloud (Dell R750 / HPE DL380)",
+      "title": "Cluster Sylva Bare-Metal SR-IOV / DPDK (Pool CNF Cœur de Réseau — NUMA / HugePages 1Gi)",
       "domain": "infrastructure",
-      "keywords": ["baremetal", "bare-metal", "serveur", "worker", "control-plane", "dell", "hpe", "r750", "dl380", "compute", "sylva", "metal3", "suse", "rke2", "rancher", "telco", "cloud", "plateforme", "cluster"],
+      "keywords": ["baremetal", "bare-metal", "serveur", "worker", "control-plane", "dell", "hpe", "r750", "dl380", "compute", "sylva", "metal3", "sriov", "sr-iov", "dpdk", "numa", "hugepages", "cnf", "coeur", "upf"],
       "oracle_rules": [
         "data.archinex.edp.multiaxis.deny_unapproved_hardware_profile",
         "data.archinex.edp.multiaxis.deny_invalid_node_role"
@@ -18,7 +18,9 @@
         "nautobot_device": {
           "role": "worker",
           "device_type": "Dell-PowerEdge-R750",
-          "status": "planned"
+          "status": "planned",
+          "cluster_pool": "sylva-cnf-sriov-dpdk",
+          "dataplane_profile": "SR-IOV + DPDK + NUMA Pinning + HugePages 1Gi"
         },
         "k8s_manifest": {
           "apiVersion": "infrastructure.cluster.x-k8s.io/v1alpha5",
@@ -34,10 +36,10 @@
       "urn": "urn:archinex:ontology:infrastructure:compute:suse_telco_cloud_sylva",
       "revision": 1,
       "kind": "leaf",
-      "is_default_standard": true,
-      "title": "Stack SUSE Telco Cloud & Sylva par défaut (Rancher Prime / RKE2 / SLE Micro / CAPI)",
+      "is_default_standard": false,
+      "title": "Cluster SUSE Telco Cloud & Sylva Standard (Pool Workloads / Isolement NIS2 Normal)",
       "domain": "infrastructure",
-      "keywords": ["suse", "telco", "sylva", "rke2", "rancher", "slemicro", "sle-micro", "capi", "cluster-api", "kubernetes", "cnf", "edge"],
+      "keywords": ["suse", "telco", "sylva", "rke2", "rancher", "slemicro", "sle-micro", "capi", "cluster-api", "kubernetes", "standard", "nis2", "middleware", "oss", "mcx"],
       "oracle_rules": [
         "data.archinex.edp.multiaxis.deny_unapproved_hardware_profile",
         "data.archinex.edp.multiaxis.deny_invalid_node_role"
@@ -45,8 +47,10 @@
       "hydration_template": {
         "nautobot_device": {
           "role": "worker",
-          "device_type": "Dell-PowerEdge-R750",
-          "status": "planned"
+          "device_type": "HPE-ProLiant-DL380",
+          "status": "planned",
+          "cluster_pool": "sylva-standard-nis2",
+          "dataplane_profile": "CNI Cilium Standard + NetworkPolicies NIS2"
         },
         "k8s_manifest": {
           "apiVersion": "infrastructure.cluster.x-k8s.io/v1alpha5",

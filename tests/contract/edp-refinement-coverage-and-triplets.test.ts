@@ -298,4 +298,42 @@ describe('EDP Phase 4 : Ontology Triplets, KAOS Multi-Axis Coverage & Real OPA D
     );
     expect(allReport.metrics.totalMandatoryAxes).toBe(18);
   });
+
+  it('supporte le cumul de variantes sur un même axe (Cluster Sylva SR-IOV/DPDK CNF + Cluster Sylva Standard NIS2) et hydrate les 2 pools LLD distincts', async () => {
+    const catalog = await loadOntologyCatalog({ includeRuntimeOverlay: true });
+    const cumulativeBindings = [
+      { urn: 'urn:archinex:ontology:infrastructure:server:baremetal', revision: 1 },
+      { urn: 'urn:archinex:ontology:infrastructure:compute:suse_telco_cloud_sylva', revision: 1 },
+      { urn: 'urn:archinex:ontology:telecom:network:oob', revision: 1 },
+      { urn: 'urn:archinex:ontology:security:zone:oam', revision: 2 },
+      { urn: 'urn:archinex:ontology:platform:env:iso_prod_3tiers', revision: 1 },
+      { urn: 'urn:archinex:ontology:facilities:power:dual_feed_2n', revision: 1 }
+    ];
+
+    const report = computeRefinementCoverage(
+      {
+        title: 'Cœur de réseau 5G CNF et Middleware',
+        explicitBindings: cumulativeBindings,
+        autoBindFromText: false
+      },
+      catalog
+    );
+
+    const computeAxis = report.axes.find(
+      (a) => a.axisUrn === 'urn:archinex:ontology:axis:compute_substrate'
+    );
+    expect(computeAxis?.boundLeaves).toHaveLength(2);
+
+    const hydrated = composeMultiAxisHydration('sub_coeur_5g', cumulativeBindings, catalog);
+    expect(hydrated.nautobot_planned_devices).toHaveLength(2);
+    expect(hydrated.k8s_manifests).toHaveLength(2);
+    expect(hydrated.nautobot_planned_devices.map((d) => d.cluster_pool)).toEqual([
+      'sylva-cnf-sriov-dpdk',
+      'sylva-standard-nis2'
+    ]);
+
+    const evalRes = await evaluateMultiAxisOracle(hydrated, cumulativeBindings, catalog);
+    expect(evalRes.verdict).toBe('compliant');
+    expect(evalRes.violations).toHaveLength(0);
+  });
 });

@@ -203,6 +203,7 @@ export const POST: RequestHandler = async (event) => {
     reason,
     leafUrn,
     axisUrn,
+    bindMode,
     selectedConceptUrn,
     driftScenario,
     overrides
@@ -289,8 +290,8 @@ export const POST: RequestHandler = async (event) => {
         updatedBindingMap.set(b.urn, b.revision);
       }
 
-      // Si l'architecte bascule de variante sur un axe donné (OR-Refinement),
-      // on remplace les autres feuilles du même axe tout en préservant tous les autres axes.
+      // Gestion du cumul (`add`), du remplacement (`replace`) ou du retrait (`remove`) de variante sur un axe (OR-Refinement inclusif ou exclusif)
+      const effectiveMode: 'add' | 'replace' | 'remove' = bindMode || 'add';
       if (leafUrn && catalog.entities[leafUrn]) {
         const targetAxisUrn =
           axisUrn ||
@@ -298,17 +299,21 @@ export const POST: RequestHandler = async (event) => {
             (t) => t.predicate === 'implemented_by' && t.object === leafUrn
           )?.subject;
 
-        if (targetAxisUrn) {
-          const siblingLeaves = (catalog.triplets || [])
-            .filter((t) => t.predicate === 'implemented_by' && t.subject === targetAxisUrn)
-            .map((t) => t.object);
-          for (const sib of siblingLeaves) {
-            if (sib !== leafUrn) {
-              updatedBindingMap.delete(sib);
+        if (effectiveMode === 'remove') {
+          updatedBindingMap.delete(leafUrn);
+        } else {
+          if (effectiveMode === 'replace' && targetAxisUrn) {
+            const siblingLeaves = (catalog.triplets || [])
+              .filter((t) => t.predicate === 'implemented_by' && t.subject === targetAxisUrn)
+              .map((t) => t.object);
+            for (const sib of siblingLeaves) {
+              if (sib !== leafUrn) {
+                updatedBindingMap.delete(sib);
+              }
             }
           }
+          updatedBindingMap.set(leafUrn, catalog.entities[leafUrn].revision ?? 1);
         }
-        updatedBindingMap.set(leafUrn, catalog.entities[leafUrn].revision ?? 1);
       }
 
       const explicitBindings = Array.from(updatedBindingMap.entries()).map(([urn, revision]) => ({

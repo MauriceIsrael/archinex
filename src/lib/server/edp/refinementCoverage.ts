@@ -578,6 +578,14 @@ export function composeMultiAxisHydration(
   let deviceType = 'Dell-PowerEdge-R750';
   let deviceStatus = 'planned';
   let hasComputeLeaf = false;
+  const computeProfiles: Array<{
+    urn: string;
+    title: string;
+    role: string;
+    deviceType: string;
+    clusterPool: string;
+    dataplaneProfile: string;
+  }> = [];
   let interfaces: Array<{ name: string; type: string; ip?: string }> = [
     { name: 'oob0', type: 'management', ip: '192.0.2.10/24' },
     { name: 'eth0', type: 'data', ip: '10.20.0.10/24' }
@@ -593,12 +601,23 @@ export function composeMultiAxisHydration(
 
     if (tpl.nautobot_device || proj.baremetal_types) {
       hasComputeLeaf = true;
-      deviceRole = Array.isArray(proj.allowed_roles)
+      const resolvedRole = Array.isArray(proj.allowed_roles)
         ? proj.allowed_roles[proj.allowed_roles.length - 1]
         : tpl.nautobot_device?.role || deviceRole;
-      deviceType =
+      const resolvedType =
         tpl.nautobot_device?.device_type ||
         (Array.isArray(proj.baremetal_types) ? proj.baremetal_types[0] : deviceType);
+      deviceRole = resolvedRole;
+      deviceType = resolvedType;
+      computeProfiles.push({
+        urn: entity.urn,
+        title: entity.title || entity.urn,
+        role: resolvedRole,
+        deviceType: resolvedType,
+        clusterPool: tpl.nautobot_device?.cluster_pool || 'sylva-default-pool',
+        dataplaneProfile:
+          tpl.nautobot_device?.dataplane_profile || 'SUSE Telco Cloud & Sylva Standard'
+      });
     }
 
     if (proj.required_status) {
@@ -668,36 +687,70 @@ export function composeMultiAxisHydration(
       : `redfish+http://${oobIp || '192.0.2.10'}/redfish/v1/Systems/1`;
 
   if (hasComputeLeaf || bindings.length > 0) {
-    nautobotDevices.push({
-      name: hostname,
-      status: deviceStatus,
-      device_type: deviceType,
-      oob_ip: oobIp,
-      role: deviceRole,
-      interfaces,
-      power_feeds: powerFeeds,
-      security_zones: securityZones.map((z) => z.zone_id)
-    });
+    const effectiveProfiles =
+      computeProfiles.length > 0
+        ? computeProfiles
+        : [
+            {
+              urn: 'urn:archinex:ontology:infrastructure:server:baremetal',
+              title: 'Cluster Sylva par défaut',
+              role: deviceRole,
+              deviceType,
+              clusterPool: 'sylva-default-pool',
+              dataplaneProfile: 'SUSE Telco Cloud & Sylva'
+            }
+          ];
 
-    k8sManifests.push({
-      apiVersion: 'infrastructure.cluster.x-k8s.io/v1alpha5',
-      kind: 'BareMetalHost',
-      metadata: {
-        name: hostname,
-        namespace: 'sylva-system',
-        labels: {
-          'archinex.io/device-type': deviceType,
-          'archinex.io/distribution': 'SUSE-Telco-Cloud-RKE2',
-          'archinex.io/orchestrator': 'Sylva-CAPI-Metal3',
-          'archinex.io/host-os': 'SLE-Micro-5.5',
-          'archinex.io/security-zones': securityZones.map((z) => z.zone_id).join('-') || 'default'
+    effectiveProfiles.forEach((prof, idx) => {
+      const nodeHostname =
+        idx === 0
+          ? hostname
+          : `srv-${cleanSubj.slice(-12) || 'edge'}-0${idx + 1}`;
+      const nodeType = overrides.deviceType !== undefined ? overrides.deviceType : prof.deviceType;
+      const nodeRole = overrides.nodeRole !== undefined ? overrides.nodeRole : prof.role;
+      const nodeOobIp =
+        overrides.oobIp !== undefined
+          ? overrides.oobIp
+          : `192.0.2.${10 + idx}`;
+      const nodeBmcAddress =
+        overrides.bmcAddress !== undefined
+          ? overrides.bmcAddress
+          : `redfish+http://${nodeOobIp || `192.0.2.${10 + idx}`}/redfish/v1/Systems/1`;
+
+      nautobotDevices.push({
+        name: nodeHostname,
+        status: deviceStatus,
+        device_type: nodeType,
+        oob_ip: nodeOobIp,
+        role: nodeRole,
+        cluster_pool: prof.clusterPool,
+        dataplane_profile: prof.dataplaneProfile,
+        interfaces,
+        power_feeds: powerFeeds,
+        security_zones: securityZones.map((z) => z.zone_id)
+      });
+
+      k8sManifests.push({
+        apiVersion: 'infrastructure.cluster.x-k8s.io/v1alpha5',
+        kind: 'BareMetalHost',
+        metadata: {
+          name: nodeHostname,
+          namespace: 'sylva-system',
+          labels: {
+            'archinex.io/device-type': nodeType,
+            'archinex.io/cluster-pool': prof.clusterPool,
+            'archinex.io/distribution': 'SUSE-Telco-Cloud-RKE2',
+            'archinex.io/orchestrator': 'Sylva-CAPI-Metal3',
+            'archinex.io/host-os': 'SLE-Micro-5.5',
+            'archinex.io/security-zones': securityZones.map((z) => z.zone_id).join('-') || 'default'
+          }
+        },
+        spec: {
+          role: nodeRole,
+          bmc: { address: nodeBmcAddress },
+          bootMACAddress: `52:54:00:12:34:${56 + idx}`
         }
-      },
-      spec: {
-        role: deviceRole,
-        bmc: { address: bmcAddress },
-        bootMACAddress: '52:54:00:12:34:56'
-      }
+      });
     });
   }
 

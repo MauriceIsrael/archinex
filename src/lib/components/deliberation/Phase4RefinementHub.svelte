@@ -110,8 +110,12 @@
 		}
 	}
 
-	async function handleBindLeaf(leafUrn: string, axisUrn?: string) {
-		await triggerEdpAction({ action: 'bind_aspect', leafUrn, axisUrn });
+	async function handleBindLeaf(
+		leafUrn: string,
+		axisUrn?: string,
+		bindMode: 'add' | 'replace' | 'remove' = 'add'
+	) {
+		await triggerEdpAction({ action: 'bind_aspect', leafUrn, axisUrn, bindMode });
 	}
 
 	async function handleBindAllMissingAxes() {
@@ -392,33 +396,49 @@
 										<p class="text-[11px] text-muted-foreground">{axis.rationale}</p>
 									</div>
 
-									<!-- Boutons de sélection de feuille (OR-Refinement : uniquement si axe manquant ou variante alternative exécutable) -->
+									<!-- Boutons de sélection de feuille (OR-Refinement : cumul inclusif + remplacement exclusif) -->
 									<div class="flex items-center gap-1.5 flex-wrap">
 										{#each axis.candidateLeaves as cand}
 											{@const isBound = axis.boundLeaves.some((b: any) => b.urn === cand.urn)}
 											{@const isExecutableVariant = (cand.oracleRules?.length || 0) > 0}
 											{#if !isBound && (axis.status === 'missing_refinement' || isExecutableVariant)}
-												<button
-													type="button"
-													disabled={isActionRunning}
-													onclick={() => handleBindLeaf(cand.urn, axis.axisUrn)}
-													class="px-2.5 py-1 rounded-md text-[11px] font-semibold transition-colors cursor-pointer {axis.status === 'missing_refinement'
-														? 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-2xs'
-														: 'border border-indigo-500/40 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-800 dark:text-indigo-200'}"
-													data-testid="phase4-bind-leaf-btn"
-												>
-													{#if axis.status === 'missing_refinement'}
+												{#if axis.status === 'missing_refinement'}
+													<button
+														type="button"
+														disabled={isActionRunning}
+														onclick={() => handleBindLeaf(cand.urn, axis.axisUrn, 'add')}
+														class="px-2.5 py-1 rounded-md text-[11px] font-semibold bg-indigo-600 hover:bg-indigo-700 text-white shadow-2xs transition-colors cursor-pointer"
+														data-testid="phase4-bind-leaf-btn"
+													>
 														+ Raffiner via « {cand.title} »
-													{:else}
-														⇄ Variante : « {cand.title} »
-													{/if}
-												</button>
+													</button>
+												{:else}
+													<button
+														type="button"
+														disabled={isActionRunning}
+														onclick={() => handleBindLeaf(cand.urn, axis.axisUrn, 'add')}
+														class="px-2.5 py-1 rounded-md text-[11px] font-semibold border border-emerald-500/40 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-800 dark:text-emerald-200 transition-colors cursor-pointer"
+														title="Cumuler cette seconde variante sur le même axe (ex: Cluster Sylva SR-IOV/DPDK CNF + Cluster Sylva Standard NIS2)"
+														data-testid="phase4-bind-leaf-btn"
+													>
+														+ Cumuler « {cand.title} »
+													</button>
+													<button
+														type="button"
+														disabled={isActionRunning}
+														onclick={() => handleBindLeaf(cand.urn, axis.axisUrn, 'replace')}
+														class="px-2 py-1 rounded-md text-[10px] font-semibold border border-indigo-500/40 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-800 dark:text-indigo-200 transition-colors cursor-pointer"
+														title="Remplacer la variante actuelle de cet axe par celle-ci"
+													>
+														⇄ Remplacer
+													</button>
+												{/if}
 											{/if}
 										{/each}
 									</div>
 								</div>
 
-								<!-- Détail de la feuille liée, de ses projections data.ontology et de ses règles Rego -->
+								<!-- Détail de la ou des feuille(s) liée(s), de leurs projections data.ontology et de leurs règles Rego -->
 								{#if axis.boundLeaves.length > 0}
 									<div class="mt-2.5 pt-2 border-t border-border/60 space-y-1.5">
 										{#each axis.boundLeaves as leaf}
@@ -429,6 +449,17 @@
 														{leaf.title}
 													</span>
 													<span class="font-mono text-[10px] text-muted-foreground">({leaf.urn} · r{leaf.revision})</span>
+													{#if axis.boundLeaves.length > 1}
+														<button
+															type="button"
+															disabled={isActionRunning}
+															onclick={() => handleBindLeaf(leaf.urn, axis.axisUrn, 'remove')}
+															class="px-1.5 py-0.5 rounded text-[10px] font-semibold text-rose-600 hover:bg-rose-500/15 transition-colors cursor-pointer"
+															title="Retirer cette variante cumulée de l'axe"
+														>
+															✕ Retirer
+														</button>
+													{/if}
 												</div>
 												{#if leaf.oracleRules?.length > 0}
 													<span class="font-mono text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-800 dark:text-emerald-300">

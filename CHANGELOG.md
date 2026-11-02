@@ -8,7 +8,13 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
-### Matrice de Couverture du Raffinement Multi-Axes (KAOS + Ontologie) & Éditeur de Triplets (`{Sujet, Verbe, Complément}`)
+### Phase 4 Dédiée « Refinement & Hydratation », Matrice KAOS Multi-Axes & Simulateur de Drift OPA
+- **Nouvelle Phase 4 Macroscopique (`Phase4RefinementHub.svelte`, `ProjectEngagementHeader.svelte`)** :
+  - Ajout d'un 4ème grand onglet de projet **« Phase 4 · 🧪 Refinement & Hydratation »** (`posture = 'refinement'`) dédié au passage du HLD (L3/L4) au LLD exécutable, complété par un bouton d'accès rapide depuis la Phase 2.
+  - Cockpit temps réel affichant les 4 KPIs d'ingénierie : complétude KAOS (`AND-Refinement`), traçabilité des clauses d'intention HLD, objets LLD `planned` générés et verdict de l'Oracle OPA avec empreinte SHA-256 `data.ontology`.
+- **Oracle Rego Multi-Axes Unifié (`edp/policies/multi_axis_refinement.rego`) & Simulateur de Drift CMDB** :
+  - Évaluation formelle par OPA des 5 axes obligatoires de l'ontologie (*Substrat Compute Bare-Metal*, *Plan Hors-Bande OOB*, *Zonage Sécurité OAM/UPF*, *Parité Environnements Dev/Recette Iso-Prod/Prod*, *Résilience Électrique 2N*) directement sur l'inventaire LLD hydraté du sujet et sans aucun littéral codé en dur.
+  - Simulateur interactif de dérive (*Drift CMDB*) permettant d'injecter et de vérifier en un clic la détection par OPA d'une dérive sur chacun des 5 axes (`unapproved_hardware`, `bmc_oob_mismatch`, `unproxied_oam`, `non_isoprod_staging`, `single_power_feed`).
 - **Moteur de Couverture du Raffinement & Composition Multi-Axes (`src/lib/server/edp/refinementCoverage.ts`)** :
   - Remplacement de tout aiguillage syntaxique en dur par une interrogation formelle du graphe d'ontologie (`requires_aspect` pour la décomposition conjonctive KAOS AND-Refinement des sous-axes obligatoires ; `implemented_by` pour la sélection disjonctive OR-Refinement des feuilles d'implémentation porteuses des projections et règles Rego).
   - Calcul de la **Matrice de Couverture du Raffinement** distinguant pour chaque axe obligatoire : `covered_executable` (🟢 couvert par une feuille dotée de règles Rego), `covered_no_oracle` (🟡 feuille liée mais dépourvue d'oracle Rego) et `missing_refinement` (🔴 lacune de raffinement / sous-axe oublié).

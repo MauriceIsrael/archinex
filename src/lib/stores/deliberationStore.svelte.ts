@@ -66,7 +66,7 @@ import {
 	type SpaceRoleInfo
 } from '$lib/domain/spaceActor';
 
-export type DeliberationPosture = 'appropriation' | 'deliberation' | 'rendu';
+export type DeliberationPosture = 'appropriation' | 'deliberation' | 'rendu' | 'refinement';
 
 class DeliberationStore {
 	engagements = $state<EngagementProfile[]>([]);
@@ -85,7 +85,7 @@ class DeliberationStore {
 						this.deliberationViewMode = savedMode;
 					}
 					const savedPosture = localStorage.getItem(`archinex:activePosture:${savedId}`) as DeliberationPosture | null;
-					if (savedPosture === 'appropriation' || savedPosture === 'deliberation' || savedPosture === 'rendu') {
+					if (savedPosture === 'appropriation' || savedPosture === 'deliberation' || savedPosture === 'rendu' || savedPosture === 'refinement') {
 						this.activePosture = savedPosture;
 					}
 					const savedPartId = localStorage.getItem('archinex:selectedPartId:' + savedId);
@@ -431,7 +431,7 @@ class DeliberationStore {
 				if (restoredViewMode === 'board' || restoredViewMode === 'conversation') {
 					this.deliberationViewMode = restoredViewMode;
 				}
-				if (restoredPosture === 'appropriation' || restoredPosture === 'deliberation' || restoredPosture === 'rendu') {
+				if (restoredPosture === 'appropriation' || restoredPosture === 'deliberation' || restoredPosture === 'rendu' || restoredPosture === 'refinement') {
 					this.activePosture = restoredPosture;
 				}
 			}

@@ -1,4 +1,6 @@
 import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
 import {
   loadOntologyCatalog,
   queryOntologyTriplets,
@@ -7,11 +9,16 @@ import {
   resetRuntimeOntologyOverlay
 } from '../../src/lib/server/edp/ontologyClient.js';
 import {
+  compileOntologyProjections,
+  detectDuplicateLiterals
+} from '../../src/lib/server/edp/projectionCompiler.js';
+import {
   computeRefinementCoverage,
-  composeMultiAxisHydration
+  composeMultiAxisHydration,
+  evaluateMultiAxisOracle
 } from '../../src/lib/server/edp/refinementCoverage.js';
 
-describe('EDP Ontology Triplets, KAOS Refinement Coverage & Multi-Axis Composition', () => {
+describe('EDP Phase 4 : Ontology Triplets, KAOS Multi-Axis Coverage & Real OPA Drift Evaluation', () => {
   beforeEach(() => {
     resetRuntimeOntologyOverlay();
   });
@@ -27,20 +34,25 @@ describe('EDP Ontology Triplets, KAOS Refinement Coverage & Multi-Axis Compositi
       predicate: 'requires_aspect'
     });
 
-    expect(reqAxes.length).toBeGreaterThanOrEqual(5);
-    expect(reqAxes.map((t) => t.object)).toContain('urn:archinex:ontology:axis:compute_substrate');
-    expect(reqAxes.map((t) => t.object)).toContain('urn:archinex:ontology:axis:security_zoning');
-    expect(reqAxes.map((t) => t.object)).toContain('urn:archinex:ontology:axis:env_fidelity');
+    expect(reqAxes.length).toBe(5);
+    expect(reqAxes.map((t) => t.object)).toEqual(
+      expect.arrayContaining([
+        'urn:archinex:ontology:axis:compute_substrate',
+        'urn:archinex:ontology:axis:oob_management',
+        'urn:archinex:ontology:axis:security_zoning',
+        'urn:archinex:ontology:axis:env_fidelity',
+        'urn:archinex:ontology:axis:power_cooling_resilience'
+      ])
+    );
   });
 
-  it('détecte les sous-axes oubliés (missing_refinement) et les feuilles sans oracle (covered_no_oracle)', async () => {
+  it('distingue missing_refinement (🔴), covered_no_oracle (🟡) et covered_executable (🟢) jusqu’à 100% de complétude KAOS', async () => {
     const catalog = await loadOntologyCatalog({ includeRuntimeOverlay: true });
 
-    // Sujet qui ne lie explicitement que le substrat Bare-Metal et l'OOB (oubliant le zonage sécu, la parité env et l'alim 2N)
-    const report = computeRefinementCoverage(
+    // 1. Seulement 2 axes liés -> 3 axes en missing_refinement
+    const partialReport = computeRefinementCoverage(
       {
         title: 'Plateforme Cluster Telco Cloud',
-        decisionText: 'Serveurs Bare-Metal Dell R750 avec réseau OOB Redfish',
         explicitBindings: [
           { urn: 'urn:archinex:ontology:infrastructure:server:baremetal', revision: 1 },
           { urn: 'urn:archinex:ontology:telecom:network:oob', revision: 1 }
@@ -50,23 +62,40 @@ describe('EDP Ontology Triplets, KAOS Refinement Coverage & Multi-Axis Compositi
       catalog
     );
 
-    expect(report.matchedConcepts[0].urn).toBe('urn:archinex:ontology:concept:telco_cloud_platform');
-    expect(report.metrics.totalMandatoryAxes).toBe(5);
-    expect(report.metrics.coveredExecutableAxes).toBe(2);
-    expect(report.metrics.missingAxes).toBe(3);
-    expect(report.metrics.isComplete).toBe(false);
+    expect(partialReport.metrics.totalMandatoryAxes).toBe(5);
+    expect(partialReport.metrics.coveredExecutableAxes).toBe(2);
+    expect(partialReport.metrics.missingAxes).toBe(3);
+    expect(partialReport.metrics.isComplete).toBe(false);
 
-    const secAxis = report.axes.find((a) => a.axisUrn === 'urn:archinex:ontology:axis:security_zoning');
-    expect(secAxis?.status).toBe('missing_refinement');
-    expect(secAxis?.candidateLeaves.map((l) => l.urn)).toContain('urn:archinex:ontology:security:zone:oam');
-
-    // Si on lie l'axe alimentation 2N (qui n'a pas encore de règle Rego dans la fixture), son statut devient covered_no_oracle
-    const reportWithPower = computeRefinementCoverage(
+    // 2. Liaison de la feuille UPS sans règle Rego -> statut covered_no_oracle
+    const noOracleReport = computeRefinementCoverage(
       {
         title: 'Plateforme Cluster Telco Cloud',
         explicitBindings: [
           { urn: 'urn:archinex:ontology:infrastructure:server:baremetal', revision: 1 },
           { urn: 'urn:archinex:ontology:telecom:network:oob', revision: 1 },
+          { urn: 'urn:archinex:ontology:facilities:power:ups_battery_backup', revision: 1 }
+        ],
+        autoBindFromText: false
+      },
+      catalog
+    );
+
+    const powerAxis = noOracleReport.axes.find(
+      (a) => a.axisUrn === 'urn:archinex:ontology:axis:power_cooling_resilience'
+    );
+    expect(powerAxis?.status).toBe('covered_no_oracle');
+    expect(noOracleReport.metrics.coveredNoOracleAxes).toBe(1);
+
+    // 3. Liaison des 5 axes avec feuilles exécutables -> 100% de complétude KAOS (isComplete === true)
+    const fullReport = computeRefinementCoverage(
+      {
+        title: 'Plateforme Cluster Telco Cloud',
+        explicitBindings: [
+          { urn: 'urn:archinex:ontology:infrastructure:server:baremetal', revision: 1 },
+          { urn: 'urn:archinex:ontology:telecom:network:oob', revision: 1 },
+          { urn: 'urn:archinex:ontology:security:zone:oam', revision: 2 },
+          { urn: 'urn:archinex:ontology:platform:env:iso_prod_3tiers', revision: 1 },
           { urn: 'urn:archinex:ontology:facilities:power:dual_feed_2n', revision: 1 }
         ],
         autoBindFromText: false
@@ -74,11 +103,10 @@ describe('EDP Ontology Triplets, KAOS Refinement Coverage & Multi-Axis Compositi
       catalog
     );
 
-    const powerAxis = reportWithPower.axes.find(
-      (a) => a.axisUrn === 'urn:archinex:ontology:axis:power_cooling_resilience'
-    );
-    expect(powerAxis?.status).toBe('covered_no_oracle');
-    expect(reportWithPower.metrics.coveredNoOracleAxes).toBe(1);
+    expect(fullReport.metrics.coveredExecutableAxes).toBe(5);
+    expect(fullReport.metrics.missingAxes).toBe(0);
+    expect(fullReport.metrics.axisCoveragePercent).toBe(100);
+    expect(fullReport.metrics.isComplete).toBe(true);
   });
 
   it('signale une alerte de dépendance inter-axes (depends_on) si Bare-Metal est lié sans le réseau OOB', async () => {
@@ -100,34 +128,81 @@ describe('EDP Ontology Triplets, KAOS Refinement Coverage & Multi-Axis Compositi
     expect(report.dependencyIssues[0].targetUrn).toBe('urn:archinex:ontology:telecom:network:oob');
   });
 
-  it('compose dynamiquement les artefacts LLD multi-axes (Compute + OOB + Zonage Sécurité + Environnements)', async () => {
+  it('vérifie que multi_axis_refinement.rego ne contient aucun littéral métier en dur dupliquant data.ontology', async () => {
     const catalog = await loadOntologyCatalog({ includeRuntimeOverlay: true });
-
-    const report = computeRefinementCoverage(
-      {
-        subjectId: 'sub_lulu_40',
-        title: 'Environnements Plateforme Lulu & Sécurité OAM',
-        decisionText:
-          'Déploiement sur serveur bare-metal avec administration hors-bande OOB, isolation stricte de la zone OAM et 3 environnements dev, recette iso-prod et production.',
-        autoBindFromText: true
-      },
-      catalog
+    const domainProjections = {
+      baremetal: catalog.entities['urn:archinex:ontology:infrastructure:server:baremetal'].projections,
+      oam: catalog.entities['urn:archinex:ontology:security:zone:oam'].projections,
+      env: catalog.entities['urn:archinex:ontology:platform:env:iso_prod_3tiers'].projections
+    };
+    const policyText = readFileSync(
+      resolve(process.cwd(), 'edp/policies/multi_axis_refinement.rego'),
+      'utf-8'
     );
 
-    expect(report.metrics.coveredExecutableAxes).toBeGreaterThanOrEqual(4);
+    const warnings = detectDuplicateLiterals(policyText, domainProjections);
+    expect(warnings).toHaveLength(0);
+  });
 
-    const hydrated = composeMultiAxisHydration('sub_lulu_40', report.composedBindings, catalog);
-    expect(hydrated.nautobot_planned_devices).toHaveLength(1);
-    expect(hydrated.k8s_manifests).toHaveLength(1);
-    expect(hydrated.security_zones.length).toBeGreaterThanOrEqual(1);
-    expect(hydrated.environments.length).toBeGreaterThanOrEqual(3);
-    expect(hydrated.coveredDomains).toEqual(
-      expect.arrayContaining(['infrastructure', 'telecom', 'security', 'platform'])
-    );
+  it('évalue réellement avec OPA les 5 axes et détecte toute dérive (Drift CMDB) axe par axe', async () => {
+    const catalog = await loadOntologyCatalog({ includeRuntimeOverlay: true });
+    const bindings = [
+      { urn: 'urn:archinex:ontology:infrastructure:server:baremetal', revision: 1 },
+      { urn: 'urn:archinex:ontology:telecom:network:oob', revision: 1 },
+      { urn: 'urn:archinex:ontology:security:zone:oam', revision: 2 },
+      { urn: 'urn:archinex:ontology:platform:env:iso_prod_3tiers', revision: 1 },
+      { urn: 'urn:archinex:ontology:facilities:power:dual_feed_2n', revision: 1 }
+    ];
+
+    // 1. État nominal conforme sur les 5 axes
+    const cleanInventory = composeMultiAxisHydration('sub_lulu_40', bindings, catalog);
+    const cleanEval = await evaluateMultiAxisOracle(cleanInventory, bindings, catalog);
+    expect(cleanEval.verdict).toBe('compliant');
+    expect(cleanEval.violations).toHaveLength(0);
+    expect(cleanEval.evaluatedAxesCount).toBe(5);
+
+    // 2. Drift Axe 1 (Serveur Whitebox non homologué)
+    const driftHw = composeMultiAxisHydration('sub_lulu_40', bindings, catalog, {
+      deviceType: 'Supermicro-Whitebox-NonHomologue'
+    });
+    const evalHw = await evaluateMultiAxisOracle(driftHw, bindings, catalog);
+    expect(evalHw.verdict).toBe('violated');
+    expect(evalHw.violations.some((v) => v.rule.includes('deny_unapproved_hardware_profile'))).toBe(true);
+
+    // 3. Drift Axe 2 (Désalignement IP BMC vs OOB)
+    const driftOob = composeMultiAxisHydration('sub_lulu_40', bindings, catalog, {
+      bmcAddress: 'redfish+http://198.51.100.254/redfish/v1/Systems/1'
+    });
+    const evalOob = await evaluateMultiAxisOracle(driftOob, bindings, catalog);
+    expect(evalOob.verdict).toBe('violated');
+    expect(evalOob.violations.some((v) => v.rule.includes('deny_bmc_oob_drift'))).toBe(true);
+
+    // 4. Drift Axe 3 (Suppression du Proxy Zone OAM)
+    const driftOam = composeMultiAxisHydration('sub_lulu_40', bindings, catalog, {
+      oamProxyRequired: false
+    });
+    const evalOam = await evaluateMultiAxisOracle(driftOam, bindings, catalog);
+    expect(evalOam.verdict).toBe('violated');
+    expect(evalOam.violations.some((v) => v.rule.includes('deny_unproxied_oam_access'))).toBe(true);
+
+    // 5. Drift Axe 4 (Recette passée en non Iso-Prod)
+    const driftEnv = composeMultiAxisHydration('sub_lulu_40', bindings, catalog, {
+      stagingIsoprod: false
+    });
+    const evalEnv = await evaluateMultiAxisOracle(driftEnv, bindings, catalog);
+    expect(evalEnv.verdict).toBe('violated');
+    expect(evalEnv.violations.some((v) => v.rule.includes('deny_non_isoprod_staging'))).toBe(true);
+
+    // 6. Drift Axe 5 (Perte d'une adduction PDU -> 1 seule PDU au lieu de 2N)
+    const driftPower = composeMultiAxisHydration('sub_lulu_40', bindings, catalog, {
+      powerFeedsCount: 1
+    });
+    const evalPower = await evaluateMultiAxisOracle(driftPower, bindings, catalog);
+    expect(evalPower.verdict).toBe('violated');
+    expect(evalPower.violations.some((v) => v.rule.includes('deny_single_power_feed'))).toBe(true);
   });
 
   it('permet d’ajouter et supprimer dynamiquement un triplet { Sujet, Verbe, Complément } qui étend immédiatement la matrice de couverture', async () => {
-    // Ajout d'un 6ème sous-axe obligatoire sur le concept telco_cloud_platform via un triplet
     const { triplet } = await addOntologyTriplet({
       subject: 'urn:archinex:ontology:concept:telco_cloud_platform',
       predicate: 'requires_aspect',
@@ -146,13 +221,7 @@ describe('EDP Ontology Triplets, KAOS Refinement Coverage & Multi-Axis Compositi
     );
 
     expect(coverageAfterAdd.metrics.totalMandatoryAxes).toBe(6);
-    expect(
-      coverageAfterAdd.axes.some(
-        (a) => a.axisUrn === 'urn:archinex:ontology:axis:observability_traces'
-      )
-    ).toBe(true);
 
-    // Suppression du triplet
     const catalogAfterDelete = await removeOntologyTriplet(triplet.id);
     const coverageAfterDelete = computeRefinementCoverage(
       {

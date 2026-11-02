@@ -144,3 +144,4 @@ export const DELETE: RequestHandler = async ({ url, request }) => {
     return json({ error: err.message }, { status: 500 });
   }
 };
+

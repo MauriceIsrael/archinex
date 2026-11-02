@@ -125,13 +125,30 @@
       "title": "Alimentation Électrique Redondante Dual-Feed (2N)",
       "domain": "facilities",
       "keywords": ["électrique", "alimentation", "pdu", "2n", "dual-feed", "onduleur", "energie"],
-      "oracle_rules": [],
+      "oracle_rules": [
+        "data.archinex.edp.multiaxis.deny_single_power_feed"
+      ],
       "hydration_template": {
         "power_feeds": ["PDU-A", "PDU-B"]
       },
       "projections": {
         "redundancy_mode": "2N",
         "min_power_supplies": 2
+      }
+    },
+    "urn:archinex:ontology:facilities:power:ups_battery_backup": {
+      "urn": "urn:archinex:ontology:facilities:power:ups_battery_backup",
+      "revision": 1,
+      "kind": "leaf",
+      "title": "Secours Batterie UPS Local (Sans Oracle Automatisé)",
+      "domain": "facilities",
+      "keywords": ["batterie", "ups", "secours"],
+      "oracle_rules": [],
+      "hydration_template": {
+        "power_feeds": ["UPS-LOCAL-1"]
+      },
+      "projections": {
+        "redundancy_mode": "N+1"
       }
     },
     "urn:archinex:ontology:concept:telco_cloud_platform": {
@@ -284,6 +301,13 @@
       "predicate": "implemented_by",
       "object": "urn:archinex:ontology:facilities:power:dual_feed_2n",
       "rationale": "Raffinement de la résilience électrique par double adduction 2N."
+    },
+    {
+      "id": "tr-013b",
+      "subject": "urn:archinex:ontology:axis:power_cooling_resilience",
+      "predicate": "implemented_by",
+      "object": "urn:archinex:ontology:facilities:power:ups_battery_backup",
+      "rationale": "Alternative de secours batterie UPS local (sans sonde SNMP/Rego)."
     },
     {
       "id": "tr-014",

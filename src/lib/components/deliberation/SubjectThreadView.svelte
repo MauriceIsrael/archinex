@@ -1846,6 +1846,23 @@
 
 {#snippet renderEdpPane()}
 	<div class="h-full overflow-y-auto p-4 space-y-4 text-xs" data-testid="unified-edp-pane">
+		<div class="rounded-xl border border-indigo-500/30 bg-indigo-500/10 p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+			<div class="space-y-0.5">
+				<span class="text-xs font-bold text-indigo-900 dark:text-indigo-200">
+					🧪 Phase 4 dédiée disponible : Refinement Multi-Axes, Hydratation LLD & Simulateur de Drift
+				</span>
+				<p class="text-[11px] text-muted-foreground">
+					Basculez vers la Phase 4 pour piloter en plein écran les 5 axes KAOS, hydrater Nautobot/Sylva et tester les dérives Rego.
+				</p>
+			</div>
+			<button
+				type="button"
+				onclick={() => deliberationStore.setPosture('refinement')}
+				class="shrink-0 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+			>
+				Ouvrir en Phase 4 →
+			</button>
+		</div>
 		{#if currentEdp}
 			<EdpCard
 				edp={currentEdp}

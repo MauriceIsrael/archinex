@@ -1,3 +1,4 @@
+import { resolve } from 'node:path';
 import {
   type OntologyCatalog,
   type OntologyBindingItem,
@@ -5,6 +6,8 @@ import {
   type OntologyTriplet,
   queryOntologyTriplets
 } from './ontologyClient.js';
+import { compileOntologyProjections } from './projectionCompiler.js';
+import { runOpaEval } from './opaRunner.js';
 
 export type AxisCoverageStatus = 'covered_executable' | 'covered_no_oracle' | 'missing_refinement';
 
@@ -31,6 +34,7 @@ export interface AxisCoverageItem {
 export interface ClauseCoverageItem {
   clauseId: string;
   text: string;
+  source?: 'k18_fact' | 'spec_clause';
   matchedAxisUrn?: string;
   matchedLeafUrn?: string;
   matchedLeafTitle?: string;
@@ -64,13 +68,59 @@ export interface RefinementCoverageReport {
   };
 }
 
+export interface StructuredFactInput {
+  id?: string;
+  category?: string;
+  statement: string;
+  target?: string;
+}
+
 export interface SubjectRefinementInput {
   subjectId?: string;
   title?: string;
   problem?: string;
   decisionText?: string;
+  detailedSpec?: string;
+  structuredFacts?: StructuredFactInput[];
   explicitBindings?: OntologyBindingItem[];
   autoBindFromText?: boolean;
+}
+
+export interface LldHydrationOverrides {
+  deviceType?: string;
+  nodeRole?: string;
+  deviceStatus?: string;
+  oobIp?: string;
+  bmcAddress?: string;
+  interfacesCount?: number;
+  oamIsolationLevel?: string;
+  oamProxyRequired?: boolean;
+  stagingIsoprod?: boolean;
+  powerFeedsCount?: number;
+}
+
+export interface MultiAxisHydratedInventory {
+  nautobot_planned_devices: Array<Record<string, unknown>>;
+  k8s_manifests: Array<Record<string, unknown>>;
+  security_zones: Array<Record<string, unknown>>;
+  environments: Array<Record<string, unknown>>;
+  power_feeds: string[];
+  coveredDomains: string[];
+}
+
+export interface MultiAxisOracleViolation {
+  rule: string;
+  axis: string;
+  message: string;
+}
+
+export interface MultiAxisOracleEvaluationResult {
+  verdict: 'compliant' | 'violated';
+  violations: MultiAxisOracleViolation[];
+  violationMessages: string[];
+  evaluatedAxesCount: number;
+  ontologyFingerprint: string;
+  durationMs: number;
 }
 
 function normalizeText(str: string): string {
@@ -113,17 +163,27 @@ function toCandidateSummary(entity: OntologyEntity): CandidateLeafSummary {
 
 /**
  * Identifie les concepts de haut niveau (HLD) dans l'ontologie qui correspondent au sujet,
- * en interrogeant les triplets `requires_aspect` et les mots-clés du graphe (sans aiguillage en dur).
+ * en interrogeant les triplets `requires_aspect` et les mots-clés/faits du graphe (sans aiguillage en dur).
  */
 export function resolveSubjectConcepts(
   input: SubjectRefinementInput,
   catalog: OntologyCatalog
 ): Array<{ urn: string; title: string; score: number }> {
+  const factsText = (input.structuredFacts || [])
+    .map((f) => `${f.category || ''} ${f.statement} ${f.target || ''}`)
+    .join(' ');
+
   const corpus = normalizeText(
-    [input.title || '', input.problem || '', input.decisionText || '', input.subjectId || ''].join(' ')
+    [
+      input.title || '',
+      input.problem || '',
+      input.decisionText || '',
+      input.detailedSpec || '',
+      factsText,
+      input.subjectId || ''
+    ].join(' ')
   );
 
-  // Tout nœud source d'un triplet `requires_aspect` ou de kind === 'concept' est un concept HLD candidat
   const requiresTriplets = queryOntologyTriplets(catalog, { predicate: 'requires_aspect' });
   const conceptUrnSet = new Set<string>();
 
@@ -144,7 +204,7 @@ export function resolveSubjectConcepts(
 
     let score = scoreEntityAgainstCorpus(conceptEntity, corpus);
 
-    // Propagation ascendante : si le texte mentionne des feuilles d'implémentation rattachées aux sous-axes de ce concept
+    // Propagation ascendante depuis les feuilles rattachées aux sous-axes du concept
     const axisTriplets = queryOntologyTriplets(catalog, {
       subject: conceptUrn,
       predicate: 'requires_aspect'
@@ -173,17 +233,15 @@ export function resolveSubjectConcepts(
 
   const positiveMatches = scored.filter((s) => s.score > 0);
   if (positiveMatches.length > 0) {
-    // Retenir le concept principal et tout concept atteignant au moins 40% du score max (sujets hybrides multi-concepts)
     const maxScore = positiveMatches[0].score;
     return positiveMatches.filter((s) => s.score >= Math.max(2, Math.floor(maxScore * 0.4)));
   }
 
-  // Fallback déclaratif : premier concept racine défini dans l'ontologie
   return scored.slice(0, 1);
 }
 
 /**
- * Décompose l'énoncé de décision / problème en clauses d'intention atomiques
+ * Décompose les faits structurés K18 et l'énoncé de décision / spécification L4 en clauses d'intention atomiques
  * et vérifie leur ancrage sur les feuilles de l'ontologie.
  */
 export function decomposeIntentionClauses(
@@ -191,7 +249,15 @@ export function decomposeIntentionClauses(
   catalog: OntologyCatalog,
   boundLeafUrns: Set<string>
 ): ClauseCoverageItem[] {
-  const rawText = [input.decisionText || '', input.problem || '']
+  const rawEntries: Array<{ text: string; source: 'k18_fact' | 'spec_clause' }> = [];
+
+  for (const fact of input.structuredFacts || []) {
+    if (fact.statement && fact.statement.trim().length >= 4) {
+      rawEntries.push({ text: fact.statement.trim(), source: 'k18_fact' });
+    }
+  }
+
+  const rawText = [input.decisionText || '', input.detailedSpec || '', input.problem || '']
     .filter(Boolean)
     .join('. ');
 
@@ -200,9 +266,17 @@ export function decomposeIntentionClauses(
     .map((s) => s.trim())
     .filter((s) => s.length >= 6);
 
-  const uniqueSegments = Array.from(new Set(segments));
-  if (uniqueSegments.length === 0 && input.title) {
-    uniqueSegments.push(input.title.trim());
+  const seen = new Set<string>(rawEntries.map((e) => normalizeText(e.text)));
+  for (const seg of segments) {
+    const norm = normalizeText(seg);
+    if (!seen.has(norm)) {
+      seen.add(norm);
+      rawEntries.push({ text: seg, source: 'spec_clause' });
+    }
+  }
+
+  if (rawEntries.length === 0 && input.title) {
+    rawEntries.push({ text: input.title.trim(), source: 'spec_clause' });
   }
 
   const implTriplets = queryOntologyTriplets(catalog, { predicate: 'implemented_by' });
@@ -210,8 +284,8 @@ export function decomposeIntentionClauses(
     (e) => e.kind === 'leaf' || implTriplets.some((t) => t.object === e.urn)
   );
 
-  return uniqueSegments.map((segment, idx) => {
-    const normSeg = normalizeText(segment);
+  return rawEntries.map((entry, idx) => {
+    const normSeg = normalizeText(entry.text);
     let bestLeaf: OntologyEntity | null = null;
     let bestScore = 0;
 
@@ -223,7 +297,6 @@ export function decomposeIntentionClauses(
       }
     }
 
-    // Si aucun mot-clé direct mais une feuille est liée sur l'axe correspondant
     if (!bestLeaf && boundLeafUrns.size > 0) {
       for (const urn of boundLeafUrns) {
         const entity = catalog.entities[urn];
@@ -239,7 +312,8 @@ export function decomposeIntentionClauses(
       const isBound = boundLeafUrns.has(bestLeaf.urn);
       return {
         clauseId: `CL-${idx + 1}`,
-        text: segment,
+        text: entry.text,
+        source: entry.source,
         matchedAxisUrn: parentAxisTriplet?.subject,
         matchedLeafUrn: bestLeaf.urn,
         matchedLeafTitle: bestLeaf.title || bestLeaf.urn,
@@ -249,7 +323,8 @@ export function decomposeIntentionClauses(
 
     return {
       clauseId: `CL-${idx + 1}`,
-      text: segment,
+      text: entry.text,
+      source: entry.source,
       status: 'unmapped'
     };
   });
@@ -264,8 +339,15 @@ export function computeRefinementCoverage(
   catalog: OntologyCatalog
 ): RefinementCoverageReport {
   const matchedConcepts = resolveSubjectConcepts(input, catalog);
+  const factsText = (input.structuredFacts || []).map((f) => f.statement).join(' ');
   const corpus = normalizeText(
-    [input.title || '', input.problem || '', input.decisionText || ''].join(' ')
+    [
+      input.title || '',
+      input.problem || '',
+      input.decisionText || '',
+      input.detailedSpec || '',
+      factsText
+    ].join(' ')
   );
 
   // 1. Collecte des axes de raffinement obligatoires (triplets `requires_aspect` issus des concepts retenus)
@@ -421,20 +503,15 @@ export function computeRefinementCoverage(
 }
 
 /**
- * Compose dynamiquement les objets LLD "Planned" (Nautobot, Sylva CAPI, Zones Sécurité, Environnements)
- * à partir de toutes les feuilles d'ontologie liées sur les différents axes du sujet.
+ * Compose dynamiquement les objets LLD "Planned" (Nautobot, Sylva CAPI, Zones Sécurité, Environnements, Alimentations 2N)
+ * à partir de toutes les feuilles d'ontologie liées sur les différents axes du sujet et des surcharges éventuelles.
  */
 export function composeMultiAxisHydration(
   subjectId: string,
   bindings: OntologyBindingItem[],
-  catalog: OntologyCatalog
-): {
-  nautobot_planned_devices: Array<Record<string, unknown>>;
-  k8s_manifests: Array<Record<string, unknown>>;
-  security_zones: Array<Record<string, unknown>>;
-  environments: Array<Record<string, unknown>>;
-  coveredDomains: string[];
-} {
+  catalog: OntologyCatalog,
+  overrides: LldHydrationOverrides = {}
+): MultiAxisHydratedInventory {
   const cleanSubj = subjectId.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase();
   const hostname = `srv-${cleanSubj.slice(-12) || 'edge'}-01`;
 
@@ -442,10 +519,12 @@ export function composeMultiAxisHydration(
   const k8sManifests: Array<Record<string, unknown>> = [];
   const securityZones: Array<Record<string, unknown>> = [];
   const environments: Array<Record<string, unknown>> = [];
+  let powerFeeds: string[] = ['PDU-A', 'PDU-B'];
   const coveredDomains = new Set<string>();
 
-  let deviceRole = 'telco-baremetal-worker';
+  let deviceRole = 'worker';
   let deviceType = 'Dell-PowerEdge-R750';
+  let deviceStatus = 'planned';
   let hasComputeLeaf = false;
   let interfaces: Array<{ name: string; type: string; ip?: string }> = [
     { name: 'oob0', type: 'management', ip: '192.0.2.10/24' },
@@ -462,8 +541,16 @@ export function composeMultiAxisHydration(
 
     if (tpl.nautobot_device || proj.baremetal_types) {
       hasComputeLeaf = true;
-      deviceRole = tpl.nautobot_device?.role || (Array.isArray(proj.allowed_roles) ? proj.allowed_roles[0] : deviceRole);
-      deviceType = tpl.nautobot_device?.device_type || (Array.isArray(proj.baremetal_types) ? proj.baremetal_types[0] : deviceType);
+      deviceRole = Array.isArray(proj.allowed_roles)
+        ? proj.allowed_roles[proj.allowed_roles.length - 1]
+        : tpl.nautobot_device?.role || deviceRole;
+      deviceType =
+        tpl.nautobot_device?.device_type ||
+        (Array.isArray(proj.baremetal_types) ? proj.baremetal_types[0] : deviceType);
+    }
+
+    if (proj.required_status) {
+      deviceStatus = String(proj.required_status);
     }
 
     if (Array.isArray(tpl.nautobot_interfaces)) {
@@ -471,34 +558,72 @@ export function composeMultiAxisHydration(
     }
 
     if (tpl.security_zone || entity.domain === 'security') {
+      const isOam = entity.urn.endsWith(':oam');
       securityZones.push({
         urn: entity.urn,
         zone_id: tpl.security_zone?.zone_id || entity.urn.split(':').pop()?.toUpperCase(),
         title: entity.title,
-        isolation_level: proj.isolation_level || tpl.security_zone?.isolation_level || 'strict',
-        proxy_required: proj.proxy_required ?? tpl.security_zone?.proxy_required ?? false
+        isolation_level:
+          isOam && overrides.oamIsolationLevel !== undefined
+            ? overrides.oamIsolationLevel
+            : proj.isolation_level || tpl.security_zone?.isolation_level || 'strict',
+        proxy_required:
+          isOam && overrides.oamProxyRequired !== undefined
+            ? overrides.oamProxyRequired
+            : (proj.proxy_required ?? tpl.security_zone?.proxy_required ?? false)
       });
     }
 
     if (Array.isArray(tpl.environments) || proj.required_tiers) {
-      const tiers = Array.isArray(tpl.environments)
+      const baseTiers = Array.isArray(tpl.environments)
         ? tpl.environments
         : (proj.required_tiers as string[]).map((t: string) => ({
             env: t,
             isoprod: t !== 'dev'
           }));
-      environments.push(...tiers);
+      for (const tier of baseTiers) {
+        const isStaging = tier.env === 'recette' || tier.env === 'staging' || tier.env === 'preprod';
+        environments.push({
+          ...tier,
+          isoprod:
+            isStaging && overrides.stagingIsoprod !== undefined
+              ? overrides.stagingIsoprod
+              : tier.isoprod
+        });
+      }
+    }
+
+    if (Array.isArray(tpl.power_feeds)) {
+      powerFeeds = [...tpl.power_feeds];
     }
   }
+
+  // Application des surcharges d'ingénierie ou de simulation de dérive (Drift)
+  if (overrides.deviceType !== undefined) deviceType = overrides.deviceType;
+  if (overrides.nodeRole !== undefined) deviceRole = overrides.nodeRole;
+  if (overrides.deviceStatus !== undefined) deviceStatus = overrides.deviceStatus;
+  if (overrides.interfacesCount !== undefined) {
+    interfaces = interfaces.slice(0, Math.max(0, overrides.interfacesCount));
+  }
+  if (overrides.powerFeedsCount !== undefined) {
+    powerFeeds = ['PDU-A', 'PDU-B', 'PDU-C'].slice(0, Math.max(0, overrides.powerFeedsCount));
+  }
+
+  const oobIp = overrides.oobIp !== undefined ? overrides.oobIp : '192.0.2.10';
+  const bmcAddress =
+    overrides.bmcAddress !== undefined
+      ? overrides.bmcAddress
+      : `redfish+http://${oobIp || '192.0.2.10'}/redfish/v1/Systems/1`;
 
   if (hasComputeLeaf || bindings.length > 0) {
     nautobotDevices.push({
       name: hostname,
-      status: 'planned',
+      status: deviceStatus,
       device_type: deviceType,
-      oob_ip: '192.0.2.10',
+      oob_ip: oobIp,
       role: deviceRole,
       interfaces,
+      power_feeds: powerFeeds,
       security_zones: securityZones.map((z) => z.zone_id)
     });
 
@@ -515,7 +640,7 @@ export function composeMultiAxisHydration(
       },
       spec: {
         role: deviceRole,
-        bmc: { address: 'redfish+http://192.0.2.10/redfish/v1/Systems/1' },
+        bmc: { address: bmcAddress },
         bootMACAddress: '52:54:00:12:34:56'
       }
     });
@@ -526,6 +651,63 @@ export function composeMultiAxisHydration(
     k8s_manifests: k8sManifests,
     security_zones: securityZones,
     environments,
+    power_feeds: powerFeeds,
     coveredDomains: Array.from(coveredDomains)
+  };
+}
+
+/**
+ * Évalue formellement l'inventaire LLD hydraté du sujet face à la politique Rego multi-axes
+ * (`edp/policies/multi_axis_refinement.rego`) et aux projections `data.ontology` compilées.
+ */
+export async function evaluateMultiAxisOracle(
+  hydratedInventory: MultiAxisHydratedInventory,
+  bindings: OntologyBindingItem[],
+  catalog: OntologyCatalog
+): Promise<MultiAxisOracleEvaluationResult> {
+  const compiled = compileOntologyProjections(bindings, catalog);
+  const policyPath = resolve(process.cwd(), 'edp/policies/multi_axis_refinement.rego');
+
+  const opaRes = await runOpaEval<{
+    verdict: 'compliant' | 'violated';
+    violations: MultiAxisOracleViolation[];
+    violation_messages: string[];
+    evaluated_axes_count: number;
+  }>({
+    query: 'data.archinex.edp.multiaxis.evaluation',
+    policyFiles: [policyPath],
+    data: { ontology: compiled.ontology },
+    input: hydratedInventory
+  });
+
+  if (opaRes.status === 'pass' && opaRes.output) {
+    const violations = Array.isArray(opaRes.output.violations) ? opaRes.output.violations : [];
+    const violationMessages = Array.isArray(opaRes.output.violation_messages)
+      ? opaRes.output.violation_messages
+      : violations.map((v) => v.message);
+
+    return {
+      verdict: violations.length === 0 ? 'compliant' : 'violated',
+      violations,
+      violationMessages,
+      evaluatedAxesCount: opaRes.output.evaluated_axes_count ?? Object.keys(compiled.ontology).length,
+      ontologyFingerprint: compiled.fingerprint,
+      durationMs: opaRes.durationMs
+    };
+  }
+
+  return {
+    verdict: 'violated',
+    violations: [
+      {
+        rule: 'data.archinex.edp.multiaxis.opa_runtime_error',
+        axis: 'system',
+        message: opaRes.error || 'Échec d’exécution du binaire OPA.'
+      }
+    ],
+    violationMessages: [opaRes.error || 'Échec d’exécution du binaire OPA.'],
+    evaluatedAxesCount: Object.keys(compiled.ontology).length,
+    ontologyFingerprint: compiled.fingerprint,
+    durationMs: opaRes.durationMs
   };
 }

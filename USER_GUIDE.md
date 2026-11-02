@@ -478,12 +478,12 @@ Pour tester les décisions et oracles dans un environnement d'intégration réel
   - **Batfish API** : `http://localhost:9997`
   - **OPA Server REST** : `http://localhost:8181/v1/data`
 
-### 13.6 Matrice de Couverture du Raffinement Multi-Axes (KAOS + Ontologie) & Éditeur de Triplets
-Pour garantir qu'une intention architecturale de haut niveau ne souffre d'aucun oubli silencieux lors de sa déclinaison en objets LLD et règles Rego :
-- **Matrice de Couverture dans `EdpCard`** :
-  - Interroge dynamiquement le graphe d'ontologie (`requires_aspect` pour les sous-axes obligatoires en conjonction *AND-Refinement* ; `implemented_by` pour les feuilles concrètes en disjonction *OR-Refinement*).
-  - Affiche le statut de chaque sous-axe obligatoire (`🟢 Couvert & Exécutable`, `🟡 Lié sans Oracle Rego`, `🔴 Axe Oublié / Non Raffiné`) et permet de lier en un clic une feuille candidate (`+ Raffiner via « ... »`).
-  - Vérifie les dépendances transverses inter-axes (`depends_on`, `constrains`, `conflicts_with`).
+### 13.6 Phase 4 Dédiée « Refinement & Hydratation », Matrice KAOS Multi-Axes & Simulateur de Drift
+Pour séparer clairement la délibération HLD (Phase 2) et l'homologation documentaire (Phase 3) de l'ingénierie d'exécution LLD, un **4ème grand onglet de phase** est disponible en haut du projet (`/deliberation?posture=refinement`) :
+- **Atelier Plein Écran « Phase 4 : Refinement & Hydratation » (`Phase4RefinementHub`)** :
+  - **Colonne Gauche — Matrice KAOS des 5 Axes Obligatoires (`requires_aspect` → `implemented_by`)** : affiche pour le sujet sélectionné le statut de chaque sous-axe obligatoire (*1. Substrat Compute*, *2. Plan Hors-Bande OOB*, *3. Zonage Sécurité NIS2*, *4. Fidélité Environnements Dev/Recette/Prod*, *5. Résilience Électrique 2N*), les clauses de la spécification rattachées et un bouton **`Compléter tous les axes manquants`** (ou liaison axe par axe).
+  - **Colonne Droite — Hydratation LLD & Oracle OPA Multi-Axes (`multi_axis_refinement.rego`)** : génère l'inventaire LLD multi-axes (`nautobot_planned_devices`, `k8s_manifests`, `security_zones`, `environments`, `power_feeds`) et l'évalue réellement via OPA contre `data.ontology`.
+  - **Simulateur de Dérive CMDB (Drift)** : permet de simuler en un clic une dérive sur chacun des 5 axes (serveur Whitebox non homologué, désalignement IP BMC/OOB, désactivation du proxy OAM, recette non Iso-Prod, perte d'une adduction PDU 2N) et de constater la violation Rego correspondante.
 - **Visualiseur & Éditeur de Triplets dans `/knowledge?view=ontology`** :
   - Accessible depuis l'onglet **`🕸️ Ontologie & Triplets ({S, V, O})`** du Graphe de Connaissances (`/knowledge`).
   - Permet d'inspecter l'arbre `Concept HLD → Sous-Axes Requis → Feuilles & Oracles` et d'ajouter ou supprimer des triplets `{ Sujet, Verbe, Complément }` à la volée.

@@ -423,6 +423,15 @@ export function computeRefinementCoverage(
       }
     }
 
+    // Auto-raffinement par défaut (KAOS OR-Refinement) : tant qu'une feuille standard homologuée existe
+    // dans l'ontologie pour cet axe obligatoire, on la lie automatiquement sans attendre un clic manuel.
+    if (shouldAutoBind && boundLeaves.length === 0 && candidateLeaves.length > 0) {
+      const defaultCandidate =
+        candidateLeaves.find((c) => c.oracleRules.length > 0) || candidateLeaves[0];
+      boundLeafUrns.add(defaultCandidate.urn);
+      boundLeaves.push(defaultCandidate);
+    }
+
     const oracleRulesCount = boundLeaves.reduce((acc, l) => acc + l.oracleRules.length, 0);
 
     let status: AxisCoverageStatus = 'missing_refinement';

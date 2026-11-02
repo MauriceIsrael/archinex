@@ -84,6 +84,7 @@
 						edpId: currentEdp?.metadata?.id || `EDP-${subjectId}`,
 						validatorId: sessionUser?.id || 'lead-architect',
 						validatorRole: sessionRole || 'Lead Architect',
+						selectedConceptUrn,
 						...payload
 					})
 				}
@@ -109,8 +110,8 @@
 		}
 	}
 
-	async function handleBindLeaf(leafUrn: string) {
-		await triggerEdpAction({ action: 'bind_aspect', leafUrn });
+	async function handleBindLeaf(leafUrn: string, axisUrn?: string) {
+		await triggerEdpAction({ action: 'bind_aspect', leafUrn, axisUrn });
 	}
 
 	async function handleBindAllMissingAxes() {
@@ -391,19 +392,26 @@
 										<p class="text-[11px] text-muted-foreground">{axis.rationale}</p>
 									</div>
 
-									<!-- Boutons de sélection de feuille (OR-Refinement) -->
+									<!-- Boutons de sélection de feuille (OR-Refinement : uniquement si axe manquant ou variante alternative exécutable) -->
 									<div class="flex items-center gap-1.5 flex-wrap">
 										{#each axis.candidateLeaves as cand}
 											{@const isBound = axis.boundLeaves.some((b: any) => b.urn === cand.urn)}
-											{#if !isBound}
+											{@const isExecutableVariant = (cand.oracleRules?.length || 0) > 0}
+											{#if !isBound && (axis.status === 'missing_refinement' || isExecutableVariant)}
 												<button
 													type="button"
 													disabled={isActionRunning}
-													onclick={() => handleBindLeaf(cand.urn)}
-													class="px-2.5 py-1 rounded-md text-[11px] font-semibold bg-indigo-600 hover:bg-indigo-700 text-white shadow-2xs transition-colors cursor-pointer"
+													onclick={() => handleBindLeaf(cand.urn, axis.axisUrn)}
+													class="px-2.5 py-1 rounded-md text-[11px] font-semibold transition-colors cursor-pointer {axis.status === 'missing_refinement'
+														? 'bg-indigo-600 hover:bg-indigo-700 text-white shadow-2xs'
+														: 'border border-indigo-500/40 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-800 dark:text-indigo-200'}"
 													data-testid="phase4-bind-leaf-btn"
 												>
-													+ Raffiner via « {cand.title} »
+													{#if axis.status === 'missing_refinement'}
+														+ Raffiner via « {cand.title} »
+													{:else}
+														⇄ Variante : « {cand.title} »
+													{/if}
 												</button>
 											{/if}
 										{/each}

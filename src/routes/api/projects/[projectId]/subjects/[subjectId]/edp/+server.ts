@@ -20,7 +20,8 @@ async function loadSubjectContext(subjectId: string) {
     include: { decision: true, options: true }
   });
   const title = subject?.name || 'Plateforme Cloud & Interconnexion Sécurisée';
-  const sectionRef = subject?.section_ref || subjectId.slice(0, 10) || 'ADR-012';
+  const sectionRef = subject?.section_ref || subjectId || 'ADR-012';
+  const edpPrimaryKey = `EDP-${subjectId}`;
   const decisionText =
     subject?.decision?.retainedOptionTitle ||
     subject?.options?.map((o: any) => o.title).join('. ') ||
@@ -29,7 +30,7 @@ async function loadSubjectContext(subjectId: string) {
     subject?.problem ||
     `Spécification et raffinement multi-axes opposable pour : ${title}`;
 
-  return { subject, title, sectionRef, decisionText, problem };
+  return { subject, title, sectionRef, edpPrimaryKey, decisionText, problem };
 }
 
 export const GET: RequestHandler = async ({ params, url }) => {
@@ -65,7 +66,7 @@ export const GET: RequestHandler = async ({ params, url }) => {
           problem: parsedContent.decision_context?.problem || ctx.problem,
           decisionText: parsedContent.decision_context?.decision || ctx.decisionText,
           explicitBindings,
-          autoBindFromText: explicitBindings.length === 0,
+          autoBindFromText: true,
           selectedConceptUrn
         },
         catalog
@@ -194,7 +195,18 @@ export const POST: RequestHandler = async (event) => {
     return json({ error: 'Corps JSON invalide.' }, { status: 400 });
   }
 
-  const { action, edpId, validatorId, validatorRole, reason, leafUrn, driftScenario, overrides } = body;
+  const {
+    action,
+    edpId,
+    validatorId,
+    validatorRole,
+    reason,
+    leafUrn,
+    axisUrn,
+    selectedConceptUrn,
+    driftScenario,
+    overrides
+  } = body;
 
   // 1. Validation formelle (Porte G3)
   if (action === 'validate') {
@@ -241,7 +253,7 @@ export const POST: RequestHandler = async (event) => {
         ? JSON.parse(fromDb.content)
         : {
             metadata: {
-              id: `EDP-${ctx.sectionRef.toUpperCase()}`,
+              id: ctx.edpPrimaryKey,
               title: `${ctx.title} (${ctx.sectionRef.toUpperCase()})`,
               status: 'proposed',
               revision: 1
@@ -257,6 +269,8 @@ export const POST: RequestHandler = async (event) => {
             }
           };
 
+      const activeConcept = selectedConceptUrn || currentEdp.selectedConceptUrn || 'AUTO';
+
       const initialCoverage = computeRefinementCoverage(
         {
           subjectId,
@@ -264,7 +278,8 @@ export const POST: RequestHandler = async (event) => {
           problem: currentEdp.decision_context?.problem || ctx.problem,
           decisionText: currentEdp.decision_context?.decision || ctx.decisionText,
           explicitBindings: currentEdp.decision_context?.ontology_bindings || [],
-          autoBindFromText: (currentEdp.decision_context?.ontology_bindings || []).length === 0
+          autoBindFromText: true,
+          selectedConceptUrn: activeConcept
         },
         catalog
       );
@@ -274,7 +289,25 @@ export const POST: RequestHandler = async (event) => {
         updatedBindingMap.set(b.urn, b.revision);
       }
 
+      // Si l'architecte bascule de variante sur un axe donné (OR-Refinement),
+      // on remplace les autres feuilles du même axe tout en préservant tous les autres axes.
       if (leafUrn && catalog.entities[leafUrn]) {
+        const targetAxisUrn =
+          axisUrn ||
+          (catalog.triplets || []).find(
+            (t) => t.predicate === 'implemented_by' && t.object === leafUrn
+          )?.subject;
+
+        if (targetAxisUrn) {
+          const siblingLeaves = (catalog.triplets || [])
+            .filter((t) => t.predicate === 'implemented_by' && t.subject === targetAxisUrn)
+            .map((t) => t.object);
+          for (const sib of siblingLeaves) {
+            if (sib !== leafUrn) {
+              updatedBindingMap.delete(sib);
+            }
+          }
+        }
         updatedBindingMap.set(leafUrn, catalog.entities[leafUrn].revision ?? 1);
       }
 
@@ -290,7 +323,8 @@ export const POST: RequestHandler = async (event) => {
           problem: currentEdp.decision_context?.problem || ctx.problem,
           decisionText: currentEdp.decision_context?.decision || ctx.decisionText,
           explicitBindings,
-          autoBindFromText: false
+          autoBindFromText: true,
+          selectedConceptUrn: activeConcept
         },
         catalog
       );
@@ -305,6 +339,11 @@ export const POST: RequestHandler = async (event) => {
 
       const updatedEdp = {
         ...currentEdp,
+        metadata: {
+          ...currentEdp.metadata,
+          id: ctx.edpPrimaryKey
+        },
+        selectedConceptUrn: activeConcept,
         decision_context: {
           ...currentEdp.decision_context,
           ontology_bindings: newCoverage.composedBindings
@@ -322,9 +361,9 @@ export const POST: RequestHandler = async (event) => {
 
       try {
         await (prisma as any).executableDecisionPackage?.upsert({
-          where: { id: updatedEdp.metadata.id },
+          where: { id: ctx.edpPrimaryKey },
           create: {
-            id: updatedEdp.metadata.id,
+            id: ctx.edpPrimaryKey,
             subjectId,
             decisionId: ctx.subject?.decision?.id || `DEC-${subjectId}`,
             status: updatedEdp.metadata.status || 'proposed',
@@ -334,6 +373,7 @@ export const POST: RequestHandler = async (event) => {
             content: JSON.stringify(updatedEdp)
           },
           update: {
+            subjectId,
             content: JSON.stringify(updatedEdp)
           }
         });
@@ -368,6 +408,8 @@ export const POST: RequestHandler = async (event) => {
       const explicitBindings = parsedDb?.decision_context?.ontology_bindings || [];
       const currentOverrides: LldHydrationOverrides = overrides || parsedDb?.lldOverrides || {};
 
+      const activeConcept = selectedConceptUrn || parsedDb?.selectedConceptUrn || 'AUTO';
+
       const coverage = computeRefinementCoverage(
         {
           subjectId,
@@ -375,7 +417,8 @@ export const POST: RequestHandler = async (event) => {
           problem: ctx.problem,
           decisionText: ctx.decisionText,
           explicitBindings,
-          autoBindFromText: explicitBindings.length === 0
+          autoBindFromText: true,
+          selectedConceptUrn: activeConcept
         },
         catalog
       );
@@ -454,7 +497,7 @@ export const POST: RequestHandler = async (event) => {
 
       const newEdp = {
         metadata: {
-          id: `EDP-${ctx.sectionRef.toUpperCase()}`,
+          id: ctx.edpPrimaryKey,
           title: `Paquet Exécutable Multi-Axes : ${ctx.title}`,
           status: 'proposed',
           revision: 1
@@ -544,6 +587,8 @@ export const POST: RequestHandler = async (event) => {
       const parsedDb = fromDb ? JSON.parse(fromDb.content) : null;
       const explicitBindings = parsedDb?.decision_context?.ontology_bindings || [];
 
+      const activeConcept = selectedConceptUrn || parsedDb?.selectedConceptUrn || 'AUTO';
+
       const coverage = computeRefinementCoverage(
         {
           subjectId,
@@ -551,7 +596,8 @@ export const POST: RequestHandler = async (event) => {
           problem: ctx.problem,
           decisionText: ctx.decisionText,
           explicitBindings,
-          autoBindFromText: explicitBindings.length === 0
+          autoBindFromText: true,
+          selectedConceptUrn: activeConcept
         },
         catalog
       );
@@ -595,7 +641,7 @@ export const POST: RequestHandler = async (event) => {
       const updatedEdp = {
         ...(parsedDb || {
           metadata: {
-            id: `EDP-${ctx.sectionRef.toUpperCase()}`,
+            id: ctx.edpPrimaryKey,
             title: `${ctx.title} (${ctx.sectionRef.toUpperCase()})`,
             status: 'proposed',
             revision: 1
@@ -606,6 +652,14 @@ export const POST: RequestHandler = async (event) => {
             ontology_bindings: coverage.composedBindings
           }
         }),
+        metadata: {
+          ...(parsedDb?.metadata || {}),
+          id: ctx.edpPrimaryKey,
+          title: parsedDb?.metadata?.title || `${ctx.title} (${ctx.sectionRef.toUpperCase()})`,
+          status: parsedDb?.metadata?.status || 'proposed',
+          revision: parsedDb?.metadata?.revision || 1
+        },
+        selectedConceptUrn: activeConcept,
         refinementCoverage: coverage,
         hydratedInventory,
         lldOverrides: activeOverrides,
@@ -621,9 +675,9 @@ export const POST: RequestHandler = async (event) => {
 
       try {
         await (prisma as any).executableDecisionPackage?.upsert({
-          where: { id: updatedEdp.metadata.id },
+          where: { id: ctx.edpPrimaryKey },
           create: {
-            id: updatedEdp.metadata.id,
+            id: ctx.edpPrimaryKey,
             subjectId,
             decisionId: ctx.subject?.decision?.id || `DEC-${subjectId}`,
             status: updatedEdp.metadata.status || 'proposed',
@@ -633,6 +687,7 @@ export const POST: RequestHandler = async (event) => {
             content: JSON.stringify(updatedEdp)
           },
           update: {
+            subjectId,
             content: JSON.stringify(updatedEdp)
           }
         });

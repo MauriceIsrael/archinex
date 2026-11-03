@@ -5,6 +5,7 @@ import {
   composeMultiAxisHydration,
   evaluateMultiAxisOracle
 } from '../src/lib/server/edp/refinementCoverage.js';
+import { syncHydratedInventoryToNautobot } from '../src/lib/server/edp/nautobotSync.js';
 
 const PROJECT_ID = 'lulu-avec-options-et-criteres-proposes';
 const SUBJECT_ID = 'sub_lulu-avec-options-et-criteres-proposes_89';
@@ -266,6 +267,19 @@ async function main() {
   console.log(`     6. Flux Service S6a        : ${rg.service_mediation_flows.map((f: any) => `${f.id} [hops: ${f.mandatory_mediation_hops.join(' -> ')}]`).join(', ')}`);
   console.log(`     7. Contrats SLA & NOC      : ${rg.sla_and_monitoring_contracts.map((c: any) => `${c.id} (${c.requirement_ref})`).join(', ')}`);
   console.log(`   • Verdict Oracle OPA Rego    : ${oracleEval.verdict.toUpperCase()} (${oracleEval.violations.length} violation, ${oracleEval.evaluatedAxesCount} feuilles évaluées)`);
+  const nbSync = await syncHydratedInventoryToNautobot(hydratedInventory);
+  if (nbSync.reachable) {
+    console.log(`✅ [Nautobot 2.x SSoT Live Sync] Synchronisation réussie sur http://localhost:8080 :`);
+    console.log(`   • Tenants synchronisés       : ${nbSync.tenantsSynced} (${nbSync.urls.tenants})`);
+    console.log(`   • Circuits synchronisés      : ${nbSync.circuitsSynced} (${nbSync.urls.circuits})`);
+    console.log(`   • Préfixes IP & VLAN         : ${nbSync.prefixesSynced} préfixe(s), ${nbSync.vlansSynced} VLAN (${nbSync.urls.prefixes})`);
+    console.log(`   • Équipements DCIM           : ${nbSync.devicesSynced} (${nbSync.urls.devices})`);
+    if (nbSync.errors.length > 0) {
+      console.log(`   ⚠️ Avertissements Nautobot   : ${nbSync.errors.join(' | ')}`);
+    }
+  } else {
+    console.log(`ℹ️ [Nautobot SSoT] Conteneur Nautobot non joignable sur http://localhost:8080 (inventaire persisté localement).`);
+  }
   console.log('══════════════════════════════════════════════════════════════════════════════');
 }
 

@@ -12,6 +12,7 @@ import {
   evaluateMultiAxisOracle,
   type LldHydrationOverrides
 } from '$lib/server/edp/refinementCoverage';
+import { syncHydratedInventoryToNautobot } from '$lib/server/edp/nautobotSync';
 import { authorizeProjectAccess } from '$lib/server/projects/projectAccess';
 
 async function loadSubjectContext(subjectId: string) {
@@ -435,25 +436,17 @@ export const POST: RequestHandler = async (event) => {
         currentOverrides
       );
 
-      let nautobotSynced = false;
-      let devicesCount = composedHydration.nautobot_planned_devices.length;
-      try {
-        const nbRes = await fetch('http://localhost:8080/api/dcim/devices/?status=planned', {
-          headers: { Authorization: 'Token 0123456789abcdef0123456789abcdef01234567' },
-          signal: AbortSignal.timeout(2000)
-        });
-        if (nbRes.ok) {
-          const nbData = await nbRes.json();
-          devicesCount = Math.max(nbData.count || 0, composedHydration.nautobot_planned_devices.length);
-          nautobotSynced = true;
-        }
-      } catch {
-        // Mode autonome si conteneur arrêté
-      }
+      const syncSummary = await syncHydratedInventoryToNautobot(composedHydration);
+      const nautobotSynced = syncSummary.reachable;
+      const devicesCount = Math.max(
+        syncSummary.devicesSynced,
+        composedHydration.nautobot_planned_devices.length
+      );
 
       return json({
         success: true,
         nautobotSynced,
+        nautobotSyncSummary: syncSummary,
         devicesCount,
         hydratedInventory: composedHydration,
         hydratedItems: composedHydration.nautobot_planned_devices,
@@ -463,7 +456,7 @@ export const POST: RequestHandler = async (event) => {
         powerFeeds: composedHydration.power_feeds,
         coveredDomains: composedHydration.coveredDomains,
         message: nautobotSynced
-          ? `Hydratation multi-axes synchronisée sur Nautobot (${composedHydration.coveredDomains.join(' + ')}) !`
+          ? `Hydratation SSoT poussée dans Nautobot (${syncSummary.circuitsSynced} circuit(s), ${syncSummary.tenantsSynced} tenant(s), ${syncSummary.devicesSynced} équipement(s), ${syncSummary.prefixesSynced} préfixe(s)) !`
           : `Objets planned multi-axes (${composedHydration.coveredDomains.join(' + ')}) générés avec succès !`
       });
     } catch (err: any) {

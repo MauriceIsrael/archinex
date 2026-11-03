@@ -127,6 +127,7 @@ export interface ReconciliationObjectGraph {
 export interface MultiAxisHydratedInventory {
   nautobot_planned_devices: Array<Record<string, unknown>>;
   k8s_manifests: Array<Record<string, unknown>>;
+  sylva_workload_cluster_values?: Record<string, unknown>;
   security_zones: Array<Record<string, unknown>>;
   environments: Array<Record<string, unknown>>;
   power_feeds: string[];
@@ -746,28 +747,129 @@ export function composeMultiAxisHydration(
       });
 
       k8sManifests.push({
-        apiVersion: 'infrastructure.cluster.x-k8s.io/v1alpha5',
+        apiVersion: 'metal3.io/v1alpha1',
         kind: 'BareMetalHost',
         metadata: {
           name: nodeHostname,
           namespace: 'sylva-system',
           labels: {
-            'archinex.io/device-type': nodeType,
-            'archinex.io/cluster-pool': prof.clusterPool,
-            'archinex.io/distribution': 'SUSE-Telco-Cloud-RKE2',
-            'archinex.io/orchestrator': 'Sylva-CAPI-Metal3',
-            'archinex.io/host-os': 'SLE-Micro-5.5',
-            'archinex.io/security-zones': securityZones.map((z) => z.zone_id).join('-') || 'default'
+            'app.kubernetes.io/managed-by': 'sylva-units-operator',
+            'sylva.org/workload-cluster': `wc-${cleanSubj.slice(-12) || 'lot1'}`,
+            'sylva.org/machine-deployment-pool': prof.clusterPool,
+            'sylva.org/device-type': nodeType,
+            'sylva.org/security-zones': securityZones.map((z) => z.zone_id).join('-') || 'default'
           }
         },
         spec: {
           role: nodeRole,
-          bmc: { address: nodeBmcAddress },
-          bootMACAddress: `52:54:00:12:34:${56 + idx}`
+          online: true,
+          bmc: {
+            address: nodeBmcAddress,
+            credentialsName: `${nodeHostname}-bmc-secret`,
+            disableCertificateVerification: false
+          },
+          bootMACAddress: `52:54:00:12:34:${56 + idx}`,
+          automatedCleaningMode: 'metadata'
         }
       });
     });
   }
+
+  // Génération du descripteur natif Sylva (`SylvaWorkloadCluster` + `sylva-units` values.yaml)
+  // produit par la couche d'intention Nephio / Archinex sans réinventer l'opérateur Sylva.
+  const sylvaBaremetalHosts: Record<string, unknown> = {};
+  const sylvaMachineDeployments: Record<string, unknown> = {};
+  for (const [idx, dev] of nautobotDevices.entries()) {
+    const hostKey = String(dev.name);
+    const poolName = String(dev.cluster_pool || 'sylva-default-pool');
+    const isSriovPool = poolName.includes('sriov') || poolName.includes('cnf');
+    const bmhSpec = (k8sManifests[idx]?.spec || {}) as Record<string, any>;
+
+    sylvaBaremetalHosts[hostKey] = {
+      bmh_metadata: {
+        labels: {
+          'host-group': poolName,
+          'device-type': dev.device_type
+        }
+      },
+      bmh_spec: {
+        bmc: bmhSpec.bmc,
+        bootMACAddress: bmhSpec.bootMACAddress
+      }
+    };
+
+    sylvaMachineDeployments[`md-${poolName}`] = {
+      infra_provider: 'capm3',
+      replicas: 1,
+      machine_deployment_spec: {
+        template: {
+          spec: {
+            hostSelector: {
+              matchLabels: { 'host-group': poolName }
+            }
+          }
+        }
+      },
+      rke2: {
+        nodeLabels: {
+          'sylva.org/pool': poolName,
+          'sylva.org/dataplane': isSriovPool ? 'sriov-dpdk-numa' : 'cilium-nis2'
+        },
+        kubeletExtraArgs: isSriovPool
+          ? ['--cpu-manager-policy=static', '--topology-manager-policy=single-numa-node']
+          : []
+      },
+      network_interfaces: isSriovPool
+        ? {
+            bond0: { type: 'bond', interfaces: ['eno1', 'eno2'], vlans: [{ id: 1403 }] },
+            sriov0: { type: 'sriov', num_vfs: 16, mtu: 9000 }
+          }
+        : {
+            bond0: { type: 'bond', interfaces: ['eno1', 'eno2'] }
+          }
+    };
+  }
+
+  const hasSriovPool = nautobotDevices.some((d) =>
+    String(d.cluster_pool || '').includes('sriov')
+  );
+
+  const sylvaWorkloadClusterValues: Record<string, unknown> = {
+    apiVersion: 'workloadcluster.sylva.org/v1alpha1',
+    kind: 'SylvaWorkloadCluster',
+    metadata: {
+      name: `wc-${cleanSubj.slice(-12) || 'lot1'}`,
+      namespace: 'sylva-workload-clusters',
+      annotations: {
+        'nephio.org/package-variant': `pv-${cleanSubj.slice(-12) || 'lot1'}`,
+        'archinex.io/source-subject': subjectId
+      }
+    },
+    spec: {
+      capi_providers: {
+        infra_provider: 'capm3',
+        bootstrap_provider: 'cabpr'
+      },
+      k8s_version: 'v1.28.11+rke2r1',
+      os_image_selector: {
+        os: 'sle-micro',
+        release: '5.5',
+        hardened: true
+      },
+      units: {
+        cilium: { enabled: true },
+        multus: { enabled: hasSriovPool },
+        sriov: { enabled: hasSriovPool },
+        'sriov-resources': { enabled: hasSriovPool },
+        metallb: { enabled: true },
+        vault: { enabled: true },
+        kyverno: { enabled: true },
+        monitoring: { enabled: true }
+      },
+      baremetal_hosts: sylvaBaremetalHosts,
+      machine_deployments: sylvaMachineDeployments
+    }
+  };
 
   const pivotTenantId = 'org-lot3-mno';
   const mandatoryMediationHops = overrides.s6aDirectBypassDea
@@ -926,6 +1028,7 @@ export function composeMultiAxisHydration(
   return {
     nautobot_planned_devices: nautobotDevices,
     k8s_manifests: k8sManifests,
+    sylva_workload_cluster_values: sylvaWorkloadClusterValues,
     security_zones: securityZones,
     environments,
     power_feeds: powerFeeds,

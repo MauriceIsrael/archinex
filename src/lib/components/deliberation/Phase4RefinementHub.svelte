@@ -530,7 +530,7 @@
 							Objets Générés Multi-Axes (Nautobot & Sylva CAPI)
 						</h3>
 					</div>
-					<div class="flex items-center gap-2">
+					<div class="flex items-center gap-1.5 flex-wrap">
 						<button
 							type="button"
 							disabled={isActionRunning}
@@ -542,13 +542,33 @@
 							<span>Hydrater Nautobot & Sylva</span>
 						</button>
 						<a
+							href="http://localhost:8080/circuits/circuits/"
+							target="_blank"
+							rel="noreferrer"
+							class="inline-flex items-center gap-1 px-2 py-1.5 rounded-lg border bg-muted/40 hover:bg-muted text-[11px] font-semibold text-foreground"
+							title="Voir le Circuit S6a link-ip-lot3-secgw1 dans Nautobot"
+						>
+							<span>Circuits</span>
+							<ExternalLink class="h-3 w-3" />
+						</a>
+						<a
+							href="http://localhost:8080/tenancy/tenants/"
+							target="_blank"
+							rel="noreferrer"
+							class="inline-flex items-center gap-1 px-2 py-1.5 rounded-lg border bg-muted/40 hover:bg-muted text-[11px] font-semibold text-foreground"
+							title="Voir les Tenants org-lot3-mno & org-lot2-ran dans Nautobot"
+						>
+							<span>Tenants</span>
+							<ExternalLink class="h-3 w-3" />
+						</a>
+						<a
 							href="http://localhost:8080/dcim/devices/"
 							target="_blank"
 							rel="noreferrer"
-							class="inline-flex items-center gap-1 px-2.5 py-1.5 rounded-lg border bg-muted/40 hover:bg-muted text-xs font-semibold text-foreground"
-							title="Ouvrir l'interface Nautobot DCIM (admin / adminpassword)"
+							class="inline-flex items-center gap-1 px-2 py-1.5 rounded-lg border bg-muted/40 hover:bg-muted text-[11px] font-semibold text-foreground"
+							title="Voir les 7 Équipements (Sylva + 3GPP Shadow + SecGW/DEA/HSS) dans Nautobot"
 						>
-							<span>Nautobot</span>
+							<span>Devices</span>
 							<ExternalLink class="h-3 w-3" />
 						</a>
 					</div>
@@ -586,14 +606,16 @@
 							{@const bmh = hydrated.k8s_manifests[0]}
 							<div class="p-2.5 rounded-lg border bg-muted/20 space-y-1">
 								<div class="flex items-center justify-between">
-									<span class="text-[10px] font-bold uppercase text-muted-foreground">Sylva CAPI Manifest ({hydrated.k8s_manifests.length})</span>
+									<span class="text-[10px] font-bold uppercase text-muted-foreground">Sylva WorkloadCluster & CAPM3 ({hydrated.k8s_manifests.length})</span>
 									<span class="font-mono text-[10px] px-1.5 py-0.2 rounded bg-indigo-500/15 text-indigo-700 dark:text-indigo-300">
-										{bmh.kind}
+										{hydrated.sylva_workload_cluster_values?.kind || bmh.kind}
 									</span>
 								</div>
-								<div class="font-mono font-bold text-foreground">{bmh.metadata?.name}</div>
+								<div class="font-mono font-bold text-foreground">
+									{hydrated.sylva_workload_cluster_values?.metadata?.name || bmh.metadata?.name}
+								</div>
 								<div class="text-[11px] text-muted-foreground">
-									Rôle : <strong class="text-foreground">{bmh.spec?.role}</strong>
+									Providers Sylva : <strong class="text-foreground">capm3 (Metal3) + cabpr (RKE2)</strong>
 								</div>
 								<div class="text-[11px] text-muted-foreground truncate" title={bmh.spec?.bmc?.address}>
 									BMC : <code class="font-mono text-foreground">{bmh.spec?.bmc?.address}</code>

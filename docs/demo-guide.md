@@ -2,7 +2,7 @@
 
 Ce guide présente la démarche et le scénario complet pour animer une démonstration d'**Archinex** couplé à **LLMOps (Le Hub)** auprès d'un collège d'architectes d'entreprise et d'architectes de solutions critiques.
 
-Il s'appuie sur le cas réel s **Lulu· Lot 1 (NOC, Cœur 5G PPDR & Résilience)** pré-chargé dans la base sans nécessiter de clé API externe pour la session.
+Il s'appuie sur le cas réel s **Lulu Lot 1 (NOC, Cœur 5G PPDR & Résilience)** pré-chargé dans la base sans nécessiter de clé API externe pour la session.
 
 ---
 
@@ -89,7 +89,7 @@ Une fois les décisions arrêtées et scellées dans l'engagement (empreinte SHA
 
 ### Acte 1 : Confrontation RFP & Facteur d'Échelle (ArcKit Triage)
 - **Objectif** : Montrer comment passer d'un cahier des charges massif et anxiogène de 92 clauses à une cartographie claire en 2 minutes.
-- **Écran** : Naviguer sur `http://localhost:5173/projects/lumicc-lot1-noc/audit`.
+- **Écran** : Naviguer sur `http://localhost:5173/projects/lulu-lot1-noc/audit`.
 - **Ce qu'on montre** :
   - La vue synthétique : 92 clauses ingérées, 77 délibérées, 6 évacuées, 9 clarifications.
   - L'inspection d'une clause évacuée (justification : pure clause de conformité légale).
@@ -98,7 +98,7 @@ Une fois les décisions arrêtées et scellées dans l'engagement (empreinte SHA
 
 ### Acte 2 : Maturation Dialectique & Résolution du Dilemme
 - **Objectif** : Montrer que l'architecture n'est pas un prompt à LLM, mais une délibération d'équipe outillée.
-- **Écran** : Naviguer sur `http://localhost:5173/projects/lumicc-lot1-noc/subjects/SUBJ-03` (Synchronisation GNSS & Holdover).
+- **Écran** : Naviguer sur `http://localhost:5173/projects/lulu-lot1-noc/subjects/SUBJ-03` (Synchronisation GNSS & Holdover).
 - **Ce qu'on montre** :
   - La matrice multicritère (MCDA) : Option A (Holdover Rubidium local 30 jours) vs Option B (Sync PTP WAN inter-sites).
   - Le fil dialectique d'échanges entre l'architecte Infrastructure et l'architecte Sécurité.
@@ -107,7 +107,7 @@ Une fois les décisions arrêtées et scellées dans l'engagement (empreinte SHA
 
 ### Acte 3 : Projection Déterministe & Alignement Zéro-Dérive
 - **Objectif** : Répondre à l'angoisse des architectes : *"Est-ce que votre outil génère des documents incohérents avec la réalité ?"*.
-- **Écran** : Naviguer sur `http://localhost:5173/projects/lumicc-lot1-noc/artifacts`.
+- **Écran** : Naviguer sur `http://localhost:5173/projects/lulu-lot1-noc/artifacts`.
 - **Ce qu'on montre** :
   - Le panneau **Artifact Hub** avec les 5 formats disponibles.
   - L'affichage interactif du diagramme Mermaid C4 (topologie 3 DC POST, liens PTP, mTLS).

@@ -8,6 +8,19 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Socle Ontologique 6 Concepts SI/Telco, Cumul de Variantes Sylva, Réconciliation Multi-Objets (§14) & Synchronisation Live Nautobot 2.x (`npm run seed:demo`)
+- **Enrichissement du Socle Ontologique (`tests/fixtures/edp/ontology_export.json`)** :
+  - Couverture complète des **6 grands concepts HLD SI/Telco** (`telco_cloud_platform`, `interconnection_gateway`, `storage_data_persistence`, `iam_security_zerotrust`, `observability_noc_soc`, `resilience_drp_continuity`), **18 sous-axes obligatoires (`requires_aspect`)** et **21 feuilles d'implémentation (`implemented_by`)**.
+  - Positionnement de **SUSE Telco Cloud & Sylva** par défaut sur l'axe `compute_substrate` avec support du **cumul de variantes (OU inclusif)** (`+ Cumuler`, `⇄ Remplacer`, `✕ Retirer`) permettant d'hydrater simultanément le pool `sylva-cnf-sriov-dpdk` (CNF Cœur de Réseau) et le pool `sylva-standard-nis2`.
+- **Intégration Propre avec Sylva (`SylvaWorkloadCluster` `workloadcluster.sylva.org/v1alpha1`)** :
+  - Génération native du descripteur `sylva_workload_cluster_values` (`capi_providers: capm3 + cabpr`, `units: cilium, multus, sriov, vault, kyverno, monitoring`, `baremetal_hosts` et `machine_deployments`) et des `BareMetalHost` `metal3.io/v1alpha1` sans réinventer l'opérateur `sylva-units`.
+- **Graphe d'Objets Exhaustif à 7 Classes & Réconciliation Multi-Domaine (`reconciliation_graph`, `multi_axis_refinement.rego`)** :
+  - Modélisation conjointe des 7 classes d'objets autour de la clé pivot `tenant_ref = "org-lot3-mno"` (3GPP TS 28.620 NRM `ExternalFunction`, TM Forum SID GB922 `Party/Resource/Service/SLA`, Nephio KRM & Nautobot SSoT).
+  - Ajout des règles Rego `deny_unmediated_s6a_direct_flow` et `deny_unreconciled_partner_objects` et des 2 scénarios de dérive associés dans `Phase4RefinementHub.svelte`.
+- **Synchronisation Temps Réel vers Nautobot 2.x (`src/lib/server/edp/nautobotSync.ts`) & Démonstrateur `npm run seed:demo` (`scripts/seed-demo.ts`)** :
+  - Poussée REST idempotente dans Nautobot (`http://localhost:8080`) des Tenants (`org-lot3-mno`, `org-lot2-ran`), du Circuit S6a (`link-ip-lot3-secgw1`) avec ses Terminaisons A/Z, du VLAN `1403`, du préfixe `100.64.14.0/30` et des 7 équipements DCIM.
+  - Ajout du script `npm run seed:demo` préparant le parcours complet Phase 1 $\rightarrow$ Phase 4 sur l'exigence **§14 de Lulu (Lot 3 ↔ Lot 1)**.
+
 ### Phase 4 Dédiée « Refinement & Hydratation », Matrice KAOS Multi-Axes & Simulateur de Drift OPA
 - **Nouvelle Phase 4 Macroscopique (`Phase4RefinementHub.svelte`, `ProjectEngagementHeader.svelte`)** :
   - Ajout d'un 4ème grand onglet de projet **« Phase 4 · 🧪 Refinement & Hydratation »** (`posture = 'refinement'`) dédié au passage du HLD (L3/L4) au LLD exécutable, complété par un bouton d'accès rapide depuis la Phase 2.

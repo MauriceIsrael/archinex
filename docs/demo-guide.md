@@ -1,8 +1,8 @@
-# Guide de Démonstration : LUMICC Lot 1 (Lulu) & ArcKit
+# Guide de Démonstration :  Lot 1 (Lulu) & ArcKit
 
 Ce guide présente la démarche et le scénario complet pour animer une démonstration d'**Archinex** couplé à **LLMOps (Le Hub)** auprès d'un collège d'architectes d'entreprise et d'architectes de solutions critiques.
 
-Il s'appuie sur le cas réel d'appel d'offres **LUMICC · Lot 1 (NOC, Cœur 5G PPDR & Résilience)** pré-chargé dans la base sans nécessiter de clé API externe pour la session.
+Il s'appuie sur le cas réel s **Lulu· Lot 1 (NOC, Cœur 5G PPDR & Résilience)** pré-chargé dans la base sans nécessiter de clé API externe pour la session.
 
 ---
 
@@ -19,13 +19,13 @@ npm run dev
 
 ### Ce qui est pré-chargé par le seed :
 1. **Engagement `lumicc-lot1-noc`** :
-   - Titre : *LUMICC · Lot 1 (NOC, Cœur 5G PPDR & Résilience)*.
+   - Titre : *Lulu· Lot 1 (NOC, Cœur 5G PPDR & Résilience)*.
    - Profil : Secteur Réseau Critique / Sécurité Publique (PPDR), 4 membres d'équipe (`lead-architect`, `infra-architect`, `sec-architect`, `domain-architect`).
    - 7 sujets cardinaux formalisés avec options et critères MCDA.
    - Énoncés épistémiques avec graphe de causalité (`basedOn`) prêt pour la démo de rétractation.
    - Fil dialectique reconstitué avec échanges d'experts contradictoires.
-2. **Audit ArcKit RFP `run_lumicc_live_j0`** :
-   - Analyse de 92 clauses du RFP LUMICC Lot 1.
+2. **Audit ArcKit RFP `run_lulu_live_j0`** :
+   - Analyse de 92 clauses du RFP Lulu Lot 1.
    - Statut : **Terminé (Complété)**.
    - Les 4 compartiments de triage sont déjà calculés : 77 à délibérer, 6 évacuées, 9 clarifications.
    - Aucune clé d'API Anthropic n'est sollicitée lors de la démo pour consulter l'audit, naviguer dans le découpage ou inspecter les justifications.

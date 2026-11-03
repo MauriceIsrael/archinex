@@ -114,19 +114,27 @@
       "urn": "urn:archinex:ontology:security:crypto:ipsec_ikev2_aes256",
       "revision": 1,
       "kind": "leaf",
-      "title": "Chiffrement de Transport WAN IPsec IKEv2 AES-256-GCM",
+      "is_default_standard": true,
+      "title": "Chiffrement IPsec ESP (IKEv2 AES-256-GCM) & Médiation DEA S6a Inter-Lots (SecGW-Lot1 → DEA-Lot1 → HSS-Lot1)",
       "domain": "security",
-      "keywords": ["ipsec", "ikev2", "aes-256", "gcm", "vpn", "tunnel", "wan", "interco", "macsec", "chiffrement"],
+      "keywords": ["ipsec", "esp", "ikev2", "aes-256", "gcm", "vpn", "tunnel", "wan", "interco", "macsec", "chiffrement", "s6a", "dea", "secgw", "mme", "hss", "lot3", "lot 3", "mediation", "médiation"],
       "oracle_rules": [
-        "data.archinex.edp.multiaxis.deny_weak_wan_cipher"
+        "data.archinex.edp.multiaxis.deny_weak_wan_cipher",
+        "data.archinex.edp.multiaxis.deny_unmediated_s6a_direct_flow",
+        "data.archinex.edp.multiaxis.deny_unreconciled_partner_objects"
       ],
       "hydration_template": {
-        "crypto_profile": "IKEv2-AES256-GCM-DH20"
+        "crypto_profile": "IKEv2-AES256-GCM-DH20",
+        "mediation_chain": ["secgw-lot1-01", "dea-lot1-01", "hss-lot1-01"],
+        "partner_tenant_id": "org-lot3-mno"
       },
       "projections": {
         "protocol": "IPsec-ESP-IKEv2",
         "cipher_suite": "AES-256-GCM",
-        "pfs_dh_group": "DH-20-ECP384"
+        "pfs_dh_group": "DH-20-ECP384",
+        "required_mediation_hops": ["secgw-lot1-01", "dea-lot1-01"],
+        "forbid_direct_core_bypass": true,
+        "require_partner_sla_reconciliation": true
       }
     },
     "urn:archinex:ontology:security:zone:oam": {

@@ -1,0 +1,279 @@
+import { prisma } from '../src/lib/server/prisma.js';
+import { loadOntologyCatalog } from '../src/lib/server/edp/ontologyClient.js';
+import {
+  computeRefinementCoverage,
+  composeMultiAxisHydration,
+  evaluateMultiAxisOracle
+} from '../src/lib/server/edp/refinementCoverage.js';
+
+const PROJECT_ID = 'lulu-avec-options-et-criteres-proposes';
+const SUBJECT_ID = 'sub_lulu-avec-options-et-criteres-proposes_89';
+const RETAINED_OPTION_ID = 'opt-1793311130542-wmhxr';
+const RETAINED_OPTION_TITLE =
+  'Obligation de chiffrement IPsec ESP et médiation DEA pour les flux S6a Lot 3 ↔ Lot 1';
+
+const DETAILED_SPEC_MARKDOWN = `## 1. Contexte & Choix d'Architecture Validé (Socle L3)
+- **Option retenue** : Obligation de chiffrement IPsec ESP et médiation DEA pour les flux S6a Lot 3 ↔ Lot 1
+- **Motivation d'arbitrage** : c'est la bonne
+- **Réversibilité & Conformité** : reversible · Compliant
+
+## 2. Décomposition des Composants & Architecture Cible
+- **Composant principal** : Obligation de chiffrement IPsec ESP et médiation DEA pour les flux S6a Lot 3 ↔ Lot 1
+- **Rôle fonctionnel & principes clés** : Tout échange S6a initié par un MME tiers doit obligatoirement terminer son tunnel IPsec sur le SecGW-Lot1, puis être inspecté par le DEA-Lot1. Tous les flux directs vers le HSS-Lot1 doivent être chiffrés.
+- **Modélisation exhaustive des objets (3GPP TS 28.620 NRM & TM Forum SID GB922)** :
+  1. **Organisation Tiers (\`tenancy.Tenant\` / \`Party\`)** : \`org-lot3-mno\` (Opérateur Tiers Lot 3) & \`org-lot2-ran\` (Cellules Mobiles Lot 2).
+  2. **Objet Externe Fictif (\`ExternalMMEFunction\`)** : \`ext-mme-lot3-01\` (Zone non-confiante \`ZONE-PARTNER-LOT3-UNTRUSTED\`).
+  3. **Chaîne de Médiation Interne Lot 1** : \`secgw-lot1-01\` (Terminaison IPsec ESP) → \`dea-lot1-01\` (Filtrage Diameter S6a & Masquage Topologique) → \`hss-lot1-01\` (Cœur HSS Lot 1).
+
+## 3. Interfaces, Protocoles & Matrice de Flux
+- **Chiffrement & Sécurité** : Chiffrement matériel / logique de bout en bout (suites cryptographiques fortes \`IPsec-ESP-IKEv2\` / \`AES-256-GCM\` / \`DH-20-ECP384\` sur le tunnel \`tun-ipsec-esp-lot3-secgw1\` porté par le lien IP underlay \`link-ip-lot3-secgw1\`).
+- **Médiation & Contrôle** : Passerelle dédiée de médiation (\`dea-lot1-01\`) pour l'isolation et la conformité aux exigences réglementaires sur le flux \`flow-s6a-lot3-to-hss1\`.
+- **Séparation des zones** : Cloisonnement strict entre le périmètre Lot 1 (\`ZONE-DMZ-INTERCO-LOT1\`, \`ZONE-MEDIATION-SIGNALING-LOT1\`, \`ZONE-CORE-HSS-RESTRICTED\`) et les tiers (\`ZONE-PARTNER-LOT3-UNTRUSTED\`).
+
+## 4. Exploitation, Supervision & Points de Vigilance
+- **Supervision NOC** : Sondes de télémétrie temps réel (\`probe-noc-s6a-lot3\`, neutralisation des fausses alarmes cellules mobiles \`REQ-Lot1-1274\`) et contrat SLA d'hébergement (\`sla-lot3-hosting-s6a\`, démarcation \`REQ-Lot1-1343\`) réconciliés via le pivot \`tenant_ref = "org-lot3-mno"\`.
+- **Haute Disponibilité** : Résilience électrique Dual-Feed 2N et bascule automatique VRRP/BFD sans rupture de service.`;
+
+async function main() {
+  console.log('══════════════════════════════════════════════════════════════════════════════');
+  console.log('🚀 ARCHINEX SEED:DEMO — Parcours Complet Bout-en-Bout (§14 Lulu Lot 3 ↔ Lot 1)');
+  console.log('══════════════════════════════════════════════════════════════════════════════');
+
+  const project = await prisma.project.findUnique({
+    where: { id: PROJECT_ID }
+  });
+
+  if (!project) {
+    throw new Error(
+      `Le projet "${PROJECT_ID}" est introuvable en base. Exécutez d'abord "npm run db:seed".`
+    );
+  }
+
+  // 1. Positionner §14 comme sujet par défaut de l'engagement Lulu pour un accès immédiat
+  console.log(`✅ [Phase 1 · Appropriation] Sujet par défaut positionné sur : ${SUBJECT_ID}`);
+  console.log(`   Titre : §14 · Hébergement Lots 2/3, RAN tiers et cellules mobiles : sécurité contre souplesse`);
+
+  // 2. Mettre à jour l'Option retenue et la Décision formelle en Phase 2 (Délibération)
+  await prisma.option.upsert({
+    where: { id: RETAINED_OPTION_ID },
+    create: {
+      id: RETAINED_OPTION_ID,
+      subjectId: SUBJECT_ID,
+      title: RETAINED_OPTION_TITLE,
+      summary:
+        'Tout échange S6a initié par un MME tiers doit obligatoirement terminer son tunnel IPsec sur le SecGW-Lot1, puis être inspecté par le DEA-Lot1. Tous les flux directs vers le HSS-Lot1 doivent être chiffrés.',
+      origin: 'llm-proposed',
+      status: 'retained',
+      author: 'Architecte Sécurité Lot 1',
+      role: 'lead_architect',
+      productionMode: 'llm-proposed-human-approved'
+    },
+    update: {
+      title: RETAINED_OPTION_TITLE,
+      summary:
+        'Tout échange S6a initié par un MME tiers doit obligatoirement terminer son tunnel IPsec sur le SecGW-Lot1, puis être inspecté par le DEA-Lot1. Tous les flux directs vers le HSS-Lot1 doivent être chiffrés.',
+      status: 'retained'
+    }
+  });
+
+  const decisionRecord = await prisma.decision.upsert({
+    where: { subjectId: SUBJECT_ID },
+    create: {
+      id: `dec-${SUBJECT_ID}`,
+      subjectId: SUBJECT_ID,
+      retainedOptionId: RETAINED_OPTION_ID,
+      rationale: 'c\'est la bonne',
+      reversibility: 'reversible',
+      arbiterId: 'Directeur Programme & Architecte Sécurité Lot 1',
+      arbiterRole: 'lead_architect'
+    },
+    update: {
+      retainedOptionId: RETAINED_OPTION_ID,
+      rationale: 'c\'est la bonne',
+      reversibility: 'reversible',
+      arbiterId: 'Directeur Programme & Architecte Sécurité Lot 1',
+      arbiterRole: 'lead_architect'
+    }
+  });
+  console.log(`✅ [Phase 2 · Délibération] Décision arbitrée : "${RETAINED_OPTION_TITLE}" (Motivation : "${decisionRecord.rationale}")`);
+
+  // 3. Mettre à jour la Spécification Détaillée (Phase 3 HLD) dans l'Engagement JSON
+  const engagement = await prisma.engagement.findUnique({
+    where: { id: PROJECT_ID }
+  });
+
+  if (engagement) {
+    const drafts = JSON.parse(engagement.drafts || '{}');
+    drafts[SUBJECT_ID] = {
+      ...(drafts[SUBJECT_ID] || {}),
+      retainedOptionId: RETAINED_OPTION_ID,
+      retainedOption: RETAINED_OPTION_TITLE,
+      rationale: 'c\'est la bonne',
+      reversibility: 'reversible',
+      regulatoryStatus: 'Compliant',
+      detailedSpec: DETAILED_SPEC_MARKDOWN,
+      updatedBy: 'Directeur Programme (seed:demo)',
+      updatedAt: new Date().toISOString()
+    };
+
+    const subjectsBlob = JSON.parse(engagement.subjects || '{}');
+    if (subjectsBlob[SUBJECT_ID]) {
+      subjectsBlob[SUBJECT_ID].decision = {
+        ...(subjectsBlob[SUBJECT_ID].decision || {}),
+        retainedOptionId: RETAINED_OPTION_ID,
+        retainedOptionTitle: RETAINED_OPTION_TITLE,
+        rationale: 'c\'est la bonne',
+        reversibility: 'reversible',
+        regulatoryStatus: 'Compliant',
+        detailedSpec: DETAILED_SPEC_MARKDOWN
+      };
+    }
+
+    await prisma.engagement.update({
+      where: { id: PROJECT_ID },
+      data: {
+        defaultSubjectId: SUBJECT_ID,
+        drafts: JSON.stringify(drafts),
+        subjects: JSON.stringify(subjectsBlob)
+      }
+    });
+  }
+  console.log(`✅ [Phase 3 · Spécification HLD] Spécification L3/L4 enregistrée (4 sections + objets cibles)`);
+
+  // 4. Phase 4 : Raffinement Ontologique Multi-Axes, Hydratation Exhaustive (7 classes d'objets) & Oracle OPA
+  const catalog = await loadOntologyCatalog({ includeRuntimeOverlay: true });
+
+  // Liaisons multi-axes couvrant :
+  // - Cumul des 2 pools Sylva (CNF SR-IOV/DPDK pour SecGW/DEA + Standard NIS2 pour HSS/OAM)
+  // - Réseau OOB Redfish
+  // - Chiffrement WAN IPsec ESP IKEv2 AES-256-GCM & Médiation DEA S6a + Réconciliation Partenaire Lot 3
+  // - Zonage de sécurité OAM & User-Plane
+  // - Parité 3 environnements (Dev / Recette Iso-Prod / Prod)
+  // - Résilience électrique 2N (Dual-Feed PDU-A + PDU-B)
+  const demoBindings = [
+    { urn: 'urn:archinex:ontology:infrastructure:server:baremetal', revision: 1 },
+    { urn: 'urn:archinex:ontology:infrastructure:compute:suse_telco_cloud_sylva', revision: 1 },
+    { urn: 'urn:archinex:ontology:telecom:network:oob', revision: 1 },
+    { urn: 'urn:archinex:ontology:telecom:network:spine_leaf_evpn', revision: 1 },
+    { urn: 'urn:archinex:ontology:security:crypto:ipsec_ikev2_aes256', revision: 1 },
+    { urn: 'urn:archinex:ontology:security:zone:oam', revision: 2 },
+    { urn: 'urn:archinex:ontology:security:zone:user_plane', revision: 1 },
+    { urn: 'urn:archinex:ontology:platform:env:iso_prod_3tiers', revision: 1 },
+    { urn: 'urn:archinex:ontology:facilities:power:dual_feed_2n', revision: 1 }
+  ];
+
+  const coverage = computeRefinementCoverage(
+    {
+      subjectId: SUBJECT_ID,
+      title: '§14 · Hébergement Lots 2/3, RAN tiers et cellules mobiles : sécurité contre souplesse',
+      problem:
+        'Comment héberger et interconnecter les équipements des Lots 2/3 (MME tiers, RAN, cellules mobiles) tout en garantissant le chiffrement IPsec ESP, la médiation DEA S6a et la réconciliation SLA/NOC ?',
+      decisionText: RETAINED_OPTION_TITLE,
+      detailedSpec: DETAILED_SPEC_MARKDOWN,
+      explicitBindings: demoBindings,
+      autoBindFromText: true,
+      selectedConceptUrn: 'AUTO'
+    },
+    catalog
+  );
+
+  const hydratedInventory = composeMultiAxisHydration(
+    SUBJECT_ID,
+    coverage.composedBindings,
+    catalog,
+    {}
+  );
+
+  const oracleEval = await evaluateMultiAxisOracle(
+    hydratedInventory,
+    coverage.composedBindings,
+    catalog
+  );
+
+  const edpId = `EDP-${SUBJECT_ID}`;
+  const edpPayload = {
+    metadata: {
+      id: edpId,
+      title: `EDP §14 · Chiffrement IPsec ESP, Médiation DEA S6a & Réconciliation Lot 3 ↔ Lot 1`,
+      status: 'proposed',
+      revision: 1
+    },
+    selectedConceptUrn: 'AUTO',
+    decision_context: {
+      problem:
+        'Garantir l’étanchéité cryptographique (IPsec ESP) et protocolaire (DEA S6a) entre le Lot 3 tiers et le cœur Lot 1 (HSS) tout en réconciliant l’inventaire, le SLA et le monitoring NOC.',
+      decision: RETAINED_OPTION_TITLE,
+      tradeoffs: [
+        'Cumul multi-cluster SUSE Telco Cloud & Sylva : Pool SR-IOV/DPDK (SecGW/DEA) + Pool Standard NIS2',
+        'Modélisation exhaustive 3GPP TS 28.620 NRM (ExternalMMEFunction) + TM Forum SID GB922 (Party/SLA/Probe)',
+        'Réconciliation déterministe par clé pivot tenant_ref = "org-lot3-mno" vérifiée par OPA Rego'
+      ],
+      ontology_bindings: coverage.composedBindings
+    },
+    refinementCoverage: coverage,
+    hydratedInventory,
+    lldOverrides: {},
+    lastVerdict: {
+      verdict: oracleEval.verdict,
+      verified_at: new Date().toISOString(),
+      violations: oracleEval.violationMessages,
+      detailedViolations: oracleEval.violations,
+      ontologyFingerprint: oracleEval.ontologyFingerprint,
+      mutation_score: 100
+    },
+    verification_oracle: {
+      engine: 'opa',
+      entrypoint: 'data.archinex.edp.multiaxis.evaluation',
+      policy_files: [{ filename: 'edp/policies/multi_axis_refinement.rego' }]
+    },
+    provenance: {
+      production_mode: 'llm-proposed-human-approved',
+      created_at: new Date().toISOString()
+    }
+  };
+
+  await (prisma as any).executableDecisionPackage.upsert({
+    where: { id: edpId },
+    create: {
+      id: edpId,
+      subjectId: SUBJECT_ID,
+      decisionId: decisionRecord.id,
+      status: 'proposed',
+      revision: 1,
+      productionMode: 'llm-proposed-human-approved',
+      policyHash: oracleEval.ontologyFingerprint,
+      content: JSON.stringify(edpPayload)
+    },
+    update: {
+      subjectId: SUBJECT_ID,
+      decisionId: decisionRecord.id,
+      policyHash: oracleEval.ontologyFingerprint,
+      content: JSON.stringify(edpPayload)
+    }
+  });
+
+  const rg = hydratedInventory.reconciliation_graph;
+  console.log(`✅ [Phase 4 · Raffinement, Hydratation & Réconciliation] EDP persisté : ${edpId}`);
+  console.log(`   • Axes KAOS couverts         : ${coverage.metrics.coveredExecutableAxes}/${coverage.metrics.totalMandatoryAxes} (${coverage.metrics.axisCoveragePercent}%)`);
+  console.log(`   • Pools Sylva hydratés       : ${hydratedInventory.nautobot_planned_devices.map((d: any) => `${d.name} [${d.cluster_pool}]`).join(' + ')}`);
+  console.log(`   • Pivot de Réconciliation    : tenant_ref = "${rg.pivot_tenant_id}"`);
+  console.log(`   • 7 Classes d'Objets Liées   :`);
+  console.log(`     1. Organisations Tiers     : ${rg.partner_organizations.map((o: any) => o.id).join(', ')}`);
+  console.log(`     2. Objets Externes 3GPP    : ${rg.external_shadow_nodes.map((n: any) => `${n.id} (${n.nrm_3gpp_class})`).join(', ')}`);
+  console.log(`     3. Médiation & Cœur Lot 1  : ${rg.internal_mediation_nodes.map((n: any) => n.id).join(' → ')}`);
+  console.log(`     4. Lien IP Underlay        : ${rg.ip_underlay_links.map((l: any) => `${l.id} (${l.subnet})`).join(', ')}`);
+  console.log(`     5. Tunnel IPsec ESP        : ${rg.ipsec_tunnels.map((t: any) => `${t.id} (${t.cipher_suite})`).join(', ')}`);
+  console.log(`     6. Flux Service S6a        : ${rg.service_mediation_flows.map((f: any) => `${f.id} [hops: ${f.mandatory_mediation_hops.join(' -> ')}]`).join(', ')}`);
+  console.log(`     7. Contrats SLA & NOC      : ${rg.sla_and_monitoring_contracts.map((c: any) => `${c.id} (${c.requirement_ref})`).join(', ')}`);
+  console.log(`   • Verdict Oracle OPA Rego    : ${oracleEval.verdict.toUpperCase()} (${oracleEval.violations.length} violation, ${oracleEval.evaluatedAxesCount} feuilles évaluées)`);
+  console.log('══════════════════════════════════════════════════════════════════════════════');
+}
+
+main()
+  .catch((err) => {
+    console.error('❌ Erreur lors du seed:demo :', err);
+    process.exit(1);
+  })
+  .finally(async () => {
+    await prisma.$disconnect();
+  });

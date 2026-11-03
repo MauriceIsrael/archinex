@@ -625,21 +625,38 @@ export const POST: RequestHandler = async (event) => {
           activeOverrides = { ...activeOverrides, stagingIsoprod: false };
         } else if (driftScenario === 'single_power_feed') {
           activeOverrides = { ...activeOverrides, powerFeedsCount: 1 };
+        } else if (driftScenario === 's6a_direct_bypass_dea') {
+          activeOverrides = { ...activeOverrides, s6aDirectBypassDea: true };
+        } else if (driftScenario === 'orphan_partner_tenant') {
+          activeOverrides = { ...activeOverrides, orphanPartnerTenant: true };
         } else if (overrides) {
           activeOverrides = { ...activeOverrides, ...overrides };
         }
       }
 
+      const effectiveBindingsForEval = [...coverage.composedBindings];
+      if (
+        (activeOverrides.s6aDirectBypassDea || activeOverrides.orphanPartnerTenant) &&
+        !effectiveBindingsForEval.some(
+          (b) => b.urn === 'urn:archinex:ontology:security:crypto:ipsec_ikev2_aes256'
+        )
+      ) {
+        effectiveBindingsForEval.push({
+          urn: 'urn:archinex:ontology:security:crypto:ipsec_ikev2_aes256',
+          revision: 1
+        });
+      }
+
       const hydratedInventory = composeMultiAxisHydration(
         subjectId,
-        coverage.composedBindings,
+        effectiveBindingsForEval,
         catalog,
         activeOverrides
       );
 
       const evalRes = await evaluateMultiAxisOracle(
         hydratedInventory,
-        coverage.composedBindings,
+        effectiveBindingsForEval,
         catalog
       );
 

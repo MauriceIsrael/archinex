@@ -167,6 +167,49 @@ violations contains v if {
 }
 
 # ==============================================================================
+# AXE 6 : INTERCONNEXION WAN IPSEC ESP, MÉDIATION DEA S6A & RÉCONCILIATION PARTENAIRE
+# (data.ontology.security_crypto_ipsec_ikev2_aes256)
+# ==============================================================================
+
+violations contains v if {
+	ipsec_proj := data.ontology.security_crypto_ipsec_ikev2_aes256
+	some tun in input.reconciliation_graph.ipsec_tunnels
+	tun.cipher_suite != ipsec_proj.cipher_suite
+	v := {
+		"rule": "data.archinex.edp.multiaxis.deny_weak_wan_cipher",
+		"axis": "urn:archinex:ontology:axis:wan_interco_encryption",
+		"message": sprintf("Suite cryptographique '%v' sur le tunnel '%v' non conforme à data.ontology (attendu: '%v')", [tun.cipher_suite, tun.id, ipsec_proj.cipher_suite]),
+	}
+}
+
+violations contains v if {
+	ipsec_proj := data.ontology.security_crypto_ipsec_ikev2_aes256
+	ipsec_proj.forbid_direct_core_bypass == true
+	some flow in input.reconciliation_graph.service_mediation_flows
+	some req_hop in ipsec_proj.required_mediation_hops
+	not req_hop in flow.mandatory_mediation_hops
+	v := {
+		"rule": "data.archinex.edp.multiaxis.deny_unmediated_s6a_direct_flow",
+		"axis": "urn:archinex:ontology:axis:wan_interco_encryption",
+		"message": sprintf("Violation §14 (Contournement de médiation) : le flux '%v' (%v -> %v) omet le bond obligatoire '%v' exigé par data.ontology (%v)", [flow.id, flow.source_shadow_ref, flow.destination_core_ref, req_hop, ipsec_proj.required_mediation_hops]),
+	}
+}
+
+violations contains v if {
+	ipsec_proj := data.ontology.security_crypto_ipsec_ikev2_aes256
+	ipsec_proj.require_partner_sla_reconciliation == true
+	some flow in input.reconciliation_graph.service_mediation_flows
+	matching_orgs := [org | some org in input.reconciliation_graph.partner_organizations; org.id == flow.tenant_ref]
+	matching_slas := [c | some c in input.reconciliation_graph.sla_and_monitoring_contracts; c.tenant_ref == flow.tenant_ref; c.covered_flow_ref == flow.id]
+	(count(matching_orgs) + count(matching_slas)) < 2
+	v := {
+		"rule": "data.archinex.edp.multiaxis.deny_unreconciled_partner_objects",
+		"axis": "urn:archinex:ontology:axis:wan_interco_encryption",
+		"message": sprintf("Rupture de réconciliation multi-domaine : le flux '%v' (pivot tenant_ref='%v') n'est pas réconcilié avec une Organisation Partenaire et un Contrat SLA / Sonde NOC", [flow.id, flow.tenant_ref]),
+	}
+}
+
+# ==============================================================================
 # SYNTHÈSE DU VERDICT MULTI-AXES
 # ==============================================================================
 

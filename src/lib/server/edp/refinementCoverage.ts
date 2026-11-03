@@ -108,6 +108,20 @@ export interface LldHydrationOverrides {
   oamProxyRequired?: boolean;
   stagingIsoprod?: boolean;
   powerFeedsCount?: number;
+  s6aDirectBypassDea?: boolean;
+  orphanPartnerTenant?: boolean;
+}
+
+export interface ReconciliationObjectGraph {
+  pivot_tenant_id: string;
+  standards_applied: string[];
+  partner_organizations: Array<Record<string, unknown>>;
+  external_shadow_nodes: Array<Record<string, unknown>>;
+  internal_mediation_nodes: Array<Record<string, unknown>>;
+  ip_underlay_links: Array<Record<string, unknown>>;
+  ipsec_tunnels: Array<Record<string, unknown>>;
+  service_mediation_flows: Array<Record<string, unknown>>;
+  sla_and_monitoring_contracts: Array<Record<string, unknown>>;
 }
 
 export interface MultiAxisHydratedInventory {
@@ -117,6 +131,7 @@ export interface MultiAxisHydratedInventory {
   environments: Array<Record<string, unknown>>;
   power_feeds: string[];
   coveredDomains: string[];
+  reconciliation_graph: ReconciliationObjectGraph;
 }
 
 export interface MultiAxisOracleViolation {
@@ -754,13 +769,168 @@ export function composeMultiAxisHydration(
     });
   }
 
+  const pivotTenantId = 'org-lot3-mno';
+  const mandatoryMediationHops = overrides.s6aDirectBypassDea
+    ? ['secgw-lot1-01']
+    : ['secgw-lot1-01', 'dea-lot1-01'];
+
+  const reconciliationGraph: ReconciliationObjectGraph = {
+    pivot_tenant_id: pivotTenantId,
+    standards_applied: [
+      '3GPP TS 28.620 / TS 28.541 NRM (ExternalFunction & EP_RP)',
+      'TM Forum ODA/SID GB922 (Party -> Resource -> Service -> SLA)',
+      'Nautobot SSoT / DiffSync + Tenancy & VPN Models',
+      'Linux Foundation Nephio KRM ResourceGraph'
+    ],
+    partner_organizations: overrides.orphanPartnerTenant
+      ? []
+      : [
+          {
+            id: pivotTenantId,
+            nautobot_model: 'tenancy.Tenant',
+            tmf_sid_class: 'PartyRole / PartnerOrganization',
+            name: 'Opérateur Tiers Lot 3 (MNO Cœur Mobile)',
+            demarcation_point: 'MMR-Meet-Me-Room-Lot1',
+            noc_contact: 'noc@lot3-operator.fr'
+          },
+          {
+            id: 'org-lot2-ran',
+            nautobot_model: 'tenancy.Tenant',
+            tmf_sid_class: 'PartyRole / PartnerOrganization',
+            name: 'Opérateur Tiers Lot 2 (RAN & Cellules Mobiles Intermittentes)',
+            demarcation_point: 'SecGW-RAN-Lot1',
+            noc_contact: 'noc@lot2-ran.fr'
+          }
+        ],
+    external_shadow_nodes: [
+      {
+        id: 'ext-mme-lot3-01',
+        nrm_3gpp_class: 'ExternalMMEFunction',
+        nautobot_model: 'dcim.Device (status=external-shadow)',
+        tenant_ref: pivotTenantId,
+        zone: 'ZONE-PARTNER-LOT3-UNTRUSTED',
+        loopback_ip: '172.16.30.10',
+        managed_by_lot1: false
+      },
+      {
+        id: 'ext-ran-cell-mobile-01',
+        nrm_3gpp_class: 'ExternalENodeBFunction',
+        nautobot_model: 'dcim.Device (status=external-shadow)',
+        tenant_ref: 'org-lot2-ran',
+        zone: 'ZONE-RAN-MOBILE-UNTRUSTED',
+        intermittent_operation: true,
+        managed_by_lot1: false
+      }
+    ],
+    internal_mediation_nodes: [
+      {
+        id: 'secgw-lot1-01',
+        nrm_3gpp_class: 'SecurityGatewayFunction',
+        nautobot_model: 'dcim.Device / virtualization.VirtualMachine',
+        role: 'Terminaison IPsec ESP Lot 1 (SecGW-Lot1)',
+        zone: 'ZONE-DMZ-INTERCO-LOT1',
+        ha_mode: 'active-standby-vrrp-bfd',
+        peer_shadow_ref: 'ext-mme-lot3-01'
+      },
+      {
+        id: 'dea-lot1-01',
+        nrm_3gpp_class: 'DiameterEdgeAgentFunction',
+        nautobot_model: 'dcim.Device / k8s.CNF',
+        role: 'Médiation & Filtrage S6a Diameter (DEA-Lot1)',
+        zone: 'ZONE-MEDIATION-SIGNALING-LOT1',
+        topology_hiding: true,
+        imsi_pseudonymization: true,
+        upstream_secgw_ref: 'secgw-lot1-01'
+      },
+      {
+        id: 'hss-lot1-01',
+        nrm_3gpp_class: 'HSSFunction',
+        nautobot_model: 'dcim.Device / k8s.CNF',
+        role: 'Serveur Abonnés Cœur Lot 1 (HSS-Lot1)',
+        zone: 'ZONE-CORE-HSS-RESTRICTED',
+        direct_external_access: false,
+        allowed_upstream_ref: 'dea-lot1-01'
+      }
+    ],
+    ip_underlay_links: [
+      {
+        id: 'link-ip-lot3-secgw1',
+        nrm_3gpp_class: 'EP_RP (Underlay IP Link)',
+        nautobot_model: 'circuits.Circuit + ipam.Prefix',
+        tenant_ref: pivotTenantId,
+        endpoint_a: 'ext-mme-lot3-01',
+        endpoint_z: 'secgw-lot1-01',
+        subnet: '100.64.14.0/30',
+        vlan_id: 1403,
+        bfd_fast_failover: true
+      }
+    ],
+    ipsec_tunnels: [
+      {
+        id: 'tun-ipsec-esp-lot3-secgw1',
+        nautobot_model: 'vpn.Tunnel (IPsec ESP)',
+        tenant_ref: pivotTenantId,
+        underlay_link_ref: 'link-ip-lot3-secgw1',
+        termination_a: 'ext-mme-lot3-01',
+        termination_z: 'secgw-lot1-01',
+        protocol: 'IPsec-ESP-IKEv2',
+        cipher_suite: 'AES-256-GCM',
+        pfs_dh_group: 'DH-20-ECP384',
+        dpd_timeout_sec: 10
+      }
+    ],
+    service_mediation_flows: [
+      {
+        id: 'flow-s6a-lot3-to-hss1',
+        nrm_3gpp_class: 'EP_S6a (Diameter S6a Reference Point)',
+        tenant_ref: pivotTenantId,
+        app_protocol: 'Diameter-S6a-SCTP-3868',
+        source_shadow_ref: 'ext-mme-lot3-01',
+        ipsec_tunnel_ref: 'tun-ipsec-esp-lot3-secgw1',
+        mandatory_mediation_hops: mandatoryMediationHops,
+        destination_core_ref: 'hss-lot1-01',
+        direct_bypass_allowed: Boolean(overrides.s6aDirectBypassDea),
+        encrypted_end_to_end: true
+      }
+    ],
+    sla_and_monitoring_contracts: overrides.orphanPartnerTenant
+      ? []
+      : [
+          {
+            id: 'sla-lot3-hosting-s6a',
+            tmf_sid_class: 'ServiceLevelAgreement (GB922)',
+            tenant_ref: pivotTenantId,
+            covered_flow_ref: 'flow-s6a-lot3-to-hss1',
+            covered_tunnel_ref: 'tun-ipsec-esp-lot3-secgw1',
+            colocation_power_sla: '99.99% Dual-Feed 2N (Responsabilité Lot 1)',
+            network_service_sla_boundary: 'Point de démarcation SecGW-Lot1 (Tiers Lot 3 responsable en amont)',
+            requirement_ref: 'REQ-Lot1-1343'
+          },
+          {
+            id: 'probe-noc-s6a-lot3',
+            tmf_sid_class: 'ResourceMonitorProbe (Prometheus / Alertmanager NOC)',
+            tenant_ref: pivotTenantId,
+            covered_flow_ref: 'flow-s6a-lot3-to-hss1',
+            monitored_targets: [
+              'link-ip-lot3-secgw1',
+              'tun-ipsec-esp-lot3-secgw1',
+              'secgw-lot1-01',
+              'dea-lot1-01'
+            ],
+            suppress_intermittent_mobile_cell_alarms: true,
+            requirement_ref: 'REQ-Lot1-1274'
+          }
+        ]
+  };
+
   return {
     nautobot_planned_devices: nautobotDevices,
     k8s_manifests: k8sManifests,
     security_zones: securityZones,
     environments,
     power_feeds: powerFeeds,
-    coveredDomains: Array.from(coveredDomains)
+    coveredDomains: Array.from(coveredDomains),
+    reconciliation_graph: reconciliationGraph
   };
 }
 

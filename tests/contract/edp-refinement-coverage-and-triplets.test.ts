@@ -336,4 +336,73 @@ describe('EDP Phase 4 : Ontology Triplets, KAOS Multi-Axis Coverage & Real OPA D
     expect(evalRes.verdict).toBe('compliant');
     expect(evalRes.violations).toHaveLength(0);
   });
+
+  it('modélise et réconcilie les 7 classes d’objets de §14 (Lot 3 ↔ Lot 1 : Organisation, MME Externe 3GPP, Lien IP, Tunnel IPsec ESP, Médiation SecGW/DEA, SLA & Sonde NOC) via OPA', async () => {
+    const catalog = await loadOntologyCatalog({ includeRuntimeOverlay: true });
+    const lot3Bindings = [
+      { urn: 'urn:archinex:ontology:infrastructure:server:baremetal', revision: 1 },
+      { urn: 'urn:archinex:ontology:telecom:network:oob', revision: 1 },
+      { urn: 'urn:archinex:ontology:security:crypto:ipsec_ikev2_aes256', revision: 1 },
+      { urn: 'urn:archinex:ontology:security:zone:oam', revision: 2 },
+      { urn: 'urn:archinex:ontology:platform:env:iso_prod_3tiers', revision: 1 },
+      { urn: 'urn:archinex:ontology:facilities:power:dual_feed_2n', revision: 1 }
+    ];
+
+    // 1. État nominal conforme : les 7 classes d'objets sont réconciliées sur tenant_ref = "org-lot3-mno"
+    const nominalHydrated = composeMultiAxisHydration(
+      'sub_lulu-avec-options-et-criteres-proposes_89',
+      lot3Bindings,
+      catalog
+    );
+    const rg = nominalHydrated.reconciliation_graph;
+    expect(rg.pivot_tenant_id).toBe('org-lot3-mno');
+    expect(rg.partner_organizations.some((o) => o.id === 'org-lot3-mno')).toBe(true);
+    expect(rg.external_shadow_nodes.some((n) => n.id === 'ext-mme-lot3-01')).toBe(true);
+    expect(rg.internal_mediation_nodes.map((n) => n.id)).toEqual([
+      'secgw-lot1-01',
+      'dea-lot1-01',
+      'hss-lot1-01'
+    ]);
+    expect(rg.ip_underlay_links[0].id).toBe('link-ip-lot3-secgw1');
+    expect(rg.ipsec_tunnels[0].id).toBe('tun-ipsec-esp-lot3-secgw1');
+    expect(rg.service_mediation_flows[0].mandatory_mediation_hops).toEqual([
+      'secgw-lot1-01',
+      'dea-lot1-01'
+    ]);
+    expect(rg.sla_and_monitoring_contracts).toHaveLength(2);
+
+    const nominalEval = await evaluateMultiAxisOracle(nominalHydrated, lot3Bindings, catalog);
+    expect(nominalEval.verdict).toBe('compliant');
+    expect(nominalEval.violations).toHaveLength(0);
+
+    // 2. Violation §14 : Flux S6a direct MME-Lot3 -> HSS-Lot1 contournant le DEA-Lot1
+    const bypassHydrated = composeMultiAxisHydration(
+      'sub_lulu-avec-options-et-criteres-proposes_89',
+      lot3Bindings,
+      catalog,
+      { s6aDirectBypassDea: true }
+    );
+    const bypassEval = await evaluateMultiAxisOracle(bypassHydrated, lot3Bindings, catalog);
+    expect(bypassEval.verdict).toBe('violated');
+    expect(
+      bypassEval.violations.some((v) =>
+        v.rule.includes('deny_unmediated_s6a_direct_flow')
+      )
+    ).toBe(true);
+
+    // 3. Rupture de réconciliation inter-domaines : Flux/Tunnel Lot 3 non réconcilié avec Organisation / SLA / Sonde NOC
+    const orphanHydrated = composeMultiAxisHydration(
+      'sub_lulu-avec-options-et-criteres-proposes_89',
+      lot3Bindings,
+      catalog,
+      { orphanPartnerTenant: true }
+    );
+    const orphanEval = await evaluateMultiAxisOracle(orphanHydrated, lot3Bindings, catalog);
+    expect(orphanEval.verdict).toBe('violated');
+    expect(
+      orphanEval.violations.some((v) =>
+        v.rule.includes('deny_unreconciled_partner_objects')
+      )
+    ).toBe(true);
+  });
 });

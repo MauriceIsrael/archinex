@@ -556,8 +556,7 @@
 
 				{#if hydrated}
 					<div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
-						{#if hydrated.nautobot_planned_devices?.[0]}
-							{@const dev = hydrated.nautobot_planned_devices[0]}
+						{#each hydrated.nautobot_planned_devices || [] as dev}
 							<div class="p-2.5 rounded-lg border bg-muted/20 space-y-1">
 								<div class="flex items-center justify-between">
 									<span class="text-[10px] font-bold uppercase text-muted-foreground">Nautobot Device</span>
@@ -566,6 +565,11 @@
 									</span>
 								</div>
 								<div class="font-mono font-bold text-foreground">{dev.name}</div>
+								{#if dev.cluster_pool}
+									<div class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 inline-block">
+										Pool : {dev.cluster_pool}
+									</div>
+								{/if}
 								<div class="text-[11px] text-muted-foreground">
 									Modèle : <strong class="text-foreground">{dev.device_type}</strong>
 								</div>
@@ -576,13 +580,13 @@
 									Énergie : <strong class="text-foreground">{(dev.power_feeds || []).join(' + ') || 'Aucune'}</strong>
 								</div>
 							</div>
-						{/if}
+						{/each}
 
 						{#if hydrated.k8s_manifests?.[0]}
 							{@const bmh = hydrated.k8s_manifests[0]}
 							<div class="p-2.5 rounded-lg border bg-muted/20 space-y-1">
 								<div class="flex items-center justify-between">
-									<span class="text-[10px] font-bold uppercase text-muted-foreground">Sylva CAPI Manifest</span>
+									<span class="text-[10px] font-bold uppercase text-muted-foreground">Sylva CAPI Manifest ({hydrated.k8s_manifests.length})</span>
 									<span class="font-mono text-[10px] px-1.5 py-0.2 rounded bg-indigo-500/15 text-indigo-700 dark:text-indigo-300">
 										{bmh.kind}
 									</span>
@@ -600,6 +604,59 @@
 							</div>
 						{/if}
 					</div>
+
+					<!-- Graphe d'Objets Exhaustif & Réconciliation Multi-Domaine (3GPP NRM / TM Forum SID / Nautobot SSoT) -->
+					{#if hydrated.reconciliation_graph}
+						{@const rg = hydrated.reconciliation_graph}
+						<div class="p-3 rounded-lg border border-indigo-500/30 bg-indigo-500/5 space-y-2.5 text-[11px]" data-testid="phase4-reconciliation-graph">
+							<div class="flex items-center justify-between gap-2 flex-wrap">
+								<div>
+									<div class="font-bold text-foreground flex items-center gap-1.5">
+										<span>🔗 Graphe d'Objets & Réconciliation Multi-Domaine</span>
+									</div>
+									<p class="text-[10px] text-muted-foreground">
+										Clé pivot de réconciliation inter-domaines : <code class="font-mono font-bold text-indigo-700 dark:text-indigo-300">tenant_ref = "{rg.pivot_tenant_id}"</code> (3GPP NRM · TM Forum GB922 · Nautobot SSoT)
+									</p>
+								</div>
+								<span class="font-mono text-[10px] px-2 py-0.5 rounded-full font-semibold {rg.partner_organizations?.length > 0 && rg.sla_and_monitoring_contracts?.length > 0 ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300' : 'bg-rose-500/15 text-rose-700 dark:text-rose-300'}">
+									{rg.partner_organizations?.length > 0 && rg.sla_and_monitoring_contracts?.length > 0 ? '✓ 7/7 Classes Réconciliées' : '❌ Rupture de Réconciliation'}
+								</span>
+							</div>
+
+							<div class="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-[10px]">
+								<div class="p-2 rounded border bg-background/80">
+									<div class="font-bold text-muted-foreground uppercase">1. Organisations Tiers (Tenancy)</div>
+									<div class="font-mono text-foreground mt-0.5">
+										{rg.partner_organizations?.map((o: any) => o.id).join(', ') || '⚠️ Aucune (Orphelin)'}
+									</div>
+								</div>
+								<div class="p-2 rounded border bg-background/80">
+									<div class="font-bold text-muted-foreground uppercase">2. Objets Externes 3GPP (Shadow)</div>
+									<div class="font-mono text-foreground mt-0.5">
+										{rg.external_shadow_nodes?.map((n: any) => `${n.id} (${n.nrm_3gpp_class})`).join(', ')}
+									</div>
+								</div>
+								<div class="p-2 rounded border bg-background/80">
+									<div class="font-bold text-muted-foreground uppercase">3. Lien IP & Tunnel IPsec ESP</div>
+									<div class="font-mono text-foreground mt-0.5">
+										{rg.ip_underlay_links?.[0]?.id} → {rg.ipsec_tunnels?.[0]?.id} ({rg.ipsec_tunnels?.[0]?.cipher_suite})
+									</div>
+								</div>
+								<div class="p-2 rounded border bg-background/80">
+									<div class="font-bold text-muted-foreground uppercase">4. Chaîne Médiation S6a (Lot 3 ↔ Lot 1)</div>
+									<div class="font-mono text-foreground mt-0.5">
+										{rg.service_mediation_flows?.[0]?.source_shadow_ref} → {(rg.service_mediation_flows?.[0]?.mandatory_mediation_hops || []).join(' → ')} → {rg.service_mediation_flows?.[0]?.destination_core_ref}
+									</div>
+								</div>
+								<div class="p-2 rounded border bg-background/80 sm:col-span-2">
+									<div class="font-bold text-muted-foreground uppercase">5. Contrats SLA & Sondes NOC Réconciliés sur <code class="font-mono">{rg.pivot_tenant_id}</code></div>
+									<div class="font-mono text-foreground mt-0.5">
+										{rg.sla_and_monitoring_contracts?.map((c: any) => `${c.id} [${c.requirement_ref}]`).join(' · ') || '⚠️ Aucun contrat SLA ni sonde NOC lié au partenaire'}
+									</div>
+								</div>
+							</div>
+						</div>
+					{/if}
 
 					<div class="flex items-center justify-between pt-1">
 						<span class="text-[11px] text-muted-foreground">
@@ -755,6 +812,28 @@
 							data-testid="drift-btn-power"
 						>
 							💥 Axe 5 : Perte d'une adduction électrique (1 seule PDU au lieu de 2N)
+						</button>
+						<button
+							type="button"
+							disabled={isActionRunning}
+							onclick={() => handleSimulateDrift('s6a_direct_bypass_dea')}
+							class="px-2.5 py-1.5 rounded border text-left font-medium transition-colors cursor-pointer {activeDriftScenario === 's6a_direct_bypass_dea'
+								? 'bg-rose-600 text-white border-rose-700'
+								: 'bg-muted/30 hover:bg-rose-500/10 border-border text-foreground'}"
+							data-testid="drift-btn-s6a-bypass"
+						>
+							💥 §14 : Flux S6a direct MME-Lot3 → HSS-Lot1 (Bypass DEA)
+						</button>
+						<button
+							type="button"
+							disabled={isActionRunning}
+							onclick={() => handleSimulateDrift('orphan_partner_tenant')}
+							class="px-2.5 py-1.5 rounded border text-left font-medium transition-colors cursor-pointer {activeDriftScenario === 'orphan_partner_tenant'
+								? 'bg-rose-600 text-white border-rose-700'
+								: 'bg-muted/30 hover:bg-rose-500/10 border-border text-foreground'}"
+							data-testid="drift-btn-orphan-tenant"
+						>
+							💥 Réconciliation : Rupture pivot SLA / NOC Partenaire Lot 3
 						</button>
 					</div>
 				</div>

@@ -487,3 +487,15 @@ Pour séparer clairement la délibération HLD (Phase 2) et l'homologation docum
 - **Visualiseur & Éditeur de Triplets dans `/knowledge?view=ontology`** :
   - Accessible depuis l'onglet **`🕸️ Ontologie & Triplets ({S, V, O})`** du Graphe de Connaissances (`/knowledge`).
   - Permet d'inspecter l'arbre `Concept HLD → Sous-Axes Requis → Feuilles & Oracles` et d'ajouter ou supprimer des triplets `{ Sujet, Verbe, Complément }` à la volée.
+
+### 13.7 Démonstration Bout-en-Bout (§14 Lulu Lot 3 ↔ Lot 1) & Graphe de Réconciliation Multi-Objets (`npm run seed:demo`)
+La commande `npm run seed:demo` configure et ensemence le parcours complet de la **Phase 1 (Appropriation)** à la **Phase 4 (Raffinement, Hydratation & Réconciliation)** sur l'exigence **`§14 · Hébergement Lots 2/3, RAN tiers et cellules mobiles : sécurité contre souplesse`** (`sub_lulu-avec-options-et-criteres-proposes_89`) :
+- **Cumul de variantes (OU inclusif)** : génère simultanément les deux pools Sylva (`sylva-cnf-sriov-dpdk` pour l'hébergement des CNF SecGW/DEA et `sylva-standard-nis2` pour l'hébergement standard isolé NIS2).
+- **Modélisation exhaustive et réconciliation multi-domaine (7 classes d'objets liées par le pivot `tenant_ref = "org-lot3-mno"`)** :
+  1. `partner_organizations` : `org-lot3-mno` (Opérateur Tiers Lot 3) & `org-lot2-ran` (Cellules Mobiles Lot 2).
+  2. `external_shadow_nodes` (3GPP TS 28.620 NRM) : `ext-mme-lot3-01` (`ExternalMMEFunction`) & `ext-ran-cell-mobile-01` (`ExternalENodeBFunction`).
+  3. `internal_mediation_nodes` : `secgw-lot1-01` → `dea-lot1-01` → `hss-lot1-01`.
+  4. `ip_underlay_links` (`EP_RP`) : `link-ip-lot3-secgw1` (`100.64.14.0/30`, VLAN 1403, BFD).
+  5. `ipsec_tunnels` : `tun-ipsec-esp-lot3-secgw1` (`IPsec-ESP-IKEv2`, `AES-256-GCM`, `DH-20-ECP384`).
+  6. `service_mediation_flows` (`EP_S6a`) : `flow-s6a-lot3-to-hss1` (médiation obligatoire par `secgw-lot1-01` et `dea-lot1-01`).
+  7. `sla_and_monitoring_contracts` (TM Forum SID GB922) : `sla-lot3-hosting-s6a` (`REQ-Lot1-1343`) & `probe-noc-s6a-lot3` (`REQ-Lot1-1274`).

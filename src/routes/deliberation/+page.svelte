@@ -56,7 +56,7 @@
 	<!-- EN-TÊTE SUPÉRIEUR : SÉLECTEUR DE PROJET & 4 GRANDS ONGLETS DE PHASE       -->
 	<!-- ═════════════════════════════════════════════════════════════════════════ -->
 	{#if deliberationStore.deliberationViewMode === 'board' || deliberationStore.activePosture !== 'deliberation'}
-		<ProjectEngagementHeader />
+		<ProjectEngagementHeader isExperimentalEnabled={data?.isExperimentalEnabled} />
 	{/if}
 
 	<!-- ═════════════════════════════════════════════════════════════════════════ -->
@@ -120,15 +120,17 @@
 						<CheckCircle2 class="h-3.5 w-3.5 text-emerald-500" />
 						<span>Phase 3 : Rendu HLD →</span>
 					</button>
-					<button
-						type="button"
-						data-testid="goto-phase4-refinement-btn"
-						onclick={() => deliberationStore.setPosture('refinement')}
-						class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs transition-colors cursor-pointer"
-					>
-						<Cpu class="h-3.5 w-3.5" />
-						<span>🧪 Phase 4 : Refinement & Hydratation →</span>
-					</button>
+					{#if data?.isExperimentalEnabled}
+						<button
+							type="button"
+							data-testid="goto-phase4-refinement-btn"
+							onclick={() => deliberationStore.setPosture('refinement')}
+							class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs transition-colors cursor-pointer"
+						>
+							<Cpu class="h-3.5 w-3.5" />
+							<span>🧪 Phase 4 : Refinement & Hydratation →</span>
+						</button>
+					{/if}
 				</div>
 			</div>
 

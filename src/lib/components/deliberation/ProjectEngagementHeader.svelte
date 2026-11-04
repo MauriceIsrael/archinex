@@ -17,9 +17,15 @@
 	} from 'lucide-svelte';
 	let isCreateWorkspaceOpen = $state(false);
 
+	interface Props {
+		isExperimentalEnabled?: boolean;
+	}
+
+	let { isExperimentalEnabled = true }: Props = $props();
+
 	const activeEngagement = $derived(deliberationStore.activeEngagement);
 
-	const phases: Array<{
+	const basePhases: Array<{
 		id: DeliberationPosture;
 		number: string;
 		label: string;
@@ -46,15 +52,23 @@
 			label: 'Rendu & Homologation HLD',
 			subtitle: 'Projections d\'architecture, Modèles systèmes & Sceau SHA-256',
 			icon: CheckCircle2
-		},
-		{
-			id: 'refinement',
-			number: 'Phase 4 · 🧪',
-			label: 'Refinement & Hydratation',
-			subtitle: 'Matrice KAOS multi-axes, Objets Planned Nautobot/Sylva & Oracles OPA',
-			icon: Cpu
 		}
 	];
+
+	const phases = $derived(
+		isExperimentalEnabled
+			? [
+					...basePhases,
+					{
+						id: 'refinement' as DeliberationPosture,
+						number: 'Phase 4 · 🧪',
+						label: 'Refinement & Hydratation',
+						subtitle: 'Matrice KAOS multi-axes, Objets Planned Nautobot/Sylva & Oracles OPA',
+						icon: Cpu
+					}
+				]
+			: basePhases
+	);
 </script>
 
 <div class="space-y-4">

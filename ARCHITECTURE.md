@@ -710,6 +710,120 @@ erDiagram
     SLA_CONTRACT_AND_NOC_PROBE ||--|| SERVICE_MEDIATION_FLOW : "couvre (covered_flow_ref)"
 ```
 
+### 15.4 Démonstration Complète du Parcours et Composition Algébrique de Batory & Nephio sur le Cas §14
+
+Cette section illustre pas à pas le parcours complet depuis l'expression du besoin initial jusqu'à l'hydratation vivante dans Nautobot et le descripteur Sylva, en démontrant mathématiquement et techniquement le principe de **composition algébrique** :
+$$\text{Descripteur Cible} = (f_{\text{Énergie 2N}} \circ f_{\text{OOB}} \circ f_{\text{NIS2}} \circ f_{\text{SR-IOV}} \circ f_{\text{IPsec-Mediation}})(\text{Base Cluster})$$
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Arch as Architecte SI / Telco
+    participant P1 as Phase 1 : Appropriation
+    participant P2 as Phase 2 : Délibération
+    participant P3 as Phase 3 : Spécification HLD
+    participant P4 as Phase 4 : KAOS & Composition Algébrique
+    participant NB as Nautobot 2.x SSoT
+    participant SYL as Sylva / KRM
+
+    Arch->>P1: Analyse §14 (11 clauses CCTP, REQ-Lot1-1274, REQ-Lot1-1343)
+    P1-->>Arch: Sujet qualifié & Faits structurés K18
+    Arch->>P2: Évaluation multicritère & Arbitrage
+    P2-->>Arch: Option retenue : "Chiffrement IPsec ESP et médiation DEA S6a"
+    Arch->>P3: Rédaction de la spec HLD (4 sections, composants, flux, NOC)
+    P3-->>Arch: Spécification gelée & Projections C4
+    Arch->>P4: Déclenchement de l'Hydratation Multi-Axes
+    Note over P4: 1. Base Cluster (BareMetalHost vierge)<br/>2. + SR-IOV/DPDK (Pool CNF NUMA)<br/>3. + Standard NIS2 (Pool Workload)<br/>4. + OOB (IP 192.0.2.10, Redfish)<br/>5. + Énergie 2N (PDU-A + PDU-B)<br/>6. + Graphe 7 classes (Pivot tenant_ref)
+    P4->>NB: POST/PATCH idempotents (Tenants, Circuit, VLAN, Prefixes, 7 Devices)
+    NB-->>P4: 200 OK (Inventaire DCIM/IPAM hydraté)
+    P4->>SYL: Génère SylvaWorkloadCluster (units, baremetal_hosts, machine_deployments)
+    P4-->>Arch: Oracle OPA COMPLIANT (0 violation, 9 feuilles vérifiées)
+```
+
+#### Étape 1 · Phase 1 (Appropriation) : Découpage et Ancrage des Exigences
+- **Entrée** : 11 clauses contractuelles du CCTP Lulu Lot 1 (`REQ-Lot1-557`, `701`, `711`, `1270`, `1274`, `1275`, `1276`, `1277`, `1278`, `1279`, `1343`).
+- **Analyse d'impact** :
+  - `REQ-Lot1-1274` : obligation d'inhiber les fausses alarmes NOC générées par les cellules mobiles et RAN tiers intermittents du Lot 2.
+  - `REQ-Lot1-1343` : démarcation stricte de la responsabilité d'hébergement électrique et réseau au niveau du répartiteur Lot 1 (MMR).
+- **Résultat** : sujet qualifié `sub_lulu-avec-options-et-criteres-proposes_89` (*§14 · Hébergement Lots 2/3, RAN tiers et cellules mobiles : sécurité contre souplesse*).
+
+#### Étape 2 · Phase 2 (Délibération & Arbitrage) : Décision Formelle
+- **Option retenue** : *Obligation de chiffrement IPsec ESP et médiation DEA pour les flux S6a Lot 3 ↔ Lot 1* (`opt-1793311130542-wmhxr`).
+- **Motivation** : *« c'est la bonne »* (garantie de non-répudiation, étanchéité protocolaire et conformité 3GPP TS 33.210 NDS/IP).
+- **Statut** : `reversibility: reversible`, `regulatoryStatus: Compliant`.
+
+#### Étape 3 · Phase 3 (Spécification HLD L4) : Spécification en 4 Sections
+La décision est décomposée selon la structure canonique en 4 sections :
+1. **Contexte & Choix Validé** : choix de l'isolation forte avec passerelle de médiation dédiée.
+2. **Décomposition des Composants** :
+   - Terminaison du tunnel IPsec ESP obligatoirement sur `secgw-lot1-01`.
+   - Inspection et masquage topologique obligatoires sur `dea-lot1-01`.
+   - Interdiction formelle de tout flux non chiffré ou non médiatisé vers `hss-lot1-01`.
+3. **Interfaces, Protocoles & Matrice de Flux** : suites fortes `AES-256-GCM` / `ECDSA-P384` / `IKEv2`, démarcation des zones réseau (`ZONE-PARTNER-LOT3-UNTRUSTED`, `ZONE-DMZ-INTERCO-LOT1`, `ZONE-MEDIATION-SIGNALING-LOT1`, `ZONE-CORE-HSS-RESTRICTED`).
+4. **Exploitation, Supervision & Points de Vigilance** : télémétrie temps réel NOC avec neutralisation des alarmes intermittentes et haute disponibilité 2N.
+
+#### Étape 4 · Phase 4 : Application du Modèle Algébrique de Batory & Nephio
+
+Dans [`composeMultiAxisHydration`](src/lib/server/edp/refinementCoverage.ts), le descripteur final n'est pas un template statique préexistant, mais le résultat de transformations successives composées sur un objet vierge :
+
+```typescript
+// 1. Base Cluster vierge
+let cluster = {
+  name: "srv-proposes-89",
+  devices: [],
+  k8s_manifests: [],
+  security_zones: [],
+  environments: [],
+  power_feeds: []
+};
+
+// 2. Transformation f_SRIOV (Axe Compute Substrate - Pool CNF)
+cluster = applyLeaf_SRIOV(cluster);
+// => Ajoute srv--proposes-89-02 (Dell R750) avec pool sylva-cnf-sriov-dpdk
+// => Ajoute md-sylva-cnf-sriov-dpdk avec pinning NUMA, HugePages 1Gi et VF SR-IOV
+
+// 3. Transformation f_NIS2 (Axe Compute Substrate - Pool Standard)
+cluster = applyLeaf_StandardNIS2(cluster);
+// => Ajoute srv--proposes-89-01 (HPE DL380) avec pool sylva-standard-nis2
+// => Ajoute md-sylva-standard-nis2 avec CNI Cilium
+
+// 4. Transformation f_OOB (Axe OOB Management)
+cluster = applyLeaf_OOB(cluster);
+// => Injecte les interfaces oob0 (192.0.2.10/24 et 192.0.2.11/24)
+// => Configure spec.bmc.address = "redfish+http://192.0.2.10/redfish/v1/Systems/1"
+
+// 5. Transformation f_Zones (Axe Security Zoning)
+cluster = applyLeaf_SecurityZones(cluster);
+// => Injecte ZONE-OAM (isolation: strict, proxy: true) et ZONE-UPF-USER
+// => Active les units kyverno et vault dans SylvaWorkloadCluster
+
+// 6. Transformation f_Energie (Axe Power Resilience 2N)
+cluster = applyLeaf_DualFeed2N(cluster);
+// => Injecte power_feeds: ["PDU-A", "PDU-B"] sur tous les serveurs
+
+// 7. Transformation f_IPsec_Mediation (Graphe 7 Classes avec pivot tenant_ref="org-lot3-mno")
+cluster = applyReconciliationGraph(cluster);
+// => Injecte les 7 classes d'objets interconnectées
+```
+
+#### Étape 5 · Résultat de l'Hydratation Réelle dans Nautobot 2.x SSoT (`nautobotSync.ts`)
+
+L'exécution de `npm run seed:demo` ou l'appui sur le bouton **« Hydrater Nautobot & Sylva »** pousse immédiatement dans l'instance Nautobot active :
+1. **Tenants** : `org-lot3-mno` (Opérateur Tiers Lot 3) et `org-lot2-ran` (RAN & Cellules Mobiles Lot 2).
+2. **Circuit** : `link-ip-lot3-secgw1` (Provider `Provider-Lot3-MNO-Interco`, Type `Interco-WAN-IPsec-ESP-S6a`, statut `Planned`, 1 Gbps) reliant :
+   - **Terminaison A** : `ext-mme-lot3-01` (`ExternalMMEFunction`).
+   - **Terminaison Z** : `secgw-lot1-01` (`SecurityGatewayFunction` sur `pop-valmondois`).
+3. **IPAM** : VLAN `1403` et préfixe `100.64.14.0/30` rattachés au tenant `org-lot3-mno`.
+4. **DCIM Devices** :
+   - `srv--proposes-89-01` (`HPE ProLiant DL380`, Pool `sylva-standard-nis2`).
+   - `srv--proposes-89-02` (`Dell PowerEdge R750`, Pool `sylva-cnf-sriov-dpdk`).
+   - `ext-mme-lot3-01` (Shadow 3GPP `ExternalMMEFunction`, non managé Lot 1).
+   - `ext-ran-cell-mobile-01` (Shadow 3GPP `ExternalENodeBFunction`, intermittent).
+   - `secgw-lot1-01` (Passerelle IPsec ESP Lot 1).
+   - `dea-lot1-01` (Passerelle de médiation Diameter S6a Lot 1).
+   - `hss-lot1-01` (Serveur abonnés cœur Lot 1).
+5. **Vérification OPA Rego** : les règles `deny_unmediated_s6a_direct_flow` et `deny_unreconciled_partner_objects` retournent le verdict **`COMPLIANT`** (0 violation sur 9 feuilles évaluées).
+
 ---
 
 ## 16. Feuille de Route (Roadmap) Archinex : De l'Hydratation SSoT à l'Orchestration en Boucle Fermée

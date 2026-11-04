@@ -632,7 +632,7 @@ export function composeMultiAxisHydration(
         deviceType: resolvedType,
         clusterPool: tpl.nautobot_device?.cluster_pool || 'sylva-default-pool',
         dataplaneProfile:
-          tpl.nautobot_device?.dataplane_profile || 'SUSE Telco Cloud & Sylva Standard'
+          tpl.nautobot_device?.dataplane_profile || 'Sylva Standard'
       });
     }
 
@@ -713,7 +713,7 @@ export function composeMultiAxisHydration(
               role: deviceRole,
               deviceType,
               clusterPool: 'sylva-default-pool',
-              dataplaneProfile: 'SUSE Telco Cloud & Sylva'
+              dataplaneProfile: 'Sylva'
             }
           ];
 

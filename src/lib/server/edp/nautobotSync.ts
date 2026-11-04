@@ -372,7 +372,7 @@ export async function syncHydratedInventoryToNautobot(
           name: 'telco-baremetal-worker',
           color: '2196f3',
           content_types: ['dcim.device'],
-          description: 'Nœud Bare-Metal SUSE Telco Cloud & Sylva (CAPM3 / RKE2)'
+          description: 'Nœud Bare-Metal Sylva (CAPM3 / RKE2)'
         }
       );
       const roleShadow = await getOrCreateByQuery(

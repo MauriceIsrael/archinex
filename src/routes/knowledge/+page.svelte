@@ -11,6 +11,7 @@
   } from '$lib/domain/knowledgeGraph';
   import KnowledgeTreeChart from '$lib/components/knowledge/KnowledgeTreeChart.svelte';
   import KnowledgeNodePanel from '$lib/components/knowledge/KnowledgeNodePanel.svelte';
+  import OntologyTripletsEditor from '$lib/components/knowledge/OntologyTripletsEditor.svelte';
   import {
     Network,
     Sparkles,
@@ -55,7 +56,8 @@
   let searchQuery = $state<string>((data as any).initialFramework || '');
   
   // Mode d'affichage : 'opposable' | 'journal' | 'stacked' | 'combined' | 'table'
-  let viewMode = $state<'opposable' | 'journal' | 'stacked' | 'combined' | 'table'>(
+  let viewMode = $state<'opposable' | 'journal' | 'stacked' | 'combined' | 'table' | 'ontology'>(
+    (data as any).initialTab === 'ontology' ? 'ontology' :
     (data as any).initialTab === 'journal' ? 'journal' :
     (data as any).initialTab === 'table' ? 'table' :
     (data as any).initialTab === 'stacked' ? 'stacked' :
@@ -535,6 +537,14 @@
       >
         <ListFilter class="h-3.5 w-3.5" />
         Catalogue ({snapshot.assets.length + (snapshot.controls?.length || 0)})
+      </button>
+      <button
+        onclick={() => (viewMode = 'ontology')}
+        data-testid="tab-ontology-triplets"
+        class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs font-semibold transition-all cursor-pointer {viewMode === 'ontology' ? 'bg-card text-foreground shadow-xs' : 'text-muted-foreground hover:text-foreground'}"
+      >
+        <Network class="h-3.5 w-3.5 text-indigo-500" />
+        🕸️ Ontologie & Triplets ({'{S, V, O}'})
       </button>
     </div>
 
@@ -1106,6 +1116,8 @@
   <!-- ═════════════════════════════════════════════════════════════════════════ -->
   <!-- 3. VUE CATALOGUE DÉTAILLÉ (TABLEAUX)                                      -->
   <!-- ═════════════════════════════════════════════════════════════════════════ -->
+  {:else if viewMode === 'ontology'}
+    <OntologyTripletsEditor />
   {:else}
     <div class="space-y-6">
       <!-- Actifs d'Architecture (ADRs, Principes, Patterns) -->

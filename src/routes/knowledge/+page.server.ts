@@ -4,7 +4,7 @@ import type { KnowledgeSnapshot } from '$lib/domain/knowledgeGraph';
 
 export const load: PageServerLoad = async ({ url }) => {
   const initialFramework = url.searchParams.get('framework') || '';
-  const initialTab = url.searchParams.get('tab') || '';
+  const initialTab = url.searchParams.get('tab') || url.searchParams.get('view') || '';
   try {
     const [result, complianceRes, clausesRes, publicationsRes] = await Promise.all([
       llmopsClient.getLatestSnapshot(),

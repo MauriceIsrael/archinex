@@ -86,7 +86,7 @@ export async function seedDemo(client?: any) {
       status: 'active',
       defaultSubjectId: SUBJECT_ID,
       drafts: '{}',
-      subjects: '{}'
+      subjects: '[]'
     },
     update: {}
   });
@@ -182,14 +182,14 @@ export async function seedDemo(client?: any) {
       id: `dec-${SUBJECT_ID}`,
       subjectId: SUBJECT_ID,
       retainedOptionId: RETAINED_OPTION_ID,
-      rationale: 'c\'est la bonne',
+      rationale: "c'est la bonne",
       reversibility: 'reversible',
       arbiterId: 'Directeur Programme & Architecte Sécurité Lot 1',
       arbiterRole: 'lead_architect'
     },
     update: {
       retainedOptionId: RETAINED_OPTION_ID,
-      rationale: 'c\'est la bonne',
+      rationale: "c'est la bonne",
       reversibility: 'reversible',
       arbiterId: 'Directeur Programme & Architecte Sécurité Lot 1',
       arbiterRole: 'lead_architect'
@@ -208,7 +208,7 @@ export async function seedDemo(client?: any) {
       ...(drafts[SUBJECT_ID] || {}),
       retainedOptionId: RETAINED_OPTION_ID,
       retainedOption: RETAINED_OPTION_TITLE,
-      rationale: 'c\'est la bonne',
+      rationale: "c'est la bonne",
       reversibility: 'reversible',
       regulatoryStatus: 'Compliant',
       detailedSpec: DETAILED_SPEC_MARKDOWN,
@@ -216,25 +216,43 @@ export async function seedDemo(client?: any) {
       updatedAt: new Date().toISOString()
     };
 
-    const subjectsBlob = JSON.parse(engagement.subjects || '{}');
-    if (subjectsBlob[SUBJECT_ID]) {
-      subjectsBlob[SUBJECT_ID].decision = {
-        ...(subjectsBlob[SUBJECT_ID].decision || {}),
-        retainedOptionId: RETAINED_OPTION_ID,
-        retainedOptionTitle: RETAINED_OPTION_TITLE,
-        rationale: 'c\'est la bonne',
-        reversibility: 'reversible',
-        regulatoryStatus: 'Compliant',
-        detailedSpec: DETAILED_SPEC_MARKDOWN
+    const parsed = JSON.parse(engagement.subjects || '[]');
+    let subjectsList: any[] = Array.isArray(parsed)
+      ? parsed
+      : typeof parsed === 'object' && parsed !== null
+      ? Object.values(parsed)
+      : [];
+
+    let targetSubject = subjectsList.find((s) => s.id === SUBJECT_ID);
+    if (!targetSubject) {
+      targetSubject = {
+        id: SUBJECT_ID,
+        section_ref: '§14',
+        name: 'Hébergement Lots 2/3, RAN tiers et cellules mobiles : sécurité contre souplesse',
+        level: 'L3_decided',
+        status: 'decided',
+        requirement_ids: ['REQ-Lot1-1274', 'REQ-Lot1-1343'],
+        problem_statement:
+          'Comment héberger et interconnecter les équipements des Lots 2/3 tout en garantissant le chiffrement IPsec ESP, la médiation DEA S6a et la réconciliation SLA/NOC ?'
       };
+      subjectsList.push(targetSubject);
     }
+
+    targetSubject.decision = {
+      retainedOptionId: RETAINED_OPTION_ID,
+      retainedOptionTitle: RETAINED_OPTION_TITLE,
+      rationale: "c'est la bonne",
+      reversibility: 'reversible',
+      regulatoryStatus: 'Compliant',
+      detailedSpec: DETAILED_SPEC_MARKDOWN
+    };
 
     await db.engagement.update({
       where: { id: PROJECT_ID },
       data: {
         defaultSubjectId: SUBJECT_ID,
         drafts: JSON.stringify(drafts),
-        subjects: JSON.stringify(subjectsBlob)
+        subjects: JSON.stringify(subjectsList)
       }
     });
   }

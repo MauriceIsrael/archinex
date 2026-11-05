@@ -7,13 +7,13 @@ import {
 } from '../src/lib/server/edp/refinementCoverage.js';
 import { syncHydratedInventoryToNautobot } from '../src/lib/server/edp/nautobotSync.js';
 
-const PROJECT_ID = 'lulu-avec-options-et-criteres-proposes';
-const SUBJECT_ID = 'sub_lulu-avec-options-et-criteres-proposes_89';
-const RETAINED_OPTION_ID = 'opt-1793311130542-wmhxr';
-const RETAINED_OPTION_TITLE =
+export const PROJECT_ID = 'lulu-avec-options-et-criteres-proposes';
+export const SUBJECT_ID = 'sub_lulu-avec-options-et-criteres-proposes_89';
+export const RETAINED_OPTION_ID = 'opt-1793311130542-wmhxr';
+export const RETAINED_OPTION_TITLE =
   'Obligation de chiffrement IPsec ESP et médiation DEA pour les flux S6a Lot 3 ↔ Lot 1';
 
-const DETAILED_SPEC_MARKDOWN = `## 1. Contexte & Choix d'Architecture Validé (Socle L3)
+export const DETAILED_SPEC_MARKDOWN = `## 1. Contexte & Choix d'Architecture Validé (Socle L3)
 - **Option retenue** : Obligation de chiffrement IPsec ESP et médiation DEA pour les flux S6a Lot 3 ↔ Lot 1
 - **Motivation d'arbitrage** : c'est la bonne
 - **Réversibilité & Conformité** : reversible · Compliant
@@ -35,19 +35,118 @@ const DETAILED_SPEC_MARKDOWN = `## 1. Contexte & Choix d'Architecture Validé (S
 - **Supervision NOC** : Sondes de télémétrie temps réel (\`probe-noc-s6a-lot3\`, neutralisation des fausses alarmes cellules mobiles \`REQ-Lot1-1274\`) et contrat SLA d'hébergement (\`sla-lot3-hosting-s6a\`, démarcation \`REQ-Lot1-1343\`) réconciliés via le pivot \`tenant_ref = "org-lot3-mno"\`.
 - **Haute Disponibilité** : Résilience électrique Dual-Feed 2N et bascule automatique VRRP/BFD sans rupture de service.`;
 
-async function main() {
+export async function seedDemo(client?: any) {
+  const db = client || prisma;
+
   console.log('══════════════════════════════════════════════════════════════════════════════');
   console.log('🚀 ARCHINEX SEED:DEMO — Parcours Complet Bout-en-Bout (§14 Lulu Lot 3 ↔ Lot 1)');
   console.log('══════════════════════════════════════════════════════════════════════════════');
 
-  const project = await prisma.project.findUnique({
-    where: { id: PROJECT_ID }
+  // 0. Auto-initialisation si la base est neuve/vierge (Mode Autonome Self-Contained)
+  await db.project.upsert({
+    where: { id: PROJECT_ID },
+    create: {
+      id: PROJECT_ID,
+      title: 'Lulu (avec options et critères proposés)',
+      shortName: 'Lulu §14 Démo',
+      type: 'project_rfp',
+      badge: 'Lulu · Démo Bout-en-Bout',
+      description:
+        "Programme national large bande PPDR (Mission Critical) au Luxembourg. Parcours complet d'arbitrage §14 Lot 3 ↔ Lot 1.",
+      status: 'active',
+      strategy: JSON.stringify({
+        objectives: [
+          'Haute disponibilité 99,999 % et résilience géo-distribuée',
+          'Chiffrement matériel de bout en bout et médiation DEA S6a',
+          'Souveraineté des données et opérations (NIS2 / PSF)'
+        ],
+        principles: [
+          'Standardisation 3GPP Release 17 / TS 28.620',
+          'Architecture Zero-Trust avec mTLS et réconciliation SID GB922'
+        ],
+        constraints: [
+          'Topologie 3 datacentres POST (RCE, RCS, RCW)',
+          'Démarcation stricte : FRMCS confié aux CFL, réseaux MNO commerciaux au Lot 3'
+        ]
+      })
+    },
+    update: {}
   });
 
-  if (!project) {
-    throw new Error(
-      `Le projet "${PROJECT_ID}" est introuvable en base. Exécutez d'abord "npm run db:seed".`
-    );
+  await db.engagement.upsert({
+    where: { id: PROJECT_ID },
+    create: {
+      id: PROJECT_ID,
+      title: 'Lulu (avec options et critères proposés)',
+      shortName: 'Lulu §14 Démo',
+      type: 'project_rfp',
+      badge: 'Lulu · Démo Bout-en-Bout',
+      description:
+        "Programme national large bande PPDR (Mission Critical) au Luxembourg. Parcours complet d'arbitrage §14 Lot 3 ↔ Lot 1.",
+      status: 'active',
+      defaultSubjectId: SUBJECT_ID,
+      drafts: '{}',
+      subjects: '{}'
+    },
+    update: {}
+  });
+
+  await db.subject.upsert({
+    where: { id: SUBJECT_ID },
+    create: {
+      id: SUBJECT_ID,
+      projectId: PROJECT_ID,
+      sectionRef: '§14',
+      name: 'Hébergement Lots 2/3, RAN tiers et cellules mobiles : sécurité contre souplesse',
+      domain: 'general',
+      problemStatement:
+        'Comment le Lot 1 expose-t-il aux Lots 2/3, aux RAN tiers (FRMCS, in-house) et aux cellules intermittentes un point d\'accès unique, sécurisé et supervisé, qui couvre l\'hébergement physique en datacentre et la connectivité logique, sans élargir le périmètre de sécurité du Lot 1 ni dégrader la supervision NOC ?',
+      maturityLevel: 'L1_framed',
+      deliberationStatus: 'open',
+      waitingForRole: 'lead_architect',
+      requirementRefs: JSON.stringify([
+        'REQ-Lot1-557',
+        'REQ-Lot1-701',
+        'REQ-Lot1-711',
+        'REQ-Lot1-1270',
+        'REQ-Lot1-1274',
+        'REQ-Lot1-1275',
+        'REQ-Lot1-1276',
+        'REQ-Lot1-1277',
+        'REQ-Lot1-1278',
+        'REQ-Lot1-1279',
+        'REQ-Lot1-1343'
+      ])
+    },
+    update: {}
+  });
+
+  // Si la base ne contient aucun utilisateur démo, initialiser l'admin pour l'accès IHM direct
+  const userCount = await db.user.count();
+  if (userCount === 0) {
+    const { default: bcrypt } = await import('bcryptjs');
+    const adminPass = await bcrypt.hash('admin123', 10);
+    await db.user.create({
+      data: {
+        id: 'usr_admin_001',
+        name: 'Lead Architect (Admin)',
+        email: 'admin@archinex.local',
+        passwordHash: adminPass,
+        role: 'admin',
+        attributes: JSON.stringify({
+          clearance: 3,
+          department: 'Architecture & Systèmes',
+          role: 'lead_architect',
+          tags: ['internal']
+        })
+      }
+    });
+    await db.casbinRule.createMany({
+      data: [
+        { ptype: 'p', v0: 'admin', v1: '*', v2: '*' },
+        { ptype: 'g', v0: 'usr_admin_001', v1: 'admin' }
+      ]
+    });
   }
 
   // 1. Positionner §14 comme sujet par défaut de l'engagement Lulu pour un accès immédiat
@@ -55,7 +154,7 @@ async function main() {
   console.log(`   Titre : §14 · Hébergement Lots 2/3, RAN tiers et cellules mobiles : sécurité contre souplesse`);
 
   // 2. Mettre à jour l'Option retenue et la Décision formelle en Phase 2 (Délibération)
-  await prisma.option.upsert({
+  await db.option.upsert({
     where: { id: RETAINED_OPTION_ID },
     create: {
       id: RETAINED_OPTION_ID,
@@ -77,7 +176,7 @@ async function main() {
     }
   });
 
-  const decisionRecord = await prisma.decision.upsert({
+  const decisionRecord = await db.decision.upsert({
     where: { subjectId: SUBJECT_ID },
     create: {
       id: `dec-${SUBJECT_ID}`,
@@ -99,7 +198,7 @@ async function main() {
   console.log(`✅ [Phase 2 · Délibération] Décision arbitrée : "${RETAINED_OPTION_TITLE}" (Motivation : "${decisionRecord.rationale}")`);
 
   // 3. Mettre à jour la Spécification Détaillée (Phase 3 HLD) dans l'Engagement JSON
-  const engagement = await prisma.engagement.findUnique({
+  const engagement = await db.engagement.findUnique({
     where: { id: PROJECT_ID }
   });
 
@@ -130,7 +229,7 @@ async function main() {
       };
     }
 
-    await prisma.engagement.update({
+    await db.engagement.update({
       where: { id: PROJECT_ID },
       data: {
         defaultSubjectId: SUBJECT_ID,
@@ -144,13 +243,6 @@ async function main() {
   // 4. Phase 4 : Raffinement Ontologique Multi-Axes, Hydratation Exhaustive (7 classes d'objets) & Oracle OPA
   const catalog = await loadOntologyCatalog({ includeRuntimeOverlay: true });
 
-  // Liaisons multi-axes couvrant :
-  // - Cumul des 2 pools Sylva (CNF SR-IOV/DPDK pour SecGW/DEA + Standard NIS2 pour HSS/OAM)
-  // - Réseau OOB Redfish
-  // - Chiffrement WAN IPsec ESP IKEv2 AES-256-GCM & Médiation DEA S6a + Réconciliation Partenaire Lot 3
-  // - Zonage de sécurité OAM & User-Plane
-  // - Parité 3 environnements (Dev / Recette Iso-Prod / Prod)
-  // - Résilience électrique 2N (Dual-Feed PDU-A + PDU-B)
   const demoBindings = [
     { urn: 'urn:archinex:ontology:infrastructure:server:baremetal', revision: 1 },
     { urn: 'urn:archinex:ontology:infrastructure:compute:suse_telco_cloud_sylva', revision: 1 },
@@ -233,7 +325,7 @@ async function main() {
     }
   };
 
-  await (prisma as any).executableDecisionPackage.upsert({
+  await (db as any).executableDecisionPackage.upsert({
     where: { id: edpId },
     create: {
       id: edpId,
@@ -267,6 +359,7 @@ async function main() {
   console.log(`     6. Flux Service S6a        : ${rg.service_mediation_flows.map((f: any) => `${f.id} [hops: ${f.mandatory_mediation_hops.join(' -> ')}]`).join(', ')}`);
   console.log(`     7. Contrats SLA & NOC      : ${rg.sla_and_monitoring_contracts.map((c: any) => `${c.id} (${c.requirement_ref})`).join(', ')}`);
   console.log(`   • Verdict Oracle OPA Rego    : ${oracleEval.verdict.toUpperCase()} (${oracleEval.violations.length} violation, ${oracleEval.evaluatedAxesCount} feuilles évaluées)`);
+
   const nbSync = await syncHydratedInventoryToNautobot(hydratedInventory);
   if (nbSync.reachable) {
     console.log(`✅ [Nautobot 2.x SSoT Live Sync] Synchronisation réussie sur http://localhost:8080 :`);
@@ -281,13 +374,35 @@ async function main() {
     console.log(`ℹ️ [Nautobot SSoT] Conteneur Nautobot non joignable sur http://localhost:8080 (inventaire persisté localement).`);
   }
   console.log('══════════════════════════════════════════════════════════════════════════════');
+
+  return {
+    projectId: PROJECT_ID,
+    subjectId: SUBJECT_ID,
+    decisionRecord,
+    coverage,
+    hydratedInventory,
+    oracleEval,
+    edpId,
+    nbSync
+  };
 }
 
-main()
-  .catch((err) => {
-    console.error('❌ Erreur lors du seed:demo :', err);
-    process.exit(1);
-  })
-  .finally(async () => {
-    await prisma.$disconnect();
-  });
+export async function main() {
+  return seedDemo(prisma);
+}
+
+const isDirectCli =
+  typeof process !== 'undefined' &&
+  process.argv[1] &&
+  (process.argv[1].endsWith('seed-demo.ts') || process.argv[1].endsWith('seed-demo.js'));
+
+if (isDirectCli) {
+  main()
+    .catch((err) => {
+      console.error('❌ Erreur lors du seed:demo :', err);
+      process.exit(1);
+    })
+    .finally(async () => {
+      await prisma.$disconnect();
+    });
+}

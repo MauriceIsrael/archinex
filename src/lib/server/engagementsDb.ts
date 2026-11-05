@@ -1,4 +1,4 @@
-import { prisma } from './prisma';
+﻿import { prisma } from './prisma';
 import { seedSubjectProposal } from './projects/proposalSeeder';
 import type { EngagementProfile, EngagementType, ProjectParticipant, ProjectStrategy } from '$lib/domain/engagements';
 import type { MaturitySubject } from '$lib/domain/maturityBoard';
@@ -17,13 +17,18 @@ function parseJsonSafe<T>(val: string | null | undefined, fallback: T): T {
 }
 
 /**
- * Convertit un enregistrement Prisma Engagement vers le type métier EngagementProfile
+ * Convertit un enregistrement Prisma Engagement vers le type mÃ©tier EngagementProfile
  */
 export function mapPrismaToEngagementProfile(
 	row: any,
 	options: { stripSubjectProposals?: boolean } = {}
 ): EngagementProfile {
-	const rawSubjects = parseJsonSafe<MaturitySubject[]>(row.subjects, []);
+	const parsed = parseJsonSafe<any>(row.subjects, []);
+	const rawSubjects: MaturitySubject[] = Array.isArray(parsed)
+		? parsed
+		: typeof parsed === 'object' && parsed !== null
+		? Object.values(parsed)
+		: [];
 	const subjects = options.stripSubjectProposals
 		? rawSubjects.map((s) => {
 				if (s.proposal) {
@@ -52,14 +57,14 @@ export function mapPrismaToEngagementProfile(
 		subjects,
 		drafts: parseJsonSafe<Record<string, TelegraphicDraft>>(row.drafts, {}),
 		statements: parseJsonSafe<Statement[]>(row.statements, []),
-		corpusDocuments: [], // Complété par la base de connaissances liée
+		corpusDocuments: [], // ComplÃ©tÃ© par la base de connaissances liÃ©e
 		dialogueMessages: parseJsonSafe<DialogueMessage[]>(row.dialogueMessages, []),
 		createdAt: row.createdAt ? new Date(row.createdAt).toISOString() : new Date().toISOString()
 	};
 }
 
 /**
- * Convertit un enregistrement Prisma CorpusDocument vers le type métier CorpusDocument
+ * Convertit un enregistrement Prisma CorpusDocument vers le type mÃ©tier CorpusDocument
  */
 export function mapPrismaToCorpusDocument(
 	row: any,
@@ -90,9 +95,9 @@ export function mapPrismaToCorpusDocument(
 }
 
 /**
- * La table des sujets fait foi : la décision formelle et la cascade y écrivent directement, alors que la copie
- * des sujets stockée dans l'engagement n'est réécrite qu'à la prochaine sauvegarde du client. On y reporte donc
- * le niveau de maturité, et on y ajoute les sujets créés côté serveur (sous-sujets de cascade).
+ * La table des sujets fait foi : la dÃ©cision formelle et la cascade y Ã©crivent directement, alors que la copie
+ * des sujets stockÃ©e dans l'engagement n'est rÃ©Ã©crite qu'Ã  la prochaine sauvegarde du client. On y reporte donc
+ * le niveau de maturitÃ©, et on y ajoute les sujets crÃ©Ã©s cÃ´tÃ© serveur (sous-sujets de cascade).
  */
 async function overlayServerSubjects(profiles: EngagementProfile[]): Promise<void> {
 	if (profiles.length === 0) return;
@@ -111,7 +116,7 @@ async function overlayServerSubjects(profiles: EngagementProfile[]): Promise<voi
 				else delete existing.awaiting_review;
 				continue;
 			}
-			// Sous-sujet né côté serveur : rattaché au sujet dont l'identifiant préfixe le sien (sub-child-<parent>-…).
+			// Sous-sujet nÃ© cÃ´tÃ© serveur : rattachÃ© au sujet dont l'identifiant prÃ©fixe le sien (sub-child-<parent>-â€¦).
 			const parent = profile.subjects
 				.filter((s) => row.id.startsWith(`sub-child-${s.id}-`) || row.id.startsWith(`sub-child-agent-${s.id}-`))
 				.sort((a, b) => b.id.length - a.id.length)[0];
@@ -152,8 +157,8 @@ async function overlayServerSubjects(profiles: EngagementProfile[]): Promise<voi
 }
 
 /**
- * Récupère tous les engagements persistés dans Prisma.
- * Par défaut, les clauses lourdes des documents du corpus sont allégées pour un chargement instantané.
+ * RÃ©cupÃ¨re tous les engagements persistÃ©s dans Prisma.
+ * Par dÃ©faut, les clauses lourdes des documents du corpus sont allÃ©gÃ©es pour un chargement instantanÃ©.
  */
 export async function getAllEngagementsFromDb(options: {
 	includeCorpusKeyClauses?: boolean;
@@ -169,7 +174,7 @@ export async function getAllEngagementsFromDb(options: {
 
 	const profiles = rows.map((r) => {
 		const profile = mapPrismaToEngagementProfile(r, { stripSubjectProposals: options.stripSubjectProposals });
-		// Relie les documents du corpus pertinents à cet engagement
+		// Relie les documents du corpus pertinents Ã  cet engagement
 		profile.corpusDocuments = allDocs.filter(
 			(d) =>
 				d.isGlobalStandard ||
@@ -182,7 +187,7 @@ export async function getAllEngagementsFromDb(options: {
 }
 
 /**
- * Récupère un engagement par son identifiant
+ * RÃ©cupÃ¨re un engagement par son identifiant
  */
 export async function getEngagementByIdFromDb(id: string): Promise<EngagementProfile | null> {
 	const row = await prisma.engagement.findUnique({ where: { id } });
@@ -200,7 +205,7 @@ export async function getEngagementByIdFromDb(id: string): Promise<EngagementPro
 }
 
 /**
- * Persiste ou met à jour un engagement complet dans Prisma
+ * Persiste ou met Ã  jour un engagement complet dans Prisma
  */
 export async function saveEngagementToDb(profile: EngagementProfile): Promise<EngagementProfile> {
 	const data = {
@@ -263,8 +268,8 @@ export async function saveEngagementToDb(profile: EngagementProfile): Promise<En
 					select: { projectId: true, maturityLevel: true, decision: { select: { id: true } } }
 				});
 				if (existing && existing.projectId !== profile.id) {
-					// Un identifiant de sujet est global : ne jamais réécrire le sujet d'un autre projet.
-					console.warn(`[engagementsDb] Sujet ${subjectId} déjà rattaché au projet ${existing.projectId} : ignoré pour ${profile.id}.`);
+					// Un identifiant de sujet est global : ne jamais rÃ©Ã©crire le sujet d'un autre projet.
+					console.warn(`[engagementsDb] Sujet ${subjectId} dÃ©jÃ  rattachÃ© au projet ${existing.projectId} : ignorÃ© pour ${profile.id}.`);
 					continue;
 				}
 				const problemStatement = (s.problem_statement || (s as any).problemStatement || '').trim();
@@ -274,7 +279,7 @@ export async function saveEngagementToDb(profile: EngagementProfile): Promise<En
 						data: {
 							id: subjectId,
 							projectId: profile.id,
-							sectionRef: s.section_ref || '§0.0',
+							sectionRef: s.section_ref || 'Â§0.0',
 							name: s.name || 'Sujet sans titre',
 							domain: (s as any).domain || 'general',
 							problemStatement,
@@ -296,8 +301,8 @@ export async function saveEngagementToDb(profile: EngagementProfile): Promise<En
 					}
 					continue;
 				}
-				// Mise à jour depuis le profil client : le serveur reste maître de l'énoncé du problème (édité via
-				// /subjects/[id]), du domaine et des niveaux décidés (L3+ ne s'obtient que par l'arbitrage formel).
+				// Mise Ã  jour depuis le profil client : le serveur reste maÃ®tre de l'Ã©noncÃ© du problÃ¨me (Ã©ditÃ© via
+				// /subjects/[id]), du domaine et des niveaux dÃ©cidÃ©s (L3+ ne s'obtient que par l'arbitrage formel).
 				const serverDecided =
 					Boolean(existing.decision) ||
 					['L3_decided', 'L4_specified', 'L5_archived'].includes(existing.maturityLevel);
@@ -306,7 +311,7 @@ export async function saveEngagementToDb(profile: EngagementProfile): Promise<En
 				await tx.subject.update({
 					where: { id: subjectId },
 					data: {
-						sectionRef: s.section_ref || '§0.0',
+						sectionRef: s.section_ref || 'Â§0.0',
 						name: s.name || 'Sujet sans titre',
 						...((s as any).domain ? { domain: (s as any).domain } : {}),
 						...(problemStatement ? { problemStatement } : {}),
@@ -353,12 +358,12 @@ export async function saveEngagementToDb(profile: EngagementProfile): Promise<En
 		}
 	}, { timeout: 15000 });
 
-	// Matérialisation des propositions (options, critères, évaluations) après la création des sujets
+	// MatÃ©rialisation des propositions (options, critÃ¨res, Ã©valuations) aprÃ¨s la crÃ©ation des sujets
 	for (const { subjectId, proposal } of proposalsToSeed) {
 		await seedSubjectProposal(subjectId, proposal);
 	}
 
-	// Sauvegarder également ses documents amonts s'il y en a
+	// Sauvegarder Ã©galement ses documents amonts s'il y en a
 	if (profile.corpusDocuments && profile.corpusDocuments.length > 0) {
 		for (const doc of profile.corpusDocuments) {
 			await saveCorpusDocumentToDb(doc);
@@ -369,7 +374,7 @@ export async function saveEngagementToDb(profile: EngagementProfile): Promise<En
 }
 
 /**
- * Met à jour partiellement un engagement dans Prisma
+ * Met Ã  jour partiellement un engagement dans Prisma
  */
 export async function updateEngagementInDb(
 	id: string,
@@ -395,7 +400,7 @@ export async function deleteEngagementFromDb(id: string): Promise<boolean> {
 		await prisma.engagement.delete({ where: { id } });
 		return true;
 	} catch (err) {
-		console.warn(`[engagementsDb] Échec suppression dure engagement ${id}, tentative soft-delete:`, err);
+		console.warn(`[engagementsDb] Ã‰chec suppression dure engagement ${id}, tentative soft-delete:`, err);
 		try {
 			await prisma.engagement.update({
 				where: { id },
@@ -410,7 +415,7 @@ export async function deleteEngagementFromDb(id: string): Promise<boolean> {
 
 
 /**
- * Récupère tous les documents du patrimoine de connaissances depuis Prisma
+ * RÃ©cupÃ¨re tous les documents du patrimoine de connaissances depuis Prisma
  */
 export async function getAllCorpusDocumentsFromDb(
 	options: { includeKeyClauses?: boolean } = {}

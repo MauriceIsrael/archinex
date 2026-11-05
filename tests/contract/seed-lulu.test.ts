@@ -4,7 +4,7 @@ import { resolve } from 'node:path';
 
 describe('Ensemencement Démo Lulu "Juste Après Ingestion" (seed-lulu)', () => {
 	const root = process.cwd();
-	const dir = resolve(root, 'examples/lumicc-ingested');
+	const dir = resolve(root, 'examples/lulu-ingested');
 
 	it('présente tous les fichiers nécessaires au projet', () => {
 		expect(existsSync(resolve(dir, 'project.json'))).toBe(true);
@@ -46,27 +46,27 @@ describe('Ensemencement Démo Lulu "Juste Après Ingestion" (seed-lulu)', () => 
 		const subjectIds = subjects.map((s: { id: string }) => s.id);
 
 		// Cas 1 : Nominal (Topologie 3 DC & RTO UDR)
-		expect(subjectIds).toContain('SUBJ-LUMICC-01');
+		expect(subjectIds).toContain('SUBJ-LULU-01');
 		// Cas 2 : Discussion experts / controverse (Holdover horloge 30j sans GNSS)
-		expect(subjectIds).toContain('SUBJ-LUMICC-03');
+		expect(subjectIds).toContain('SUBJ-LULU-03');
 		// Cas 3 : Contradiction réglementaire (Gouvernance eSIM SM-DP+ & HSM FIPS 140-3 L3)
-		expect(subjectIds).toContain('SUBJ-LUMICC-05');
+		expect(subjectIds).toContain('SUBJ-LULU-05');
 		// Cas 4 : Capitalisation base de connaissances (Wi-Fi offload sans N3IWF)
-		expect(subjectIds).toContain('SUBJ-LUMICC-02');
+		expect(subjectIds).toContain('SUBJ-LULU-02');
 	});
 
 	it('couvre les nouveaux sujets factorisés de supervision, QoS, médiation et automatisation', () => {
 		const subjects = JSON.parse(readFileSync(resolve(dir, 'subjects.json'), 'utf-8'));
 		const subjectIds = subjects.map((s: { id: string }) => s.id);
 
-		expect(subjectIds).toContain('SUBJ-LUMICC-08'); // HA NOC
-		expect(subjectIds).toContain('SUBJ-LUMICC-09'); // Médiation OSS NRM
-		expect(subjectIds).toContain('SUBJ-LUMICC-10'); // Supervision RAN MNO
-		expect(subjectIds).toContain('SUBJ-LUMICC-11'); // Corrélation alarmes RCA
-		expect(subjectIds).toContain('SUBJ-LUMICC-12'); // Pipeline collecte NOC / SOC
-		expect(subjectIds).toContain('SUBJ-LUMICC-13'); // Automatisation SMO/OSS
-		expect(subjectIds).toContain('SUBJ-LUMICC-14'); // Gouvernance QoS 5QI
-		expect(subjectIds).toContain('SUBJ-LUMICC-15'); // Assurance de service sondes
-		expect(subjectIds).toContain('SUBJ-LUMICC-16'); // Inventaire / CMDB
+		expect(subjectIds).toContain('SUBJ-LULU-08'); // HA NOC
+		expect(subjectIds).toContain('SUBJ-LULU-09'); // Médiation OSS NRM
+		expect(subjectIds).toContain('SUBJ-LULU-10'); // Supervision RAN MNO
+		expect(subjectIds).toContain('SUBJ-LULU-11'); // Corrélation alarmes RCA
+		expect(subjectIds).toContain('SUBJ-LULU-12'); // Pipeline collecte NOC / SOC
+		expect(subjectIds).toContain('SUBJ-LULU-13'); // Automatisation SMO/OSS
+		expect(subjectIds).toContain('SUBJ-LULU-14'); // Gouvernance QoS 5QI
+		expect(subjectIds).toContain('SUBJ-LULU-15'); // Assurance de service sondes
+		expect(subjectIds).toContain('SUBJ-LULU-16'); // Inventaire / CMDB
 	});
 });

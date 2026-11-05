@@ -122,9 +122,9 @@ Les tests « live » (vrai LLMOps) et les parcours Playwright ne tournent pas en
 Le pipeline (`src/lib/server/ingest/arckitRequirementsPipeline.ts`) appelle le modèle configuré (`LLM_PROVIDER`, `ANTHROPIC_API_KEY`…). Pour mesurer sa qualité sur un RFP, face à l'analyse d'un architecte :
 
 ```bash
-npm run eval:requirements -- examples/lumicc-noc/rfp-section4-noc.md \
-  --reference examples/lumicc-noc/reference-analysis.json --out eval-results/lumicc.json \
-  --report eval-results/lumicc.md
+npm run eval:requirements -- examples/lulu-noc/rfp-section4-noc.md \
+  --reference examples/lulu-noc/reference-analysis.json --out eval-results/lulu.json \
+  --report eval-results/lulu.md
 ```
 
 `--report` écrit un rapport lisible (pourquoi ces sujets, ce que devient chaque autre clause, ce qu'il faut relire). Protocole complet pour jouer le jalon J0 : `docs/jalon-j0.md`.

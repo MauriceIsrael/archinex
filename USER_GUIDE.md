@@ -360,7 +360,7 @@ En Phase 3 (« Rendu & Homologation »), Archinex permet de visualiser et d'expo
 2. **🔄 Chaîne de Déploiement & Homologation** : Diagramme de séquence modélisant la chaîne de confiance et de validation humaine (construction du paquet signé par l'éditeur/titulaire, soumission au guichet d'homologation/recette, approbation formelle et déploiement contrôlé vers les agents).
 3. **⚖️ Graphe Décisionnel (Auditabilité)** : Graphe épistémique traçant l'arbre causal de la délibération (hypothèses, énoncés prouvés, conflits et options retenues) pour la traçabilité d'audit.
 
-Pour les sujets d'infrastructure et d'environnements (ex. *Socle 3 plateformes, pré-prod iso-état* du projet LUMICC), Archinex projette automatiquement la topologie à trois niveaux (Production, Pré-production Iso-État répliquant l'état technique et accueillant l'état candidat, Test Réduit avec Test-RAN) ainsi que la filière de qualification usine chez les fournisseurs avec contrôle d'audit et de représentativité. L'isolation des contextes garantit qu'aucun outillage ou libellé d'un projet tiers (ex. RATP/PCC) n'est injecté dans les rendus d'un autre projet.
+Pour les sujets d'infrastructure et d'environnements (ex. *Socle 3 plateformes, pré-prod iso-état* du projet Lulu), Archinex projette automatiquement la topologie à trois niveaux (Production, Pré-production Iso-État répliquant l'état technique et accueillant l'état candidat, Test Réduit avec Test-RAN) ainsi que la filière de qualification usine chez les fournisseurs avec contrôle d'audit et de représentativité. L'isolation des contextes garantit qu'aucun outillage ou libellé d'un projet tiers (ex. RATP/PCC) n'est injecté dans les rendus d'un autre projet.
 
 Ces schémas sont directement intégrés dans le fragment Markdown HLD exporté (`renderHldFragmentMarkdown`) et téléchargeables au format `.mmd`.
 
@@ -392,19 +392,19 @@ Les diagrammes et rendus techniques d'Archinex (Mermaid C4, séquences de déplo
    - **À la demande (Bouton « Régénérer »)** : Le bouton d'actualisation dans l'en-tête d'`ArtifactRegenerationHub` permet de re-synchroniser explicitement les données depuis l'API serveur ou de recharger le graphe d'architecture.
    - **Lors du scellement d'homologation (Jalon L5)** : Lors de la signature cryptographique du livrable (`freezeSubjectSnapshot`), l'empreinte SHA-256 scelle définitivement la version des artefacts, les rendant opposables et inaltérables dans le temps.
 
-## 12. Démonstrateur & Ensemencements Démo (LUMICC / "Lulu")
+## 12. Démonstrateur & Ensemencements Démo ("Lulu")
 
-Pour préparer rapidement une session de démo ou des tests interactifs sans ressaisie manuelle, Archinex fournit un ensemencement dédié du dossier réel **LUMICC Lot 1** :
+Pour préparer rapidement une session de démo ou des tests interactifs sans ressaisie manuelle, Archinex fournit un ensemencement dédié du dossier réel **Lulu Lot 1** :
 
 ``bash
 # Réinitialisation à l'état "Juste Après Ingestion" (7 sujets L1_framed, 0 décision scellée)
 npm run seed:lulu
 ``n
-Cette commande réinitialise l'espace projet `lumicc-lot1-noc` dans la base SQLite locale (`dev.db`) et insère l'audit J0 de 92 clauses dans l'historique des dépouillements. Elle permet de dérouler en direct les 4 scénarios de délibération :
-1. **Cas nominal** (`SUBJ-LUMICC-01`) : arbitrage fluide sur la matrice d'options 3 DC & RTO UDR.
-2. **Débat contradictoire** (`SUBJ-LUMICC-03`) : controverse infra/sécurité sur l'oscillateur GNSS 30j et levée d'objection.
-3. **Contradiction réglementaire** (`SUBJ-LUMICC-05`) : blocage Porte G3 sur violation GSMA SGP.22 / NIS2 et alignement souverain.
-4. **Capitalisation doctrinale** (`SUBJ-LUMICC-02`) : passage Porte G4, qualification de portabilité et transmission au Knowledge Hub LLMOps.
+Cette commande réinitialise l'espace projet `lulu-lot1-noc` dans la base SQLite locale (`dev.db`) et insère l'audit J0 de 92 clauses dans l'historique des dépouillements. Elle permet de dérouler en direct les 4 scénarios de délibération :
+1. **Cas nominal** (`SUBJ-LULU-01`) : arbitrage fluide sur la matrice d'options 3 DC & RTO UDR.
+2. **Débat contradictoire** (`SUBJ-LULU-03`) : controverse infra/sécurité sur l'oscillateur GNSS 30j et levée d'objection.
+3. **Contradiction réglementaire** (`SUBJ-LULU-05`) : blocage Porte G3 sur violation GSMA SGP.22 / NIS2 et alignement souverain.
+4. **Capitalisation doctrinale** (`SUBJ-LULU-02`) : passage Porte G4, qualification de portabilité et transmission au Knowledge Hub LLMOps.
 
 
 

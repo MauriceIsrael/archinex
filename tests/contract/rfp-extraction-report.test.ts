@@ -131,8 +131,8 @@ Court
 		expect(validation.reportSummary.clauseCount).toBe(clauses.length);
 	});
 
-	it('analyse avec succès la mise en page Markdown de lumicc-noc (exemple 1)', () => {
-		const mdPath = resolve('examples/lumicc-noc/rfp-section4-noc.md');
+	it('analyse avec succès la mise en page Markdown de lulu-noc (exemple 1)', () => {
+		const mdPath = resolve('examples/lulu-noc/rfp-section4-noc.md');
 		expect(existsSync(mdPath)).toBe(true);
 
 		const rawMd = readFileSync(mdPath, 'utf-8');

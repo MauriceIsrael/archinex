@@ -1,6 +1,6 @@
 {
-  "_description": "Analyse de référence du RFP LUMICC (rfp-section4-noc.md), reprise telle quelle de l'ancien audit câblé dans le code. Son auteur n'est pas établi : elle ne peut servir de juge pour le jalon J0 qu'après relecture et validation par un architecte qui ne l'a pas produite. Sert à l'évaluation du pipeline (npm run eval:requirements) : ne jamais l'importer depuis src/.",
-  "source": "examples/lumicc-noc/rfp-section4-noc.md",
+  "_description": "Analyse de référence du RFP Lulu (rfp-section4-noc.md), reprise telle quelle de l'ancien audit câblé dans le code. Son auteur n'est pas établi : elle ne peut servir de juge pour le jalon J0 qu'après relecture et validation par un architecte qui ne l'a pas produite. Sert à l'évaluation du pipeline (npm run eval:requirements) : ne jamais l'importer depuis src/.",
+  "source": "examples/lulu-noc/rfp-section4-noc.md",
   "hardPoints": [
     {
       "id": "ADR-NOC-01",
@@ -32,7 +32,7 @@
           "REQ-Lot1-250 : Adaptation aux APIs OSS/ENM du MNO (Kafka/REST/Syslog)"
         ],
         "expertQuestions": [
-          "Quel est le niveau de granularité des compteurs radio temps réel que l’opérateur commercial tiers accepte contractuellement d’exposer au NOC LUMICC ?",
+          "Quel est le niveau de granularité des compteurs radio temps réel que l’opérateur commercial tiers accepte contractuellement d’exposer au NOC Lulu ?",
           "En cas de panne de l’interface de médiation MNO, quel est le mode de repli opérationnel toléré pour maintenir la visibilité sur la couverture partagée ?"
         ]
       },
@@ -190,7 +190,7 @@
         "REQ-Lot1-206",
         "REQ-Lot1-209"
       ],
-      "question": "Frontière de responsabilité opérationnelle : Jusqu’où le NOC dédié LUMICC a-t-il le pouvoir de piloter ou délester les cellules radio de l’opérateur commercial tiers (MNO) en situation d’urgence ?"
+      "question": "Frontière de responsabilité opérationnelle : Jusqu’où le NOC dédié Lulu a-t-il le pouvoir de piloter ou délester les cellules radio de l’opérateur commercial tiers (MNO) en situation d’urgence ?"
     },
     {
       "clauseRefs": [

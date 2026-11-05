@@ -1,6 +1,6 @@
 [
   {
-    "id": "SUBJ-LUMICC-01",
+    "id": "SUBJ-LULU-01",
     "section_ref": "§4.1",
     "name": "Topologie 3 DC POST (RCE/RCS/RCW), socle RKE2 & RTO UDR 15 min",
     "level": "L2_decomposed",
@@ -12,8 +12,8 @@
     "stall_days": 3,
     "is_stalled": false,
     "dependent_subject_ids": [
-      "SUBJ-LUMICC-03",
-      "SUBJ-LUMICC-04"
+      "SUBJ-LULU-03",
+      "SUBJ-LULU-04"
     ],
     "requirement_ids": [
       "REQ-Lot1-191",
@@ -53,7 +53,7 @@
     }
   },
   {
-    "id": "SUBJ-LUMICC-02",
+    "id": "SUBJ-LULU-02",
     "section_ref": "§4.2",
     "name": "Interworking Wi-Fi / WLAN Offload UE sans N3IWF/ePDG ni ATSSS",
     "level": "L3_decided",
@@ -100,7 +100,7 @@
     }
   },
   {
-    "id": "SUBJ-LUMICC-03",
+    "id": "SUBJ-LULU-03",
     "section_ref": "§4.3",
     "name": "Holdover Horloge 30j sans GNSS (Rubidium/OCXO) & Détection Passive RF",
     "level": "L1_framed",
@@ -112,7 +112,7 @@
     "stall_days": 2,
     "is_stalled": false,
     "dependent_subject_ids": [
-      "SUBJ-LUMICC-04"
+      "SUBJ-LULU-04"
     ],
     "requirement_ids": [
       "REQ-Lot1-223",
@@ -148,7 +148,7 @@
     }
   },
   {
-    "id": "SUBJ-LUMICC-04",
+    "id": "SUBJ-LULU-04",
     "section_ref": "§4.4",
     "name": "Médiation FCAPS via EMS (TS 28.532), Human-in-the-Loop & Salle de Repli NOC",
     "level": "L2_decomposed",
@@ -195,7 +195,7 @@
     }
   },
   {
-    "id": "SUBJ-LUMICC-05",
+    "id": "SUBJ-LULU-05",
     "section_ref": "§4.5",
     "name": "Gouvernance eSIM SM-DP+ (GSMA SGP.22), HSM FIPS 140-3 L3 & 4-Yeux",
     "level": "L3_decided",
@@ -231,7 +231,7 @@
     }
   },
   {
-    "id": "SUBJ-LUMICC-06",
+    "id": "SUBJ-LULU-06",
     "section_ref": "§4.6",
     "name": "Démarcation Inter-Lots sur Réseaux MNO Tiers (Lot 3) & Calendrier EUCCS",
     "level": "L1_framed",
@@ -243,7 +243,7 @@
     "stall_days": 5,
     "is_stalled": false,
     "dependent_subject_ids": [
-      "SUBJ-LUMICC-04"
+      "SUBJ-LULU-04"
     ],
     "requirement_ids": [
       "REQ-Lot1-74",
@@ -270,7 +270,7 @@
     }
   },
   {
-    "id": "SUBJ-LUMICC-07",
+    "id": "SUBJ-LULU-07",
     "section_ref": "§4.7",
     "name": "Exclusions Contractuelles de Lotissement (Ferroviaire FRMCS CFL & Verrouillage PEI)",
     "level": "L3_decided",

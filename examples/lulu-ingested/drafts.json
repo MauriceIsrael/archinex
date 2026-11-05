@@ -1,5 +1,5 @@
 {
-  "SUBJ-LUMICC-01": {
+  "SUBJ-LULU-01": {
     "section_id": "§4.1",
     "subject": "Topologie 3 DC POST (RCE/RCS/RCW), socle RKE2 & RTO UDR 15 min",
     "maturity": "L1_framed",
@@ -37,7 +37,7 @@
       "trade_off": "Surdimensionné pour le volume PPDR luxembourgeois (50 000 abonnés)"
     }
   },
-  "SUBJ-LUMICC-02": {
+  "SUBJ-LULU-02": {
     "section_id": "§4.2",
     "subject": "Interworking Wi-Fi / WLAN Offload UE sans N3IWF/ePDG ni ATSSS",
     "maturity": "L1_framed",
@@ -74,7 +74,7 @@
       "trade_off": "Augmente la surface d'attaque du cœur 5G souverain"
     }
   },
-  "SUBJ-LUMICC-03": {
+  "SUBJ-LULU-03": {
     "section_id": "§4.3",
     "subject": "Holdover Horloge 30j sans GNSS (Rubidium/OCXO) & Détection Passive RF",
     "maturity": "L1_framed",
@@ -111,7 +111,7 @@
       "trade_off": "Dérive > 1.5 µs dès 48h de déni GNSS : non conforme"
     }
   },
-  "SUBJ-LUMICC-04": {
+  "SUBJ-LULU-04": {
     "section_id": "§4.4",
     "subject": "Médiation FCAPS via EMS (TS 28.532), Human-in-the-Loop & Salle de Repli NOC",
     "maturity": "L1_framed",
@@ -143,7 +143,7 @@
       "trade_off": "Interdit par la doctrine de sécurité"
     }
   },
-  "SUBJ-LUMICC-05": {
+  "SUBJ-LULU-05": {
     "section_id": "§4.5",
     "subject": "Gouvernance eSIM SM-DP+ (GSMA SGP.22), HSM FIPS 140-3 L3 & 4-Yeux",
     "maturity": "L1_framed",
@@ -180,7 +180,7 @@
       "trade_off": "Violation directe de la souveraineté des données régaliennes"
     }
   },
-  "SUBJ-LUMICC-06": {
+  "SUBJ-LULU-06": {
     "section_id": "§4.6",
     "subject": "Démarcation Inter-Lots sur Réseaux MNO Tiers (Lot 3) & Calendrier EUCCS",
     "maturity": "L1_framed",
@@ -217,7 +217,7 @@
       "trade_off": "Intenable sans accord tripartite préalable"
     }
   },
-  "SUBJ-LUMICC-07": {
+  "SUBJ-LULU-07": {
     "section_id": "§4.7",
     "subject": "Exclusions Contractuelles de Lotissement (Ferroviaire FRMCS CFL & Verrouillage PEI)",
     "maturity": "L1_framed",
@@ -254,7 +254,7 @@
       "trade_off": "Contradiction directe avec la matrice Excel"
     }
   },
-  "SUBJ-LUMICC-08": {
+  "SUBJ-LULU-08": {
     "section_id": "NOC – haute disponibilité, DR, infrastructure sécurisée",
     "subject": "Haute disponibilité NOC : actif-actif ou actif-passif à bascule rapide",
     "maturity": "L1_framed",
@@ -286,7 +286,7 @@
       "Complexité et risque opérationnel"
     ]
   },
-  "SUBJ-LUMICC-09": {
+  "SUBJ-LULU-09": {
     "section_id": "NOC – médiation, NRM, dashboards, hypervision, SLA",
     "subject": "Médiation OSS avec NRM unifié ou adaptateurs propriétaires par fournisseur",
     "maturity": "L1_framed",
@@ -297,13 +297,13 @@
       "REQ-Lot1-211 : alarmes interprétées selon la spécification du fournisseur de l'élément réseau concerné",
       "REQ-Lot1-234 : KPI et suivi de SLA agrégeant les mesures d'actifs potentiellement multi-fournisseurs",
       "REQ-Lot1-252 : NRM définissant architecture INFRA/RAN, inventaire RAN, configuration de cellule, supervision de performance, réception d'alarmes",
-      "REQ-Lot1-233 : dashboards NOC agrégeant les actifs de l'inventaire LUMICC, potentiellement multi-fournisseurs"
+      "REQ-Lot1-233 : dashboards NOC agrégeant les actifs de l'inventaire Lulu, potentiellement multi-fournisseurs"
     ],
     "suppose": [
       "Hypothèse de départ : une couche de médiation OSS avec NRM unifié, conservant en parallèle l'identifiant et la sémantique d'origine du fournisseur (compteur, code d'alarme, spécification applicable). Elle découle de REQ-Lot1-249, qui la demande explicitement, et de REQ-Lot1-238 (bloquant), qui exige une topologie indépendante du fournisseur. Les adaptateurs propres à chaque fournisseur sans modèle commun sont écartés : ils ne garantiraient ni sémantique de KPI cohérente pour le SLA (REQ-Lot1-234) ni une agrégation homogène pour les dashboards (REQ-Lot1-233) et multiplieraient les intégrations. Une variante hybride (adaptateurs en entrée, modèle canonique en sortie) est retenue comme mode de mise en œuvre de la médiation, pas comme alternative. Le coût de mapping et le risque de perte de fidélité sont à maîtriser par un périmètre de normalisation progressif et un référentiel de mapping versionné."
     ],
     "interroge": [
-      "Quels fournisseurs, quelles familles d'équipements (RAN, cœur, transmission, MCX, infrastructure) et quelles interfaces de collecte sont dans l'inventaire des actifs LUMICC, et lesquels sont déjà connus au moment de l'offre ?",
+      "Quels fournisseurs, quelles familles d'équipements (RAN, cœur, transmission, MCX, infrastructure) et quelles interfaces de collecte sont dans l'inventaire des actifs Lulu, et lesquels sont déjà connus au moment de l'offre ?",
       "Le NRM doit-il s'appuyer sur un modèle de référence existant (standard 3GPP/TM Forum ou autre) ou le donneur d'ordre a-t-il un modèle propre à respecter pour REQ-Lot1-252 ?",
       "Quelles règles de calcul des KPI et de pénalités de SLA sont contractuelles, et le donneur d'ordre exige-t-il d'auditer la traçabilité entre compteur brut fournisseur et KPI normalisé ?",
       "Le donneur d'ordre exige-t-il la réversibilité ou le remplacement d'un fournisseur sans refonte des dashboards, et la propriété du référentiel de mapping lui revient-elle ?"
@@ -321,7 +321,7 @@
       "Indépendance vis-à-vis des fournisseurs"
     ]
   },
-  "SUBJ-LUMICC-10": {
+  "SUBJ-LULU-10": {
     "section_id": "NOC – RAN MNO partagée (MOCN)",
     "subject": "Supervision de la RAN MNO partagée : adaptation aux interfaces OSS imposées du MNO",
     "maturity": "L1_framed",
@@ -330,15 +330,15 @@
       "REQ-Lot1-200 : accès NOC aux KPI, statuts de stations et indicateurs de couverture/QoS RAN, couverture MNO partagée à confirmer par l'opérateur",
       "REQ-Lot1-206 : ne pas désactiver la RAN MNO partagée tant que le service commercial MNO est actif dans la zone",
       "REQ-Lot1-250 : en MOCN, l'INFRA s'adapte aux interfaces OSS/ENM du MNO (REST, NETCONF, Kafka, Syslog, SNMP, SFTP)",
-      "REQ-Lot1-253 : NRM définissant l'architecture MOCN, ressources partagées et exclusives LUMICC, configuration de cellules, supervision de la performance, réception d'alarmes"
+      "REQ-Lot1-253 : NRM définissant l'architecture MOCN, ressources partagées et exclusives Lulu, configuration de cellules, supervision de la performance, réception d'alarmes"
     ],
     "suppose": [
-      "Hypothèse de départ : une couche d'adaptation côté INFRA, avec un connecteur par interface MNO réellement exposée (REST/RESTCONF, NETCONF, Kafka, Syslog, SNMP, SFTP XML/CSV), alimentant un NRM MOCN unique qui sépare ressources partagées et ressources exclusives LUMICC. Le REQ-Lot1-250 impose l'adaptation à l'OSS du MNO et exclut donc un modèle où l'on imposerait notre propre interface. Le REQ-Lot1-206 est traité comme une règle de gouvernance contractuelle (engagement du MNO et notification avant tout changement), complétée d'un contrôle de cohérence côté NOC. Option écartée : la supervision uniquement indirecte par sondes de service, car elle ne donne ni statut des stations ni KPI radio (REQ-Lot1-200) ni alarmes. Option écartée aussi : s'en remettre à des rapports périodiques du MNO, trop peu réactifs pour un service critique. Cette hypothèse reste à confirmer selon le périmètre de supervision que le LUMICC Network operator indiquera."
+      "Hypothèse de départ : une couche d'adaptation côté INFRA, avec un connecteur par interface MNO réellement exposée (REST/RESTCONF, NETCONF, Kafka, Syslog, SNMP, SFTP XML/CSV), alimentant un NRM MOCN unique qui sépare ressources partagées et ressources exclusives Lulu. Le REQ-Lot1-250 impose l'adaptation à l'OSS du MNO et exclut donc un modèle où l'on imposerait notre propre interface. Le REQ-Lot1-206 est traité comme une règle de gouvernance contractuelle (engagement du MNO et notification avant tout changement), complétée d'un contrôle de cohérence côté NOC. Option écartée : la supervision uniquement indirecte par sondes de service, car elle ne donne ni statut des stations ni KPI radio (REQ-Lot1-200) ni alarmes. Option écartée aussi : s'en remettre à des rapports périodiques du MNO, trop peu réactifs pour un service critique. Cette hypothèse reste à confirmer selon le périmètre de supervision que le Lulu Network operator indiquera."
     ],
     "interroge": [
-      "Le LUMICC Network operator confirme-t-il que la supervision de la RAN MNO partagée est dans le périmètre (REQ-Lot1-200) ? Si non, les REQ-Lot1-250 et -253 se réduisent-ils à un modèle de données et à un accueil d'alarmes ?",
+      "Le Lulu Network operator confirme-t-il que la supervision de la RAN MNO partagée est dans le périmètre (REQ-Lot1-200) ? Si non, les REQ-Lot1-250 et -253 se réduisent-ils à un modèle de données et à un accueil d'alarmes ?",
       "Quelles interfaces OSS/ENM le MNO s'engage-t-il à exposer, avec quelle granularité (par PLMN, par cellule, par slice) et quelle latence, et sont-elles contractualisées ou indicatives ?",
-      "Comment le MNO identifie-t-il techniquement les ressources exclusives LUMICC (PLMN-ID, cellules, tranches) dans son OSS, et accepte-t-il de les filtrer à notre intention sans exposer ses données propres ?",
+      "Comment le MNO identifie-t-il techniquement les ressources exclusives Lulu (PLMN-ID, cellules, tranches) dans son OSS, et accepte-t-il de les filtrer à notre intention sans exposer ses données propres ?",
       "Que prévoit le contrat pour REQ-Lot1-206 : engagement du MNO, préavis avant désactivation, ou simple obligation de moyens, et quelles pénalités ?"
     ],
     "options": [
@@ -353,7 +353,7 @@
       "Effort d'intégration"
     ]
   },
-  "SUBJ-LUMICC-11": {
+  "SUBJ-LULU-11": {
     "section_id": "NOC – gestion des alarmes, corrélation, RCA",
     "subject": "Corrélation d'alarmes et RCA : règles déterministes, analytique ML ou approche hybride",
     "maturity": "L1_framed",
@@ -387,13 +387,13 @@
       "Coût et effort de mise en œuvre et d'exploitation"
     ]
   },
-  "SUBJ-LUMICC-12": {
+  "SUBJ-LULU-12": {
     "section_id": "NOC – collecte, FMS, syslog, logs",
     "subject": "Pipeline de collecte unique ou chaînes séparées NOC et SOC/SIEM",
     "maturity": "L1_framed",
     "is_provisional": true,
     "retenu": [
-      "REQ-Lot1-210 : collecte temps réel des alarmes, événements, compteurs de performance et journaux de tous les domaines LUMICC",
+      "REQ-Lot1-210 : collecte temps réel des alarmes, événements, compteurs de performance et journaux de tous les domaines Lulu",
       "REQ-Lot1-213 : agrégateur syslog protégé dans un bastion de l'INFRA, destinataire des logs de tous les éléments de l'inventaire, pour le NOC et le SOC/SIEM",
       "REQ-Lot1-255 : FMS collectant et stockant les événements et alarmes temps réel, YANG de préférence, sinon SNMPv3 ou syslog",
       "REQ-Lot1-256 : alarmes et événements convertis en syslog et envoyés à l'agrégateur connecté au NOC et au SOC/SIEM",
@@ -422,7 +422,7 @@
       "Coût et complexité d'exploitation"
     ]
   },
-  "SUBJ-LUMICC-13": {
+  "SUBJ-LULU-13": {
     "section_id": "NOC – OSS/SMO, automatisation, optimisation",
     "subject": "Degré d'automatisation SMO/OSS : boucle fermée, approbation humaine ou graduée",
     "maturity": "L1_framed",
@@ -456,7 +456,7 @@
       "Charge d'exploitation NOC"
     ]
   },
-  "SUBJ-LUMICC-14": {
+  "SUBJ-LULU-14": {
     "section_id": "NOC – QoS, QCI/5QI, trafic",
     "subject": "Gouvernance QoS NOC : référentiel 5QI unique ou mapping par domaine",
     "maturity": "L1_framed",
@@ -490,7 +490,7 @@
       "Coût et complexité de mise en œuvre"
     ]
   },
-  "SUBJ-LUMICC-15": {
+  "SUBJ-LULU-15": {
     "section_id": "NOC – supervision des domaines, sondes, KPI",
     "subject": "Assurance de service : sondes actives de bout en bout ou déduction par compteurs ?",
     "maturity": "L1_framed",
@@ -525,7 +525,7 @@
       "Coût et complexité d'exploitation"
     ]
   },
-  "SUBJ-LUMICC-16": {
+  "SUBJ-LULU-16": {
     "section_id": "NOC – CMS, topologie, ITSM, support terrain",
     "subject": "Source de référence inventaire/CMDB et découverte automatique encadrée par le changement",
     "maturity": "L1_framed",

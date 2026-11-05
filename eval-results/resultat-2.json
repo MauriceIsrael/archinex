@@ -1,5 +1,5 @@
 {
-  "rfp": "examples/lumicc-noc/rfp-section4-noc.md",
+  "rfp": "examples/lulu-noc/rfp-section4-noc.md",
   "model": "claude-sonnet-5-5",
   "seconds": 191.828,
   "status": "ok",
@@ -53,7 +53,7 @@
         "referenceName": "Géo-redondance Haute Disponibilité & Basculement Salle de Repli NOC Physique",
         "referenceClauseCount": 6,
         "bestSubjectId": "SUBJ-01",
-        "bestSubjectName": "NOC LUMICC dédié : site primaire, salle de secours et moyens d'exploitation",
+        "bestSubjectName": "NOC Lulu dédié : site primaire, salle de secours et moyens d'exploitation",
         "recall": 0.5,
         "precision": 0.5
       },
@@ -73,7 +73,7 @@
     {
       "id": "SUBJ-01",
       "lotId": "LOT-1",
-      "name": "NOC LUMICC dédié : site primaire, salle de secours et moyens d'exploitation",
+      "name": "NOC Lulu dédié : site primaire, salle de secours et moyens d'exploitation",
       "sectionRef": "Lot 1 – NOC : organisation, facilités, salle de secours",
       "coveredClauseRefs": [
         "REQ-Lot1-191",
@@ -91,16 +91,16 @@
       "effort": "L",
       "seed": {
         "initialRetenu": [
-          "REQ-Lot1-191 : NOC dédié aux opérations LUMICC, non partagé avec le NOC propre du MNO",
+          "REQ-Lot1-191 : NOC dédié aux opérations Lulu, non partagé avec le NOC propre du MNO",
           "REQ-Lot1-192 : NOC mission-critique haute disponibilité et géo-redondant, 24×7, primaire + secours",
           "REQ-Lot1-282 : proposition d'agencement d'une salle NOC de secours si la salle primaire est indisponible, isolée ou inaccessible",
           "REQ-Lot1-277 : secours énergétique (batteries + groupe électrogène, autonomie cible >72 h), CVC, sécurité physique (badge/biométrie, CCTV, registre visiteurs)",
           "REQ-Lot1-278 : postes d'encadrement avec agents MDM et EDR non accessibles au manager, connexions au cœur de réseau et aux serveurs INFRA",
           "REQ-Lot1-276 : lignes téléphoniques dédiées d'escalade, intégration Teams, interphonie interne"
         ],
-        "initialHypothesis": "Hypothèse de départ : un NOC primaire et une salle de secours dédiés LUMICC, sur deux sites géographiquement distincts, avec énergie et réseau indépendants. La mutualisation éventuelle est limitée à des services d'infrastructure non opérationnels (génie civil, services généraux du bâtiment), sous réserve de validation du donneur d'ordre. Cette hypothèse est retenue parce que REQ-Lot1-191 et REQ-Lot1-192 sont bloquantes et que REQ-Lot1-282 exige une salle de secours utilisable si la salle primaire est indisponible, isolée ou inaccessible. Sont écartés : un NOC mutualisé avec celui du MNO (interdit par REQ-Lot1-191) et une salle de secours dans le même bâtiment que la salle primaire (ne couvre pas l'inaccessibilité du site). Un mode de secours en télétravail ou à distance reste à qualifier, car il suppose des postes et des accès sécurisés conformes à REQ-Lot1-278.",
+        "initialHypothesis": "Hypothèse de départ : un NOC primaire et une salle de secours dédiés Lulu, sur deux sites géographiquement distincts, avec énergie et réseau indépendants. La mutualisation éventuelle est limitée à des services d'infrastructure non opérationnels (génie civil, services généraux du bâtiment), sous réserve de validation du donneur d'ordre. Cette hypothèse est retenue parce que REQ-Lot1-191 et REQ-Lot1-192 sont bloquantes et que REQ-Lot1-282 exige une salle de secours utilisable si la salle primaire est indisponible, isolée ou inaccessible. Sont écartés : un NOC mutualisé avec celui du MNO (interdit par REQ-Lot1-191) et une salle de secours dans le même bâtiment que la salle primaire (ne couvre pas l'inaccessibilité du site). Un mode de secours en télétravail ou à distance reste à qualifier, car il suppose des postes et des accès sécurisés conformes à REQ-Lot1-278.",
         "initialConflict": "REQ-Lot1-191 (NOC strictement dédié, non partagé avec le MNO) et REQ-Lot1-192 (haute disponibilité, géo-redondance, 24×7) poussent vers un doublement complet des sites, de l'énergie (autonomie >72 h, REQ-Lot1-277) et des moyens d'exploitation. Cela s'oppose à la maîtrise du coût et de la complexité. La redondance des moyens de communication (REQ-Lot1-276, avec Teams, plateforme tierce) peut en outre réintroduire une dépendance à des services mutualisés.",
-        "initialQuestion": "Comment dimensionner le NOC LUMICC pour qu'il soit dédié (non partagé avec le NOC du MNO), 24×7 et géo-redondant, avec une salle de secours distincte, en précisant ce qui peut être mutualisé (bâtiment, énergie, outils de communication, postes) sans violer REQ-Lot1-191 ?",
+        "initialQuestion": "Comment dimensionner le NOC Lulu pour qu'il soit dédié (non partagé avec le NOC du MNO), 24×7 et géo-redondant, avec une salle de secours distincte, en précisant ce qui peut être mutualisé (bâtiment, énergie, outils de communication, postes) sans violer REQ-Lot1-191 ?",
         "expertQuestions": [
           "Que recouvre exactement « non partagé avec le NOC du MNO » : séparation de site, de personnel, d'outils, de réseau d'exploitation ? Une colocalisation de bâtiment avec cloisonnement est-elle acceptable ?",
           "Quelle disponibilité cible et quels RTO/RPO le chapitre RAMS impose-t-il au NOC (primaire + secours), et la bascule vers la salle de secours doit-elle être instantanée ou peut-elle être manuelle ?",
@@ -112,7 +112,7 @@
         "options": [
           {
             "title": "NOC dédié, secours distinct et indépendant",
-            "summary": "Deux salles NOC dédiées LUMICC sur deux sites distincts, avec énergie, réseau, postes et outils de communication propres, et bascule entre sites."
+            "summary": "Deux salles NOC dédiées Lulu sur deux sites distincts, avec énergie, réseau, postes et outils de communication propres, et bascule entre sites."
           },
           {
             "title": "NOC dédié, secours colocalisé ou en mode dégradé",
@@ -120,7 +120,7 @@
           },
           {
             "title": "Primaire dédié, secours hébergé chez un tiers",
-            "summary": "Salle primaire dédiée LUMICC, salle de secours dans des locaux tiers (hébergeur ou site d'un partenaire), avec postes et outils LUMICC dédiés mais site partagé."
+            "summary": "Salle primaire dédiée Lulu, salle de secours dans des locaux tiers (hébergeur ou site d'un partenaire), avec postes et outils Lulu dédiés mais site partagé."
           }
         ],
         "criteria": [
@@ -438,7 +438,7 @@
         "initialConflict": "REQ-Lot1-240/243/254 (YANG et protocoles ouverts exigés à l'interface O&M) s'opposent à REQ-Lot1-241 (EM propriétaires tolérés pour les éléments non YANG). REQ-Lot1-211 (alarmes interprétées selon la spécification de chaque fournisseur) s'oppose à REQ-Lot1-249 (taxonomie normalisée unique), car la normalisation peut perdre la sémantique fournisseur. REQ-Lot1-239 (NRM 3GPP) peut enfin entrer en conflit avec les interfaces propriétaires ou celles du MNO.",
         "initialQuestion": "Pour obtenir une topologie, des alarmes et des KPI/SLA indépendants des fournisseurs sur RAN, Core, transport, IWF, serveurs applicatifs et datacentres, faut-il imposer YANG/NETCONF/RESTCONF et les NRM 3GPP natifs à tous les équipements, ou accepter des EMS propriétaires (REQ-Lot1-241) derrière une couche de médiation OSS qui traduit vers un NRM unifié (REQ-Lot1-249) ?",
         "expertQuestions": [
-          "Quel est le parc existant par fournisseur et par domaine (RAN, Core, transport, IWF, serveurs applicatifs, datacentres), et quelle part ne supporte pas YANG/NETCONF/RESTCONF nativement (inventaire LUMICC) ?",
+          "Quel est le parc existant par fournisseur et par domaine (RAN, Core, transport, IWF, serveurs applicatifs, datacentres), et quelle part ne supporte pas YANG/NETCONF/RESTCONF nativement (inventaire Lulu) ?",
           "Le donneur d'ordre exige-t-il YANG et NRM 3GPP comme condition d'éligibilité des fournisseurs RAN (notamment Lot 2, GOV/AGA, FRMCS, in-house), ou acceptera-t-il des EM propriétaires dérogatoires, et sous quelles conditions ?",
           "Quels modèles YANG (standards 3GPP/IETF ou modèles fournisseur) et quelle version de NRM 3GPP sont attendus aux points de référence RAN ? Le MNO en MOCN impose-t-il ses propres interfaces ?",
           "Les KPI/SLA contractuels sont-ils définis sur des compteurs 3GPP normalisés ou sur des compteurs fournisseur à convertir, et qui valide la formule de normalisation en cas de litige SLA ?"
@@ -614,25 +614,25 @@
       "seed": {
         "initialRetenu": [
           "REQ-Lot1-250 : l'INFRA s'adapte à l'interface exposée par l'OSS/ENM du MNO (REST/JSON, YANG/RESTCONF, NETCONF, Kafka, Syslog, SNMP, XML/CSV sur SFTP)",
-          "REQ-Lot1-253 : un NRM définit l'architecture MOCN, les ressources partagées et exclusives LUMICC, la configuration de cellule, la supervision de performance et la réception d'alarmes",
+          "REQ-Lot1-253 : un NRM définit l'architecture MOCN, les ressources partagées et exclusives Lulu, la configuration de cellule, la supervision de performance et la réception d'alarmes",
           "REQ-Lot1-231 : rapports de trafic par QCI/5QI sur GOV RAN, RAN partagée MNO, interface(s) EUCCS et roaming",
           "REQ-Lot1-206 : ne pas désactiver le service RAN partagé tant que le service commercial du MNO est actif dans la même zone"
         ],
-        "initialHypothesis": "Hypothèse de départ : une couche de médiation côté LUMICC, avec adaptateurs par protocole (REST/RESTCONF, NETCONF, Kafka, Syslog, SNMP, fichiers SFTP) qui alimentent un NRM canonique propre à LUMICC, et une demande contractuelle d'exposition normalisée comme cible, sans en faire un préalable. Cela respecte REQ-Lot1-250, qui impose l'adaptation à l'interface du MNO, tout en répondant à REQ-Lot1-253 par un modèle interne dont la fidélité dépend de ce que le MNO expose. L'option « imposer nos interfaces » est écartée comme socle : l'exigence dit que l'INFRA s'adapte, et le MNO n'est pas maître d'œuvre de ce lot. L'option « consommer tel quel sans modèle canonique » est écartée car elle ne distingue pas ressources partagées et exclusives et fait dépendre les rapports 5QI de chaque format du MNO. Les sondes propres sont à étudier en complément seulement pour les interfaces que LUMICC maîtrise.",
-        "initialConflict": "REQ-Lot1-250 impose d'adapter l'INFRA aux interfaces hétérogènes du MNO, alors que REQ-Lot1-253 exige un NRM séparant ressources partagées et exclusives LUMICC et que REQ-Lot1-231 exige des rapports par QCI/5QI : ces deux dernières exigences dépendent de ce que le MNO accepte d'exposer. En parallèle, REQ-Lot1-206 impose de maintenir la RAN partagée tant que le commercial est actif, sans levier de gouvernance sur l'opérateur.",
-        "initialQuestion": "Pour l'O&M de la RAN partagée MOCN (Lot 2), l'INFRA doit-elle se limiter à adapter ses collecteurs aux interfaces OSS/ENM hétérogènes du MNO (REQ-Lot1-250), ou faut-il aussi négocier une exposition normalisée portant un NRM qui distingue ressources partagées et ressources LUMICC exclusives (REQ-Lot1-253), pour alimenter les rapports de trafic par QCI/5QI (REQ-Lot1-231) et piloter la disponibilité du service partagé (REQ-Lot1-206) ?",
+        "initialHypothesis": "Hypothèse de départ : une couche de médiation côté Lulu, avec adaptateurs par protocole (REST/RESTCONF, NETCONF, Kafka, Syslog, SNMP, fichiers SFTP) qui alimentent un NRM canonique propre à Lulu, et une demande contractuelle d'exposition normalisée comme cible, sans en faire un préalable. Cela respecte REQ-Lot1-250, qui impose l'adaptation à l'interface du MNO, tout en répondant à REQ-Lot1-253 par un modèle interne dont la fidélité dépend de ce que le MNO expose. L'option « imposer nos interfaces » est écartée comme socle : l'exigence dit que l'INFRA s'adapte, et le MNO n'est pas maître d'œuvre de ce lot. L'option « consommer tel quel sans modèle canonique » est écartée car elle ne distingue pas ressources partagées et exclusives et fait dépendre les rapports 5QI de chaque format du MNO. Les sondes propres sont à étudier en complément seulement pour les interfaces que Lulu maîtrise.",
+        "initialConflict": "REQ-Lot1-250 impose d'adapter l'INFRA aux interfaces hétérogènes du MNO, alors que REQ-Lot1-253 exige un NRM séparant ressources partagées et exclusives Lulu et que REQ-Lot1-231 exige des rapports par QCI/5QI : ces deux dernières exigences dépendent de ce que le MNO accepte d'exposer. En parallèle, REQ-Lot1-206 impose de maintenir la RAN partagée tant que le commercial est actif, sans levier de gouvernance sur l'opérateur.",
+        "initialQuestion": "Pour l'O&M de la RAN partagée MOCN (Lot 2), l'INFRA doit-elle se limiter à adapter ses collecteurs aux interfaces OSS/ENM hétérogènes du MNO (REQ-Lot1-250), ou faut-il aussi négocier une exposition normalisée portant un NRM qui distingue ressources partagées et ressources Lulu exclusives (REQ-Lot1-253), pour alimenter les rapports de trafic par QCI/5QI (REQ-Lot1-231) et piloter la disponibilité du service partagé (REQ-Lot1-206) ?",
         "expertQuestions": [
           "Le MNO du Lot 2 a-t-il déjà documenté ses interfaces OSS/ENM, et existe-t-il un engagement contractuel sur leur stabilité et leur périmètre d'exposition (KPI, alarmes, performance, config) ?",
-          "Le MNO peut-il filtrer ou taguer les données par PLMN/slice ou par ressources LUMICC afin d'isoler les ressources exclusives des ressources partagées dans les compteurs, et à quelle granularité QCI/5QI ?",
+          "Le MNO peut-il filtrer ou taguer les données par PLMN/slice ou par ressources Lulu afin d'isoler les ressources exclusives des ressources partagées dans les compteurs, et à quelle granularité QCI/5QI ?",
           "Qui décide de désactiver le service RAN partagé dans une zone, et quel mécanisme de notification ou de veto le MNO accepte-t-il pour garantir REQ-Lot1-206 ?",
-          "Le donneur d'ordre attend-il que le NRM soit un livrable normatif opposable au MNO ou un modèle interne de LUMICC alimenté au mieux des données exposées ?"
+          "Le donneur d'ordre attend-il que le NRM soit un livrable normatif opposable au MNO ou un modèle interne de Lulu alimenté au mieux des données exposées ?"
         ]
       },
       "proposal": {
         "options": [
           {
             "title": "Adaptation au MNO avec médiation et NRM canonique",
-            "summary": "Adaptateurs côté LUMICC pour chaque interface OSS exposée par le MNO, normalisés dans un NRM interne qui distingue ressources partagées et exclusives, avec demande d'évolution vers une exposition normalisée."
+            "summary": "Adaptateurs côté Lulu pour chaque interface OSS exposée par le MNO, normalisés dans un NRM interne qui distingue ressources partagées et exclusives, avec demande d'évolution vers une exposition normalisée."
           },
           {
             "title": "Exposition normalisée imposée au MNO",
@@ -1135,7 +1135,7 @@
       "seed": {
         "initialRetenu": [
           "REQ-Lot1-212 : éviter saturation d'alarmes, fausses alarmes sans impact service et retard de RCA",
-          "REQ-Lot1-214 : agrégation et corrélation inter-LUMICC avec déduplication, suppression, filtres personnalisables",
+          "REQ-Lot1-214 : agrégation et corrélation inter-Lulu avec déduplication, suppression, filtres personnalisables",
           "REQ-Lot1-214 : enrichissement des alarmes par topologie, géolocalisation, services affectés et Service areas",
           "REQ-Lot1-215 : RCA préliminaire automatique pour accélérer la restauration",
           "REQ-Lot1-215 : support des fenêtres de maintenance pour supprimer les alarmes attendues",
@@ -1143,7 +1143,7 @@
         ],
         "initialHypothesis": "Hypothèse de départ : une approche hybride à socle déterministe. La corrélation s'appuie sur des règles et sur la topologie enrichie (déduplication, suppression, fenêtres de maintenance, dépendances de service), avec des règles explicables et auditables, et l'analytique avancée n'intervient qu'en suggestion, non bloquante, pour prioriser et proposer des causes candidates. Cette base répond aux exigences explicites (déduplication, suppression, filtres personnalisables, enrichissement, suppression en maintenance) et garantit qu'aucune alarme critique n'est masquée par un modèle opaque. Option écartée : l'analytique seule, car elle exige un historique et un inventaire fiables non garantis et son explicabilité est faible face au risque de masquage. Option écartée : les règles seules, car elles passent mal à l'échelle sur la corrélation inter-domaines et demandent beaucoup de maintenance.",
         "initialConflict": "REQ-Lot1-212 demande de réduire le bruit et les fausses alarmes sans service impact, alors que REQ-Lot1-214 et REQ-Lot1-215 imposent suppression et RCA automatique : plus la suppression est agressive, plus le risque de masquer un défaut critique et de retarder la restauration augmente. En outre, la corrélation et l'enrichissement dépendent d'un inventaire et d'une topologie fiables (sujet inventaire/ITSM).",
-        "initialQuestion": "Le moteur de corrélation et de RCA préliminaire du NOC LUMICC doit-il reposer sur des règles déterministes et la topologie, sur de l'analytique/IA, ou sur une combinaison, de façon à réduire la saturation et les fausses alarmes sans masquer de défaut critique ni retarder la restauration ?",
+        "initialQuestion": "Le moteur de corrélation et de RCA préliminaire du NOC Lulu doit-il reposer sur des règles déterministes et la topologie, sur de l'analytique/IA, ou sur une combinaison, de façon à réduire la saturation et les fausses alarmes sans masquer de défaut critique ni retarder la restauration ?",
         "expertQuestions": [
           "Quels volumes d'alarmes et quels niveaux de saturation constate-t-on aujourd'hui, et existe-t-il un historique d'incidents étiqueté exploitable pour entraîner ou valider un modèle analytique ?",
           "Le donneur d'ordre impose-t-il un niveau d'explicabilité ou d'auditabilité de la suppression et de la RCA (traçabilité de chaque alarme supprimée) ?",
@@ -1337,7 +1337,7 @@
           "Quelle durée de rétention historique (par type de donnée : KPI, logs, événements) et quelle granularité temporelle le donneur d'ordre attend-il, pour dimensionner le stockage et le rejeu ?",
           "Quels formats et protocoles d'export standardisés sont attendus (fichiers, API, flux) et vers quels systèmes tiers de l'autorité ?",
           "Les organisations utilisatrices doivent-elles voir uniquement leur périmètre (multi-tenant strict) et quel niveau de disponibilité est exigé pour leur portail par rapport au NOC ?",
-          "Les positions dispatcher autonomes sont-elles connectées au réseau LUMICC ou depuis des réseaux externes, et quelles contraintes de sécurité s'appliquent à l'exposition web ?"
+          "Les positions dispatcher autonomes sont-elles connectées au réseau Lulu ou depuis des réseaux externes, et quelles contraintes de sécurité s'appliquent à l'exposition web ?"
         ]
       },
       "proposal": {
@@ -1678,7 +1678,7 @@
         "initialRetenu": [
           "REQ-Lot1-262 : l'auto-découverte ne doit pas appliquer automatiquement de changement de configuration sans autorisation par la gestion des changements (bloquant)",
           "REQ-Lot1-245 : cohérence de la CMDB avec l'inventaire OSS par synchronisation des données et des relations",
-          "REQ-Lot1-248 : configuration de tous les éléments réseau depuis l'inventaire d'actifs LUMICC",
+          "REQ-Lot1-248 : configuration de tous les éléments réseau depuis l'inventaire d'actifs Lulu",
           "REQ-Lot1-261 : sauvegarde et versionnement des configurations, snapshots pré/post-changement, détection de dérive par rapport aux baselines, suivi des versions firmware/logiciel",
           "REQ-Lot1-266 : workflows ITIL Incident, Problème et Changement, avec timers SLA, escalade, MTTA/MTTR et intégration à la plateforme ITSM",
           "REQ-Lot1-267 : planification et dispatch des équipes avec check-in GNSS, mises à jour d'ETR et synchronisation ITSM"
@@ -1687,7 +1687,7 @@
         "initialConflict": "REQ-Lot1-262 impose l'auto-découverte et la réconciliation continues mais interdit toute application automatique de configuration sans autorisation Change. REQ-Lot1-248 demande de configurer tous les éléments depuis l'inventaire, ce qui exige un accès centralisé en écriture, tandis que REQ-Lot1-261 et REQ-Lot1-245 exigent la cohérence avec la CMDB sans désigner de maître. Les interfaces des équipements multi-fournisseurs bornent en outre ce qui est réellement configurable et vérifiable.",
         "initialQuestion": "Quel système fait foi pour l'inventaire et la configuration des éléments réseau (inventaire OSS/CMS ou CMDB ITSM), comment réconcilier auto-découverte et dérive avec l'autorisation par la gestion des changements, et l'ITSM et le dispatch terrain reposent-ils sur un outil unifié ou sur des outils séparés synchronisés ?",
         "expertQuestions": [
-          "LUMICC dispose-t-il déjà d'une plateforme ITSM ou d'une CMDB à réutiliser, ou le back-office ITIL est-il à fournir ? Cela peut imposer le choix entre outil unifié et outils fédérés.",
+          "Lulu dispose-t-il déjà d'une plateforme ITSM ou d'une CMDB à réutiliser, ou le back-office ITIL est-il à fournir ? Cela peut imposer le choix entre outil unifié et outils fédérés.",
           "Le périmètre « tous les éléments réseau » de REQ-Lot1-248 inclut-il les équipements de tiers (MNO, autres fournisseurs) en écriture, et quelles responsabilités et interfaces de gestion sont contractuellement ouvertes ?",
           "Quel niveau de granularité de changement exige-t-on (standard préapprouvé, normal, urgent) et la remédiation d'une dérive vers la baseline doit-elle toujours passer par un changement formel ?",
           "Quelles contraintes s'appliquent aux données de localisation GNSS du personnel (durée de conservation, hébergement, consentement) et le dispatch doit-il fonctionner hors ligne ou en mode dégradé ?"
@@ -1769,7 +1769,7 @@
             "option": "Inventaire OSS maître, CMDB synchronisée",
             "criterion": "Coût et effort de mise en œuvre",
             "score": 0,
-            "justification": "Intégration à construire mais réutilisation possible d'un ITSM existant ; coût à confirmer selon le parc LUMICC."
+            "justification": "Intégration à construire mais réutilisation possible d'un ITSM existant ; coût à confirmer selon le parc Lulu."
           },
           {
             "option": "CMDB ITSM maître, inventaire consommateur",
@@ -2058,13 +2058,13 @@
           "REQ-Lot1-224 : analytique passive des mesures UE (RSSI, RSRP, RSRQ, SINR), avec corrélation multi-terminaux pour inférer un brouillage",
           "REQ-Lot1-225 : le NOC déclenche dans les cellules la mesure de puissance UL large bande, par PRB, le CQI et le BLER",
           "REQ-Lot1-226 : balayage spectral déclenché dans les RAN opérés, détection et classification des brouilleurs (should)",
-          "REQ-Lot1-227 : le service continue et sert tous les terminaux LUMICC malgré le brouillage de fréquences de la bande",
+          "REQ-Lot1-227 : le service continue et sert tous les terminaux Lulu malgré le brouillage de fréquences de la bande",
           "REQ-Lot1-228 : l'opérateur détaille si et comment les contre-mesures anti-brouillage sont mises en oeuvre",
           "REQ-Lot1-229 : l'opérateur détaille les contre-mesures de détection des fausses stations de base et des IMSI catchers"
         ],
         "initialHypothesis": "Hypothèse de départ : une architecture hybride. Les mesures UE (REQ-Lot1-224) et les mesures RAN déclenchées par le NOC (REQ-Lot1-225) sont exploitées partout, car elles ne demandent pas de matériel supplémentaire. Des scanners spectraux dédiés complètent le dispositif sur un nombre limité de sites ou de zones sensibles, pour le balayage et la classification (REQ-Lot1-226) et pour les fausses stations et IMSI catchers (REQ-Lot1-229). Les sites GOV/AGA reçoivent des réservations d'accueil (emplacement, alimentation, transmission) pour l'ISAC (REQ-Lot1-230), sans le déployer. L'option native seule est écartée comme socle unique : elle dépend des capacités des équipementiers RAN, non connues à ce stade, et détecte mal les stations pirates. Le déploiement dédié généralisé est écarté car son coût est élevé alors que REQ-Lot1-226 n'est que de criticité info. La mitigation (REQ-Lot1-227) repose sur la reconfiguration de fréquences ou de porteuses pilotée par le NOC, à valider avec les contraintes de spectre et de capacité résiduelle.",
         "initialConflict": "REQ-Lot1-225 et REQ-Lot1-226 (mesures et balayage déclenchés dans les cellules) dépendent des capacités des équipementiers RAN et peuvent dégrader le service. L'alternative des scanners dédiés répond à REQ-Lot1-226 et REQ-Lot1-229 mais coûte plus cher. Parallèlement, REQ-Lot1-227 (continuité pour tous les terminaux) oppose agilité spectrale et capacité résiduelle, et REQ-Lot1-230 (provision ISAC) oppose surdimensionnement anticipé et évolutivité.",
-        "initialQuestion": "Quelle architecture de détection retenir pour le brouillage, les fausses stations de base et les IMSI catchers (analytique des mesures UE, mesures RAN déclenchées par le NOC, balayage spectral dédié), et quelles contre-mesures prévoir pour que le service continue pour tous les terminaux LUMICC ?",
+        "initialQuestion": "Quelle architecture de détection retenir pour le brouillage, les fausses stations de base et les IMSI catchers (analytique des mesures UE, mesures RAN déclenchées par le NOC, balayage spectral dédié), et quelles contre-mesures prévoir pour que le service continue pour tous les terminaux Lulu ?",
         "expertQuestions": [
           "Quelles fonctions de mesure UL (puissance large bande, par PRB, BLER) et de balayage spectral les équipementiers RAN des réseaux concernés exposent-ils nativement vers le NOC, et avec quel impact sur la capacité en cellule ?",
           "Le donneur d'ordre attend-il pour REQ-Lot1-226 et REQ-Lot1-229 un déploiement de capteurs dédiés, ou une détection reposant sur les capacités du RAN et des terminaux ?",
@@ -2243,19 +2243,19 @@
       {
         "id": "clause-req-lot1-191",
         "clauseRef": "REQ-Lot1-191",
-        "title": "NOC shall be dedicated to LUMICC operations (C) 1000",
-        "text": "The NOC shall be dedicated to LUMICC operations and shall not be shared with the MNO own NOC.",
+        "title": "NOC shall be dedicated to Lulu operations (C) 1000",
+        "text": "The NOC shall be dedicated to Lulu operations and shall not be shared with the MNO own NOC.",
         "criticality": "bloquant",
         "category": "BR",
         "disposition": "deliberated",
-        "deliberationReason": "Un NOC dédié à LUMICC, non mutualisé avec celui de l'opérateur mobile, renchérit le coût et la complexité mais garantit l'isolation et la souveraineté opérationnelle.",
+        "deliberationReason": "Un NOC dédié à Lulu, non mutualisé avec celui de l'opérateur mobile, renchérit le coût et la complexité mais garantit l'isolation et la souveraineté opérationnelle.",
         "linkedSubjectId": "SUBJ-01"
       },
       {
         "id": "clause-req-lot1-192",
         "clauseRef": "REQ-Lot1-192",
         "title": "Network operations – NOC (C) 1000",
-        "text": "The LUMICC Network operator shall establish and operate a fully operational high availability and geo-redundant Mission-Critical Network Operations Centre capable of monitoring, operating, and maintaining a Mission critical LTE/5G network, together with its specific services, on a 24×7 basis, primary + backup (refer to RAMS chapter for availability requirement).",
+        "text": "The Lulu Network operator shall establish and operate a fully operational high availability and geo-redundant Mission-Critical Network Operations Centre capable of monitoring, operating, and maintaining a Mission critical LTE/5G network, together with its specific services, on a 24×7 basis, primary + backup (refer to RAMS chapter for availability requirement).",
         "criticality": "bloquant",
         "category": "NFR",
         "disposition": "deliberated",
@@ -2309,7 +2309,7 @@
         "id": "clause-req-lot1-197",
         "clauseRef": "REQ-Lot1-197",
         "title": "MDA framework for network analytics (C/COM/EXP) 1000",
-        "text": "LUMICC network operations shall comply with [3GPP MDA] management data analytics functions for network and services management and orchestration, for both the core network domain and the RANs domain.",
+        "text": "Lulu network operations shall comply with [3GPP MDA] management data analytics functions for network and services management and orchestration, for both the core network domain and the RANs domain.",
         "criticality": "majeur",
         "category": "INT",
         "disposition": "deliberated",
@@ -2340,7 +2340,7 @@
         "id": "clause-req-lot1-200",
         "clauseRef": "REQ-Lot1-200",
         "title": "RANs monitoring (C/COM) 50",
-        "text": "The NOC Solution shall have access to all information necessary to supervise and assess radio Coverage and radio network performance, including relevant KPIs and indicators required to evaluate the delivered Quality of Service (QoS) of Lot2 RAN, as well as Base station status and KPIs, Coverage indicators and radio quality metrics, radio performance (throughput, utilization, handover success rate). The LUMICC Network operator shall indicate if monitoring of MNO shared RAN shall be covered.",
+        "text": "The NOC Solution shall have access to all information necessary to supervise and assess radio Coverage and radio network performance, including relevant KPIs and indicators required to evaluate the delivered Quality of Service (QoS) of Lot2 RAN, as well as Base station status and KPIs, Coverage indicators and radio quality metrics, radio performance (throughput, utilization, handover success rate). The Lulu Network operator shall indicate if monitoring of MNO shared RAN shall be covered.",
         "criticality": "majeur",
         "category": "FR",
         "disposition": "clarification_needed",
@@ -2361,7 +2361,7 @@
         "id": "clause-req-lot1-202",
         "clauseRef": "REQ-Lot1-202",
         "title": "Core network monitoring (C) 250",
-        "text": "The NOC Solution shall provide monitoring of the Core network, covering faults, performance of LUMICC System and services, with ITSM integration for Incident management.",
+        "text": "The NOC Solution shall provide monitoring of the Core network, covering faults, performance of Lulu System and services, with ITSM integration for Incident management.",
         "criticality": "majeur",
         "category": "FR",
         "disposition": "deliberated",
@@ -2405,7 +2405,7 @@
         "id": "clause-req-lot1-206",
         "clauseRef": "REQ-Lot1-206",
         "title": "NOC operation regarding the MNO shared RAN service availability (C) 50",
-        "text": "The LUMICC Network operator should not disable the MNO shared RAN service while the commercial MNO service is still enabled in the same area. This is to avoid the following situation: if a person under arrest or the general public can initiate a call with his private smartphone served by an MNO commercial subscription (from the same MNO as in Lot 2), then the nearby policeman shall be able to have a mission-critical call to his colleagues with his Device and LUMICC Subscription, either from the GOV RAN or from the MNO shared RAN.",
+        "text": "The Lulu Network operator should not disable the MNO shared RAN service while the commercial MNO service is still enabled in the same area. This is to avoid the following situation: if a person under arrest or the general public can initiate a call with his private smartphone served by an MNO commercial subscription (from the same MNO as in Lot 2), then the nearby policeman shall be able to have a mission-critical call to his colleagues with his Device and Lulu Subscription, either from the GOV RAN or from the MNO shared RAN.",
         "criticality": "majeur",
         "category": "BR",
         "disposition": "deliberated",
@@ -2449,7 +2449,7 @@
         "id": "clause-req-lot1-210",
         "clauseRef": "REQ-Lot1-210",
         "title": "Real time collection (C) 1000",
-        "text": "The NOC Solution shall have the capabilities to handle real-time collection of alarms, events and relevant performance counters and logs from LUMICC System (RAN, Core, transmission, MCX, infrastructure).",
+        "text": "The NOC Solution shall have the capabilities to handle real-time collection of alarms, events and relevant performance counters and logs from Lulu System (RAN, Core, transmission, MCX, infrastructure).",
         "criticality": "majeur",
         "category": "NFR",
         "disposition": "deliberated",
@@ -2460,7 +2460,7 @@
         "id": "clause-req-lot1-211",
         "clauseRef": "REQ-Lot1-211",
         "title": "Multi-supplier O&M and event & alarm interpretation (C/COM) 1000",
-        "text": "Events & alarms shall be interpreted according to the specification from the supplier of the related network element, avoiding misinterpretations due to multiple suppliers for Assets listed in LUMICC Inventory of assets.",
+        "text": "Events & alarms shall be interpreted according to the specification from the supplier of the related network element, avoiding misinterpretations due to multiple suppliers for Assets listed in Lulu Inventory of assets.",
         "criticality": "majeur",
         "category": "INT",
         "disposition": "deliberated",
@@ -2471,7 +2471,7 @@
         "id": "clause-req-lot1-212",
         "clauseRef": "REQ-Lot1-212",
         "title": "Alarm management (C/COM) 250",
-        "text": "LUMICC Network operator shall indicate how the NOC avoids the following scenarios: a large number of alarms overwhelms key fault information; a large number of false alarms exist without any service impact; delayed root cause analysis and mitigation.",
+        "text": "Lulu Network operator shall indicate how the NOC avoids the following scenarios: a large number of alarms overwhelms key fault information; a large number of false alarms exist without any service impact; delayed root cause analysis and mitigation.",
         "criticality": "majeur",
         "category": "NFR",
         "disposition": "deliberated",
@@ -2482,7 +2482,7 @@
         "id": "clause-req-lot1-213",
         "clauseRef": "REQ-Lot1-213",
         "title": "NOC connected to a Syslog aggregator (C) 1000",
-        "text": "A syslog aggregator, protected in a Bastion of the INFRA, shall be the recipient of event logs originating from all Network elements listed in LUMICC Inventory of assets, for further analysis by the NOC and the SOC/SIEM.",
+        "text": "A syslog aggregator, protected in a Bastion of the INFRA, shall be the recipient of event logs originating from all Network elements listed in Lulu Inventory of assets, for further analysis by the NOC and the SOC/SIEM.",
         "criticality": "majeur",
         "category": "INT",
         "disposition": "deliberated",
@@ -2493,7 +2493,7 @@
         "id": "clause-req-lot1-214",
         "clauseRef": "REQ-Lot1-214",
         "title": "Aggregation and correlation (C) 50",
-        "text": "The NOC Solution shall implement aggregation and correlation of events and alarms across LUMICC System, with noise reduction (deduplication, suppression, customizable filters), alarm enrichment with topology, geo-location, affected services and Service areas.",
+        "text": "The NOC Solution shall implement aggregation and correlation of events and alarms across Lulu System, with noise reduction (deduplication, suppression, customizable filters), alarm enrichment with topology, geo-location, affected services and Service areas.",
         "criticality": "majeur",
         "category": "FR",
         "disposition": "deliberated",
@@ -2536,7 +2536,7 @@
         "id": "clause-req-lot1-218",
         "clauseRef": "REQ-Lot1-218",
         "title": "GOV RAN QoS monitoring (C) 50",
-        "text": "LUMICC Network operator shall monitor the quality of service of the GOV RAN.",
+        "text": "Lulu Network operator shall monitor the quality of service of the GOV RAN.",
         "criticality": "majeur",
         "category": "NFR",
         "disposition": "clarification_needed",
@@ -2546,7 +2546,7 @@
         "id": "clause-req-lot1-219",
         "clauseRef": "REQ-Lot1-219",
         "title": "KPIs for radio measurement under the RAN Coverage (C/COM/EXP) 250",
-        "text": "In support of the KPI reports that he has to deliver to the Contracting authority, the LUMICC Network operator shall indicate how to measure RAN performance and Coverage through the use of specific probing solutions and test automation from network up to Devices. The LUMICC Network operator shall monitor at least the following MCX key performance indicators: - KPI1: MCPTT access time in a cell, - KPI2: End-to-end MCPTT access time, - KPI3: Mouth-to-ear latency, - KPI4: MCX late entry time, - KPI5: Perceived voice quality as per ITU-T P.863.",
+        "text": "In support of the KPI reports that he has to deliver to the Contracting authority, the Lulu Network operator shall indicate how to measure RAN performance and Coverage through the use of specific probing solutions and test automation from network up to Devices. The Lulu Network operator shall monitor at least the following MCX key performance indicators: - KPI1: MCPTT access time in a cell, - KPI2: End-to-end MCPTT access time, - KPI3: Mouth-to-ear latency, - KPI4: MCX late entry time, - KPI5: Perceived voice quality as per ITU-T P.863.",
         "criticality": "majeur",
         "category": "NFR",
         "disposition": "deliberated",
@@ -2634,18 +2634,18 @@
         "id": "clause-req-lot1-227",
         "clauseRef": "REQ-Lot1-227",
         "title": "Radio jamming - mitigation (C) 250",
-        "text": "Should some radio frequencies in the operating band assigned for LUMICC service be jammed, the NOC shall adapt the operation so that the service shall still continue and serve all LUMICC User equipment.",
+        "text": "Should some radio frequencies in the operating band assigned for Lulu service be jammed, the NOC shall adapt the operation so that the service shall still continue and serve all Lulu User equipment.",
         "criticality": "majeur",
         "category": "NFR",
         "disposition": "deliberated",
-        "deliberationReason": "Maintenir le service pour tous les terminaux LUMICC malgré un brouillage de fréquences relève de la continuité de service et oppose agilité spectrale et capacité résiduelle.",
+        "deliberationReason": "Maintenir le service pour tous les terminaux Lulu malgré un brouillage de fréquences relève de la continuité de service et oppose agilité spectrale et capacité résiduelle.",
         "linkedSubjectId": "SUBJ-12"
       },
       {
         "id": "clause-req-lot1-228",
         "clauseRef": "REQ-Lot1-228",
         "title": "Anti-jamming countermeasures (C/COM/EXP) 1000",
-        "text": "The LUMICC Network operator shall detail if/how anti-jamming countermeasures are implemented in the LUMICC System.",
+        "text": "The Lulu Network operator shall detail if/how anti-jamming countermeasures are implemented in the Lulu System.",
         "criticality": "majeur",
         "category": "NFR",
         "disposition": "deliberated",
@@ -2656,7 +2656,7 @@
         "id": "clause-req-lot1-229",
         "clauseRef": "REQ-Lot1-229",
         "title": "Detection of rogue base stations and IMSI catcher (C/COM/EXP) 250",
-        "text": "The LUMICC Network operator shall detail the Detection of rogue base stations and IMSI catcher countermeasures that are implemented in the LUMICC System.",
+        "text": "The Lulu Network operator shall detail the Detection of rogue base stations and IMSI catcher countermeasures that are implemented in the Lulu System.",
         "criticality": "majeur",
         "category": "FR",
         "disposition": "deliberated",
@@ -2667,7 +2667,7 @@
         "id": "clause-req-lot1-230",
         "clauseRef": "REQ-Lot1-230",
         "title": "Radio site provision to facilitate the detection and tracking of UAV as a future option (C/COM/EXP) 250",
-        "text": "The LUMICC Network operator shall make provisions to facilitate the support in the INFRA of an Integrated sensing and communication (ISAC) functionality (3GPP 38.765 ISAC - Release 20) from the GOV/AGA RANs, to be decided later by the Contracting authority.",
+        "text": "The Lulu Network operator shall make provisions to facilitate the support in the INFRA of an Integrated sensing and communication (ISAC) functionality (3GPP 38.765 ISAC - Release 20) from the GOV/AGA RANs, to be decided later by the Contracting authority.",
         "criticality": "majeur",
         "category": "FR",
         "disposition": "deliberated",
@@ -2678,7 +2678,7 @@
         "id": "clause-req-lot1-231",
         "clauseRef": "REQ-Lot1-231",
         "title": "Traffic analytics at interfaces (C) 1000",
-        "text": "The NOC shall extract traffic analytics information related to LUMICC Subscriptions and provide reports regarding traffic over GOV RAN per QCI/5QI, MNO shared RAN per QCI/5QI, EUCCS interface(s), Roaming interfaces.",
+        "text": "The NOC shall extract traffic analytics information related to Lulu Subscriptions and provide reports regarding traffic over GOV RAN per QCI/5QI, MNO shared RAN per QCI/5QI, EUCCS interface(s), Roaming interfaces.",
         "criticality": "majeur",
         "category": "FR",
         "disposition": "deliberated",
@@ -2689,7 +2689,7 @@
         "id": "clause-req-lot1-232",
         "clauseRef": "REQ-Lot1-232",
         "title": "NOC own dashboard (C) 50",
-        "text": "The NOC Solution shall provide a centralized operational dashboard that delivers real time visibility, historical analytics, and actionable insight into all LUMICC System and LUMICC Services (RAN, Core, Transmission, MCX, Infrastructure).",
+        "text": "The NOC Solution shall provide a centralized operational dashboard that delivers real time visibility, historical analytics, and actionable insight into all Lulu System and Lulu Services (RAN, Core, Transmission, MCX, Infrastructure).",
         "criticality": "majeur",
         "category": "FR",
         "disposition": "deliberated",
@@ -2700,7 +2700,7 @@
         "id": "clause-req-lot1-233",
         "clauseRef": "REQ-Lot1-233",
         "title": "Multi-supplier O&M and NOC dashboard (C) 50",
-        "text": "NOC dashboards shall aggregate Assets listed in LUMICC Inventory of assets, that may be from multiple suppliers.",
+        "text": "NOC dashboards shall aggregate Assets listed in Lulu Inventory of assets, that may be from multiple suppliers.",
         "criticality": "majeur",
         "category": "INT",
         "disposition": "deliberated",
@@ -2711,7 +2711,7 @@
         "id": "clause-req-lot1-234",
         "clauseRef": "REQ-Lot1-234",
         "title": "Multi-supplier O&M and SLA monitoring (C) 50",
-        "text": "KPI calculations and SLA monitoring shall aggregate measures related to Assets listed in LUMICC Inventory of assets, that may be from multiple suppliers.",
+        "text": "KPI calculations and SLA monitoring shall aggregate measures related to Assets listed in Lulu Inventory of assets, that may be from multiple suppliers.",
         "criticality": "majeur",
         "category": "NFR",
         "disposition": "deliberated",
@@ -2754,7 +2754,7 @@
         "id": "clause-req-lot1-238",
         "clauseRef": "REQ-Lot1-238",
         "title": "Visualisation, dashboard and Hypervisor in a Multi-supplier system (C) 250",
-        "text": "The visualisation of the complete topology of LUMICC System and the visualisation of attributes of Network elements shall not be affected by the multi-supplier nature of the Assets in LUMICC System.",
+        "text": "The visualisation of the complete topology of Lulu System and the visualisation of attributes of Network elements shall not be affected by the multi-supplier nature of the Assets in Lulu System.",
         "criticality": "bloquant",
         "category": "NFR",
         "disposition": "deliberated",
@@ -2798,7 +2798,7 @@
         "id": "clause-req-lot1-242",
         "clauseRef": "REQ-Lot1-242",
         "title": "Multi-supplier assumption for RAN equipment (C) 1000",
-        "text": "As LUMICC System includes many RANs (Lot 2 RANs with macro cells and in-building small cells, in-house RANs, Vehicular mounted relays, FRMCS RAN), a multi-supplier approach for network equipment shall be supported for operation and Maintenance.",
+        "text": "As Lulu System includes many RANs (Lot 2 RANs with macro cells and in-building small cells, in-house RANs, Vehicular mounted relays, FRMCS RAN), a multi-supplier approach for network equipment shall be supported for operation and Maintenance.",
         "criticality": "majeur",
         "category": "NFR",
         "disposition": "deliberated",
@@ -2864,7 +2864,7 @@
         "id": "clause-req-lot1-248",
         "clauseRef": "REQ-Lot1-248",
         "title": "Multi-supplier O&M and configuration of Network elements (C/COM) 250",
-        "text": "It shall be possible to configure all Network elements from LUMICC Inventory of assets.",
+        "text": "It shall be possible to configure all Network elements from Lulu Inventory of assets.",
         "criticality": "majeur",
         "category": "FR",
         "disposition": "deliberated",
@@ -2886,7 +2886,7 @@
         "id": "clause-req-lot1-250",
         "clauseRef": "REQ-Lot1-250",
         "title": "O&M versus the MNO shared RAN (C/COM) 1000",
-        "text": "In a MOCN shared RAN architecture as applicable in Lot 2, the INFRA shall adapt to the interface exposed through the MNO’s own OSS/ENM layer, typically using REST APIs (JSON) such as YANG/RESTCONF, YANG/NETCONF, streaming pipelines (e.g., Kafka), Syslog, SNMP or XML/CSV over SFTP to deliver KPIs, events and alarms, and performance data applicable to LUMICC radio access service.",
+        "text": "In a MOCN shared RAN architecture as applicable in Lot 2, the INFRA shall adapt to the interface exposed through the MNO’s own OSS/ENM layer, typically using REST APIs (JSON) such as YANG/RESTCONF, YANG/NETCONF, streaming pipelines (e.g., Kafka), Syslog, SNMP or XML/CSV over SFTP to deliver KPIs, events and alarms, and performance data applicable to Lulu radio access service.",
         "criticality": "majeur",
         "category": "INT",
         "disposition": "deliberated",
@@ -2897,7 +2897,7 @@
         "id": "clause-req-lot1-251",
         "clauseRef": "REQ-Lot1-251",
         "title": "O&M versus dedicated RANs (C) 50",
-        "text": "Regarding the LUMICC dedicated RANs, such as GOV RAN, AGA RAN, FRMCS RAN and in-house RANs, the INFRA shall adapt to the multi-supplier nature of these RANs.",
+        "text": "Regarding the Lulu dedicated RANs, such as GOV RAN, AGA RAN, FRMCS RAN and in-house RANs, the INFRA shall adapt to the multi-supplier nature of these RANs.",
         "criticality": "majeur",
         "category": "INT",
         "disposition": "deliberated",
@@ -2919,11 +2919,11 @@
         "id": "clause-req-lot1-253",
         "clauseRef": "REQ-Lot1-253",
         "title": "Network resource model versus the MNO shared RAN (C) 250",
-        "text": "A network resource model (NRM) shall define MOCN architecture between INFRA and MNO shared RAN, shared resources, exclusive LUMICC resources, cell configuration, performance monitoring, alarm reception.",
+        "text": "A network resource model (NRM) shall define MOCN architecture between INFRA and MNO shared RAN, shared resources, exclusive Lulu resources, cell configuration, performance monitoring, alarm reception.",
         "criticality": "majeur",
         "category": "DR",
         "disposition": "deliberated",
-        "deliberationReason": "Le modèle MOCN doit distinguer ressources partagées et ressources LUMICC exclusives, ce qui dépend de ce que le MNO expose et met en tension isolation et mutualisation.",
+        "deliberationReason": "Le modèle MOCN doit distinguer ressources partagées et ressources Lulu exclusives, ce qui dépend de ce que le MNO expose et met en tension isolation et mutualisation.",
         "linkedSubjectId": "SUBJ-04"
       },
       {
@@ -2963,7 +2963,7 @@
         "id": "clause-req-lot1-257",
         "clauseRef": "REQ-Lot1-257",
         "title": "NOC alarm (C) 50",
-        "text": "The NOC solution shall provide an alarm console interface for displaying enriched, correlated alarms from LUMICC System.",
+        "text": "The NOC solution shall provide an alarm console interface for displaying enriched, correlated alarms from Lulu System.",
         "criticality": "majeur",
         "category": "FR",
         "disposition": "deliberated",

@@ -83,8 +83,8 @@ describe('Automatisation : jamais évacuée par le modèle seul (J0, archinex#13
 		});
 	});
 
-	describe('rejeu sur les évacuations archivées du jalon J0 (eval-results/rapport-1.md, 92 clauses LUMICC)', () => {
-		const md = fs.readFileSync(path.resolve(process.cwd(), 'examples/lumicc-noc/rfp-section4-noc.md'), 'utf-8');
+	describe('rejeu sur les évacuations archivées du jalon J0 (eval-results/rapport-1.md, 92 clauses Lulu)', () => {
+		const md = fs.readFileSync(path.resolve(process.cwd(), 'examples/lulu-noc/rfp-section4-noc.md'), 'utf-8');
 		const clauses = shredRfpTextToClauses(md);
 		// Les six clauses que le modèle a proposé d’évacuer aux deux passes.
 		const EVACUATED = ['REQ-Lot1-199', 'REQ-Lot1-216', 'REQ-Lot1-258', 'REQ-Lot1-259', 'REQ-Lot1-265', 'REQ-Lot1-275'];

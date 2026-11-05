@@ -1,12 +1,12 @@
 {
-  "id": "lumicc-lot1-noc",
-  "title": "LUMICC · Lot 1 (NOC, Cœur 5G PPDR & Résilience)",
-  "shortName": "LUMICC Lot 1",
+  "id": "lulu-lot1-noc",
+  "title": "Lulu · Lot 1 (NOC, Cœur 5G PPDR & Résilience)",
+  "shortName": "Lulu Lot 1",
   "type": "project_rfp",
-  "badge": "LUMICC · Lot 1 PPDR",
+  "badge": "Lulu · Lot 1 PPDR",
   "description": "Programme national large bande PPDR (Mission Critical) au Luxembourg. Lot 1 : Cœur 5G Ericsson durci, NOC souverain, géo-redondance 3 DC Tier IV, holdover GNSS 30j et interconnexions.",
-  "defaultSubjectId": "SUBJ-LUMICC-01",
-  "defaultDocId": "DOC-LUMICC-RFP-01",
+  "defaultSubjectId": "SUBJ-LULU-01",
+  "defaultDocId": "DOC-LULU-RFP-01",
   "status": "active",
   "strategy": {
     "objectives": [

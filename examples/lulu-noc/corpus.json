@@ -1,7 +1,7 @@
 [
   {
-    "id": "DOC-LUMICC-RFP-01",
-    "title": "LUMICC Statement of Work – Lot 1 (Section 4 : NOC & Résilience)",
+    "id": "DOC-LULU-RFP-01",
+    "title": "Lulu Statement of Work – Lot 1 (Section 4 : NOC & Résilience)",
     "origin": "client",
     "category": "cctp",
     "categoryLabel": "Cahier des Clauses Techniques Particulières (CCTP)",
@@ -10,17 +10,17 @@
     "pageCount": 42,
     "extractedClausesCount": 92,
     "relatedSubjectIds": [
-      "SUBJ-LUMICC-01",
-      "SUBJ-LUMICC-02",
-      "SUBJ-LUMICC-03",
-      "SUBJ-LUMICC-04",
-      "SUBJ-LUMICC-05",
-      "SUBJ-LUMICC-06",
-      "SUBJ-LUMICC-07"
+      "SUBJ-LULU-01",
+      "SUBJ-LULU-02",
+      "SUBJ-LULU-03",
+      "SUBJ-LULU-04",
+      "SUBJ-LULU-05",
+      "SUBJ-LULU-06",
+      "SUBJ-LULU-07"
     ],
-    "summary": "Exigences contractuelles du Lot 1 LUMICC : mise en œuvre d'un NOC souverain dédié, supervision géo-redondante, résilience du cœur 5G SA et interopérabilité MCX.",
+    "summary": "Exigences contractuelles du Lot 1 Lulu : mise en œuvre d'un NOC souverain dédié, supervision géo-redondante, résilience du cœur 5G SA et interopérabilité MCX.",
     "keyIdeas": [
-      "Le NOC doit être dédié aux opérations LUMICC et physiquement étanche par rapport au NOC commercial de l'opérateur.",
+      "Le NOC doit être dédié aux opérations Lulu et physiquement étanche par rapport au NOC commercial de l'opérateur.",
       "Géo-redondance nominale sur 3 sites POST avec basculement automatique et salle de repli physique.",
       "Médiation O&M multi-constructeurs et supervision MCX de bout en bout avec sondes actives.",
       "Résilience extrême en cas de brouillage ou déni GNSS prolongé (30 jours d'autonomie sans GPS)."
@@ -31,29 +31,29 @@
         "title": "Interdiction de Sonde Active dans les Équipements RAN Tiers",
         "type": "restriction",
         "description": "Les sondes O&M et SIEM ne doivent pas injecter de code invasif dans les RAN des MNO tiers ; passerelle EMS 3GPP TS 28.532 obligatoire.",
-        "targetSubjectId": "SUBJ-LUMICC-04"
+        "targetSubjectId": "SUBJ-LULU-04"
       },
       {
         "id": "RULE-LUMI-02",
         "title": "Double Contrôle 4-Yeux pour l'eSIM SM-DP+",
         "type": "obligation",
         "description": "Toute génération ou mise à disposition de profils eSIM d'urgence requiert une double approbation 4-yeux et un HSM FIPS 140-3 L3.",
-        "targetSubjectId": "SUBJ-LUMICC-05"
+        "targetSubjectId": "SUBJ-LULU-05"
       },
       {
         "id": "RULE-LUMI-03",
         "title": "Garantie RTO < 15 min sur Base UDR Uniquement sur CNF Chaud",
         "type": "condition",
         "description": "Le RTO de 15 minutes sur la base de données UDR Ericsson ne s'applique qu'en cas de bascule sur un site secondaire actif ; la reconstruction bare-metal totale excède cette limite.",
-        "targetSubjectId": "SUBJ-LUMICC-01"
+        "targetSubjectId": "SUBJ-LULU-01"
       }
     ],
     "keyClauses": [
       {
         "id": "CLAUSE-LUMI-191",
         "clauseRef": "REQ-Lot1-191",
-        "title": "NOC Dédié aux Opérations LUMICC",
-        "text": "The NOC shall be dedicated to LUMICC operations and shall not be shared with the MNO own NOC.",
+        "title": "NOC Dédié aux Opérations Lulu",
+        "text": "The NOC shall be dedicated to Lulu operations and shall not be shared with the MNO own NOC.",
         "criticality": "bloquant",
         "impactSummary": "Impose une infrastructure et une équipe NOC physiquement et logiquement dédiées au Luxembourg."
       },
@@ -61,7 +61,7 @@
         "id": "CLAUSE-LUMI-192",
         "clauseRef": "REQ-Lot1-192",
         "title": "NOC Hautement Disponible & Géo-Redondant 24/7",
-        "text": "The LUMICC Network operator shall establish and operate a fully operational high availability and geo-redundant Mission-Critical Network Operations Centre capable of monitoring, operating, and maintaining a Mission critical LTE/5G network, 24x7, primary + backup.",
+        "text": "The Lulu Network operator shall establish and operate a fully operational high availability and geo-redundant Mission-Critical Network Operations Centre capable of monitoring, operating, and maintaining a Mission critical LTE/5G network, 24x7, primary + backup.",
         "criticality": "bloquant",
         "impactSummary": "Conditionne l'architecture 3 DC (RCE/RCS/RCW) et la salle de repli physique."
       },

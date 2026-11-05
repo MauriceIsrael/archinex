@@ -31,7 +31,7 @@ const item = (ref: string, disposition: string, extra: Partial<ClassifyItem> = {
 
 describe('Découpage du RFP de démonstration', () => {
 	it('découpe la section 4 en 92 clauses natives REQ-Lot1', () => {
-		const md = fs.readFileSync(path.resolve(process.cwd(), 'examples/lumicc-noc/rfp-section4-noc.md'), 'utf-8');
+		const md = fs.readFileSync(path.resolve(process.cwd(), 'examples/lulu-noc/rfp-section4-noc.md'), 'utf-8');
 		const clauses = shredRfpTextToClauses(md);
 		expect(clauses.length).toBe(92);
 		expect(clauses[0].clauseRef).toBe('REQ-Lot1-191');
@@ -257,7 +257,7 @@ function fakeLlm(
 }
 
 describe('Pipeline complet avec un faux modèle', () => {
-	const md = fs.readFileSync(path.resolve(process.cwd(), 'examples/lumicc-noc/rfp-section4-noc.md'), 'utf-8');
+	const md = fs.readFileSync(path.resolve(process.cwd(), 'examples/lulu-noc/rfp-section4-noc.md'), 'utf-8');
 	const clauses = shredRfpTextToClauses(md);
 
 	it('traite les 92 clauses : une disposition chacune, aucune évacuation bloquante, sujets sans trou', async () => {
@@ -450,7 +450,7 @@ describe('Pipeline complet avec un faux modèle', () => {
 describe('Aucune donnée de RFP dans le code', () => {
 	it('le pipeline ne contient aucune référence ni nom propre à un RFP', () => {
 		const src = fs.readFileSync(path.resolve(process.cwd(), 'src/lib/server/ingest/arckitRequirementsPipeline.ts'), 'utf-8');
-		for (const forbidden of [/REQ-Lot/i, /LUMICC/i, /ADR-NOC/i, /\bNOC\b/, /Rubidium/i, /\bMNO\b/]) {
+		for (const forbidden of [/REQ-Lot/i, /Lulu/i, /ADR-NOC/i, /\bNOC\b/, /Rubidium/i, /\bMNO\b/]) {
 			expect(src).not.toMatch(forbidden);
 		}
 	});

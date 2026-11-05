@@ -4,7 +4,7 @@ import * as path from 'path';
 import { computeAuditMetrics, type AuditReference, type EvalRequirement } from '$lib/domain/requirementsAuditEval';
 
 const reference = JSON.parse(
-	fs.readFileSync(path.resolve(process.cwd(), 'examples/lumicc-noc/reference-analysis.json'), 'utf-8')
+	fs.readFileSync(path.resolve(process.cwd(), 'examples/lulu-noc/reference-analysis.json'), 'utf-8')
 ) as AuditReference;
 
 const allRefs = [...new Set(reference.hardPoints.flatMap((h) => h.coveredClauseRefs))];

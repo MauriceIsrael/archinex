@@ -305,28 +305,28 @@ describe('Projections dynamiques d\'architecture (No Doc Drift - Issue #64)', ()
 		expect(seq).toContain('Phase 3 : Médiation & Inspection Applicative Diameter');
 		expect(seq).toContain("Phase 4 : Résolution et Réponse de l'Authentification");
 	});
-	it('11. Isole les spécifications multi-plateformes (LUMICC) : génère le socle 3 plateformes sans fuite RATP/PCC', () => {
-		const lumiccSubject = {
-			id: 'sub-lumicc-env',
+	it('11. Isole les spécifications multi-plateformes (Lulu) : génère le socle 3 plateformes sans fuite RATP/PCC', () => {
+		const luluSubject = {
+			id: 'sub-lulu-env',
 			section_ref: '§2.4',
 			name: "Socle d'environnements et représentativité des bancs"
 		};
 
-		const lumiccContext: ProjectionContext = {
-			projectId: 'lumicc-lot1-noc',
-			projectName: 'LUMICC',
+		const luluContext: ProjectionContext = {
+			projectId: 'lulu-lot1-noc',
+			projectName: 'Lulu',
 			enterpriseName: 'Grand-Duché de Luxembourg',
 			decision: {
-				retainedOptionId: 'opt-lumicc-3p',
+				retainedOptionId: 'opt-lulu-3p',
 				retainedOptionTitle: 'Socle 3 plateformes, pré-prod iso-état',
 				rationale: "Production, pré-production unique au Luxembourg répliquant l'état technique de la production (et capable d'accueillir un état candidat), test réduit avec Test-RAN. Qualification fournisseurs chez les fournisseurs, avec contrôle d'audit et de représentativité."
 			}
 		};
 
-		const diagram = generateTargetArchitectureDiagram(lumiccSubject, null, [], lumiccContext);
+		const diagram = generateTargetArchitectureDiagram(luluSubject, null, [], luluContext);
 
 		// Doit refléter fidèlement le socle 3 plateformes lié formellement à son projet
-		expect(diagram).toContain('Socle d\'Environnements Multi-Plateformes (Grand-Duché de Luxembourg) [Projet: lumicc-lot1-noc]');
+		expect(diagram).toContain('Socle d\'Environnements Multi-Plateformes (Grand-Duché de Luxembourg) [Projet: lulu-lot1-noc]');
 		expect(diagram).toContain('Plateforme de Production (PROD)');
 		expect(diagram).toContain('Pré-production Unique Iso-État');
 		expect(diagram).toContain('Test Réduit avec Test-RAN');
@@ -338,7 +338,7 @@ describe('Projections dynamiques d\'architecture (No Doc Drift - Issue #64)', ()
 		expect(diagram).not.toContain('PCC');
 		expect(diagram).not.toContain('WAPT');
 
-		const seq = generateDeploymentSequenceDiagram(lumiccSubject, null, [], lumiccContext);
+		const seq = generateDeploymentSequenceDiagram(luluSubject, null, [], luluContext);
 		expect(seq).toContain('sequenceDiagram');
 		expect(seq).toContain('Fournisseur as Fournisseur / Équipementier');
 		expect(seq).toContain('Auditeur as Responsable Audit & Représentativité');

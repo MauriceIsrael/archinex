@@ -7,8 +7,8 @@ const AUTH_STATES = {
   alice: resolve(AUTH_DIR, 'alice.json')
 };
 
-test.describe.serial('Démonstration Interactive E2E : Cas Réel LUMICC (CCTP Lot 1 · NOC, Cœur 5G PPDR & Résilience)', () => {
-  test('Acte 1 : Dépouillement & Découverte de l\'Audit ArcKit J0 (CCTP Réel LUMICC - 92 clauses)', async ({ browser }) => {
+test.describe.serial('Démonstration Interactive E2E : Cas Réel Lulu (CCTP Lot 1 · NOC, Cœur 5G PPDR & Résilience)', () => {
+  test('Acte 1 : Dépouillement & Découverte de l\'Audit ArcKit J0 (CCTP Réel Lulu - 92 clauses)', async ({ browser }) => {
     const context = await browser.newContext({ storageState: AUTH_STATES.lead });
     const page = await context.newPage();
 
@@ -24,9 +24,9 @@ test.describe.serial('Démonstration Interactive E2E : Cas Réel LUMICC (CCTP Lo
       await persistedRunsBtn.click();
     }
 
-    // 4. Recherche de l'audit live LUMICC scellé (run_lumicc_live_j0)
-    const lumiccRunTitle = page.locator('text=LUMICC Statement of Work – Lot 1 (Section 4 : NOC & Résilience)').first();
-    await expect(lumiccRunTitle).toBeVisible();
+    // 4. Recherche de l'audit live Lulu scellé (run_lulu_live_j0)
+    const luluRunTitle = page.locator('text=Lulu Statement of Work – Lot 1 (Section 4 : NOC & Résilience)').first();
+    await expect(luluRunTitle).toBeVisible();
 
     // 5. Chargement de l'audit enregistré dans la session
     const loadBtn = page.locator('button:has-text("Charger"), button:has-text("État actuel")').first();
@@ -38,12 +38,12 @@ test.describe.serial('Démonstration Interactive E2E : Cas Réel LUMICC (CCTP Lo
     await expect(page.locator('text=92 clauses')).toBeVisible();
 
     // Capture d'écran Acte 1 : Dépouillement analytique et factorisation ArcKit J0
-    await page.screenshot({ path: 'tests/e2e/screenshots/lumicc-01-audit-factorization.png', fullPage: true });
+    await page.screenshot({ path: 'tests/e2e/screenshots/lulu-01-audit-factorization.png', fullPage: true });
 
     await context.close();
   });
 
-  test('Acte 2 : Exploration de l\'Espace Projet LUMICC (lumicc-lot1-noc) & Piliers de Résilience', async ({ browser }) => {
+  test('Acte 2 : Exploration de l\'Espace Projet Lulu (lulu-lot1-noc) & Piliers de Résilience', async ({ browser }) => {
     const context = await browser.newContext({ storageState: AUTH_STATES.lead });
     const page = await context.newPage();
 
@@ -51,9 +51,9 @@ test.describe.serial('Démonstration Interactive E2E : Cas Réel LUMICC (CCTP Lo
     await page.goto('/workspaces', { waitUntil: 'networkidle' });
     await expect(page.locator('h1')).toContainText('Espaces de Travail & Délibérations');
 
-    // 2. Localisation du projet de démonstration LUMICC pré-chargé
-    const lumiccCard = page.locator('div:has-text("LUMICC · Lot 1 (NOC, Cœur 5G PPDR & Résilience)")').first();
-    await expect(lumiccCard).toBeVisible();
+    // 2. Localisation du projet de démonstration Lulu pré-chargé
+    const luluCard = page.locator('div:has-text("Lulu · Lot 1 (NOC, Cœur 5G PPDR & Résilience)")').first();
+    await expect(luluCard).toBeVisible();
 
     // 3. Clic sur le bouton d'ouverture de l'espace projet
     const openBtn = page.locator('button:has-text("Ouvrir cet Espace"), button:has-text("Reprendre la Délibération")').first();
@@ -61,25 +61,25 @@ test.describe.serial('Démonstration Interactive E2E : Cas Réel LUMICC (CCTP Lo
 
     // 4. Arrivée sur l'établi de délibération (/deliberation)
     await page.waitForURL(/\/deliberation/);
-    await expect(page.locator('text=LUMICC · Lot 1 (NOC, Cœur 5G PPDR & Résilience)')).toBeVisible();
+    await expect(page.locator('text=Lulu · Lot 1 (NOC, Cœur 5G PPDR & Résilience)')).toBeVisible();
 
     // 5. Vérification des objectifs stratégiques affichés
     await expect(page.locator('text=Haute disponibilité 99,999 % et résilience géo-distribuée')).toBeVisible();
 
-    // Capture d'écran Acte 2 : Espace Projet & Cadre Stratégique LUMICC
-    await page.screenshot({ path: 'tests/e2e/screenshots/lumicc-02-workspace-overview.png' });
+    // Capture d'écran Acte 2 : Espace Projet & Cadre Stratégique Lulu
+    await page.screenshot({ path: 'tests/e2e/screenshots/lulu-02-workspace-overview.png' });
 
     await context.close();
   });
 
-  test('Acte 3 : Matrice des Options & Délibération sur SUBJ-LUMICC-01 (Topologie 3 DC POST & RTO UDR)', async ({ browser }) => {
+  test('Acte 3 : Matrice des Options & Délibération sur SUBJ-LULU-01 (Topologie 3 DC POST & RTO UDR)', async ({ browser }) => {
     const context = await browser.newContext({ storageState: AUTH_STATES.lead });
     const page = await context.newPage();
 
     await page.goto('/deliberation', { waitUntil: 'networkidle' });
 
-    // 1. Sélection du sujet critique SUBJ-LUMICC-01 dans la liste des conversations
-    const subj1Btn = page.locator('button:has-text("Topologie 3 DC POST"), [data-testid="subject-item-SUBJ-LUMICC-01"], div:has-text("SUBJ-LUMICC-01")').first();
+    // 1. Sélection du sujet critique SUBJ-LULU-01 dans la liste des conversations
+    const subj1Btn = page.locator('button:has-text("Topologie 3 DC POST"), [data-testid="subject-item-SUBJ-LULU-01"], div:has-text("SUBJ-LULU-01")').first();
     if (await subj1Btn.isVisible()) {
       await subj1Btn.click();
     }
@@ -109,7 +109,7 @@ test.describe.serial('Démonstration Interactive E2E : Cas Réel LUMICC (CCTP Lo
     await expect(page.locator('text=Immunité Split-Brain')).toBeVisible();
 
     // Capture d'écran Acte 3 : Matrice d'évaluation multicritères
-    await page.screenshot({ path: 'tests/e2e/screenshots/lumicc-03-options-matrix.png' });
+    await page.screenshot({ path: 'tests/e2e/screenshots/lulu-03-options-matrix.png' });
 
     await context.close();
   });
@@ -135,11 +135,11 @@ test.describe.serial('Démonstration Interactive E2E : Cas Réel LUMICC (CCTP Lo
       await kbTabBtn.click();
     }
 
-    // 3. Vérification des exigences normatives LUMICC
-    await expect(page.locator('text=LUMICC').first()).toBeVisible();
+    // 3. Vérification des exigences normatives Lulu
+    await expect(page.locator('text=Lulu').first()).toBeVisible();
 
     // Capture d'écran Acte 4 : Alignement Doctrinal et Contraintes de Survie
-    await page.screenshot({ path: 'tests/e2e/screenshots/lumicc-04-doctrine-alignment.png' });
+    await page.screenshot({ path: 'tests/e2e/screenshots/lulu-04-doctrine-alignment.png' });
 
     await context.close();
   });
@@ -150,7 +150,7 @@ test.describe.serial('Démonstration Interactive E2E : Cas Réel LUMICC (CCTP Lo
 
     await page.goto('/deliberation', { waitUntil: 'networkidle' });
 
-    // 1. Vérification du statut de maturation du sujet LUMICC (L2 ou L3)
+    // 1. Vérification du statut de maturation du sujet Lulu (L2 ou L3)
     const statusBadge = page.locator('text=L2_decomposed, text=L3_decided, text=Maturation').first();
     await expect(statusBadge).toBeVisible();
 
@@ -158,7 +158,7 @@ test.describe.serial('Démonstration Interactive E2E : Cas Réel LUMICC (CCTP Lo
     await expect(page.locator('text=2 DC Tier IV actifs (RCE/RCS) + 3e DC standby (RCW)').first()).toBeVisible();
 
     // Capture d'écran Acte 5 : Décision arbitrée et dossier prêt pour publication
-    await page.screenshot({ path: 'tests/e2e/screenshots/lumicc-05-decision-arbitrated.png' });
+    await page.screenshot({ path: 'tests/e2e/screenshots/lulu-05-decision-arbitrated.png' });
 
     await context.close();
   });

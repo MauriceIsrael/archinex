@@ -520,6 +520,24 @@
 		}
 	}
 
+	async function handleBindAspectEdp(event: any) {
+		try {
+			const payload = event?.detail || event || {};
+			const res = await fetch(`/api/projects/${projectId}/subjects/${subjectId}/edp?edp=1`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({ action: 'bind_aspect', ...payload })
+			});
+			if (res.ok) {
+				const data = await res.json();
+				if (data.edp) currentEdp = data.edp;
+				deliberationStore.logNotification(data.message || 'Sous-axe lié avec succès !', 'success');
+			}
+		} catch (e: any) {
+			deliberationStore.logNotification(e.message, 'warning');
+		}
+	}
+
 	async function handleSynthesizeEdp(event?: any) {
 		try {
 			const res = await fetch(`/api/projects/${projectId}/subjects/${subjectId}/edp?edp=1`, {
@@ -1490,6 +1508,7 @@
 					on:runVerify={handleRunVerifyEdp}
 					on:hydrate={handleHydrateEdp}
 					on:synthesize={handleSynthesizeEdp}
+					on:bindAspect={handleBindAspectEdp}
 				/>
 			</div>
 		{/if}
@@ -1818,6 +1837,7 @@
 					on:runVerify={handleRunVerifyEdp}
 					on:hydrate={handleHydrateEdp}
 					on:synthesize={handleSynthesizeEdp}
+					on:bindAspect={handleBindAspectEdp}
 				/>
 			</div>
 		{/if}
@@ -1826,6 +1846,23 @@
 
 {#snippet renderEdpPane()}
 	<div class="h-full overflow-y-auto p-4 space-y-4 text-xs" data-testid="unified-edp-pane">
+		<div class="rounded-xl border border-indigo-500/30 bg-indigo-500/10 p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+			<div class="space-y-0.5">
+				<span class="text-xs font-bold text-indigo-900 dark:text-indigo-200">
+					🧪 Phase 4 dédiée disponible : Refinement Multi-Axes, Hydratation LLD & Simulateur de Drift
+				</span>
+				<p class="text-[11px] text-muted-foreground">
+					Basculez vers la Phase 4 pour piloter en plein écran les 5 axes KAOS, hydrater Nautobot/Sylva et tester les dérives Rego.
+				</p>
+			</div>
+			<button
+				type="button"
+				onclick={() => deliberationStore.setPosture('refinement')}
+				class="shrink-0 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+			>
+				Ouvrir en Phase 4 →
+			</button>
+		</div>
 		{#if currentEdp}
 			<EdpCard
 				edp={currentEdp}
@@ -1835,6 +1872,9 @@
 				on:validate={handleValidateEdp}
 				on:challenge={handleChallengeEdp}
 				on:runVerify={handleRunVerifyEdp}
+				on:hydrate={handleHydrateEdp}
+				on:synthesize={handleSynthesizeEdp}
+				on:bindAspect={handleBindAspectEdp}
 			/>
 		{:else}
 			<div class="rounded-xl border border-dashed border-amber-500/40 bg-amber-500/5 p-6 text-center space-y-3">

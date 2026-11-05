@@ -21,7 +21,7 @@ const T0 = new Date('2026-10-01T08:00:00Z');
 
 function testInput(): AssemblyInput {
 	return {
-		project: { id: 'proj-lumicc', title: 'HLD Télécom Critique' },
+		project: { id: 'proj-lulu', title: 'HLD Télécom Critique' },
 		confidentiality: 'confidential',
 		now: new Date('2026-10-18T12:00:00Z'),
 		sources: [

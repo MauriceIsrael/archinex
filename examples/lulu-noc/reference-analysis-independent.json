@@ -1,9 +1,9 @@
 {
-  "_description": "Analyse de référence indépendante du RFP LUMICC Section 4 (NOC). Auteur établi : Architecte Référent Indépendant. Rédigé et figé AVANT le lancement de la mesure, conformément aux directives de docs/jalon-j0.md.",
+  "_description": "Analyse de référence indépendante du RFP Lulu Section 4 (NOC). Auteur établi : Architecte Référent Indépendant. Rédigé et figé AVANT le lancement de la mesure, conformément aux directives de docs/jalon-j0.md.",
   "author": "Architecte Référent Indépendant",
   "date": "2026-10-18",
   "status": "fige_avant_mesure",
-  "source": "examples/lumicc-noc/rfp-section4-noc.md",
+  "source": "examples/lulu-noc/rfp-section4-noc.md",
   "hardPoints": [
     {
       "id": "HP-01-MEDIATION-OAM",
@@ -80,7 +80,7 @@
         "REQ-Lot1-206",
         "REQ-Lot1-250"
       ],
-      "question": "Quel niveau contractuel d'exposition des compteurs temps réel les opérateurs commerciaux du Lot 3 acceptent-ils de fournir au NOC LUMICC ?"
+      "question": "Quel niveau contractuel d'exposition des compteurs temps réel les opérateurs commerciaux du Lot 3 acceptent-ils de fournir au NOC Lulu ?"
     },
     {
       "clauseRefs": [

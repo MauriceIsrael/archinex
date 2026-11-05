@@ -248,7 +248,7 @@ describe('Lot A5 - Anonymization Engine Contract', () => {
 				subjectId: 'subj-specific',
 				retainedOptionId: 'opt-cloud-native',
 				rejected: [],
-				rationale: 'Exclusion contractuelle propre au périmètre CFL sur LUMICC.',
+				rationale: 'Exclusion contractuelle propre au périmètre CFL sur Lulu.',
 				reversibility: 'irreversible',
 				portability: 'project_specific',
 				arbiterId: 'alice-architect',
@@ -263,7 +263,7 @@ describe('Lot A5 - Anonymization Engine Contract', () => {
 				decision,
 				subject: { id: 'subj-specific', name: 'Dépendance CFL FRMCS', domain: 'telecom' },
 				options: mockOptions,
-				engagement: 'lumicc-lot1',
+				engagement: 'lulu-lot1',
 				author: 'Alice Lead',
 				authorRole: 'lead_architect'
 			});
@@ -292,7 +292,7 @@ describe('Lot A5 - Anonymization Engine Contract', () => {
 				decision,
 				subject: { id: 'subj-product', name: 'Capacité Cœur UDR', domain: 'telecom' },
 				options: mockOptions,
-				engagement: 'lumicc-lot1',
+				engagement: 'lulu-lot1',
 				author: 'Alice Lead',
 				authorRole: 'lead_architect'
 			});
@@ -325,7 +325,7 @@ describe('Lot A5 - Anonymization Engine Contract', () => {
 				decision,
 				subject: { id: 'subj-doctrine', name: 'Synchronisation GNSS PTP', domain: 'infrastructure' },
 				options: mockOptions,
-				engagement: 'lumicc-lot1',
+				engagement: 'lulu-lot1',
 				author: 'Alice Lead',
 				authorRole: 'lead_architect'
 			});

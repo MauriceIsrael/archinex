@@ -139,3 +139,23 @@ Ce lot de preuves peut être archivé comme attestation d'audit pour les revues 
    L'oracle OPA ne vérifie que les contraintes explicitement formulées dans la décision. Une absence de violation n'implique pas l'absence d'autres vulnérabilités réseau ou d'incompatibilités physiques.
 3. **Immuabilité Postérieure** :
    Le lot de preuves scelle l'état des artefacts au moment de l'exécution ($T_0$). Si une intervention manuelle ou un script d'ajustement modifie l'environnement après le déploiement sans repasser par le pipeline, la preuve devient caduque.
+
+---
+
+## 7. Intégration Native avec SUSE Telco Cloud & Sylva (`SylvaWorkloadCluster`) et Nautobot 2.x SSoT
+
+Archinex ne réinvente jamais les opérateurs de **Sylva (`sylva-projects/sylva-core`)** :
+1. **Côté Sylva (`SylvaWorkloadCluster` & `sylva-units`)** :
+   - Le moteur d'hydratation [`composeMultiAxisHydration`](../../src/lib/server/edp/refinementCoverage.ts) produit la ressource native `sylva_workload_cluster_values` (`apiVersion: "workloadcluster.sylva.org/v1alpha1"`, `kind: "SylvaWorkloadCluster"`).
+   - Il configure `capi_providers: { infra_provider: "capm3", bootstrap_provider: "cabpr" }`, active les `units` Sylva (`cilium`, `multus`, `sriov`, `sriov-resources`, `metallb`, `vault`, `kyverno`, `monitoring`), et peuple les dictionnaires `baremetal_hosts` et `machine_deployments` (`md-sylva-cnf-sriov-dpdk` et `md-sylva-standard-nis2`).
+   - Ce descripteur est consommé tel quel par `sylva-units` / `workload-cluster-operator` pour instancier les ressources CAPI et `metal3.io/v1alpha1` `BareMetalHost`.
+2. **Côté Nautobot 2.x SSoT (`http://localhost:8080`)** :
+   - Le synchroniseur [`syncHydratedInventoryToNautobot`](../../src/lib/server/edp/nautobotSync.ts) pousse de manière idempotente via l'API REST Nautobot :
+     - les Tenants partenaires (`org-lot3-mno`, `org-lot2-ran`) dans `/tenancy/tenants/`,
+     - le Circuit d'interconnexion S6a (`link-ip-lot3-secgw1`) et ses Terminaisons A/Z dans `/circuits/circuits/`,
+     - le VLAN `1403` et le préfixe `100.64.14.0/30` dans `/ipam/prefixes/`,
+     - les 7 équipements (`2` serveurs Bare-Metal Sylva, `2` objets externes fictifs 3GPP NRM `ExternalFunction`, et `3` nœuds internes `secgw-lot1-01`, `dea-lot1-01`, `hss-lot1-01`) dans `/dcim/devices/`.
+3. **Exécution du Démonstrateur Complet (§14 Lulu Lot 3 ↔ Lot 1)** :
+   ```bash
+   npm run seed:demo
+   ```

@@ -1,8 +1,8 @@
-# Guide de Démonstration :  Lot 1 (Lulu) & ArcKit
+# Guide de Démonstration : Lulu Lot 1 (Lulu) & ArcKit
 
 Ce guide présente la démarche et le scénario complet pour animer une démonstration d'**Archinex** couplé à **LLMOps (Le Hub)** auprès d'un collège d'architectes d'entreprise et d'architectes de solutions critiques.
 
-Il s'appuie sur le cas réel s **Lulu Lot 1 (NOC, Cœur 5G PPDR & Résilience)** pré-chargé dans la base sans nécessiter de clé API externe pour la session.
+Il s'appuie sur le cas réel d'appel d'offres **Lulu · Lot 1 (NOC, Cœur 5G PPDR & Résilience)** pré-chargé dans la base sans nécessiter de clé API externe pour la session.
 
 ---
 
@@ -18,8 +18,8 @@ npm run dev
 ```
 
 ### Ce qui est pré-chargé par le seed :
-1. **Engagement `lumicc-lot1-noc`** :
-   - Titre : *Lulu· Lot 1 (NOC, Cœur 5G PPDR & Résilience)*.
+1. **Engagement `lulu-lot1-noc`** :
+   - Titre : *Lulu · Lot 1 (NOC, Cœur 5G PPDR & Résilience)*.
    - Profil : Secteur Réseau Critique / Sécurité Publique (PPDR), 4 membres d'équipe (`lead-architect`, `infra-architect`, `sec-architect`, `domain-architect`).
    - 7 sujets cardinaux formalisés avec options et critères MCDA.
    - Énoncés épistémiques avec graphe de causalité (`basedOn`) prêt pour la démo de rétractation.

@@ -8,6 +8,44 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Anonymisation Complète du Dossier Réel de Démonstration (« Lulu »)
+- **Anonymisation Exhaustive Docs, Code, Tests et Jeux d'Essai** :
+  - Remplacement et anonymisation intégrale de toute référence spécifique au profit du pseudonyme souverain « Lulu » sur l'ensemble de l'application (documentation, scripts, tests de contrat, tests E2E, rapports d'évaluation et corpus d'exemples).
+  - Renommage des répertoires de jeux d'essai : `examples/lulu-ingested/` et `examples/lulu-noc/`.
+  - Renommage des scripts et suites de test : `scripts/build-lulu-demo.ts`, `tests/e2e/browser/lulu-demo.spec.ts`, et script npm `demo:lulu`.
+  - Normalisation des identifiants métier : `lulu-lot1-noc`, `SUBJ-LULU-*`, `DOC-LULU-*`, `run_lulu_live_j0`.
+  - Validation complète de non-régression : 100 % de la suite de tests (144 fichiers de test, 1099 tests passants) validée.
+
+### Socle Ontologique 6 Concepts SI/Telco, Cumul de Variantes Sylva, Réconciliation Multi-Objets (§14) & Synchronisation Live Nautobot 2.x (`npm run seed:demo`)
+- **Enrichissement du Socle Ontologique (`tests/fixtures/edp/ontology_export.json`)** :
+  - Couverture complète des **6 grands concepts HLD SI/Telco** (`telco_cloud_platform`, `interconnection_gateway`, `storage_data_persistence`, `iam_security_zerotrust`, `observability_noc_soc`, `resilience_drp_continuity`), **18 sous-axes obligatoires (`requires_aspect`)** et **21 feuilles d'implémentation (`implemented_by`)**.
+  - Positionnement de **SUSE Telco Cloud & Sylva** par défaut sur l'axe `compute_substrate` avec support du **cumul de variantes (OU inclusif)** (`+ Cumuler`, `⇄ Remplacer`, `✕ Retirer`) permettant d'hydrater simultanément le pool `sylva-cnf-sriov-dpdk` (CNF Cœur de Réseau) et le pool `sylva-standard-nis2`.
+- **Intégration Propre avec Sylva (`SylvaWorkloadCluster` `workloadcluster.sylva.org/v1alpha1`)** :
+  - Génération native du descripteur `sylva_workload_cluster_values` (`capi_providers: capm3 + cabpr`, `units: cilium, multus, sriov, vault, kyverno, monitoring`, `baremetal_hosts` et `machine_deployments`) et des `BareMetalHost` `metal3.io/v1alpha1` sans réinventer l'opérateur `sylva-units`.
+- **Graphe d'Objets Exhaustif à 7 Classes & Réconciliation Multi-Domaine (`reconciliation_graph`, `multi_axis_refinement.rego`)** :
+  - Modélisation conjointe des 7 classes d'objets autour de la clé pivot `tenant_ref = "org-lot3-mno"` (3GPP TS 28.620 NRM `ExternalFunction`, TM Forum SID GB922 `Party/Resource/Service/SLA`, Nephio KRM & Nautobot SSoT).
+  - Ajout des règles Rego `deny_unmediated_s6a_direct_flow` et `deny_unreconciled_partner_objects` et des 2 scénarios de dérive associés dans `Phase4RefinementHub.svelte`.
+- **Synchronisation Temps Réel vers Nautobot 2.x (`src/lib/server/edp/nautobotSync.ts`) & Démonstrateur `npm run seed:demo` (`scripts/seed-demo.ts`)** :
+  - Poussée REST idempotente dans Nautobot (`http://localhost:8080`) des Tenants (`org-lot3-mno`, `org-lot2-ran`), du Circuit S6a (`link-ip-lot3-secgw1`) avec ses Terminaisons A/Z, du VLAN `1403`, du préfixe `100.64.14.0/30` et des 7 équipements DCIM.
+  - Ajout du script `npm run seed:demo` préparant le parcours complet Phase 1 $\rightarrow$ Phase 4 sur l'exigence **§14 de Lulu (Lot 3 ↔ Lot 1)**.
+
+### Phase 4 Dédiée « Refinement & Hydratation », Matrice KAOS Multi-Axes & Simulateur de Drift OPA
+- **Nouvelle Phase 4 Macroscopique (`Phase4RefinementHub.svelte`, `ProjectEngagementHeader.svelte`)** :
+  - Ajout d'un 4ème grand onglet de projet **« Phase 4 · 🧪 Refinement & Hydratation »** (`posture = 'refinement'`) dédié au passage du HLD (L3/L4) au LLD exécutable, complété par un bouton d'accès rapide depuis la Phase 2.
+  - Cockpit temps réel affichant les 4 KPIs d'ingénierie : complétude KAOS (`AND-Refinement`), traçabilité des clauses d'intention HLD, objets LLD `planned` générés et verdict de l'Oracle OPA avec empreinte SHA-256 `data.ontology`.
+- **Oracle Rego Multi-Axes Unifié (`edp/policies/multi_axis_refinement.rego`) & Simulateur de Drift CMDB** :
+  - Évaluation formelle par OPA des 5 axes obligatoires de l'ontologie (*Substrat Compute Bare-Metal*, *Plan Hors-Bande OOB*, *Zonage Sécurité OAM/UPF*, *Parité Environnements Dev/Recette Iso-Prod/Prod*, *Résilience Électrique 2N*) directement sur l'inventaire LLD hydraté du sujet et sans aucun littéral codé en dur.
+  - Simulateur interactif de dérive (*Drift CMDB*) permettant d'injecter et de vérifier en un clic la détection par OPA d'une dérive sur chacun des 5 axes (`unapproved_hardware`, `bmc_oob_mismatch`, `unproxied_oam`, `non_isoprod_staging`, `single_power_feed`).
+- **Moteur de Couverture du Raffinement & Composition Multi-Axes (`src/lib/server/edp/refinementCoverage.ts`)** :
+  - Remplacement de tout aiguillage syntaxique en dur par une interrogation formelle du graphe d'ontologie (`requires_aspect` pour la décomposition conjonctive KAOS AND-Refinement des sous-axes obligatoires ; `implemented_by` pour la sélection disjonctive OR-Refinement des feuilles d'implémentation porteuses des projections et règles Rego).
+  - Calcul de la **Matrice de Couverture du Raffinement** distinguant pour chaque axe obligatoire : `covered_executable` (🟢 couvert par une feuille dotée de règles Rego), `covered_no_oracle` (🟡 feuille liée mais dépourvue d'oracle Rego) et `missing_refinement` (🔴 lacune de raffinement / sous-axe oublié).
+  - Contrôle automatique des dépendances inter-axes (`depends_on`, `constrains`, `conflicts_with`) et composition multi-axes des artefacts d'hydratation LLD (`nautobot_planned_devices`, `k8s_manifests`, `security_zones`, `environments`).
+- **Interface de Couverture & Liaison Interactive dans `EdpCard.svelte`** :
+  - Affichage visuel de la matrice KAOS dans l'onglet `🧪 Oracle EDP` avec barre de progression de complétude et boutons `+ Raffiner via « ... »` permettant de lier une feuille d'ontologie sur un axe manquant en un clic (`action: 'bind_aspect'`).
+- **Visualiseur & Éditeur de Triplets Ontologiques dans `/knowledge` (`OntologyTripletsEditor.svelte`, `/api/knowledge/ontology`)** :
+  - Nouvel onglet `🕸️ Ontologie & Triplets ({S, V, O})` permettant de visualiser l'arbre `Concept HLD -> requires_aspect -> Sous-Axe -> implemented_by -> Feuille & Règles Rego` et d'ajouter/supprimer dynamiquement des triplets `{ Sujet, Verbe, Complément }`.
+- **Tests de contrat** : ajout de `tests/contract/edp-refinement-coverage-and-triplets.test.ts` (5 tests passants, 100 % de la suite EDP et sécurité validée).
+
 ### Environnement Docker d'Intégration & Outillage (Nautobot, Batfish, OPA Server)
 - **Pile Conteneurisée d'Outillage Intégrateur (`deploy/integrator-tools/compose.yml`)** :
   - Déploiement local de Nautobot 2.2 avec PostgreSQL 15, Redis 7 et worker Celery pour servir de source de vérité DCIM.
@@ -149,7 +187,7 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ### Architecture Cible Générique : Élimination des Règles Projet en Dur & Réactivité en Direct des Spécifications
 - **Suppression Intégrale des Règles Spécifiques en Dur (`artifactProjections.ts`)** :
-  - Élimination formelle de toutes les conditions et chaînes codées en dur liées à un projet particulier (`ratp`, `pcc`, `luxembourg`, `lumicc`, `apres-tetra`).
+  - Élimination formelle de toutes les conditions et chaînes codées en dur liées à un projet particulier (`ratp`, `pcc`, `luxembourg`, `lulu`, `apres-tetra`).
   - Chaque artefact graphique (Mermaid C4, séquence de déploiement, SysML, Structurizr) est désormais formellement étiqueté et compartimenté par son identifiant de projet `projectId` (`subgraph SYSTEM["Système : ${projectName} (${sectionRef}) [Projet: ${projectId}]"]`).
   - Déduction dynamique de l'écosystème externe à partir des métadonnées du projet (`enterpriseName` et `projectName`) : `SI ${enterpriseName} (Existant)`, `Supervision Externe (${enterpriseName})`, `Guichet Homologation / Validation Humaine (${enterpriseName})`, `Plateforme Logs & Audit (${enterpriseName})`, etc.
   - Détection architecturale par archétypes génériques (`hasTelecomCrypto`, `hasMultiEnv`, `hasSupervision`, `hasLogs`, `hasDeployment`, `hasAuth`) opérant sans présupposé de marque ou de client.
@@ -166,10 +204,10 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
   - Mise à niveau des tests de non-régression (13/13 réussis).
 
 
-### Isolation Inter-Projets des Artefacts & Socle Multi-Plateformes (LUMICC)
+### Isolation Inter-Projets des Artefacts & Socle Multi-Plateformes (Lulu)
 - **Isolation Stricte des Contextes de Projet (`deliberationStore`)** :
   - Sauvegarde et restauration complètes des `decisionContexts` et des `frozenSnapshots` par identifiant d'engagement dans `engagementCache`.
-  - Réinitialisation propre à vide lors de l'ouverture d'un nouvel engagement non mis en cache, éliminant toute fuite ou persistance d'artefacts d'un projet précédent (ex: spécifications ou schémas RATP affichés par erreur sur le projet luxembourgeois LUMICC).
+  - Réinitialisation propre à vide lors de l'ouverture d'un nouvel engagement non mis en cache, éliminant toute fuite ou persistance d'artefacts d'un projet précédent (ex: spécifications ou schémas RATP affichés par erreur sur le projet luxembourgeois Lulu).
 - **Suppression Définitive des Libellés en Dur dans les Projections Cibles (`artifactProjections`)** :
   - Conditionnement systématique des mentions d'outillage RATP et PCC (`mentionsRATP`) : utilisation par défaut de libellés agnostiques et souverains (`Passerelle d'Export & Connecteurs d'Intégration`, `Supervision & Exploitation Externe`, `Responsable Exploitation / RSSI`).
 - **Modélisation Dédiée du Socle Multi-Plateformes & Qualification Industrielle** :
@@ -177,7 +215,7 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
   - Intégration de la zone décentralisée **Qualification Fournisseurs** avec porte de **Contrôle d'Audit & Représentativité** des bancs d'essais usine.
   - Diagramme de séquence de déploiement et qualification en 3 phases (Usine & audit, banc radio Test-RAN, pré-production iso-état vers bascule de production).
 - **Tests de Non-Régression & Isolation** :
-  - Nouveaux tests de contrat dans `tests/contract/artifact-projections.test.ts` garantissant l'absence totale de mentions RATP/PCC sur les spécifications LUMICC et la bonne génération de la topologie multi-plateformes.
+  - Nouveaux tests de contrat dans `tests/contract/artifact-projections.test.ts` garantissant l'absence totale de mentions RATP/PCC sur les spécifications Lulu et la bonne génération de la topologie multi-plateformes.
 
 ### Sécurité & Gouvernance : Garde d'Accès Anonyme (Dashboard Seul) & Fiabilité de l'Homologation L4
 - **Restriction des Visiteurs Anonymes au Dashboard Global (`+layout.svelte`, `+page.svelte`)** :
@@ -259,8 +297,8 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
   - Ajout du test de contrat de non-régression dans `tests/contract/app-title.test.ts`.
 
 
-### Démo LUMICC : Ensemencement Complet des 16 Sujets d'Architecture (seed:lulu)
-- **Extension de l'engagement lumicc-lot1-noc post-ingestion** :
+### Démo Lulu : Ensemencement Complet des 16 Sujets d'Architecture (seed:lulu)
+- **Extension de l'engagement lulu-lot1-noc post-ingestion** :
   - Passage de 7 à 16 sujets d'architecture d'entreprise et de solution au niveau L1_framed.
   - Couverture exhaustive des 12 thématiques factorisées du RFP Section 4 (NOC & Résilience) : haute disponibilité, médiation OSS/NRM, supervision RAN MNO, RCA/AIOps, collecte NOC/SOC, automatisation SMO, gouvernance QoS 5QI, assurance de service (sondes E2E) et CMDB.
   - Préservation des options en draft et des pondérations multicritères MCDA sur l'ensemble des sujets.
@@ -437,14 +475,14 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 - **Timeline horizontale de maturation (`L0 → L5`) avec critères et actions contextualisées (`MaturityStepper.svelte`)** : grille compacte des critères du jalon inspecté avec boutons d'actions humaines et agents IA.
 - **Bandeau de Cadrage compact sur 2 lignes (`SubjectProblemCard.svelte`)** : synthèse en 2 lignes (Question centrale éditable in-place + pastilles Hypothèse, Dilemme, Exigences RFP, Questions métier et raccourci vers la Matrice), dépliable à la demande, sans dupliquer les cartes d’options dans le fil.
 - Tests : `tests/contract/deliberation-conversation.test.ts` (15 tests de contrat).
-### Démonstrateur LUMICC ("Lulu") : Ensemencement "Juste Après Ingestion" (`seed:lulu`)
-- **Jeu d'essai LUMICC "Juste Après Ingestion" (`examples/lumicc-ingested/`)** :
+### Démonstrateur Lulu : Ensemencement "Juste Après Ingestion" (`seed:lulu`)
+- **Jeu d'essai Lulu "Juste Après Ingestion" (`examples/lulu-ingested/`)** :
   - Fourniture d'un état d'ingestion authentique issu de l'audit ArcKit J0 sur le Lot 1 (NOC, Cœur 5G PPDR & Résilience, 92 clauses).
   - Les 7 sujets d'architecture sont positionnés au niveau `L1_framed` avec dilemmes cadrés, options contrastées et critères multicritères pré-positionnés en statut `draft`.
   - Fil de délibération (`dialogue.json`) et énoncés scellés (`statements.json`) vierges, permettant de rejouer en séance les 4 scénarios clés de délibération architecturale (nominal, débat d'experts, blocage réglementaire, capitalisation Porte G4).
 - **Script d'ensemencement idempotent (`scripts/seed-lulu.ts` & `npm run seed:lulu`)** :
-  - Réinitialisation instantanée de l'espace projet `lumicc-lot1-noc` dans Prisma (`dev.db`).
-  - Enregistrement automatique de l'audit de dépouillement `run_lumicc_live_j0` dans `factorization_runs` pour démonstration immédiate du jalon J0 depuis l'IHM.
+  - Réinitialisation instantanée de l'espace projet `lulu-lot1-noc` dans Prisma (`dev.db`).
+  - Enregistrement automatique de l'audit de dépouillement `run_lulu_live_j0` dans `factorization_runs` pour démonstration immédiate du jalon J0 depuis l'IHM.
 - **Tests** : suite de tests de contrat dédiée `tests/contract/seed-lulu.test.ts`.
 
 
@@ -549,12 +587,12 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 - Mots de passe conviviaux par défaut en local sur `localhost` (`admin123`, `architect123`, `security123`, `ciso123`) ou configurables via `SANDBOX_SIMPLE_PASSWORDS=1` pour simplifier les tests locaux sans compromettre la sécurité sur URL publique.
 - Suite de tests de contrat dédiée (`tests/contract/sandbox-windows-support.test.ts`).
 - Correction de l'erreur Docker Compose `failed to get console: The handle is invalid` sous Windows : suppression de la redirection de sortie de `Invoke-SandboxCompose` dans une variable (qui détruisait le handle de console), activation par défaut de `BUILDKIT_PROGRESS=plain` pour les terminaux non interactifs/IDE, et enregistrement systématique de `LLMOPS_DIR` dans `.sandbox/env`.
-### Démonstration : pré-chargement de l'engagement LUMICC et de l'audit ArcKit (sans clé API)
-- Ajout du jeu de données de référence examples/lumicc-noc/ (Lot 1 LUMICC : NOC, Cœur 5G PPDR & Résilience) :
+### Démonstration : pré-chargement de l'engagement Lulu et de l'audit ArcKit (sans clé API)
+- Ajout du jeu de données de référence examples/lulu-noc/ (Lot 1 Lulu : NOC, Cœur 5G PPDR & Résilience) :
   - 92 clauses RFP analysées, 7 sujets d'architecture cardinaux formalisés avec options et critères MCDA.
   - Énoncés épistémiques avec dépendances causales directes (basedOn) pour la démonstration de la rétractation en cascade.
   - Délibération d'équipe multi-experts reconstituée.
-- Enrichissement de prisma/seed.ts pour pré-charger automatiquement le projet lumicc-lot1-noc ainsi que l'exécution d'audit run_lumicc_live_j0 dans Prisma (FactorizationRun). La démonstration complète peut être animée hors-ligne sans clé API externe.
+- Enrichissement de prisma/seed.ts pour pré-charger automatiquement le projet lulu-lot1-noc ainsi que l'exécution d'audit run_lulu_live_j0 dans Prisma (FactorizationRun). La démonstration complète peut être animée hors-ligne sans clé API externe.
 - Guide de démonstration complet rédigé dans [docs/demo-guide.md](docs/demo-guide.md) détaillant les principes ArcKit (triage 4 compartiments, factorisation N→K, élicitation MCDA, projections déterministes d'artefacts) et le scénario en 3 actes.
 ### Sécurité : validation stricte de JWT_SECRET et suppression de la valeur publique du Dockerfile (archinex#141)
 - L'étape `runner` du `Dockerfile` fixait une valeur par défaut publique (`archinex-super-secret-production-jwt-key-2026`). Elle a été retirée : le secret de session ne doit jamais être figé dans l'image.
@@ -648,7 +686,7 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
   - Intégration de `HumanExtractionValidation` dans `FactorizeRequest`, `FactorizationRun` (base de données) et `RfpFactorizationResponse`.
   - Affichage clair du statut de validation humaine (ou alerte d'absence de vérification) dans le composant de révision `RfpFactorizationReview.svelte`.
 - **Tests** :
-  - Tests de contrat d'extraction et de détection d'anomalies sur deux mises en page de RFP réelles (`examples/Lulu.pdf` de 194 pages et `examples/lumicc-noc/rfp-section4-noc.md`) dans `tests/contract/rfp-extraction-report.test.ts`.
+  - Tests de contrat d'extraction et de détection d'anomalies sur deux mises en page de RFP réelles (`examples/Lulu.pdf` de 194 pages et `examples/lulu-noc/rfp-section4-noc.md`) dans `tests/contract/rfp-extraction-report.test.ts`.
   - Tests de contrat de persistance et traçabilité de la validation dans `tests/contract/rfp-factorize-validation.test.ts`.
 
 ### Montée de version Prisma 6.19 → 7.10 (#60)
@@ -671,7 +709,7 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
   - Déterminisme cryptographique absolu du sceau SHA-256 sans dérive, insensible à l'ordre des collections en entrée.
 - **Tests** : 5 tests de contrat d'export d'architecture dans `tests/contract/bundle-architecture-export.test.ts`.
 
-### Pipeline ArcKit pour le Benchmark LUMICC (#121)
+### Pipeline ArcKit pour le Benchmark Lulu (#121)
 - **Support natif du pipeline ArcKit dans `benchmarkRunner.ts`** :
   - Ajout de l'option `pipeline?: 'deterministic' | 'arckit'` dans `BenchmarkRunOptions`.
   - Intégration de `runRequirementsAudit` : classement par lots, application stricte des invariants déterministes (repêchage des clauses bloquantes en `to_qualify`, exclusion des commodités `evacuated` des sujets de délibération, conversion des clarifications en `gaps` opposables).
@@ -826,7 +864,7 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 - Nouvel état « à qualifier » : en cas de doute ou de panne du modèle, la clause revient à l'humain au lieu d'être évacuée.
   Avant ce changement, tout RFP autre que la section de démonstration voyait ses clauses déclarées « évacuées ».
 - Taux de couverture honnête (les clauses « à qualifier » n'y comptent pas) ; l'interface affiche un compteur « À qualifier ».
-- Les analyses expertes du RFP de démonstration quittent `src/` pour `examples/lumicc-noc/reference-analysis.json`.
+- Les analyses expertes du RFP de démonstration quittent `src/` pour `examples/lulu-noc/reference-analysis.json`.
 - Outil de mesure : `npm run eval:requirements` (rappel, faux négatifs dangereux, appariement des points durs).
 - Correctif d'affichage : un résultat produit par Claude n'est plus présenté comme un « repli heuristique ».
 

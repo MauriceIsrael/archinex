@@ -9,11 +9,12 @@
 	import ArtifactRegenerationHub from '$lib/components/deliberation/ArtifactRegenerationHub.svelte';
 	import HldFragmentView from '$lib/components/deliberation/HldFragmentView.svelte';
 	import Phase3SubjectSelector from '$lib/components/deliberation/Phase3SubjectSelector.svelte';
+	import Phase4RefinementHub from '$lib/components/deliberation/Phase4RefinementHub.svelte';
 	import WhyInspector from '$lib/components/deliberation/WhyInspector.svelte';
 	import FreezeSectionDialog from '$lib/components/deliberation/FreezeSectionDialog.svelte';
 	import { deliberationStore } from '$lib/stores/deliberationStore.svelte';
 	import { page } from '$app/stores';
-	import { Layers, MessagesSquare } from 'lucide-svelte';
+	import { Layers, MessagesSquare, CheckCircle2, Cpu } from 'lucide-svelte';
 
 	let { data } = $props();
 
@@ -30,12 +31,16 @@
 			deliberationStore.setDeliberationViewMode(queryMode);
 		}
 
-		if (queryPosture === 'appropriation' || queryPosture === 'deliberation' || queryPosture === 'rendu') {
+		if (
+			queryPosture === 'appropriation' ||
+			queryPosture === 'deliberation' ||
+			queryPosture === 'rendu' ||
+			queryPosture === 'refinement'
+		) {
 			deliberationStore.setPosture(queryPosture);
 		}
 
-		// 2. Synchronisation silencieuse en arrière-plan (Stale-While-Revalidate) :
-		// N'émet pas de toasts intempestifs et préserve la vue de l'utilisateur
+		// 2. Synchronisation silencieuse en arrière-plan (Stale-While-Revalidate)
 		deliberationStore.syncWithLLMOps(undefined, undefined, { silent: true }).catch((err) => {
 			console.warn('[Deliberation] Synchro LLMOps différée en tâche de fond :', err);
 		});
@@ -48,10 +53,10 @@
 
 <div class="space-y-4">
 	<!-- ═════════════════════════════════════════════════════════════════════════ -->
-	<!-- EN-TÊTE SUPÉRIEUR : SÉLECTEUR DE PROJET & 3 GRANDS ONGLETS DE PHASE       -->
+	<!-- EN-TÊTE SUPÉRIEUR : SÉLECTEUR DE PROJET & 4 GRANDS ONGLETS DE PHASE       -->
 	<!-- ═════════════════════════════════════════════════════════════════════════ -->
 	{#if deliberationStore.deliberationViewMode === 'board' || deliberationStore.activePosture !== 'deliberation'}
-		<ProjectEngagementHeader />
+		<ProjectEngagementHeader isExperimentalEnabled={data?.isExperimentalEnabled} />
 	{/if}
 
 	<!-- ═════════════════════════════════════════════════════════════════════════ -->
@@ -105,6 +110,28 @@
 						</span>
 					</button>
 				</div>
+
+				<div class="flex items-center gap-1.5 flex-wrap">
+					<button
+						type="button"
+						onclick={() => deliberationStore.setPosture('rendu')}
+						class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border bg-background hover:bg-muted text-foreground transition-colors cursor-pointer"
+					>
+						<CheckCircle2 class="h-3.5 w-3.5 text-emerald-500" />
+						<span>Phase 3 : Rendu HLD →</span>
+					</button>
+					{#if data?.isExperimentalEnabled}
+						<button
+							type="button"
+							data-testid="goto-phase4-refinement-btn"
+							onclick={() => deliberationStore.setPosture('refinement')}
+							class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs transition-colors cursor-pointer"
+						>
+							<Cpu class="h-3.5 w-3.5" />
+							<span>🧪 Phase 4 : Refinement & Hydratation →</span>
+						</button>
+					{/if}
+				</div>
 			</div>
 
 			<!-- 1. Vue Tableau de maturité -->
@@ -128,13 +155,24 @@
 		</div>
 
 	<!-- ═════════════════════════════════════════════════════════════════════════ -->
-	<!-- PHASE 3 : RENDU & HOMOLOGATION                                             -->
+	<!-- PHASE 3 : RENDU & HOMOLOGATION HLD                                         -->
 	<!-- ═════════════════════════════════════════════════════════════════════════ -->
 	{:else if deliberationStore.activePosture === 'rendu'}
 		<div class="space-y-4 animate-in fade-in duration-150">
 			<Phase3SubjectSelector />
 			<HldFragmentView />
 			<ArtifactRegenerationHub />
+		</div>
+
+	<!-- ═════════════════════════════════════════════════════════════════════════ -->
+	<!-- PHASE 4 : REFINEMENT & HYDRATATION EXÉCUTABLE (KAOS, NAUTOBOT, OPA)       -->
+	<!-- ═════════════════════════════════════════════════════════════════════════ -->
+	{:else if deliberationStore.activePosture === 'refinement'}
+		<div class="space-y-4 animate-in fade-in duration-150">
+			<Phase4RefinementHub
+				sessionRole={data?.sessionRole}
+				sessionUser={data?.sessionUser}
+			/>
 		</div>
 	{/if}
 

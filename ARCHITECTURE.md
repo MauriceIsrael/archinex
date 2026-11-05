@@ -488,3 +488,365 @@ Dans le cadre de l'initiative expérimentale (`ARCHINEX_EXPERIMENTAL_EDP=1`), Ar
 8. **Paquets de Référence & Promotion** :
    - Deux références complètes : `adr012-baremetal` (infrastructure Telco Cloud) et `adr015-security-zones` (cloisonnement de zones NIS2), atteignant chacune 100 % de score de mutation.
    - Document de promotion formel : [ADR-016](docs/adr/ADR-016-promotion-edp-experimental.md).
+
+---
+
+## 13. Architecture Logicielle de la Phase 4 : Raffinement Ontologique Multi-Axes, Hydratation Exhaustive & Réconciliation (`Phase4RefinementHub`)
+
+Pour éviter l'écueil classique des architectures où le document de spécification (HLD) et l'ingénierie d'exécution (LLD / CMDB / GitOps) divergent sitôt l'arbitrage rendu, Archinex structure le cycle de vie d'un sujet d'architecture en **4 phases continues** et ajoute en Phase 4 un moteur formel de **raffinement piloté par l'ontologie**, d'**hydratation multi-objets** et de **réconciliation inter-domaines**.
+
+### 13.1 Vue Globale du Pipeline en 4 Phases (De l'Appropriation à l'Hydratation SSoT & Sylva)
+
+```mermaid
+flowchart LR
+    subgraph P1["Phase 1 · Appropriation"]
+        RFP["Clauses CCTP / RFP\n(ex: §14 REQ-Lot1-1274, 1343)"]
+        FW["Référentiels Normatifs\n(NIS2, 3GPP TS 33.401, ANSSI)"]
+        K18["Faits Structurés K18\n& Sujets Factorisés"]
+        RFP --> K18
+        FW --> K18
+    end
+
+    subgraph P2["Phase 2 · Délibération & Arbitrage"]
+        OPT["Options d'Architecture\n& Critères Pondérés MCDA"]
+        ARG["Débat Contradictoire\n& Objections"]
+        DEC["Décision Arbitrée (L3)\n(Option retenue + Motivation)"]
+        OPT --> ARG --> DEC
+    end
+
+    subgraph P3["Phase 3 · Spécification HLD"]
+        SPEC["Spécification L4 en 4 Sections\n(Contexte, Composants, Flux, Exploitation)"]
+        DIAG["Projections Visuelles\n(C4, Séquence, Arbre Épistémique)"]
+        SPEC --> DIAG
+    end
+
+    subgraph P4["Phase 4 · Refinement, Hydratation & Réconciliation"]
+        KAOS["Moteur KAOS & Graphe Ontologique\n(6 Concepts HLD → 18 Axes → 21 Feuilles)"]
+        HYD["Hydratation Multi-Axes & Cumul Variantes\n(SylvaWorkloadCluster + Graphe 7 Classes)"]
+        OPA["Oracle Déterministe OPA Rego\n(multi_axis_refinement.rego + data.ontology)"]
+        SSOT["Synchronisation Live\nNautobot 2.x SSoT & Sylva GitOps"]
+        KAOS --> HYD --> OPA --> SSOT
+    end
+
+    P1 --> P2 --> P3 --> P4
+```
+
+### 13.2 Découpage Modulaire Serveur & IHM de la Phase 4
+
+| Module / Fichier | Responsabilité Architecturale |
+| :--- | :--- |
+| [`tests/fixtures/edp/ontology_export.json`](tests/fixtures/edp/ontology_export.json) | **Socle Ontologique SI & Telco** : définit les **6 Concepts HLD** (`telco_cloud_platform`, `interconnection_gateway`, `storage_data_persistence`, `iam_security_zerotrust`, `observability_noc_soc`, `resilience_drp_continuity`), leurs **18 Axes de Raffinement obligatoires** (`kind: "axis"`), les **21 Feuilles d'Implémentation** (`kind: "leaf"`, incluant leurs `projections` pour `data.ontology`, leurs `oracle_rules` et leur `hydration_template`) ainsi que les triplets relationnels (`requires_aspect`, `implemented_by`, `depends_on`, `constrains`, `conflicts_with`). |
+| [`src/lib/server/edp/ontologyClient.ts`](src/lib/server/edp/ontologyClient.ts) | **Moteur de Requêtage & Édition de Triplets `{ Sujet, Verbe, Complément }`** : expose `queryOntologyTriplets`, `addOntologyTriplet` et `removeOntologyTriplet` avec persistance dans une surcouche runtime (`data/ontology_runtime_overlay.json`), permettant d'étendre les axes de couverture sans toucher au code. |
+| [`src/lib/server/edp/refinementCoverage.ts`](src/lib/server/edp/refinementCoverage.ts) | **Moteur KAOS de Couverture, Composition & Hydratation Multi-Axes** : <br/>• `resolveSubjectConcepts` : sélectionne les concepts HLD pertinents par propagation ascendante sur le graphe.<br/>• `computeRefinementCoverage` : calcule la matrice de complétude KAOS (`covered_executable` 🟢, `covered_no_oracle` 🟡, `missing_refinement` 🔴), auto-lie les feuilles standards par défaut (`is_default_standard`) et supporte le **cumul de variantes (OU inclusif)** sur un même axe.<br/>• `composeMultiAxisHydration` : synthétise l'inventaire LLD multi-axes (`nautobot_planned_devices`, `sylva_workload_cluster_values`, `k8s_manifests`, `security_zones`, `environments`, `power_feeds`) et le **Graphe de Réconciliation à 7 classes d'objets (`reconciliation_graph`)**.<br/>• `evaluateMultiAxisOracle` : invoque le binaire OPA sur `edp/policies/multi_axis_refinement.rego`. |
+| [`src/lib/server/edp/projectionCompiler.ts`](src/lib/server/edp/projectionCompiler.ts) | **Compilateur de Projections `data.ontology`** : compile les `projections` des feuilles liées en un document JSON déterministe injecté dans OPA (`--data`), calcule son empreinte canonique SHA-256 et vérifie l'absence de littéraux métier dupliqués en dur dans les règles Rego (`detectDuplicateLiterals`). |
+| [`edp/policies/multi_axis_refinement.rego`](edp/policies/multi_axis_refinement.rego) | **Oracle Rego v1 Multi-Axes Sans Littéral Codé en Dur** : évalue conjointement le substrat compute, le réseau OOB Redfish, le zonage de sécurité NIS2, la parité Iso-Prod des environnements, la résilience électrique 2N, le chiffrement IPsec ESP, la chaîne de médiation S6a (`SecGW-Lot1` $\rightarrow$ `DEA-Lot1` $\rightarrow$ `HSS-Lot1`) et la réconciliation inter-domaines (`tenant_ref`). |
+| [`src/lib/server/edp/nautobotSync.ts`](src/lib/server/edp/nautobotSync.ts) | **Synchroniseur SSoT Temps Réel vers Nautobot 2.x** : pousse de manière idempotente via l'API REST Nautobot les Tenants (`tenancy.Tenant`), Fournisseurs & Circuits (`circuits.Circuit` + `CircuitTermination` A/Z), VLANs (`ipam.VLAN`), Préfixes IP (`ipam.Prefix`) et les Équipements DCIM (`dcim.Device` : serveurs Bare-Metal Sylva, objets externes 3GPP Shadow et nœuds de médiation Cœur Lot 1). |
+| [`src/lib/components/deliberation/Phase4RefinementHub.svelte`](src/lib/components/deliberation/Phase4RefinementHub.svelte) | **Atelier IHM Plein Écran Phase 4** : affiche les filtres des 6 Concepts HLD, la matrice de couverture KAOS avec boutons `+ Cumuler` / `⇄ Remplacer` / `✕ Retirer`, le Graphe de Réconciliation à 7 classes d'objets, les raccourcis directs vers Nautobot (`Circuits`, `Tenants`, `Devices`) et le **Simulateur de Dérive CMDB (7 scénarios de Drift)**. |
+| [`src/lib/components/knowledge/OntologyTripletEditorView.svelte`](src/lib/components/knowledge/OntologyTripletEditorView.svelte) | **Visualiseur & Éditeur Graphique de Triplets Ontologiques** dans `/knowledge?view=ontology` : permet de parcourir l'arbre `Concept HLD → Axes Requis → Feuilles & Règles Rego` et d'éditer les triplets `{ Sujet, Verbe, Complément }`. |
+
+---
+
+## 14. Fondements Scientifiques & Standards Industriels de Référence
+
+La conception de la Phase 4 d'Archinex s'appuie sur **4 travaux académiques fondateurs** en ingénierie des exigences et modélisation ontologique, combinés à **5 standards industriels Télécom / Cloud-Native**.
+
+### 14.1 Papiers Scientifiques de Référence (Fondements Théoriques)
+
+| Référence Scientifique | Concept Théorique | Traduction Concrète dans Archinex |
+| :--- | :--- | :--- |
+| **1. Axel van Lamsweerde (2001, 2009)**<br/>*Goal-Oriented Requirements Engineering: A Guided Tour* (IEEE RE'01) & *Requirements Engineering: From System Goals to UML Models to Software Specifications* (Wiley, 2009) | **Raffinement de Buts KAOS (`AND-Refinement` vs `OR-Refinement`) & Opérationnalisation** :<br/>Un objectif de haut niveau est *incomplet* tant que tous ses sous-buts conjonctifs (`AND`) ne sont pas raffinés jusqu'à des feuilles opérationnalisables munies de contraintes formelles vérifiables par machine. | • **AND-Refinement** : représenté par les triplets `(Concept_HLD, requires_aspect, Axe_Obligatoire)`. Un sujet rattaché à un concept HLD hérite de tous ses sous-axes obligatoires.<br/>• **OR-Refinement (exclusif ou inclusif)** : représenté par les triplets `(Axe_Obligatoire, implemented_by, Feuille)`. Supporte le remplacement (`replace`) ainsi que le **cumul inclusif (`add`)** lorsque deux variantes coexistent (ex: Pool Sylva CNF SR-IOV/DPDK + Pool Sylva Standard NIS2).<br/>• **Distinction des 3 états de complétude** : `missing_refinement` (🔴), `covered_no_oracle` (🟡 feuille liée mais sans règle Rego), `covered_executable` (🟢 feuille liée avec oracle Rego actif). |
+| **2. Don Batory (2004)**<br/>*Feature-Oriented Software Development (FOSD) & AHEAD Algebraic Hierarchical Equations for Application Design* (IEEE TSE, vol. 30, no. 5, 2004) | **Composition Algébrique Multi-Axes ($\text{Artefact} = f_n \circ \dots \circ f_1(\text{Base})$)** :<br/>Au lieu de dupliquer $N \times M \times P$ templates monolithiques, chaque caractéristique (*feature*) est une fonction de transformation modulaire qui enrichit un modèle de base commun. | • Dans [`composeMultiAxisHydration`](src/lib/server/edp/refinementCoverage.ts), chaque feuille d'ontologie liée porte un fragment `hydration_template` et `projections`.<br/>• L'inventaire LLD final est le produit de la composition algébrique de toutes les feuilles liées : l'axe Compute crée les nœuds Sylva, l'axe OOB y injecte les interfaces BMC Redfish, l'axe Sécurité y attache les zones `ZONE-OAM`/`ZONE-UPF-USER`, et l'axe Énergie y raccorde les adductions `PDU-A` + `PDU-B`. |
+| **3. C. Maria Keet & Alessandro Artale (2008)**<br/>*Representing and Reasoning over a Taxonomy of Part-Whole Relations* (Applied Ontology, IOS Press, 2008) & **Guarino / Welty (OntoClean)** | **Relations Méronomiques Obligatoires & Dépendances Ontologiques Transverses** :<br/>Distingue la sous-classification taxonomique (`is_a`) des relations structurelles obligatoires (`requires_aspect`) et des contraintes d'intégrité inter-branches (`depends_on`, `constrains`, `conflicts_with`). | • Le moteur [`computeRefinementCoverage`](src/lib/server/edp/refinementCoverage.ts) parcourt les triplets `depends_on` et `conflicts_with` sur l'ensemble des feuilles liées.<br/>• Exemple : si la feuille Bare-Metal (`urn:archinex:ontology:infrastructure:server:baremetal`) est liée sans la feuille Réseau OOB (`urn:archinex:ontology:telecom:network:oob`), une alerte formelle `CrossAxisDependencyIssue` est levée et bloque la complétude KAOS. |
+| **4. Krzysztof Czarnecki, Simon Helsen & Ulrich Eisenecker (2005)**<br/>*Staged Configuration through Specialization and Multi-Level Configuration of Feature Models* (Software Process: Improvement and Practice, 2005) | **Spécialisation par Étapes (*Staged Configuration*) Intension $\rightarrow$ Extension** :<br/>Sépare la configuration de l'espace de décision (liaison de variantes abstraites et bornes de conformité) de l'instanciation des paramètres physiques (IP, noms d'hôtes, ports). | • **Étape 1 (Intension HLD/Ontologie)** : les `projections` de l'ontologie fixent les invariants abstraits (`cipher_suite: "AES-256-GCM"`, `min_power_supplies: 2`, `required_mediation_hops: ["secgw-lot1-01", "dea-lot1-01"]`).<br/>• **Étape 2 (Extension LLD)** : l'hydratation génère les instances concrètes vérifiées par OPA contre `data.ontology`, sans aucun littéral métier codé en dur dans Rego. |
+
+### 14.2 Standards Industriels de Référence (Télécom, Cloud-Native & CMDB)
+
+1. **LF Europe Sylva (`sylva-projects/sylva-core` & `sylva-units`)** :
+   - Cadre de référence européen Telco Cloud (fondé par Orange, Deutsche Telekom, Telefónica, Vodafone, Telecom Italia, SUSE, Red Hat, Nokia, Ericsson).
+   - Fournit le CRD **`SylvaWorkloadCluster` (`workloadcluster.sylva.org/v1alpha1`)** et le chart Helm **`sylva-units`** orchestrant Cluster API (`capm3` Metal3 Bare-Metal + `cabpr` RKE2 sur SLE Micro) et les briques réseau Telco (`cilium`, `multus`, `sriov`, `metallb`, `vault`, `kyverno`, `monitoring`).
+2. **Linux Foundation Nephio (KRM *Configuration-as-Data* & Porch)** :
+   - Orchestration d'intentions multi-domaines (Infra + Réseau + CNF) via des paquets KRM passant par le cycle `Draft` $\rightarrow$ `Proposed` (Hydratation) $\rightarrow$ `Published / Validated` (Gatekeeper/OPA).
+3. **3GPP TS 28.620 (Umbrella NRM) & TS 28.541 (5G NRM)** :
+   - Standardise la modélisation des équipements tiers hors périmètre d'administration via la classe **`ExternalFunction`** (`ExternalMMEFunction`, `ExternalENodeBFunction`) et des points de référence inter-opérateurs (`EP_RP`, `EP_S6a`).
+4. **TM Forum ODA / SID (GB922 — *Shared Information & Data Model*)** :
+   - Définit le chaînage canonique entre les domaines **Party** (`PartnerOrganization` / `tenant_ref`), **Resource** (Liens IP, Tunnels IPsec, Serveurs), **Service** (Flux médiatisé S6a) et **SLA / Monitoring** (`ServiceLevelAgreement`, `ResourceMonitorProbe`).
+5. **Nautobot 2.x SSoT (*Single Source of Truth*) & `DiffSync`** :
+   - Référentiel CMDB orienté source de vérité unique unifiant `tenancy.Tenant`, `circuits.Circuit`, `ipam.Prefix`, `ipam.VLAN` et `dcim.Device`, et permettant la détection de dérive (*Drift*) entre l'état planifié (`Planned`) et l'état observé.
+
+---
+
+## 15. Vues d'Intégration Détaillées (Sylva, Nephio, Nautobot 2.x SSoT & 3GPP/TMF)
+
+### 15.1 Principe Directeur vis-à-vis de Sylva : Ne Jamais Réinventer `sylva-core` / `sylva-units`
+
+> [!IMPORTANT]
+> **Règle d'Architecture d'Intégration Sylva :**
+> **Sylva** possède déjà son propre opérateur (`workload-cluster-operator`) et son chart maître (`sylva-units`) qui traduisent un descripteur de cluster en ressources Cluster API (`Cluster`, `RKE2ControlPlane`, `MachineDeployment`, `Metal3DataTemplate`, `BareMetalHost` `metal3.io/v1alpha1`) et déploient les unités logicielles (`sriov`, `multus`, `cilium`, `vault`).
+> **Archinex ne réinvente jamais cette mécanique** : Archinex agit exclusivement en **amont** (couche d'arbitrage et de compilation d'intention type Nephio) pour produire :
+> 1. Le descripteur d'entrée natif **`SylvaWorkloadCluster` (`workloadcluster.sylva.org/v1alpha1`)** et ses valeurs `sylva-units` (`capi_providers`, `baremetal_hosts`, `machine_deployments`, `units`).
+> 2. L'inventaire SSoT **Nautobot 2.x** correspondant (`Tenants`, `Circuits`, `VLAN`, `Prefixes`, `Devices`).
+> 3. La preuve formelle **OPA Rego** que l'inventaire Nautobot et le descripteur Sylva sont mutuellement cohérents et respectent les décisions HLD.
+
+```mermaid
+flowchart TB
+    subgraph ARCHINEX["1. Couche Amont : Archinex (Arbitrage, Ontologie KAOS & Compilation d'Intention)"]
+        DEC14["Décision Arbitrée §14 (L3/L4)\nIPsec ESP + Médiation DEA S6a Lot 3 ↔ Lot 1"]
+        ONTO_BINDS["Feuilles Ontologiques Liées\n• baremetal (SR-IOV/DPDK)\n• suse_telco_cloud_sylva (NIS2)\n• oob (Redfish)\n• ipsec_ikev2_aes256 (SecGW/DEA)"]
+        HYDRATE["Moteur composeMultiAxisHydration\n(src/lib/server/edp/refinementCoverage.ts)"]
+        OPA_GATE["Oracle Formel OPA Rego v1\n(edp/policies/multi_axis_refinement.rego)"]
+        DEC14 --> ONTO_BINDS --> HYDRATE --> OPA_GATE
+    end
+
+    subgraph SYLVA["2. Couche d'Orchestration Telco Cloud : SUSE Telco Cloud & Sylva (Non réinventée)"]
+        SWC["CRD SylvaWorkloadCluster\n(workloadcluster.sylva.org/v1alpha1)\n• capi_providers: capm3 + cabpr\n• units: cilium, multus, sriov, vault, kyverno\n• machine_deployments: md-cnf-sriov-dpdk + md-standard-nis2\n• baremetal_hosts"]
+        SYLVA_OP["Sylva workload-cluster-operator\n& Helm Chart sylva-units"]
+        CAPM3["Cluster API Provider Metal3 (capm3)\n& RKE2 Bootstrap (cabpr)"]
+        BMH["metal3.io/v1alpha1 BareMetalHost\n& Nœuds SLE Micro 5.5 RKE2"]
+        SWC --> SYLVA_OP --> CAPM3 --> BMH
+    end
+
+    subgraph NAUTOBOT["3. Couche SSoT CMDB & Réconciliation : Nautobot 2.x (http://localhost:8080)"]
+        NB_TENANT["tenancy.Tenant\n• org-lot3-mno\n• org-lot2-ran"]
+        NB_CIRCUIT["circuits.Circuit\n• link-ip-lot3-secgw1\n• Terminaisons A (Lot 3) & Z (Lot 1)"]
+        NB_IPAM["ipam.VLAN & ipam.Prefix\n• VLAN 1403\n• 100.64.14.0/30"]
+        NB_DCIM["dcim.Device (7 équipements)\n• 2 Serveurs Sylva (R750 / DL380)\n• 2 Shadow 3GPP (ext-mme-lot3-01, ext-ran)\n• 3 Nœuds Cœur/Médiation (secgw, dea, hss)"]
+    end
+
+    HYDRATE -- "Génère sylva_workload_cluster_values" --> SWC
+    HYDRATE -- "nautobotSync.ts (REST POST/PATCH)" --> NB_TENANT
+    HYDRATE -- "nautobotSync.ts (REST POST/PATCH)" --> NB_CIRCUIT
+    HYDRATE -- "nautobotSync.ts (REST POST/PATCH)" --> NB_IPAM
+    HYDRATE -- "nautobotSync.ts (REST POST/PATCH)" --> NB_DCIM
+    BMH -. "Vérification Redfish BMC == OOB IP" .-> OPA_GATE
+    NB_DCIM -. "Vérification anti-drift CMDB" .-> OPA_GATE
+    NB_CIRCUIT -. "Vérification médiation S6a & SLA" .-> OPA_GATE
+```
+
+### 15.2 Structure du Descripteur Natif `SylvaWorkloadCluster` Généré par Archinex
+
+Lorsqu'un sujet cumule sur l'axe `compute_substrate` la variante **CNF Cœur de Réseau (`sylva-cnf-sriov-dpdk`)** et la variante **Standard Isolée (`sylva-standard-nis2`)**, [`composeMultiAxisHydration`](src/lib/server/edp/refinementCoverage.ts) produit directement l'objet `sylva_workload_cluster_values` attendu par `sylva-units` :
+
+```json
+{
+  "apiVersion": "workloadcluster.sylva.org/v1alpha1",
+  "kind": "SylvaWorkloadCluster",
+  "metadata": {
+    "name": "wc--proposes-89",
+    "namespace": "sylva-workload-clusters",
+    "annotations": {
+      "nephio.org/package-variant": "pv--proposes-89",
+      "archinex.io/source-subject": "sub_lulu-avec-options-et-criteres-proposes_89"
+    }
+  },
+  "spec": {
+    "capi_providers": {
+      "infra_provider": "capm3",
+      "bootstrap_provider": "cabpr"
+    },
+    "k8s_version": "v1.28.11+rke2r1",
+    "os_image_selector": {
+      "os": "sle-micro",
+      "release": "5.5",
+      "hardened": true
+    },
+    "units": {
+      "cilium": { "enabled": true },
+      "multus": { "enabled": true },
+      "sriov": { "enabled": true },
+      "sriov-resources": { "enabled": true },
+      "metallb": { "enabled": true },
+      "vault": { "enabled": true },
+      "kyverno": { "enabled": true },
+      "monitoring": { "enabled": true }
+    },
+    "baremetal_hosts": {
+      "srv--proposes-89-01": {
+        "bmh_metadata": { "labels": { "host-group": "sylva-standard-nis2", "device-type": "HPE-ProLiant-DL380" } },
+        "bmh_spec": { "bmc": { "address": "redfish+http://192.0.2.10/redfish/v1/Systems/1" }, "bootMACAddress": "52:54:00:12:34:56" }
+      },
+      "srv--proposes-89-02": {
+        "bmh_metadata": { "labels": { "host-group": "sylva-cnf-sriov-dpdk", "device-type": "Dell-PowerEdge-R750" } },
+        "bmh_spec": { "bmc": { "address": "redfish+http://192.0.2.11/redfish/v1/Systems/1" }, "bootMACAddress": "52:54:00:12:34:57" }
+      }
+    },
+    "machine_deployments": {
+      "md-sylva-standard-nis2": {
+        "infra_provider": "capm3",
+        "replicas": 1,
+        "rke2": { "nodeLabels": { "sylva.org/pool": "sylva-standard-nis2", "sylva.org/dataplane": "cilium-nis2" } }
+      },
+      "md-sylva-cnf-sriov-dpdk": {
+        "infra_provider": "capm3",
+        "replicas": 1,
+        "rke2": {
+          "nodeLabels": { "sylva.org/pool": "sylva-cnf-sriov-dpdk", "sylva.org/dataplane": "sriov-dpdk-numa" },
+          "kubeletExtraArgs": ["--cpu-manager-policy=static", "--topology-manager-policy=single-numa-node"]
+        },
+        "network_interfaces": {
+          "bond0": { "type": "bond", "interfaces": ["eno1", "eno2"], "vlans": [{ "id": 1403 }] },
+          "sriov0": { "type": "sriov", "num_vfs": 16, "mtu": 9000 }
+        }
+      }
+    }
+  }
+}
+```
+
+### 15.3 Vue de Réconciliation Multi-Objets autour du Pivot `tenant_ref = "org-lot3-mno"` (§14)
+
+```mermaid
+erDiagram
+    PARTNER_ORGANIZATION ||--o{ EXTERNAL_SHADOW_NODE : "possede (tenant_ref)"
+    PARTNER_ORGANIZATION ||--o{ IP_UNDERLAY_LINK : "souscrit (tenant_ref)"
+    PARTNER_ORGANIZATION ||--o{ IPSEC_TUNNEL : "chiffre (tenant_ref)"
+    PARTNER_ORGANIZATION ||--o{ SERVICE_MEDIATION_FLOW : "achemine (tenant_ref)"
+    PARTNER_ORGANIZATION ||--o{ SLA_CONTRACT_AND_NOC_PROBE : "engage et supervise (tenant_ref)"
+
+    EXTERNAL_SHADOW_NODE ||--|| IP_UNDERLAY_LINK : "endpoint_a (ext-mme-lot3-01)"
+    INTERNAL_MEDIATION_NODE ||--|| IP_UNDERLAY_LINK : "endpoint_z (secgw-lot1-01)"
+    IP_UNDERLAY_LINK ||--|| IPSEC_TUNNEL : "porte (underlay_link_ref)"
+    IPSEC_TUNNEL ||--|| SERVICE_MEDIATION_FLOW : "encapsule (ipsec_tunnel_ref)"
+    SERVICE_MEDIATION_FLOW }|--|| INTERNAL_MEDIATION_NODE : "traverse (secgw-lot1-01 -> dea-lot1-01 -> hss-lot1-01)"
+    SLA_CONTRACT_AND_NOC_PROBE ||--|| SERVICE_MEDIATION_FLOW : "couvre (covered_flow_ref)"
+```
+
+### 15.4 Démonstration Complète du Parcours et Composition Algébrique de Batory & Nephio sur le Cas §14
+
+Cette section illustre pas à pas le parcours complet depuis l'expression du besoin initial jusqu'à l'hydratation vivante dans Nautobot et le descripteur Sylva, en démontrant mathématiquement et techniquement le principe de **composition algébrique** :
+$$\text{Descripteur Cible} = (f_{\text{Énergie 2N}} \circ f_{\text{OOB}} \circ f_{\text{NIS2}} \circ f_{\text{SR-IOV}} \circ f_{\text{IPsec-Mediation}})(\text{Base Cluster})$$
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor Arch as Architecte SI / Telco
+    participant P1 as Phase 1 : Appropriation
+    participant P2 as Phase 2 : Délibération
+    participant P3 as Phase 3 : Spécification HLD
+    participant P4 as Phase 4 : KAOS & Composition Algébrique
+    participant NB as Nautobot 2.x SSoT
+    participant SYL as Sylva / KRM
+
+    Arch->>P1: Analyse §14 (11 clauses CCTP, REQ-Lot1-1274, REQ-Lot1-1343)
+    P1-->>Arch: Sujet qualifié & Faits structurés K18
+    Arch->>P2: Évaluation multicritère & Arbitrage
+    P2-->>Arch: Option retenue : "Chiffrement IPsec ESP et médiation DEA S6a"
+    Arch->>P3: Rédaction de la spec HLD (4 sections, composants, flux, NOC)
+    P3-->>Arch: Spécification gelée & Projections C4
+    Arch->>P4: Déclenchement de l'Hydratation Multi-Axes
+    Note over P4: 1. Base Cluster (BareMetalHost vierge)<br/>2. + SR-IOV/DPDK (Pool CNF NUMA)<br/>3. + Standard NIS2 (Pool Workload)<br/>4. + OOB (IP 192.0.2.10, Redfish)<br/>5. + Énergie 2N (PDU-A + PDU-B)<br/>6. + Graphe 7 classes (Pivot tenant_ref)
+    P4->>NB: POST/PATCH idempotents (Tenants, Circuit, VLAN, Prefixes, 7 Devices)
+    NB-->>P4: 200 OK (Inventaire DCIM/IPAM hydraté)
+    P4->>SYL: Génère SylvaWorkloadCluster (units, baremetal_hosts, machine_deployments)
+    P4-->>Arch: Oracle OPA COMPLIANT (0 violation, 9 feuilles vérifiées)
+```
+
+#### Étape 1 · Phase 1 (Appropriation) : Découpage et Ancrage des Exigences
+- **Entrée** : 11 clauses contractuelles du CCTP Lulu Lot 1 (`REQ-Lot1-557`, `701`, `711`, `1270`, `1274`, `1275`, `1276`, `1277`, `1278`, `1279`, `1343`).
+- **Analyse d'impact** :
+  - `REQ-Lot1-1274` : obligation d'inhiber les fausses alarmes NOC générées par les cellules mobiles et RAN tiers intermittents du Lot 2.
+  - `REQ-Lot1-1343` : démarcation stricte de la responsabilité d'hébergement électrique et réseau au niveau du répartiteur Lot 1 (MMR).
+- **Résultat** : sujet qualifié `sub_lulu-avec-options-et-criteres-proposes_89` (*§14 · Hébergement Lots 2/3, RAN tiers et cellules mobiles : sécurité contre souplesse*).
+
+#### Étape 2 · Phase 2 (Délibération & Arbitrage) : Décision Formelle
+- **Option retenue** : *Obligation de chiffrement IPsec ESP et médiation DEA pour les flux S6a Lot 3 ↔ Lot 1* (`opt-1793311130542-wmhxr`).
+- **Motivation** : *« c'est la bonne »* (garantie de non-répudiation, étanchéité protocolaire et conformité 3GPP TS 33.210 NDS/IP).
+- **Statut** : `reversibility: reversible`, `regulatoryStatus: Compliant`.
+
+#### Étape 3 · Phase 3 (Spécification HLD L4) : Spécification en 4 Sections
+La décision est décomposée selon la structure canonique en 4 sections :
+1. **Contexte & Choix Validé** : choix de l'isolation forte avec passerelle de médiation dédiée.
+2. **Décomposition des Composants** :
+   - Terminaison du tunnel IPsec ESP obligatoirement sur `secgw-lot1-01`.
+   - Inspection et masquage topologique obligatoires sur `dea-lot1-01`.
+   - Interdiction formelle de tout flux non chiffré ou non médiatisé vers `hss-lot1-01`.
+3. **Interfaces, Protocoles & Matrice de Flux** : suites fortes `AES-256-GCM` / `ECDSA-P384` / `IKEv2`, démarcation des zones réseau (`ZONE-PARTNER-LOT3-UNTRUSTED`, `ZONE-DMZ-INTERCO-LOT1`, `ZONE-MEDIATION-SIGNALING-LOT1`, `ZONE-CORE-HSS-RESTRICTED`).
+4. **Exploitation, Supervision & Points de Vigilance** : télémétrie temps réel NOC avec neutralisation des alarmes intermittentes et haute disponibilité 2N.
+
+#### Étape 4 · Phase 4 : Application du Modèle Algébrique de Batory & Nephio
+
+Dans [`composeMultiAxisHydration`](src/lib/server/edp/refinementCoverage.ts), le descripteur final n'est pas un template statique préexistant, mais le résultat de transformations successives composées sur un objet vierge :
+
+```typescript
+// 1. Base Cluster vierge
+let cluster = {
+  name: "srv-proposes-89",
+  devices: [],
+  k8s_manifests: [],
+  security_zones: [],
+  environments: [],
+  power_feeds: []
+};
+
+// 2. Transformation f_SRIOV (Axe Compute Substrate - Pool CNF)
+cluster = applyLeaf_SRIOV(cluster);
+// => Ajoute srv--proposes-89-02 (Dell R750) avec pool sylva-cnf-sriov-dpdk
+// => Ajoute md-sylva-cnf-sriov-dpdk avec pinning NUMA, HugePages 1Gi et VF SR-IOV
+
+// 3. Transformation f_NIS2 (Axe Compute Substrate - Pool Standard)
+cluster = applyLeaf_StandardNIS2(cluster);
+// => Ajoute srv--proposes-89-01 (HPE DL380) avec pool sylva-standard-nis2
+// => Ajoute md-sylva-standard-nis2 avec CNI Cilium
+
+// 4. Transformation f_OOB (Axe OOB Management)
+cluster = applyLeaf_OOB(cluster);
+// => Injecte les interfaces oob0 (192.0.2.10/24 et 192.0.2.11/24)
+// => Configure spec.bmc.address = "redfish+http://192.0.2.10/redfish/v1/Systems/1"
+
+// 5. Transformation f_Zones (Axe Security Zoning)
+cluster = applyLeaf_SecurityZones(cluster);
+// => Injecte ZONE-OAM (isolation: strict, proxy: true) et ZONE-UPF-USER
+// => Active les units kyverno et vault dans SylvaWorkloadCluster
+
+// 6. Transformation f_Energie (Axe Power Resilience 2N)
+cluster = applyLeaf_DualFeed2N(cluster);
+// => Injecte power_feeds: ["PDU-A", "PDU-B"] sur tous les serveurs
+
+// 7. Transformation f_IPsec_Mediation (Graphe 7 Classes avec pivot tenant_ref="org-lot3-mno")
+cluster = applyReconciliationGraph(cluster);
+// => Injecte les 7 classes d'objets interconnectées
+```
+
+#### Étape 5 · Résultat de l'Hydratation Réelle dans Nautobot 2.x SSoT (`nautobotSync.ts`)
+
+L'exécution de `npm run seed:demo` ou l'appui sur le bouton **« Hydrater Nautobot & Sylva »** pousse immédiatement dans l'instance Nautobot active :
+1. **Tenants** : `org-lot3-mno` (Opérateur Tiers Lot 3) et `org-lot2-ran` (RAN & Cellules Mobiles Lot 2).
+2. **Circuit** : `link-ip-lot3-secgw1` (Provider `Provider-Lot3-MNO-Interco`, Type `Interco-WAN-IPsec-ESP-S6a`, statut `Planned`, 1 Gbps) reliant :
+   - **Terminaison A** : `ext-mme-lot3-01` (`ExternalMMEFunction`).
+   - **Terminaison Z** : `secgw-lot1-01` (`SecurityGatewayFunction` sur `pop-valmondois`).
+3. **IPAM** : VLAN `1403` et préfixe `100.64.14.0/30` rattachés au tenant `org-lot3-mno`.
+4. **DCIM Devices** :
+   - `srv--proposes-89-01` (`HPE ProLiant DL380`, Pool `sylva-standard-nis2`).
+   - `srv--proposes-89-02` (`Dell PowerEdge R750`, Pool `sylva-cnf-sriov-dpdk`).
+   - `ext-mme-lot3-01` (Shadow 3GPP `ExternalMMEFunction`, non managé Lot 1).
+   - `ext-ran-cell-mobile-01` (Shadow 3GPP `ExternalENodeBFunction`, intermittent).
+   - `secgw-lot1-01` (Passerelle IPsec ESP Lot 1).
+   - `dea-lot1-01` (Passerelle de médiation Diameter S6a Lot 1).
+   - `hss-lot1-01` (Serveur abonnés cœur Lot 1).
+5. **Vérification OPA Rego** : les règles `deny_unmediated_s6a_direct_flow` et `deny_unreconciled_partner_objects` retournent le verdict **`COMPLIANT`** (0 violation sur 9 feuilles évaluées).
+
+---
+
+## 16. Feuille de Route (Roadmap) Archinex : De l'Hydratation SSoT à l'Orchestration en Boucle Fermée
+
+La feuille de route ci-dessous détaille les prochaines étapes d'évolution d'Archinex pour industrialiser la chaîne **Décision HLD $\rightarrow$ Ontologie KAOS $\rightarrow$ SSoT Nautobot & Clusters Sylva** sans jamais dupliquer les briques existantes de l'écosystème.
+
+### Horizon 1 — Court Terme : GitOps Sylva Natif & Synchronisation Bidirectionnelle `DiffSync`
+1. **Export GitOps Direct vers un Dépôt `sylva-core` (`workload-clusters/`)** :
+   - Permettre depuis la Phase 4 d'ouvrir automatiquement une Merge Request / Pull Request Git contenant le fichier `values.yaml` du `SylvaWorkloadCluster` généré (`sylva_workload_cluster_values`), directement consommable par FluxCD dans un cluster de management Sylva.
+2. **Collecte Temps Réel (Pull / Webhook) depuis Nautobot 2.x vers l'Oracle OPA** :
+   - Actuellement, l'hydratation pousse l'état `Planned` dans Nautobot et le simulateur de dérive permet de tester les écarts en un clic.
+   - La prochaine étape consiste à lire directement l'état courant des objets dans Nautobot (`GET /api/circuits/circuits/`, `/api/dcim/devices/`, `/api/tenancy/tenants/`) lors du clic sur **« Exécuter l'Oracle OPA »**, de sorte qu'une modification manuelle effectuée par un opérateur directement dans l'interface web de Nautobot (`http://localhost:8080`) déclenche immédiatement le verdict `VIOLATED` dans Archinex.
+3. **Modélisation Native des Tunnels IPsec dans le Module VPN de Nautobot 2.2+** :
+   - En complément du `circuits.Circuit` (`link-ip-lot3-secgw1`), instancier les objets `vpn.VPNProfile`, `vpn.IKEProposal`, `vpn.IPSecProposal` et `vpn.Tunnel` (`tun-ipsec-esp-lot3-secgw1`) introduits dans Nautobot 2.2+.
+
+### Horizon 2 — Moyen Terme : Catalogue KRM des Fonctions Réseau 3GPP (CNF) & Validation Réseau Batfish
+4. **Spécialisation Nephio des Manifestes Réseau Multus / SR-IOV (`NetworkAttachmentDefinition`) pour les CNF** :
+   - Générer à partir des objets `service_mediation_flows` et `ip_underlay_links` les descripteurs KRM `NetworkAttachmentDefinition` (VLAN 1403, VFs SR-IOV) destinés aux pods CNF (`SecGW-Lot1`, `DEA-Lot1`, `UPF`).
+5. **Couplage de l'Oracle OPA avec Batfish (`http://localhost:9997`) sur la Matrice de Flux (§14)** :
+   - Exploiter le conteneur Batfish déjà présent dans `deploy/integrator-tools` pour vérifier mathématiquement sur les configurations routeurs/pare-feux générées qu'aucun paquet `SCTP/3868` (Diameter S6a) issu de `ZONE-PARTNER-LOT3-UNTRUSTED` (`172.16.30.0/24`) ne peut atteindre `hss-lot1-01` sans transiter par `secgw-lot1-01` puis `dea-lot1-01`.
+
+### Horizon 3 — Long Terme : Gouvernance Vivante en Boucle Fermée (NOC / SOC $\rightarrow$ Réévaluation d'Architecture)
+6. **Génération Automatique des Règles Prometheus `PrometheusRule` & Alertmanager (`REQ-Lot1-1274` & `REQ-Lot1-1343`)** :
+   - Compiler les objets `sla_and_monitoring_contracts` (`probe-noc-s6a-lot3`, `sla-lot3-hosting-s6a`) en manifestes `PrometheusRule` (calcul de burn-rate SLO par `tenant_ref="org-lot3-mno"` et règle d'inhibition Alertmanager pour les cellules mobiles intermittentes du Lot 2).
+7. **Rétroaction Continue Observabilité $\rightarrow$ Statut Épistémique de la Décision** :
+   - En cas de violation répétée d'un SLO ou de dérive persistante détectée en production sur un axe ontologique, marquer automatiquement le Paquet de Décision Exécutable comme `stale` (Invariant VI) et notifier l'architecte responsable dans le fil de délibération du sujet.

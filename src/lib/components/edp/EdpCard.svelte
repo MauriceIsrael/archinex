@@ -14,6 +14,57 @@
       decision?: string;
       ontology_bindings?: Array<{ urn: string; revision: number | string }>;
     };
+    refinementCoverage?: {
+      matchedConcepts: Array<{ urn: string; title: string; score: number }>;
+      axes: Array<{
+        axisUrn: string;
+        axisTitle: string;
+        domain: string;
+        rationale: string;
+        status: 'covered_executable' | 'covered_no_oracle' | 'missing_refinement';
+        boundLeaves: Array<{
+          urn: string;
+          title: string;
+          domain: string;
+          revision: number | string;
+          oracleRules: string[];
+        }>;
+        candidateLeaves: Array<{
+          urn: string;
+          title: string;
+          domain: string;
+          revision: number | string;
+          oracleRules: string[];
+        }>;
+        oracleRulesCount: number;
+      }>;
+      clauses: Array<{
+        clauseId: string;
+        text: string;
+        matchedAxisUrn?: string;
+        matchedLeafUrn?: string;
+        matchedLeafTitle?: string;
+        status: 'covered' | 'unmapped';
+      }>;
+      dependencyIssues: Array<{
+        tripletId: string;
+        sourceUrn: string;
+        predicate: string;
+        targetUrn: string;
+        message: string;
+      }>;
+      metrics: {
+        coveredExecutableAxes: number;
+        coveredNoOracleAxes: number;
+        missingAxes: number;
+        totalMandatoryAxes: number;
+        axisCoveragePercent: number;
+        coveredClauses: number;
+        totalClauses: number;
+        clauseCoveragePercent: number;
+        isComplete: boolean;
+      };
+    };
     verification_oracle?: {
       engine?: string;
       entrypoint?: string;
@@ -49,6 +100,7 @@
     runVerify: { edpId: string };
     hydrate: { edpId: string };
     synthesize: { edpId?: string };
+    bindAspect: { edpId: string; leafUrn: string };
   }>();
 
   const AUTHORIZED_ROLES = ['Lead Architect', 'lead_architect', 'domain_architect', 'Domain Architect', 'Security Architect'];
@@ -56,12 +108,14 @@
   $: isAuthorized = AUTHORIZED_ROLES.includes(currentUserRole);
   $: canValidate = isAuthorized && edp?.metadata?.status === 'proposed';
   $: isStale = edp?.metadata?.status === 'stale';
+  $: coverage = edp?.refinementCoverage;
 
   let challengeReason = '';
   let showChallengeDialog = false;
   let isHydrating = false;
   let hasHydrated = false;
   let isVerifying = false;
+  let bindingUrnInProgress: string | null = null;
 
   function handleValidate() {
     if (!canValidate || !edp?.metadata?.id) return;
@@ -99,6 +153,15 @@
     setTimeout(() => {
       isVerifying = false;
     }, 1000);
+  }
+
+  function handleBindLeaf(leafUrn: string) {
+    if (!edp?.metadata?.id) return;
+    bindingUrnInProgress = leafUrn;
+    dispatch('bindAspect', { edpId: edp.metadata.id, leafUrn });
+    setTimeout(() => {
+      bindingUrnInProgress = null;
+    }, 600);
   }
 </script>
 
@@ -148,7 +211,7 @@
     <!-- ═══════════════════════════════════════════════════════════════════════ -->
     <div class="mt-4 p-3 rounded-lg bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
       <div class="flex items-center justify-between text-xs mb-2">
-        <span class="font-bold uppercase tracking-wider text-slate-500">Flux d'Ingénierie & d'Hydratation</span>
+        <span class="font-bold uppercase tracking-wider text-slate-500">Flux d'Ingénierie & d'Hydratation Multi-Axes</span>
         <span class="text-slate-400 font-mono text-[10px]">3 phases continues</span>
       </div>
       <div class="grid grid-cols-1 md:grid-cols-3 gap-2">
@@ -189,7 +252,7 @@
               <span class="text-[10px] font-bold text-amber-600 bg-amber-100 dark:bg-amber-900/50 px-1.5 py-0.2 rounded">Planned State</span>
             {/if}
           </div>
-          <p class="text-[11px] text-slate-500">Injection Nautobot & Manifestes CAPI</p>
+          <p class="text-[11px] text-slate-500">Injection Nautobot, CAPI & Zones</p>
           <button
             type="button"
             disabled={isHydrating}
@@ -229,12 +292,154 @@
       </div>
     </div>
 
+    <!-- ═══════════════════════════════════════════════════════════════════════ -->
+    <!-- MATRICE DE COUVERTURE DU RAFFINEMENT & COMPOSITION MULTI-AXES (KAOS)    -->
+    <!-- ═══════════════════════════════════════════════════════════════════════ -->
+    {#if coverage}
+      <div class="mt-4 p-3.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-slate-50/70 dark:bg-slate-800/40 space-y-3" data-testid="refinement-coverage-matrix">
+        <div class="flex items-center justify-between flex-wrap gap-2">
+          <div>
+            <div class="flex items-center gap-2">
+              <span class="text-xs font-bold uppercase tracking-wider text-slate-700 dark:text-slate-200">
+                🧭 Matrice de Couverture du Raffinement Multi-Axes (KAOS AND/OR + Ontologie)
+              </span>
+              {#if coverage.metrics.isComplete}
+                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300" data-testid="coverage-complete-badge">
+                  ✓ Raffinement Complet (100%)
+                </span>
+              {:else}
+                <span class="px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300" data-testid="coverage-incomplete-badge">
+                  ⚠️ {coverage.metrics.missingAxes} axe(s) non raffiné(s) · {coverage.metrics.axisCoveragePercent}% couvert
+                </span>
+              {/if}
+            </div>
+            <p class="text-[11px] text-slate-500 mt-0.5">
+              Concepts HLD détectés par requête de graphe (<code class="font-mono text-[10px]">requires_aspect</code>) :
+              {#each coverage.matchedConcepts as concept, idx}
+                <span class="font-semibold text-slate-700 dark:text-slate-300">{concept.title}</span>{idx < coverage.matchedConcepts.length - 1 ? ' + ' : ''}
+              {/each}
+            </p>
+          </div>
+          <a
+            href="/knowledge?view=ontology"
+            class="text-[11px] font-semibold text-indigo-600 dark:text-indigo-400 hover:underline flex items-center gap-1"
+            data-testid="open-ontology-editor-link"
+          >
+            <span>🕸️ Éditer les triplets {'{Sujet, Verbe, Complément}'} ↗</span>
+          </a>
+        </div>
+
+        <!-- Barre de progression de complétude KAOS -->
+        <div class="w-full bg-slate-200 dark:bg-slate-700 h-2 rounded-full overflow-hidden">
+          <div
+            class="h-full transition-all duration-300 {coverage.metrics.isComplete ? 'bg-emerald-500' : 'bg-indigo-600'}"
+            style="width: {coverage.metrics.axisCoveragePercent}%"
+          ></div>
+        </div>
+
+        <!-- Tableau des sous-axes obligatoires (requires_aspect -> implemented_by) -->
+        <div class="space-y-2">
+          {#each coverage.axes as axis}
+            <div
+              class="p-2.5 rounded border text-xs transition-colors {axis.status === 'covered_executable'
+                ? 'bg-emerald-50/40 border-emerald-200 dark:bg-emerald-950/20 dark:border-emerald-900/60'
+                : axis.status === 'covered_no_oracle'
+                  ? 'bg-amber-50/40 border-amber-200 dark:bg-amber-950/20 dark:border-amber-900/60'
+                  : 'bg-rose-50/40 border-rose-200 dark:bg-rose-950/20 dark:border-rose-900/60'}"
+              data-testid="coverage-axis-row"
+            >
+              <div class="flex items-start justify-between gap-2 flex-wrap">
+                <div>
+                  <div class="flex items-center gap-1.5">
+                    {#if axis.status === 'covered_executable'}
+                      <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200">
+                        🟢 Couvert & Exécutable
+                      </span>
+                    {:else if axis.status === 'covered_no_oracle'}
+                      <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200">
+                        🟡 Lié sans Oracle Rego
+                      </span>
+                    {:else}
+                      <span class="text-[10px] font-bold px-1.5 py-0.5 rounded bg-rose-100 text-rose-800 dark:bg-rose-900 dark:text-rose-200">
+                        🔴 Axe Oublié / Non Raffiné
+                      </span>
+                    {/if}
+                    <span class="font-bold text-slate-800 dark:text-slate-100">{axis.axisTitle}</span>
+                    <span class="text-[10px] font-mono text-slate-400">({axis.domain})</span>
+                  </div>
+                  <p class="text-[11px] text-slate-500 mt-0.5">{axis.rationale}</p>
+                </div>
+
+                <!-- Actions pour lier une feuille candidate (OR-Refinement) si l'axe est manquant ou incomplet -->
+                <div class="flex items-center gap-1.5 flex-wrap">
+                  {#each axis.candidateLeaves as cand}
+                    {@const isAlreadyBound = axis.boundLeaves.some((b) => b.urn === cand.urn)}
+                    {#if !isAlreadyBound}
+                      <button
+                        type="button"
+                        disabled={bindingUrnInProgress === cand.urn}
+                        on:click={() => handleBindLeaf(cand.urn)}
+                        class="px-2 py-1 rounded text-[10px] font-semibold bg-indigo-600 hover:bg-indigo-700 text-white shadow-2xs transition-colors cursor-pointer"
+                        data-testid="bind-axis-leaf-btn"
+                      >
+                        {bindingUrnInProgress === cand.urn ? '⏳ Liaison...' : `+ Raffiner via « ${cand.title} »`}
+                      </button>
+                    {/if}
+                  {/each}
+                </div>
+              </div>
+
+              <!-- Feuilles liées et règles Rego associées -->
+              {#if axis.boundLeaves.length > 0}
+                <div class="mt-2 pt-2 border-t border-slate-200/60 dark:border-slate-700/60 flex flex-wrap gap-2 items-center text-[11px]">
+                  <span class="text-slate-500 font-medium">Feuille(s) liée(s) :</span>
+                  {#each axis.boundLeaves as leaf}
+                    <span class="font-mono px-1.5 py-0.5 rounded bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300">
+                      {leaf.title} <span class="text-slate-400">({leaf.urn} · r{leaf.revision})</span>
+                    </span>
+                    {#if leaf.oracleRules.length > 0}
+                      <span class="text-[10px] font-mono text-emerald-700 dark:text-emerald-400">
+                        ⚖️ {leaf.oracleRules.length} règle(s) Rego ({leaf.oracleRules[0]})
+                      </span>
+                    {:else}
+                      <span class="text-[10px] font-mono text-amber-700 dark:text-amber-400">
+                        ⚠️ Aucune règle Rego associée à cette feuille
+                      </span>
+                    {/if}
+                  {/each}
+                </div>
+              {/if}
+            </div>
+          {/each}
+        </div>
+
+        <!-- Dépendances inter-axes (depends_on / constrains / conflicts_with) -->
+        {#if coverage.dependencyIssues && coverage.dependencyIssues.length > 0}
+          <div class="p-2.5 rounded bg-amber-50 dark:bg-amber-950/30 border border-amber-300 dark:border-amber-800 text-xs text-amber-900 dark:text-amber-200 space-y-1">
+            <div class="font-bold">🔗 Alertes de cohérence inter-axes (Triplets depends_on / constrains) :</div>
+            {#each coverage.dependencyIssues as issue}
+              <div class="flex items-center justify-between gap-2">
+                <span>• {issue.message}</span>
+                <button
+                  type="button"
+                  on:click={() => handleBindLeaf(issue.targetUrn)}
+                  class="px-2 py-0.5 rounded bg-amber-700 text-white text-[10px] font-semibold cursor-pointer"
+                >
+                  + Lier {issue.targetUrn.split(':').pop()}
+                </button>
+              </div>
+            {/each}
+          </div>
+        {/if}
+      </div>
+    {/if}
+
     <!-- Panneau des Objets Hydratés (si hydratation effectuée) -->
     {#if hasHydrated || hydratedData}
       <div class="mt-4 p-3 rounded-lg border border-indigo-200 dark:border-indigo-900/60 bg-indigo-50/40 dark:bg-indigo-950/20 text-xs space-y-2" data-testid="hydrated-inventory-card">
         <div class="flex items-center justify-between">
           <span class="font-bold text-indigo-950 dark:text-indigo-200 flex items-center gap-1.5">
-            <span>🏢</span> Objets Planned générés dans Nautobot DCIM & Sylva CAPI
+            <span>🏢</span> Objets Planned Multi-Axes générés (Nautobot DCIM, Sylva CAPI & Zonage Sécurité)
           </span>
           <a
             href="http://localhost:8080/dcim/devices/"
@@ -245,18 +450,24 @@
             Ouvrir Nautobot ↗
           </a>
         </div>
-        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px]">
+        <div class="grid grid-cols-1 sm:grid-cols-3 gap-2 text-[11px]">
           <div class="p-2 rounded bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-            <span class="text-slate-500 font-medium">Nautobot Planned Device :</span>
+            <span class="text-slate-500 font-medium">1. Nautobot Planned Device :</span>
             <span class="font-mono font-semibold ml-1 text-slate-800 dark:text-slate-200">srv-telco-bm-01</span>
             <div class="text-[10px] text-slate-500 mt-0.5">Statut : <strong class="text-emerald-700 dark:text-emerald-300">planned</strong> · Rôle : <strong>telco-baremetal-worker</strong></div>
-            <div class="text-[10px] text-slate-500">OOB BMC IP : <code class="font-mono">192.0.2.10</code></div>
+            <div class="text-[10px] text-slate-500">OOB BMC IP : <code class="font-mono">192.0.2.10</code> (2 interfaces)</div>
           </div>
           <div class="p-2 rounded bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
-            <span class="text-slate-500 font-medium">Manifeste Sylva CAPI :</span>
+            <span class="text-slate-500 font-medium">2. Manifeste Sylva CAPI :</span>
             <span class="font-mono font-semibold ml-1 text-slate-800 dark:text-slate-200">BareMetalHost</span>
             <div class="text-[10px] text-slate-500 mt-0.5">Namespace : <code class="font-mono">sylva-system</code></div>
             <div class="text-[10px] text-slate-500">BMC Address : <code class="font-mono">redfish+http://192.0.2.10/redfish/v1</code></div>
+          </div>
+          <div class="p-2 rounded bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800">
+            <span class="text-slate-500 font-medium">3. Zonage & Parité Env :</span>
+            <span class="font-mono font-semibold ml-1 text-slate-800 dark:text-slate-200">ZONE-OAM / 3-Tiers</span>
+            <div class="text-[10px] text-slate-500 mt-0.5">Isolation : <strong class="text-indigo-700 dark:text-indigo-300">strict (Proxy requis)</strong></div>
+            <div class="text-[10px] text-slate-500">Tiers : <code class="font-mono">dev, recette (iso-prod), prod</code></div>
           </div>
         </div>
       </div>
@@ -297,7 +508,9 @@
     <!-- Liaisons d'Ontologie -->
     {#if edp.decision_context?.ontology_bindings && edp.decision_context.ontology_bindings.length > 0}
       <div class="my-3 pt-3 border-t border-slate-100 dark:border-slate-800">
-        <h4 class="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">Liaisons d'Ontologie Liées</h4>
+        <h4 class="text-xs font-semibold uppercase tracking-wider text-slate-500 mb-2">
+          Liaisons d'Ontologie Multi-Axes Liées ({edp.decision_context.ontology_bindings.length})
+        </h4>
         <ul class="space-y-1 text-xs">
           {#each edp.decision_context.ontology_bindings as binding}
             <li class="font-mono text-slate-700 dark:text-slate-300 bg-slate-50 dark:bg-slate-800 px-2 py-1 rounded flex justify-between">

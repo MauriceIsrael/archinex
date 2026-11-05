@@ -360,7 +360,7 @@ En Phase 3 (« Rendu & Homologation »), Archinex permet de visualiser et d'expo
 2. **🔄 Chaîne de Déploiement & Homologation** : Diagramme de séquence modélisant la chaîne de confiance et de validation humaine (construction du paquet signé par l'éditeur/titulaire, soumission au guichet d'homologation/recette, approbation formelle et déploiement contrôlé vers les agents).
 3. **⚖️ Graphe Décisionnel (Auditabilité)** : Graphe épistémique traçant l'arbre causal de la délibération (hypothèses, énoncés prouvés, conflits et options retenues) pour la traçabilité d'audit.
 
-Pour les sujets d'infrastructure et d'environnements (ex. *Socle 3 plateformes, pré-prod iso-état* du projet LUMICC), Archinex projette automatiquement la topologie à trois niveaux (Production, Pré-production Iso-État répliquant l'état technique et accueillant l'état candidat, Test Réduit avec Test-RAN) ainsi que la filière de qualification usine chez les fournisseurs avec contrôle d'audit et de représentativité. L'isolation des contextes garantit qu'aucun outillage ou libellé d'un projet tiers (ex. RATP/PCC) n'est injecté dans les rendus d'un autre projet.
+Pour les sujets d'infrastructure et d'environnements (ex. *Socle 3 plateformes, pré-prod iso-état* du projet Lulu), Archinex projette automatiquement la topologie à trois niveaux (Production, Pré-production Iso-État répliquant l'état technique et accueillant l'état candidat, Test Réduit avec Test-RAN) ainsi que la filière de qualification usine chez les fournisseurs avec contrôle d'audit et de représentativité. L'isolation des contextes garantit qu'aucun outillage ou libellé d'un projet tiers (ex. RATP/PCC) n'est injecté dans les rendus d'un autre projet.
 
 Ces schémas sont directement intégrés dans le fragment Markdown HLD exporté (`renderHldFragmentMarkdown`) et téléchargeables au format `.mmd`.
 
@@ -392,19 +392,19 @@ Les diagrammes et rendus techniques d'Archinex (Mermaid C4, séquences de déplo
    - **À la demande (Bouton « Régénérer »)** : Le bouton d'actualisation dans l'en-tête d'`ArtifactRegenerationHub` permet de re-synchroniser explicitement les données depuis l'API serveur ou de recharger le graphe d'architecture.
    - **Lors du scellement d'homologation (Jalon L5)** : Lors de la signature cryptographique du livrable (`freezeSubjectSnapshot`), l'empreinte SHA-256 scelle définitivement la version des artefacts, les rendant opposables et inaltérables dans le temps.
 
-## 12. Démonstrateur & Ensemencements Démo (LUMICC / "Lulu")
+## 12. Démonstrateur & Ensemencements Démo ("Lulu")
 
-Pour préparer rapidement une session de démo ou des tests interactifs sans ressaisie manuelle, Archinex fournit un ensemencement dédié du dossier réel **LUMICC Lot 1** :
+Pour préparer rapidement une session de démo ou des tests interactifs sans ressaisie manuelle, Archinex fournit un ensemencement dédié du dossier réel **Lulu Lot 1** :
 
 ``bash
 # Réinitialisation à l'état "Juste Après Ingestion" (7 sujets L1_framed, 0 décision scellée)
 npm run seed:lulu
 ``n
-Cette commande réinitialise l'espace projet `lumicc-lot1-noc` dans la base SQLite locale (`dev.db`) et insère l'audit J0 de 92 clauses dans l'historique des dépouillements. Elle permet de dérouler en direct les 4 scénarios de délibération :
-1. **Cas nominal** (`SUBJ-LUMICC-01`) : arbitrage fluide sur la matrice d'options 3 DC & RTO UDR.
-2. **Débat contradictoire** (`SUBJ-LUMICC-03`) : controverse infra/sécurité sur l'oscillateur GNSS 30j et levée d'objection.
-3. **Contradiction réglementaire** (`SUBJ-LUMICC-05`) : blocage Porte G3 sur violation GSMA SGP.22 / NIS2 et alignement souverain.
-4. **Capitalisation doctrinale** (`SUBJ-LUMICC-02`) : passage Porte G4, qualification de portabilité et transmission au Knowledge Hub LLMOps.
+Cette commande réinitialise l'espace projet `lulu-lot1-noc` dans la base SQLite locale (`dev.db`) et insère l'audit J0 de 92 clauses dans l'historique des dépouillements. Elle permet de dérouler en direct les 4 scénarios de délibération :
+1. **Cas nominal** (`SUBJ-LULU-01`) : arbitrage fluide sur la matrice d'options 3 DC & RTO UDR.
+2. **Débat contradictoire** (`SUBJ-LULU-03`) : controverse infra/sécurité sur l'oscillateur GNSS 30j et levée d'objection.
+3. **Contradiction réglementaire** (`SUBJ-LULU-05`) : blocage Porte G3 sur violation GSMA SGP.22 / NIS2 et alignement souverain.
+4. **Capitalisation doctrinale** (`SUBJ-LULU-02`) : passage Porte G4, qualification de portabilité et transmission au Knowledge Hub LLMOps.
 
 
 
@@ -477,3 +477,25 @@ Pour tester les décisions et oracles dans un environnement d'intégration réel
   - **Nautobot GraphQL** : `http://localhost:8080/api/graphql/`
   - **Batfish API** : `http://localhost:9997`
   - **OPA Server REST** : `http://localhost:8181/v1/data`
+
+### 13.6 Phase 4 Dédiée « Refinement & Hydratation », Matrice KAOS Multi-Axes & Simulateur de Drift
+Pour séparer clairement la délibération HLD (Phase 2) et l'homologation documentaire (Phase 3) de l'ingénierie d'exécution LLD, un **4ème grand onglet de phase** est disponible en haut du projet (`/deliberation?posture=refinement`) :
+- **Atelier Plein Écran « Phase 4 : Refinement & Hydratation » (`Phase4RefinementHub`)** :
+  - **Colonne Gauche — Matrice KAOS des 5 Axes Obligatoires (`requires_aspect` → `implemented_by`)** : affiche pour le sujet sélectionné le statut de chaque sous-axe obligatoire (*1. Substrat Compute*, *2. Plan Hors-Bande OOB*, *3. Zonage Sécurité NIS2*, *4. Fidélité Environnements Dev/Recette/Prod*, *5. Résilience Électrique 2N*), les clauses de la spécification rattachées et un bouton **`Compléter tous les axes manquants`** (ou liaison axe par axe).
+  - **Colonne Droite — Hydratation LLD & Oracle OPA Multi-Axes (`multi_axis_refinement.rego`)** : génère l'inventaire LLD multi-axes (`nautobot_planned_devices`, `k8s_manifests`, `security_zones`, `environments`, `power_feeds`) et l'évalue réellement via OPA contre `data.ontology`.
+  - **Simulateur de Dérive CMDB (Drift)** : permet de simuler en un clic une dérive sur chacun des 5 axes (serveur Whitebox non homologué, désalignement IP BMC/OOB, désactivation du proxy OAM, recette non Iso-Prod, perte d'une adduction PDU 2N) et de constater la violation Rego correspondante.
+- **Visualiseur & Éditeur de Triplets dans `/knowledge?view=ontology`** :
+  - Accessible depuis l'onglet **`🕸️ Ontologie & Triplets ({S, V, O})`** du Graphe de Connaissances (`/knowledge`).
+  - Permet d'inspecter l'arbre `Concept HLD → Sous-Axes Requis → Feuilles & Oracles` et d'ajouter ou supprimer des triplets `{ Sujet, Verbe, Complément }` à la volée.
+
+### 13.7 Démonstration Bout-en-Bout (§14 Lulu Lot 3 ↔ Lot 1) & Graphe de Réconciliation Multi-Objets (`npm run seed:demo`)
+La commande `npm run seed:demo` configure et ensemence le parcours complet de la **Phase 1 (Appropriation)** à la **Phase 4 (Raffinement, Hydratation & Réconciliation)** sur l'exigence **`§14 · Hébergement Lots 2/3, RAN tiers et cellules mobiles : sécurité contre souplesse`** (`sub_lulu-avec-options-et-criteres-proposes_89`) :
+- **Cumul de variantes (OU inclusif)** : génère simultanément les deux pools Sylva (`sylva-cnf-sriov-dpdk` pour l'hébergement des CNF SecGW/DEA et `sylva-standard-nis2` pour l'hébergement standard isolé NIS2).
+- **Modélisation exhaustive et réconciliation multi-domaine (7 classes d'objets liées par le pivot `tenant_ref = "org-lot3-mno"`)** :
+  1. `partner_organizations` : `org-lot3-mno` (Opérateur Tiers Lot 3) & `org-lot2-ran` (Cellules Mobiles Lot 2).
+  2. `external_shadow_nodes` (3GPP TS 28.620 NRM) : `ext-mme-lot3-01` (`ExternalMMEFunction`) & `ext-ran-cell-mobile-01` (`ExternalENodeBFunction`).
+  3. `internal_mediation_nodes` : `secgw-lot1-01` → `dea-lot1-01` → `hss-lot1-01`.
+  4. `ip_underlay_links` (`EP_RP`) : `link-ip-lot3-secgw1` (`100.64.14.0/30`, VLAN 1403, BFD).
+  5. `ipsec_tunnels` : `tun-ipsec-esp-lot3-secgw1` (`IPsec-ESP-IKEv2`, `AES-256-GCM`, `DH-20-ECP384`).
+  6. `service_mediation_flows` (`EP_S6a`) : `flow-s6a-lot3-to-hss1` (médiation obligatoire par `secgw-lot1-01` et `dea-lot1-01`).
+  7. `sla_and_monitoring_contracts` (TM Forum SID GB922) : `sla-lot3-hosting-s6a` (`REQ-Lot1-1343`) & `probe-noc-s6a-lot3` (`REQ-Lot1-1274`).

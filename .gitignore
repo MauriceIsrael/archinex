@@ -57,3 +57,5 @@ prisma/dev-wt.db*
 # Local tools and binaries
 tools/bin/
 *.exe
+
+.archinex-ontology-overlay.json

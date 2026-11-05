@@ -1,8 +1,8 @@
 /**
  * Évalue le pipeline d'audit des exigences sur un RFP, avec le modèle réellement configuré.
  *
- *   npm run eval:requirements -- examples/lumicc-noc/rfp-section4-noc.md \
- *       --reference examples/lumicc-noc/reference-analysis.json [--model claude-...] [--out resultat.json] [--report rapport.md]
+ *   npm run eval:requirements -- examples/lulu-noc/rfp-section4-noc.md \
+ *       --reference examples/lulu-noc/reference-analysis.json [--model claude-...] [--out resultat.json] [--report rapport.md]
  *
  * Le modèle vient de l'environnement (ANTHROPIC_API_KEY / LLM_PROVIDER / LLM_LOCAL_*), comme dans l'application.
  * Sans référence, seules les statistiques de répartition sont affichées.

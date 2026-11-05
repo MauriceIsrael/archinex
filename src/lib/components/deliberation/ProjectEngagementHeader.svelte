@@ -8,6 +8,7 @@
 		BookOpen,
 		MessagesSquare,
 		CheckCircle2,
+		Cpu,
 		Check,
 		FolderPlus,
 		FolderKanban,
@@ -16,9 +17,15 @@
 	} from 'lucide-svelte';
 	let isCreateWorkspaceOpen = $state(false);
 
+	interface Props {
+		isExperimentalEnabled?: boolean;
+	}
+
+	let { isExperimentalEnabled = true }: Props = $props();
+
 	const activeEngagement = $derived(deliberationStore.activeEngagement);
 
-	const phases: Array<{
+	const basePhases: Array<{
 		id: DeliberationPosture;
 		number: string;
 		label: string;
@@ -42,11 +49,26 @@
 		{
 			id: 'rendu',
 			number: 'Phase 3',
-			label: 'Rendu & Homologation',
+			label: 'Rendu & Homologation HLD',
 			subtitle: 'Projections d\'architecture, Modèles systèmes & Sceau SHA-256',
 			icon: CheckCircle2
 		}
 	];
+
+	const phases = $derived(
+		isExperimentalEnabled
+			? [
+					...basePhases,
+					{
+						id: 'refinement' as DeliberationPosture,
+						number: 'Phase 4 · 🧪',
+						label: 'Refinement & Hydratation',
+						subtitle: 'Matrice KAOS multi-axes, Objets Planned Nautobot/Sylva & Oracles OPA',
+						icon: Cpu
+					}
+				]
+			: basePhases
+	);
 </script>
 
 <div class="space-y-4">
@@ -201,16 +223,17 @@
 	</div>
 
 	<!-- ═════════════════════════════════════════════════════════════════════════ -->
-	<!-- 2. LES 3 GRANDS ONGLETS DU PROJET (SÉPARATION HERMÉTIQUE DES 3 PHASES)     -->
+	<!-- 2. LES 4 GRANDS ONGLETS DU PROJET (SÉPARATION DES 4 PHASES D'INGÉNIERIE)   -->
 	<!-- ═════════════════════════════════════════════════════════════════════════ -->
-	<div class="grid grid-cols-1 md:grid-cols-3 gap-2 p-1.5 rounded-xl border bg-muted/30">
+	<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-2 p-1.5 rounded-xl border bg-muted/30">
 		{#each phases as phase}
 			{@const isActive = deliberationStore.activePosture === phase.id}
 			{@const Icon = phase.icon}
 			<button
 				type="button"
+				data-testid="phase-tab-{phase.id}"
 				onclick={() => deliberationStore.setPosture(phase.id)}
-				class="flex items-start gap-3 p-3 rounded-lg text-left transition-all relative {isActive
+				class="flex items-start gap-3 p-3 rounded-lg text-left transition-all relative cursor-pointer {isActive
 					? 'bg-card text-foreground shadow-sm border border-primary/40 ring-1 ring-primary/20'
 					: 'hover:bg-card/60 text-muted-foreground hover:text-foreground border border-transparent'}"
 			>
@@ -230,9 +253,13 @@
 							<span class="font-mono text-[10px] px-1.5 py-0.2 rounded bg-muted text-muted-foreground">
 								{deliberationStore.subjects.length} sections
 							</span>
-						{:else}
+						{:else if phase.id === 'rendu'}
 							<span class="font-mono text-[10px] px-1.5 py-0.2 rounded bg-muted text-muted-foreground">
 								{Object.keys(deliberationStore.frozenSnapshots).length} scellés
+							</span>
+						{:else}
+							<span class="font-mono text-[10px] px-1.5 py-0.2 rounded bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 font-semibold">
+								5 axes KAOS
 							</span>
 						{/if}
 					</div>

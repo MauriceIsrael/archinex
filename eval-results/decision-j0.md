@@ -1,6 +1,6 @@
 # Fiche de Décision — Jalon J0 (Audit des Exigences ArcKit)
 
-RFP : `examples/lumicc-noc/rfp-section4-noc.md` (92 clauses)
+RFP : `examples/lulu-noc/rfp-section4-noc.md` (92 clauses)
 Modèle : `claude-sonnet-5-5` (Anthropic Claude Messages API, adaptive thinking)
 Date : `2026-10-18`
 Critères fixés le `2026-10-18` (avant la mesure), dans le commit `bdc3e4d`

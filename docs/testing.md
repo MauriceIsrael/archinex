@@ -108,7 +108,7 @@ Dossier : `tests/e2e/browser/` (configuré dans `playwright.config.ts`).
 | `regulatory-to-capitalization.spec.ts` | **Boucle fermée complète en 7 actes** : Appropriation RFP $\rightarrow$ Ingestion NIS2 $ightarrow$ Délibération $ightarrow$ Décision $ightarrow$ Capitalisation $ightarrow$ Audit accessibilité `axe-core`. | `npx playwright test tests/e2e/browser/regulatory-to-capitalization.spec.ts` | `npm run demo:e2e` |
 | `second-rfp-reuse.spec.ts` | **Preuve de réutilisation sur second RFP** : Dépouillement, détection sémantique ADR-0001, garantie D8 (confirmation obligatoire sans faux positif silencieux). | `npx playwright test tests/e2e/browser/second-rfp-reuse.spec.ts` | `cross-env DEMO_E2E=1 playwright test tests/e2e/browser/second-rfp-reuse.spec.ts --project=chromium` |
 | `second-rfp-zero-tolerance.spec.ts` | **Validation stricte des hypothèses d'architecture** : Rejet immédiat si une hypothèse ne tient pas, obligation de motif. | `npx playwright test tests/e2e/browser/second-rfp-zero-tolerance.spec.ts` | `cross-env DEMO_E2E=1 playwright test tests/e2e/browser/second-rfp-zero-tolerance.spec.ts --project=chromium` |
-| `lumicc-demo.spec.ts` | **Démonstration de bout en bout Cas Réel LUMICC** (Lot 1 NOC & Cœur 5G PPDR) : Reprise de l'audit live Claude scellé J0 (`run_lumicc_live_j0`), exploration des 3 DC POST, matrice d'options UDR, contraintes Holdover GNSS 30j et arbitrage Porte G3. | `npx playwright test tests/e2e/browser/lumicc-demo.spec.ts` | `npm run demo:lumicc` |
+| `lulu-demo.spec.ts` | **Démonstration de bout en bout Cas Réel Lulu** (Lot 1 NOC & Cœur 5G PPDR) : Reprise de l'audit live Claude scellé J0 (`run_lulu_live_j0`), exploration des 3 DC POST, matrice d'options UDR, contraintes Holdover GNSS 30j et arbitrage Porte G3. | `npx playwright test tests/e2e/browser/lulu-demo.spec.ts` | `npm run demo:lulu` |
 
 *Captures d'écran produites automatiquement : `tests/e2e/screenshots/`.*
 
@@ -165,7 +165,7 @@ Dossier : `tests/contract/` (~50 suites).
 ### 5. Bancs Externes Associés
 
 * **`archinex-benchmark` (ABE v2.1)** :
-  * Banc boîte noire indépendant évaluant le couple Archinex + LLMOps sur 6 cas réels held-out du RFP LUMICC (*Lulu*).
+  * Banc boîte noire indépendant évaluant le couple Archinex + LLMOps sur 6 cas réels held-out du RFP Lulu (*Lulu*).
   * Conteneur Docker étanche avec volumes hôtes en lecture seule (`:ro`) et bac à sable en RAM :
     `docker compose -f docker-compose.test.yml up --build --abort-on-container-exit`
 * **`LLMOps` (Hub de Connaissances)** :

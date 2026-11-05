@@ -24,8 +24,8 @@ Deux listes, figées et datées.
 Puis figez : `git add` et commit avec la date. Le commit est la preuve que le juge précède la mesure.
 
 > **Statut du juge de référence** :
-> - Le fichier historique `examples/lumicc-noc/reference-analysis.json` provenait de l'ancien audit câblé et son auteur n'était pas établi.
-> - Une analyse de référence indépendante à auteur établi a été rédigée à l'aveugle et figée dans `examples/lumicc-noc/reference-analysis-independent.json` (commit `bdc3e4d`) avant toute mesure.
+> - Le fichier historique `examples/lulu-noc/reference-analysis.json` provenait de l'ancien audit câblé et son auteur n'était pas établi.
+> - Une analyse de référence indépendante à auteur établi a été rédigée à l'aveugle et figée dans `examples/lulu-noc/reference-analysis-independent.json` (commit `bdc3e4d`) avant toute mesure.
 > - Les résultats réels de la double passe sont archivés dans `eval-results/rapport-1.md`, `eval-results/rapport-2.md`, et la décision formelle dans `eval-results/decision-j0.md`.
 
 ## 2. Fixer les critères de décision (avant de compter)

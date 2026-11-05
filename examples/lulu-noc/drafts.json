@@ -1,5 +1,5 @@
 {
-  "SUBJ-LUMICC-01": {
+  "SUBJ-LULU-01": {
     "section_id": "§4.1",
     "subject": "Topologie 3 DC POST (RCE/RCS/RCW), socle RKE2 & RTO UDR 15 min",
     "maturity": "L2_decomposed",
@@ -37,7 +37,7 @@
       "trade_off": "Surdimensionné pour le volume PPDR luxembourgeois (50 000 abonnés)"
     }
   },
-  "SUBJ-LUMICC-02": {
+  "SUBJ-LULU-02": {
     "section_id": "§4.2",
     "subject": "Interworking Wi-Fi / WLAN Offload UE sans N3IWF/ePDG ni ATSSS",
     "maturity": "L3_decided",
@@ -62,7 +62,7 @@
       "trade_off": "Augmente la surface d'attaque du cœur 5G souverain"
     }
   },
-  "SUBJ-LUMICC-03": {
+  "SUBJ-LULU-03": {
     "section_id": "§4.3",
     "subject": "Holdover Horloge 30j sans GNSS (Rubidium/OCXO) & Détection Passive RF",
     "maturity": "L1_framed",
@@ -99,7 +99,7 @@
       "trade_off": "Dérive > 1.5 µs dès 48h de déni GNSS : non conforme"
     }
   },
-  "SUBJ-LUMICC-04": {
+  "SUBJ-LULU-04": {
     "section_id": "§4.4",
     "subject": "Médiation FCAPS via EMS (TS 28.532), Human-in-the-Loop & Salle de Repli NOC",
     "maturity": "L2_decomposed",
@@ -131,7 +131,7 @@
       "trade_off": "Interdit par la doctrine de sécurité"
     }
   },
-  "SUBJ-LUMICC-05": {
+  "SUBJ-LULU-05": {
     "section_id": "§4.5",
     "subject": "Gouvernance eSIM SM-DP+ (GSMA SGP.22), HSM FIPS 140-3 L3 & 4-Yeux",
     "maturity": "L3_decided",
@@ -156,7 +156,7 @@
       "trade_off": "Violation directe de la souveraineté des données régaliennes"
     }
   },
-  "SUBJ-LUMICC-06": {
+  "SUBJ-LULU-06": {
     "section_id": "§4.6",
     "subject": "Démarcation Inter-Lots sur Réseaux MNO Tiers (Lot 3) & Calendrier EUCCS",
     "maturity": "L1_framed",
@@ -193,7 +193,7 @@
       "trade_off": "Intenable sans accord tripartite préalable"
     }
   },
-  "SUBJ-LUMICC-07": {
+  "SUBJ-LULU-07": {
     "section_id": "§4.7",
     "subject": "Exclusions Contractuelles de Lotissement (Ferroviaire FRMCS CFL & Verrouillage PEI)",
     "maturity": "L3_decided",

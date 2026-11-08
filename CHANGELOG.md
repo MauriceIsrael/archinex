@@ -40,7 +40,7 @@ Aucune version n'a encore Ã©tÃ© publiÃ©e : tout figure sous *Non publiÃ©
 - **Nouveau Composant Visuel `DomainsPicker.svelte`** :
   - Remplacement de la saisie textuelle à l'aveugle par un sélecteur interactif alimenté dynamiquement par le registre LLMOps (`ownersRegistry.domains`).
   - Ajout de filtres thématiques (`Tous`, `3GPP & Télécom`, `Sécurité & Conformité`, `Architecture & Cloud`), de badges cliquables et de recherche en temps réel.
-  - Ajout de raccourcis 1-clic préconfigurés : **`+ Pack 3GPP`** (`conformance`, `interoperability`, `telecom-core`, `mobile-core`, `5g-security`, `network-exposure`, `sba`, `mcx-security`) et **`+ Pack Sécurité`** (`security`, `security-architecture`, `hardening`, `cryptography`, `vulnerability-management`, `iam`, `compliance`).
+  - Ajout de raccourcis 1-clic préconfigurés : **`+ Pack 3GPP`** (`conformance`, `interoperability`, `telecom-core`, `mobile-core`, `5g-security`, `network-exposure`, `sba`, `mission-critical-security`) et **`+ Pack Sécurité`** (`security`, `security-architecture`, `hardening`, `cryptography`, `vulnerability-management`, `iam`, `compliance`).
 - **Dérivation Automatique du Handle LLMOps & Expérience Épurée** :
   - Dérivation instantanée du handle (ex: `@prenom-nom`) à partir de l'email ou du nom renseigné, sans forcer la saisie manuelle.
   - Suppression des boutons superflus et automatisation de l'inscription dans le registre LLMOps.

@@ -839,11 +839,21 @@ La feuille de route ci-dessous détaille les prochaines étapes d'évolution d'A
 3. **Modélisation Native des Tunnels IPsec dans le Module VPN de Nautobot 2.2+** :
    - En complément du `circuits.Circuit` (`link-ip-lot3-secgw1`), instancier les objets `vpn.VPNProfile`, `vpn.IKEProposal`, `vpn.IPSecProposal` et `vpn.Tunnel` (`tun-ipsec-esp-lot3-secgw1`) introduits dans Nautobot 2.2+.
 
-### Horizon 2 — Moyen Terme : Catalogue KRM des Fonctions Réseau 3GPP (CNF) & Validation Réseau Batfish
-4. **Spécialisation Nephio des Manifestes Réseau Multus / SR-IOV (`NetworkAttachmentDefinition`) pour les CNF** :
-   - Générer à partir des objets `service_mediation_flows` et `ip_underlay_links` les descripteurs KRM `NetworkAttachmentDefinition` (VLAN 1403, VFs SR-IOV) destinés aux pods CNF (`SecGW-Lot1`, `DEA-Lot1`, `UPF`).
-5. **Couplage de l'Oracle OPA avec Batfish (`http://localhost:9997`) sur la Matrice de Flux (§14)** :
-   - Exploiter le conteneur Batfish déjà présent dans `deploy/integrator-tools` pour vérifier mathématiquement sur les configurations routeurs/pare-feux générées qu'aucun paquet `SCTP/3868` (Diameter S6a) issu de `ZONE-PARTNER-LOT3-UNTRUSTED` (`172.16.30.0/24`) ne peut atteindre `hss-lot1-01` sans transiter par `secgw-lot1-01` puis `dea-lot1-01`.
+### Horizon 2 — Moyen Terme : Génération Déterministe GitOps (Multus/SR-IOV) & Preuve Formelle Réseau (Batfish / OPA)
+4. **Génération GitOps directe des Manifestes CNI Multus / SR-IOV (NetworkAttachmentDefinition)**
+Archinex agit directement comme compilateur d'infrastructures pour les 2 DC. À partir de la résolution formelle des objets service_mediation_flows et ip_underlay_links :
+Génération automatique des ressources standard Kubernetes CRD NetworkAttachmentDefinition (k8s.cni.cncf.io) :
+Mappings précis des VLANs (ex. VLAN 1403), des plages CIDR et des pools de Virtual Functions (VFs) SR-IOV ([intel.com/sriov_vf_lot1](https://intel.com/sriov_vf_lot1), etc.).
+Génération des patches Kustomize ou values.yaml pour les pods CNF (SecGW-Lot1, DEA-Lot1, UPF) :
+Injection des annotations d'interfaces secondaires (k8s.v1.cni.cncf.io/networks) associées aux adresses IP statiques résolues.
+Production de l'arborescence GitOps directement consommable par FluxCD (avec structure base/ et overlays/dc1, overlays/dc2).
+
+5. **Couplage de l'Oracle OPA avec Batfish (localhost:9997) sur la Matrice de Flux (§14)**
+Conservation intégrale du point Batfish (cœur de la valeur neuro-symbolique) :
+Avant tout commit ou push dans le dépôt GitOps de déploiement, Archinex soumet les configurations générées (règles de pare-feu, ACLs, tables de routage des passerelles/routeurs) au conteneur Batfish local :
+Preuve d'accessibilité (Reachability Query) : Vérification mathématique stricte dans Batfish qu'aucun flux SCTP / port 3868 (Diameter S6a) émis depuis ZONE-PARTNER-LOT3-UNTRUSTED (172.16.30.0/24) ne peut atteindre hss-lot1-01 en direct.
+Preuve de transit obligatoire (Service Chaining Invariant) : Batfish valide formellement que tout chemin réseau admissible traverse obligatoirement l'équipement d'inspection amont secgw-lot1-01, puis le mandataire de signalisation dea-lot1-01 avant d'atteindre la destination finale.
+Verrou OPA (Policy Gate) : L'Oracle OPA interroge les résultats d'assertion de Batfish. Si une route ou une règle permet un contournement (bypass de la DMZ / DEA), la génération du paquet de livraison GitOps est bloquée net avec levée d'une alerte d'invariant.
 
 ### Horizon 3 — Long Terme : Gouvernance Vivante en Boucle Fermée (NOC / SOC $\rightarrow$ Réévaluation d'Architecture)
 6. **Génération Automatique des Règles Prometheus `PrometheusRule` & Alertmanager (`REQ-Lot1-1274` & `REQ-Lot1-1343`)** :

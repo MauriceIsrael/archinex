@@ -16,8 +16,8 @@
     'mobile-core',
     'network-exposure',
     '5g-security',
-    'mcx',
-    'mcx-security',
+    'mission-critical-services',
+    'mission-critical-security',
     'sba',
     'boundary-protection',
     'key-management',
@@ -80,7 +80,7 @@
     '5g-security',
     'network-exposure',
     'sba',
-    'mcx-security'
+    'mission-critical-security'
   ];
 
   const PACK_SECURITY = [
@@ -124,7 +124,8 @@
         d.includes('core') ||
         d.includes('5g') ||
         d.includes('sba') ||
-        d.includes('mcx') ||
+        d.includes('mission-critical') ||
+        d.includes('critical') ||
         d.includes('roaming') ||
         d.includes('ran') ||
         d.includes('spectrum') ||

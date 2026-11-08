@@ -1,6 +1,7 @@
 import { json } from '@sveltejs/kit';
 import { llmopsClient } from '$lib/server/llmops/client';
 import { getKbExpertByUserId } from '$lib/server/kbProfilesDb';
+import { ensureArchinexUserRegisteredInLlmops } from '$lib/server/accountsAdmin';
 import type { RequestHandler } from './$types';
 
 export const GET: RequestHandler = async ({ request, locals, url }) => {
@@ -19,14 +20,30 @@ export const GET: RequestHandler = async ({ request, locals, url }) => {
   if (user?.id) {
     localExpert = await getKbExpertByUserId(user.id);
   }
-  const kbHandle = localExpert?.kbHandle || `@${actorEmail.split('@')[0]}`;
+  let kbHandle = localExpert?.kbHandle || `@${actorEmail.split('@')[0]}`;
 
-  const result = await llmopsClient.getReviewInbox(actorEmail, {
+  let result = await llmopsClient.getReviewInbox(actorEmail, {
     domain,
     kind,
     excludeOwn,
     actorHandle: kbHandle
   });
+
+  if (result.status === 'not_registered') {
+    const syncRes = await ensureArchinexUserRegisteredInLlmops(actorEmail);
+    if (syncRes.success) {
+      if (user?.id) {
+        localExpert = await getKbExpertByUserId(user.id);
+      }
+      kbHandle = localExpert?.kbHandle || `@${actorEmail.split('@')[0]}`;
+      result = await llmopsClient.getReviewInbox(actorEmail, {
+        domain,
+        kind,
+        excludeOwn,
+        actorHandle: kbHandle
+      });
+    }
+  }
 
   if (result.status === 'unavailable') {
     return json({ status: 'unavailable', error: result.error, data: [] }, { status: 503 });

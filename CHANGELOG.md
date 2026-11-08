@@ -1,4 +1,4 @@
-﻿# Changelog
+# Changelog
 
 Journal des Ã©volutions d'Archinex, reconstituÃ© Ã  partir de l'historique git.
 Les lots (`A0`â€¦`A30`) correspondent aux issues GitHub du projet. Le journal d'ArcKit
@@ -7,6 +7,32 @@ Les lots (`A0`â€¦`A30`) correspondent aux issues GitHub du projet. Le journa
 Aucune version n'a encore Ã©tÃ© publiÃ©e : tout figure sous *Non publiÃ©*.
 
 ## Non publié
+
+### Unification de l'Administration des Comptes & Enrôlement Automatique JIT (Archinex SSoT)
+- **Source Unique de Vérité (SSoT) pour les Comptes Archinex & LLMOps** :
+  - Centralisation intégrale du cycle de vie des identités et des droits dans Archinex : la création, la modification et l'assignation de domaines d'expertise synchronisent immédiatement le registre souverain LLMOps (`data/kb/owners.yaml`).
+  - Suppression définitive des messages invitant l'utilisateur à faire des démarches administratives complexes ou de synchronisation manuelle (« Compte non inscrit dans le registre... demandez à un administrateur »).
+- **Auto-Enrôlement Transparent à la Volée (Zero-Touch JIT Provisioning)** :
+  - Implémentation de `ensureArchinexUserRegisteredInLlmops(email)` dans `src/lib/server/accountsAdmin.ts`.
+  - Prise en charge automatique sur les points d'entrée doctrinaux (`/kb/me`, `/kb/reviews`, `/kb/reviews/[id]`, `/api/knowledge/me`, `/api/knowledge/reviews/inbox`) : en cas de réponse 403 `not_registered`, Archinex auto-inscrit immédiatement l'expert auprès de LLMOps selon son profil local et relance la requête de manière transparente.
+- **Amorçage Idempotent au Démarrage (`prisma/seed.ts`)** :
+  - Synchronisation automatique et non bloquante des profils de démonstration (`@admin-lead`, `@sec-expert`) vers LLMOps dès l'exécution de `db:reset` ou `seed`. Si LLMOps n'est pas encore démarré, l'enrôlement JIT prend le relais au premier accès sans erreur.
+- **Tests de Contrat & Robustesse** :
+  - Ajout de `tests/contract/unified-account-ssot.test.ts` validant le provisionnement JIT, l'auto-synchronisation à la création de compte et la création à la volée de profil KB local.
+  - Conformité complète aux vérifications TypeScript et diagnostics Svelte (`svelte-check` 0 erreurs, 0 avertissements).
+
+### Correction Synchronisation Matrice de Couverture & Registre LLMOps
+- **Synchronisation Automatique Lors de l'Édition (`updateCentralizedAccount`)** :
+  - La modification des domaines de responsabilité et des rôles KB depuis la fiche détaillée (`AdminAccountSheetDialog`) est désormais automatiquement synchronisée avec LLMOps (`PUT /api/knowledge/owners`), éliminant la nécessité d'un bouton secondaire distinct.
+  - Extension du schéma de validation `UpdateAccountSchema` (`PATCH /api/admin/accounts`) avec `registerInLlmops`.
+- **Résilience d'Autorisation & Rebond `kb:admin` (Fallback)** :
+  - Correction de l'erreur `403 Forbidden` (`the 'kb:admin' role or token scope is required`) en cas d'appel de gouvernance initié par un compte local non encore inscrit : rebond automatique transparent sur l'identité d'administration déclarée dans le registre LLMOps (ex: `@maintainers`).
+  - Ajout du scope `kb:admin` dans les configurations d'authentification de service local (`scripts/serve_local.py`).
+- **Mise à Jour Dynamique de la Matrice & Résorption des Groupes Orphelins** :
+  - Mise à jour en direct de la vue d'ensemble par domaine (`domainsOverview`) dès qu'un domaine technique est associé à un compte utilisateur (`hasAccount: true`, e-mail et nom affichés).
+  - Filtrage des groupes génériques orphelins : un groupe sans e-mail dont tous les domaines ont été réaffectés à des experts nominatifs est automatiquement retiré du bandeau d'alerte des responsables sans compte.
+- **Tests de Contrat Exhaustifs** :
+  - Ajout de `tests/contract/coverage-matrix-sync.test.ts` validant le cycle complet : détection d'orphelin, création d'expert, mise à jour de la matrice, synchronisation lors de modifications et rebond d'autorisation 403.
 
 ### Interface Simplifiée de Création de Compte & Sélecteur de Domaines LLMOps (#76)
 - **Séparation Nette des Domaines de Responsabilité et des Rôles** :
@@ -22,7 +48,6 @@ Aucune version n'a encore Ã©tÃ© publiÃ©e : tout figure sous *Non publiÃ©
 - **Tests de Contrat & Validation de Non-Régression** :
   - Ajout de `tests/contract/simplified-account-creation.test.ts` validant la création d'expert multi-domaines 3GPP, la dérivation automatique de handle et la payload envoyée au registre LLMOps.
   - Validation complète des tests de contrat centralisés (`tests/contract/issue_76_centralized_accounts.test.ts`).
-
 ### Rationalisation Ergonomique du Menu « Knowledge Hub »
 - **Unification de la Navigation autour de la Base de Connaissance (`src/routes/+layout.svelte`)** :
   - Regroupement de l'ensemble des mini-applications de la Knowledge Base dans un menu latéral dédié **« Knowledge Hub »** (barre latérale desktop étendue/réduite et tiroir mobile), supprimant la dispersion hétérogène entre le menu gauche et le menu caché sous l'avatar utilisateur.

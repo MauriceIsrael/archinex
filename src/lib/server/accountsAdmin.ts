@@ -382,6 +382,8 @@ export async function loadCentralizedAccountsView(
     const ownerEmail = owner.email ? owner.email.trim().toLowerCase() : null;
     const domains = domainsByHandle.get(h) || [];
     if (!ownerEmail) {
+      // Si ce groupe/rôle n'a plus aucun domaine technique orphelin rattaché, il ne représente plus de déficit de couverture
+      if (domains.length === 0) continue;
       unlinkedOwners.push({
         handle: h,
         email: null,
@@ -653,7 +655,10 @@ export async function createCentralizedAccount(
     | { attempted: boolean; success: boolean; handle?: string; error?: string }
     | undefined;
 
-  if (enableKb && input.registerInLlmops) {
+  const shouldSyncLlmops =
+    input.registerInLlmops ?? (enableKb || domainsToSave.length > 0 || kbRolesToSave.length > 0);
+
+  if (shouldSyncLlmops) {
     const syncRes = await syncAccountToLlmopsRegistry(
       {
         userId: createdUser.id,
@@ -694,20 +699,22 @@ export interface UpdateCentralizedAccountInput {
   kbHandle?: string;
   kbRoles?: KbRole[];
   ownedDomains?: string[];
+  registerInLlmops?: boolean;
 }
 
 /**
- * Met à jour la fiche unifiée d'une personne (compte, rôle applicatif, rôles par espace, profil KB local).
- * Ne modifie JAMAIS implicitement le registre LLMOps.
+ * Met à jour la fiche unifiée d'une personne (compte, rôle applicatif, rôles par espace, profil KB local et registre LLMOps).
  */
 export async function updateCentralizedAccount(
   userId: string,
   input: UpdateCentralizedAccountInput,
-  actorEmail = 'admin@archinex.local'
+  actorEmail = 'admin@archinex.local',
+  client: LLMOpsClient = llmopsClient
 ): Promise<{
   userId: string;
   invitationToken: string | null;
   invitationUrl: string | null;
+  llmopsSync?: { attempted: boolean; success: boolean; handle?: string; error?: string };
 }> {
   const user = await prisma.user.findUnique({
     where: { id: userId },
@@ -766,12 +773,28 @@ export async function updateCentralizedAccount(
       ? input.enableKbReview
       : Boolean(user.kbProfile && parseJsonSafe<KbRole[]>(user.kbProfile.kbRoles, []).length > 0);
 
-  if (wantKb || input.regenerateActivationLink || user.kbProfile) {
-    const desiredHandle = input.kbHandle
-      ? normalizeKbHandle(input.kbHandle)
-      : user.kbProfile?.kbHandle ||
-        normalizeKbHandle(`@${effectiveEmail.split('@')[0].replace(/[^a-z0-9_-]/gi, '-')}`);
+  let desiredHandle = input.kbHandle
+    ? normalizeKbHandle(input.kbHandle)
+    : user.kbProfile?.kbHandle ||
+      normalizeKbHandle(`@${effectiveEmail.split('@')[0].replace(/[^a-z0-9_-]/gi, '-')}`);
 
+  let nextRoles: KbRole[] = wantKb
+    ? input.kbRoles && input.kbRoles.length > 0
+      ? input.kbRoles
+      : user.kbProfile
+        ? parseJsonSafe<KbRole[]>(user.kbProfile.kbRoles, ['kb:review'])
+        : ['kb:review']
+    : [];
+
+  let nextDomains: string[] = wantKb
+    ? input.ownedDomains !== undefined
+      ? input.ownedDomains
+      : user.kbProfile
+        ? parseJsonSafe<string[]>(user.kbProfile.ownedDomains, [])
+        : []
+    : [];
+
+  if (wantKb || input.regenerateActivationLink || user.kbProfile) {
     if (!user.kbProfile || desiredHandle !== user.kbProfile.kbHandle) {
       const dupHandle = await prisma.kbProfile.findUnique({
         where: { kbHandle: desiredHandle }
@@ -780,22 +803,6 @@ export async function updateCentralizedAccount(
         throw new Error(`Le handle ${desiredHandle} est déjà utilisé par un autre compte.`);
       }
     }
-
-    const nextRoles: KbRole[] = wantKb
-      ? input.kbRoles && input.kbRoles.length > 0
-        ? input.kbRoles
-        : user.kbProfile
-          ? parseJsonSafe<KbRole[]>(user.kbProfile.kbRoles, ['kb:review'])
-          : ['kb:review']
-      : [];
-
-    const nextDomains: string[] = wantKb
-      ? input.ownedDomains !== undefined
-        ? input.ownedDomains
-        : user.kbProfile
-          ? parseJsonSafe<string[]>(user.kbProfile.ownedDomains, [])
-          : []
-      : [];
 
     let nextToken = user.kbProfile?.invitationToken ?? null;
     let nextExpires = user.kbProfile?.invitationExpiresAt ?? null;
@@ -854,10 +861,38 @@ export async function updateCentralizedAccount(
     updatedFields: Object.keys(input)
   });
 
+  let llmopsSync:
+    | { attempted: boolean; success: boolean; handle?: string; error?: string }
+    | undefined;
+
+  const shouldSyncLlmops =
+    input.registerInLlmops ?? (wantKb && (nextDomains.length > 0 || nextRoles.length > 0));
+
+  if (shouldSyncLlmops) {
+    const syncRes = await syncAccountToLlmopsRegistry(
+      {
+        userId,
+        handle: desiredHandle,
+        email: effectiveEmail,
+        roles: nextRoles,
+        domains: nextDomains
+      },
+      actorEmail,
+      client
+    );
+    llmopsSync = {
+      attempted: true,
+      success: syncRes.success,
+      handle: syncRes.handle,
+      error: syncRes.error
+    };
+  }
+
   return {
     userId,
     invitationToken,
-    invitationUrl: invitationToken ? `/invite?token=${invitationToken}` : null
+    invitationUrl: invitationToken ? `/invite?token=${invitationToken}` : null,
+    llmopsSync
   };
 }
 
@@ -960,4 +995,65 @@ export async function syncAccountToLlmopsRegistry(
 
   return res;
 }
+
+/**
+ * Inscription automatique à la volée (JIT - Just-In-Time) d'un utilisateur Archinex
+ * dans le registre souverain des experts LLMOps.
+ *
+ * Fait d'Archinex la Source Unique de Vérité (SSoT) pour l'identité et les droits :
+ * dès qu'un utilisateur Archinex accède aux fonctions de gouvernance ou de revue
+ * (/kb/me, /kb/reviews) et que LLMOps signale un statut « not_registered » (403),
+ * cette fonction l'inscrit automatiquement avec son profil Archinex (ou le rôle par
+ * défaut kb:review) sans exiger d'intervention manuelle d'un administrateur.
+ */
+export async function ensureArchinexUserRegisteredInLlmops(
+  email: string,
+  client: LLMOpsClient = llmopsClient
+): Promise<{ success: boolean; handle?: string; error?: string }> {
+  const emailNorm = email.trim().toLowerCase();
+  const user = await prisma.user.findUnique({
+    where: { email: emailNorm },
+    include: { kbProfile: true }
+  });
+
+  if (!user) {
+    return { success: false, error: `Utilisateur Archinex introuvable pour ${emailNorm}` };
+  }
+
+  const rawHandle =
+    user.kbProfile?.kbHandle ||
+    `@${emailNorm.split('@')[0].replace(/[^a-z0-9_-]/gi, '-')}`;
+  const handleNorm = normalizeKbHandle(rawHandle);
+
+  const roles: KbRole[] = user.kbProfile
+    ? parseJsonSafe<KbRole[]>(user.kbProfile.kbRoles, ['kb:review'])
+    : user.role === 'admin'
+      ? ['kb:admin', 'kb:review']
+      : ['kb:review'];
+
+  const domains: string[] = user.kbProfile
+    ? parseJsonSafe<string[]>(user.kbProfile.ownedDomains, [])
+    : [];
+
+  try {
+    const syncRes = await syncAccountToLlmopsRegistry(
+      {
+        userId: user.id,
+        handle: handleNorm,
+        email: user.email,
+        roles,
+        domains
+      },
+      user.role === 'admin' ? user.email : 'system@archinex.local',
+      client
+    );
+    return syncRes;
+  } catch (err: any) {
+    return {
+      success: false,
+      error: err?.message || 'Erreur lors de la synchronisation JIT avec LLMOps'
+    };
+  }
+}
+
 

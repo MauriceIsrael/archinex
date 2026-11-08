@@ -1,16 +1,26 @@
 import { requireAuth } from '$lib/auth/guard.server';
 import { getKbExpertByUserId } from '$lib/server/kbProfilesDb';
 import { llmopsClient } from '$lib/server/llmops/client';
+import { ensureArchinexUserRegisteredInLlmops } from '$lib/server/accountsAdmin';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals }) => {
   requireAuth(locals);
 
   const user = locals.session!.user;
-  const localExpert = await getKbExpertByUserId(user.id);
+  let localExpert = await getKbExpertByUserId(user.id);
 
   // Appel souverain avec propagation d'identité X-Actor-Email
-  const remoteMe = await llmopsClient.getMe(user.email);
+  let remoteMe = await llmopsClient.getMe(user.email);
+
+  // Auto-inscription Just-In-Time (SSoT) si le registre LLMOps ne connaît pas encore ce compte
+  if (remoteMe.status === 'not_registered') {
+    const syncRes = await ensureArchinexUserRegisteredInLlmops(user.email);
+    if (syncRes.success) {
+      remoteMe = await llmopsClient.getMe(user.email);
+      localExpert = await getKbExpertByUserId(user.id);
+    }
+  }
 
   const kbRoles =
     localExpert?.kbRoles ||

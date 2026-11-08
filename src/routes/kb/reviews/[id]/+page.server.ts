@@ -3,18 +3,30 @@ import { requireAuth } from '$lib/auth/guard.server';
 import { getKbExpertByUserId } from '$lib/server/kbProfilesDb';
 import { isCandidateAuthor } from '$lib/domain/candidateAuthorship';
 import { llmopsClient } from '$lib/server/llmops/client';
+import { ensureArchinexUserRegisteredInLlmops } from '$lib/server/accountsAdmin';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ params, locals }) => {
   requireAuth(locals);
 
   const user = locals.session!.user;
-  const localExpert = await getKbExpertByUserId(user.id);
+  let localExpert = await getKbExpertByUserId(user.id);
 
-  const [candRes, commentsRes] = await Promise.all([
+  let [candRes, commentsRes] = await Promise.all([
     llmopsClient.getCandidate(params.id, user.email),
     llmopsClient.getComments(params.id, user.email)
   ]);
+
+  if (candRes.status === 'not_registered') {
+    const syncRes = await ensureArchinexUserRegisteredInLlmops(user.email);
+    if (syncRes.success) {
+      localExpert = await getKbExpertByUserId(user.id);
+      [candRes, commentsRes] = await Promise.all([
+        llmopsClient.getCandidate(params.id, user.email),
+        llmopsClient.getComments(params.id, user.email)
+      ]);
+    }
+  }
 
   if (candRes.status === 'error' || !candRes.data) {
     throw error(404, candRes.error || `Candidat ${params.id} introuvable`);

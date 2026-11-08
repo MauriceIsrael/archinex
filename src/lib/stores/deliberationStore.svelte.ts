@@ -289,7 +289,16 @@ class DeliberationStore {
 			this.frozenSnapshots = cached.frozenSnapshots ? $state.snapshot(cached.frozenSnapshots) : {};
 		} else {
 			this.subjects = [...targetProfile.subjects];
-			this.drafts = { ...targetProfile.drafts };
+			const rawDrafts = { ...targetProfile.drafts };
+			for (const d of Object.values(rawDrafts)) {
+				if (d && typeof d === 'object') {
+					if (!Array.isArray(d.retenu)) d.retenu = [];
+					if (!Array.isArray(d.suppose)) d.suppose = [];
+					if (!Array.isArray(d.conflit)) d.conflit = [];
+					if (!Array.isArray(d.manque)) d.manque = [];
+				}
+			}
+			this.drafts = rawDrafts;
 			this.statements = [...targetProfile.statements];
 			this.corpusDocuments = [...targetProfile.corpusDocuments];
 			let restoredSubjectId: string | null = null;
@@ -409,7 +418,16 @@ class DeliberationStore {
 			const current = this.activeEngagement;
 			if (current) {
 				this.subjects = current.subjects || [];
-				this.drafts = current.drafts || {};
+				const rawDrafts = current.drafts || {};
+				for (const d of Object.values(rawDrafts)) {
+					if (d && typeof d === 'object') {
+						if (!Array.isArray(d.retenu)) d.retenu = [];
+						if (!Array.isArray(d.suppose)) d.suppose = [];
+						if (!Array.isArray(d.conflit)) d.conflit = [];
+						if (!Array.isArray(d.manque)) d.manque = [];
+					}
+				}
+				this.drafts = rawDrafts;
 				this.statements = current.statements || [];
 				this.corpusDocuments = current.corpusDocuments || [];
 				let restoredSubjectId: string | null = null;
@@ -655,7 +673,13 @@ class DeliberationStore {
 
 	get activeDraft(): TelegraphicDraft | null {
 		const existing = this.drafts[this.activeSubjectId];
-		if (existing) return existing;
+		if (existing) {
+			if (!Array.isArray(existing.retenu)) existing.retenu = [];
+			if (!Array.isArray(existing.suppose)) existing.suppose = [];
+			if (!Array.isArray(existing.conflit)) existing.conflit = [];
+			if (!Array.isArray(existing.manque)) existing.manque = [];
+			return existing;
+		}
 
 		const subj = this.activeSubject;
 		if (!subj) return null;

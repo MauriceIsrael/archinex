@@ -6,7 +6,16 @@ Les lots (`A0`â€¦`A30`) correspondent aux issues GitHub du projet. Le journa
 
 Aucune version n'a encore Ã©tÃ© publiÃ©e : tout figure sous *Non publiÃ©*.
 
-## Non publiÃ©
+## Non publié
+
+### Correction Résilience Brouillons Télégraphiques & KPI Délibération (`seed:demo`)
+- **Résilience Itérabilité `draft.suppose` & Tableaux Télégraphiques** :
+  - Correction de l'erreur `TypeError: draft.suppose is not iterable` survenue lors de l'accès à la vue Délibération / Board sur des engagements ou démos n'ayant pas initialisé la structure de brouillon complète.
+  - Sécurisation du calcul de cumul CAPEX dans `DeliberationDashboardKpis.svelte` avec parcours défensif `draft?.suppose ?? []`.
+  - Sécurisation du moteur de rendu `renderTelegraphicDraft` (`src/lib/domain/telegraphic.ts`) face aux brouillons partiels (protection sur `retenu`, `suppose`, `conflit`, `manque`).
+  - Normalisation et assainissement automatique des brouillons dans `deliberationStore` (`activeDraft`, `selectEngagement`, `initFromDb`) et `src/lib/server/engagementsDb.ts`.
+  - Complétude du brouillon télégraphique généré dans `scripts/seed-demo.ts` pour le sujet §14 (injections de `section_id`, `subject`, `maturity`, `suppose`, `retenu`, `conflit`, `manque`).
+  - Ajout des tests de contrat de résilience dans `tests/contract/telegraphic-draft.test.ts` et `tests/contract/seed-demo-self-contained.test.ts`.
 
 ### Anonymisation ComplÃ¨te du Dossier RÃ©el de DÃ©monstration (Â« Lulu Â»)
 - **Anonymisation Exhaustive Docs, Code, Tests et Jeux d'Essai** :

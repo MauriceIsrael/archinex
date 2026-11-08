@@ -204,8 +204,13 @@ export async function seedDemo(client?: any) {
 
   if (engagement) {
     const drafts = JSON.parse(engagement.drafts || '{}');
+    const existingDraft = drafts[SUBJECT_ID] || {};
     drafts[SUBJECT_ID] = {
-      ...(drafts[SUBJECT_ID] || {}),
+      section_id: '§14',
+      subject: 'Hébergement Lots 2/3, RAN tiers et cellules mobiles : sécurité contre souplesse',
+      maturity: 'L3_decided',
+      is_provisional: false,
+      ...existingDraft,
       retainedOptionId: RETAINED_OPTION_ID,
       retainedOption: RETAINED_OPTION_TITLE,
       rationale: "c'est la bonne",
@@ -213,7 +218,24 @@ export async function seedDemo(client?: any) {
       regulatoryStatus: 'Compliant',
       detailedSpec: DETAILED_SPEC_MARKDOWN,
       updatedBy: 'Directeur Programme (seed:demo)',
-      updatedAt: new Date().toISOString()
+      updatedAt: new Date().toISOString(),
+      retenu:
+        Array.isArray(existingDraft.retenu) && existingDraft.retenu.length > 0
+          ? existingDraft.retenu
+          : [RETAINED_OPTION_TITLE],
+      suppose:
+        Array.isArray(existingDraft.suppose) && existingDraft.suppose.length > 0
+          ? existingDraft.suppose
+          : [
+              {
+                text: 'Chiffrement IPsec ESP et médiation DEA S6a obligatoires',
+                consequence:
+                  'Terminaison IPsec sur SecGW-Lot1 et filtrage Diameter S6a sur DEA-Lot1',
+                cost_hint: '+45 k€'
+              }
+            ],
+      conflit: Array.isArray(existingDraft.conflit) ? existingDraft.conflit : [],
+      manque: Array.isArray(existingDraft.manque) ? existingDraft.manque : []
     };
 
     const parsed = JSON.parse(engagement.subjects || '[]');

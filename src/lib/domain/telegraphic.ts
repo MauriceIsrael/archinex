@@ -148,12 +148,12 @@ export function renderTelegraphicDraft(draft: TelegraphicDraft): string {
 	const lines: string[] = [headerParts.join(' ')];
 
 	// Retenu
-	if (draft.retenu.length > 0) {
+	if (Array.isArray(draft.retenu) && draft.retenu.length > 0) {
 		lines.push(`retenu : ${draft.retenu.join(' · ')}`);
 	}
 
 	// Supposé avec conséquences et cost hint
-	for (const hyp of draft.suppose) {
+	for (const hyp of draft.suppose ?? []) {
 		let line = `supposé : ${hyp.text} ⇒ ${hyp.consequence}`;
 		if (hyp.cost_hint) {
 			line += ` · ${hyp.cost_hint}`;
@@ -162,12 +162,12 @@ export function renderTelegraphicDraft(draft: TelegraphicDraft): string {
 	}
 
 	// Conflit
-	for (const conf of draft.conflit) {
+	for (const conf of draft.conflit ?? []) {
 		lines.push(`conflit : ${conf.text} vs ${conf.opposing_reference}${conf.requires_arbitration ? ' [ARBITRAGE REQUIS]' : ''}`);
 	}
 
 	// Manque
-	for (const m of draft.manque) {
+	for (const m of draft.manque ?? []) {
 		lines.push(`manque : [${m.id}] ${m.question} → ${m.assigned_role}`);
 	}
 

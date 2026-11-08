@@ -1,4 +1,4 @@
-﻿# Archinex Â· Guide Utilisateur
+# Archinex Â· Guide Utilisateur
 
 Bienvenue dans le guide d'utilisation de la plateforme **Archinex** â€” Moteur de co-conception architecturale et d'arbitrage opposable.
 
@@ -116,6 +116,12 @@ Archinex permet de gérer la communauté des experts doctrinaux intervenant sur 
    - `kb:maintain` : Éditer et adapter les clauses de doctrine ;
    - `kb:admin` : Gouvernance et publication des versions KB.
 5. Définissez soit un **mot de passe initial** pour une mise à disposition immédiate, soit générez un **lien d'activation sécurisé** valable 7 jours à usage unique (`/invite?token=...`).
+
+### Matrice de Couverture des Domaines & Détection des Déficits
+L'onglet **Couverture par domaine & Registre LLMOps** (`/admin`) et le bandeau d'alerte supérieur permettent de piloter l'exhaustivité de la couverture technique :
+- **Synchronisation automatique** : Dès qu'un domaine de responsabilité est associé à un compte utilisateur (lors de sa création ou depuis sa fiche personne), la synchronisation vers LLMOps (`PUT /api/knowledge/owners`) est effectuée en direct sans manipulation supplémentaire.
+- **Mise à jour en temps réel de la matrice** : Le tableau des domaines affiche instantanément le compte Archinex associé, le handle LLMOps et l'adresse e-mail vérifiée.
+- **Résorption dynamique des alertes** : Les groupes de travail ou responsables collectifs génériques sans adresse e-mail (ex: `@3gpp-conformance-wg`) voient leur liste de domaines orphelins se réduire au fur et à mesure des affectations, et disparaissent automatiquement du bandeau d'alerte dès lors que l'ensemble de leurs domaines techniques sont couverts par des experts nominatifs.
 
 ### Activer son Compte Expert
 1. L'expert accÃ¨de au lien reÃ§u (`/invite?token=...`).

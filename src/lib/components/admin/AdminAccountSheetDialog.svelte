@@ -166,7 +166,8 @@
           enableKbReview,
           kbHandle: enableKbReview ? kbHandle.trim() : undefined,
           kbRoles: enableKbReview ? selectedKbRoles : [],
-          ownedDomains: enableKbReview ? domains : []
+          ownedDomains: enableKbReview ? domains : [],
+          registerInLlmops: Boolean(enableKbReview)
         })
       });
 
@@ -182,9 +183,13 @@
       } else if (pwdChanged) {
         generatedLink = null;
       }
-      successMsg = pwdChanged
-        ? 'Compte et nouveau mot de passe enregistrés avec succès.'
-        : 'Modifications du compte et des rôles par espace enregistrées.';
+      if (body.data?.llmopsSync?.attempted && !body.data.llmopsSync.success) {
+        errorMsg = body.data.llmopsSync.error || 'Erreur lors de la mise à jour dans LLMOps.';
+      } else {
+        successMsg = pwdChanged
+          ? 'Compte et nouveau mot de passe enregistrés avec succès (synchronisé avec LLMOps).'
+          : 'Modifications et domaines de responsabilité enregistrés et synchronisés avec LLMOps.';
+      }
       onUpdated();
     } catch (err: any) {
       errorMsg = err.message || 'Erreur lors de la sauvegarde';
@@ -527,23 +532,11 @@
               </div>
             </div>
 
-            <div class="flex items-center justify-between gap-3 rounded border border-primary/25 bg-primary/5 p-3">
-              <div class="text-xs">
-                <div class="font-semibold text-foreground">Action explicite sur le registre LLMOps</div>
-                <div class="text-[11px] text-muted-foreground">
-                  Met à jour uniquement ce responsable et ses domaines dans LLMOps (<code>PUT /api/knowledge/owners</code>) avec journalisation.
-                </div>
-              </div>
-              <Button
-                type="button"
-                size="sm"
-                variant="secondary"
-                disabled={syncingLlmops}
-                onclick={handleSyncLlmops}
-                class="shrink-0"
-              >
-                {syncingLlmops ? 'Envoi à LLMOps...' : 'Enregistrer dans le registre LLMOps'}
-              </Button>
+            <div class="flex items-center gap-2.5 rounded border border-primary/25 bg-primary/5 p-3 text-xs text-muted-foreground">
+              <CheckCircle2 class="h-4 w-4 text-primary shrink-0" />
+              <span>
+                <strong>Synchronisation LLMOps automatique :</strong> la validation ci-dessous enregistre le compte et synchronise en direct l'expert et ses domaines de responsabilité dans le registre LLMOps (<code>PUT /api/knowledge/owners</code>).
+              </span>
             </div>
           {/if}
         </div>
@@ -551,7 +544,7 @@
         <Dialog.Footer class="pt-2">
           <Button type="button" variant="outline" onclick={() => { open = false; }}>Fermer</Button>
           <Button type="submit" disabled={savingLocal}>
-            {savingLocal ? 'Enregistrement...' : 'Enregistrer le compte et les rôles'}
+            {savingLocal ? 'Enregistrement & Synchronisation...' : 'Enregistrer et synchroniser avec LLMOps'}
           </Button>
         </Dialog.Footer>
       </form>

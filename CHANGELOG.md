@@ -1,4 +1,4 @@
-﻿# Changelog
+# Changelog
 
 Journal des Ã©volutions d'Archinex, reconstituÃ© Ã  partir de l'historique git.
 Les lots (`A0`â€¦`A30`) correspondent aux issues GitHub du projet. Le journal d'ArcKit
@@ -7,6 +7,19 @@ Les lots (`A0`â€¦`A30`) correspondent aux issues GitHub du projet. Le journa
 Aucune version n'a encore Ã©tÃ© publiÃ©e : tout figure sous *Non publiÃ©*.
 
 ## Non publié
+
+### Correction Synchronisation Matrice de Couverture & Registre LLMOps
+- **Synchronisation Automatique Lors de l'Édition (`updateCentralizedAccount`)** :
+  - La modification des domaines de responsabilité et des rôles KB depuis la fiche détaillée (`AdminAccountSheetDialog`) est désormais automatiquement synchronisée avec LLMOps (`PUT /api/knowledge/owners`), éliminant la nécessité d'un bouton secondaire distinct.
+  - Extension du schéma de validation `UpdateAccountSchema` (`PATCH /api/admin/accounts`) avec `registerInLlmops`.
+- **Résilience d'Autorisation & Rebond `kb:admin` (Fallback)** :
+  - Correction de l'erreur `403 Forbidden` (`the 'kb:admin' role or token scope is required`) en cas d'appel de gouvernance initié par un compte local non encore inscrit : rebond automatique transparent sur l'identité d'administration déclarée dans le registre LLMOps (ex: `@maintainers`).
+  - Ajout du scope `kb:admin` dans les configurations d'authentification de service local (`scripts/serve_local.py`).
+- **Mise à Jour Dynamique de la Matrice & Résorption des Groupes Orphelins** :
+  - Mise à jour en direct de la vue d'ensemble par domaine (`domainsOverview`) dès qu'un domaine technique est associé à un compte utilisateur (`hasAccount: true`, e-mail et nom affichés).
+  - Filtrage des groupes génériques orphelins : un groupe sans e-mail dont tous les domaines ont été réaffectés à des experts nominatifs est automatiquement retiré du bandeau d'alerte des responsables sans compte.
+- **Tests de Contrat Exhaustifs** :
+  - Ajout de `tests/contract/coverage-matrix-sync.test.ts` validant le cycle complet : détection d'orphelin, création d'expert, mise à jour de la matrice, synchronisation lors de modifications et rebond d'autorisation 403.
 
 ### Interface Simplifiée de Création de Compte & Sélecteur de Domaines LLMOps (#76)
 - **Séparation Nette des Domaines de Responsabilité et des Rôles** :

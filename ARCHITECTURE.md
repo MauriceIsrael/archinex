@@ -830,14 +830,13 @@ L'exécution de `npm run seed:demo` ou l'appui sur le bouton **« Hydrater Nauto
 
 La feuille de route ci-dessous détaille les prochaines étapes d'évolution d'Archinex pour industrialiser la chaîne **Décision HLD $\rightarrow$ Ontologie KAOS $\rightarrow$ SSoT Nautobot & Clusters Sylva** sans jamais dupliquer les briques existantes de l'écosystème.
 
-### Horizon 1 — Court Terme : GitOps Sylva Natif & Synchronisation Bidirectionnelle `DiffSync`
-1. **Export GitOps Direct vers un Dépôt `sylva-core` (`workload-clusters/`)** :
-   - Permettre depuis la Phase 4 d'ouvrir automatiquement une Merge Request / Pull Request Git contenant le fichier `values.yaml` du `SylvaWorkloadCluster` généré (`sylva_workload_cluster_values`), directement consommable par FluxCD dans un cluster de management Sylva.
-2. **Collecte Temps Réel (Pull / Webhook) depuis Nautobot 2.x vers l'Oracle OPA** :
-   - Actuellement, l'hydratation pousse l'état `Planned` dans Nautobot et le simulateur de dérive permet de tester les écarts en un clic.
-   - La prochaine étape consiste à lire directement l'état courant des objets dans Nautobot (`GET /api/circuits/circuits/`, `/api/dcim/devices/`, `/api/tenancy/tenants/`) lors du clic sur **« Exécuter l'Oracle OPA »**, de sorte qu'une modification manuelle effectuée par un opérateur directement dans l'interface web de Nautobot (`http://localhost:8080`) déclenche immédiatement le verdict `VIOLATED` dans Archinex.
-3. **Modélisation Native des Tunnels IPsec dans le Module VPN de Nautobot 2.2+** :
-   - En complément du `circuits.Circuit` (`link-ip-lot3-secgw1`), instancier les objets `vpn.VPNProfile`, `vpn.IKEProposal`, `vpn.IPSecProposal` et `vpn.Tunnel` (`tun-ipsec-esp-lot3-secgw1`) introduits dans Nautobot 2.2+.
+### Horizon 1 — Court Terme (Implémenté — Épique #241) : GitOps Sylva Natif & Synchronisation Bidirectionnelle `DiffSync`
+1. **Export GitOps Direct vers un Dépôt `sylva-core` (`workload-clusters/`) — #238 (`src/lib/server/edp/sylvaGitopsExport.ts`)** :
+   - Permet depuis la Phase 4 (`action: 'export_sylva_gitops'`) de sérialiser le fichier `workload-clusters/<cluster-name>/values.yaml` (assaini de tout secret via `sanitizeManifests()`) et d'ouvrir automatiquement une Merge Request (GitLab API v4) ou Pull Request (GitHub REST API) vers un dépôt `sylva-core`, consommable par FluxCD dans un cluster de management Sylva. L'export est formellement bloqué (`HTTP 409`) si le verdict de l'Oracle OPA est `violated`.
+2. **Collecte Temps Réel (Pull / Webhook) depuis Nautobot 2.x vers l'Oracle OPA — #239 (`pullLiveInventoryFromNautobot` & `POST /api/webhooks/nautobot`)** :
+   - Lors du clic sur **« Exécuter l'Oracle OPA »** (`action: 'verify'`), Archinex interroge directement l'état courant des objets dans Nautobot (`GET /api/dcim/devices/`, `/api/circuits/circuits/`, `/api/tenancy/tenants/`, `/api/vpn/ipsec-proposals/`, `/api/vpn/vpn-tunnels/`). Toute modification manuelle effectuée par un opérateur dans l'interface web de Nautobot (`http://localhost:8080`) ou reçue sur `POST /api/webhooks/nautobot` déclenche immédiatement le verdict `VIOLATED` dans Archinex.
+3. **Modélisation Native des Tunnels IPsec dans le Module VPN de Nautobot 2.2+ — #240 (`syncHydratedInventoryToNautobot`)** :
+   - En complément du `circuits.Circuit` (`link-ip-lot3-secgw1`), l'hydratation instancie de manière idempotente via `/api/vpn/` les objets `vpn.IKEProposal` (`ike-prop-lot3-aes256gcm-dh20`), `vpn.IPSecProposal` (`ipsec-prop-lot3-esp-aes256gcm`), `vpn.VPNProfile` (`vpn-prof-interco-lot3-s6a`) et `vpn.VPNTunnel` (`tun-ipsec-esp-lot3-secgw1`).
 
 ### Horizon 2 — Moyen Terme : Catalogue KRM des Fonctions Réseau 3GPP (CNF) & Validation Réseau Batfish
 4. **Spécialisation Nephio des Manifestes Réseau Multus / SR-IOV (`NetworkAttachmentDefinition`) pour les CNF** :

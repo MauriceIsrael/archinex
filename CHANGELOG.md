@@ -8,6 +8,19 @@ Aucune version n'a encore Ã©tÃ© publiÃ©e : tout figure sous *Non publiÃ©
 
 ## Non publié
 
+### Horizon 1 Phase 4 : Export GitOps Sylva Natif, Collecte Temps Réel Nautobot → Oracle OPA & Module VPN 2.2+ (Épique #241 — Issues #238, #239, #240)
+- **Export GitOps Direct vers un Dépôt `sylva-core` (`src/lib/server/edp/sylvaGitopsExport.ts`, Issue #238)** :
+  - Sérialisation déterministe et assainie (`sanitizeManifests`) du descripteur `SylvaWorkloadCluster` vers `workload-clusters/<cluster-name>/values.yaml` et `workload-cluster.yaml` directement consommables par FluxCD.
+  - Ouverture automatique de Pull Request (GitHub REST API) ou Merge Request (GitLab API v4) sur une branche dédiée `gitops/sylva-<cluster>-rev<N>` avec repli local en bundle GitOps si aucun dépôt distant n'est configuré.
+  - Garde OPA bloquante (`HTTP 409 Conflict`) interdisant tout export GitOps tant que le verdict de l'Oracle OPA est `violated`.
+- **Collecte Temps Réel (Pull SSoT & Webhook) depuis Nautobot 2.x vers l'Oracle OPA (`src/lib/server/edp/nautobotSync.ts`, `src/routes/api/webhooks/nautobot/+server.ts`, Issue #239)** :
+  - Implémentation de `pullLiveInventoryFromNautobot()` lisant en direct `/api/dcim/devices/`, `/api/circuits/circuits/`, `/api/tenancy/tenants/` et `/api/vpn/` lors de l'action `verify` (« Exécuter l'Oracle OPA »).
+  - Détection immédiate en `VIOLATED` de toute modification manuelle effectuée par un opérateur dans l'interface web de Nautobot (`http://localhost:8080`) : changement de profil serveur, suppression/détachement du tenant partenaire `org-lot3-mno`, contournement du DEA `dea-lot1-01` ou dégradation de la suite de chiffrement IPsec.
+  - Ajout de l'endpoint `POST /api/webhooks/nautobot` pour la réévaluation automatique sur événement Webhook Nautobot et affichage du badge de source (`Nautobot 2.x Live (Pull SSoT)`, `Webhook Nautobot Temps Réel`, `Simulateur de Dérive CMDB`) dans `Phase4RefinementHub.svelte`.
+- **Modélisation Native des Tunnels IPsec dans le Module VPN de Nautobot 2.2+ (`src/lib/server/edp/nautobotSync.ts`, Issue #240)** :
+  - Instanciation idempotente via `/api/vpn/` des objets `vpn.IKEProposal` (`ike-prop-lot3-aes256gcm-dh20`), `vpn.IPSecProposal` (`ipsec-prop-lot3-esp-aes256gcm`), `vpn.VPNProfile` (`vpn-prof-interco-lot3-s6a`) et `vpn.VPNTunnel` (`tun-ipsec-esp-lot3-secgw1`) en complément du `circuits.Circuit` (`link-ip-lot3-secgw1`).
+  - Ajout du raccourci `VPN Tunnels ↗` (`http://localhost:8080/vpn/vpn-tunnels/`) dans la Phase 4 et du test de contrat `tests/contract/edp-horizon1-gitops-diffsync-vpn.test.ts`.
+
 ### Rationalisation Ergonomique du Menu « Knowledge Hub »
 - **Unification de la Navigation autour de la Base de Connaissance (`src/routes/+layout.svelte`)** :
   - Regroupement de l'ensemble des mini-applications de la Knowledge Base dans un menu latéral dédié **« Knowledge Hub »** (barre latérale desktop étendue/réduite et tiroir mobile), supprimant la dispersion hétérogène entre le menu gauche et le menu caché sous l'avatar utilisateur.

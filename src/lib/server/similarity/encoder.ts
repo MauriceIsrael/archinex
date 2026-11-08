@@ -9,7 +9,16 @@
  *  - EMBEDDING_OLLAMA_URL       URL d'un serveur Ollama (ex. http://localhost:11434) pour tout modèle autre que `toy-bow` ;
  *  - ALLOW_TOY_EMBEDDINGS=1     autorise `toy-bow` hors test/développement (déconseillé : sans valeur sémantique).
  */
+import { parseDotEnvFile } from '../llm/localLlmClient';
 import { DEFAULT_SIMILARITY_MODEL, DEFAULT_SIMILARITY_MODEL_VERSION, encodeToyBow } from './embeddings';
+
+function effectiveEnv(env: NodeJS.ProcessEnv = process.env): Record<string, string | undefined> {
+  if (env !== process.env) {
+    return env;
+  }
+  const dotEnv = parseDotEnvFile();
+  return { ...dotEnv, ...process.env };
+}
 
 export class EncoderUnavailableError extends Error {
   constructor(message: string) {
@@ -27,7 +36,8 @@ export interface Encoder {
 }
 
 export function configuredModel(env: NodeJS.ProcessEnv = process.env): string {
-  return (env.EMBEDDING_MODEL || DEFAULT_SIMILARITY_MODEL).trim();
+  const resolved = effectiveEnv(env);
+  return (resolved.EMBEDDING_MODEL || DEFAULT_SIMILARITY_MODEL).trim();
 }
 
 export function toyEncoder(): Encoder {
@@ -114,10 +124,11 @@ export function ollamaEncoder({ baseUrl, model, timeoutMs = 60_000 }: OllamaOpti
 }
 
 export function resolveEncoder(model?: string, env: NodeJS.ProcessEnv = process.env): Encoder {
+  const resolved = effectiveEnv(env);
   const wanted = (model || configuredModel(env)).trim();
   if (wanted === DEFAULT_SIMILARITY_MODEL) {
-    const production = env.NODE_ENV === 'production';
-    if (production && env.ALLOW_TOY_EMBEDDINGS !== '1') {
+    const production = resolved.NODE_ENV === 'production';
+    if (production && resolved.ALLOW_TOY_EMBEDDINGS !== '1') {
       throw new EncoderUnavailableError(
         "L'encodeur jouet « toy-bow » n'a aucune valeur sémantique : configurez EMBEDDING_MODEL et EMBEDDING_OLLAMA_URL " +
           '(ou ALLOW_TOY_EMBEDDINGS=1 pour un usage de démonstration).'
@@ -125,7 +136,7 @@ export function resolveEncoder(model?: string, env: NodeJS.ProcessEnv = process.
     }
     return toyEncoder();
   }
-  const url = env.EMBEDDING_OLLAMA_URL?.trim();
+  const url = resolved.EMBEDDING_OLLAMA_URL?.trim();
   if (!url) {
     throw new EncoderUnavailableError(
       `Modèle d'embeddings « ${wanted} » non configuré : définissez EMBEDDING_OLLAMA_URL (le modèle n'est jamais remplacé en silence).`

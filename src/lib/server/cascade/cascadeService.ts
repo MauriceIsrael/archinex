@@ -8,7 +8,7 @@ import type {
 import { closeCascadeQuestion } from '$lib/domain/cascade';
 import {
 	runCascadeProposerAgent,
-	detectPossibleDuplicate
+	detectPossibleDuplicateAsync
 } from '../agents/cascadeProposer';
 import type { LocalLlmClient } from '../llm/localLlmClient';
 
@@ -274,9 +274,9 @@ export async function getOrCreateCascadeForDecision(params: {
 			try {
 				const q = JSON.parse(ev.payload || '{}') as CascadeQuestion;
 				if (q && q.lineage?.parentSubjectId === subjectId) {
-					// Recalcul de similarité dynamique avec le seuil calibré (A14)
+					// Recalcul de similarité dynamique avec le seuil calibré (A14) et l'encodeur configuré
 					const candidateText = `${q.subjectName} ${q.text}`;
-					const duplicate = detectPossibleDuplicate(
+					const duplicate = await detectPossibleDuplicateAsync(
 						candidateText,
 						allSubjects
 							.filter((s) => s.id !== q.childSubjectId && s.id !== subjectId)

@@ -1,8 +1,9 @@
 import { json } from '@sveltejs/kit';
 import { llmopsClient } from '$lib/server/llmops/client';
+import { ensureEmbeddingsSynced } from '$lib/server/similarity/embeddings';
 import type { RequestHandler } from './$types';
 
-export const GET: RequestHandler = async ({ request, locals }) => {
+export const GET: RequestHandler = async ({ locals }) => {
   const actorEmail =
     locals.session?.user?.email || undefined;
 
@@ -44,6 +45,9 @@ export const POST: RequestHandler = async ({ request, locals }) => {
   if (result.status === 'error' || !result.data) {
     return json({ status: 'error', error: result.error || 'Erreur lors de la publication' }, { status: 400 });
   }
+
+  // Synchronisation automatique des vecteurs sémantiques après publication scellée
+  await ensureEmbeddingsSynced(llmopsClient).catch(() => null);
 
   return json({
     status: 'ok',

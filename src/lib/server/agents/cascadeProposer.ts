@@ -1,6 +1,7 @@
 import { z } from 'zod';
 import { localLlmClient, LocalLlmClient } from '../llm/localLlmClient';
 import { encodeToyBow } from '../similarity/embeddings';
+import { resolveEncoder, type Encoder } from '../similarity/encoder';
 import { AGENT_TIMEOUT_MS } from './agentConfig';
 import type {
 	CascadeQuestion,
@@ -59,6 +60,48 @@ export function detectPossibleDuplicate(
 	}
 
 	return bestMatch;
+}
+
+/**
+ * Détecte un doublon potentiel en utilisant le modèle d'embeddings configuré (`resolveEncoder()`),
+ * avec repli sur `detectPossibleDuplicate` si le serveur d'embeddings est indisponible.
+ */
+export async function detectPossibleDuplicateAsync(
+	candidateText: string,
+	existingSubjects: Array<{ id: string; name: string; sectionRef?: string; problemStatement?: string }>,
+	calibratedThreshold: number,
+	encoderOverride?: Encoder
+): Promise<CascadePossibleDuplicate | null> {
+	if (!existingSubjects || existingSubjects.length === 0 || !calibratedThreshold) {
+		return null;
+	}
+
+	try {
+		const encoder = encoderOverride ?? resolveEncoder();
+		const candidateVec = await encoder.encode(candidateText);
+		let bestMatch: CascadePossibleDuplicate | null = null;
+		let highestScore = 0;
+
+		for (const subj of existingSubjects) {
+			const subjText = `${subj.name} ${subj.problemStatement || ''}`;
+			const subjVec = await encoder.encode(subjText);
+			const score = cosineSimilarity(candidateVec, subjVec);
+
+			if (score >= calibratedThreshold && score > highestScore) {
+				highestScore = score;
+				bestMatch = {
+					subjectId: subj.id,
+					subjectName: subj.name,
+					sectionRef: subj.sectionRef,
+					score: Math.round(score * 1000) / 1000,
+					threshold: calibratedThreshold
+				};
+			}
+		}
+		return bestMatch;
+	} catch {
+		return detectPossibleDuplicate(candidateText, existingSubjects, calibratedThreshold);
+	}
 }
 
 const CascadeProposerOutputSchema = z.object({
@@ -159,43 +202,45 @@ Formule au plus 2 questions complémentaires pertinentes :`;
 		// STRICTEMENT au plus 2 questions
 		const cappedQuestions = validated.questions.slice(0, 2);
 
-		const result: CascadeQuestion[] = cappedQuestions.map((q, idx) => {
-			const candidateSearchText = `${q.subjectName} ${q.text}`;
-			const possibleDuplicate = detectPossibleDuplicate(
-				candidateSearchText,
-				existingSubjects,
-				calibratedThreshold
-			);
+		const result: CascadeQuestion[] = await Promise.all(
+			cappedQuestions.map(async (q, idx) => {
+				const candidateSearchText = `${q.subjectName} ${q.text}`;
+				const possibleDuplicate = await detectPossibleDuplicateAsync(
+					candidateSearchText,
+					existingSubjects,
+					calibratedThreshold
+				);
 
-			const qId = `q-agent-${parentSubject.id}-${idx + 1}`;
-			const childId = `sub-child-agent-${parentSubject.id}-${idx + 1}`;
+				const qId = `q-agent-${parentSubject.id}-${idx + 1}`;
+				const childId = `sub-child-agent-${parentSubject.id}-${idx + 1}`;
 
-			return {
-				id: qId,
-				text: q.text,
-				subjectName: q.subjectName,
-				subjectSectionRef: `${parentSubject.sectionRef || '§4'}.${existingQuestions.length + idx + 1}`,
-				sourceType: 'agent',
-				mandatory: false,
-				status: 'open',
-				childSubjectId: childId,
-				productionMode: 'llm-derived',
-				grounds: q.grounds,
-				lineage: {
-					parentDecisionId: decision.id,
-					parentSubjectId: parentSubject.id,
-					parentSubjectName: parentSubject.name,
-					triggeringFacts: affirmedFacts
-					// Pas de ruleRef ni ruleName : ces questions ne dérivent pas d'une règle (Critère d'acceptation 1)
-				},
-				initialLevel: 'L0_named',
-				prefillFraming: {
-					problemStatement: q.text,
-					scope: q.grounds
-				},
-				possibleDuplicate
-			};
-		});
+				return {
+					id: qId,
+					text: q.text,
+					subjectName: q.subjectName,
+					subjectSectionRef: `${parentSubject.sectionRef || '§4'}.${existingQuestions.length + idx + 1}`,
+					sourceType: 'agent',
+					mandatory: false,
+					status: 'open',
+					childSubjectId: childId,
+					productionMode: 'llm-derived',
+					grounds: q.grounds,
+					lineage: {
+						parentDecisionId: decision.id,
+						parentSubjectId: parentSubject.id,
+						parentSubjectName: parentSubject.name,
+						triggeringFacts: affirmedFacts
+						// Pas de ruleRef ni ruleName : ces questions ne dérivent pas d'une règle (Critère d'acceptation 1)
+					},
+					initialLevel: 'L0_named',
+					prefillFraming: {
+						problemStatement: q.text,
+						scope: q.grounds
+					},
+					possibleDuplicate
+				};
+			})
+		);
 
 		return result;
 	} catch (err: any) {

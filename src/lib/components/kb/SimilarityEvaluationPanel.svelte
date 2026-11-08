@@ -84,7 +84,7 @@
         headers: {
           'Content-Type': 'application/json'
         },
-        body: JSON.stringify({ model: 'toy-bow' })
+        body: JSON.stringify({})
       });
       const body = await res.json();
       if (res.ok && body.data) {

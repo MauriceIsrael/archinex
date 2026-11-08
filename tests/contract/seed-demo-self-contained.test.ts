@@ -87,6 +87,26 @@ describe('seedDemo — Démonstration Autonome (§14 Lulu Lot 3 ↔ Lot 1) sur B
     expect(edp).toBeDefined();
     expect(edp.status).toBe('proposed');
 
+    // Vérification de la complétude du draft télégraphique dans l'engagement (anti-régression iterable draft.suppose)
+    const engagement = await testPrisma.engagement.findUnique({
+      where: { id: PROJECT_ID }
+    });
+    expect(engagement).toBeDefined();
+    const drafts = JSON.parse(engagement?.drafts || '{}');
+    const demoDraft = drafts[SUBJECT_ID];
+    expect(demoDraft).toBeDefined();
+    expect(Array.isArray(demoDraft.suppose)).toBe(true);
+    expect(demoDraft.suppose.length).toBeGreaterThan(0);
+    expect(Array.isArray(demoDraft.retenu)).toBe(true);
+    expect(Array.isArray(demoDraft.conflit)).toBe(true);
+    expect(Array.isArray(demoDraft.manque)).toBe(true);
+    // Vérification que draft.suppose est bien itérable
+    expect(() => {
+      for (const hyp of demoDraft.suppose) {
+        expect(hyp.text).toBeDefined();
+      }
+    }).not.toThrow();
+
     // Vérification de l'administrateur démo créé pour l'accès IHM direct
     const adminUser = await testPrisma.user.findUnique({
       where: { email: 'admin@archinex.local' }

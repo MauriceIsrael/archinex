@@ -150,8 +150,14 @@ async function overlayServerSubjects(profiles: EngagementProfile[]): Promise<voi
 			};
 		}
 		for (const [id, draft] of Object.entries(profile.drafts)) {
-			const level = known.get(id)?.level;
-			if (level && draft.maturity !== level) draft.maturity = level;
+			const s = known.get(id);
+			if (s && draft.maturity !== s.level) draft.maturity = s.level;
+			if (!Array.isArray(draft.retenu)) draft.retenu = [];
+			if (!Array.isArray(draft.suppose)) draft.suppose = [];
+			if (!Array.isArray(draft.conflit)) draft.conflit = [];
+			if (!Array.isArray(draft.manque)) draft.manque = [];
+			if (!draft.section_id && s) draft.section_id = s.section_ref;
+			if (!draft.subject && s) draft.subject = s.name;
 		}
 	}
 }

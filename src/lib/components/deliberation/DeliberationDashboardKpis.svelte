@@ -28,9 +28,9 @@
 	// Calcul cumulé des surcoûts matériels des hypothèses
 	const totalCostKeur = $derived.by(() => {
 		let sum = 0;
-		for (const draft of Object.values(deliberationStore.drafts)) {
-			for (const hyp of draft.suppose) {
-				if (hyp.cost_hint) {
+		for (const draft of Object.values(deliberationStore.drafts ?? {})) {
+			for (const hyp of draft?.suppose ?? []) {
+				if (hyp?.cost_hint) {
 					const match = hyp.cost_hint.match(/(\d+)/);
 					if (match) sum += parseInt(match[1], 10);
 				}

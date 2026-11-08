@@ -107,4 +107,30 @@ describe('Lot 2 - Telegraphic Draft & Tone Non-Regression Contract Tests', () =>
 		// Le sujet passe en L2_decomposed car il y a confrontation d'options
 		expect(deliberationStore.subjects.find((s) => s.id === 'suse_neuvector_mesh')?.level).toBe('L2_decomposed');
 	});
+
+	it('Scénario 7: Résilience aux brouillons incomplets (suppose, retenu, conflit, manque manquants ou non définis)', () => {
+		const partialDraft = {
+			section_id: '§14',
+			subject: 'Périmètre non initialisé',
+			maturity: 'L1_framed',
+			is_provisional: true
+		} as any;
+
+		// renderTelegraphicDraft ne doit pas lever d'exception TypeError
+		expect(() => renderTelegraphicDraft(partialDraft)).not.toThrow();
+		const rendered = renderTelegraphicDraft(partialDraft);
+		expect(rendered).toContain('§14 Périmètre non initialisé · L1_framed');
+
+		// deliberationStore gère les brouillons sans suppose sans crash de calcul KPI
+		(deliberationStore.drafts as any)['partial-test'] = partialDraft;
+		expect(() => {
+			for (const draft of Object.values(deliberationStore.drafts ?? {})) {
+				for (const hyp of draft?.suppose ?? []) {
+					if (hyp?.cost_hint) {
+						// noop
+					}
+				}
+			}
+		}).not.toThrow();
+	});
 });

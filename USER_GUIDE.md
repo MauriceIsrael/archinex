@@ -132,8 +132,12 @@ L'onglet **Couverture par domaine & Registre LLMOps** (`/admin`) et le bandeau d
 3. DÃ¨s validation, le jeton est scellÃ© et l'expert est immÃ©diatement activÃ© et synchronisÃ© avec LLMOps (`delegated: true`).
 
 ### Consulter son Profil Expert (`/kb/me`)
-- Depuis le menu utilisateur en haut Ã  droite, sÃ©lectionnez **Profil Expert KB**.
+- Depuis le menu latÃ©ral gauche **Knowledge Hub > 1. Visualisation & Exploration > Profil Expert KB**, accÃ©dez Ã  votre fiche expert.
 - Visualisez votre handle canonique, votre statut de dÃ©lÃ©gation auprÃ¨s de LLMOps, vos rÃ´les KB actifs et le nombre de revues doctrinales en attente.
+- L'ensemble des mini-applications de la base de connaissance est désormais unifié dans le menu latéral **Knowledge Hub** selon une progressivité ergonomique en 3 paliers séparés visuellement :
+  1. **Visualisation & Exploration** : *Base de Connaissance* (`/knowledge`), *Profil Expert KB* (`/kb/me`), *Référentiels & Couverture* (`/kb/frameworks`).
+  2. **Doctrine & Rédaction** : *Atelier de Doctrine* (`/kb/workshop`), *Clauses vérifiables* (`/kb/clauses`).
+  3. **Validation & Évaluation** : *Boîte de Revue KB* (`/kb/reviews` — Porte G5), *Banc d'Évaluation KB* (`/kb/evals` — Porte G6), *Tableau de Bord & Publication* (`/kb/dashboard` — Porte G7).
 
 ---
 
@@ -142,7 +146,7 @@ L'onglet **Couverture par domaine & Registre LLMOps** (`/admin`) et le bandeau d
 Les experts disposant du rÃ´le `kb:review` participent Ã  la collÃ©gialitÃ© doctrinale du Knowledge Hub.
 
 ### 5.1 BoÃ®te de RÃ©ception (`/kb/reviews`)
-- **AccÃ¨s direct** : Via le menu utilisateur en haut Ã  droite > **BoÃ®te de Revue KB**.
+- **AccÃ¨s direct** : Via le menu latéral gauche **Knowledge Hub > 3. Validation & Évaluation > Boîte de Revue KB**.
 - **SÃ©paration des tÃ¢ches & PrÃ©vention de l'auto-Ã©valuation** : ConformÃ©ment Ã  la rÃ¨gle constitutionnelle des 4 yeux (Hub contrat 1.37), un expert ne peut ni examiner ni s'auto-Ã©valuer sur une clause dont il est l'auteur. Par dÃ©faut, la boÃ®te de rÃ©ception active le filtre *Â« Ã€ examiner uniquement (exclure mes clauses) Â»* afin de ne prÃ©senter pour examen que les clauses rÃ©digÃ©es par des tiers.
 - **Consultation de ses propres clauses** : Si le filtre est dÃ©cochÃ©, les clauses rÃ©digÃ©es par l'expert connectÃ© apparaissent avec le badge explicite *Â« Votre clause (Auteur) Â»* et le bouton d'action bascule de **Examiner** Ã  **Consulter (Auteur)** (l'auto-Ã©valuation Ã©tant rigoureusement impossible).
 - **Alertes de Retard (&ge; 5 jours ouvrÃ©s)** : Les candidats dont l'Ã©chÃ©ance `due_at` est dÃ©passÃ©e sont mis en Ã©vidence par un bandeau d'alerte et un badge rouge animÃ© (le dÃ©compte exclut les clauses propres de l'expert lorsqu'elles sont masquÃ©es).

@@ -21,6 +21,7 @@
   import CheckCircle from 'lucide-svelte/icons/check-circle';
   import Database from 'lucide-svelte/icons/database';
   import ShieldCheck from 'lucide-svelte/icons/shield-check';
+  import ChevronDown from 'lucide-svelte/icons/chevron-down';
 
 
   import { Button } from '$lib/components/ui/button';
@@ -71,13 +72,63 @@
   });
 
   /**
+   * Progressive Knowledge Hub sub-menus organized by ergonomic stage:
+   * 1. Visualisation & Exploration (Consultation)
+   * 2. Doctrine & Rédaction (Élaboration)
+   * 3. Validation & Évaluation (Homologation & Publication — Portes G5 → G6 → G7)
+   */
+  const knowledgeHubGroups = [
+    {
+      id: 'visualisation',
+      labelKey: 'nav.kbGroupVisualisation',
+      defaultLabel: '1. Visualisation & Exploration',
+      items: [
+        { href: '/knowledge',     labelKey: 'nav.knowledge',    defaultLabel: 'Base de Connaissance',      icon: Network },
+        { href: '/kb/me',         labelKey: 'nav.kbMe',         defaultLabel: 'Profil Expert KB',          icon: Shield },
+        { href: '/kb/frameworks', labelKey: 'nav.kbFrameworks', defaultLabel: 'Référentiels & Couverture', icon: FileText },
+      ],
+    },
+    {
+      id: 'doctrine',
+      labelKey: 'nav.kbGroupDoctrine',
+      defaultLabel: '2. Doctrine & Rédaction',
+      items: [
+        { href: '/kb/workshop',   labelKey: 'nav.kbWorkshop',   defaultLabel: 'Atelier de Doctrine',       icon: Sparkles },
+        { href: '/kb/clauses',    labelKey: 'nav.kbClauses',    defaultLabel: 'Clauses vérifiables',       icon: ShieldCheck },
+      ],
+    },
+    {
+      id: 'validation',
+      labelKey: 'nav.kbGroupValidation',
+      defaultLabel: '3. Validation & Évaluation',
+      items: [
+        { href: '/kb/reviews',    labelKey: 'nav.kbReviews',    defaultLabel: 'Boîte de Revue KB',              icon: Inbox,       gate: 'G5' },
+        { href: '/kb/evals',      labelKey: 'nav.kbEvals',      defaultLabel: "Banc d'Évaluation KB",           icon: CheckCircle, gate: 'G6' },
+        { href: '/kb/dashboard',  labelKey: 'nav.kbDashboard',  defaultLabel: 'Tableau de Bord & Publication',  icon: Database,    gate: 'G7' },
+      ],
+    },
+  ];
+
+  let knowledgeHubOpen = $state(true);
+
+  const isKnowledgeHubActive = $derived(
+    $page.url.pathname === '/knowledge' ||
+    $page.url.pathname.startsWith('/knowledge/') ||
+    $page.url.pathname.startsWith('/kb/')
+  );
+
+  function isKbSubItemActive(pathname: string, href: string): boolean {
+    return pathname === href || pathname.startsWith(`${href}/`);
+  }
+
+  /**
    * Navigation items.
    */
   const menuItems = [
     { href: '/',             labelKey: 'nav.dashboard',    icon: LayoutDashboard, adminOnly: false, authOnly: false },
     { href: '/workspaces',   labelKey: 'nav.workspaces',   icon: FolderPlus,      adminOnly: false, authOnly: true },
     { href: '/deliberation', labelKey: 'nav.deliberation', icon: GitBranch,       adminOnly: false, authOnly: true },
-    { href: '/knowledge',    labelKey: 'nav.knowledge',    icon: Network,         adminOnly: false, authOnly: true },
+    { href: '/knowledge',    labelKey: 'nav.knowledgeHub', icon: Network,         adminOnly: false, authOnly: true, isKnowledgeHub: true },
     { href: '/users',        labelKey: 'nav.users',        icon: Users,           adminOnly: false, authOnly: true },
   ];
 
@@ -169,19 +220,71 @@
           <Sheet.Title class="text-base font-semibold">{$t('menu.title', { default: 'Navigation' })}</Sheet.Title>
           <Sheet.Description class="text-sm">{$t('menu.subtitle', { default: '' })}</Sheet.Description>
         </Sheet.Header>
-        <nav class="flex flex-col gap-1 px-3 py-4">
+        <nav class="flex flex-col gap-1 px-3 py-4 overflow-y-auto">
           {#each displayedMenuItems as item}
             {@const Icon = item.icon}
-            {@const active = $page.url.pathname === item.href}
-            <a
-              href={item.href}
-              class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors
-                     {active ? 'bg-primary text-primary-foreground' : 'text-foreground hover:bg-muted'}"
-              onclick={() => { sidebarOpen = false; }}
-            >
-              <Icon class="h-5 w-5 shrink-0" />
-              {$t(item.labelKey)}
-            </a>
+            {#if item.isKnowledgeHub}
+              <div class="flex flex-col">
+                <button
+                  type="button"
+                  class="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors
+                         {isKnowledgeHubActive ? 'bg-primary/10 text-primary font-semibold' : 'text-foreground hover:bg-muted'}"
+                  aria-expanded={knowledgeHubOpen}
+                  onclick={() => { knowledgeHubOpen = !knowledgeHubOpen; }}
+                >
+                  <span class="flex items-center gap-3 truncate">
+                    <Icon class="h-5 w-5 shrink-0" />
+                    <span class="truncate">{$t(item.labelKey, { default: 'Knowledge Hub' })}</span>
+                  </span>
+                  <ChevronDown class="h-4 w-4 shrink-0 transition-transform duration-200 {knowledgeHubOpen ? 'rotate-0' : '-rotate-90'}" />
+                </button>
+
+                {#if knowledgeHubOpen}
+                  <div class="mt-1 ml-3 pl-2.5 border-l border-border/60 flex flex-col gap-0.5">
+                    {#each knowledgeHubGroups as group, groupIdx}
+                      {#if groupIdx > 0}
+                        <div role="separator" class="my-1.5 h-px bg-border/80"></div>
+                      {/if}
+                      <span class="px-2.5 pt-1 pb-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/80">
+                        {$t(group.labelKey, { default: group.defaultLabel })}
+                      </span>
+                      {#each group.items as sub}
+                        {@const SubIcon = sub.icon}
+                        {@const subActive = isKbSubItemActive($page.url.pathname, sub.href)}
+                        <a
+                          href={sub.href}
+                          class="flex items-center justify-between gap-2 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors
+                                 {subActive ? 'bg-primary text-primary-foreground' : 'text-foreground/80 hover:bg-muted hover:text-foreground'}"
+                          onclick={() => { sidebarOpen = false; }}
+                        >
+                          <span class="flex items-center gap-2 truncate">
+                            <SubIcon class="h-3.5 w-3.5 shrink-0" />
+                            <span class="truncate">{$t(sub.labelKey, { default: sub.defaultLabel })}</span>
+                          </span>
+                          {#if sub.gate}
+                            <span class="shrink-0 rounded px-1 py-0.2 text-[10px] font-semibold
+                                         {subActive ? 'bg-primary-foreground/20 text-primary-foreground' : 'bg-muted text-muted-foreground'}">
+                              {sub.gate}
+                            </span>
+                          {/if}
+                        </a>
+                      {/each}
+                    {/each}
+                  </div>
+                {/if}
+              </div>
+            {:else}
+              {@const active = $page.url.pathname === item.href}
+              <a
+                href={item.href}
+                class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors
+                       {active ? 'bg-primary text-primary-foreground' : 'text-foreground hover:bg-muted'}"
+                onclick={() => { sidebarOpen = false; }}
+              >
+                <Icon class="h-5 w-5 shrink-0" />
+                {$t(item.labelKey)}
+              </a>
+            {/if}
           {/each}
 
           {#if isAdmin}
@@ -284,34 +387,6 @@
                 {session.user.role}
               </span>
             </div>
-            <DropdownMenu.Item onclick={() => goto('/kb/me')} class="cursor-pointer">
-              <Shield class="mr-2 h-4 w-4 text-primary" />
-              Profil Expert KB
-            </DropdownMenu.Item>
-            <DropdownMenu.Item onclick={() => goto('/kb/reviews')} class="cursor-pointer">
-              <Inbox class="mr-2 h-4 w-4 text-primary" />
-              Boîte de Revue KB
-            </DropdownMenu.Item>
-            <DropdownMenu.Item onclick={() => goto('/kb/workshop')} class="cursor-pointer">
-              <Sparkles class="mr-2 h-4 w-4 text-primary" />
-              Atelier de Doctrine
-            </DropdownMenu.Item>
-            <DropdownMenu.Item onclick={() => goto('/kb/clauses')} class="cursor-pointer">
-              <ShieldCheck class="mr-2 h-4 w-4 text-primary" />
-              Clauses vérifiables
-            </DropdownMenu.Item>
-            <DropdownMenu.Item onclick={() => goto('/kb/frameworks')} class="cursor-pointer">
-              <FileText class="mr-2 h-4 w-4 text-primary" />
-              Référentiels & Couverture
-            </DropdownMenu.Item>
-            <DropdownMenu.Item onclick={() => goto('/kb/evals')} class="cursor-pointer">
-              <CheckCircle class="mr-2 h-4 w-4 text-primary" />
-              Banc d'Évaluation KB
-            </DropdownMenu.Item>
-            <DropdownMenu.Item onclick={() => goto('/kb/dashboard')} class="cursor-pointer">
-              <Database class="mr-2 h-4 w-4 text-primary" />
-              Tableau de Bord & Publication
-            </DropdownMenu.Item>
             <DropdownMenu.Item onSelect={handleLogout} onclick={handleLogout} class="text-destructive focus:text-destructive cursor-pointer">
               <LogOut class="mr-2 h-4 w-4" />
               {$t('auth.signOut')}
@@ -333,23 +408,120 @@
     <!-- ─── Desktop Sidebar ────────────────────────────────────────────── -->
     <aside
       class="hidden md:flex flex-col border-r bg-muted/30 transition-all duration-300 ease-in-out overflow-hidden
-             {sidebarCollapsed ? 'w-16' : 'w-60'}"
+             {sidebarCollapsed ? 'w-16' : 'w-64'}"
     >
-      <nav class="flex flex-col gap-1 px-2 py-4 flex-1">
+      <nav class="flex flex-col gap-1 px-2 py-4 flex-1 overflow-y-auto">
         {#each displayedMenuItems as item}
           {@const Icon = item.icon}
-          {@const active = $page.url.pathname === item.href}
-          <a
-            href={item.href}
-            title={sidebarCollapsed ? $t(item.labelKey) : undefined}
-            class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors group
-                   {active ? 'bg-primary text-primary-foreground' : 'text-foreground/80 hover:bg-muted hover:text-foreground'}"
-          >
-            <Icon class="h-5 w-5 shrink-0" />
-            {#if !sidebarCollapsed}
-              <span class="truncate">{$t(item.labelKey)}</span>
+          {#if item.isKnowledgeHub}
+            {#if sidebarCollapsed}
+              <DropdownMenu.Root>
+                <DropdownMenu.Trigger>
+                  {#snippet child({ props })}
+                    <button
+                      type="button"
+                      {...props}
+                      title={$t(item.labelKey, { default: 'Knowledge Hub' })}
+                      class="flex w-full items-center justify-center rounded-lg px-3 py-2.5 text-sm font-medium transition-colors group
+                             {isKnowledgeHubActive ? 'bg-primary text-primary-foreground' : 'text-foreground/80 hover:bg-muted hover:text-foreground'}"
+                    >
+                      <Icon class="h-5 w-5 shrink-0" />
+                    </button>
+                  {/snippet}
+                </DropdownMenu.Trigger>
+                <DropdownMenu.Content side="right" align="start" class="w-64">
+                  <DropdownMenu.Label class="text-xs font-semibold">
+                    {$t(item.labelKey, { default: 'Knowledge Hub' })}
+                  </DropdownMenu.Label>
+                  <DropdownMenu.Separator />
+                  {#each knowledgeHubGroups as group, groupIdx}
+                    {#if groupIdx > 0}
+                      <DropdownMenu.Separator />
+                    {/if}
+                    <DropdownMenu.Label class="px-2 py-1 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground">
+                      {$t(group.labelKey, { default: group.defaultLabel })}
+                    </DropdownMenu.Label>
+                    {#each group.items as sub}
+                      {@const SubIcon = sub.icon}
+                      <DropdownMenu.Item onclick={() => goto(sub.href)} class="cursor-pointer justify-between">
+                        <span class="flex items-center gap-2 truncate">
+                          <SubIcon class="h-4 w-4 text-primary shrink-0" />
+                          <span class="truncate">{$t(sub.labelKey, { default: sub.defaultLabel })}</span>
+                        </span>
+                        {#if sub.gate}
+                          <span class="ml-2 rounded bg-muted px-1 py-0.5 text-[10px] font-semibold text-muted-foreground">
+                            {sub.gate}
+                          </span>
+                        {/if}
+                      </DropdownMenu.Item>
+                    {/each}
+                  {/each}
+                </DropdownMenu.Content>
+              </DropdownMenu.Root>
+            {:else}
+              <div class="flex flex-col" data-testid="knowledge-hub-menu">
+                <button
+                  type="button"
+                  class="flex w-full items-center justify-between gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors group
+                         {isKnowledgeHubActive ? 'bg-primary/10 text-primary font-semibold' : 'text-foreground/80 hover:bg-muted hover:text-foreground'}"
+                  aria-expanded={knowledgeHubOpen}
+                  onclick={() => { knowledgeHubOpen = !knowledgeHubOpen; }}
+                >
+                  <span class="flex items-center gap-3 truncate">
+                    <Icon class="h-5 w-5 shrink-0" />
+                    <span class="truncate">{$t(item.labelKey, { default: 'Knowledge Hub' })}</span>
+                  </span>
+                  <ChevronDown class="h-4 w-4 shrink-0 transition-transform duration-200 {knowledgeHubOpen ? 'rotate-0' : '-rotate-90'}" />
+                </button>
+
+                {#if knowledgeHubOpen}
+                  <div class="mt-1 ml-3 pl-2.5 border-l border-border/60 flex flex-col gap-0.5" data-testid="knowledge-hub-submenus">
+                    {#each knowledgeHubGroups as group, groupIdx}
+                      {#if groupIdx > 0}
+                        <div role="separator" class="my-1.5 h-px bg-border/80" data-testid="knowledge-hub-separator"></div>
+                      {/if}
+                      <span class="px-2.5 pt-1 pb-0.5 text-[10px] font-semibold uppercase tracking-wider text-muted-foreground/80">
+                        {$t(group.labelKey, { default: group.defaultLabel })}
+                      </span>
+                      {#each group.items as sub}
+                        {@const SubIcon = sub.icon}
+                        {@const subActive = isKbSubItemActive($page.url.pathname, sub.href)}
+                        <a
+                          href={sub.href}
+                          class="flex items-center justify-between gap-2 rounded-md px-2.5 py-1.5 text-xs font-medium transition-colors
+                                 {subActive ? 'bg-primary text-primary-foreground' : 'text-foreground/80 hover:bg-muted hover:text-foreground'}"
+                        >
+                          <span class="flex items-center gap-2 truncate">
+                            <SubIcon class="h-3.5 w-3.5 shrink-0" />
+                            <span class="truncate">{$t(sub.labelKey, { default: sub.defaultLabel })}</span>
+                          </span>
+                          {#if sub.gate}
+                            <span class="shrink-0 rounded px-1 py-0.2 text-[10px] font-semibold
+                                         {subActive ? 'bg-primary-foreground/20 text-primary-foreground' : 'bg-muted text-muted-foreground'}">
+                              {sub.gate}
+                            </span>
+                          {/if}
+                        </a>
+                      {/each}
+                    {/each}
+                  </div>
+                {/if}
+              </div>
             {/if}
-          </a>
+          {:else}
+            {@const active = $page.url.pathname === item.href}
+            <a
+              href={item.href}
+              title={sidebarCollapsed ? $t(item.labelKey) : undefined}
+              class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors group
+                     {active ? 'bg-primary text-primary-foreground' : 'text-foreground/80 hover:bg-muted hover:text-foreground'}"
+            >
+              <Icon class="h-5 w-5 shrink-0" />
+              {#if !sidebarCollapsed}
+                <span class="truncate">{$t(item.labelKey)}</span>
+              {/if}
+            </a>
+          {/if}
         {/each}
 
         {#if !session}

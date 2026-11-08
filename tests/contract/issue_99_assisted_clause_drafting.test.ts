@@ -175,6 +175,7 @@ describe('Issue #99 — Rédaction assistée d’une clause pour les contrôles 
 
 			const body = await response.json();
 			expect(body.status).toBe('ok');
+			expect(body.channel).toBe('asset_check');
 
 			// Vérifie l'état dans fakeLlmops
 			const state = fakeLlmops.state;
@@ -183,6 +184,23 @@ describe('Issue #99 — Rédaction assistée d’une clause pour les contrôles 
 			expect(savedCheck?.status).toBe('draft');
 			expect(savedCheck?.provenance).toBe('llm-derived');
 			expect(savedCheck?.when.terms_any).toContain('analyse de risques');
+		});
+
+		it('invalide le cache mémoire kb: lors de la soumission d’un brouillon', async () => {
+			const invalidateSpy = vi.spyOn(llmopsClient as any, 'invalidateCache');
+			await llmopsClient.submitDraftClause(
+				'NIS2-ART21-2A',
+				{
+					kind: 'forbids',
+					when: { terms_any: ['chiffrement absent', 'cleartext'] },
+					message: 'Chiffrement requis',
+					provenance: 'llm-derived'
+				},
+				'expert@example.com'
+			);
+
+			expect(invalidateSpy).toHaveBeenCalledWith('kb:');
+			invalidateSpy.mockRestore();
 		});
 	});
 

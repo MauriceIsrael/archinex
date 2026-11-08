@@ -217,6 +217,7 @@
 
   let draftingAssetId = $state<string | null>(null);
   let missingDrafts = $state<Record<string, MissingDraftState>>({});
+  let draftSavedMessage = $state<{ text: string; channel?: string; link?: string } | null>(null);
 
   async function generateDraft(m: MandatoryControlWithoutClause) {
     draftingAssetId = m.asset_id;
@@ -326,8 +327,18 @@
       if (!res.ok) {
         draft.error = body.error || `Erreur HTTP ${res.status}`;
       } else {
-        draft.success = 'Clause enregistrée en brouillon. Retrouvez-la dans l’onglet « À relire » pour la valider.';
-        pending += 1;
+        if (body.channel === 'candidate' || body.data?.kind === 'amendment' || String(body.data?.id || '').startsWith('CAND-') || String(body.data?.id || '').startsWith('cand-')) {
+          const candId = body.data?.id ? ` (${body.data.id})` : '';
+          const msg = `Proposition enregistrée dans la boîte de révision${candId}. Retrouvez-la dans Relectures pour l’instruire.`;
+          draft.success = msg;
+          draftSavedMessage = { text: msg, channel: 'candidate', link: '/kb/reviews' };
+        } else {
+          const msg = `Clause enregistrée en brouillon pour ${m.asset_id}. Retrouvez-la ci-dessous pour la valider.`;
+          draft.success = msg;
+          draftSavedMessage = { text: msg, channel: 'asset_check' };
+          pending += 1;
+          tab = 'draft';
+        }
         await invalidateAll();
       }
     } finally {
@@ -405,6 +416,18 @@
             <span class="text-xs text-muted-foreground">La publication est faite par un mainteneur (rôle kb:maintain).</span>
           {/if}
         {/if}
+      </div>
+    {/if}
+
+    {#if draftSavedMessage}
+      <div class="rounded-lg border border-emerald-500/40 bg-emerald-500/10 p-3 text-sm text-emerald-800 dark:text-emerald-200 flex items-center justify-between gap-3" data-testid="draft-saved-alert">
+        <div>
+          <span>{draftSavedMessage.text}</span>
+          {#if draftSavedMessage.link}
+            <a href={draftSavedMessage.link} class="ml-2 underline font-semibold hover:text-emerald-900">Voir la boîte de révision &rarr;</a>
+          {/if}
+        </div>
+        <button type="button" class="text-xs text-muted-foreground hover:text-foreground" onclick={() => (draftSavedMessage = null)}>Fermer</button>
       </div>
     {/if}
 

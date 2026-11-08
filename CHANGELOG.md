@@ -17,6 +17,13 @@ Aucune version n'a encore Ã©tÃ© publiÃ©e : tout figure sous *Non publiÃ©
 - **Architecture Ergonomique à 2 Niveaux Projet vs Sujet (Pattern A)** :
   - Refonte de `ProjectEngagementHeader.svelte` en barre permanente structurée autour des deux échelles de travail : **Projet** (`Phase 1 · Corpus & Règles`, `Tableau des Sujets`) et **Sujet** (`Phase 2 · Délibération`, `Phase 3 · Rendu HLD`, `Phase 4 · Raffinement`), supprimant la double barre d'onglets redondante dans `/deliberation`.
   - Transformation de `Phase3SubjectSelector.svelte` en **Barre de Contexte Sujet** compacte d'une seule ligne (`← Tableau`, navigation `◀ / ▶` sujet précédent/suivant, sélecteur rapide et tiroir dépliable à la demande).
+### Visibilité & Persistance des Brouillons de Clauses Vérifiables (`/kb/clauses`)
+- **Persistance Directe & Invalidation Réactive du Cache (`LLMOpsClient`, Issue #99)** :
+  - Invalidation immédiate du cache en mémoire `kb:` et `compliance:` lors de la soumission d'une clause de vérification en brouillon via `submitDraftClause()` (`src/lib/server/llmops/client.ts`), évitant que l'affichage de `/kb/clauses` reste figé sur la réponse mise en cache pendant 30 secondes.
+  - Identification explicite du canal de persistance (`channel: 'asset_check'` vs `channel: 'candidate'`) dans le retour de l'API `/api/kb/clauses/[assetId]/save-draft`.
+- **Expérience Utilisateur & Navigation Réactive (`src/routes/kb/clauses/+page.svelte`)** :
+  - Bascule automatique vers l'onglet **« À relire »** dès l'enregistrement d'une clause en brouillon sur un contrôle sans clause, avec affichage d'un bandeau de confirmation contextuel vert en haut de page.
+  - Aiguillage explicite vers la boîte de révision (`/kb/reviews`) avec lien direct lorsque l'enregistrement fait l'objet d'un repli vers les candidats d'amendement.
 
 ### Synchronisation Automatique des Vecteurs d'Embeddings & Retrait du Codage en Dur `toy-bow` (Décision D6 / A12)
 - **Hydratation de `EMBEDDING_MODEL` et `EMBEDDING_OLLAMA_URL` depuis `.env` (`src/lib/server/similarity/encoder.ts`)** :

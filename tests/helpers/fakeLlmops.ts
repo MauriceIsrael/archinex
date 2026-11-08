@@ -2237,6 +2237,17 @@ export async function startFakeLlmopsServer(initialState?: Partial<FakeLlmopsSta
       }
 
       const actorEmail = (req.headers['x-actor-email'] as string) || 'expert@archinex.local';
+      if (actorEmail) {
+        const owner = state.owners.find((o) => o.email.toLowerCase() === actorEmail.toLowerCase());
+        const hasEvalRole = owner && (owner.roles.includes('kb:evaluate') || owner.roles.includes('kb:maintain'));
+        if (!hasEvalRole) {
+          return json(403, {
+            status: 'unauthorized',
+            reason: `${owner ? owner.handle : actorEmail} needs the 'kb:evaluate' role.`,
+            error: `Interdit : rôle 'kb:evaluate' requis pour exécuter le benchmark`
+          });
+        }
+      }
 
       const verdicts = dataset.cases.map((c) => {
         const expected: 'supports' | 'violates' = (c.expected || c.expected_status || 'supports') as 'supports' | 'violates';

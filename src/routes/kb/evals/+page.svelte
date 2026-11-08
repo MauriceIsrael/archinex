@@ -45,6 +45,10 @@
   let isSavingAnnotation = $state(false);
 
   async function handleRunBenchmark() {
+    if (!data.expert.canEvaluate) {
+      benchmarkError = "Action non autorisée : rôle 'kb:evaluate' ou 'kb:maintain' requis pour exécuter le benchmark.";
+      return;
+    }
     const datasetId = dataset?.id || (dataset as any)?.dataset_id || 'check_option_v1';
     isRunningBenchmark = true;
     benchmarkError = null;
@@ -60,7 +64,7 @@
 
       const resData = await res.json();
       if (!res.ok) {
-        benchmarkError = resData.error || `Erreur HTTP ${res.status}`;
+        benchmarkError = resData.error || `Erreur HTTP ${res.status} lors de l'exécution du benchmark`;
       } else {
         benchmarkResult = resData.data;
       }
@@ -139,8 +143,8 @@
           ✓ Rôle kb:evaluate actif
         </span>
       {:else}
-        <span class="text-xs px-3 py-1.5 rounded-full bg-amber-50 border border-amber-300 text-amber-800">
-          Lecture seule (rôle kb:evaluate requis pour annoter)
+        <span class="text-xs px-3 py-1.5 rounded-full bg-amber-50 border border-amber-300 text-amber-800 font-medium">
+          Lecture seule (rôle kb:evaluate requis)
         </span>
       {/if}
     </div>
@@ -183,6 +187,15 @@
   {#if activeTab === 'similarity'}
     <SimilarityEvaluationPanel />
   {:else if activeTab === 'options'}
+    {#if !data.expert.canEvaluate}
+      <div data-testid="eval-readonly-banner" class="p-4 bg-amber-500/10 border border-amber-500/30 rounded-xl flex items-start gap-3 text-amber-800 dark:text-amber-200 text-xs">
+        <AlertTriangle class="w-4 h-4 flex-shrink-0 text-amber-600 dark:text-amber-400 mt-0.5" />
+        <div>
+          <strong>Mode Consultation (Lecture seule) :</strong> Votre compte (<span class="font-mono font-semibold">{data.expert.kbHandle}</span>) ne dispose pas du rôle <span class="font-mono font-semibold">kb:evaluate</span> ou <span class="font-mono font-semibold">kb:maintain</span> dans le registre d'expertise. Par principe de séparation des fonctions (contrôle des 4 yeux), le lancement du benchmark et l'annotation de la vérité terrain sont désactivés pour ce profil.
+        </div>
+      </div>
+    {/if}
+
     <!-- Bloc de Déclenchement du Benchmark -->
     <div class="bg-muted/50 border border-border rounded-xl p-6 shadow-sm">
       <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
@@ -198,9 +211,10 @@
 
       <button
         onclick={handleRunBenchmark}
-        disabled={isRunningBenchmark || !dataset}
+        disabled={isRunningBenchmark || !dataset || !data.expert.canEvaluate}
         data-testid="btn-run-benchmark"
-        class="px-5 py-2.5 bg-primary hover:bg-primary/90 disabled:opacity-50 text-white font-semibold text-sm rounded-lg shadow-sm flex items-center gap-2 transition-colors flex-shrink-0"
+        title={!data.expert.canEvaluate ? "Rôle kb:evaluate ou kb:maintain requis pour exécuter le benchmark" : ""}
+        class="px-5 py-2.5 bg-primary hover:bg-primary/90 disabled:opacity-50 text-white font-semibold text-sm rounded-lg shadow-sm flex items-center gap-2 transition-colors flex-shrink-0 cursor-pointer disabled:cursor-not-allowed"
       >
         {#if isRunningBenchmark}
           <RefreshCw class="w-4 h-4 animate-spin" />

@@ -8,6 +8,14 @@ Aucune version n'a encore Ã©tÃ© publiÃ©e : tout figure sous *Non publiÃ©
 
 ## Non publié
 
+### Visibilité & Persistance des Brouillons de Clauses Vérifiables (`/kb/clauses`)
+- **Persistance Directe & Invalidation Réactive du Cache (`LLMOpsClient`, Issue #99)** :
+  - Invalidation immédiate du cache en mémoire `kb:` et `compliance:` lors de la soumission d'une clause de vérification en brouillon via `submitDraftClause()` (`src/lib/server/llmops/client.ts`), évitant que l'affichage de `/kb/clauses` reste figé sur la réponse mise en cache pendant 30 secondes.
+  - Identification explicite du canal de persistance (`channel: 'asset_check'` vs `channel: 'candidate'`) dans le retour de l'API `/api/kb/clauses/[assetId]/save-draft`.
+- **Expérience Utilisateur & Navigation Réactive (`src/routes/kb/clauses/+page.svelte`)** :
+  - Bascule automatique vers l'onglet **« À relire »** dès l'enregistrement d'une clause en brouillon sur un contrôle sans clause, avec affichage d'un bandeau de confirmation contextuel vert en haut de page.
+  - Aiguillage explicite vers la boîte de révision (`/kb/reviews`) avec lien direct lorsque l'enregistrement fait l'objet d'un repli vers les candidats d'amendement.
+
 ### Synchronisation Automatique des Vecteurs d'Embeddings & Retrait du Codage en Dur `toy-bow` (Décision D6 / A12)
 - **Hydratation de `EMBEDDING_MODEL` et `EMBEDDING_OLLAMA_URL` depuis `.env` (`src/lib/server/similarity/encoder.ts`)** :
   - `configuredModel()` et `resolveEncoder()` chargent désormais les variables définies dans `.env` (via `parseDotEnvFile()`) lorsque `process.env` n'est pas pré-hydraté (ex. sous `vite dev`), sélectionnant fidèlement le modèle d'embeddings configuré (ex. `bge-m3` sur `EMBEDDING_OLLAMA_URL`) au lieu de retomber sur `toy-bow`.

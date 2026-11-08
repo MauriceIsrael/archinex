@@ -34,12 +34,14 @@
 	let isLoading = $state(false);
 	let isActionRunning = $state(false);
 	let showRawJson = $state(false);
+	let showSylvaValuesYaml = $state(false);
 	let activeDriftScenario = $state<string>('reset_clean');
 	let selectedConceptUrn = $state<string>('AUTO');
 
 	const coverage = $derived(currentEdp?.refinementCoverage || null);
 	const hydrated = $derived(currentEdp?.hydratedInventory || null);
 	const lastVerdict = $derived(currentEdp?.lastVerdict || null);
+	const sylvaGitopsExport = $derived(currentEdp?.sylvaGitopsExport || null);
 
 	async function loadEdpData(subjId: string, projId: string, conceptFilter = selectedConceptUrn) {
 		if (!subjId || !projId) return;
@@ -541,6 +543,21 @@
 							<Zap class="h-3.5 w-3.5" />
 							<span>Hydrater Nautobot & Sylva</span>
 						</button>
+						<button
+							type="button"
+							disabled={isActionRunning || lastVerdict?.verdict === 'violated'}
+							onclick={() =>
+								triggerEdpAction(
+									{ action: 'export_sylva_gitops' },
+									'Export GitOps Sylva (workload-clusters/values.yaml) généré !'
+								)}
+							class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer"
+							title="Exporter workload-clusters/<cluster>/values.yaml et ouvrir une PR/MR GitOps vers sylva-core"
+							data-testid="phase4-export-sylva-gitops-btn"
+						>
+							<FileCode class="h-3.5 w-3.5" />
+							<span>Ouvrir PR/MR GitOps Sylva</span>
+						</button>
 						<a
 							href="http://localhost:8080/circuits/circuits/"
 							target="_blank"
@@ -549,6 +566,17 @@
 							title="Voir le Circuit S6a link-ip-lot3-secgw1 dans Nautobot"
 						>
 							<span>Circuits</span>
+							<ExternalLink class="h-3 w-3" />
+						</a>
+						<a
+							href="http://localhost:8080/vpn/vpn-tunnels/"
+							target="_blank"
+							rel="noreferrer"
+							class="inline-flex items-center gap-1 px-2 py-1.5 rounded-lg border bg-muted/40 hover:bg-muted text-[11px] font-semibold text-foreground"
+							title="Voir le Tunnel IPsec ESP tun-ipsec-esp-lot3-secgw1 et le VPNProfile dans le module VPN Nautobot 2.2+"
+							data-testid="phase4-nautobot-vpn-link"
+						>
+							<span>VPN Tunnels</span>
 							<ExternalLink class="h-3 w-3" />
 						</a>
 						<a
@@ -698,6 +726,43 @@
 						</button>
 					</div>
 
+					{#if sylvaGitopsExport}
+						<div class="p-3 rounded-lg border border-emerald-500/40 bg-emerald-500/5 space-y-2 text-[11px]" data-testid="phase4-sylva-gitops-card">
+							<div class="flex items-center justify-between gap-2 flex-wrap">
+								<div class="font-bold text-foreground flex items-center gap-1.5">
+									<FileCode class="h-3.5 w-3.5 text-emerald-600" />
+									<span>Export GitOps Sylva Natif (<code class="font-mono">{sylvaGitopsExport.targetPath}</code>)</span>
+								</div>
+								<div class="flex items-center gap-2">
+									<span class="font-mono text-[10px] px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">
+										Branche : {sylvaGitopsExport.branchName}
+									</span>
+									{#if sylvaGitopsExport.pullRequestUrl}
+										<a
+											href={sylvaGitopsExport.pullRequestUrl}
+											target="_blank"
+											rel="noreferrer"
+											class="inline-flex items-center gap-1 font-semibold text-emerald-700 dark:text-emerald-300 underline"
+										>
+											<span>PR/MR #{sylvaGitopsExport.pullRequestNumber || ''}</span>
+											<ExternalLink class="h-3 w-3" />
+										</a>
+									{/if}
+									<button
+										type="button"
+										onclick={() => (showSylvaValuesYaml = !showSylvaValuesYaml)}
+										class="text-[11px] font-semibold text-primary hover:underline cursor-pointer"
+									>
+										{showSylvaValuesYaml ? 'Masquer values.yaml' : 'Voir values.yaml'}
+									</button>
+								</div>
+							</div>
+							{#if showSylvaValuesYaml}
+								<pre class="p-2.5 rounded bg-slate-950 text-slate-100 font-mono text-[10px] overflow-x-auto max-h-56">{sylvaGitopsExport.valuesYaml}</pre>
+							{/if}
+						</div>
+					{/if}
+
 					{#if showRawJson}
 						<pre class="p-3 rounded-lg bg-slate-950 text-slate-100 font-mono text-[10px] overflow-x-auto max-h-60">{JSON.stringify(hydrated, null, 2)}</pre>
 					{/if}
@@ -735,15 +800,31 @@
 							: 'bg-emerald-500/10 border-emerald-500/40 text-emerald-900 dark:text-emerald-200'}"
 						data-testid="phase4-oracle-result"
 					>
-						<div class="flex items-center justify-between font-bold">
+						<div class="flex items-center justify-between font-bold gap-2 flex-wrap">
 							<span>
 								{lastVerdict.verdict === 'violated'
 									? `❌ VIOLATION / DRIFT DÉTECTÉ (${lastVerdict.violations?.length || 0} règle(s) en échec)`
 									: '✓ CONFORME SUR TOUS LES AXES LIÉS (0 violation Rego)'}
 							</span>
-							<span class="font-mono text-[10px] opacity-75">
-								multi_axis_refinement.rego
-							</span>
+							<div class="flex items-center gap-1.5">
+								{#if lastVerdict.source}
+									<span
+										class="font-mono text-[10px] px-1.5 py-0.5 rounded border bg-background/70"
+										data-testid="phase4-oracle-source-badge"
+									>
+										{lastVerdict.source === 'nautobot_live'
+											? '🔄 Source : Nautobot 2.x Live (Pull SSoT)'
+											: lastVerdict.source === 'nautobot_webhook'
+												? '⚡ Source : Webhook Nautobot Temps Réel'
+												: lastVerdict.source === 'local_simulated'
+													? '🧪 Source : Simulateur de Dérive CMDB'
+													: '📦 Source : Inventaire Hydraté Local'}
+									</span>
+								{/if}
+								<span class="font-mono text-[10px] opacity-75">
+									multi_axis_refinement.rego
+								</span>
+							</div>
 						</div>
 
 						{#if lastVerdict.violations && lastVerdict.violations.length > 0}

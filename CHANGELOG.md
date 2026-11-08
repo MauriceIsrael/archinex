@@ -8,6 +8,19 @@ Aucune version n'a encore Ã©tÃ© publiÃ©e : tout figure sous *Non publiÃ©
 
 ## Non publié
 
+### Horizon 1 Phase 4 : Export GitOps Sylva Natif, Collecte Temps Réel Nautobot → Oracle OPA & Module VPN 2.2+ (Épique #241 — Issues #238, #239, #240)
+- **Export GitOps Direct vers un Dépôt `sylva-core` (`src/lib/server/edp/sylvaGitopsExport.ts`, Issue #238)** :
+  - Sérialisation déterministe et assainie (`sanitizeManifests`) du descripteur `SylvaWorkloadCluster` vers `workload-clusters/<cluster-name>/values.yaml` et `workload-cluster.yaml` directement consommables par FluxCD.
+  - Ouverture automatique de Pull Request (GitHub REST API) ou Merge Request (GitLab API v4) sur une branche dédiée `gitops/sylva-<cluster>-rev<N>` avec repli local en bundle GitOps si aucun dépôt distant n'est configuré.
+  - Garde OPA bloquante (`HTTP 409 Conflict`) interdisant tout export GitOps tant que le verdict de l'Oracle OPA est `violated`.
+- **Collecte Temps Réel (Pull SSoT & Webhook) depuis Nautobot 2.x vers l'Oracle OPA (`src/lib/server/edp/nautobotSync.ts`, `src/routes/api/webhooks/nautobot/+server.ts`, Issue #239)** :
+  - Implémentation de `pullLiveInventoryFromNautobot()` lisant en direct `/api/dcim/devices/`, `/api/circuits/circuits/`, `/api/tenancy/tenants/` et `/api/vpn/` lors de l'action `verify` (« Exécuter l'Oracle OPA »).
+  - Détection immédiate en `VIOLATED` de toute modification manuelle effectuée par un opérateur dans l'interface web de Nautobot (`http://localhost:8080`) : changement de profil serveur, suppression/détachement du tenant partenaire `org-lot3-mno`, contournement du DEA `dea-lot1-01` ou dégradation de la suite de chiffrement IPsec.
+  - Ajout de l'endpoint `POST /api/webhooks/nautobot` pour la réévaluation automatique sur événement Webhook Nautobot et affichage du badge de source (`Nautobot 2.x Live (Pull SSoT)`, `Webhook Nautobot Temps Réel`, `Simulateur de Dérive CMDB`) dans `Phase4RefinementHub.svelte`.
+- **Modélisation Native des Tunnels IPsec dans le Module VPN de Nautobot 2.2+ (`src/lib/server/edp/nautobotSync.ts`, Issue #240)** :
+  - Instanciation idempotente via `/api/vpn/` des objets `vpn.IKEProposal` (`ike-prop-lot3-aes256gcm-dh20`), `vpn.IPSecProposal` (`ipsec-prop-lot3-esp-aes256gcm`), `vpn.VPNProfile` (`vpn-prof-interco-lot3-s6a`) et `vpn.VPNTunnel` (`tun-ipsec-esp-lot3-secgw1`) en complément du `circuits.Circuit` (`link-ip-lot3-secgw1`).
+  - Ajout du raccourci `VPN Tunnels ↗` (`http://localhost:8080/vpn/vpn-tunnels/`) dans la Phase 4 et du test de contrat `tests/contract/edp-horizon1-gitops-diffsync-vpn.test.ts`.
+
 ### Suite d'Intégration Sylva, Validation de Schéma KRM & Règles d'Or OPA (Smart-Light Gate)
 - **Validation Formelle contre le Schéma CRD Sylva (`tests/fixtures/sylva/`)** :
   - Export et formalisation du schéma JSON Schema Draft-07 et de la CustomResourceDefinition Kubernetes pour `SylvaWorkloadCluster` (`workloadcluster.sylva.org/v1alpha1`).
@@ -22,6 +35,45 @@ Aucune version n'a encore Ã©tÃ© publiÃ©e : tout figure sous *Non publiÃ©
   - Intégration dans `scripts/verify.mjs` sous une 2e étape dédiée, garantissant une exécution ultra-rapide (< 100ms) et conservant un pipeline PR unique (`verify.yml`) sous les 3 minutes.
 
 ### Unification de l'Administration des Comptes & Enrôlement Automatique JIT (Archinex SSoT)
+- **Source Unique de Vérité (SSoT) pour les Comptes Archinex & LLMOps** :
+  - Centralisation intégrale du cycle de vie des identités et des droits dans Archinex : la création, la modification et l'assignation de domaines d'expertise synchronisent immédiatement le registre souverain LLMOps (`data/kb/owners.yaml`).
+  - Suppression définitive des messages invitant l'utilisateur à faire des démarches administratives complexes ou de synchronisation manuelle (« Compte non inscrit dans le registre... demandez à un administrateur »).
+- **Auto-Enrôlement Transparent à la Volée (Zero-Touch JIT Provisioning)** :
+  - Implémentation de `ensureArchinexUserRegisteredInLlmops(email)` dans `src/lib/server/accountsAdmin.ts`.
+  - Prise en charge automatique sur les points d'entrée doctrinaux (`/kb/me`, `/kb/reviews`, `/kb/reviews/[id]`, `/api/knowledge/me`, `/api/knowledge/reviews/inbox`) : en cas de réponse 403 `not_registered`, Archinex auto-inscrit immédiatement l'expert auprès de LLMOps selon son profil local et relance la requête de manière transparente.
+- **Amorçage Idempotent au Démarrage (`prisma/seed.ts`)** :
+  - Synchronisation automatique et non bloquante des profils de démonstration (`@admin-lead`, `@sec-expert`) vers LLMOps dès l'exécution de `db:reset` ou `seed`. Si LLMOps n'est pas encore démarré, l'enrôlement JIT prend le relais au premier accès sans erreur.
+- **Tests de Contrat & Robustesse** :
+  - Ajout de `tests/contract/unified-account-ssot.test.ts` validant le provisionnement JIT, l'auto-synchronisation à la création de compte et la création à la volée de profil KB local.
+  - Conformité complète aux vérifications TypeScript et diagnostics Svelte (`svelte-check` 0 erreurs, 0 avertissements).
+
+### Correction Synchronisation Matrice de Couverture & Registre LLMOps
+- **Synchronisation Automatique Lors de l'Édition (`updateCentralizedAccount`)** :
+  - La modification des domaines de responsabilité et des rôles KB depuis la fiche détaillée (`AdminAccountSheetDialog`) est désormais automatiquement synchronisée avec LLMOps (`PUT /api/knowledge/owners`), éliminant la nécessité d'un bouton secondaire distinct.
+  - Extension du schéma de validation `UpdateAccountSchema` (`PATCH /api/admin/accounts`) avec `registerInLlmops`.
+- **Résilience d'Autorisation & Rebond `kb:admin` (Fallback)** :
+  - Correction de l'erreur `403 Forbidden` (`the 'kb:admin' role or token scope is required`) en cas d'appel de gouvernance initié par un compte local non encore inscrit : rebond automatique transparent sur l'identité d'administration déclarée dans le registre LLMOps (ex: `@maintainers`).
+  - Ajout du scope `kb:admin` dans les configurations d'authentification de service local (`scripts/serve_local.py`).
+- **Mise à Jour Dynamique de la Matrice & Résorption des Groupes Orphelins** :
+  - Mise à jour en direct de la vue d'ensemble par domaine (`domainsOverview`) dès qu'un domaine technique est associé à un compte utilisateur (`hasAccount: true`, e-mail et nom affichés).
+  - Filtrage des groupes génériques orphelins : un groupe sans e-mail dont tous les domaines ont été réaffectés à des experts nominatifs est automatiquement retiré du bandeau d'alerte des responsables sans compte.
+- **Tests de Contrat Exhaustifs** :
+  - Ajout de `tests/contract/coverage-matrix-sync.test.ts` validant le cycle complet : détection d'orphelin, création d'expert, mise à jour de la matrice, synchronisation lors de modifications et rebond d'autorisation 403.
+
+### Interface Simplifiée de Création de Compte & Sélecteur de Domaines LLMOps (#76)
+- **Séparation Nette des Domaines de Responsabilité et des Rôles** :
+  - Distinction formelle entre les compétences techniques/métier (*Domaines de responsabilité* : périmètre d'autorité d'un expert sur les clauses, ex: `3GPP conformance`, `5g-security`, `telecom-core`) et les habilitations d'action (*Rôles projet* et *Rôles doctrine LLMOps* : `kb:review`, `kb:maintain`, `kb:evaluate`, `kb:admin`).
+- **Nouveau Composant Visuel `DomainsPicker.svelte`** :
+  - Remplacement de la saisie textuelle à l'aveugle par un sélecteur interactif alimenté dynamiquement par le registre LLMOps (`ownersRegistry.domains`).
+  - Ajout de filtres thématiques (`Tous`, `3GPP & Télécom`, `Sécurité & Conformité`, `Architecture & Cloud`), de badges cliquables et de recherche en temps réel.
+  - Ajout de raccourcis 1-clic préconfigurés : **`+ Pack 3GPP`** (`conformance`, `interoperability`, `telecom-core`, `mobile-core`, `5g-security`, `network-exposure`, `sba`, `mission-critical-security`) et **`+ Pack Sécurité`** (`security`, `security-architecture`, `hardening`, `cryptography`, `vulnerability-management`, `iam`, `compliance`).
+- **Dérivation Automatique du Handle LLMOps & Expérience Épurée** :
+  - Dérivation instantanée du handle (ex: `@prenom-nom`) à partir de l'email ou du nom renseigné, sans forcer la saisie manuelle.
+  - Suppression des boutons superflus et automatisation de l'inscription dans le registre LLMOps.
+  - Intégration transparente dans `AdminCreateAccountDialog` et `AdminAccountSheetDialog` (fiche profil utilisateur).
+- **Tests de Contrat & Validation de Non-Régression** :
+  - Ajout de `tests/contract/simplified-account-creation.test.ts` validant la création d'expert multi-domaines 3GPP, la dérivation automatique de handle et la payload envoyée au registre LLMOps.
+  - Validation complète des tests de contrat centralisés (`tests/contract/issue_76_centralized_accounts.test.ts`).
 ### Rationalisation Ergonomique du Menu « Knowledge Hub »
 - **Unification de la Navigation autour de la Base de Connaissance (`src/routes/+layout.svelte`)** :
   - Regroupement de l'ensemble des mini-applications de la Knowledge Base dans un menu latéral dédié **« Knowledge Hub »** (barre latérale desktop étendue/réduite et tiroir mobile), supprimant la dispersion hétérogène entre le menu gauche et le menu caché sous l'avatar utilisateur.

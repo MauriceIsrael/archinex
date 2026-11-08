@@ -12,7 +12,11 @@ import {
   evaluateMultiAxisOracle,
   type LldHydrationOverrides
 } from '$lib/server/edp/refinementCoverage';
-import { syncHydratedInventoryToNautobot } from '$lib/server/edp/nautobotSync';
+import {
+  syncHydratedInventoryToNautobot,
+  pullLiveInventoryFromNautobot
+} from '$lib/server/edp/nautobotSync';
+import { exportSylvaWorkloadClusterGitops } from '$lib/server/edp/sylvaGitopsExport';
 import { authorizeProjectAccess } from '$lib/server/projects/projectAccess';
 
 async function loadSubjectContext(subjectId: string) {
@@ -456,7 +460,7 @@ export const POST: RequestHandler = async (event) => {
         powerFeeds: composedHydration.power_feeds,
         coveredDomains: composedHydration.coveredDomains,
         message: nautobotSynced
-          ? `Hydratation SSoT poussée dans Nautobot (${syncSummary.circuitsSynced} circuit(s), ${syncSummary.tenantsSynced} tenant(s), ${syncSummary.devicesSynced} équipement(s), ${syncSummary.prefixesSynced} préfixe(s)) !`
+          ? `Hydratation SSoT poussée dans Nautobot (${syncSummary.circuitsSynced} circuit(s), ${syncSummary.vpnTunnelsSynced} tunnel(s) VPN, ${syncSummary.tenantsSynced} tenant(s), ${syncSummary.devicesSynced} équipement(s), ${syncSummary.prefixesSynced} préfixe(s)) !`
           : `Objets planned multi-axes (${composedHydration.coveredDomains.join(' + ')}) générés avec succès !`
       });
     } catch (err: any) {
@@ -640,12 +644,29 @@ export const POST: RequestHandler = async (event) => {
         });
       }
 
-      const hydratedInventory = composeMultiAxisHydration(
+      const baselineInventory = composeMultiAxisHydration(
         subjectId,
         effectiveBindingsForEval,
         catalog,
         activeOverrides
       );
+
+      // Si action === 'verify' et qu'aucune surcharge de simulation locale n'est active,
+      // tenter une collecte temps réel (Pull SSoT — Issue #239) depuis Nautobot 2.x.
+      const hasLocalDriftOverrides = Object.keys(activeOverrides).length > 0;
+      let hydratedInventory = baselineInventory;
+      let evaluationSource: 'nautobot_live' | 'local_simulated' | 'local_fallback' =
+        hasLocalDriftOverrides ? 'local_simulated' : 'local_fallback';
+      let liveDetectedDrifts: string[] = [];
+
+      if (action === 'verify' && !hasLocalDriftOverrides) {
+        const livePull = await pullLiveInventoryFromNautobot(baselineInventory);
+        if (livePull.reachable) {
+          hydratedInventory = livePull.inventory;
+          evaluationSource = 'nautobot_live';
+          liveDetectedDrifts = livePull.detectedDrifts;
+        }
+      }
 
       const evalRes = await evaluateMultiAxisOracle(
         hydratedInventory,
@@ -681,6 +702,8 @@ export const POST: RequestHandler = async (event) => {
         lastVerdict: {
           verdict: evalRes.verdict,
           verified_at: new Date().toISOString(),
+          source: evaluationSource,
+          live_detected_drifts: liveDetectedDrifts,
           violations: evalRes.violationMessages,
           detailedViolations: evalRes.violations,
           ontologyFingerprint: evalRes.ontologyFingerprint,
@@ -714,6 +737,8 @@ export const POST: RequestHandler = async (event) => {
         success: true,
         edp: updatedEdp,
         verdict: evalRes.verdict,
+        source: evaluationSource,
+        liveDetectedDrifts,
         evaluatedAxesCount: evalRes.evaluatedAxesCount,
         violations: evalRes.violationMessages,
         detailedViolations: evalRes.violations,
@@ -723,6 +748,123 @@ export const POST: RequestHandler = async (event) => {
       });
     } catch (err: any) {
       return json({ success: false, error: err.message }, { status: 500 });
+    }
+  }
+
+  // 7. Export GitOps Direct du SylvaWorkloadCluster (values.yaml) vers un dépôt sylva-core (Issue #238)
+  if (action === 'export_sylva_gitops') {
+    try {
+      const catalog = await loadOntologyCatalog({ includeRuntimeOverlay: true });
+      const ctx = await loadSubjectContext(subjectId);
+
+      const fromDb = await (prisma as any).executableDecisionPackage?.findFirst({
+        where: { subjectId },
+        orderBy: { revision: 'desc' }
+      });
+
+      const parsedDb = fromDb ? JSON.parse(fromDb.content) : null;
+      const explicitBindings = parsedDb?.decision_context?.ontology_bindings || [];
+      const activeConcept = selectedConceptUrn || parsedDb?.selectedConceptUrn || 'AUTO';
+      const activeOverrides: LldHydrationOverrides = parsedDb?.lldOverrides || {};
+
+      const coverage = computeRefinementCoverage(
+        {
+          subjectId,
+          title: ctx.title,
+          problem: ctx.problem,
+          decisionText: ctx.decisionText,
+          explicitBindings,
+          autoBindFromText: true,
+          selectedConceptUrn: activeConcept
+        },
+        catalog
+      );
+
+      const hydratedInventory = composeMultiAxisHydration(
+        subjectId,
+        coverage.composedBindings,
+        catalog,
+        activeOverrides
+      );
+
+      const currentVerdict: 'compliant' | 'violated' =
+        parsedDb?.lastVerdict?.verdict === 'violated' ? 'violated' : 'compliant';
+
+      // Si aucun verdict n'était encore calculé, évaluer OPA avant d'autoriser l'export
+      const evalRes = await evaluateMultiAxisOracle(
+        hydratedInventory,
+        coverage.composedBindings,
+        catalog
+      );
+      const effectiveVerdict =
+        currentVerdict === 'violated' || evalRes.verdict === 'violated'
+          ? 'violated'
+          : 'compliant';
+
+      const gitopsExport = await exportSylvaWorkloadClusterGitops({
+        edpId: parsedDb?.metadata?.id || ctx.edpPrimaryKey,
+        subjectId,
+        revision: parsedDb?.metadata?.revision || 1,
+        ontologyFingerprint: evalRes.ontologyFingerprint,
+        opaVerdict: effectiveVerdict,
+        hydratedInventory,
+        repoUrl: body.repoUrl,
+        baseBranch: body.baseBranch,
+        gitToken: body.gitToken
+      });
+
+      const updatedEdp = {
+        ...(parsedDb || {
+          metadata: {
+            id: ctx.edpPrimaryKey,
+            title: `${ctx.title} (${ctx.sectionRef.toUpperCase()})`,
+            status: 'proposed',
+            revision: 1
+          },
+          decision_context: {
+            problem: ctx.problem,
+            decision: ctx.decisionText,
+            ontology_bindings: coverage.composedBindings
+          }
+        }),
+        refinementCoverage: coverage,
+        hydratedInventory,
+        sylvaGitopsExport: gitopsExport
+      };
+
+      try {
+        await (prisma as any).executableDecisionPackage?.upsert({
+          where: { id: ctx.edpPrimaryKey },
+          create: {
+            id: ctx.edpPrimaryKey,
+            subjectId,
+            decisionId: ctx.subject?.decision?.id || `DEC-${subjectId}`,
+            status: updatedEdp.metadata?.status || 'proposed',
+            revision: updatedEdp.metadata?.revision || 1,
+            productionMode: 'llm-proposed-human-approved',
+            policyHash: evalRes.ontologyFingerprint,
+            content: JSON.stringify(updatedEdp)
+          },
+          update: {
+            subjectId,
+            content: JSON.stringify(updatedEdp)
+          }
+        });
+      } catch {
+        // Fallback en mémoire
+      }
+
+      return json({
+        success: true,
+        edp: updatedEdp,
+        sylvaGitopsExport: gitopsExport,
+        message: gitopsExport.pullRequestUrl
+          ? `PR/MR GitOps Sylva ouverte avec succès : ${gitopsExport.pullRequestUrl}`
+          : `Artefact GitOps Sylva généré (${gitopsExport.targetPath}, sha256:${gitopsExport.sha256.slice(0, 10)}) prêt pour FluxCD !`
+      });
+    } catch (err: any) {
+      const status = err.statusCode || 500;
+      return json({ success: false, error: err.message }, { status });
     }
   }
 

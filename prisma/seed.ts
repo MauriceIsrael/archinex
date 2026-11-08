@@ -229,6 +229,26 @@ async function main() {
     console.warn('[seed] Avertissement lors du chargement des exemples :', err);
   }
 
+  // 4. Synchronisation automatique des comptes de démonstration vers LLMOps (SSoT) si joignable
+  try {
+    if ((process as any).loadEnvFile) {
+      try {
+        (process as any).loadEnvFile();
+      } catch {
+        // Ignorer si .env n'existe pas
+      }
+    }
+    const { ensureArchinexUserRegisteredInLlmops } = await import('../src/lib/server/accountsAdmin');
+    const adminSync = await ensureArchinexUserRegisteredInLlmops('admin@archinex.local');
+    const expertSync = await ensureArchinexUserRegisteredInLlmops('expert@archinex.local');
+
+    if (adminSync.success && expertSync.success) {
+      console.log('   - Comptes @admin-lead et @sec-expert synchronisés dans le registre souverain LLMOps.');
+    }
+  } catch {
+    // Non-bloquant : si LLMOps est éteint lors du seed, l'auto-inscription JIT prendra le relais au premier accès
+  }
+
   console.log('✅ [seed] Base initialisée avec succès (comptes démo @archinex.local, règles Casbin et exemples).');
 }
 

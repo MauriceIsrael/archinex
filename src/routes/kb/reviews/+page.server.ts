@@ -1,6 +1,7 @@
 import { requireAuth } from '$lib/auth/guard.server';
 import { getKbExpertByUserId } from '$lib/server/kbProfilesDb';
 import { llmopsClient } from '$lib/server/llmops/client';
+import { ensureArchinexUserRegisteredInLlmops } from '$lib/server/accountsAdmin';
 import { kbNotificationService } from '$lib/server/kbNotifications';
 import type { PageServerLoad } from './$types';
 
@@ -8,14 +9,27 @@ export const load: PageServerLoad = async ({ locals }) => {
   requireAuth(locals);
 
   const user = locals.session!.user;
-  const localExpert = await getKbExpertByUserId(user.id);
+  let localExpert = await getKbExpertByUserId(user.id);
 
-  const ownedDomains = localExpert?.ownedDomains || [];
-  const kbRoles = localExpert?.kbRoles || [];
-  const kbHandle = localExpert?.kbHandle || `@${user.email.split('@')[0]}`;
+  let ownedDomains = localExpert?.ownedDomains || [];
+  let kbRoles = localExpert?.kbRoles || [];
+  let kbHandle = localExpert?.kbHandle || `@${user.email.split('@')[0]}`;
 
   // Appel souverain de la boîte de revue avec X-Actor-Email et handle d'expert
-  const inboxRes = await llmopsClient.getReviewInbox(user.email, { actorHandle: kbHandle });
+  let inboxRes = await llmopsClient.getReviewInbox(user.email, { actorHandle: kbHandle });
+
+  // Auto-inscription Just-In-Time (SSoT) si le registre LLMOps ne connaît pas encore ce compte
+  if (inboxRes.status === 'not_registered') {
+    const syncRes = await ensureArchinexUserRegisteredInLlmops(user.email);
+    if (syncRes.success) {
+      localExpert = await getKbExpertByUserId(user.id);
+      ownedDomains = localExpert?.ownedDomains || [];
+      kbRoles = localExpert?.kbRoles || [];
+      kbHandle = localExpert?.kbHandle || `@${user.email.split('@')[0]}`;
+      inboxRes = await llmopsClient.getReviewInbox(user.email, { actorHandle: kbHandle });
+    }
+  }
+
   const notifications = await kbNotificationService.getUserNotifications(user.id);
 
   return {

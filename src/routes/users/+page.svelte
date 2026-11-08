@@ -143,7 +143,7 @@
         <div>
           <p class="font-medium text-foreground">Gestion centralisée des comptes & LLMOps</p>
           <p class="text-xs text-muted-foreground">
-            Configurez les rôles par espace de délibération et synchronisez les profils dans le registre LLMOps depuis l'Administration.
+            Configurez les rôles par espace de délibération et les domaines d'expertise directement depuis l'Administration.
           </p>
         </div>
       </div>

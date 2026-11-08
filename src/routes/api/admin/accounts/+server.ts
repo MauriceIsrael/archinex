@@ -51,7 +51,8 @@ const UpdateAccountSchema = z.object({
   enableKbReview: z.boolean().optional(),
   kbHandle: z.string().optional(),
   kbRoles: z.array(KbRoleEnum).optional(),
-  ownedDomains: z.array(z.string()).optional()
+  ownedDomains: z.array(z.string()).optional(),
+  registerInLlmops: z.boolean().optional()
 });
 
 /**

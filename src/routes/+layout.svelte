@@ -77,15 +77,30 @@
    * 2. Doctrine & Rédaction (Élaboration)
    * 3. Validation & Évaluation (Homologation & Publication — Portes G5 → G6 → G7)
    */
-  const knowledgeHubGroups = [
+  interface KnowledgeHubItem {
+    href: string;
+    labelKey: string;
+    defaultLabel: string;
+    icon: any;
+    gate?: string;
+  }
+
+  interface KnowledgeHubGroup {
+    id: string;
+    labelKey: string;
+    defaultLabel: string;
+    items: KnowledgeHubItem[];
+  }
+
+  const knowledgeHubGroups: KnowledgeHubGroup[] = [
     {
       id: 'visualisation',
       labelKey: 'nav.kbGroupVisualisation',
       defaultLabel: '1. Visualisation & Exploration',
       items: [
-        { href: '/knowledge',     labelKey: 'nav.knowledge',    defaultLabel: 'Base de Connaissance',      icon: Network },
-        { href: '/kb/me',         labelKey: 'nav.kbMe',         defaultLabel: 'Profil Expert KB',          icon: Shield },
-        { href: '/kb/frameworks', labelKey: 'nav.kbFrameworks', defaultLabel: 'Référentiels & Couverture', icon: FileText },
+        { href: '/knowledge',     labelKey: 'nav.knowledge',    defaultLabel: 'Base de Connaissance',      icon: Network,     gate: undefined },
+        { href: '/kb/me',         labelKey: 'nav.kbMe',         defaultLabel: 'Profil Expert KB',          icon: Shield,      gate: undefined },
+        { href: '/kb/frameworks', labelKey: 'nav.kbFrameworks', defaultLabel: 'Référentiels & Couverture', icon: FileText,    gate: undefined },
       ],
     },
     {
@@ -93,8 +108,8 @@
       labelKey: 'nav.kbGroupDoctrine',
       defaultLabel: '2. Doctrine & Rédaction',
       items: [
-        { href: '/kb/workshop',   labelKey: 'nav.kbWorkshop',   defaultLabel: 'Atelier de Doctrine',       icon: Sparkles },
-        { href: '/kb/clauses',    labelKey: 'nav.kbClauses',    defaultLabel: 'Clauses vérifiables',       icon: ShieldCheck },
+        { href: '/kb/workshop',   labelKey: 'nav.kbWorkshop',   defaultLabel: 'Atelier de Doctrine',       icon: Sparkles,    gate: undefined },
+        { href: '/kb/clauses',    labelKey: 'nav.kbClauses',    defaultLabel: 'Clauses vérifiables',       icon: ShieldCheck, gate: undefined },
       ],
     },
     {

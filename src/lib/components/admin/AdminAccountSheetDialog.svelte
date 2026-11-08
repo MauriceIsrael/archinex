@@ -3,7 +3,8 @@
   import { Button } from '$lib/components/ui/button';
   import { Input } from '$lib/components/ui/input';
   import { Label } from '$lib/components/ui/label';
-  import type { KbRole } from '$lib/types/llmops';
+  import DomainsPicker from '$lib/components/admin/DomainsPicker.svelte';
+  import type { KbRole, KbOwnersRegistry } from '$lib/types/llmops';
   import type { ArchitectRole } from '$lib/types/epistemic';
   import type {
     CentralizedAccountRecord,
@@ -21,12 +22,14 @@
     account = null,
     workspaces = [],
     unlinkedOwners = [],
+    ownersRegistry,
     onUpdated
   } = $props<{
     open: boolean;
     account: CentralizedAccountRecord | null;
     workspaces: WorkspaceSummary[];
     unlinkedOwners: UnlinkedOwnerItem[];
+    ownersRegistry?: KbOwnersRegistry;
     onUpdated: () => void;
   }>();
 
@@ -43,7 +46,7 @@
   let enableKbReview = $state(false);
   let kbHandle = $state('');
   let selectedKbRoles = $state<KbRole[]>(['kb:review']);
-  let domainsInput = $state('');
+  let selectedDomains = $state<string[]>([]);
 
   let savingLocal = $state(false);
   let syncingLlmops = $state(false);
@@ -114,7 +117,7 @@
         account.llmopsIdentity.domains.length > 0
           ? account.llmopsIdentity.domains
           : account.kbProfile?.ownedDomains || [];
-      domainsInput = initDomains.join(', ');
+      selectedDomains = [...initDomains];
     }
   });
 
@@ -132,7 +135,7 @@
     enableKbReview = true;
     kbHandle = uo.handle;
     selectedKbRoles = uo.roles.length > 0 ? [...uo.roles] : ['kb:review'];
-    domainsInput = uo.domains.join(', ');
+    selectedDomains = Array.from(new Set([...selectedDomains, ...uo.domains]));
   }
 
   async function handleSaveAccount(e: Event) {
@@ -147,10 +150,7 @@
         throw new Error('Le mot de passe doit comporter au moins 6 caractères.');
       }
 
-      const domains = domainsInput
-        .split(',')
-        .map((s) => s.trim().toLowerCase())
-        .filter((s) => s.length > 0);
+      const domains = selectedDomains;
 
       const res = await fetch('/api/admin/accounts', {
         method: 'PATCH',
@@ -166,7 +166,8 @@
           enableKbReview,
           kbHandle: enableKbReview ? kbHandle.trim() : undefined,
           kbRoles: enableKbReview ? selectedKbRoles : [],
-          ownedDomains: enableKbReview ? domains : []
+          ownedDomains: enableKbReview ? domains : [],
+          registerInLlmops: Boolean(enableKbReview)
         })
       });
 
@@ -182,9 +183,13 @@
       } else if (pwdChanged) {
         generatedLink = null;
       }
-      successMsg = pwdChanged
-        ? 'Compte et nouveau mot de passe enregistrés avec succès.'
-        : 'Modifications du compte et des rôles par espace enregistrées.';
+      if (body.data?.llmopsSync?.attempted && !body.data.llmopsSync.success) {
+        errorMsg = body.data.llmopsSync.error || 'Erreur lors de la mise à jour dans LLMOps.';
+      } else {
+        successMsg = pwdChanged
+          ? 'Compte et nouveau mot de passe enregistrés avec succès (synchronisé avec LLMOps).'
+          : 'Modifications et domaines de responsabilité enregistrés et synchronisés avec LLMOps.';
+      }
       onUpdated();
     } catch (err: any) {
       errorMsg = err.message || 'Erreur lors de la sauvegarde';
@@ -231,10 +236,7 @@
     syncingLlmops = true;
 
     try {
-      const domains = domainsInput
-        .split(',')
-        .map((s) => s.trim().toLowerCase())
-        .filter((s) => s.length > 0);
+      const domains = selectedDomains;
 
       const res = await fetch('/api/admin/llmops-owners', {
         method: 'POST',
@@ -496,20 +498,18 @@
               </div>
             {/if}
 
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-              <div class="space-y-1.5">
-                <Label for="sheet-kb-handle">Handle dans LLMOps (@...)</Label>
-                <Input id="sheet-kb-handle" bind:value={kbHandle} placeholder="@sec-lead" />
-              </div>
+            <div class="space-y-1.5 pt-1">
+              <Label for="sheet-kb-handle">Handle dans LLMOps (@...)</Label>
+              <Input id="sheet-kb-handle" bind:value={kbHandle} placeholder="@sec-lead" />
+            </div>
 
-              <div class="space-y-1.5">
-                <Label for="sheet-kb-domains">Domaines rattachés dans LLMOps</Label>
-                <Input
-                  id="sheet-kb-domains"
-                  bind:value={domainsInput}
-                  placeholder="security, data-protection, cloud"
-                />
-              </div>
+            <div class="space-y-1.5 pt-1">
+              <Label class="text-xs font-semibold">Domaines de responsabilité (Compétences LLMOps)</Label>
+              <DomainsPicker
+                bind:selectedDomains
+                {ownersRegistry}
+                disabled={savingLocal || syncingLlmops}
+              />
             </div>
 
             <div class="space-y-1.5">
@@ -532,23 +532,11 @@
               </div>
             </div>
 
-            <div class="flex items-center justify-between gap-3 rounded border border-primary/25 bg-primary/5 p-3">
-              <div class="text-xs">
-                <div class="font-semibold text-foreground">Action explicite sur le registre LLMOps</div>
-                <div class="text-[11px] text-muted-foreground">
-                  Met à jour uniquement ce responsable et ses domaines dans LLMOps (<code>PUT /api/knowledge/owners</code>) avec journalisation.
-                </div>
-              </div>
-              <Button
-                type="button"
-                size="sm"
-                variant="secondary"
-                disabled={syncingLlmops}
-                onclick={handleSyncLlmops}
-                class="shrink-0"
-              >
-                {syncingLlmops ? 'Envoi à LLMOps...' : 'Enregistrer dans le registre LLMOps'}
-              </Button>
+            <div class="flex items-center gap-2.5 rounded border border-primary/25 bg-primary/5 p-3 text-xs text-muted-foreground">
+              <CheckCircle2 class="h-4 w-4 text-primary shrink-0" />
+              <span>
+                <strong>Synchronisation LLMOps automatique :</strong> la validation ci-dessous enregistre le compte et synchronise en direct l'expert et ses domaines de responsabilité dans le registre LLMOps (<code>PUT /api/knowledge/owners</code>).
+              </span>
             </div>
           {/if}
         </div>
@@ -556,7 +544,7 @@
         <Dialog.Footer class="pt-2">
           <Button type="button" variant="outline" onclick={() => { open = false; }}>Fermer</Button>
           <Button type="submit" disabled={savingLocal}>
-            {savingLocal ? 'Enregistrement...' : 'Enregistrer le compte et les rôles'}
+            {savingLocal ? 'Enregistrement & Synchronisation...' : 'Enregistrer et synchroniser avec LLMOps'}
           </Button>
         </Dialog.Footer>
       </form>

@@ -49,33 +49,55 @@
   const isDemoStorage = $derived(
     health?.storage?.mode === 'demo' || (health?.storage && !health.storage.persistent)
   );
+  const offline = $derived(data.offline ?? false);
 
   let isSyncingEmbeddings = $state(false);
+  let autoSyncAttempted = $state(false);
+  const configuredModelId = $derived(data.configuredEmbeddingModel || 'bge-m3');
   const embeddingsInfo = $derived(
-    health?.embeddings?.[0] || { model_id: 'toy-bow', vectors: 0, missing: 0, stale: 0, active_assets: 0 }
+    health?.embeddings?.find((e) => e.model_id === configuredModelId) ||
+      health?.embeddings?.find((e) => e.model_id !== 'toy-bow') ||
+      health?.embeddings?.[0] || {
+        model_id: configuredModelId,
+        dim: undefined,
+        vectors: 0,
+        missing: 0,
+        stale: 0,
+        active_assets: health?.assets?.active ?? 0
+      }
   );
 
-  async function handleSyncEmbeddings() {
+  async function autoSyncEmbeddingsIfNeeded() {
+    if (isSyncingEmbeddings || offline) return;
     isSyncingEmbeddings = true;
     try {
       const res = await fetch('/api/knowledge/embeddings/sync', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ model: 'toy-bow' })
+        body: JSON.stringify({})
       });
-      const body = await res.json();
       if (res.ok) {
-        toast(`Synchronisation terminée : ${body.count ?? 0} actif(s) vectorisé(s) avec succès !`, { variant: 'success' });
         await refreshHealth();
-      } else {
-        toast(body.error || 'Erreur lors de la synchronisation des vecteurs', { variant: 'error' });
       }
-    } catch (e: any) {
-      toast(e.message || 'Erreur réseau', { variant: 'error' });
+    } catch {
+      // ignore background auto-sync errors
     } finally {
       isSyncingEmbeddings = false;
     }
   }
+
+  $effect(() => {
+    const needsSync =
+      !autoSyncAttempted &&
+      !offline &&
+      (embeddingsInfo.missing > 0 ||
+        embeddingsInfo.stale > 0 ||
+        (embeddingsInfo.vectors === 0 && (health?.assets?.active ?? 0) > 0));
+    if (needsSync) {
+      autoSyncAttempted = true;
+      autoSyncEmbeddingsIfNeeded();
+    }
+  });
 
   async function refreshHealth() {
     try {
@@ -353,25 +375,32 @@
         </p>
       </div>
 
-      <button
-        onclick={handleSyncEmbeddings}
-        disabled={isSyncingEmbeddings}
-        class="inline-flex items-center gap-2 px-4 py-2 text-xs font-semibold rounded-lg bg-primary text-primary-foreground hover:bg-primary/90 transition-colors shadow-sm disabled:opacity-50"
-      >
-        <RefreshCw class="h-3.5 w-3.5 {isSyncingEmbeddings ? 'animate-spin' : ''}" />
+      <div class="flex items-center gap-2">
         {#if isSyncingEmbeddings}
-          Calcul & Dépôt en cours...
+          <span class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-full bg-primary/10 text-primary border border-primary/20">
+            <RefreshCw class="h-3.5 w-3.5 animate-spin" />
+            Indexation automatique en cours…
+          </span>
+        {:else if embeddingsInfo.missing === 0 && embeddingsInfo.stale === 0 && embeddingsInfo.vectors > 0}
+          <span class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-full bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
+            <CheckCircle2 class="h-3.5 w-3.5" />
+            Index sémantique à jour
+          </span>
         {:else}
-          Synchroniser les Vecteurs
+          <span class="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium rounded-full bg-muted text-muted-foreground border border-border">
+            Synchronisation automatique
+          </span>
         {/if}
-      </button>
+      </div>
     </div>
 
     <div class="grid grid-cols-2 md:grid-cols-4 gap-4 text-xs">
       <div class="p-3.5 rounded-lg bg-muted/20 border border-border">
         <span class="text-muted-foreground font-medium">Modèle d'Encodage</span>
         <div class="text-base font-bold text-foreground mt-1">{embeddingsInfo.model_id}</div>
-        <div class="text-[11px] text-muted-foreground mt-0.5">Encodage déterministe (128d)</div>
+        <div class="text-[11px] text-muted-foreground mt-0.5">
+          {embeddingsInfo.dim ? `Vecteurs sémantiques (${embeddingsInfo.dim}d)` : 'Encodeur vectoriel configuré'}
+        </div>
       </div>
       <div class="p-3.5 rounded-lg bg-muted/20 border border-border">
         <span class="text-muted-foreground font-medium">Actifs Vectorisés</span>

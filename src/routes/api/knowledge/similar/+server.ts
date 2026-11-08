@@ -2,7 +2,8 @@ import { json } from '@sveltejs/kit';
 import { llmopsClient } from '$lib/server/llmops/client';
 import {
   anonymizeSubjectText,
-  computeSubjectFingerprint
+  computeSubjectFingerprint,
+  ensureEmbeddingsSynced
 } from '$lib/server/similarity/embeddings';
 import { resolveEncoder } from '$lib/server/similarity/encoder';
 import type { RequestHandler } from './$types';
@@ -28,36 +29,20 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 
   // Anonymisation stricte avant traitement sémantique
   const cleanText = anonymizeSubjectText(query_text.trim());
-
-  // LLMOps encode le texte avec son modèle de référence (contrat 1.25) : pas d'encodeur côté Archinex.
-  if (typeof body.model !== 'string') {
-    const serverSide = await llmopsClient.searchSimilarKnowledge(
-      {
-        query_text: cleanText,
-        subject_fingerprint: computeSubjectFingerprint(cleanText),
-        types,
-        domains,
-        top_k: typeof top_k === 'number' ? top_k : 10
-      },
-      actorEmail
-    );
-    if (serverSide.status === 'ok' && serverSide.data) {
-      return json({ status: 'ok', data: serverSide.data });
-    }
-    // LLMOps antérieur à la 1.25 ou modèle absent : repli sur l'encodeur local ci-dessous
-  }
+  const fp = computeSubjectFingerprint(cleanText);
 
   let encoder;
   let vector: number[];
   try {
     encoder = resolveEncoder(typeof body.model === 'string' ? body.model : undefined);
+    // Synchronisation automatique des vecteurs en attente avant la recherche sémantique
+    await ensureEmbeddingsSynced(llmopsClient, { model: encoder.model, encoder });
     vector = await encoder.encode(cleanText);
   } catch (e: any) {
     // Jamais de repli sur un autre modèle : une recherche sur un espace de vecteurs différent n'aurait aucun sens.
     return json({ status: 'unavailable', error: e?.message ?? String(e) }, { status: 503 });
   }
   const model = encoder.model;
-  const fp = computeSubjectFingerprint(cleanText);
 
   const searchRes = await llmopsClient.searchSimilarKnowledge(
     {

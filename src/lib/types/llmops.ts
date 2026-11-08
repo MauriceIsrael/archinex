@@ -721,6 +721,7 @@ export interface KbHealthMetrics {
   };
   embeddings?: Array<{
     model_id: string;
+    dim?: number;
     missing: number;
     stale: number;
     vectors: number;

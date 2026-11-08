@@ -9,6 +9,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 import { ActorAssertionConfigError, actorIdentityHeaders } from './actorAssertion';
+import { configuredModel } from '../similarity/encoder';
 import type {
   CheckClausesList,
   CheckClauseRow,
@@ -3599,7 +3600,7 @@ export class LLMOpsClient {
    * Récupère la liste des actifs en attente d'embedding pour un modèle donné (Contrat 1.9).
    */
   async getEmbeddingsPending(
-    model: string = 'toy-bow',
+    model: string = configuredModel(),
     actorEmail?: string
   ): Promise<{ status: 'ok' | 'error' | 'unavailable'; pending: EmbeddingPendingItem[]; error?: string }> {
     try {

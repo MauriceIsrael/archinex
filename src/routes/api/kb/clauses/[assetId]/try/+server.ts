@@ -1,5 +1,7 @@
 import { json } from '@sveltejs/kit';
 import { llmopsClient } from '$lib/server/llmops/client';
+import { ensureEmbeddingsSynced } from '$lib/server/similarity/embeddings';
+import { resolveEncoder } from '$lib/server/similarity/encoder';
 import type { RequestHandler } from './$types';
 
 const STOPWORDS = new Set([
@@ -44,10 +46,24 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
   const optDesc = typeof option.description === 'string' ? option.description : '';
   const queryText = `${optTitle} ${optDesc}`.trim();
 
-  // Exécution parallèle : verdict déterministe + recherche de similarité cosinus (Option A)
+  // Exécution parallèle : verdict déterministe + recherche de similarité cosinus (Option A) avec le modèle d'embeddings configuré
+  const semanticSearchPromise = (async () => {
+    try {
+      const encoder = resolveEncoder();
+      await ensureEmbeddingsSynced(llmopsClient, { model: encoder.model, encoder });
+      const vector = await encoder.encode(queryText);
+      return await llmopsClient.searchSimilarKnowledge(
+        { model: encoder.model, vector, query_text: queryText, top_k: 25 },
+        locals.session!.user.email
+      );
+    } catch {
+      return { status: 'unavailable' as const, data: undefined };
+    }
+  })();
+
   const [trialResult, similarResult] = await Promise.all([
     llmopsClient.tryAssetClauses(params.assetId, body.checks, [{ title: optTitle, description: optDesc }]),
-    llmopsClient.searchSimilarKnowledge({ query_text: queryText, top_k: 25 }, locals.session.user.email).catch(() => ({ status: 'unavailable' as const, data: undefined }))
+    semanticSearchPromise
   ]);
 
   if (trialResult.status !== 'ok') {

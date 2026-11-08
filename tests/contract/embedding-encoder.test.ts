@@ -2,7 +2,13 @@ import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import http from 'node:http';
 import type { AddressInfo } from 'node:net';
 import { resolveEncoder, ollamaEncoder, EncoderUnavailableError } from '../../src/lib/server/similarity/encoder';
-import { syncEmbeddingsWithLLMOps, encodeToyBow } from '../../src/lib/server/similarity/embeddings';
+import {
+  syncEmbeddingsWithLLMOps,
+  ensureEmbeddingsSynced,
+  needsEmbeddingSync,
+  encodeToyBow
+} from '../../src/lib/server/similarity/embeddings';
+import { detectPossibleDuplicateAsync } from '../../src/lib/server/agents/cascadeProposer';
 
 /** Faux serveur Ollama déterministe : un seul modèle installé, « bge-m3 », empreinte fixe. */
 let server: http.Server;
@@ -111,5 +117,76 @@ describe('Encodeur d’embeddings : un modèle = un espace de vecteurs', () => {
     const res = await syncEmbeddingsWithLLMOps(client as any, { model: 'bge-m3', encoder: ollamaEncoder({ baseUrl: 'http://127.0.0.1:1', model: 'bge-m3', timeoutMs: 500 }) });
     expect(res.status).toBe('unavailable');
     expect(called).toBe(false);
+  });
+
+  it('ensureEmbeddingsSynced déduplique les synchronisations concurrentes et needsEmbeddingSync détecte les écarts', async () => {
+    expect(needsEmbeddingSync({ assets: { active: 10 }, embeddings: [] }, 'bge-m3')).toBe(true);
+    expect(
+      needsEmbeddingSync(
+        { assets: { active: 10 }, embeddings: [{ model_id: 'toy-bow', vectors: 10, missing: 0, stale: 0 }] },
+        'bge-m3'
+      )
+    ).toBe(true);
+    expect(
+      needsEmbeddingSync(
+        { assets: { active: 10 }, embeddings: [{ model_id: 'bge-m3', vectors: 10, missing: 0, stale: 0 }] },
+        'bge-m3'
+      )
+    ).toBe(false);
+    expect(
+      needsEmbeddingSync(
+        { assets: { active: 10 }, embeddings: [{ model_id: 'bge-m3', vectors: 9, missing: 1, stale: 0 }] },
+        'bge-m3'
+      )
+    ).toBe(true);
+
+    let pendingCalls = 0;
+    let depositCalls = 0;
+    const client = {
+      getEmbeddingsPending: async () => {
+        pendingCalls += 1;
+        await new Promise((r) => setTimeout(r, 20));
+        return {
+          status: 'ok',
+          pending: [{ ref: 'P-002', text: 'Approbation humaine préalable', text_sha256: 'x' }] as any
+        };
+      },
+      depositEmbeddings: async (d: any) => {
+        depositCalls += 1;
+        return { status: 'ok', count: d.items.length };
+      }
+    };
+
+    const enc = ollamaEncoder({ baseUrl: url, model: 'bge-m3' });
+    const [r1, r2, r3] = await Promise.all([
+      ensureEmbeddingsSynced(client as any, { model: 'bge-m3', encoder: enc }),
+      ensureEmbeddingsSynced(client as any, { model: 'bge-m3', encoder: enc }),
+      ensureEmbeddingsSynced(client as any, { model: 'bge-m3', encoder: enc })
+    ]);
+
+    expect(r1).toMatchObject({ status: 'ok', count: 1 });
+    expect(r2).toMatchObject({ status: 'ok', count: 1 });
+    expect(r3).toMatchObject({ status: 'ok', count: 1 });
+    expect(pendingCalls).toBe(1);
+    expect(depositCalls).toBe(1);
+  });
+
+  it('detectPossibleDuplicateAsync utilise l’encodeur d’embeddings configuré', async () => {
+    const enc = ollamaEncoder({ baseUrl: url, model: 'bge-m3' });
+    const dup = await detectPossibleDuplicateAsync(
+      'Latence du cœur 5G et transport',
+      [
+        {
+          id: 'sub-1',
+          name: 'Latence du cœur 5G',
+          sectionRef: '§2.1',
+          problemStatement: 'Transport'
+        }
+      ],
+      0.8,
+      enc
+    );
+    expect(dup).not.toBeNull();
+    expect(dup?.subjectId).toBe('sub-1');
   });
 });

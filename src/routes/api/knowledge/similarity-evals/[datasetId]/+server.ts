@@ -1,5 +1,6 @@
 import { json } from '@sveltejs/kit';
 import { llmopsClient } from '$lib/server/llmops/client';
+import { ensureEmbeddingsSynced } from '$lib/server/similarity/embeddings';
 import { resolveEncoder } from '$lib/server/similarity/encoder';
 import type { RequestHandler } from './$types';
 
@@ -45,12 +46,13 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
     return json({ status: 'error', error: 'Impossible de charger le dataset pour encodage' }, { status: 400 });
   }
 
-  // Calcul local des vecteurs pour chaque cas
+  // Calcul local des vecteurs pour chaque cas et synchronisation automatique de l'index du modèle
   const vectors: Record<string, number[]> = {};
   let model: string;
   try {
     const encoder = resolveEncoder(typeof body.model === 'string' ? body.model : undefined);
     model = encoder.model;
+    await ensureEmbeddingsSynced(llmopsClient, { model, encoder });
     for (const c of dsRes.data.cases) {
       vectors[c.id] = await encoder.encode(c.query_text);
     }

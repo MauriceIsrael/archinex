@@ -76,7 +76,7 @@
 </script>
 
 <svelte:head>
-	<title>Archinex · Espaces de Travail & Contextes de Réflexion</title>
+	<title>Archinex · Espaces de Travail & Projets</title>
 </svelte:head>
 
 <div class="space-y-6 max-w-7xl mx-auto">
@@ -92,10 +92,10 @@
 					</div>
 					<div>
 						<h1 class="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
-							Espaces de Travail & Contextes de Réflexion
+							Espaces de Travail & Projets
 						</h1>
 						<p class="text-xs sm:text-sm text-muted-foreground mt-0.5">
-							Gestion des projets d'architecture, cadrage stratégique et délibération dialectique
+							Gestion des projets d'architecture et du socle documentaire
 						</p>
 					</div>
 				</div>
@@ -118,7 +118,7 @@
 					class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 font-bold text-xs shadow-xs transition-colors"
 				>
 					<FolderPlus class="h-4 w-4" />
-					<span>Nouvel Espace Projet</span>
+					<span>Nouveau Projet</span>
 				</a>
 
 				<a
@@ -128,7 +128,7 @@
 					title="Analyser un RFP, ou reprendre une analyse enregistrée, pour créer un espace à partir de ses sujets"
 				>
 					<FolderPlus class="h-4 w-4" />
-					<span>Depuis un RFP (analyses enregistrées)</span>
+					<span>Depuis un RFP</span>
 				</a>
 
 				<button
@@ -136,34 +136,8 @@
 					onclick={() => (isCreateModalOpen = true)}
 					class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border bg-muted/40 hover:bg-muted font-semibold text-xs transition-colors cursor-pointer"
 				>
-					<span>Création Rapide</span>
+					<span>Création rapide</span>
 				</button>
-			</div>
-		</div>
-
-		<!-- Invariant Fondamental : Base de Connaissance Partagée -->
-		<div class="p-4 rounded-xl border bg-emerald-500/10 border-emerald-500/25 flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-			<div class="flex items-start gap-3">
-				<ShieldCheck class="h-5 w-5 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
-				<div class="space-y-0.5">
-					<h3 class="text-xs font-bold text-emerald-900 dark:text-emerald-200">
-						Patrimoine de connaissances commun
-					</h3>
-					<p class="text-xs text-muted-foreground leading-relaxed">
-						Chaque espace de travail isole ses sujets et arbitrages, mais <strong>la base de connaissances reste commune et valide de facto</strong>. Tout standard ou document amont apporté enrichit l'ensemble des projets.
-					</p>
-				</div>
-			</div>
-
-			<div class="flex items-center gap-3 shrink-0 font-mono text-xs text-emerald-900 dark:text-emerald-200">
-				<div class="bg-background/80 px-3 py-1.5 rounded-lg border border-emerald-500/30 text-center">
-					<strong class="text-sm font-bold block">{deliberationStore.commonKnowledgeBase.length}</strong>
-					<span class="text-[10px] text-muted-foreground">Documents au socle</span>
-				</div>
-				<div class="bg-background/80 px-3 py-1.5 rounded-lg border border-emerald-500/30 text-center">
-					<strong class="text-sm font-bold block">{deliberationStore.engagements.length}</strong>
-					<span class="text-[10px] text-muted-foreground">Espaces totaux</span>
-				</div>
 			</div>
 		</div>
 	</div>
@@ -247,7 +221,7 @@
 							{#if isActive}
 								<span class="inline-flex items-center gap-1 text-[10px] font-bold text-emerald-600 bg-emerald-500/10 border border-emerald-500/25 px-2 py-0.5 rounded-full shrink-0">
 									<CheckCircle2 class="h-3 w-3" />
-									Actif en séance
+									Projet actif
 								</span>
 							{/if}
 						</div>

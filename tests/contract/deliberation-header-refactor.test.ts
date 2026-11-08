@@ -30,6 +30,8 @@ describe('Refonte de l’en-tête Délibération et statut global LLMOps', () =>
 		// Les anciens boutons parasites et le panneau redondant "Projet & Engagement Actif :" ne doivent plus être présents
 		expect(html).not.toContain('Projet &amp; Engagement Actif :');
 		expect(html).not.toContain('+ Nouvel Espace');
+		expect(html).not.toContain('100% Local &amp; Souverain');
+		expect(html).not.toContain('100% Local');
 
 		// La navigation 2 niveaux (Projet vs Sujet) est présente et explicite
 		expect(html).toContain('project-engagement-header');
@@ -72,6 +74,24 @@ describe('Refonte de l’en-tête Délibération et statut global LLMOps', () =>
 		const layoutContent = fs.readFileSync(path.resolve('src/routes/+layout.svelte'), 'utf8');
 		expect(layoutContent).toContain('data-testid="active-engagement-pill"');
 		expect(layoutContent).toContain('href="/workspaces"');
+	});
+
+	it('6. Les vues Workspaces, Création de Projet et Délibération ne contiennent plus de badges slogans superflus ("100% Local & Souverain", "valide de facto")', () => {
+		const filesToCheck = [
+			'src/routes/workspaces/+page.svelte',
+			'src/routes/workspaces/new/+page.svelte',
+			'src/lib/components/deliberation/CreateWorkspaceDialog.svelte',
+			'src/lib/components/deliberation/WorkspaceManagerDialog.svelte',
+			'src/lib/components/deliberation/CorpusAppropriationHub.svelte',
+			'src/lib/components/deliberation/CapitalizationPanel.svelte'
+		];
+		for (const file of filesToCheck) {
+			const content = fs.readFileSync(path.resolve(file), 'utf8');
+			expect(content, `${file} ne doit plus contenir "100% Local & Souverain"`).not.toContain('100% Local & Souverain');
+			expect(content, `${file} ne doit plus contenir "100% Souverain & Local"`).not.toContain('100% Souverain & Local');
+			expect(content, `${file} ne doit plus contenir "valide de facto"`).not.toContain('valide de facto');
+			expect(content, `${file} ne doit plus contenir "Anonymisation Souveraine"`).not.toContain('Anonymisation Souveraine');
+		}
 	});
 });
 

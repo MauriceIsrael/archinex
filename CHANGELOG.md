@@ -8,22 +8,14 @@ Aucune version n'a encore Ã©tÃ© publiÃ©e : tout figure sous *Non publiÃ©
 
 ## Non publié
 
-### Harmonisation UX/UI des Labels Métier & Navigation à 2 Niveaux Projet / Sujet (Pattern A)
-- **Suppression du Jargon Interne de Spécification dans toute l'IHM** :
-  - Retrait systématique des codes de portes et d'invariants internes (`Porte G3`, `G3`, `Porte G4`, `G4`, `Porte G5`, `G5`, `Porte G6`, `G6`, `Porte G7`, `G7`, `Contrat 1.9`, `Contrat 1.11`, `Lot A2`, `K16`, `K18`, `K22`, `K13`, `Invariant II`, `Invariant VI`) ainsi que des identifiants techniques bruts (`L3_decided`, `L0_named`, `L5_frozen`, `supports`/`violates`, `false_strong`, `llm-derived`) au profit de libellés métier clairs et concis dans la barre latérale, le Knowledge Hub (`/kb/dashboard`, `/kb/evals`, `/kb/frameworks/[id]`, `/kb/reviews/[id]`), l'atelier de délibération et la Phase 4.
-- **Allègement de l'En-tête Global & Suppression du Panneau Redondant « Projet & Engagement Actif »** :
-  - Ajout d'un badge compact d'engagement actif (`data-testid="active-engagement-pill"`) dans la barre supérieure globale (`src/routes/+layout.svelte`) renvoyant directement vers `/workspaces`.
-  - Suppression de la grille redondante de sélection de projet et du bouton `+ Nouvel Espace` de la page `/deliberation`.
-- **Architecture Ergonomique à 2 Niveaux Projet vs Sujet (Pattern A)** :
-  - Refonte de `ProjectEngagementHeader.svelte` en barre permanente structurée autour des deux échelles de travail : **Projet** (`Phase 1 · Corpus & Règles`, `Tableau des Sujets`) et **Sujet** (`Phase 2 · Délibération`, `Phase 3 · Rendu HLD`, `Phase 4 · Raffinement`), supprimant la double barre d'onglets redondante dans `/deliberation`.
-  - Transformation de `Phase3SubjectSelector.svelte` en **Barre de Contexte Sujet** compacte d'une seule ligne (`← Tableau`, navigation `◀ / ▶` sujet précédent/suivant, sélecteur rapide et tiroir dépliable à la demande).
-### Visibilité & Persistance des Brouillons de Clauses Vérifiables (`/kb/clauses`)
-- **Persistance Directe & Invalidation Réactive du Cache (`LLMOpsClient`, Issue #99)** :
-  - Invalidation immédiate du cache en mémoire `kb:` et `compliance:` lors de la soumission d'une clause de vérification en brouillon via `submitDraftClause()` (`src/lib/server/llmops/client.ts`), évitant que l'affichage de `/kb/clauses` reste figé sur la réponse mise en cache pendant 30 secondes.
-  - Identification explicite du canal de persistance (`channel: 'asset_check'` vs `channel: 'candidate'`) dans le retour de l'API `/api/kb/clauses/[assetId]/save-draft`.
-- **Expérience Utilisateur & Navigation Réactive (`src/routes/kb/clauses/+page.svelte`)** :
-  - Bascule automatique vers l'onglet **« À relire »** dès l'enregistrement d'une clause en brouillon sur un contrôle sans clause, avec affichage d'un bandeau de confirmation contextuel vert en haut de page.
-  - Aiguillage explicite vers la boîte de révision (`/kb/reviews`) avec lien direct lorsque l'enregistrement fait l'objet d'un repli vers les candidats d'amendement.
+### Harmonisation des Labels Métier, Suppression des Slogans Superflus & Navigation à 2 Niveaux Projet/Sujet (Pattern A)
+- **Éradication du Jargon de Spécification et des Badges Slogans Superflus** :
+  - Suppression dans toute l'IHM (`/deliberation`, `/workspaces`, `/workspaces/new`, `/kb`, `/knowledge`, `/dashboard`, `/benchmarks`) des codes internes de spécification (`Porte G3`–`G7`, `K13`–`K22`, `Contrat 1.9`/`1.11`, `Lot A2`, `Invariant II`/`VI`, valeurs d'énumérations brutes `L0_named`, `L3_decided`, `L5_frozen`, `supports`/`violates`, `false_strong`).
+  - Suppression des badges et bandeaux slogans superflus (`100% Local & Souverain`, `100% Souverain & Local`, `Anonymisation Souveraine`, rappels philosophiques *« Patrimoine de Connaissances Commun … valide de facto »* et *« Règle d'or Archinex »*) dans `ProjectEngagementHeader.svelte`, `src/routes/workspaces/+page.svelte`, `src/routes/workspaces/new/+page.svelte`, `CreateWorkspaceDialog.svelte`, `WorkspaceManagerDialog.svelte`, `CorpusAppropriationHub.svelte`, `CapitalizationPanel.svelte` et `DecisionGuideModal.svelte`.
+- **Hiérarchie Ergonomique à 2 Niveaux Projet vs Sujet (Pattern A)** :
+  - **En-tête global (`src/routes/+layout.svelte`)** : ajout d'une pastille compacte d'engagement actif (`data-testid="active-engagement-pill"`) renvoyant directement vers `/workspaces`, en remplacement de l'ancien panneau massif *« Projet & Engagement Actif : »* qui encombrait `/deliberation`.
+  - **Barre de navigation à 2 niveaux (`ProjectEngagementHeader.svelte`)** : séparation visuelle explicite entre l'échelle **Projet** (*Phase 1 · Corpus & Règles*, *Tableau des Sujets*) et l'échelle **Sujet** (*Phase 2 · Délibération → Phase 3 · Rendu HLD → Phase 4 · Raffinement*).
+  - **Barre de contexte Sujet 1 ligne (`Phase3SubjectSelector.svelte`)** : remplacement de la grille de cartes par une barre compacte 1 ligne (`← Tableau`, navigation rapide `◀`/`▶` entre sujets, tiroir de sélection à la demande).
 
 ### Synchronisation Automatique des Vecteurs d'Embeddings & Retrait du Codage en Dur `toy-bow` (Décision D6 / A12)
 - **Hydratation de `EMBEDDING_MODEL` et `EMBEDDING_OLLAMA_URL` depuis `.env` (`src/lib/server/similarity/encoder.ts`)** :

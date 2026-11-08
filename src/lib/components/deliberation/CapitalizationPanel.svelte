@@ -138,9 +138,6 @@
 			<div>
 				<h4 class="font-bold text-foreground text-sm flex items-center gap-2">
 					Capitalisation vers le Knowledge Hub
-					<span class="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-indigo-500/15 text-indigo-700 border border-indigo-500/30">
-						<ShieldCheck class="w-3 h-3" /> Anonymisation Souveraine
-					</span>
 				</h4>
 				<p class="text-xs text-muted-foreground mt-0.5">
 					Les décisions d'arbitrage enrichissent la doctrine d'entreprise. Vous pouvez modifier chaque candidat avant transmission formelle à LLMOps.

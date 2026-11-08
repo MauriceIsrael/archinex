@@ -31,10 +31,6 @@
 						<span class="inline-flex items-center gap-1 rounded bg-primary/10 text-primary px-2 py-0.5 text-xs font-semibold font-mono">
 							Guide Méthodologique
 						</span>
-						<span class="inline-flex items-center gap-1 rounded bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 px-2 py-0.5 text-xs font-semibold">
-							<ShieldCheck class="h-3.5 w-3.5" />
-							100% Local & Souverain
-						</span>
 					</div>
 					<h2 class="text-xl font-bold tracking-tight text-foreground">
 						Où et comment prendre les décisions dans Archinex ?
@@ -184,7 +180,7 @@
 			<div class="rounded-xl border bg-muted/30 p-4 space-y-3">
 				<h3 class="text-sm font-bold text-foreground flex items-center gap-2">
 					<Layers class="h-4 w-4 text-primary" />
-					Les 2 Instances de Travail Configurées (100% en local)
+					Types d'espaces de travail
 				</h3>
 				<div class="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
 					<div class="rounded-lg border bg-background p-3 space-y-1.5">

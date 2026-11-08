@@ -291,17 +291,11 @@
 						<FolderPlus class="h-5 w-5" />
 					</div>
 					<div>
-						<div class="flex items-center gap-2">
-							<h2 class="text-base sm:text-lg font-bold">
-								Créer un Nouvel Espace de Travail
-							</h2>
-							<span class="inline-flex items-center gap-1 rounded bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/25 px-2 py-0.5 text-[10px] font-semibold">
-								<ShieldCheck class="h-3 w-3" />
-								100% Souverain & Local
-							</span>
-						</div>
+						<h2 class="text-base sm:text-lg font-bold">
+							Nouveau Projet
+						</h2>
 						<p class="text-xs text-muted-foreground mt-0.5">
-							Cadrage, stratégie, documents amonts et participants · Le patrimoine de connaissances reste commun
+							Cadrage, stratégie, documents amonts et participants
 						</p>
 					</div>
 				</div>
@@ -381,7 +375,7 @@
 					<div class="space-y-4 animate-in fade-in duration-100">
 						<div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
 							<div class="space-y-1.5 sm:col-span-2">
-								<label for="p-title" class="font-bold text-foreground">Titre du Projet / Contexte de Réflexion *</label>
+								<label for="p-title" class="font-bold text-foreground">Titre du projet *</label>
 								<input
 									id="p-title"
 									type="text"

@@ -8,7 +8,6 @@
 		Layers,
 		Archive,
 		RotateCcw,
-		ShieldCheck,
 		Target
 	} from 'lucide-svelte';
 
@@ -222,14 +221,6 @@
 					</button>
 				{/if}
 			</div>
-
-			<span
-				class="hidden 2xl:inline-flex items-center gap-1 rounded bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/25 px-2 py-0.5 text-[10px] font-semibold shrink-0"
-				title="Garantie de souveraineté : 100% du traitement et des données restent en local sur votre machine"
-			>
-				<ShieldCheck class="h-3 w-3" />
-				100% Local & Souverain
-			</span>
 		</div>
 	</div>
 </div>

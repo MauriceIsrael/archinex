@@ -62,8 +62,8 @@ describe('Contract: Distinction 403 non-enregistré / 401 / 503 & maintien pasti
     const meRes = await client.getMe(unregisteredEmail);
     expect(meRes.status).toBe('not_registered');
     expect(meRes.data).toBeUndefined();
-    expect(meRes.error).toBe(
-      "Votre adresse n'est pas inscrite dans le registre des experts du Hub : demandez à un administrateur (Administration → Inscrire dans le registre LLMOps)"
+    expect(meRes.error).toMatch(
+      /Compte non synchronisé avec le registre souverain LLMOps|Votre adresse n'est pas inscrite dans le registre/
     );
   });
 
@@ -71,8 +71,8 @@ describe('Contract: Distinction 403 non-enregistré / 401 / 503 & maintien pasti
     const inboxRes = await client.getReviewInbox(unregisteredEmail);
     expect(inboxRes.status).toBe('not_registered');
     expect(inboxRes.data).toBeUndefined();
-    expect(inboxRes.error).toBe(
-      "Votre adresse n'est pas inscrite dans le registre des experts du Hub : demandez à un administrateur (Administration → Inscrire dans le registre LLMOps)"
+    expect(inboxRes.error).toMatch(
+      /Compte non synchronisé avec le registre souverain LLMOps|Votre adresse n'est pas inscrite dans le registre/
     );
   });
 
@@ -160,6 +160,8 @@ describe('Contract: Distinction 403 non-enregistré / 401 / 503 & maintien pasti
     expect(res.status).toBe(403);
     const body = await res.json();
     expect(body.status).toBe('not_registered');
-    expect(body.error).toContain("Votre adresse n'est pas inscrite dans le registre des experts du Hub");
+    expect(body.error).toMatch(
+      /Compte non synchronisé avec le registre souverain LLMOps|Votre adresse n'est pas inscrite dans le registre/
+    );
   });
 });

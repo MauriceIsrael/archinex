@@ -15,6 +15,7 @@
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
     "check:denylist": "node scripts/check-no-project-names.mjs",
+    "check:sylva": "tsx scripts/check-sylva-golden-rules.ts",
     "db:push": "prisma db push",
     "db:reset": "prisma db push --force-reset && tsx prisma/seed-dev.ts",
     "db:generate": "prisma generate",

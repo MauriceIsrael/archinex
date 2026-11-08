@@ -824,6 +824,37 @@ L'exécution de `npm run seed:demo` ou l'appui sur le bouton **« Hydrater Nauto
    - `hss-lot1-01` (Serveur abonnés cœur Lot 1).
 5. **Vérification OPA Rego** : les règles `deny_unmediated_s6a_direct_flow` et `deny_unreconciled_partner_objects` retournent le verdict **`COMPLIANT`** (0 violation sur 9 feuilles évaluées).
 
+### 15.5 Suite de Validation d'Intégration Sylva & 15 Règles d'Or OPA (Bouchon & Enforcement Local)
+
+Pour garantir en local sur le poste de développement et en CI que l'hydratation d'Archinex aboutira sans rupture dans un environnement Sylva réel sans nécessiter de cluster bare-metal lourd, Archinex intègre une suite de validation « Smart-Light » en deux barrières étanches :
+
+1. **Validation de Schéma KRM & CRD (`tests/fixtures/sylva/sylva-workload-cluster.schema.json`)** :
+   - Valide formellement l'objet `SylvaWorkloadCluster` (`workloadcluster.sylva.org/v1alpha1`) via Ajv et les spécifications OpenAPI/JSON Schema de la communauté Sylva.
+   - Contrôle la structure CAPI (`capi_providers: capm3 + cabpr`), les images durcies, les unités `sylva-units` et la conformité des `machine_deployments`.
+
+2. **Évaluation des 15 Règles d'Or d'Enforcement Sylva (`edp/policies/sylva_golden_rules.rego`)** :
+   - Évalue via Open Policy Agent (OPA) les 15 invariants de production télécom :
+     - *Règle 1* : CNI Cilium mandataire (`spec.units.cilium.enabled = true`).
+     - *Règle 2* : Fournisseurs CAPI conformes (`capm3` Baremetal + `cabpr` RKE2).
+     - *Règle 3* : Image OS hôte durcie (`spec.os_image_selector.hardened = true`).
+     - *Règle 4* : Admission Controller Kyverno activé pour la gouvernance de sécurité runtime.
+     - *Règle 5* : Pile de monitoring & observabilité telco active.
+     - *Règle 6* : Load-balancer MetalLB actif pour router les VIP de contrôle.
+     - *Règle 7* : HashiCorp Vault actif dès lors qu'un pool NIS2 est déployé.
+     - *Règle 8* : Méta-CNI Multus actif en présence de dataplane SR-IOV/DPDK.
+     - *Règle 9* : Opérateurs `sriov` et `sriov-resources` actifs en présence de SR-IOV.
+     - *Règle 10* : Sélecteur de groupe d'hôtes `hostSelector.matchLabels["host-group"]` défini sur chaque MachineDeployment.
+     - *Règle 11* : Labels de pools RKE2 `sylva.org/pool` et `sylva.org/dataplane` renseignés.
+     - *Règle 12* : Kubelet CPU Manager statique (`--cpu-manager-policy=static`) pour les pools DPDK.
+     - *Règle 13* : Topology Manager Single-NUMA Node (`--topology-manager-policy=single-numa-node`) pour l'alignement PCIe/CPU.
+     - *Règle 14* : Adresses BMC Redfish virtuelles conformes sur tous les hôtes bare-metal.
+     - *Règle 15* : Adresses MAC de boot (`bootMACAddress`) présentes et valides.
+
+3. **Intégration CI & Commande Rapide** :
+   - `npm run check:sylva` (`scripts/check-sylva-golden-rules.ts`) : exécute en local en < 100ms la validation complète.
+   - `tests/contract/edp-sylva-integration-schema-and-rules.test.ts` : valide le cas démo nominal et détecte les dérives de production.
+   - Intégration dans la porte qualité unique `verify.yml` (`npm run verify`).
+
 ---
 
 ## 16. Feuille de Route (Roadmap) Archinex : De l'Hydratation SSoT à l'Orchestration en Boucle Fermée

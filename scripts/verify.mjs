@@ -2,11 +2,12 @@ import { execSync } from 'child_process';
 import * as fs from 'fs';
 
 const steps = [
-	{ name: '1/4 Denylist Check', cmd: 'node scripts/check-no-project-names.mjs' },
-	{ name: '2/4 Vitest Tests', cmd: 'npx svelte-kit sync && npx vitest run' },
-	{ name: '3/4 Svelte Check', cmd: 'npx svelte-kit sync && npx svelte-check --tsconfig ./tsconfig.json' },
+	{ name: '1/5 Denylist Check', cmd: 'node scripts/check-no-project-names.mjs' },
+	{ name: '2/5 Sylva CRD & OPA Golden Rules', cmd: 'npx tsx scripts/check-sylva-golden-rules.ts' },
+	{ name: '3/5 Vitest Tests', cmd: 'npx svelte-kit sync && npx vitest run' },
+	{ name: '4/5 Svelte Check', cmd: 'npx svelte-kit sync && npx svelte-check --tsconfig ./tsconfig.json' },
 	{
-		name: '4/4 Production Build',
+		name: '5/5 Production Build',
 		cmd: 'npx vite build',
 		checkSuccess: () => fs.existsSync('.svelte-kit/output/server/index.js')
 	}
@@ -38,5 +39,5 @@ for (const step of steps) {
 	}
 }
 
-console.log('🎉 All 4 verification gates passed successfully!');
+console.log('🎉 All 5 verification gates passed successfully!');
 process.exit(0);

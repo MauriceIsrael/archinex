@@ -1,0 +1,257 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "$id": "https://sylva.org/schemas/v1alpha1/SylvaWorkloadCluster.json",
+  "title": "SylvaWorkloadCluster",
+  "description": "Validation Schema for Sylva Workload Cluster Custom Resource (workloadcluster.sylva.org/v1alpha1)",
+  "type": "object",
+  "required": ["apiVersion", "kind", "metadata", "spec"],
+  "properties": {
+    "apiVersion": {
+      "type": "string",
+      "const": "workloadcluster.sylva.org/v1alpha1"
+    },
+    "kind": {
+      "type": "string",
+      "const": "SylvaWorkloadCluster"
+    },
+    "metadata": {
+      "type": "object",
+      "required": ["name", "namespace"],
+      "properties": {
+        "name": {
+          "type": "string",
+          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+        },
+        "namespace": {
+          "type": "string",
+          "pattern": "^[a-z0-9]([-a-z0-9]*[a-z0-9])?$"
+        },
+        "labels": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        },
+        "annotations": {
+          "type": "object",
+          "additionalProperties": { "type": "string" }
+        }
+      },
+      "additionalProperties": true
+    },
+    "spec": {
+      "type": "object",
+      "required": [
+        "capi_providers",
+        "k8s_version",
+        "os_image_selector",
+        "units",
+        "baremetal_hosts",
+        "machine_deployments"
+      ],
+      "properties": {
+        "capi_providers": {
+          "type": "object",
+          "required": ["infra_provider", "bootstrap_provider"],
+          "properties": {
+            "infra_provider": {
+              "type": "string",
+              "enum": ["capm3", "capd", "capo", "capv"]
+            },
+            "bootstrap_provider": {
+              "type": "string",
+              "enum": ["cabpr", "cabpk", "kubeadm", "rke2"]
+            }
+          },
+          "additionalProperties": false
+        },
+        "k8s_version": {
+          "type": "string",
+          "pattern": "^v[0-9]+\\.[0-9]+\\.[0-9]+.*$"
+        },
+        "os_image_selector": {
+          "type": "object",
+          "required": ["os", "release", "hardened"],
+          "properties": {
+            "os": { "type": "string" },
+            "release": { "type": "string" },
+            "hardened": { "type": "boolean" }
+          },
+          "additionalProperties": true
+        },
+        "units": {
+          "type": "object",
+          "required": ["cilium", "metallb", "kyverno", "monitoring"],
+          "properties": {
+            "cilium": {
+              "type": "object",
+              "required": ["enabled"],
+              "properties": { "enabled": { "type": "boolean" } }
+            },
+            "multus": {
+              "type": "object",
+              "required": ["enabled"],
+              "properties": { "enabled": { "type": "boolean" } }
+            },
+            "sriov": {
+              "type": "object",
+              "required": ["enabled"],
+              "properties": { "enabled": { "type": "boolean" } }
+            },
+            "sriov-resources": {
+              "type": "object",
+              "required": ["enabled"],
+              "properties": { "enabled": { "type": "boolean" } }
+            },
+            "metallb": {
+              "type": "object",
+              "required": ["enabled"],
+              "properties": { "enabled": { "type": "boolean" } }
+            },
+            "vault": {
+              "type": "object",
+              "required": ["enabled"],
+              "properties": { "enabled": { "type": "boolean" } }
+            },
+            "kyverno": {
+              "type": "object",
+              "required": ["enabled"],
+              "properties": { "enabled": { "type": "boolean" } }
+            },
+            "monitoring": {
+              "type": "object",
+              "required": ["enabled"],
+              "properties": { "enabled": { "type": "boolean" } }
+            }
+          },
+          "additionalProperties": {
+            "type": "object",
+            "properties": {
+              "enabled": { "type": "boolean" }
+            }
+          }
+        },
+        "baremetal_hosts": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": {
+            "type": "object",
+            "oneOf": [
+              {
+                "required": ["bmc", "bootMACAddress"],
+                "properties": {
+                  "bmc": {
+                    "type": "object",
+                    "required": ["address", "credentialsName"],
+                    "properties": {
+                      "address": { "type": "string", "minLength": 1 },
+                      "credentialsName": { "type": "string", "minLength": 1 }
+                    }
+                  },
+                  "bootMACAddress": {
+                    "type": "string",
+                    "pattern": "^([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}$"
+                  },
+                  "bmh_metadata": { "type": "object" }
+                }
+              },
+              {
+                "required": ["bmh_spec"],
+                "properties": {
+                  "bmh_spec": {
+                    "type": "object",
+                    "required": ["bmc", "bootMACAddress"],
+                    "properties": {
+                      "bmc": {
+                        "type": "object",
+                        "required": ["address", "credentialsName"],
+                        "properties": {
+                          "address": { "type": "string", "minLength": 1 },
+                          "credentialsName": { "type": "string", "minLength": 1 }
+                        }
+                      },
+                      "bootMACAddress": {
+                        "type": "string",
+                        "pattern": "^([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}$"
+                      }
+                    }
+                  },
+                  "bmh_metadata": { "type": "object" }
+                }
+              }
+            ]
+          }
+        },
+        "machine_deployments": {
+          "type": "object",
+          "minProperties": 1,
+          "additionalProperties": {
+            "type": "object",
+            "required": [
+              "infra_provider",
+              "replicas",
+              "machine_deployment_spec",
+              "rke2"
+            ],
+            "properties": {
+              "infra_provider": { "type": "string" },
+              "replicas": { "type": "integer", "minimum": 0 },
+              "machine_deployment_spec": {
+                "type": "object",
+                "required": ["template"],
+                "properties": {
+                  "template": {
+                    "type": "object",
+                    "required": ["spec"],
+                    "properties": {
+                      "spec": {
+                        "type": "object",
+                        "required": ["hostSelector"],
+                        "properties": {
+                          "hostSelector": {
+                            "type": "object",
+                            "required": ["matchLabels"],
+                            "properties": {
+                              "matchLabels": {
+                                "type": "object",
+                                "required": ["host-group"],
+                                "properties": {
+                                  "host-group": { "type": "string" }
+                                }
+                              }
+                            }
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              },
+              "rke2": {
+                "type": "object",
+                "required": ["nodeLabels"],
+                "properties": {
+                  "nodeLabels": {
+                    "type": "object",
+                    "required": ["sylva.org/pool", "sylva.org/dataplane"],
+                    "properties": {
+                      "sylva.org/pool": { "type": "string" },
+                      "sylva.org/dataplane": { "type": "string" }
+                    }
+                  },
+                  "kubeletExtraArgs": {
+                    "type": "array",
+                    "items": { "type": "string" }
+                  }
+                }
+              },
+              "network_interfaces": {
+                "type": "object"
+              }
+            }
+          }
+        }
+      },
+      "additionalProperties": true
+    }
+  },
+  "additionalProperties": false
+}

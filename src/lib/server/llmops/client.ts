@@ -2099,7 +2099,7 @@ export class LLMOpsClient {
       provenance?: string;
     },
     actorEmail: string
-  ): Promise<{ status: 'ok' | 'forbidden' | 'invalid' | 'not_found' | 'error' | 'unavailable'; data?: any; error?: string }> {
+  ): Promise<{ status: 'ok' | 'forbidden' | 'invalid' | 'not_found' | 'error' | 'unavailable'; data?: any; channel?: 'asset_check' | 'candidate'; error?: string }> {
     try {
       // 1. Tente l'enregistrement direct via la route des checks de l'actif
       const url = `${this.baseUrl}/api/knowledge/assets/${encodeURIComponent(assetId)}/checks`;
@@ -2109,7 +2109,11 @@ export class LLMOpsClient {
         body: JSON.stringify({ clause: { ...clause, status: 'draft', provenance: clause.provenance || 'llm-derived' } })
       });
       const payload = await res.json().catch(() => ({}));
-      if (res.ok) return { status: 'ok', data: payload.data || payload };
+      if (res.ok) {
+        this.invalidateCache('kb:');
+        this.invalidateCache('compliance:');
+        return { status: 'ok', data: payload.data || payload, channel: 'asset_check' };
+      }
 
       // Si la route directe n'existe pas (404/405), enregistre un candidat d'amendement
       if (res.status === 404 || res.status === 405) {
@@ -2130,7 +2134,10 @@ export class LLMOpsClient {
           })
         });
         const candPayload = await candRes.json().catch(() => ({}));
-        if (candRes.ok) return { status: 'ok', data: candPayload.data || candPayload };
+        if (candRes.ok) {
+          this.invalidateCache('kb:');
+          return { status: 'ok', data: candPayload.data || candPayload, channel: 'candidate' };
+        }
         const error = candPayload.reason || candPayload.error?.message || candPayload.error || `Erreur HTTP ${candRes.status}`;
         return { status: 'error', error };
       }

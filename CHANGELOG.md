@@ -8,6 +8,15 @@ Aucune version n'a encore Ã©tÃ© publiÃ©e : tout figure sous *Non publiÃ©
 
 ## Non publié
 
+### Visibilité & Persistance des Brouillons de Clauses Vérifiables (`/kb/clauses`)
+- **Persistance Directe & Invalidation Réactive du Cache (`LLMOpsClient`, Issue #99)** :
+  - Invalidation immédiate du cache en mémoire `kb:` et `compliance:` lors de la soumission d'une clause de vérification en brouillon via `submitDraftClause()` (`src/lib/server/llmops/client.ts`), évitant que l'affichage de `/kb/clauses` reste figé sur la réponse mise en cache pendant 30 secondes.
+  - Identification explicite du canal de persistance (`channel: 'asset_check'` vs `channel: 'candidate'`) dans le retour de l'API `/api/kb/clauses/[assetId]/save-draft`.
+- **Expérience Utilisateur & Navigation Réactive (`src/routes/kb/clauses/+page.svelte`)** :
+  - Bascule automatique vers l'onglet **« À relire »** dès l'enregistrement d'une clause en brouillon sur un contrôle sans clause, avec affichage d'un bandeau de confirmation contextuel vert en haut de page.
+  - Aiguillage explicite vers la boîte de révision (`/kb/reviews`) avec lien direct lorsque l'enregistrement fait l'objet d'un repli vers les candidats d'amendement.
+
+
 ### Horizon 1 Phase 4 : Export GitOps Sylva Natif, Collecte Temps Réel Nautobot → Oracle OPA & Module VPN 2.2+ (Épique #241 — Issues #238, #239, #240)
 - **Export GitOps Direct vers un Dépôt `sylva-core` (`src/lib/server/edp/sylvaGitopsExport.ts`, Issue #238)** :
   - Sérialisation déterministe et assainie (`sanitizeManifests`) du descripteur `SylvaWorkloadCluster` vers `workload-clusters/<cluster-name>/values.yaml` et `workload-cluster.yaml` directement consommables par FluxCD.

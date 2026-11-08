@@ -74,6 +74,7 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
 
 	return json({
 		status: 'ok',
-		data: result.data
+		data: result.data,
+		channel: result.channel
 	});
 };

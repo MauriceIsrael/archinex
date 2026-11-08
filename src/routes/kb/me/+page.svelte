@@ -73,9 +73,9 @@
     <div data-testid="me-not-registered-alert" class="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-xs text-amber-800 dark:text-amber-200 flex items-start gap-3">
       <AlertTriangle class="h-5 w-5 shrink-0 text-amber-600 mt-0.5" />
       <div>
-        <h4 class="font-bold text-sm">Compte non inscrit dans le registre des experts du Hub</h4>
+        <h4 class="font-bold text-sm">Alignement du profil KB en cours</h4>
         <p class="mt-0.5">
-          {data.llmops.error || "Votre adresse n'est pas inscrite dans le registre des experts du Hub : demandez à un administrateur (Administration → Inscrire dans le registre LLMOps)"}
+          {data.llmops.error || "Votre profil Archinex est configuré mais l'alignement avec le Knowledge Hub est en attente. Les droits seront appliqués automatiquement à la prochaine synchronisation."}
         </p>
       </div>
     </div>

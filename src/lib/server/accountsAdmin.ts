@@ -655,7 +655,10 @@ export async function createCentralizedAccount(
     | { attempted: boolean; success: boolean; handle?: string; error?: string }
     | undefined;
 
-  if (enableKb && input.registerInLlmops) {
+  const shouldSyncLlmops =
+    input.registerInLlmops ?? (enableKb || domainsToSave.length > 0 || kbRolesToSave.length > 0);
+
+  if (shouldSyncLlmops) {
     const syncRes = await syncAccountToLlmopsRegistry(
       {
         userId: createdUser.id,
@@ -992,4 +995,65 @@ export async function syncAccountToLlmopsRegistry(
 
   return res;
 }
+
+/**
+ * Inscription automatique à la volée (JIT - Just-In-Time) d'un utilisateur Archinex
+ * dans le registre souverain des experts LLMOps.
+ *
+ * Fait d'Archinex la Source Unique de Vérité (SSoT) pour l'identité et les droits :
+ * dès qu'un utilisateur Archinex accède aux fonctions de gouvernance ou de revue
+ * (/kb/me, /kb/reviews) et que LLMOps signale un statut « not_registered » (403),
+ * cette fonction l'inscrit automatiquement avec son profil Archinex (ou le rôle par
+ * défaut kb:review) sans exiger d'intervention manuelle d'un administrateur.
+ */
+export async function ensureArchinexUserRegisteredInLlmops(
+  email: string,
+  client: LLMOpsClient = llmopsClient
+): Promise<{ success: boolean; handle?: string; error?: string }> {
+  const emailNorm = email.trim().toLowerCase();
+  const user = await prisma.user.findUnique({
+    where: { email: emailNorm },
+    include: { kbProfile: true }
+  });
+
+  if (!user) {
+    return { success: false, error: `Utilisateur Archinex introuvable pour ${emailNorm}` };
+  }
+
+  const rawHandle =
+    user.kbProfile?.kbHandle ||
+    `@${emailNorm.split('@')[0].replace(/[^a-z0-9_-]/gi, '-')}`;
+  const handleNorm = normalizeKbHandle(rawHandle);
+
+  const roles: KbRole[] = user.kbProfile
+    ? parseJsonSafe<KbRole[]>(user.kbProfile.kbRoles, ['kb:review'])
+    : user.role === 'admin'
+      ? ['kb:admin', 'kb:review']
+      : ['kb:review'];
+
+  const domains: string[] = user.kbProfile
+    ? parseJsonSafe<string[]>(user.kbProfile.ownedDomains, [])
+    : [];
+
+  try {
+    const syncRes = await syncAccountToLlmopsRegistry(
+      {
+        userId: user.id,
+        handle: handleNorm,
+        email: user.email,
+        roles,
+        domains
+      },
+      user.role === 'admin' ? user.email : 'system@archinex.local',
+      client
+    );
+    return syncRes;
+  } catch (err: any) {
+    return {
+      success: false,
+      error: err?.message || 'Erreur lors de la synchronisation JIT avec LLMOps'
+    };
+  }
+}
+
 

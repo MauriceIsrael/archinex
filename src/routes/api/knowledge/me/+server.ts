@@ -2,6 +2,7 @@ import { json } from '@sveltejs/kit';
 import { requireAuth } from '$lib/auth/guard.server';
 import { getKbExpertByUserId } from '$lib/server/kbProfilesDb';
 import { llmopsClient } from '$lib/server/llmops/client';
+import { ensureArchinexUserRegisteredInLlmops } from '$lib/server/accountsAdmin';
 import type { RequestHandler } from './$types';
 
 /**
@@ -12,10 +13,18 @@ export const GET: RequestHandler = async ({ locals }) => {
   requireAuth(locals);
 
   const user = locals.session!.user;
-  const localExpert = await getKbExpertByUserId(user.id);
+  let localExpert = await getKbExpertByUserId(user.id);
 
   // Appel souverain vers LLMOps avec X-Actor-Email
-  const remoteMe = await llmopsClient.getMe(user.email);
+  let remoteMe = await llmopsClient.getMe(user.email);
+
+  if (remoteMe.status === 'not_registered') {
+    const syncRes = await ensureArchinexUserRegisteredInLlmops(user.email);
+    if (syncRes.success) {
+      remoteMe = await llmopsClient.getMe(user.email);
+      localExpert = await getKbExpertByUserId(user.id);
+    }
+  }
 
   if (remoteMe.status === 'not_registered') {
     return json(

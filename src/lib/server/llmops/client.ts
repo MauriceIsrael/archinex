@@ -1055,7 +1055,7 @@ export class LLMOpsClient {
         return {
           status: isNotRegistered ? 'not_registered' : 'forbidden',
           error: isNotRegistered
-            ? "Votre adresse n'est pas inscrite dans le registre des experts du Hub : demandez à un administrateur (Administration → Inscrire dans le registre LLMOps)"
+            ? "Compte non synchronisé avec le registre souverain LLMOps."
             : (errBody.error || errBody.reason || `HTTP ${res.status}`),
           reason: errBody.reason
         };
@@ -1458,7 +1458,7 @@ export class LLMOpsClient {
         return {
           status: isNotRegistered ? 'not_registered' : 'error',
           error: isNotRegistered
-            ? "Votre adresse n'est pas inscrite dans le registre des experts du Hub : demandez à un administrateur (Administration → Inscrire dans le registre LLMOps)"
+            ? "Compte non synchronisé avec le registre souverain LLMOps."
             : (errBody.error || errBody.reason || 'Accès interdit (403)'),
           reason: errBody.reason
         };
@@ -1562,7 +1562,7 @@ export class LLMOpsClient {
         return {
           status: isNotRegistered ? 'not_registered' : 'error',
           error: isNotRegistered
-            ? "Votre adresse n'est pas inscrite dans le registre des experts du Hub : demandez à un administrateur (Administration → Inscrire dans le registre LLMOps)"
+            ? "Compte non synchronisé avec le registre souverain LLMOps."
             : (errBody.error || errBody.reason || 'Accès interdit (403)'),
           reason: errBody.reason
         };

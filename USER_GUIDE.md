@@ -92,12 +92,15 @@ Une fois le sujet arbitrÃ©, la section de capitalisation s'active :
 
 ## 3. Administration & Gestion Centralisée des Comptes
 
+Archinex constitue la **Source Unique de Vérité (SSoT - Single Source of Truth)** pour l'ensemble des identités, habilitations applicatives, rôles par espace et droits doctrinaux. La gestion des comptes est unifiée pour Archinex et LLMOps : aucune double administration ni synchronisation manuelle n'est requise.
+
 La vue **Administration** (`/admin`) permet aux administrateurs de piloter l'ensemble des identités, rôles et compétences :
 - **Création et gestion unifiée des comptes** : création en un clic sans saisie superflue.
 - **Deux dimensions orthogonales claires** :
   1. **Domaines de responsabilité (compétences techniques/métier)** : sélection assistée par le composant `DomainsPicker` (filtres thématiques, packs rapides `+ Pack 3GPP` et `+ Pack Sécurité`, ajout dynamique de domaines personnalisés).
   2. **Rôles applicatifs & d'arbitrage** : rôle système (`admin`/`user`), rôles par espace de travail (`lead_architect`, `architect`, `auditor`, `observer`) et rôles sur la doctrine LLMOps (`kb:review`, `kb:maintain`, `kb:evaluate`, `kb:admin`).
-- **Dérivation automatique de handle LLMOps** : Archinex dérive automatiquement le handle canonique (ex: `@prenom-nom`) à partir de l'adresse e-mail et synchronise le profil avec le registre LLMOps (`data/kb/owners.yaml`).
+- **Dérivation automatique de handle & synchronisation transparente** : Archinex dérive automatiquement le handle canonique (ex: `@prenom-nom`) à partir de l'adresse e-mail et synchronise le profil avec le registre LLMOps (`data/kb/owners.yaml`).
+- **Enrôlement automatique à la volée (Zero-Touch JIT Provisioning)** : Lorsqu'un utilisateur Archinex accède aux fonctionnalités de doctrine ou de revue (`/kb/me`, `/kb/reviews`), il est automatiquement inscrit et aligné dans le registre LLMOps sans aucune intervention manuelle.
 - **Ajustement des politiques Casbin & audit** : supervision en temps réel des règles RBAC/ABAC et des journaux d'audit.
 
 ---

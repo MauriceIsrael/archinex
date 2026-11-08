@@ -252,9 +252,9 @@
     <div data-testid="not-registered-alert" class="rounded-xl border border-amber-500/30 bg-amber-500/10 p-4 text-xs text-amber-800 dark:text-amber-200 flex items-start gap-3">
       <AlertTriangle class="h-5 w-5 shrink-0 text-amber-600 mt-0.5" />
       <div>
-        <h4 class="font-bold text-sm">Compte non inscrit dans le registre des experts du Hub</h4>
+        <h4 class="font-bold text-sm">Alignement du profil expert en cours</h4>
         <p class="mt-0.5">
-          {data.inbox.error || "Votre adresse n'est pas inscrite dans le registre des experts du Hub : demandez à un administrateur (Administration → Inscrire dans le registre LLMOps)"}
+          {data.inbox.error || "Votre compte Archinex est configuré mais l'alignement avec le registre LLMOps est en attente. Cliquez sur « Actualiser » pour retenter la synchronisation automatique."}
         </p>
       </div>
     </div>
@@ -381,9 +381,9 @@
             <div class="flex h-12 w-12 items-center justify-center rounded-full bg-amber-500/10 mx-auto text-amber-600">
               <AlertTriangle class="h-6 w-6" />
             </div>
-            <h3 class="font-bold text-base">Expert non inscrit au Hub</h3>
+            <h3 class="font-bold text-base">Alignement du profil en attente</h3>
             <p class="text-xs text-muted-foreground max-w-md mx-auto">
-              {data.inbox.error || "Votre adresse n'est pas inscrite dans le registre des experts du Hub : demandez à un administrateur (Administration → Inscrire dans le registre LLMOps)"}
+              {data.inbox.error || "Votre compte Archinex n'est pas encore synchronisé avec le Knowledge Hub LLMOps. Cliquez sur « Actualiser » ci-dessus pour déclencher la synchronisation automatique."}
             </p>
             {#if data.user.role === 'admin'}
               <div class="pt-2">

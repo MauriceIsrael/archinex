@@ -8,6 +8,19 @@ Aucune version n'a encore Ã©tÃ© publiÃ©e : tout figure sous *Non publiÃ©
 
 ## Non publié
 
+### Unification de l'Administration des Comptes & Enrôlement Automatique JIT (Archinex SSoT)
+- **Source Unique de Vérité (SSoT) pour les Comptes Archinex & LLMOps** :
+  - Centralisation intégrale du cycle de vie des identités et des droits dans Archinex : la création, la modification et l'assignation de domaines d'expertise synchronisent immédiatement le registre souverain LLMOps (`data/kb/owners.yaml`).
+  - Suppression définitive des messages invitant l'utilisateur à faire des démarches administratives complexes ou de synchronisation manuelle (« Compte non inscrit dans le registre... demandez à un administrateur »).
+- **Auto-Enrôlement Transparent à la Volée (Zero-Touch JIT Provisioning)** :
+  - Implémentation de `ensureArchinexUserRegisteredInLlmops(email)` dans `src/lib/server/accountsAdmin.ts`.
+  - Prise en charge automatique sur les points d'entrée doctrinaux (`/kb/me`, `/kb/reviews`, `/kb/reviews/[id]`, `/api/knowledge/me`, `/api/knowledge/reviews/inbox`) : en cas de réponse 403 `not_registered`, Archinex auto-inscrit immédiatement l'expert auprès de LLMOps selon son profil local et relance la requête de manière transparente.
+- **Amorçage Idempotent au Démarrage (`prisma/seed.ts`)** :
+  - Synchronisation automatique et non bloquante des profils de démonstration (`@admin-lead`, `@sec-expert`) vers LLMOps dès l'exécution de `db:reset` ou `seed`. Si LLMOps n'est pas encore démarré, l'enrôlement JIT prend le relais au premier accès sans erreur.
+- **Tests de Contrat & Robustesse** :
+  - Ajout de `tests/contract/unified-account-ssot.test.ts` validant le provisionnement JIT, l'auto-synchronisation à la création de compte et la création à la volée de profil KB local.
+  - Conformité complète aux vérifications TypeScript et diagnostics Svelte (`svelte-check` 0 erreurs, 0 avertissements).
+
 ### Correction Synchronisation Matrice de Couverture & Registre LLMOps
 - **Synchronisation Automatique Lors de l'Édition (`updateCentralizedAccount`)** :
   - La modification des domaines de responsabilité et des rôles KB depuis la fiche détaillée (`AdminAccountSheetDialog`) est désormais automatiquement synchronisée avec LLMOps (`PUT /api/knowledge/owners`), éliminant la nécessité d'un bouton secondaire distinct.

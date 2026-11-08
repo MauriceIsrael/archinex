@@ -21,6 +21,19 @@ Aucune version n'a encore Ã©tÃ© publiÃ©e : tout figure sous *Non publiÃ©
   - Instanciation idempotente via `/api/vpn/` des objets `vpn.IKEProposal` (`ike-prop-lot3-aes256gcm-dh20`), `vpn.IPSecProposal` (`ipsec-prop-lot3-esp-aes256gcm`), `vpn.VPNProfile` (`vpn-prof-interco-lot3-s6a`) et `vpn.VPNTunnel` (`tun-ipsec-esp-lot3-secgw1`) en complément du `circuits.Circuit` (`link-ip-lot3-secgw1`).
   - Ajout du raccourci `VPN Tunnels ↗` (`http://localhost:8080/vpn/vpn-tunnels/`) dans la Phase 4 et du test de contrat `tests/contract/edp-horizon1-gitops-diffsync-vpn.test.ts`.
 
+### Suite d'Intégration Sylva, Validation de Schéma KRM & Règles d'Or OPA (Smart-Light Gate)
+- **Validation Formelle contre le Schéma CRD Sylva (`tests/fixtures/sylva/`)** :
+  - Export et formalisation du schéma JSON Schema Draft-07 et de la CustomResourceDefinition Kubernetes pour `SylvaWorkloadCluster` (`workloadcluster.sylva.org/v1alpha1`).
+  - Validation exhaustive de la structure générée par l'hydratation multi-axes (`spec.capi_providers`, `spec.units`, `spec.baremetal_hosts`, `spec.machine_deployments`).
+- **Évaluateur des 15 Règles d'Or d'Enforcement Sylva (`edp/policies/sylva_golden_rules.rego`)** :
+  - Implémentation en Rego v1 des 15 règles d'or télécom de Sylva : CNI Cilium mandataire, CAPI `capm3` + `cabpr` (RKE2), OS SLE Micro durci, admission controller Kyverno actif, observabilité monitoring telco, load-balancer MetalLB, secrets Vault obligatoires pour les pools NIS2, méta-CNI Multus et opérateurs SR-IOV actifs pour le dataplane DPDK, `hostSelector.matchLabels` sur `host-group`, labels de pools RKE2 `sylva.org/pool` et `dataplane`, CPU Manager statique et Topology Manager single-NUMA pour DPDK, adresses BMC Redfish virtuelles et adresses MAC de boot valides.
+- **Service de Validation & Test d'Intégration Démo (`sylvaValidation.ts` & `edp-sylva-integration-schema-and-rules.test.ts`)** :
+  - Nouveau module serveur `src/lib/server/edp/sylvaValidation.ts` intégrant `validateSylvaWorkloadClusterSchema` (Ajv) et `evaluateSylvaGoldenRules` (OPA).
+  - Suite de tests Vitest validant le cas nominal `seed:demo` (§14 Lulu Lot 3 ↔ Lot 1), le rejet des schémas invalides, la détection précise des 15 dérives de production, et la réconciliation biunivoque entre les nœuds Nautobot et les hôtes bare-metal Sylva.
+- **Porte Qualité Unifiée Smart-Light (`scripts/verify.mjs` & `scripts/check-sylva-golden-rules.ts`)** :
+  - Nouveau point d'entrée CLI `npm run check:sylva` (`scripts/check-sylva-golden-rules.ts`).
+  - Intégration dans `scripts/verify.mjs` sous une 2e étape dédiée, garantissant une exécution ultra-rapide (< 100ms) et conservant un pipeline PR unique (`verify.yml`) sous les 3 minutes.
+
 ### Unification de l'Administration des Comptes & Enrôlement Automatique JIT (Archinex SSoT)
 - **Source Unique de Vérité (SSoT) pour les Comptes Archinex & LLMOps** :
   - Centralisation intégrale du cycle de vie des identités et des droits dans Archinex : la création, la modification et l'assignation de domaines d'expertise synchronisent immédiatement le registre souverain LLMOps (`data/kb/owners.yaml`).
@@ -61,7 +74,6 @@ Aucune version n'a encore Ã©tÃ© publiÃ©e : tout figure sous *Non publiÃ©
 - **Tests de Contrat & Validation de Non-Régression** :
   - Ajout de `tests/contract/simplified-account-creation.test.ts` validant la création d'expert multi-domaines 3GPP, la dérivation automatique de handle et la payload envoyée au registre LLMOps.
   - Validation complète des tests de contrat centralisés (`tests/contract/issue_76_centralized_accounts.test.ts`).
-
 ### Rationalisation Ergonomique du Menu « Knowledge Hub »
 - **Unification de la Navigation autour de la Base de Connaissance (`src/routes/+layout.svelte`)** :
   - Regroupement de l'ensemble des mini-applications de la Knowledge Base dans un menu latéral dédié **« Knowledge Hub »** (barre latérale desktop étendue/réduite et tiroir mobile), supprimant la dispersion hétérogène entre le menu gauche et le menu caché sous l'avatar utilisateur.

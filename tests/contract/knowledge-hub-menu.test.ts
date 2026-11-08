@@ -94,6 +94,7 @@ describe('Knowledge Hub Menu Rationalization Contract Test', () => {
 
 			for (const key of requiredNavKeys) {
 				expect(json.nav[key], `Clé nav.${key} manquante dans ${localeFile}`).toBeTruthy();
+				expect(json.nav[key], `Clé nav.${key} dans ${localeFile} ne doit pas contenir G5/G6/G7`).not.toMatch(/\bG[567]\b/);
 			}
 		}
 	});

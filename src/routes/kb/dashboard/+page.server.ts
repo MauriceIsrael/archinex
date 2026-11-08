@@ -2,6 +2,8 @@ import { requireAuth } from '$lib/auth/guard.server';
 import { getKbExpertByUserId } from '$lib/server/kbProfilesDb';
 import { llmopsClient } from '$lib/server/llmops/client';
 import { computeKbClausesHealth } from '$lib/domain/kbClausesHealth';
+import { configuredModel } from '$lib/server/similarity/encoder';
+import { ensureEmbeddingsSynced, needsEmbeddingSync } from '$lib/server/similarity/embeddings';
 import type { PageServerLoad } from './$types';
 
 export const load: PageServerLoad = async ({ locals }) => {
@@ -9,14 +11,22 @@ export const load: PageServerLoad = async ({ locals }) => {
 
   const user = locals.session!.user;
   const localExpert = await getKbExpertByUserId(user.id);
+  const configuredEmbeddingModel = configuredModel();
 
-  const [healthRes, publicationsRes, campaignsRes, clausesRes, frameworksRes] = await Promise.all([
+  let [healthRes, publicationsRes, campaignsRes, clausesRes, frameworksRes] = await Promise.all([
     llmopsClient.getKbHealth(user.email),
     llmopsClient.listKbPublications(user.email),
     llmopsClient.listKbCampaigns(user.email),
     llmopsClient.listCheckClauses({}, user.email).catch(() => null),
     llmopsClient.getComplianceFrameworks().catch(() => null)
   ]);
+
+  if (healthRes.status === 'ok' && healthRes.data && needsEmbeddingSync(healthRes.data, configuredEmbeddingModel)) {
+    const syncRes = await ensureEmbeddingsSynced(llmopsClient, { model: configuredEmbeddingModel });
+    if (syncRes.status === 'ok' && syncRes.count > 0) {
+      healthRes = await llmopsClient.getKbHealth(user.email);
+    }
+  }
 
   const kbRoles = localExpert?.kbRoles || [];
   const canPublish =
@@ -42,6 +52,7 @@ export const load: PageServerLoad = async ({ locals }) => {
       canPublish
     },
     health: healthRes.data,
+    configuredEmbeddingModel,
     publications: publicationsRes.data || [],
     campaigns: campaignsRes.data || [],
     clausesHealth,

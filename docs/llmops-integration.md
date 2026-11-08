@@ -212,8 +212,12 @@ Les tests de parcours navigateur (`tests/e2e/browser/`) supportent 3 modes d'ex�
 
 Archinex calcule les vecteurs ; LLMOps les stocke et mesure le cosinus (décision D6, contrat 1.9). Règles :
 
-- **Un modèle = un espace de vecteurs.** Le nom envoyé à LLMOps est celui de l'encodeur qui a réellement calculé le vecteur ; un modèle inconnu ou non configuré est **refusé** (503 « unavailable »), jamais remplacé en silence (`src/lib/server/similarity/encoder.ts`). La version déposée est l'**empreinte des poids** (`digest`) avec l'API native Ollama ; avec l'API compatible OpenAI le serveur n'expose que l'identifiant et la date de création, donc un changement de poids sous le même nom n'est pas détectable. Dans tous les cas, changer de modèle ou de version impose de tout recalculer.
-- `toy-bow` (sac de mots déterministe) sert aux tests ; en production il est refusé sauf `ALLOW_TOY_EMBEDDINGS=1`.
+- **Un modèle = un espace de vecteurs.** Le nom envoyé à LLMOps est celui de l'encodeur qui a réellement calculé le vecteur ; un modèle inconnu ou non configuré est **refusé** (503 « unavailable »), jamais remplacé en silence (`src/lib/server/similarity/encoder.ts`, qui charge également `.env` via `parseDotEnvFile()` hors Vitest). La version déposée est l'**empreinte des poids** (`digest`) avec l'API native Ollama ; avec l'API compatible OpenAI le serveur n'expose que l'identifiant et la date de création, donc un changement de poids sous le même nom n'est pas détectable. Dans tous les cas, changer de modèle ou de version impose de tout recalculer.
+- **Synchronisation automatique et transparente (`ensureEmbeddingsSynced`)** : Aucun bouton manuel n'est imposé à l'utilisateur. La synchronisation des vecteurs manquants (`missing > 0`) ou obsolètes (`stale > 0`) pour le modèle configuré (`EMBEDDING_MODEL`) est déclenchée automatiquement côté serveur (avec déduplication des appels concurrents) :
+  - lors du contrôle de santé KB (`/kb/dashboard`, `GET /api/knowledge/health`),
+  - après chaque publication scellée (`POST /api/knowledge/publications`),
+  - avant toute recherche sémantique (`POST /api/knowledge/similar`, essai de clauses `POST /api/kb/clauses/[assetId]/try`) ou exécution du benchmark de calibration (`POST /api/knowledge/similarity-evals/[datasetId]`).
+- `toy-bow` (sac de mots déterministe) sert uniquement aux tests ; en production il est refusé sauf `ALLOW_TOY_EMBEDDINGS=1`.
 - Aucun texte d'engagement non anonymisé n'est encodé pour la recherche (`anonymizeSubjectText`).
 
 ### Choisir le modèle installé sur le serveur Ollama

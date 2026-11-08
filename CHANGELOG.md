@@ -8,6 +8,16 @@ Aucune version n'a encore Ã©tÃ© publiÃ©e : tout figure sous *Non publiÃ©
 
 ## Non publié
 
+### Synchronisation Automatique des Vecteurs d'Embeddings & Retrait du Codage en Dur `toy-bow` (Décision D6 / A12)
+- **Hydratation de `EMBEDDING_MODEL` et `EMBEDDING_OLLAMA_URL` depuis `.env` (`src/lib/server/similarity/encoder.ts`)** :
+  - `configuredModel()` et `resolveEncoder()` chargent désormais les variables définies dans `.env` (via `parseDotEnvFile()`) lorsque `process.env` n'est pas pré-hydraté (ex. sous `vite dev`), sélectionnant fidèlement le modèle d'embeddings configuré (ex. `bge-m3` sur `EMBEDDING_OLLAMA_URL`) au lieu de retomber sur `toy-bow`.
+- **Synchronisation Automatique et Transparente des Vecteurs (`src/lib/server/similarity/embeddings.ts`)** :
+  - Ajout de `ensureEmbeddingsSynced()` (avec déduplication des requêtes concurrentes par modèle) et `needsEmbeddingSync()`.
+  - Synchronisation automatique déclenchée côté serveur lors du contrôle de santé KB (`/kb/dashboard`, `GET /api/knowledge/health`), après chaque publication scellée (`POST /api/knowledge/publications`), et avant toute recherche sémantique (`POST /api/knowledge/similar`, `POST /api/kb/clauses/[assetId]/try`) ou évaluation (`POST /api/knowledge/similarity-evals/[datasetId]`).
+- **Suppression du Bouton Manuel « Synchroniser les Vecteurs » & Retrait de `toy-bow` en Dur** :
+  - Suppression du bouton technique manuel sur `/kb/dashboard` au profit d'un indicateur d'état automatique (*« Index sémantique à jour »* / *« Indexation automatique en cours… »*) et affichage dynamique du modèle configuré et de sa dimension.
+  - Suppression de `{ model: 'toy-bow' }` codé en dur dans `SimilarityEvaluationPanel.svelte` et utilisation de `detectPossibleDuplicateAsync()` avec l'encodeur configuré dans `cascadeProposer.ts` et `cascadeService.ts`.
+
 ### Horizon 1 Phase 4 : Export GitOps Sylva Natif, Collecte Temps Réel Nautobot → Oracle OPA & Module VPN 2.2+ (Épique #241 — Issues #238, #239, #240)
 - **Export GitOps Direct vers un Dépôt `sylva-core` (`src/lib/server/edp/sylvaGitopsExport.ts`, Issue #238)** :
   - Sérialisation déterministe et assainie (`sanitizeManifests`) du descripteur `SylvaWorkloadCluster` vers `workload-clusters/<cluster-name>/values.yaml` et `workload-cluster.yaml` directement consommables par FluxCD.

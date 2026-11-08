@@ -145,3 +145,63 @@ export async function syncEmbeddingsWithLLMOps(
   return { status: 'ok', count: depositRes.count ?? deposit.items.length };
 }
 
+const inFlightSyncByModel = new Map<string, Promise<{ status: string; count: number; error?: string }>>();
+
+/**
+ * Détermine si un état de santé KB indique des vecteurs manquants ou obsolètes pour le modèle cible.
+ */
+export function needsEmbeddingSync(
+  health:
+    | {
+        embeddings?: Array<{
+          model_id: string;
+          vectors: number;
+          missing: number;
+          stale: number;
+          active_assets?: number;
+        }>;
+        assets?: { active?: number };
+      }
+    | null
+    | undefined,
+  model: string
+): boolean {
+  if (!health) return false;
+  const activeCount = health.assets?.active ?? 0;
+  const entry = health.embeddings?.find((e) => e.model_id === model);
+  if (!entry) {
+    return activeCount > 0 || (health.embeddings?.length ?? 0) > 0;
+  }
+  return entry.missing > 0 || entry.stale > 0;
+}
+
+/**
+ * Synchronise automatiquement et de manière dédupliquée les vecteurs en attente avec LLMOps.
+ * Ne fait rien si aucun actif n'est en attente (`missing === 0 && stale === 0`).
+ */
+export async function ensureEmbeddingsSynced(
+  client: LLMOpsEmbeddingClient,
+  options?: { model?: string; actorEmail?: string; encoder?: Encoder }
+): Promise<{ status: string; count: number; error?: string }> {
+  let encoder: Encoder;
+  try {
+    encoder = options?.encoder ?? resolveEncoder(options?.model);
+  } catch (e: any) {
+    return { status: 'unavailable', count: 0, error: e?.message ?? String(e) };
+  }
+  const modelKey = encoder.model;
+  const existing = inFlightSyncByModel.get(modelKey);
+  if (existing) {
+    return existing;
+  }
+  const promise = syncEmbeddingsWithLLMOps(client, {
+    ...options,
+    model: modelKey,
+    encoder
+  }).finally(() => {
+    inFlightSyncByModel.delete(modelKey);
+  });
+  inFlightSyncByModel.set(modelKey, promise);
+  return promise;
+}
+

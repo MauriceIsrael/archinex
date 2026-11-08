@@ -1,18 +1,17 @@
 <script lang="ts">
 	import { onMount } from 'svelte';
 	import { deliberationStore } from '$lib/stores/deliberationStore.svelte';
-	import type { MaturitySubject } from '$lib/domain/maturityBoard';
 	import { formatMaturityLevel, getMaturityBadgeClass } from '$lib/domain/debate';
-	import { partitionSubjectsByParts, type SubjectPart } from '$lib/domain/subjectPartitioning';
+	import { partitionSubjectsByParts } from '$lib/domain/subjectPartitioning';
 	import {
 		FolderKanban,
 		Search,
-		CheckCircle2,
-		Layers,
 		Check,
-		FileText,
-		Sparkles,
-		Filter
+		ChevronDown,
+		ChevronLeft,
+		ChevronRight,
+		ArrowLeft,
+		Target
 	} from 'lucide-svelte';
 
 	type MaturityFilter = 'l4_only' | 'l3_plus' | 'all';
@@ -25,9 +24,10 @@
 	const parts = $derived(partitionSubjectsByParts(allSubjects));
 	const selectedPartId = $derived(deliberationStore.selectedPartId);
 
-	// Filtres locaux
+	// Filtres locaux & état du tiroir déroulant
 	let maturityFilter = $state<MaturityFilter>('l4_only');
 	let searchQuery = $state('');
+	let isPickerOpen = $state(false);
 
 	// Compteurs globaux
 	const l4Count = $derived(
@@ -49,7 +49,6 @@
 			}
 		}
 
-		// Pré-sélectionner le premier sujet mature si le sujet actif actuel n'est pas mature
 		ensureValidActiveSubject();
 	});
 
@@ -67,7 +66,6 @@
 	const filteredSubjects = $derived.by(() => {
 		let list = partSubjects;
 
-		// 1. Filtre par maturité (L4 par défaut pour la phase de rendu et homologation)
 		if (maturityFilter === 'l4_only') {
 			list = list.filter((s) => s.level === 'L4_specified' || s.level === 'L5_archived');
 		} else if (maturityFilter === 'l3_plus') {
@@ -76,7 +74,6 @@
 			);
 		}
 
-		// 2. Recherche textuelle
 		if (searchQuery.trim()) {
 			const q = searchQuery.toLowerCase().trim();
 			list = list.filter(
@@ -87,213 +84,282 @@
 		return list;
 	});
 
+	const activeIndexInFiltered = $derived(
+		filteredSubjects.findIndex((s) => s.id === activeSubjectId)
+	);
+
 	function ensureValidActiveSubject() {
 		if (filteredSubjects.length === 0) return;
 		const isCurrentInList = filteredSubjects.some((s) => s.id === activeSubjectId);
 		if (!isCurrentInList) {
-			// Sélectionne automatiquement le premier sujet de la liste filtrée sans basculer la vue
 			deliberationStore.selectSubject(filteredSubjects[0].id, false);
 		}
 	}
 
 	function handleSelectSubject(id: string) {
 		deliberationStore.selectSubject(id, false);
+		isPickerOpen = false;
+	}
+
+	function goPrevSubject() {
+		if (filteredSubjects.length === 0) return;
+		const idx = activeIndexInFiltered > 0 ? activeIndexInFiltered - 1 : filteredSubjects.length - 1;
+		deliberationStore.selectSubject(filteredSubjects[idx].id, false);
+	}
+
+	function goNextSubject() {
+		if (filteredSubjects.length === 0) return;
+		const idx =
+			activeIndexInFiltered >= 0 && activeIndexInFiltered < filteredSubjects.length - 1
+				? activeIndexInFiltered + 1
+				: 0;
+		deliberationStore.selectSubject(filteredSubjects[idx].id, false);
+	}
+
+	function backToBoard() {
+		deliberationStore.setPosture('deliberation');
+		deliberationStore.setDeliberationViewMode('board');
 	}
 </script>
 
-<div class="rounded-xl border bg-card shadow-xs overflow-hidden transition-all">
-	<!-- ─── 1. En-tête : Sujet Actif & Onglets de Maturité ────────────────── -->
-	<div class="p-3.5 bg-muted/30 border-b flex flex-col md:flex-row md:items-center justify-between gap-3">
-		<div class="flex items-center gap-2.5 min-w-0">
-			<div class="p-2 rounded-lg bg-primary/10 text-primary shrink-0">
-				<Sparkles class="h-4 w-4" />
-			</div>
-			<div class="min-w-0">
-				<div class="flex items-center gap-2 flex-wrap">
-					<span class="text-xs font-bold text-foreground tracking-tight">
-						Sujet ciblé pour le Rendu & l'Homologation
-					</span>
-					{#if activeSubject}
-						<span class="px-2 py-0.5 rounded text-[10px] font-mono font-bold {getMaturityBadgeClass(activeSubject.level)}">
-							{formatMaturityLevel(activeSubject.level)}
-						</span>
-					{/if}
-				</div>
-				{#if activeSubject}
-					<p class="text-xs text-muted-foreground truncate font-medium mt-0.5" title="{activeSubject.section_ref} · {activeSubject.name}">
-						<span class="font-mono font-bold text-foreground mr-1">{activeSubject.section_ref}</span>
-						· {activeSubject.name}
-					</p>
-				{:else}
-					<p class="text-xs text-muted-foreground italic mt-0.5">
-						Aucun sujet sélectionné. Choisissez un sujet ci-dessous.
-					</p>
-				{/if}
-			</div>
-		</div>
-
-		<!-- Filtre de maturité (L4 pré-filtré par défaut) -->
-		<div class="flex items-center gap-1 bg-background border p-1 rounded-lg shrink-0 self-start md:self-auto text-xs">
+<div class="rounded-xl border bg-card shadow-2xs overflow-hidden transition-all" data-testid="subject-context-bar">
+	<!-- ─── Barre Compacte Unifiée du Sujet Actif (1 ligne) ────────────────── -->
+	<div class="px-3 py-2 bg-muted/20 flex flex-col lg:flex-row lg:items-center justify-between gap-2">
+		<!-- Gauche : Retour Tableau + Navigation Précédent/Suivant + Sujet Actif Cliquable -->
+		<div class="flex items-center gap-1.5 min-w-0 flex-1">
 			<button
 				type="button"
-				onclick={() => {
-					maturityFilter = 'l4_only';
-					ensureValidActiveSubject();
-				}}
-				class="px-2.5 py-1 rounded-md font-semibold text-xs transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 {maturityFilter === 'l4_only'
-					? 'bg-emerald-600 text-white shadow-2xs'
-					: 'text-muted-foreground hover:text-foreground'}"
-				title="Afficher uniquement les sujets L4 spécifiés prêts pour l'homologation"
+				onclick={backToBoard}
+				class="inline-flex items-center gap-1 px-2 py-1 rounded-lg border bg-background hover:bg-muted text-xs font-semibold text-muted-foreground hover:text-foreground transition-colors shrink-0 cursor-pointer"
+				title="Revenir au Tableau des Sujets (vue d'ensemble du projet)"
 			>
-				<span>🎯 Spécifiés L4</span>
-				<span class="px-1.5 py-0.2 rounded-full text-[10px] {maturityFilter === 'l4_only' ? 'bg-white/20 text-white' : 'bg-muted text-muted-foreground'}">
-					{l4Count}
-				</span>
+				<ArrowLeft class="h-3.5 w-3.5" />
+				<span class="hidden sm:inline">Tableau</span>
 			</button>
 
-			<button
-				type="button"
-				onclick={() => {
-					maturityFilter = 'l3_plus';
-					ensureValidActiveSubject();
-				}}
-				class="px-2.5 py-1 rounded-md font-semibold text-xs transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 {maturityFilter === 'l3_plus'
-					? 'bg-primary text-primary-foreground shadow-2xs'
-					: 'text-muted-foreground hover:text-foreground'}"
-				title="Afficher les sujets tranchés ou spécifiés (L3 et plus)"
-			>
-				<span>⚖️ Arbitrés L3+</span>
-				<span class="px-1.5 py-0.2 rounded-full text-[10px] {maturityFilter === 'l3_plus' ? 'bg-white/20 text-white' : 'bg-muted text-muted-foreground'}">
-					{l3PlusCount}
-				</span>
-			</button>
-
-			<button
-				type="button"
-				onclick={() => {
-					maturityFilter = 'all';
-					ensureValidActiveSubject();
-				}}
-				class="px-2.5 py-1 rounded-md font-semibold text-xs transition-all whitespace-nowrap cursor-pointer flex items-center gap-1.5 {maturityFilter === 'all'
-					? 'bg-secondary text-secondary-foreground shadow-2xs'
-					: 'text-muted-foreground hover:text-foreground'}"
-				title="Afficher tous les sujets d'architecture"
-			>
-				<span>Tous</span>
-				<span class="px-1.5 py-0.2 rounded-full text-[10px] {maturityFilter === 'all' ? 'bg-foreground/10 text-foreground' : 'bg-muted text-muted-foreground'}">
-					{allSubjects.length}
-				</span>
-			</button>
-		</div>
-	</div>
-
-	<!-- ─── 2. Barre de Sélection par Lots / Parties & Recherche ─────────── -->
-	<div class="px-3.5 py-2 bg-muted/15 border-b flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
-		{#if parts.length > 1}
-			<div class="flex items-center gap-1.5 overflow-x-auto no-scrollbar shrink-0">
-				<span class="text-[10px] font-bold text-muted-foreground uppercase tracking-wider shrink-0 mr-1 flex items-center gap-1">
-					<FolderKanban class="h-3.5 w-3.5 text-primary" />
-					Lots :
+			<!-- Boutons Sujet Précédent / Suivant -->
+			<div class="inline-flex items-center rounded-lg border bg-background shrink-0">
+				<button
+					type="button"
+					data-testid="prev-subject-btn"
+					onclick={goPrevSubject}
+					disabled={filteredSubjects.length <= 1}
+					class="p-1 text-muted-foreground hover:text-foreground disabled:opacity-40 cursor-pointer"
+					title="Sujet précédent"
+					aria-label="Sujet précédent"
+				>
+					<ChevronLeft class="h-3.5 w-3.5" />
+				</button>
+				<span class="text-[10px] font-mono text-muted-foreground px-1 border-x">
+					{activeIndexInFiltered >= 0 ? activeIndexInFiltered + 1 : 1}/{Math.max(1, filteredSubjects.length)}
 				</span>
 				<button
 					type="button"
+					data-testid="next-subject-btn"
+					onclick={goNextSubject}
+					disabled={filteredSubjects.length <= 1}
+					class="p-1 text-muted-foreground hover:text-foreground disabled:opacity-40 cursor-pointer"
+					title="Sujet suivant"
+					aria-label="Sujet suivant"
+				>
+					<ChevronRight class="h-3.5 w-3.5" />
+				</button>
+			</div>
+
+			<!-- Sélecteur déroulant du sujet actif -->
+			<button
+				type="button"
+				data-testid="toggle-subject-drawer-btn"
+				onclick={() => (isPickerOpen = !isPickerOpen)}
+				class="flex items-center justify-between gap-2 px-2.5 py-1 rounded-lg border bg-background hover:bg-muted/50 text-left transition-colors min-w-0 flex-1 cursor-pointer"
+				title="Cliquer pour changer de sujet ou filtrer par lot"
+			>
+				<div class="flex items-center gap-2 min-w-0 truncate">
+					<Target class="h-3.5 w-3.5 text-primary shrink-0" />
+					{#if activeSubject}
+						<span class="font-mono font-bold text-xs text-primary shrink-0">
+							{activeSubject.section_ref}
+						</span>
+						<span class="text-xs font-bold text-foreground truncate">
+							{activeSubject.name}
+						</span>
+						<span class="px-1.5 py-0.2 rounded text-[10px] font-mono font-bold shrink-0 {getMaturityBadgeClass(activeSubject.level)}">
+							{formatMaturityLevel(activeSubject.level)}
+						</span>
+					{:else}
+						<span class="text-xs text-muted-foreground italic">Sélectionner un sujet...</span>
+					{/if}
+				</div>
+				<ChevronDown class="h-3.5 w-3.5 text-muted-foreground shrink-0 transition-transform {isPickerOpen ? 'rotate-180' : ''}" />
+			</button>
+		</div>
+
+		<!-- Droite : Filtres rapides de maturité -->
+		<div class="flex items-center justify-between sm:justify-end gap-1.5 shrink-0 text-xs">
+			<div class="flex items-center gap-1 bg-background border p-0.5 rounded-lg">
+				<button
+					type="button"
 					onclick={() => {
-						deliberationStore.setSelectedPartId('all');
+						maturityFilter = 'l4_only';
 						ensureValidActiveSubject();
 					}}
-					class="px-2.5 py-1 rounded-lg text-xs font-semibold transition-all whitespace-nowrap cursor-pointer {selectedPartId === 'all'
-						? 'bg-primary text-primary-foreground shadow-2xs'
-						: 'bg-background hover:bg-muted text-muted-foreground hover:text-foreground border'}"
+					class="px-2 py-0.5 rounded-md font-semibold text-[11px] transition-all whitespace-nowrap cursor-pointer flex items-center gap-1 {maturityFilter === 'l4_only'
+						? 'bg-emerald-600 text-white shadow-2xs'
+						: 'text-muted-foreground hover:text-foreground'}"
+					title="Afficher uniquement les sujets spécifiés (L4)"
 				>
-					<span>Toutes ({allSubjects.length})</span>
+					<span>Spécifiés L4</span>
+					<span class="px-1 rounded-full text-[10px] {maturityFilter === 'l4_only' ? 'bg-white/20 text-white' : 'bg-muted text-muted-foreground'}">
+						{l4Count}
+					</span>
 				</button>
 
-				{#each parts as part}
-					{@const isSelected = selectedPartId === part.id}
-					<button
-						type="button"
-						onclick={() => {
-							deliberationStore.setSelectedPartId(part.id);
-							ensureValidActiveSubject();
-						}}
-						class="px-2.5 py-1 rounded-lg text-xs font-semibold transition-all whitespace-nowrap flex items-center gap-1.5 cursor-pointer {isSelected
-							? 'bg-primary text-primary-foreground shadow-2xs ring-1 ring-primary'
-							: 'bg-background hover:bg-muted text-foreground border'}"
-						title="{part.name} ({part.sectionRange})"
-					>
-						<span class="font-mono text-[10px] opacity-80">{part.code}</span>
-						<span class="truncate max-w-[110px]">{part.name}</span>
-						<span class="text-[10px] px-1.5 py-0.2 rounded-full {isSelected ? 'bg-primary-foreground/20 text-primary-foreground' : 'bg-muted text-muted-foreground'}">
-							{part.subjects.length}
-						</span>
-					</button>
-				{/each}
-			</div>
-		{/if}
+				<button
+					type="button"
+					onclick={() => {
+						maturityFilter = 'l3_plus';
+						ensureValidActiveSubject();
+					}}
+					class="px-2 py-0.5 rounded-md font-semibold text-[11px] transition-all whitespace-nowrap cursor-pointer flex items-center gap-1 {maturityFilter === 'l3_plus'
+						? 'bg-primary text-primary-foreground shadow-2xs'
+						: 'text-muted-foreground hover:text-foreground'}"
+					title="Afficher les sujets arbitrés ou spécifiés (L3+)"
+				>
+					<span>Arbitrés L3+</span>
+					<span class="px-1 rounded-full text-[10px] {maturityFilter === 'l3_plus' ? 'bg-white/20 text-white' : 'bg-muted text-muted-foreground'}">
+						{l3PlusCount}
+					</span>
+				</button>
 
-		<!-- Recherche textuelle -->
-		<div class="relative w-full sm:w-64 shrink-0">
-			<Search class="h-3.5 w-3.5 text-muted-foreground absolute left-2.5 top-1/2 -translate-y-1/2" />
-			<input
-				type="text"
-				bind:value={searchQuery}
-				placeholder="Rechercher un sujet (§11, WAPT...)..."
-				class="w-full pl-8 pr-2.5 py-1 text-xs rounded-lg border bg-background text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-primary"
-			/>
+				<button
+					type="button"
+					onclick={() => {
+						maturityFilter = 'all';
+						ensureValidActiveSubject();
+					}}
+					class="px-2 py-0.5 rounded-md font-semibold text-[11px] transition-all whitespace-nowrap cursor-pointer flex items-center gap-1 {maturityFilter === 'all'
+						? 'bg-secondary text-secondary-foreground shadow-2xs'
+						: 'text-muted-foreground hover:text-foreground'}"
+					title="Afficher tous les sujets du projet"
+				>
+					<span>Tous</span>
+					<span class="px-1 rounded-full text-[10px] {maturityFilter === 'all' ? 'bg-foreground/10 text-foreground' : 'bg-muted text-muted-foreground'}">
+						{allSubjects.length}
+					</span>
+				</button>
+			</div>
 		</div>
 	</div>
 
-	<!-- ─── 3. Liste / Grille Interactive des Sujets Candidats ─────────────── -->
-	<div class="p-3 max-h-56 overflow-y-auto">
-		{#if filteredSubjects.length === 0}
-			<div class="p-6 text-center text-xs text-muted-foreground space-y-1.5">
-				<p class="font-medium">Aucun sujet ne correspond aux critères de filtre actuels.</p>
-				{#if maturityFilter === 'l4_only' && l4Count === 0}
-					<p class="text-[11px] text-amber-700 dark:text-amber-300">
-						💡 Aucun sujet n'a encore atteint le niveau <strong>L4 (Spécifié)</strong>.
+	<!-- ─── Tiroir Dépliable : Recherche, Lots & Grille des Sujets ─────────── -->
+	{#if isPickerOpen}
+		<div class="border-t bg-card p-3 space-y-2.5 animate-in fade-in duration-150">
+			<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs">
+				{#if parts.length > 1}
+					<div class="flex items-center gap-1 overflow-x-auto no-scrollbar">
+						<span class="text-[10px] font-bold text-muted-foreground uppercase tracking-wider shrink-0 mr-1 flex items-center gap-1">
+							<FolderKanban class="h-3.5 w-3.5 text-primary" />
+							Lots :
+						</span>
 						<button
 							type="button"
-							onclick={() => (maturityFilter = 'l3_plus')}
-							class="underline hover:text-foreground font-semibold ml-1 cursor-pointer"
+							onclick={() => {
+								deliberationStore.setSelectedPartId('all');
+								ensureValidActiveSubject();
+							}}
+							class="px-2 py-0.5 rounded-md text-xs font-semibold transition-all whitespace-nowrap cursor-pointer {selectedPartId === 'all'
+								? 'bg-primary text-primary-foreground'
+								: 'bg-muted/50 hover:bg-muted text-muted-foreground hover:text-foreground'}"
 						>
-							Afficher les sujets arbitrés L3+
+							Tous ({allSubjects.length})
 						</button>
-					</p>
+
+						{#each parts as part}
+							{@const isSelected = selectedPartId === part.id}
+							<button
+								type="button"
+								onclick={() => {
+									deliberationStore.setSelectedPartId(part.id);
+									ensureValidActiveSubject();
+								}}
+								class="px-2 py-0.5 rounded-md text-xs font-semibold transition-all whitespace-nowrap flex items-center gap-1 cursor-pointer {isSelected
+									? 'bg-primary text-primary-foreground'
+									: 'bg-muted/50 hover:bg-muted text-foreground'}"
+								title="{part.name} ({part.sectionRange})"
+							>
+								<span class="font-mono text-[10px] opacity-80">{part.code}</span>
+								<span class="truncate max-w-[110px]">{part.name}</span>
+								<span class="text-[10px] px-1 rounded-full {isSelected ? 'bg-primary-foreground/20 text-primary-foreground' : 'bg-background text-muted-foreground'}">
+									{part.subjects.length}
+								</span>
+							</button>
+						{/each}
+					</div>
+				{/if}
+
+				<div class="relative w-full sm:w-64 shrink-0">
+					<Search class="h-3.5 w-3.5 text-muted-foreground absolute left-2.5 top-1/2 -translate-y-1/2" />
+					<input
+						type="text"
+						bind:value={searchQuery}
+						placeholder="Rechercher un sujet (§11, WAPT...)..."
+						class="w-full pl-8 pr-2.5 py-1 text-xs rounded-lg border bg-background text-foreground placeholder:text-muted-foreground/60 focus:outline-none focus:ring-1 focus:ring-primary"
+					/>
+				</div>
+			</div>
+
+			<div class="max-h-48 overflow-y-auto">
+				{#if filteredSubjects.length === 0}
+					<div class="p-4 text-center text-xs text-muted-foreground space-y-1.5">
+						<p class="font-medium">Aucun sujet ne correspond à ce filtre.</p>
+						{#if maturityFilter !== 'all'}
+							<button
+								type="button"
+								onclick={() => {
+									maturityFilter = 'all';
+									ensureValidActiveSubject();
+								}}
+								class="px-2.5 py-1 rounded-md bg-primary text-primary-foreground font-semibold text-xs hover:bg-primary/90 cursor-pointer"
+							>
+								Afficher tous les sujets ({allSubjects.length})
+							</button>
+						{/if}
+					</div>
+				{:else}
+					<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-1.5">
+						{#each filteredSubjects as sub (sub.id)}
+							{@const isSelected = sub.id === activeSubjectId}
+							<button
+								type="button"
+								onclick={() => handleSelectSubject(sub.id)}
+								class="flex items-start justify-between gap-2 p-2 rounded-lg border text-left transition-all cursor-pointer {isSelected
+									? 'bg-primary/10 border-primary shadow-2xs ring-1 ring-primary/30'
+									: 'bg-muted/20 hover:bg-muted/50 border-border/70'}"
+							>
+								<div class="min-w-0 flex-1">
+									<div class="flex items-center gap-1.5">
+										<span class="font-mono text-[11px] font-bold {isSelected ? 'text-primary' : 'text-muted-foreground'} shrink-0">
+											{sub.section_ref}
+										</span>
+										<strong class="text-xs font-semibold text-foreground truncate">
+											{sub.name}
+										</strong>
+									</div>
+								</div>
+
+								<div class="flex items-center gap-1 shrink-0">
+									<span class="px-1.5 py-0.2 rounded text-[10px] font-mono font-bold {getMaturityBadgeClass(sub.level)}">
+										{formatMaturityLevel(sub.level)}
+									</span>
+									{#if isSelected}
+										<Check class="h-3.5 w-3.5 text-primary shrink-0" />
+									{/if}
+								</div>
+							</button>
+						{/each}
+					</div>
 				{/if}
 			</div>
-		{:else}
-			<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2">
-				{#each filteredSubjects as sub}
-					{@const isActive = sub.id === activeSubjectId}
-					<button
-						type="button"
-						onclick={() => handleSelectSubject(sub.id)}
-						class="text-left p-2.5 rounded-lg border transition-all cursor-pointer flex flex-col justify-between gap-1.5 {isActive
-							? 'bg-primary/10 border-primary ring-2 ring-primary/30 shadow-xs'
-							: 'bg-card hover:bg-muted/40 border-border'}"
-					>
-						<div class="flex items-start justify-between gap-1.5">
-							<span class="font-mono text-xs font-bold text-foreground shrink-0 {isActive ? 'text-primary' : ''}">
-								{sub.section_ref}
-							</span>
-							<span class="px-1.5 py-0.2 rounded text-[10px] font-mono font-semibold shrink-0 {getMaturityBadgeClass(sub.level)}">
-								{formatMaturityLevel(sub.level)}
-							</span>
-						</div>
-
-						<p class="text-xs font-medium text-foreground line-clamp-2 leading-snug" title="{sub.name}">
-							{sub.name}
-						</p>
-
-						{#if isActive}
-							<div class="flex items-center gap-1 text-[10px] text-primary font-bold mt-0.5">
-								<Check class="h-3 w-3" />
-								<span>Sélectionné pour le rendu</span>
-							</div>
-						{/if}
-					</button>
-				{/each}
-			</div>
-		{/if}
-	</div>
+		</div>
+	{/if}
 </div>

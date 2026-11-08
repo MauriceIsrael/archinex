@@ -517,3 +517,18 @@ La commande `npm run seed:demo` configure et ensemence le parcours complet de la
   5. `ipsec_tunnels` : `tun-ipsec-esp-lot3-secgw1` (`IPsec-ESP-IKEv2`, `AES-256-GCM`, `DH-20-ECP384`).
   6. `service_mediation_flows` (`EP_S6a`) : `flow-s6a-lot3-to-hss1` (mÃ©diation obligatoire par `secgw-lot1-01` et `dea-lot1-01`).
   7. `sla_and_monitoring_contracts` (TM Forum SID GB922) : `sla-lot3-hosting-s6a` (`REQ-Lot1-1343`) & `probe-noc-s6a-lot3` (`REQ-Lot1-1274`).
+
+
+---
+
+## 14. Architecture Ergonomique à 2 Niveaux (Projet vs Sujet) & Clarté des Libellés
+
+L'expérience utilisateur d'Archinex distingue explicitement deux échelles cognitives complémentaires :
+- **Niveau Projet (Macro)** :
+  - Accessible depuis la barre supérieure de `/deliberation` (`Projet : Phase 1 · Corpus & Règles` et `Tableau des Sujets`).
+  - L'engagement actif est rappelé en permanence dans l'en-tête global sous forme de pastille cliquable (`Projet · Rôle`) renvoyant vers `/workspaces`, sans encombrer l'espace de délibération d'un sélecteur de projets redondant.
+- **Niveau Sujet (Micro)** :
+  - Dès qu'un sujet est ouvert, la partie droite de la barre supérieure (`Sujet §X.Y : Phase 2 · Délibération → Phase 3 · Rendu HLD → Phase 4 · Raffinement`) permet de basculer entre la délibération, le rendu documentaire HLD et le raffinement exécutable tout en conservant le sujet courant.
+  - En Phase 3, la **Barre de Contexte Sujet** compacte (1 ligne) offre un bouton `← Tableau`, une navigation rapide `◀ / ▶` entre sujets, des filtres rapides (`Spécifiés L4`, `Arbitrés L3+`, `Tous`) et un sélecteur dépliable à la demande.
+- **Langage Métier Épuré** :
+  - Tous les codes internes de spécification (`Porte G3` à `Porte G7`, `K13` à `K22`, `Contrat 1.9`/`1.11`, identifiants techniques `L3_decided`, `supports`/`violates`) sont remplacés dans l'interface par des intitulés métier directement compréhensibles par les architectes et décideurs.

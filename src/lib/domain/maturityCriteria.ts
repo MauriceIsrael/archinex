@@ -552,8 +552,8 @@ export function getMilestoneContextualActions(level: MaturityLevel): MilestoneCo
 				},
 				{
 					id: 'l3_prepare_kb',
-					label: '📦 Candidats KB (G4)',
-					description: 'Préparer les candidats de capitalisation doctrinale vers LLMOps',
+					label: '📦 Capitaliser',
+					description: 'Préparer les candidats de capitalisation doctrinale vers le Knowledge Hub',
 					kind: 'workspace',
 					targetTab: 'matrix'
 				}
@@ -562,15 +562,15 @@ export function getMilestoneContextualActions(level: MaturityLevel): MilestoneCo
 			return [
 				{
 					id: 'l4_prepare_kb',
-					label: '📦 Préparer les candidats KB (G4)',
-					description: 'Capitaliser la décision vers le Knowledge Hub LLMOps (Porte G4)',
+					label: '📦 Préparer la capitalisation',
+					description: 'Capitaliser la décision vers le Knowledge Hub',
 					kind: 'workspace',
 					targetTab: 'matrix'
 				},
 				{
 					id: 'l4_affirm_k16',
-					label: '✍️ Affirmer la décision & Faits K18',
-					description: 'Contre-signer la décision (K16) et extraire les faits d’architecture',
+					label: '✍️ Co-signer la décision & Faits',
+					description: 'Co-signer la décision et extraire les faits d’architecture',
 					kind: 'workspace',
 					targetTab: 'matrix',
 					criterionActionType: 'hub_affirmation'
@@ -578,7 +578,7 @@ export function getMilestoneContextualActions(level: MaturityLevel): MilestoneCo
 				{
 					id: 'l4_cascade',
 					label: '🌿 Instruire la cascade & sous-sujets',
-					description: 'Gérer les questions en cascade et les sous-sujets dérivés (A28)',
+					description: 'Gérer les questions en cascade et les sous-sujets dérivés',
 					kind: 'workspace',
 					targetTab: 'cascade',
 					criterionActionType: 'derive_subjects'

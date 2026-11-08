@@ -102,7 +102,7 @@
 			if (allPending) {
 				successMessage = `${result.submitted.length} candidat(s) enregistrés en local (en attente d'envoi à LLMOps).`;
 			} else {
-				successMessage = `${result.submitted?.length || preparedCandidates.length} candidat(s) transmis avec succès au Knowledge Hub LLMOps (Porte G4).`;
+				successMessage = `${result.submitted?.length || preparedCandidates.length} candidat(s) transmis avec succès au Knowledge Hub.`;
 			}
 			preparedCandidates = [];
 			isPrepared = false;
@@ -137,7 +137,7 @@
 			</div>
 			<div>
 				<h4 class="font-bold text-foreground text-sm flex items-center gap-2">
-					Capitalisation vers le Knowledge Hub (Porte G4)
+					Capitalisation vers le Knowledge Hub
 					<span class="inline-flex items-center gap-1 text-[11px] font-semibold px-2 py-0.5 rounded-full bg-indigo-500/15 text-indigo-700 border border-indigo-500/30">
 						<ShieldCheck class="w-3 h-3" /> Anonymisation Souveraine
 					</span>
@@ -287,7 +287,7 @@
 						<span>Transmission en cours...</span>
 					{:else}
 						<Send class="w-3.5 h-3.5" />
-						<span>Transmettre à LLMOps (Porte G4)</span>
+						<span>Transmettre au Knowledge Hub</span>
 					{/if}
 				</button>
 			</div>

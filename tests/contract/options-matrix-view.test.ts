@@ -230,7 +230,7 @@ describe('OptionsMatrix Column Titles & Readability Contract (Lot A2)', () => {
 		});
 
 		expect(html).toContain('id="capitalization-section"');
-		expect(html).toContain('Capitalisation vers le Knowledge Hub (Porte G4)');
+		expect(html).toContain('Capitalisation vers le Knowledge Hub');
 		expect(html).toContain('Préparer les Candidats KB');
 	});
 });

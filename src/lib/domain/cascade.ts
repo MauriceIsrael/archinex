@@ -183,7 +183,7 @@ export function buildDiscoveryTreeData(params: {
 			? `Décision : ${params.decision.retainedOptionTitle}`
 			: 'Décision Affirmée',
 		category: 'Décision (L3)',
-		typeLabel: 'Porte G3',
+		typeLabel: 'Arbitrage L3',
 		itemStyle: {
 			color: '#6366f1',
 			borderColor: '#a5b4fc'

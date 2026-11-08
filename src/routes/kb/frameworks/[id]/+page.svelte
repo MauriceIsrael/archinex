@@ -566,7 +566,7 @@
       <div class="flex items-start gap-3">
         <ShieldCheck class="w-6 h-6 text-emerald-600 flex-shrink-0 mt-0.5" />
         <div>
-          <h3 class="text-base font-bold">Attestation Formelle de Couverture Émise (Porte G6)</h3>
+          <h3 class="text-base font-bold">Attestation formelle de couverture émise</h3>
           <p class="text-sm mt-1">
             Le référentiel <strong>{coverageDeclaration.framework_id}</strong> a été intégralement instruit et couvert. Toutes les {coverageDeclaration.total_requirements} exigences sont alignées sur la doctrine.
           </p>

@@ -124,7 +124,7 @@
         <div>
           <h1 class="text-2xl font-bold text-foreground">Banc d'Évaluation & Rappel Doctrinal</h1>
           <p class="text-sm text-muted-foreground">
-            Jeu de test <span class="font-mono font-semibold">check_option_v1</span>, annotation humaine experte et calcul du rappel réel (Porte G6 ≥ 80%).
+            Jeu de test <span class="font-mono font-semibold">check_option_v1</span>, annotation humaine experte et calcul du rappel réel (objectif ≥ 80 %).
           </p>
         </div>
       </div>
@@ -162,14 +162,14 @@
       class="px-4 py-2 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1.5 {activeTab === 'options' ? 'bg-primary text-white shadow-sm' : 'bg-muted hover:bg-muted text-muted-foreground'}"
     >
       <ShieldCheck class="w-4 h-4" />
-      <span>Vérification d'Options (Porte G6)</span>
+      <span>Vérification d'options</span>
     </button>
     <button
       onclick={() => (activeTab = 'similarity')}
       class="px-4 py-2 text-xs font-semibold rounded-lg transition-colors flex items-center gap-1.5 {activeTab === 'similarity' ? 'bg-primary text-white shadow-sm' : 'bg-muted hover:bg-muted text-muted-foreground'}"
     >
       <Sliders class="w-4 h-4" />
-      <span>Similarité FR/EN & Calibration (Contrat 1.11)</span>
+      <span>Similarité FR/EN & Calibration</span>
     </button>
     <button
       onclick={() => (activeTab = 'feedback')}
@@ -189,7 +189,7 @@
         <div>
           <h2 class="text-lg font-bold text-foreground flex items-center gap-2">
             <Sparkles class="w-5 h-5 text-primary" />
-            <span>Exécution du Benchmark (Porte G6)</span>
+            <span>Évaluation du taux de rappel</span>
           </h2>
           <p class="text-xs text-muted-foreground mt-1 max-w-xl">
             Évalue les moteurs de vérification d'options contre les cas de test. Le taux de rappel officiel est calculé strictement sur les annotations humaines pour garantir l'opposabilité.
@@ -237,10 +237,10 @@
             <div class="text-xs mt-1 font-semibold flex items-center gap-1">
               {#if benchmarkResult.meets_target}
                 <CheckCircle class="w-3.5 h-3.5 text-emerald-600" />
-                <span>Objectif Porte G6 Validé (≥ 80%)</span>
+                <span>Objectif atteint (≥ 80 %)</span>
               {:else}
                 <AlertTriangle class="w-3.5 h-3.5 text-rose-600" />
-                <span>Non conforme Porte G6 (&lt; 80%)</span>
+                <span>Sous le seuil (&lt; 80 %)</span>
               {/if}
             </div>
           </div>
@@ -310,7 +310,7 @@
               <div class="flex items-center gap-2">
                 <!-- Statut attendu -->
                 <span class="px-2.5 py-1 text-xs font-bold rounded-full {c.expected_status === 'supports' ? 'bg-emerald-100 text-emerald-800 border border-emerald-300' : 'bg-rose-100 text-rose-800 border border-rose-300'}">
-                  Attendu : {c.expected_status === 'supports' ? 'Conforme (supports)' : 'Non-conforme (violates)'}
+                  Attendu : {c.expected_status === 'supports' ? 'Conforme' : 'Non conforme'}
                 </span>
 
                 <!-- Annotation humaine -->
@@ -440,8 +440,8 @@
             bind:value={editExpectedStatus}
             class="w-full px-3 py-2 text-xs border border-border rounded-lg bg-white focus:ring-2 focus:ring-primary"
           >
-            <option value="supports">Conforme / Valide (supports)</option>
-            <option value="violates">Non-conforme / Enfreint la règle (violates)</option>
+            <option value="supports">Conforme / Valide</option>
+            <option value="violates">Non conforme / Enfreint la règle</option>
           </select>
         </div>
 

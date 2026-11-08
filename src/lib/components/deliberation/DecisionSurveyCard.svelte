@@ -244,7 +244,7 @@
 		<div class="space-y-1">
 			<h4 class="font-bold text-sm text-foreground">Aucune décision formalisée à affirmer</h4>
 			<p class="text-xs text-muted-foreground max-w-md mx-auto">
-				Pour affirmer une décision et ses faits d'architecture (Porte G3 / L3), un choix d'option doit d'abord être arrêté et motivé.
+				Pour affirmer une décision et ses faits d'architecture (jalon L3 · Décidé), un choix d'option doit d'abord être arrêté et motivé.
 			</p>
 		</div>
 
@@ -339,7 +339,7 @@
 
 		{#if isHubCutover}
 			<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-blue-500/10 text-blue-700 dark:text-blue-300 border border-blue-500/30 text-[10px] font-mono font-bold">
-				Hub SoR (K16)
+				Synchronisé Hub
 			</span>
 		{/if}
 	</div>
@@ -399,9 +399,9 @@
 		<div class="flex items-center justify-between text-xs">
 			<div class="flex items-center gap-1.5 font-bold text-foreground">
 				<Bot class="h-4 w-4 text-indigo-500" />
-				<span>Faits d'Architecture Affirmés (Modèle K18)</span>
+				<span>Faits d'architecture extraits</span>
 				<span class="px-1.5 py-0.2 rounded text-[10px] font-mono bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-500/25">
-					llm-derived
+					Extrait par IA
 				</span>
 			</div>
 			{#if isExtractingFacts}
@@ -477,7 +477,7 @@
 			<div class="p-3 rounded-lg bg-amber-500/10 border border-amber-500/30 text-xs text-amber-900 dark:text-amber-200 flex items-start gap-2">
 				<ShieldAlert class="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
 				<div>
-					<strong>Séparation des pouvoirs (K16) : Auto-validation interdite.</strong>
+					<strong>Double regard requis : auto-validation interdite.</strong>
 					<p class="text-[11px] text-amber-800 dark:text-amber-300 mt-0.5">
 						{explainActionRefusal('affirm', sessionUser.role, { isAuthor: true })}
 					</p>

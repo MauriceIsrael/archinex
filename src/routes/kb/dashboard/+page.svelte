@@ -134,7 +134,7 @@
 
       if (res.status === 409) {
         const blockersStr = body.blockers?.join(' ; ') || body.error;
-        toast(`Publication bloquée (Porte G7) : ${blockersStr}`, { variant: 'error' });
+        toast(`Publication bloquée : ${blockersStr}`, { variant: 'error' });
         return;
       }
 
@@ -223,9 +223,9 @@
           <Database class="h-6 w-6" />
         </div>
         <div>
-          <h1 class="text-2xl font-bold tracking-tight">Tableau de Bord de Gouvernance KB</h1>
+          <h1 class="text-2xl font-bold tracking-tight">Tableau de Bord de Gouvernance</h1>
           <p class="text-sm text-muted-foreground">
-            Pilotage de la doctrine d'entreprise, publication scellée (Porte G7) et campagnes d'enrichissement.
+            Pilotage de la doctrine d'entreprise, publication scellée et campagnes d'enrichissement.
           </p>
         </div>
       </div>
@@ -296,10 +296,10 @@
         </div>
       </div>
 
-      <!-- Revues & Délais (Porte G5) -->
+      <!-- Revues & Délais -->
       <div class="rounded-xl border bg-card p-5 space-y-2">
         <div class="flex items-center justify-between text-muted-foreground">
-          <span class="text-xs font-semibold uppercase tracking-wider">Boîte de Revue (G5)</span>
+          <span class="text-xs font-semibold uppercase tracking-wider">Revues en attente</span>
           <Clock class="h-4 w-4 text-amber-500" />
         </div>
         <div class="flex items-baseline gap-2">
@@ -309,7 +309,7 @@
         <div class="pt-1 border-t flex items-center justify-between text-xs">
           {#if (health.reviews_summary?.overdue_count ?? 0) === 0}
             <span class="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-medium">
-              <CheckCircle2 class="h-3.5 w-3.5" /> 0 en retard (G5 OK)
+              <CheckCircle2 class="h-3.5 w-3.5" /> Aucun retard
             </span>
           {:else}
             <span class="inline-flex items-center gap-1 text-rose-600 dark:text-rose-400 font-medium">
@@ -335,10 +335,10 @@
         </div>
       </div>
 
-      <!-- Rappel Benchmark (Porte G6) -->
+      <!-- Taux de rappel -->
       <div class="rounded-xl border bg-card p-5 space-y-2">
         <div class="flex items-center justify-between text-muted-foreground">
-          <span class="text-xs font-semibold uppercase tracking-wider">Rappel Benchmark (G6)</span>
+          <span class="text-xs font-semibold uppercase tracking-wider">Taux de rappel</span>
           <Target class="h-4 w-4 text-emerald-500" />
         </div>
         <div class="flex items-baseline gap-2">
@@ -348,7 +348,7 @@
         <div class="pt-1 border-t text-xs">
           {#if health.evals_summary?.gate_g6_passed}
             <span class="inline-flex items-center gap-1 text-emerald-600 dark:text-emerald-400 font-medium">
-              <CheckCircle2 class="h-3.5 w-3.5" /> Porte G6 Validée (≥ 80%)
+              <CheckCircle2 class="h-3.5 w-3.5" /> Seuil atteint (≥ 80 %)
             </span>
           {:else}
             <span class="inline-flex items-center gap-1 text-rose-600 dark:text-rose-400 font-medium">
@@ -360,14 +360,14 @@
     </div>
   {/if}
 
-  <!-- Section Vecteurs Sémantiques & Indexation Locale (Contrat 1.9 / Issue #14) -->
+  <!-- Section Vecteurs Sémantiques & Indexation Locale -->
   <div class="rounded-xl border bg-card p-6 space-y-4 shadow-sm">
     <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b">
       <div>
         <div class="flex items-center gap-2">
           <h2 class="text-lg font-bold">Indexation Vectorielle & Similarité Sémantique</h2>
           <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-primary/10 text-primary border border-primary/20">
-            Contrat 1.9 (A12)
+            Encodage local
           </span>
         </div>
         <p class="text-xs text-muted-foreground mt-1">
@@ -413,26 +413,26 @@
         <div class="text-[11px] text-muted-foreground mt-0.5">Manquants dans l'index</div>
       </div>
       <div class="p-3.5 rounded-lg bg-muted/20 border border-border">
-        <span class="text-muted-foreground font-medium">Vecteurs Obsolètes (Stale)</span>
+        <span class="text-muted-foreground font-medium">Vecteurs à recalculer</span>
         <div class="text-base font-bold {embeddingsInfo.stale > 0 ? 'text-rose-500' : 'text-foreground'} mt-1">{embeddingsInfo.stale}</div>
         <div class="text-[11px] text-muted-foreground mt-0.5">Texte modifié depuis dépôt</div>
       </div>
     </div>
   </div>
 
-  <!-- Section 1 : Porte G7 — Publication Scellée & Changelog -->
+  <!-- Section 1 : Publication Scellée & Changelog -->
   <div class="rounded-xl border bg-card p-6 space-y-6">
     <div class="flex flex-col md:flex-row md:items-center justify-between gap-4 pb-4 border-b">
       <div>
         <div class="flex items-center gap-2">
-          <h2 class="text-lg font-bold">Publication Scellée de la Doctrine (Porte G7)</h2>
+          <h2 class="text-lg font-bold">Publication scellée de la doctrine</h2>
           {#if health?.gate_g7_eligible}
             <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-emerald-500/10 text-emerald-600 dark:text-emerald-400 border border-emerald-500/20">
-              <CheckCircle2 class="h-3 w-3" /> Porte G7 Franchie
+              <CheckCircle2 class="h-3 w-3" /> Prêt à publier
             </span>
           {:else}
             <span class="inline-flex items-center gap-1 px-2.5 py-0.5 rounded-full text-xs font-semibold bg-rose-500/10 text-rose-600 dark:text-rose-400 border border-rose-500/20">
-              <XCircle class="h-3 w-3" /> Porte G7 Bloquée
+              <XCircle class="h-3 w-3" /> Publication bloquée
             </span>
           {/if}
         </div>
@@ -597,7 +597,7 @@
           <Lock class="h-5 w-5" />
         </div>
         <div>
-          <h3 class="font-bold text-base">Sceller la Publication Officielle (Porte G7)</h3>
+          <h3 class="font-bold text-base">Sceller la publication officielle</h3>
           <p class="text-xs text-muted-foreground">Émission d'un instantané cryptographique pérenne.</p>
         </div>
       </div>

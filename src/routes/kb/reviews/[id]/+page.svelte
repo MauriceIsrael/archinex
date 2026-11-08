@@ -289,7 +289,7 @@
           class="pb-2.5 text-xs font-semibold px-2 transition-colors border-b-2 {activeTab === 'checks' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}"
           onclick={() => (activeTab = 'checks')}
         >
-          7 Vérifications Automatiques ({data.candidate.checks?.length || 0})
+          Contrôles automatiques ({data.candidate.checks?.length || 0})
         </button>
         <button
           class="pb-2.5 text-xs font-semibold px-2 transition-colors border-b-2 {activeTab === 'content' ? 'border-primary text-primary' : 'border-transparent text-muted-foreground hover:text-foreground'}"

@@ -43,10 +43,10 @@ describe('Knowledge Hub Menu Rationalization Contract Test', () => {
 			lastIdx = idx;
 		}
 
-		// Vérifie la progressivité des portes constitutionnelles G5 -> G6 -> G7 sur le palier Validation & Évaluation
-		expect(layoutContent).toContain("gate: 'G5'");
-		expect(layoutContent).toContain("gate: 'G6'");
-		expect(layoutContent).toContain("gate: 'G7'");
+		// Vérifie l'absence des labels internes (Porte G5 / G6 / G7) dans le menu latéral utilisateur
+		expect(layoutContent).not.toContain("gate: 'G5'");
+		expect(layoutContent).not.toContain("gate: 'G6'");
+		expect(layoutContent).not.toContain("gate: 'G7'");
 	});
 
 	it('2. Retire les mini-apps KB du menu caché derrière l’icône utilisateur en haut à droite', () => {

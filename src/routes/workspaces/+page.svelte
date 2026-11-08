@@ -147,7 +147,7 @@
 				<ShieldCheck class="h-5 w-5 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
 				<div class="space-y-0.5">
 					<h3 class="text-xs font-bold text-emerald-900 dark:text-emerald-200">
-						Invariant Épistémique · Patrimoine de Connaissances Commun & Invariant
+						Patrimoine de connaissances commun
 					</h3>
 					<p class="text-xs text-muted-foreground leading-relaxed">
 						Chaque espace de travail isole ses sujets et arbitrages, mais <strong>la base de connaissances reste commune et valide de facto</strong>. Tout standard ou document amont apporté enrichit l'ensemble des projets.

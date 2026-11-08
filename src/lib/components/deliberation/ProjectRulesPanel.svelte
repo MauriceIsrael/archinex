@@ -269,7 +269,7 @@
 				throw new Error(err.error || 'Erreur lors de la proposition.');
 			}
 
-			successMsg = 'Règle locale proposée avec succès. Elle est en attente d’affirmation par un arbitre distinct (K16).';
+			successMsg = 'Règle locale proposée avec succès. Elle est en attente de co-signature par un arbitre distinct.';
 			showLocalRuleEditor = false;
 			newRuleName = '';
 			newRuleQuestion = '';
@@ -303,7 +303,7 @@
 				throw new Error(err.error || 'Erreur lors de l’affirmation.');
 			}
 
-			successMsg = `Règle locale [${ruleId}] formellement affirmée (K16 validé).`;
+			successMsg = `Règle locale [${ruleId}] formellement co-signée.`;
 			await loadRules();
 			onRuleChanged();
 		} catch (err: any) {
@@ -332,7 +332,7 @@
 			}
 
 			const data = await res.json();
-			successMsg = `✨ Règle locale transmise au référentiel KB (${data.candidateId}) sans ancre de programme (K13 respecté).`;
+			successMsg = `✨ Règle locale transmise au référentiel KB (${data.candidateId}) après anonymisation.`;
 			await loadRules();
 		} catch (err: any) {
 			errorMsg = err.message;
@@ -347,7 +347,7 @@
 	<div class="flex items-center justify-between pb-2 border-b">
 		<div class="flex items-center gap-2">
 			<Sliders class="h-4 w-4 text-primary" />
-			<h3 class="font-bold text-foreground text-sm">Règles du Projet & Déclencheurs de Cascade (K21/A30)</h3>
+			<h3 class="font-bold text-foreground text-sm">Règles du Projet & Déclencheurs de Cascade</h3>
 		</div>
 		<button
 			type="button"
@@ -742,7 +742,7 @@
 									</span>
 								{:else}
 									<span class="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-amber-500/10 text-amber-700 dark:text-amber-300 border border-amber-500/30">
-										Proposée (en attente K16)
+										Proposée (en attente de co-signature)
 									</span>
 								{/if}
 								{#if lRule.action.mandatory}
@@ -769,34 +769,34 @@
 
 						<div class="shrink-0 flex items-center gap-1.5">
 							{#if lRule.status === 'proposed'}
-								<!-- Bouton Affirmation K16 : décideur distinct de l'auteur -->
+								<!-- Bouton Co-signature : décideur distinct de l'auteur -->
 								{#if isDecider && lRule.authorId !== userId}
 									<button
 										type="button"
 										onclick={() => handleAffirmLocalRule(lRule.id)}
 										class="px-2.5 py-1 text-xs rounded-md bg-emerald-600 text-white font-semibold hover:bg-emerald-700 transition-colors cursor-pointer"
-										title="Affirmer la règle locale (K16 respecté)"
+										title="Co-signer la règle locale"
 									>
-										Affirmer (K16)
+										Co-signer
 									</button>
 								{:else if lRule.authorId === userId}
 									<span
 										class="px-2 py-1 text-[10px] rounded border border-muted text-muted-foreground cursor-not-allowed"
-										title="Invariant K16 : Un arbitre distinct est requis pour affirmer cette règle"
+										title="Un arbitre distinct est requis pour co-signer cette règle"
 									>
-										Auteur (K16 requis)
+										Co-signataire requis
 									</span>
 								{/if}
 							{:else}
-								<!-- Proposer au référentiel (K22 / K13) -->
+								<!-- Proposer au référentiel -->
 								<button
 									type="button"
 									onclick={() => handleCapitalizeLocalRule(lRule.id)}
 									class="px-2.5 py-1 text-xs rounded-md border border-indigo-500/30 text-indigo-700 dark:text-indigo-300 hover:bg-indigo-500/10 font-medium transition-colors cursor-pointer flex items-center gap-1"
-									title="Proposer au référentiel commun sans ancre de programme (K13)"
+									title="Proposer au référentiel commun après anonymisation"
 								>
 									<Sparkles class="h-3 w-3" />
-									<span>Capitaliser (K22)</span>
+									<span>Proposer au Hub</span>
 								</button>
 							{/if}
 						</div>

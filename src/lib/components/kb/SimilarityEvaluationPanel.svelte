@@ -120,13 +120,13 @@
       <div>
         <div class="flex items-center gap-2 mb-1">
           <span class="px-2 py-0.5 text-xs font-semibold rounded-full bg-primary/10 text-primary border border-primary/20">
-            Contrat 1.11
+            Calibration bilingue
           </span>
           <span class="text-xs text-muted-foreground">Jeu bilingue FR/EN calibré</span>
         </div>
         <h2 class="text-lg font-bold text-foreground">Évaluation de Similarité Sémantique & Calibration des Seuils</h2>
         <p class="text-xs text-muted-foreground mt-1">
-          Mesure déterministe avec encodage local côté Archinex. Prévention absolue des faux positifs forts (false_strong).
+          Mesure déterministe avec encodage local côté Archinex. Prévention absolue des faux positifs forts.
         </p>
       </div>
 
@@ -201,11 +201,11 @@
           <p class="text-muted-foreground">{latestRun.recall_at_3 ? `${Math.round(latestRun.recall_at_3 * 100)}%` : 'N/A'}</p>
         </div>
         <div class="p-3 rounded-lg border border-border bg-muted/10 space-y-1">
-          <span class="font-semibold text-foreground">Pièges d'Hypothèses (Reuse Trap)</span>
+          <span class="font-semibold text-foreground">Pièges d'hypothèses</span>
           <p class="text-muted-foreground">{latestRun.reuse_trap_strong} cas (séparés des faux forts)</p>
         </div>
         <div class="p-3 rounded-lg border border-border bg-muted/10 space-y-1">
-          <span class="font-semibold text-foreground">Balayage de Calibration (Sweep)</span>
+          <span class="font-semibold text-foreground">Balayage des seuils</span>
           <p class="text-muted-foreground">{latestRun.sweep.length} paliers explorés (0.70 à 0.98)</p>
         </div>
       </div>

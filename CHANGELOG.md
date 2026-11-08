@@ -8,6 +8,16 @@ Aucune version n'a encore Ã©tÃ© publiÃ©e : tout figure sous *Non publiÃ©
 
 ## Non publié
 
+### Harmonisation UX/UI des Labels Métier & Navigation à 2 Niveaux Projet / Sujet (Pattern A)
+- **Suppression du Jargon Interne de Spécification dans toute l'IHM** :
+  - Retrait systématique des codes de portes et d'invariants internes (`Porte G3`, `G3`, `Porte G4`, `G4`, `Porte G5`, `G5`, `Porte G6`, `G6`, `Porte G7`, `G7`, `Contrat 1.9`, `Contrat 1.11`, `Lot A2`, `K16`, `K18`, `K22`, `K13`, `Invariant II`, `Invariant VI`) ainsi que des identifiants techniques bruts (`L3_decided`, `L0_named`, `L5_frozen`, `supports`/`violates`, `false_strong`, `llm-derived`) au profit de libellés métier clairs et concis dans la barre latérale, le Knowledge Hub (`/kb/dashboard`, `/kb/evals`, `/kb/frameworks/[id]`, `/kb/reviews/[id]`), l'atelier de délibération et la Phase 4.
+- **Allègement de l'En-tête Global & Suppression du Panneau Redondant « Projet & Engagement Actif »** :
+  - Ajout d'un badge compact d'engagement actif (`data-testid="active-engagement-pill"`) dans la barre supérieure globale (`src/routes/+layout.svelte`) renvoyant directement vers `/workspaces`.
+  - Suppression de la grille redondante de sélection de projet et du bouton `+ Nouvel Espace` de la page `/deliberation`.
+- **Architecture Ergonomique à 2 Niveaux Projet vs Sujet (Pattern A)** :
+  - Refonte de `ProjectEngagementHeader.svelte` en barre permanente structurée autour des deux échelles de travail : **Projet** (`Phase 1 · Corpus & Règles`, `Tableau des Sujets`) et **Sujet** (`Phase 2 · Délibération`, `Phase 3 · Rendu HLD`, `Phase 4 · Raffinement`), supprimant la double barre d'onglets redondante dans `/deliberation`.
+  - Transformation de `Phase3SubjectSelector.svelte` en **Barre de Contexte Sujet** compacte d'une seule ligne (`← Tableau`, navigation `◀ / ▶` sujet précédent/suivant, sélecteur rapide et tiroir dépliable à la demande).
+
 ### Synchronisation Automatique des Vecteurs d'Embeddings & Retrait du Codage en Dur `toy-bow` (Décision D6 / A12)
 - **Hydratation de `EMBEDDING_MODEL` et `EMBEDDING_OLLAMA_URL` depuis `.env` (`src/lib/server/similarity/encoder.ts`)** :
   - `configuredModel()` et `resolveEncoder()` chargent désormais les variables définies dans `.env` (via `parseDotEnvFile()`) lorsque `process.env` n'est pas pré-hydraté (ex. sous `vite dev`), sélectionnant fidèlement le modèle d'embeddings configuré (ex. `bge-m3` sur `EMBEDDING_OLLAMA_URL`) au lieu de retomber sur `toy-bow`.

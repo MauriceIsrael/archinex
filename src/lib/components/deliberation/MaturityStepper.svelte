@@ -44,7 +44,7 @@
 		{ level: 'L0_named', label: 'Nommé', short: 'L0', locked: false },
 		{ level: 'L1_framed', label: 'Cadré', short: 'L1', locked: false },
 		{ level: 'L2_decomposed', label: 'Décomposé', short: 'L2', locked: false },
-		{ level: 'L3_decided', label: 'Décidé', short: 'L3', locked: true, lockRole: 'Décideur distinct (K16)' },
+		{ level: 'L3_decided', label: 'Décidé', short: 'L3', locked: true, lockRole: 'Co-signataire distinct' },
 		{ level: 'L4_specified', label: 'Spécifié', short: 'L4', locked: true, lockRole: 'Lead Architect' },
 		{ level: 'L5_archived', label: 'Archivé', short: 'L5', locked: true, lockRole: 'Lead Architect' }
 	];

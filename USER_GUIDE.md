@@ -90,28 +90,32 @@ Une fois le sujet arbitrÃ©, la section de capitalisation s'active :
 
 ---
 
-## 3. Administration & ContrÃ´le d'AccÃ¨s (Casbin)
+## 3. Administration & Gestion Centralisée des Comptes
 
-L'onglet **Administration** permet aux administrateurs de :
-- GÃ©rer les comptes utilisateurs et leurs domaines techniques (`x-user-domains`) ;
-- Ajuster les politiques de sÃ©curitÃ© Casbin (rÃ¨gles `p` et groupements `g`) ;
-- Superviser les Ã©vÃ©nements d'audit et la journalisation des arbitrages.
+La vue **Administration** (`/admin`) permet aux administrateurs de piloter l'ensemble des identités, rôles et compétences :
+- **Création et gestion unifiée des comptes** : création en un clic sans saisie superflue.
+- **Deux dimensions orthogonales claires** :
+  1. **Domaines de responsabilité (compétences techniques/métier)** : sélection assistée par le composant `DomainsPicker` (filtres thématiques, packs rapides `+ Pack 3GPP` et `+ Pack Sécurité`, ajout dynamique de domaines personnalisés).
+  2. **Rôles applicatifs & d'arbitrage** : rôle système (`admin`/`user`), rôles par espace de travail (`lead_architect`, `architect`, `auditor`, `observer`) et rôles sur la doctrine LLMOps (`kb:review`, `kb:maintain`, `kb:evaluate`, `kb:admin`).
+- **Dérivation automatique de handle LLMOps** : Archinex dérive automatiquement le handle canonique (ex: `@prenom-nom`) à partir de l'adresse e-mail et synchronise le profil avec le registre LLMOps (`data/kb/owners.yaml`).
+- **Ajustement des politiques Casbin & audit** : supervision en temps réel des règles RBAC/ABAC et des journaux d'audit.
 
 ---
 
-## 4. Gouvernance Knowledge Hub & Comptes Experts (Lot A6)
+## 4. Gouvernance Knowledge Hub & Comptes Experts
 
-Archinex permet de gÃ©rer la communautÃ© des experts doctrbraux intervenant sur la base de connaissances (KB) :
+Archinex permet de gérer la communauté des experts doctrinaux intervenant sur la base de connaissances (KB) :
 
-### Inviter un Expert KB (Administrateurs)
-1. Rendez-vous dans **Administration** > onglet **Experts KB**.
-2. Cliquez sur **Inviter un expert**.
-3. Renseignez le nom, l'email professionnel, le handle unique (ex: `@sec-lead`), les domaines techniques couverts et les rÃ´les KB :
-   - `kb:review` : Voter et statuer sur les candidats de rÃ¨gles ;
-   - `kb:evaluate` : Piloter et annoter les bancs de tests et Ã©valuations ;
-   - `kb:maintain` : Ã‰diter et adapter les clauses de doctrine ;
+### Créer ou Inviter un Expert KB (Administrateurs)
+1. Rendez-vous dans **Administration** (`/admin`), bouton **Nouveau compte** (ou fiche de modification).
+2. Renseignez le nom complet et l'adresse e-mail professionnelle. Le handle LLMOps est auto-dérivé immédiatement.
+3. Sélectionnez ses **domaines de responsabilité** dans le sélecteur visuel (ex: activez le `Pack 3GPP` pour cocher d'un coup `conformance`, `telecom-core`, `5g-security`, `sba`, etc.).
+4. Cochez les **rôles sur la Doctrine LLMOps** selon les prérogatives accordées :
+   - `kb:review` : Voter et statuer sur les candidats de règles ;
+   - `kb:evaluate` : Piloter et annoter les bancs de tests et évaluations ;
+   - `kb:maintain` : Éditer et adapter les clauses de doctrine ;
    - `kb:admin` : Gouvernance et publication des versions KB.
-4. Un lien d'activation sÃ©curisÃ© valable 7 jours Ã  usage unique est gÃ©nÃ©rÃ©. Copiez-le et transmettez-le Ã  l'expert.
+5. Définissez soit un **mot de passe initial** pour une mise à disposition immédiate, soit générez un **lien d'activation sécurisé** valable 7 jours à usage unique (`/invite?token=...`).
 
 ### Activer son Compte Expert
 1. L'expert accÃ¨de au lien reÃ§u (`/invite?token=...`).

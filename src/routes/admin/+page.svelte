@@ -457,6 +457,7 @@
   account={selectedAccount}
   workspaces={data.workspaces ?? []}
   unlinkedOwners={data.unlinkedOwners ?? []}
+  ownersRegistry={data.ownersRegistry ?? { owners: [], total: 0 }}
   onUpdated={() => invalidateAll()}
 />
 

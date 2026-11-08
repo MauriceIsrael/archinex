@@ -8,6 +8,21 @@ Aucune version n'a encore Ã©tÃ© publiÃ©e : tout figure sous *Non publiÃ©
 
 ## Non publié
 
+### Interface Simplifiée de Création de Compte & Sélecteur de Domaines LLMOps (#76)
+- **Séparation Nette des Domaines de Responsabilité et des Rôles** :
+  - Distinction formelle entre les compétences techniques/métier (*Domaines de responsabilité* : périmètre d'autorité d'un expert sur les clauses, ex: `3GPP conformance`, `5g-security`, `telecom-core`) et les habilitations d'action (*Rôles projet* et *Rôles doctrine LLMOps* : `kb:review`, `kb:maintain`, `kb:evaluate`, `kb:admin`).
+- **Nouveau Composant Visuel `DomainsPicker.svelte`** :
+  - Remplacement de la saisie textuelle à l'aveugle par un sélecteur interactif alimenté dynamiquement par le registre LLMOps (`ownersRegistry.domains`).
+  - Ajout de filtres thématiques (`Tous`, `3GPP & Télécom`, `Sécurité & Conformité`, `Architecture & Cloud`), de badges cliquables et de recherche en temps réel.
+  - Ajout de raccourcis 1-clic préconfigurés : **`+ Pack 3GPP`** (`conformance`, `interoperability`, `telecom-core`, `mobile-core`, `5g-security`, `network-exposure`, `sba`, `mcx-security`) et **`+ Pack Sécurité`** (`security`, `security-architecture`, `hardening`, `cryptography`, `vulnerability-management`, `iam`, `compliance`).
+- **Dérivation Automatique du Handle LLMOps & Expérience Épurée** :
+  - Dérivation instantanée du handle (ex: `@prenom-nom`) à partir de l'email ou du nom renseigné, sans forcer la saisie manuelle.
+  - Suppression des boutons superflus et automatisation de l'inscription dans le registre LLMOps.
+  - Intégration transparente dans `AdminCreateAccountDialog` et `AdminAccountSheetDialog` (fiche profil utilisateur).
+- **Tests de Contrat & Validation de Non-Régression** :
+  - Ajout de `tests/contract/simplified-account-creation.test.ts` validant la création d'expert multi-domaines 3GPP, la dérivation automatique de handle et la payload envoyée au registre LLMOps.
+  - Validation complète des tests de contrat centralisés (`tests/contract/issue_76_centralized_accounts.test.ts`).
+
 ### Correction Résilience Brouillons Télégraphiques & KPI Délibération (`seed:demo`)
 - **Résilience Itérabilité `draft.suppose` & Tableaux Télégraphiques** :
   - Correction de l'erreur `TypeError: draft.suppose is not iterable` survenue lors de l'accès à la vue Délibération / Board sur des engagements ou démos n'ayant pas initialisé la structure de brouillon complète.

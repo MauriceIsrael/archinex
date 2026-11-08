@@ -776,7 +776,7 @@ export function composeMultiAxisHydration(
   }
 
   // Génération du descripteur natif Sylva (`SylvaWorkloadCluster` + `sylva-units` values.yaml)
-  // produit par la couche d'intention Nephio / Archinex sans réinventer l'opérateur Sylva.
+  // produit par le compilateur d'intention Archinex (FluxCD / Kustomize GitOps) sans réinventer l'opérateur Sylva.
   const sylvaBaremetalHosts: Record<string, unknown> = {};
   const sylvaMachineDeployments: Record<string, unknown> = {};
   for (const [idx, dev] of nautobotDevices.entries()) {
@@ -841,7 +841,7 @@ export function composeMultiAxisHydration(
       name: `wc-${cleanSubj.slice(-12) || 'lot1'}`,
       namespace: 'sylva-workload-clusters',
       annotations: {
-        'nephio.org/package-variant': `pv-${cleanSubj.slice(-12) || 'lot1'}`,
+        'archinex.io/gitops-target': `workload-clusters/wc-${cleanSubj.slice(-12) || 'lot1'}`,
         'archinex.io/source-subject': subjectId
       }
     },
@@ -882,7 +882,7 @@ export function composeMultiAxisHydration(
       '3GPP TS 28.620 / TS 28.541 NRM (ExternalFunction & EP_RP)',
       'TM Forum ODA/SID GB922 (Party -> Resource -> Service -> SLA)',
       'Nautobot SSoT / DiffSync + Tenancy & VPN Models',
-      'Linux Foundation Nephio KRM ResourceGraph'
+      'LF Europe Sylva & FluxCD / Kustomize GitOps'
     ],
     partner_organizations: overrides.orphanPartnerTenant
       ? []

@@ -564,8 +564,8 @@ La conception de la Phase 4 d'Archinex s'appuie sur **4 travaux académiques fon
 1. **LF Europe Sylva (`sylva-projects/sylva-core` & `sylva-units`)** :
    - Cadre de référence européen Telco Cloud (fondé par Orange, Deutsche Telekom, Telefónica, Vodafone, Telecom Italia, SUSE, Red Hat, Nokia, Ericsson).
    - Fournit le CRD **`SylvaWorkloadCluster` (`workloadcluster.sylva.org/v1alpha1`)** et le chart Helm **`sylva-units`** orchestrant Cluster API (`capm3` Metal3 Bare-Metal + `cabpr` RKE2 sur SLE Micro) et les briques réseau Telco (`cilium`, `multus`, `sriov`, `metallb`, `vault`, `kyverno`, `monitoring`).
-2. **Linux Foundation Nephio (KRM *Configuration-as-Data* & Porch)** :
-   - Orchestration d'intentions multi-domaines (Infra + Réseau + CNF) via des paquets KRM passant par le cycle `Draft` $\rightarrow$ `Proposed` (Hydratation) $\rightarrow$ `Published / Validated` (Gatekeeper/OPA).
+2. **FluxCD & Kustomize GitOps (`workload-clusters/` & Overlays Multi-DC)** :
+   - Compilation directe par Archinex des descripteurs déclaratifs (`values.yaml` Sylva et manifestes Kustomize `base/` + `overlays/dc1`, `overlays/dc2`) soumis au contrôle déterministe OPA/Batfish avant ouverture de PR/MR GitOps, **sans serveur intermédiaire Nephio / Porch**.
 3. **3GPP TS 28.620 (Umbrella NRM) & TS 28.541 (5G NRM)** :
    - Standardise la modélisation des équipements tiers hors périmètre d'administration via la classe **`ExternalFunction`** (`ExternalMMEFunction`, `ExternalENodeBFunction`) et des points de référence inter-opérateurs (`EP_RP`, `EP_S6a`).
 4. **TM Forum ODA / SID (GB922 — *Shared Information & Data Model*)** :
@@ -575,14 +575,14 @@ La conception de la Phase 4 d'Archinex s'appuie sur **4 travaux académiques fon
 
 ---
 
-## 15. Vues d'Intégration Détaillées (Sylva, Nephio, Nautobot 2.x SSoT & 3GPP/TMF)
+## 15. Vues d'Intégration Détaillées (Sylva, FluxCD GitOps, Nautobot 2.x SSoT & 3GPP/TMF)
 
-### 15.1 Principe Directeur vis-à-vis de Sylva : Ne Jamais Réinventer `sylva-core` / `sylva-units`
+### 15.1 Principe Directeur vis-à-vis de Sylva : Ne Jamais Réinventer `sylva-core` / `sylva-units` ni Introduire de Couche Intermédiaire Nephio
 
 > [!IMPORTANT]
-> **Règle d'Architecture d'Intégration Sylva :**
+> **Règle d'Architecture d'Intégration Sylva & GitOps Direct (Sans Nephio) :**
 > **Sylva** possède déjà son propre opérateur (`workload-cluster-operator`) et son chart maître (`sylva-units`) qui traduisent un descripteur de cluster en ressources Cluster API (`Cluster`, `RKE2ControlPlane`, `MachineDeployment`, `Metal3DataTemplate`, `BareMetalHost` `metal3.io/v1alpha1`) et déploient les unités logicielles (`sriov`, `multus`, `cilium`, `vault`).
-> **Archinex ne réinvente jamais cette mécanique** : Archinex agit exclusivement en **amont** (couche d'arbitrage et de compilation d'intention type Nephio) pour produire :
+> **Archinex n'intègre pas Nephio / Porch et ne réinvente jamais `sylva-units`** : Archinex agit directement comme **compilateur d'intention déterministe** en amont de FluxCD et Nautobot pour produire :
 > 1. Le descripteur d'entrée natif **`SylvaWorkloadCluster` (`workloadcluster.sylva.org/v1alpha1`)** et ses valeurs `sylva-units` (`capi_providers`, `baremetal_hosts`, `machine_deployments`, `units`).
 > 2. L'inventaire SSoT **Nautobot 2.x** correspondant (`Tenants`, `Circuits`, `VLAN`, `Prefixes`, `Devices`).
 > 3. La preuve formelle **OPA Rego** que l'inventaire Nautobot et le descripteur Sylva sont mutuellement cohérents et respectent les décisions HLD.
@@ -634,7 +634,7 @@ Lorsqu'un sujet cumule sur l'axe `compute_substrate` la variante **CNF Cœur de 
     "name": "wc--proposes-89",
     "namespace": "sylva-workload-clusters",
     "annotations": {
-      "nephio.org/package-variant": "pv--proposes-89",
+      "archinex.io/gitops-target": "workload-clusters/wc--proposes-89",
       "archinex.io/source-subject": "sub_lulu-avec-options-et-criteres-proposes_89"
     }
   },
@@ -710,7 +710,7 @@ erDiagram
     SLA_CONTRACT_AND_NOC_PROBE ||--|| SERVICE_MEDIATION_FLOW : "couvre (covered_flow_ref)"
 ```
 
-### 15.4 Démonstration Complète du Parcours et Composition Algébrique de Batory & Nephio sur le Cas §14
+### 15.4 Démonstration Complète du Parcours et Composition Algébrique de Batory sur le Cas §14
 
 Cette section illustre pas à pas le parcours complet depuis l'expression du besoin initial jusqu'à l'hydratation vivante dans Nautobot et le descripteur Sylva, en démontrant mathématiquement et techniquement le principe de **composition algébrique** :
 $$\text{Descripteur Cible} = (f_{\text{Énergie 2N}} \circ f_{\text{OOB}} \circ f_{\text{NIS2}} \circ f_{\text{SR-IOV}} \circ f_{\text{IPsec-Mediation}})(\text{Base Cluster})$$
@@ -762,7 +762,7 @@ La décision est décomposée selon la structure canonique en 4 sections :
 3. **Interfaces, Protocoles & Matrice de Flux** : suites fortes `AES-256-GCM` / `ECDSA-P384` / `IKEv2`, démarcation des zones réseau (`ZONE-PARTNER-LOT3-UNTRUSTED`, `ZONE-DMZ-INTERCO-LOT1`, `ZONE-MEDIATION-SIGNALING-LOT1`, `ZONE-CORE-HSS-RESTRICTED`).
 4. **Exploitation, Supervision & Points de Vigilance** : télémétrie temps réel NOC avec neutralisation des alarmes intermittentes et haute disponibilité 2N.
 
-#### Étape 4 · Phase 4 : Application du Modèle Algébrique de Batory & Nephio
+#### Étape 4 · Phase 4 : Application du Modèle Algébrique de Batory (FOSD)
 
 Dans [`composeMultiAxisHydration`](src/lib/server/edp/refinementCoverage.ts), le descripteur final n'est pas un template statique préexistant, mais le résultat de transformations successives composées sur un objet vierge :
 
@@ -838,11 +838,18 @@ La feuille de route ci-dessous détaille les prochaines étapes d'évolution d'A
 3. **Modélisation Native des Tunnels IPsec dans le Module VPN de Nautobot 2.2+ — #240 (`syncHydratedInventoryToNautobot`)** :
    - En complément du `circuits.Circuit` (`link-ip-lot3-secgw1`), l'hydratation instancie de manière idempotente via `/api/vpn/` les objets `vpn.IKEProposal` (`ike-prop-lot3-aes256gcm-dh20`), `vpn.IPSecProposal` (`ipsec-prop-lot3-esp-aes256gcm`), `vpn.VPNProfile` (`vpn-prof-interco-lot3-s6a`) et `vpn.VPNTunnel` (`tun-ipsec-esp-lot3-secgw1`).
 
-### Horizon 2 — Moyen Terme : Catalogue KRM des Fonctions Réseau 3GPP (CNF) & Validation Réseau Batfish
-4. **Spécialisation Nephio des Manifestes Réseau Multus / SR-IOV (`NetworkAttachmentDefinition`) pour les CNF** :
-   - Générer à partir des objets `service_mediation_flows` et `ip_underlay_links` les descripteurs KRM `NetworkAttachmentDefinition` (VLAN 1403, VFs SR-IOV) destinés aux pods CNF (`SecGW-Lot1`, `DEA-Lot1`, `UPF`).
-5. **Couplage de l'Oracle OPA avec Batfish (`http://localhost:9997`) sur la Matrice de Flux (§14)** :
-   - Exploiter le conteneur Batfish déjà présent dans `deploy/integrator-tools` pour vérifier mathématiquement sur les configurations routeurs/pare-feux générées qu'aucun paquet `SCTP/3868` (Diameter S6a) issu de `ZONE-PARTNER-LOT3-UNTRUSTED` (`172.16.30.0/24`) ne peut atteindre `hss-lot1-01` sans transiter par `secgw-lot1-01` puis `dea-lot1-01`.
+### Horizon 2 — Moyen Terme : Compilation GitOps des Workloads CNF Multi-DC (Overlays Kustomize) & Preuve Formelle du Plan de Routage par Batfish
+*(Là où l'Horizon 1 livre le substrat cluster `SylvaWorkloadCluster` (`workload-clusters/`) et vérifie la conformité déclarative SSoT dans Nautobot, l'Horizon 2 compile directement — **sans brique intermédiaire Nephio** — les charges utiles CNF multi-sites et prouve mathématiquement l'étanchéité des tables de routage et de filtrage effectives avant tout merge GitOps).*
+
+4. **Compilation GitOps Directe des Workloads CNF 3GPP & CNI Secondaires (`workloads/cnfs/base` & `overlays/dc1`, `overlays/dc2`)** :
+   - Sans dupliquer l'opérateur `sylva-units` (qui provisionne déjà les politiques SR-IOV des nœuds en Horizon 1) et sans dépendre de Nephio, Archinex agit comme compilateur GitOps pour les 2 DC à partir de `service_mediation_flows` et `ip_underlay_links` :
+     - Génération des CRD `NetworkAttachmentDefinition` (`k8s.cni.cncf.io`) spécifiques aux réseaux secondaires des fonctions réseau (mappings précis du VLAN `1403`, des plages CIDR et des pools de Virtual Functions SR-IOV `intel.com/sriov_vf_lot1` alloués dans Nautobot IPAM).
+     - Génération des patches Kustomize / `values.yaml` des pods CNF (`SecGW-Lot1`, `DEA-Lot1`, `HSS-Lot1` / `UPF`) injectant les annotations d'interfaces secondaires (`k8s.v1.cni.cncf.io/networks`) avec les adresses IP statiques résolues (`100.64.14.0/30`), produisant une arborescence FluxCD complète (`base/`, `overlays/dc1`, `overlays/dc2`).
+5. **Preuve Formelle du Plan de Routage & Filtrage par Couplage Batfish (`http://localhost:9997`) → Verrou OPA (§14)** :
+   - En complément de la vérification topologique sur le graphe déclaratif (Horizon 1), soumettre les configurations réseau générées (tables de routage BGP/OSPF, VRF, ACLs, règles pare-feu des passerelles) au moteur d'analyse symbolique Batfish avant d'autoriser le push GitOps :
+     - **Preuve d'inaccessibilité directe (`Reachability Query`)** : vérification mathématique dans Batfish qu'aucun paquet `SCTP/3868` (Diameter S6a) émis depuis `ZONE-PARTNER-LOT3-UNTRUSTED` (`172.16.30.0/24`) ne peut atteindre `hss-lot1-01` en direct.
+     - **Preuve de transit obligatoire (`Service Chaining / Waypointing Invariant`)** : validation formelle que 100 % des chemins admissibles dans la RIB/FIB traversent séquentiellement l'équipement d'inspection amont `secgw-lot1-01`, puis le mandataire de signalisation `dea-lot1-01` avant d'atteindre `hss-lot1-01`.
+     - **Alimentation du Verrou OPA (`Policy Gate`)** : injection du rapport d'assertion Batfish (`input.batfish_verification`) dans `multi_axis_refinement.rego` afin que le garde-fou GitOps bloque net la génération du paquet de livraison si une route ou une ACL permet un contournement.
 
 ### Horizon 3 — Long Terme : Gouvernance Vivante en Boucle Fermée (NOC / SOC $\rightarrow$ Réévaluation d'Architecture)
 6. **Génération Automatique des Règles Prometheus `PrometheusRule` & Alertmanager (`REQ-Lot1-1274` & `REQ-Lot1-1343`)** :

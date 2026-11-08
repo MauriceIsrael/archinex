@@ -27,7 +27,7 @@ class MockLlmopsRegistryClient extends LLMOpsClient {
       '5g-security': '@3gpp-security-wg',
       'network-exposure': '@3gpp-core-wg',
       sba: '@3gpp-security-wg',
-      'mcx-security': '@3gpp-security-wg'
+      'mission-critical-security': '@3gpp-security-wg'
     },
     default_owner: '@maintainers',
     total: 1
@@ -103,7 +103,7 @@ describe('Simplified Account Creation & Multi-Domain Picker (3GPP Expert Spec)',
       '5g-security',
       'network-exposure',
       'sba',
-      'mcx-security'
+      'mission-critical-security'
     ];
 
     const result = await createCentralizedAccount(

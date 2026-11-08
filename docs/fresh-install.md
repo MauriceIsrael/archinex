@@ -99,12 +99,14 @@ se connecter : définir la variable et redémarrer.
 
 **Créer les autres comptes (en tant qu'administrateur).** Connectez-vous, ouvrez **Administration** (`/admin`, « Gestion centralisée des
 comptes »), puis **Nouveau compte** :
-1. nom, adresse e-mail, rôle applicatif (`admin` ou `user`) ;
-2. activation, sans envoi d'e-mail : soit un **mot de passe initial** (6 caractères minimum, compte actif tout de suite), soit un **lien
-   d'activation à usage unique** valable 7 jours, à transmettre à la personne (`/invite?token=…`) ;
-3. rôles dans les espaces de travail ;
-4. si la personne relit la base de connaissances : handle KB, rôles (`kb:review`, `kb:evaluate`, `kb:maintain`, `kb:admin`), domaines, et
-   « Inscrire dans le registre LLMOps » pour que le Hub la reconnaisse (le Hub décide de ses droits à partir de son propre registre).
+1. **Identité** : nom, adresse e-mail, rôle applicatif global (`admin` ou `user`). Le handle LLMOps (`@nom-prenom`) est généré automatiquement par Archinex à partir de l'e-mail sans aucune saisie requise ;
+2. **Activation** : sans serveur d'e-mail requis, soit par **mot de passe initial** (6 caractères minimum, compte utilisable immédiatement), soit par **lien d'activation à usage unique** valable 7 jours (`/invite?token=…`) ;
+3. **Deux dimensions distinctes pour l'expertise et les droits** :
+   - **Dimension 1 · Domaines de responsabilité (compétences techniques/métier)** : sélection visuelle parmi les domaines exposés par le registre LLMOps (ex: `conformance`, `telecom-core`, `5g-security`, `iam`, etc.), avec filtres thématiques et **packs en un clic** (`+ Pack 3GPP`, `+ Pack Sécurité`) ou ajout à la volée.
+   - **Dimension 2 · Rôles & Habilitations (actions autorisées)** :
+     - *Rôles projet Archinex* : affectation des rôles par espace de travail (`lead_architect`, `architect`, `auditor`, `observer`).
+     - *Rôles sur la Doctrine LLMOps* : permissions granulaires d'arbitrage (`kb:review` pour voter, `kb:maintain` pour éditer/adapter, `kb:admin` pour sceller/publier, `kb:evaluate` pour qualifier les bancs de test).
+4. L'inscription dans le registre LLMOps (`data/kb/owners.yaml`) est synchronisée automatiquement en arrière-plan sans bouton superflu.
 
 La même opération existe en API : `POST /api/admin/accounts` (session administrateur).
 

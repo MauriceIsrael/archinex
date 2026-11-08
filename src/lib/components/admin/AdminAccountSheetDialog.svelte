@@ -3,7 +3,8 @@
   import { Button } from '$lib/components/ui/button';
   import { Input } from '$lib/components/ui/input';
   import { Label } from '$lib/components/ui/label';
-  import type { KbRole } from '$lib/types/llmops';
+  import DomainsPicker from '$lib/components/admin/DomainsPicker.svelte';
+  import type { KbRole, KbOwnersRegistry } from '$lib/types/llmops';
   import type { ArchitectRole } from '$lib/types/epistemic';
   import type {
     CentralizedAccountRecord,
@@ -21,12 +22,14 @@
     account = null,
     workspaces = [],
     unlinkedOwners = [],
+    ownersRegistry,
     onUpdated
   } = $props<{
     open: boolean;
     account: CentralizedAccountRecord | null;
     workspaces: WorkspaceSummary[];
     unlinkedOwners: UnlinkedOwnerItem[];
+    ownersRegistry?: KbOwnersRegistry;
     onUpdated: () => void;
   }>();
 
@@ -43,7 +46,7 @@
   let enableKbReview = $state(false);
   let kbHandle = $state('');
   let selectedKbRoles = $state<KbRole[]>(['kb:review']);
-  let domainsInput = $state('');
+  let selectedDomains = $state<string[]>([]);
 
   let savingLocal = $state(false);
   let syncingLlmops = $state(false);
@@ -114,7 +117,7 @@
         account.llmopsIdentity.domains.length > 0
           ? account.llmopsIdentity.domains
           : account.kbProfile?.ownedDomains || [];
-      domainsInput = initDomains.join(', ');
+      selectedDomains = [...initDomains];
     }
   });
 
@@ -132,7 +135,7 @@
     enableKbReview = true;
     kbHandle = uo.handle;
     selectedKbRoles = uo.roles.length > 0 ? [...uo.roles] : ['kb:review'];
-    domainsInput = uo.domains.join(', ');
+    selectedDomains = Array.from(new Set([...selectedDomains, ...uo.domains]));
   }
 
   async function handleSaveAccount(e: Event) {
@@ -147,10 +150,7 @@
         throw new Error('Le mot de passe doit comporter au moins 6 caractères.');
       }
 
-      const domains = domainsInput
-        .split(',')
-        .map((s) => s.trim().toLowerCase())
-        .filter((s) => s.length > 0);
+      const domains = selectedDomains;
 
       const res = await fetch('/api/admin/accounts', {
         method: 'PATCH',
@@ -231,10 +231,7 @@
     syncingLlmops = true;
 
     try {
-      const domains = domainsInput
-        .split(',')
-        .map((s) => s.trim().toLowerCase())
-        .filter((s) => s.length > 0);
+      const domains = selectedDomains;
 
       const res = await fetch('/api/admin/llmops-owners', {
         method: 'POST',
@@ -496,20 +493,18 @@
               </div>
             {/if}
 
-            <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
-              <div class="space-y-1.5">
-                <Label for="sheet-kb-handle">Handle dans LLMOps (@...)</Label>
-                <Input id="sheet-kb-handle" bind:value={kbHandle} placeholder="@sec-lead" />
-              </div>
+            <div class="space-y-1.5 pt-1">
+              <Label for="sheet-kb-handle">Handle dans LLMOps (@...)</Label>
+              <Input id="sheet-kb-handle" bind:value={kbHandle} placeholder="@sec-lead" />
+            </div>
 
-              <div class="space-y-1.5">
-                <Label for="sheet-kb-domains">Domaines rattachés dans LLMOps</Label>
-                <Input
-                  id="sheet-kb-domains"
-                  bind:value={domainsInput}
-                  placeholder="security, data-protection, cloud"
-                />
-              </div>
+            <div class="space-y-1.5 pt-1">
+              <Label class="text-xs font-semibold">Domaines de responsabilité (Compétences LLMOps)</Label>
+              <DomainsPicker
+                bind:selectedDomains
+                {ownersRegistry}
+                disabled={savingLocal || syncingLlmops}
+              />
             </div>
 
             <div class="space-y-1.5">

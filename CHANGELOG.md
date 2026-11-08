@@ -8,6 +8,16 @@ Aucune version n'a encore Ã©tÃ© publiÃ©e : tout figure sous *Non publiÃ©
 
 ## Non publié
 
+### Rationalisation Ergonomique du Menu « Knowledge Hub »
+- **Unification de la Navigation autour de la Base de Connaissance (`src/routes/+layout.svelte`)** :
+  - Regroupement de l'ensemble des mini-applications de la Knowledge Base dans un menu latéral dédié **« Knowledge Hub »** (barre latérale desktop étendue/réduite et tiroir mobile), supprimant la dispersion hétérogène entre le menu gauche et le menu caché sous l'avatar utilisateur.
+  - Allègement du menu utilisateur en haut à droite (limité à l'identité du compte connecté, son rôle et l'action de déconnexion).
+  - Structuration progressive des sous-menus en **3 paliers ergonomiques** distingués par des séparateurs visuels (`role="separator"`) :
+    1. **1. Visualisation & Exploration** : *Base de Connaissance* (`/knowledge`), *Profil Expert KB* (`/kb/me`), *Référentiels & Couverture* (`/kb/frameworks`).
+    2. **2. Doctrine & Rédaction** : *Atelier de Doctrine* (`/kb/workshop`), *Clauses vérifiables* (`/kb/clauses`).
+    3. **3. Validation & Évaluation** : *Boîte de Revue KB* (`/kb/reviews` — badge `G5`), *Banc d'Évaluation KB* (`/kb/evals` — badge `G6`), *Tableau de Bord & Publication* (`/kb/dashboard` — badge `G7`).
+  - Traduction complète des clés de navigation dans les 4 dictionnaires (`fr-FR.json`, `en.json`, `en-UK.json`, `es.json`) et ajout du test de contrat `tests/contract/knowledge-hub-menu.test.ts`.
+
 ### Correction Résilience Brouillons Télégraphiques & KPI Délibération (`seed:demo`)
 - **Résilience Itérabilité `draft.suppose` & Tableaux Télégraphiques** :
   - Correction de l'erreur `TypeError: draft.suppose is not iterable` survenue lors de l'accès à la vue Délibération / Board sur des engagements ou démos n'ayant pas initialisé la structure de brouillon complète.

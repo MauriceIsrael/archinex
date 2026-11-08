@@ -49,6 +49,7 @@
   const isDemoStorage = $derived(
     health?.storage?.mode === 'demo' || (health?.storage && !health.storage.persistent)
   );
+  const offline = $derived(data.offline ?? false);
 
   let isSyncingEmbeddings = $state(false);
   let autoSyncAttempted = $state(false);

@@ -168,8 +168,8 @@ export async function loadOntologyCatalog(options: LoadOntologyOptions = {}): Pr
     return json as OntologyCatalog;
   }
 
-  // 3. Hors test (production / staging / runtime) : interdiction absolue de fallback sur fixture
-  if (!isVitestTest) {
+  // 3. En production (NODE_ENV=production) : interdiction absolue de fallback sur fixture
+  if (process.env.NODE_ENV === 'production') {
     throw new Error(
       "[OntologyClient] Aucun Knowledge Hub configuré (LLMOPS_BASE_URL manquant). Conformément aux règles d'architecture et de non-complaisance, aucun mock en dur ni repli gracieux n'est autorisé en production."
     );

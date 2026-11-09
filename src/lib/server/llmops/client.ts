@@ -2919,7 +2919,7 @@ export class LLMOpsClient {
   async runEvalBenchmark(
     datasetId: string = 'check_option_v1',
     actorEmail?: string
-  ): Promise<{ status: 'ok' | 'error' | 'unavailable'; data?: EvalBenchmarkRunResult; error?: string }> {
+  ): Promise<{ status: 'ok' | 'error' | 'forbidden' | 'unavailable'; data?: EvalBenchmarkRunResult; error?: string }> {
     try {
       const url = `${this.baseUrl}/api/knowledge/evals/${encodeURIComponent(datasetId)}/runs`;
       const res = await this.fetchWithTimeout(url, {
@@ -2954,9 +2954,16 @@ export class LLMOpsClient {
       }
 
       const body = await res.json().catch(() => ({}));
+      if (res.status === 403) {
+        return {
+          status: 'forbidden',
+          error: body.reason || body.error || "Interdit : rôle 'kb:evaluate' ou 'kb:maintain' requis pour exécuter le benchmark"
+        };
+      }
+
       return {
         status: 'error',
-        error: body.error || `Erreur HTTP ${res.status} lors de l'exécution du benchmark`
+        error: body.reason || body.error || `Erreur HTTP ${res.status} lors de l'exécution du benchmark`
       };
     } catch {
       return {

@@ -1,6 +1,9 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
+import { render } from 'svelte/server';
 import { LLMOpsClient } from '../../src/lib/server/llmops/client';
 import { startFakeLlmopsServer, type FakeLlmopsServer } from '../helpers/fakeLlmops';
+import { POST as runEvalBenchmarkEndpoint } from '../../src/routes/api/knowledge/evals/[datasetId]/runs/+server';
+import EvalsPage from '../../src/routes/kb/evals/+page.svelte';
 
 describe('Contract: Evals Benchmark check_option_v1 & Verdict Feedback (Lot A9 - Porte G6)', () => {
   let fakeLlmops: FakeLlmopsServer;
@@ -83,6 +86,77 @@ describe('Contract: Evals Benchmark check_option_v1 & Verdict Feedback (Lot A9 -
     expect(res.data!.meets_target).toBe(true);
     expect(res.data!.precision).toBeGreaterThan(90);
     expect(res.data!.verdicts.length).toBe(res.data!.total_cases);
+  });
+
+  it('5b. runEvalBenchmark refuse l’exécution si l’expert n’a pas kb:evaluate (403 Forbidden)', async () => {
+    // peer@archinex.local ne possède que kb:review
+    const res = await client.runEvalBenchmark('check_option_v1', 'peer@archinex.local');
+
+    expect(res.status).toBe('forbidden');
+    expect(res.error).toMatch(/kb:evaluate/i);
+  });
+
+  it('5c. POST /api/knowledge/evals/:datasetId/runs renvoie HTTP 403 avec raison explicite en cas de refus', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValueOnce(
+      new Response(
+        JSON.stringify({
+          status: 'unauthorized',
+          reason: "@admin needs the 'kb:evaluate' role."
+        }),
+        { status: 403, headers: { 'Content-Type': 'application/json' } }
+      )
+    );
+
+    const res = await runEvalBenchmarkEndpoint({
+      params: { datasetId: 'check_option_v1' },
+      request: new Request('http://localhost/api/knowledge/evals/check_option_v1/runs', { method: 'POST' }),
+      locals: {
+        session: {
+          user: {
+            id: 'admin-id',
+            email: 'admin@project1.org',
+            name: 'Admin',
+            role: 'admin'
+          }
+        }
+      } as any
+    } as any);
+
+    expect(res.status).toBe(403);
+    const body = await res.json();
+    expect(body.status).toBe('forbidden');
+    expect(body.error).toContain("@admin needs the 'kb:evaluate' role.");
+  });
+
+  it('5d. Rendu SSR de /kb/evals affiche le mode lecture seule et désactive le benchmark pour un non-évaluateur', () => {
+    const rendered = render(EvalsPage, {
+      props: {
+        data: {
+          user: { id: 'admin-id', name: 'Admin User', email: 'admin@project1.org', role: 'admin' },
+          expert: {
+            kbHandle: '@admin',
+            kbRoles: ['kb:admin', 'kb:review'],
+            ownedDomains: [],
+            canEvaluate: false
+          },
+          dataset: {
+            id: 'check_option_v1',
+            name: 'Options Check v1',
+            version: '1.0',
+            description: 'Test dataset',
+            total_cases: 5,
+            human_annotated_count: 3,
+            cases: []
+          },
+          feedbacks: [],
+          offline: false
+        }
+      }
+    });
+
+    expect(rendered.body).toContain('Lecture seule (rôle kb:evaluate requis)');
+    expect(rendered.body).toContain('Mode Consultation (Lecture seule)');
+    expect(rendered.body).toContain('disabled');
   });
 
   it('6. submitVerdictFeedback enregistre un désaccord et le convertit en cas de test si demandé', async () => {

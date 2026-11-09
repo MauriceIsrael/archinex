@@ -233,4 +233,62 @@ describe('OptionsMatrix Column Titles & Readability Contract (Lot A2)', () => {
 		expect(html).toContain('Capitalisation vers le Knowledge Hub');
 		expect(html).toContain('Préparer les Candidats KB');
 	});
+
+	it("affiche les lignes de critères même si aucune option d'architecture n'a encore été définie (options=[])", () => {
+		const { html } = render(OptionsMatrix, {
+			props: {
+				projectId: 'proj-1',
+				subjectId: 'subj-architecture-data',
+				criteria: sampleCriteria,
+				options: [],
+				evaluations: [],
+				tradeOffs: [],
+				decision: null
+			}
+		});
+
+		expect(html).not.toContain('Matrice non alimentée.');
+		expect(html).toContain('Sécurité et Isolation');
+		expect(html).toContain('x5');
+		expect(html).toContain("Critères d'évaluation (1)");
+		expect(html).toContain("Aucune option d'architecture définie");
+		expect(html).toContain('Ajouter une option');
+		expect(html).toContain("En attente d'options d'architecture à évaluer");
+	});
+
+	it("affiche les colonnes d'options même si aucun critère n'a encore été défini (criteria=[])", () => {
+		const { html } = render(OptionsMatrix, {
+			props: {
+				projectId: 'proj-1',
+				subjectId: 'subj-architecture-data',
+				criteria: [],
+				options: sampleOptions,
+				evaluations: [],
+				tradeOffs: [],
+				decision: null
+			}
+		});
+
+		expect(html).not.toContain('Matrice non alimentée.');
+		expect(html).toContain('Option A');
+		expect(html).toContain('Option B');
+		expect(html).toContain("Aucun critère d'évaluation défini");
+		expect(html).toContain('Ajouter un critère');
+	});
+
+	it("affiche le message 'Matrice non alimentée' uniquement quand options ET criteria sont tous deux vides", () => {
+		const { html } = render(OptionsMatrix, {
+			props: {
+				projectId: 'proj-1',
+				subjectId: 'subj-architecture-data',
+				criteria: [],
+				options: [],
+				evaluations: [],
+				tradeOffs: [],
+				decision: null
+			}
+		});
+
+		expect(html).toContain('Matrice non alimentée.');
+	});
 });

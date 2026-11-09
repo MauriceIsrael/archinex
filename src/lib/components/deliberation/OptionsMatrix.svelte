@@ -41,7 +41,10 @@
 		decision = $bindable<Decision | null>(null),
 		userRole = 'lead_architect',
 		onDecisionMade = () => {},
-		onError = (msg: string) => {}
+		onError = (msg: string) => {},
+		onCriteriaChanged = (_c: Criterion[]) => {},
+		onOptionsChanged = (_o: Option[]) => {},
+		onEvaluationsChanged = (_e: OptionEvaluation[]) => {}
 	}: {
 		projectId: string;
 		subjectId: string;
@@ -53,6 +56,9 @@
 		userRole?: string;
 		onDecisionMade?: (dec: Decision) => void;
 		onError?: (msg: string) => void;
+		onCriteriaChanged?: (newCriteria: Criterion[]) => void;
+		onOptionsChanged?: (newOptions: Option[]) => void;
+		onEvaluationsChanged?: (newEvaluations: OptionEvaluation[]) => void;
 	} = $props();
 
 	// Modal states
@@ -244,10 +250,13 @@
 				(e) => e.optionId === activeOption!.id && e.criterionId === activeCriterion!.id
 			);
 			if (idx >= 0) {
-				evaluations[idx] = evaluation;
+				const next = [...evaluations];
+				next[idx] = evaluation;
+				evaluations = next;
 			} else {
-				evaluations.push(evaluation);
+				evaluations = [...evaluations, evaluation];
 			}
+			onEvaluationsChanged(evaluations);
 
 			isEvaluatingCell = false;
 		} catch (err: any) {
@@ -270,7 +279,8 @@
 
 			const created = await res.json();
 			const criterion = created.criterion ?? created;
-			criteria.push(criterion);
+			criteria = [...criteria, criterion];
+			onCriteriaChanged(criteria);
 		} catch (err: any) {
 			onError(err.message);
 			throw err;
@@ -310,7 +320,10 @@
 				const updated = result.option ?? result;
 				const idx = options.findIndex((o) => o.id === data.id);
 				if (idx >= 0) {
-					options[idx] = updated;
+					const next = [...options];
+					next[idx] = updated;
+					options = next;
+					onOptionsChanged(options);
 				}
 
 				// Relancer la vérification de conformit\u00e9 en direct
@@ -338,7 +351,8 @@
 
 				const created = await res.json();
 				const option = created.option ?? created;
-				options.push(option);
+				options = [...options, option];
+				onOptionsChanged(options);
 
 				// Relancer la vérification de conformit\u00e9
 				fetch(`/api/projects/${projectId}/subjects/${subjectId}/compliance`)
@@ -525,7 +539,7 @@
 	{/if}
 
 	<!-- Grille Matrice -->
-	{#if options.length === 0 || criteria.length === 0}
+	{#if options.length === 0 && criteria.length === 0}
 		<div class="p-8 text-center text-xs text-muted-foreground border rounded-xl bg-card space-y-2">
 			<p class="font-semibold text-foreground">Matrice non alimentée.</p>
 			<p>Générez les critères et options via l'élicitation LLM ou ajoutez-les manuellement ci-dessus.</p>
@@ -536,9 +550,24 @@
 				<thead>
 					<tr class="bg-muted/50 border-b">
 						<th class="p-2.5 text-left font-bold text-foreground min-w-[200px] border-r">
-							Critères d'évaluation
+							Critères d'évaluation {criteria.length > 0 ? `(${criteria.length})` : ''}
 						</th>
-						{#each options as opt, optIdx}
+						{#if options.length === 0}
+							<th class="p-2.5 text-center text-muted-foreground font-normal min-w-[240px]">
+								<div class="flex items-center justify-center gap-2 py-1">
+									<span class="text-xs italic">Aucune option d'architecture définie</span>
+									<button
+										type="button"
+										onclick={() => (isAddingOption = true)}
+										class="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-colors cursor-pointer shadow-2xs"
+									>
+										<Plus class="h-3 w-3" />
+										<span>Ajouter une option</span>
+									</button>
+								</div>
+							</th>
+						{:else}
+							{#each options as opt, optIdx}
 							{@const isRetained = decision?.retainedOptionId === opt.id}
 							{@const optionBadge = formatOptionBadge(optIdx)}
 							<th
@@ -642,11 +671,29 @@
 									</div>
 								</div>
 							</th>
-						{/each}
+							{/each}
+						{/if}
 					</tr>
 				</thead>
 				<tbody>
-					{#each criteria as crit}
+					{#if criteria.length === 0}
+						<tr class="border-b">
+							<td class="p-4 text-center text-muted-foreground italic" colspan={options.length + 1}>
+								<div class="flex items-center justify-center gap-2 py-2">
+									<span>Aucun critère d'évaluation défini.</span>
+									<button
+										type="button"
+										onclick={() => (isAddingCriterion = true)}
+										class="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-[11px] font-semibold bg-primary text-primary-foreground hover:bg-primary/90 transition-colors cursor-pointer shadow-2xs"
+									>
+										<Plus class="h-3 w-3" />
+										<span>Ajouter un critère</span>
+									</button>
+								</div>
+							</td>
+						</tr>
+					{:else}
+						{#each criteria as crit}
 						{@const kindInfo = formatKind(crit.kind)}
 						<tr class="border-b hover:bg-muted/20 transition-colors">
 							<td class="p-2.5 border-r space-y-0.5">
@@ -668,7 +715,12 @@
 								</div>
 							</td>
 
-							{#each options as opt}
+							{#if options.length === 0}
+								<td class="p-2.5 text-center text-muted-foreground/60 italic text-xs">
+									En attente d'options d'architecture à évaluer
+								</td>
+							{:else}
+								{#each options as opt}
 								{@const ev = getEvaluation(opt.id, crit.id)}
 								{@const badge = getScoreBadge(ev?.score)}
 								{@const isRetained = decision?.retainedOptionId === opt.id}
@@ -693,11 +745,14 @@
 										{/if}
 									</button>
 								</td>
-							{/each}
+								{/each}
+							{/if}
 						</tr>
 					{/each}
+					{/if}
 
 					<!-- Ligne Score Pondéré Indicatif -->
+					{#if options.length > 0 && criteria.length > 0}
 					<tr class="bg-muted/40 font-bold border-t-2">
 						<td class="p-2.5 border-r">
 							<div class="space-y-0.5">
@@ -720,6 +775,7 @@
 							</td>
 						{/each}
 					</tr>
+					{/if}
 				</tbody>
 			</table>
 		</div>

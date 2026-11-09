@@ -16,6 +16,24 @@ Aucune version n'a encore Ã©tÃ© publiÃ©e : tout figure sous *Non publiÃ©
   - **En-tête global (`src/routes/+layout.svelte`)** : ajout d'une pastille compacte d'engagement actif (`data-testid="active-engagement-pill"`) renvoyant directement vers `/workspaces`, en remplacement de l'ancien panneau massif *« Projet & Engagement Actif : »* qui encombrait `/deliberation`.
   - **Barre de navigation à 2 niveaux (`ProjectEngagementHeader.svelte`)** : séparation visuelle explicite entre l'échelle **Projet** (*Phase 1 · Corpus & Règles*, *Tableau des Sujets*) et l'échelle **Sujet** (*Phase 2 · Délibération → Phase 3 · Rendu HLD → Phase 4 · Raffinement*).
   - **Barre de contexte Sujet 1 ligne (`Phase3SubjectSelector.svelte`)** : remplacement de la grille de cartes par une barre compacte 1 ligne (`← Tableau`, navigation rapide `◀`/`▶` entre sujets, tiroir de sélection à la demande).
+### Alignement RBAC & Gestion des Erreurs du Banc d'Évaluation KB (`/kb/evals` - Porte G6)
+- **Contrôle d'Accès RBAC Strict & Alignement LLMOps (`src/routes/kb/evals/+page.server.ts`, `src/routes/kb/evals/+page.svelte`)** :
+  - Correction du calcul de `canEvaluate` : les droits d'évaluation et d'annotation de la vérité terrain exigent désormais strictement le rôle `kb:evaluate` ou `kb:maintain` (aligné avec les invariants de souveraineté et de séparation des fonctions du Hub LLMOps).
+  - Remplacement de la déduction erronée basée sur `user.role === 'admin'` ou `kb:admin` par la vérification conjointe des rôles locaux et distants issus de `llmopsClient.getMe()`.
+  - Désactivation du bouton « Lancer le Benchmark de Rappel » (`btn-run-benchmark`) pour les utilisateurs en lecture seule avec infobulle explicative et affichage d'un bandeau d'information contextuel (*Mode Consultation (Lecture seule)*).
+- **Propagation Explicite des Erreurs et Motifs Rejetés 403 (`src/lib/server/llmops/client.ts`, `src/routes/api/knowledge/evals/[datasetId]/runs/+server.ts`)** :
+  - Extraction prioritaire de `body.reason` ou `body.error` renvoyé par le Hub lors d'un refus HTTP 403 (ex. `@admin needs the 'kb:evaluate' role.`), évitant le message d'erreur générique `Erreur HTTP 403`.
+  - Retour d'un statut HTTP 403 avec code `forbidden` au lieu d'une erreur 400 indifférenciée sur la route API `/api/knowledge/evals/:datasetId/runs`.
+- **Tests de Contrat & Robustesse (`tests/contract/evals-benchmark.test.ts`, `tests/helpers/fakeLlmops.ts`)** :
+  - Ajout des tests de contrat vérifiant le refus 403 pour un non-évaluateur sur `runEvalBenchmark()` et sur la route API, ainsi que le rendu SSR du mode consultation.
+
+### Visibilité & Persistance des Brouillons de Clauses Vérifiables (`/kb/clauses`)
+- **Persistance Directe & Invalidation Réactive du Cache (`LLMOpsClient`, Issue #99)** :
+  - Invalidation immédiate du cache en mémoire `kb:` et `compliance:` lors de la soumission d'une clause de vérification en brouillon via `submitDraftClause()` (`src/lib/server/llmops/client.ts`), évitant que l'affichage de `/kb/clauses` reste figé sur la réponse mise en cache pendant 30 secondes.
+  - Identification explicite du canal de persistance (`channel: 'asset_check'` vs `channel: 'candidate'`) dans le retour de l'API `/api/kb/clauses/[assetId]/save-draft`.
+- **Expérience Utilisateur & Navigation Réactive (`src/routes/kb/clauses/+page.svelte`)** :
+  - Bascule automatique vers l'onglet **« À relire »** dès l'enregistrement d'une clause en brouillon sur un contrôle sans clause, avec affichage d'un bandeau de confirmation contextuel vert en haut de page.
+  - Aiguillage explicite vers la boîte de révision (`/kb/reviews`) avec lien direct lorsque l'enregistrement fait l'objet d'un repli vers les candidats d'amendement.
 
 ### Synchronisation Automatique des Vecteurs d'Embeddings & Retrait du Codage en Dur `toy-bow` (Décision D6 / A12)
 - **Hydratation de `EMBEDDING_MODEL` et `EMBEDDING_OLLAMA_URL` depuis `.env` (`src/lib/server/similarity/encoder.ts`)** :

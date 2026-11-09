@@ -9,6 +9,10 @@ export const POST: RequestHandler = async ({ params, request, locals }) => {
   const datasetId = (!params.datasetId || params.datasetId === 'undefined') ? 'check_option_v1' : params.datasetId;
   const result = await llmopsClient.runEvalBenchmark(datasetId, actorEmail);
 
+  if (result.status === 'forbidden') {
+    return json({ status: 'forbidden', error: result.error }, { status: 403 });
+  }
+
   if (result.status === 'unavailable') {
     return json({ status: 'unavailable', error: result.error }, { status: 503 });
   }

@@ -9,13 +9,19 @@ export const load: PageServerLoad = async ({ locals }) => {
   const user = locals.session!.user;
   const localExpert = await getKbExpertByUserId(user.id);
 
-  const [datasetRes, feedbacksRes] = await Promise.all([
+  const [datasetRes, feedbacksRes, remoteMe] = await Promise.all([
     llmopsClient.getEvalDataset('check_option_v1', user.email),
-    llmopsClient.listVerdictFeedbacks(user.email)
+    llmopsClient.listVerdictFeedbacks(user.email),
+    llmopsClient.getMe(user.email)
   ]);
 
-  const kbRoles = localExpert?.kbRoles || [];
-  const canEvaluate = kbRoles.includes('kb:evaluate') || kbRoles.includes('kb:admin') || user.role === 'admin';
+  const localRoles = localExpert?.kbRoles || [];
+  const remoteRoles = remoteMe.status === 'ok' && remoteMe.data?.kb_roles ? remoteMe.data.kb_roles : [];
+  const kbRoles = Array.from(new Set([...localRoles, ...remoteRoles]));
+
+  // Le serveur souverain LLMOps exige impérativement le rôle 'kb:evaluate' ou 'kb:maintain'
+  // pour annoter les cas et exécuter le benchmark (principe de séparation des fonctions).
+  const canEvaluate = kbRoles.includes('kb:evaluate') || kbRoles.includes('kb:maintain');
 
   return {
     user: {
@@ -25,9 +31,13 @@ export const load: PageServerLoad = async ({ locals }) => {
       role: user.role
     },
     expert: {
-      kbHandle: localExpert?.kbHandle || `@${user.email.split('@')[0]}`,
+      kbHandle:
+        localExpert?.kbHandle ||
+        (remoteMe.status === 'ok' && remoteMe.data?.handle ? remoteMe.data.handle : `@${user.email.split('@')[0]}`),
       kbRoles,
-      ownedDomains: localExpert?.ownedDomains || [],
+      ownedDomains:
+        localExpert?.ownedDomains ||
+        (remoteMe.status === 'ok' && remoteMe.data?.owned_domains ? remoteMe.data.owned_domains : []),
       canEvaluate
     },
     dataset: datasetRes.data,

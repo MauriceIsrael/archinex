@@ -369,7 +369,6 @@ export const POST: RequestHandler = async (event) => {
         }
       };
 
-      try {
         await (prisma as any).executableDecisionPackage?.upsert({
           where: { id: ctx.edpPrimaryKey },
           create: {
@@ -387,9 +386,6 @@ export const POST: RequestHandler = async (event) => {
             content: JSON.stringify(updatedEdp)
           }
         });
-      } catch {
-        // Fallback en mémoire
-      }
 
       return json({
         success: true,
@@ -542,7 +538,6 @@ export const POST: RequestHandler = async (event) => {
         }
       };
 
-      try {
         await (prisma as any).executableDecisionPackage?.upsert({
           where: { id: newEdp.metadata.id },
           create: {
@@ -559,9 +554,6 @@ export const POST: RequestHandler = async (event) => {
             content: JSON.stringify(newEdp)
           }
         });
-      } catch {
-        // Fallback en mémoire
-      }
 
       return json({
         success: true,
@@ -711,7 +703,6 @@ export const POST: RequestHandler = async (event) => {
         }
       };
 
-      try {
         await (prisma as any).executableDecisionPackage?.upsert({
           where: { id: ctx.edpPrimaryKey },
           create: {
@@ -729,9 +720,6 @@ export const POST: RequestHandler = async (event) => {
             content: JSON.stringify(updatedEdp)
           }
         });
-      } catch {
-        // Fallback en mémoire
-      }
 
       return json({
         success: true,
@@ -832,7 +820,6 @@ export const POST: RequestHandler = async (event) => {
         sylvaGitopsExport: gitopsExport
       };
 
-      try {
         await (prisma as any).executableDecisionPackage?.upsert({
           where: { id: ctx.edpPrimaryKey },
           create: {
@@ -850,9 +837,6 @@ export const POST: RequestHandler = async (event) => {
             content: JSON.stringify(updatedEdp)
           }
         });
-      } catch {
-        // Fallback en mémoire
-      }
 
       return json({
         success: true,

@@ -94,13 +94,9 @@ function getRuntimeOverlay(): RuntimeOntologyOverlay {
 
 function saveRuntimeOverlay(overlay: RuntimeOntologyOverlay): void {
   memoryOverlay = overlay;
-  try {
-    const dir = dirname(RUNTIME_OVERLAY_PATH);
-    if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
-    writeFileSync(RUNTIME_OVERLAY_PATH, JSON.stringify(overlay, null, 2), 'utf-8');
-  } catch {
-    // fallback to memory-only if filesystem is read-only
-  }
+  const dir = dirname(RUNTIME_OVERLAY_PATH);
+  if (!existsSync(dir)) mkdirSync(dir, { recursive: true });
+  writeFileSync(RUNTIME_OVERLAY_PATH, JSON.stringify(overlay, null, 2), 'utf-8');
 }
 
 export function resetRuntimeOntologyOverlay(): void {
@@ -119,71 +115,99 @@ export function resetRuntimeOntologyOverlay(): void {
  * En cas d'indisponibilité du Hub, lève une erreur explicite sans jamais inventer de données.
  */
 export async function loadOntologyCatalog(options: LoadOntologyOptions = {}): Promise<OntologyCatalog> {
-  // 1. Mode API Hub si hubUrl est configuré
-  if (options.hubUrl) {
-    const url = `${options.hubUrl.replace(/\/$/, '')}/api/knowledge/ontology/export`;
-    try {
-      const headers: Record<string, string> = { 'Accept': 'application/json' };
-      if (options.authToken) {
-        headers['Authorization'] = `Bearer ${options.authToken}`;
-      }
-
-      const res = await fetch(url, { headers });
-      if (!res.ok) {
-        throw new Error(`Le Knowledge Hub a répondu avec le statut ${res.status} (${res.statusText})`);
-      }
-
-      const json = await res.json();
-      if (!json || typeof json !== 'object' || !json.entities) {
-        throw new Error('Format de catalogue d’ontologie renvoyé par le Hub invalide.');
-      }
-
-      return json as OntologyCatalog;
-    } catch (err: any) {
-      throw new Error(`Knowledge Hub indisponible pour la synchronisation d’ontologie : ${err.message}`);
+  // 1. Mode Fixture explicite (tests contractuels isolés avec fixture dédiée passée en paramètre)
+  if (options.fixturePath) {
+    if (!existsSync(options.fixturePath)) {
+      throw new Error(`[OntologyClient] Fichier d'ontologie introuvable : ${options.fixturePath}`);
     }
-  }
-
-  // 2. Mode Fixture hors-ligne (CI et tests déconnectés)
-  const filePath = options.fixturePath || DEFAULT_FIXTURE_PATH;
-  if (!existsSync(filePath)) {
-    throw new Error(`Fichier d’export d’ontologie introuvable : ${filePath}`);
-  }
-
-  try {
-    const raw = readFileSync(filePath, 'utf-8');
+    const raw = readFileSync(options.fixturePath, 'utf-8');
     const parsed = JSON.parse(raw) as OntologyCatalog;
     if (!parsed || typeof parsed !== 'object' || !parsed.entities) {
-      throw new Error('Structure du fichier d’ontologie invalide (champ "entities" requis).');
+      throw new Error('[OntologyClient] Structure d\'ontologie invalide (champ "entities" requis).');
     }
-
-    if (options.includeRuntimeOverlay) {
-      const overlay = getRuntimeOverlay();
-      const mergedEntities: Record<string, OntologyEntity> = {
-        ...parsed.entities,
-        ...overlay.addedEntities
-      };
-      const baseTriplets = Array.isArray(parsed.triplets) ? parsed.triplets : [];
-      const mergedTriplets = [
-        ...baseTriplets.filter((t) => !overlay.deletedTripletIds.includes(t.id)),
-        ...overlay.addedTriplets.filter((t) => !overlay.deletedTripletIds.includes(t.id))
-      ];
-      return {
-        ...parsed,
-        entities: mergedEntities,
-        triplets: mergedTriplets
-      };
-    }
-
     return parsed;
-  } catch (err: any) {
-    throw new Error(`Impossible de charger l’ontologie depuis la fixture : ${err.message}`);
   }
+
+  const isVitestTest = Boolean(process.env.VITEST) || process.env.NODE_ENV === 'test';
+
+  // 2. Mode API Hub souverain (LLMOps)
+  // En test, LLMOPS_BASE_URL est intentionnellement fixé à 127.0.0.1:1 par vitest.config.ts pour bloquer les fuites réseau.
+  // Par conséquent, un appel réseau au Hub en test requiert options.hubUrl explicite ou LLMOPS_LIVE_URL.
+  const targetHubUrl = options.hubUrl || (isVitestTest ? process.env.LLMOPS_LIVE_URL : process.env.LLMOPS_BASE_URL);
+
+  if (targetHubUrl) {
+    const url = `${targetHubUrl.replace(/\/$/, '')}/api/knowledge/ontology/export`;
+    const headers: Record<string, string> = { Accept: 'application/json' };
+    const token = options.authToken || process.env.LLMOPS_AUTH_TOKEN || process.env.LLMOPS_LIVE_TOKEN;
+    if (token) {
+      headers['Authorization'] = `Bearer ${token}`;
+    }
+
+    let res: Response;
+    try {
+      res = await fetch(url, { headers });
+    } catch (err: any) {
+      throw new Error(
+        `Knowledge Hub indisponible pour la synchronisation d’ontologie (${url}) : ${err.message}. Aucun repli silencieux autorisé.`
+      );
+    }
+
+    if (!res.ok) {
+      throw new Error(
+        `Knowledge Hub indisponible pour la synchronisation d’ontologie (${url}) : code HTTP ${res.status} (${res.statusText}). Aucun fallback gracieux.`
+      );
+    }
+
+    const json = await res.json();
+    if (!json || typeof json !== 'object' || !json.entities) {
+      throw new Error(
+        `Format de catalogue d’ontologie renvoyé par le Hub (${url}) invalide (champ 'entities' manquant).`
+      );
+    }
+
+    return json as OntologyCatalog;
+  }
+
+  // 3. En production (NODE_ENV=production) : interdiction absolue de fallback sur fixture
+  if (process.env.NODE_ENV === 'production') {
+    throw new Error(
+      "[OntologyClient] Aucun Knowledge Hub configuré (LLMOPS_BASE_URL manquant). Conformément aux règles d'architecture et de non-complaisance, aucun mock en dur ni repli gracieux n'est autorisé en production."
+    );
+  }
+
+  // 4. Mode CI hermétique déconnecté pour tests Vitest
+  const filePath = DEFAULT_FIXTURE_PATH;
+  if (!existsSync(filePath)) {
+    throw new Error(`[OntologyClient] Fichier d'ontologie introuvable : ${filePath}`);
+  }
+
+  const raw = readFileSync(filePath, 'utf-8');
+  const parsed = JSON.parse(raw) as OntologyCatalog;
+  if (!parsed || typeof parsed !== 'object' || !parsed.entities) {
+    throw new Error('[OntologyClient] Structure d\'ontologie invalide (champ "entities" requis).');
+  }
+
+  if (options.includeRuntimeOverlay) {
+    const overlay = getRuntimeOverlay();
+    const mergedEntities: Record<string, OntologyEntity> = {
+      ...parsed.entities,
+      ...overlay.addedEntities
+    };
+    const baseTriplets = Array.isArray(parsed.triplets) ? parsed.triplets : [];
+    const mergedTriplets = [
+      ...baseTriplets.filter((t) => !overlay.deletedTripletIds.includes(t.id)),
+      ...overlay.addedTriplets.filter((t) => !overlay.deletedTripletIds.includes(t.id))
+    ];
+    return {
+      ...parsed,
+      entities: mergedEntities,
+      triplets: mergedTriplets
+    };
+  }
+
+  return parsed;
 }
 
-/**
- * Requête déclarative sur le graphe de triplets { Sujet, Verbe (predicate), Complément (object) }.
- */
 export function queryOntologyTriplets(
   catalog: OntologyCatalog,
   filter: { subject?: string; predicate?: OntologyPredicate; object?: string } = {}

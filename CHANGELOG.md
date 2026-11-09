@@ -8,6 +8,19 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Découplage de la Persistance d'État, du Code Applicatif et du Knowledge Hub (Lot A7, Issues #251, #252 & #253)
+- **Exclusion et Purge des Artefacts de Persistance et d'Évaluation du Contrôle de Version (`.gitignore`)** :
+  - Désindexation du suivi Git des rapports et résultats d'évaluation (`eval-results/`), des artefacts de projets locaux (`projects/001-veille-techno/`) et d'un résidu de base de test SQLite binaire (`prisma/prisma/e2e-tmp.db`).
+  - Ajout des règles d'exclusion strictes dans `.gitignore` pour bloquer définitivement tout ajout de bases SQLite (`*.db`, `*.sqlite`, `prisma/**/*.db*`), d'artefacts d'évaluation (`eval-results/`) et d'arborescences de projets locaux (`projects/*`), tout en préservant les répertoires de politiques globales (`projects/000-global/`).
+- **Éradication des Replis Silencieux & Respect des Règles Fail-Fast (Issues #252 & #253)** :
+  - **Démonstration sans complaisance (`scripts/build-lulu-demo.ts`)** : suppression de tout fallback gracieux masquant l'absence d'évaluation réelle ; échec franc immédiat si `eval-results/resultat-1.json` n'est pas présent sur disque.
+  - **Persistance EDP opposable (`src/routes/api/projects/[projectId]/subjects/[subjectId]/edp/+server.ts`)** : suppression des 4 blocs `try/catch { // Fallback en mémoire }` ; toute défaillance de la base relationnelle Prisma est désormais immédiatement propagée en HTTP 500 pour être visible par l'architecte et les tests.
+  - **Autorité Doctrinale LLMOps & Refus des Mocks en Production (`src/lib/server/edp/ontologyClient.ts`)** : `loadOntologyCatalog` interroge le Hub distant via `LLMOPS_BASE_URL` et lève une exception explicite et immédiate en cas d'indisponibilité ou d'absence de configuration en production (aucun mock en dur ni fixture par défaut tolérés hors contexte de test).
+  - **Assainissement des Schémas de Production (`src/lib/schemas/sylva-workload-cluster.schema.json`)** : migration du schéma officiel Sylva hors du répertoire de fixtures (`tests/fixtures/`) vers le répertoire applicatif `src/lib/schemas/` afin que le moteur de code ne référence plus jamais de fixture en production.
+- **Garde-Fou Contractuel d'Isolation & Non-Complaisance (`tests/contract/persistence-isolation-guard.test.ts`)** :
+  - 6 tests de contrat validant l'absence de base de données SQLite binaire dans Git, l'exclusion d'artefacts d'évaluation, le respect du `.gitignore`, l'intégrité de l'arborescence des projets, ainsi que l'interdiction absolue des fallbacks gracieux et mocks par défaut.
+- **Documentation d'Architecture (`ARCHITECTURE.md`)** :
+  - Ajout de la section §10 formalisant le découplage tri-partite entre le Moteur Logiciel Stateless (`archinex`), la Persistance d'État Applicatif (base Prisma PostgreSQL/SQLite) et l'Autorité Doctrinale Souveraine (`LLMOps` via API/MCP).
 ### Réactivité du Passage des Jalons & Affichage Découplé des Critères dans la Matrice d'Options
 - **Réactivité Immédiate des Critères et Options (`src/lib/components/deliberation/OptionsMatrix.svelte`, `SubjectThreadView.svelte`)** :
   - Remplacement des mutations en place (`criteria.push()`, `options.push()`, `evaluations.push()`) par des réassignations immuables avec propagation ascendante d'événements (`onCriteriaChanged`, `onOptionsChanged`, `onEvaluationsChanged`).

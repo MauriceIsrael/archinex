@@ -1,6 +1,6 @@
-import { readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { toFactorizationResponse } from '../src/lib/server/ingest/arckitRequirementsPipeline';
+import { toFactorizationResponse, type FactorizationResponse } from '../src/lib/server/ingest/arckitRequirementsPipeline';
 import { createPrismaClient } from '../src/lib/server/prismaFactory';
 import { seedProject } from './seed';
 
@@ -9,16 +9,21 @@ async function main() {
 	const evalResultPath = resolve(repoRoot, 'eval-results/resultat-1.json');
 	const outPath = resolve(repoRoot, 'examples/lulu-noc/factorization-result.json');
 
+	if (!existsSync(evalResultPath)) {
+		throw new Error(
+			`[build-lulu-demo] Fichier source d'évaluation requis introuvable : ${evalResultPath}. ` +
+			`Aucun fallback silencieux n'est autorisé. Pour générer ce fichier, exécutez d'abord l'évaluation réelle (npm run eval:requirements).`
+		);
+	}
+
 	console.log(`[build-lulu-demo] Lecture de ${evalResultPath}...`);
 	const raw = JSON.parse(readFileSync(evalResultPath, 'utf-8'));
-
-	const factorized = toFactorizationResponse({
+	const factorized: FactorizationResponse = toFactorizationResponse({
 		report: raw.report,
 		subjects: raw.subjects,
 		warnings: raw.warnings || [],
 		modelUsed: raw.model || 'claude-sonnet-5-5'
 	});
-
 	writeFileSync(outPath, JSON.stringify(factorized, null, 2), 'utf-8');
 	console.log(`[build-lulu-demo] ✅ Sauvegardé dans ${outPath} (${factorized.totalClauses} clauses)`);
 

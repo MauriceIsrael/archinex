@@ -35,6 +35,10 @@ prisma/test-clean.db
 prisma/test-clean.db-journal
 prisma/test-playwright.db*
 prisma/backup*.json
+prisma/**/*.db*
+prisma/**/*.sqlite*
+*.sqlite
+*.db
 *.log
 check_output.txt
 npm_output.log
@@ -43,6 +47,14 @@ playwright-report/
 test-results/
 tests/e2e/.auth/
 
+# Persistence & Evaluation runtime artifacts
+eval-results/
+projects/*
+!projects/.gitkeep
+!projects/000-global/
+!projects/000-global/.gitkeep
+!projects/000-global/external/.gitkeep
+!projects/000-global/policies/.gitkeep
 
 # Private / local files
 Lulu.pdf

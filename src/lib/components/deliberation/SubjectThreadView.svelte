@@ -358,7 +358,7 @@
 	});
 
 	const effectiveReport = $derived.by<MaturityTransitionsReport | null>(() => {
-		const base = criteriaReport || computedReport;
+		const base = computedReport || criteriaReport;
 		if (!base) return null;
 		if (!detailedSpecText || detailedSpecText.trim().length === 0) {
 			return base;
@@ -1466,6 +1466,15 @@
 				bind:tradeOffs={matrixTradeOffs}
 				bind:decision={subjectDecision}
 				userRole={deliberationStore.currentRole}
+				onCriteriaChanged={(newCrit) => {
+					matrixCriteria = [...newCrit];
+				}}
+				onOptionsChanged={(newOpts) => {
+					subjectOptions = [...newOpts];
+				}}
+				onEvaluationsChanged={(newEvals) => {
+					matrixEvaluations = [...newEvals];
+				}}
 				onDecisionMade={() => {
 					void loadArgumentsAndContext();
 					deliberationStore.refreshSubjectFromServer(subjectId, projectId);

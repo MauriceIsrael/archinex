@@ -8,6 +8,17 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Réactivité du Passage des Jalons & Affichage Découplé des Critères dans la Matrice d'Options
+- **Réactivité Immédiate des Critères et Options (`src/lib/components/deliberation/OptionsMatrix.svelte`, `SubjectThreadView.svelte`)** :
+  - Remplacement des mutations en place (`criteria.push()`, `options.push()`, `evaluations.push()`) par des réassignations immuables avec propagation ascendante d'événements (`onCriteriaChanged`, `onOptionsChanged`, `onEvaluationsChanged`).
+  - Priorisation du rapport calculé en temps réel (`computedReport`) sur le rapport statique initial dans `SubjectThreadView`, permettant au bandeau de maturité (`MaturityStepper`) de basculer instantanément la carte « Critères de choix définis » au vert dès le 2ᵉ critère ajouté sans exiger de rechargement ou re-sélection du sujet.
+- **Affichage Découplé et Résilient de la Matrice d'Alternatives (`OptionsMatrix.svelte`)** :
+  - Les critères saisis sont désormais immédiatement affichés en lignes même si aucune option d'architecture n'a encore été posée (au lieu de masquer l'intégralité du tableau sous l'état « Matrice non alimentée »), avec une colonne d'invitation explicite à ajouter des options.
+  - Réciproquement, les options créées sont visualisées en colonnes même en l'absence temporaire de critères.
+  - L'état « Matrice non alimentée » n'apparaît désormais que lorsque les critères et les options sont tous deux vides.
+- **Tests de Contrat (`tests/contract/options-matrix-view.test.ts`)** :
+  - Ajout des tests validant le rendu partiel des critères sans options, des options sans critères, et la condition stricte d'affichage de la matrice vide.
+
 ### Restauration de l'Encodage UTF-8 et Élimination du Mojibake (USER_GUIDE.md, CHANGELOG.md, engagementsDb.ts)
 - **Correction du double encodage UTF-8 / Windows-1252** :
   - Restauration intégrale des caractères accentués français (`é`, `è`, `à`, `ê`, `ô`, `î`, `ç`), ligatures et symboles typographiques (`—`, `«`, `»`, `·`) altérés par une conversion intempestive UTF-8 → CP1252 → UTF-8 dans `USER_GUIDE.md` (1 143+ occurrences réparées) et `CHANGELOG.md` (2 680+ occurrences réparées).

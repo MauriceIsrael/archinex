@@ -95,14 +95,14 @@
 					<div>
 						<div class="flex items-center gap-2">
 							<h1 class="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
-								Overview Global du Portefeuille d'Architecture
+								Portefeuille d'Architecture
 							</h1>
 							<span class="inline-flex items-center px-2 py-0.5 rounded-md text-[10px] font-bold bg-primary/10 text-primary border border-primary/20">
-								Executive Cockpit
+								Vue Exécutive
 							</span>
 						</div>
 						<p class="text-xs sm:text-sm text-muted-foreground mt-0.5">
-							Pilotage transverse des engagements, charge des disciplines d'experts et grossissement du patrimoine commun
+							Pilotage transverse des engagements, charge des disciplines d'experts et enrichissement du patrimoine commun
 						</p>
 					</div>
 				</div>
@@ -124,7 +124,7 @@
 						class="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl border bg-background hover:bg-muted font-semibold text-xs transition-colors shadow-2xs"
 					>
 						<GitBranch class="h-4 w-4 text-primary" />
-						<span>Atelier Workbench</span>
+						<span>Atelier de délibération</span>
 					</a>
 
 					<a

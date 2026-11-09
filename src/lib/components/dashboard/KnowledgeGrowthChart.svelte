@@ -185,7 +185,7 @@
 	<div class="mx-5 mt-4 p-3 rounded-xl border bg-emerald-500/10 border-emerald-500/20 flex items-start gap-2.5">
 		<ShieldCheck class="h-4 w-4 text-emerald-600 dark:text-emerald-400 shrink-0 mt-0.5" />
 		<div class="text-xs text-muted-foreground leading-relaxed">
-			<strong class="text-foreground">Invariant d'enrichissement continu :</strong> Tout document amont injecté lors d'un appel d'offres ou d'un cadrage rejoint automatiquement la base de connaissances commune. <strong>{crossProjectReusePct}% du patrimoine</strong> est actuellement réexploité transversalement par plusieurs projets sans duplication documentaire.
+			<strong class="text-foreground">Capitalisation continue :</strong> Tout document amont injecté lors d'un appel d'offres ou d'un cadrage rejoint automatiquement la base de connaissances commune. <strong>{crossProjectReusePct}% du patrimoine</strong> est actuellement réexploité transversalement par plusieurs projets sans duplication documentaire.
 		</div>
 	</div>
 

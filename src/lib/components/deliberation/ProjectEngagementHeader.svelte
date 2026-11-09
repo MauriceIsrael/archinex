@@ -1,21 +1,15 @@
 <script lang="ts">
-	import { deliberationStore, type DeliberationPosture } from '$lib/stores/deliberationStore.svelte';
-	import CreateWorkspaceDialog from './CreateWorkspaceDialog.svelte';
+	import { deliberationStore } from '$lib/stores/deliberationStore.svelte';
 	import {
-		Building2,
-		FileText,
-		ShieldCheck,
 		BookOpen,
 		MessagesSquare,
 		CheckCircle2,
 		Cpu,
-		Check,
-		FolderPlus,
-		FolderKanban,
+		Layers,
 		Archive,
-		RotateCcw
+		RotateCcw,
+		Target
 	} from 'lucide-svelte';
-	let isCreateWorkspaceOpen = $state(false);
 
 	interface Props {
 		isExperimentalEnabled?: boolean;
@@ -24,259 +18,209 @@
 	let { isExperimentalEnabled = true }: Props = $props();
 
 	const activeEngagement = $derived(deliberationStore.activeEngagement);
+	const activePosture = $derived(deliberationStore.activePosture);
+	const viewMode = $derived(deliberationStore.deliberationViewMode);
+	const activeSubject = $derived(deliberationStore.activeSubject);
 
-	const basePhases: Array<{
-		id: DeliberationPosture;
-		number: string;
-		label: string;
-		subtitle: string;
-		icon: typeof BookOpen;
-	}> = [
-		{
-			id: 'appropriation',
-			number: 'Phase 1',
-			label: 'Appropriation Documentaire',
-			subtitle: 'Corpus, Idées clés, Règles induites & Base de connaissances',
-			icon: BookOpen
-		},
-		{
-			id: 'deliberation',
-			number: 'Phase 2',
-			label: 'Délibération Architecturale',
-			subtitle: 'Matrice de maturité, Brouillon télégraphique & Arbitrages L3',
-			icon: MessagesSquare
-		},
-		{
-			id: 'rendu',
-			number: 'Phase 3',
-			label: 'Rendu & Homologation HLD',
-			subtitle: 'Projections d\'architecture, Modèles systèmes & Sceau SHA-256',
-			icon: CheckCircle2
-		}
-	];
-
-	const phases = $derived(
-		isExperimentalEnabled
-			? [
-					...basePhases,
-					{
-						id: 'refinement' as DeliberationPosture,
-						number: 'Phase 4 · 🧪',
-						label: 'Refinement & Hydratation',
-						subtitle: 'Matrice KAOS multi-axes, Objets Planned Nautobot/Sylva & Oracles OPA',
-						icon: Cpu
-					}
-				]
-			: basePhases
+	// Est-ce qu'on est actuellement positionné à l'échelle d'un Sujet ?
+	const isInSubjectScope = $derived(
+		(activePosture === 'deliberation' && viewMode === 'conversation') ||
+			activePosture === 'rendu' ||
+			activePosture === 'refinement'
 	);
+
+	function openProjectAppropriation() {
+		deliberationStore.setPosture('appropriation');
+	}
+
+	function openProjectBoard() {
+		deliberationStore.setPosture('deliberation');
+		deliberationStore.setDeliberationViewMode('board');
+	}
+
+	function openSubjectDeliberation() {
+		deliberationStore.setPosture('deliberation');
+		deliberationStore.setDeliberationViewMode('conversation');
+	}
+
+	function openSubjectRendu() {
+		deliberationStore.setPosture('rendu');
+	}
+
+	function openSubjectRefinement() {
+		deliberationStore.setPosture('refinement');
+	}
 </script>
 
-<div class="space-y-4">
-	<!-- ═════════════════════════════════════════════════════════════════════════ -->
-	<!-- 1. BANDEAU SUPÉRIEUR : SÉLECTEUR DE PROJET & SOUVERAINETÉ (TRÈS VISIBLE)  -->
-	<!-- ═════════════════════════════════════════════════════════════════════════ -->
-	<div class="rounded-xl border bg-card p-4 shadow-sm space-y-3">
-		<div class="space-y-2">
-			<!-- En-tête : Titre & badge souveraineté -->
+<div class="space-y-2.5" data-testid="project-engagement-header">
+	<!-- Alerte si l'espace actif est archivé (lecture seule) -->
+	{#if activeEngagement.status === 'archived'}
+		<div
+			class="rounded-xl border border-amber-500/30 bg-amber-500/10 p-2.5 flex flex-col sm:flex-row sm:items-center justify-between gap-2 text-xs text-amber-800 dark:text-amber-200 animate-in fade-in duration-150"
+		>
 			<div class="flex items-center gap-2">
-				<span class="text-[11px] font-bold uppercase tracking-wider text-muted-foreground font-mono">
-					Projet & Engagement Actif :
-				</span>
-				<span
-					class="inline-flex items-center gap-1 rounded bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/25 px-2 py-0.5 text-[10px] font-semibold"
-					title="Garantie de souveraineté : 100% du traitement et des données restent en local sur votre machine"
-				>
-					<ShieldCheck class="h-3 w-3" />
-					100% Local & Souverain
+				<Archive class="h-4 w-4 text-amber-600 shrink-0" />
+				<span>
+					<strong>Espace archivé</strong> : « {activeEngagement.title} » est en consultation seule.
+					{#if activeEngagement.archivedAt}
+						<span class="opacity-80 font-mono text-[11px]"
+							>(archivé le {new Date(activeEngagement.archivedAt).toLocaleDateString('fr-FR')})</span
+						>
+					{/if}
 				</span>
 			</div>
-
-			<!-- Sélecteur d'engagements avec bouton de création rapide -->
-			<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-2">
-				{#each deliberationStore.engagements as eng}
-					{@const isSelected = deliberationStore.activeEngagementId === eng.id}
-					{@const isArchived = eng.status === 'archived'}
-					<button
-						type="button"
-						onclick={() => deliberationStore.switchEngagement(eng.id)}
-						class="flex items-start gap-2.5 p-2 rounded-lg border text-left transition-all relative {isSelected
-							? 'bg-primary/10 border-primary shadow-xs ring-1 ring-primary/30'
-							: isArchived
-								? 'bg-muted/20 hover:bg-muted/40 border-dashed border-border opacity-60 hover:opacity-100'
-								: 'bg-muted/40 hover:bg-muted/70 border-border opacity-75 hover:opacity-100'}"
-					>
-						<div class="p-1.5 rounded-md {isSelected ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'} shrink-0 mt-0.5">
-							{#if eng.type === 'generic_blueprint'}
-								<Building2 class="h-3.5 w-3.5" />
-							{:else}
-								<FileText class="h-3.5 w-3.5" />
-							{/if}
-						</div>
-						<div class="min-w-0 flex-1">
-							<div class="flex items-center gap-1">
-								<strong class="text-xs font-bold truncate text-foreground">
-									{eng.title}
-								</strong>
-								{#if isSelected}
-									<Check class="h-3 w-3 text-primary shrink-0" />
-								{/if}
-							</div>
-							<div class="flex items-center gap-1.5 text-[10px] text-muted-foreground line-clamp-1">
-								<span>{eng.type === 'generic_blueprint' ? 'Socle Blueprint' : eng.type === 'project_rfp' ? 'Appel d\'Offres RFP' : 'Espace Projet'}</span>
-								{#if isArchived}
-									<span class="rounded bg-amber-500/10 text-amber-700 dark:text-amber-300 px-1 font-semibold">Archivé</span>
-								{/if}
-							</div>
-						</div>
-					</button>
-				{/each}
-
-				<!-- Bouton Nouvel Espace Projet -->
+			<div class="flex items-center gap-2 shrink-0">
 				<button
 					type="button"
-					onclick={() => (isCreateWorkspaceOpen = true)}
-					class="flex items-center gap-2 p-2 rounded-lg border border-dashed border-primary/40 bg-primary/5 hover:bg-primary/10 text-primary transition-all text-left cursor-pointer group"
-					title="Créer un nouvel espace de travail pour un projet"
+					onclick={() => deliberationStore.unarchiveEngagement(activeEngagement.id)}
+					class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs shadow-xs transition-colors cursor-pointer"
 				>
-					<div class="p-1.5 rounded-md bg-primary/10 group-hover:bg-primary/20 text-primary shrink-0">
-						<FolderPlus class="h-3.5 w-3.5" />
-					</div>
-					<div class="min-w-0 flex-1">
-						<strong class="text-xs font-bold block text-primary truncate">
-							+ Nouvel Espace
-						</strong>
-						<span class="text-[10px] text-muted-foreground line-clamp-1 block">
-							Cadrer un projet
-						</span>
-					</div>
+					<RotateCcw class="h-3.5 w-3.5" />
+					<span>Désarchiver</span>
 				</button>
-
-				<!-- Lien vers la mini-app Espaces & Projets -->
 				<a
 					href="/workspaces"
-					class="flex items-center gap-2 p-2 rounded-lg border bg-muted/40 hover:bg-muted/70 text-foreground transition-all text-left group"
-					title="Accéder à la mini-app Espaces & Projets pour gérer, archiver et exporter tous vos projets"
+					class="px-2.5 py-1 rounded-lg border border-amber-500/30 bg-background/60 hover:bg-background text-xs font-semibold transition-colors inline-block"
 				>
-					<div class="p-1.5 rounded-md bg-muted group-hover:bg-background text-muted-foreground group-hover:text-foreground shrink-0">
-						<FolderKanban class="h-3.5 w-3.5" />
-					</div>
-					<div class="min-w-0 flex-1">
-						<strong class="text-xs font-bold block truncate">
-							Espaces & Projets
-						</strong>
-						<span class="text-[10px] text-muted-foreground line-clamp-1 block">
-							Gérer dans la mini-app →
-						</span>
-					</div>
+					Changer d'espace
 				</a>
 			</div>
 		</div>
+	{/if}
 
-		<!-- Alerte si l'espace actif est archivé -->
-		{#if activeEngagement.status === 'archived'}
-			<div
-				class="rounded-xl border border-amber-500/30 bg-amber-500/10 p-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs text-amber-800 dark:text-amber-200 animate-in fade-in duration-150"
+	<!-- ═════════════════════════════════════════════════════════════════════════ -->
+	<!-- HIÉRARCHIE ERGONOMIQUE À 2 NIVEAUX (PROJET VS SUJET - PATTERN A)         -->
+	<!-- ═════════════════════════════════════════════════════════════════════════ -->
+	<div class="rounded-xl border bg-card p-2 shadow-2xs flex flex-col xl:flex-row xl:items-center justify-between gap-2">
+		<!-- NIVEAU 1 : ÉCHELLE PROJET (CADRAGE & PILOTAGE GLOBAL) -->
+		<div class="flex items-center gap-1.5 flex-wrap">
+			<span
+				class="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground font-mono flex items-center gap-1 shrink-0"
+				title={activeEngagement.title}
 			>
-				<div class="flex items-center gap-2">
-					<Archive class="h-4 w-4 text-amber-600 shrink-0" />
-					<span>
-						<strong>Espace Archivé</strong> : Le projet « {activeEngagement.title} » est actuellement archivé (lecture & consultation).
-						{#if activeEngagement.archivedAt}
-							<span class="opacity-80 font-mono text-[11px]"
-								>(archivé le {new Date(activeEngagement.archivedAt).toLocaleDateString('fr-FR')})</span
-							>
-						{/if}
-					</span>
-				</div>
-				<div class="flex items-center gap-2 shrink-0">
+				<Layers class="h-3.5 w-3.5 text-primary shrink-0" />
+				<span>Projet :</span>
+				<span class="text-foreground font-semibold normal-case tracking-normal truncate max-w-[180px] sm:max-w-[240px]">
+					{activeEngagement.title}
+				</span>
+			</span>
+
+			<!-- Phase 1 : Corpus & Règles (Appropriation Documentaire) -->
+			<button
+				type="button"
+				data-testid="phase-tab-appropriation"
+				onclick={openProjectAppropriation}
+				class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs transition-all cursor-pointer {activePosture ===
+				'appropriation'
+					? 'bg-primary text-primary-foreground font-bold shadow-xs'
+					: 'bg-muted/40 hover:bg-muted text-foreground/80 hover:text-foreground font-medium'}"
+			>
+				<BookOpen class="h-3.5 w-3.5 shrink-0" />
+				<span>Phase 1 · Corpus & Règles</span>
+				<span
+					class="font-mono text-[10px] px-1.5 py-0.2 rounded {activePosture === 'appropriation'
+						? 'bg-primary-foreground/20 text-primary-foreground'
+						: 'bg-background text-muted-foreground'}"
+				>
+					{deliberationStore.corpusDocuments.length} docs
+				</span>
+			</button>
+
+			<!-- Vue d'ensemble : Tableau des Sujets (Matrice de maturité globale) -->
+			<button
+				type="button"
+				data-testid="project-board-tab"
+				onclick={openProjectBoard}
+				class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs transition-all cursor-pointer {activePosture ===
+					'deliberation' && viewMode === 'board'
+					? 'bg-primary text-primary-foreground font-bold shadow-xs'
+					: 'bg-muted/40 hover:bg-muted text-foreground/80 hover:text-foreground font-medium'}"
+			>
+				<Layers class="h-3.5 w-3.5 shrink-0" />
+				<span>Tableau des Sujets</span>
+				<span
+					class="font-mono text-[10px] px-1.5 py-0.2 rounded {activePosture === 'deliberation' &&
+					viewMode === 'board'
+						? 'bg-primary-foreground/20 text-primary-foreground'
+						: 'bg-background text-muted-foreground'}"
+				>
+					{deliberationStore.subjects.length}
+				</span>
+			</button>
+		</div>
+
+		<div class="hidden xl:block h-6 w-px bg-border"></div>
+
+		<!-- NIVEAU 2 : ÉCHELLE SUJET (INGÉNIERIE D'UNE SECTION : DÉLIBÉRATION -> RENDU -> RAFFINEMENT) -->
+		<div class="flex items-center justify-between xl:justify-end gap-1.5 flex-wrap flex-1">
+			<div class="flex items-center gap-1.5 flex-wrap">
+				<span
+					class="px-2 py-1 text-[10px] font-bold uppercase tracking-wider font-mono flex items-center gap-1 shrink-0 {isInSubjectScope
+						? 'text-primary'
+						: 'text-muted-foreground'}"
+					title="Vues d'instruction focalisées sur le sujet actif"
+				>
+					<Target class="h-3.5 w-3.5" />
+					<span>Sujet {activeSubject ? activeSubject.section_ref : ''} :</span>
+				</span>
+
+				<!-- Phase 2 : Délibération & Arbitrage du Sujet -->
+				<button
+					type="button"
+					data-testid="phase-tab-deliberation"
+					onclick={openSubjectDeliberation}
+					class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-all cursor-pointer {activePosture ===
+						'deliberation' && viewMode === 'conversation'
+						? 'bg-primary text-primary-foreground font-bold shadow-xs'
+						: 'bg-muted/40 hover:bg-muted text-foreground/80 hover:text-foreground font-medium'}"
+				>
+					<MessagesSquare class="h-3.5 w-3.5 shrink-0" />
+					<span>Phase 2 · Délibération</span>
+				</button>
+
+				<span class="text-muted-foreground/40 text-xs select-none hidden sm:inline">→</span>
+
+				<!-- Phase 3 : Rendu HLD & Scellement du Sujet -->
+				<button
+					type="button"
+					data-testid="phase-tab-rendu"
+					onclick={openSubjectRendu}
+					class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-all cursor-pointer {activePosture ===
+					'rendu'
+						? 'bg-primary text-primary-foreground font-bold shadow-xs'
+						: 'bg-muted/40 hover:bg-muted text-foreground/80 hover:text-foreground font-medium'}"
+				>
+					<CheckCircle2 class="h-3.5 w-3.5 shrink-0" />
+					<span>Phase 3 · Rendu HLD</span>
+					{#if Object.keys(deliberationStore.frozenSnapshots).length > 0}
+						<span
+							class="font-mono text-[10px] px-1.5 py-0.2 rounded {activePosture === 'rendu'
+								? 'bg-primary-foreground/20 text-primary-foreground'
+								: 'bg-background text-muted-foreground'}"
+						>
+							{Object.keys(deliberationStore.frozenSnapshots).length} scellés
+						</span>
+					{/if}
+				</button>
+
+				{#if isExperimentalEnabled}
+					<span class="text-muted-foreground/40 text-xs select-none hidden sm:inline">→</span>
+
+					<!-- Phase 4 : Raffinement & Hydratation du Sujet -->
 					<button
 						type="button"
-						onclick={() => deliberationStore.unarchiveEngagement(activeEngagement.id)}
-						class="inline-flex items-center gap-1 px-3 py-1 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs shadow-xs transition-colors cursor-pointer"
+						data-testid="phase-tab-refinement"
+						onclick={openSubjectRefinement}
+						class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-all cursor-pointer {activePosture ===
+						'refinement'
+							? 'bg-indigo-600 text-white font-bold shadow-xs'
+							: 'bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 font-medium border border-indigo-500/20'}"
 					>
-						<RotateCcw class="h-3.5 w-3.5" />
-						<span>Désarchiver le projet</span>
+						<Cpu class="h-3.5 w-3.5 shrink-0" />
+						<span>Phase 4 · Raffinement</span>
 					</button>
-					<a
-						href="/workspaces"
-						class="px-2.5 py-1 rounded-lg border border-amber-500/30 bg-background/60 hover:bg-background text-xs font-semibold transition-colors inline-block"
-					>
-						Changer d'espace
-					</a>
-				</div>
-			</div>
-		{/if}
-
-		<!-- Synthèse concise du projet sélectionné -->
-		<div class="pt-2 border-t flex flex-wrap items-center justify-between text-xs text-muted-foreground gap-2">
-			<p class="leading-relaxed">
-				<strong class="text-foreground">{activeEngagement.badge}</strong> : {activeEngagement.description}
-			</p>
-			<div class="flex items-center gap-3 shrink-0 font-mono text-[11px]">
-				<span><strong>{deliberationStore.corpusDocuments.length}</strong> docs au corpus</span>
-				<span>•</span>
-				<span><strong>{deliberationStore.subjects.length}</strong> sections</span>
-				<span>•</span>
-				<span><strong>{deliberationStore.statements.length}</strong> énoncés</span>
+				{/if}
 			</div>
 		</div>
 	</div>
-
-	<!-- ═════════════════════════════════════════════════════════════════════════ -->
-	<!-- 2. LES 4 GRANDS ONGLETS DU PROJET (SÉPARATION DES 4 PHASES D'INGÉNIERIE)   -->
-	<!-- ═════════════════════════════════════════════════════════════════════════ -->
-	<div class="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-4 gap-2 p-1.5 rounded-xl border bg-muted/30">
-		{#each phases as phase}
-			{@const isActive = deliberationStore.activePosture === phase.id}
-			{@const Icon = phase.icon}
-			<button
-				type="button"
-				data-testid="phase-tab-{phase.id}"
-				onclick={() => deliberationStore.setPosture(phase.id)}
-				class="flex items-start gap-3 p-3 rounded-lg text-left transition-all relative cursor-pointer {isActive
-					? 'bg-card text-foreground shadow-sm border border-primary/40 ring-1 ring-primary/20'
-					: 'hover:bg-card/60 text-muted-foreground hover:text-foreground border border-transparent'}"
-			>
-				<div class="p-2 rounded-lg {isActive ? 'bg-primary text-primary-foreground' : 'bg-muted text-muted-foreground'} shrink-0 mt-0.5">
-					<Icon class="h-4 w-4" />
-				</div>
-				<div class="min-w-0 flex-1">
-					<div class="flex items-center justify-between gap-1">
-						<span class="text-[10px] font-bold uppercase tracking-wider font-mono {isActive ? 'text-primary' : 'text-muted-foreground'}">
-							{phase.number}
-						</span>
-						{#if phase.id === 'appropriation'}
-							<span class="font-mono text-[10px] px-1.5 py-0.2 rounded bg-muted text-muted-foreground">
-								{deliberationStore.corpusDocuments.length} docs
-							</span>
-						{:else if phase.id === 'deliberation'}
-							<span class="font-mono text-[10px] px-1.5 py-0.2 rounded bg-muted text-muted-foreground">
-								{deliberationStore.subjects.length} sections
-							</span>
-						{:else if phase.id === 'rendu'}
-							<span class="font-mono text-[10px] px-1.5 py-0.2 rounded bg-muted text-muted-foreground">
-								{Object.keys(deliberationStore.frozenSnapshots).length} scellés
-							</span>
-						{:else}
-							<span class="font-mono text-[10px] px-1.5 py-0.2 rounded bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 font-semibold">
-								5 axes KAOS
-							</span>
-						{/if}
-					</div>
-					<h3 class="text-xs font-bold text-foreground truncate mt-0.5">
-						{phase.label}
-					</h3>
-					<p class="text-[11px] text-muted-foreground line-clamp-1 mt-0.5">
-						{phase.subtitle}
-					</p>
-				</div>
-			</button>
-		{/each}
-	</div>
-
-	<!-- Modale Interactive de Création d'un Nouvel Espace de Travail -->
-	<CreateWorkspaceDialog
-		bind:open={isCreateWorkspaceOpen}
-		onclose={() => (isCreateWorkspaceOpen = false)}
-	/>
 </div>

@@ -238,7 +238,7 @@ test_pass if { 1 == 1 }`;
 
       expect(html).toContain('EXPÉRIMENTAL');
       expect(html).toContain('Isolation Stricte des Zones de Sécurité');
-      expect(html).toContain('Valider le Paquet (G3)');
+      expect(html).toContain('Valider le paquet');
     });
 
     it('masque le bouton de validation lorsque le statut est "stale" et affiche l’alerte de caducité', () => {
@@ -256,7 +256,7 @@ test_pass if { 1 == 1 }`;
         }
       });
 
-      expect(html).not.toContain('Valider le Paquet (G3)');
+      expect(html).not.toContain('Valider le paquet');
       expect(html).toContain('Validation désactivée (paquet caduc)');
       expect(html).toContain('L’ADR-015 source a été rétracté.');
     });
@@ -270,7 +270,7 @@ test_pass if { 1 == 1 }`;
         }
       });
 
-      expect(html).not.toContain('Valider le Paquet (G3)');
+      expect(html).not.toContain('Valider le paquet');
       expect(html).toContain('Rôle architecte requis pour valider');
     });
   });

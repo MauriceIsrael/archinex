@@ -8,6 +8,14 @@ Aucune version n'a encore Ã©tÃ© publiÃ©e : tout figure sous *Non publiÃ©
 
 ## Non publié
 
+### Harmonisation des Labels Métier, Suppression des Slogans Superflus & Navigation à 2 Niveaux Projet/Sujet (Pattern A)
+- **Éradication du Jargon de Spécification et des Badges Slogans Superflus** :
+  - Suppression dans toute l'IHM (`/deliberation`, `/workspaces`, `/workspaces/new`, `/kb`, `/knowledge`, `/dashboard`, `/benchmarks`) des codes internes de spécification (`Porte G3`–`G7`, `K13`–`K22`, `Contrat 1.9`/`1.11`, `Lot A2`, `Invariant II`/`VI`, valeurs d'énumérations brutes `L0_named`, `L3_decided`, `L5_frozen`, `supports`/`violates`, `false_strong`).
+  - Suppression des badges et bandeaux slogans superflus (`100% Local & Souverain`, `100% Souverain & Local`, `Anonymisation Souveraine`, rappels philosophiques *« Patrimoine de Connaissances Commun … valide de facto »* et *« Règle d'or Archinex »*) dans `ProjectEngagementHeader.svelte`, `src/routes/workspaces/+page.svelte`, `src/routes/workspaces/new/+page.svelte`, `CreateWorkspaceDialog.svelte`, `WorkspaceManagerDialog.svelte`, `CorpusAppropriationHub.svelte`, `CapitalizationPanel.svelte` et `DecisionGuideModal.svelte`.
+- **Hiérarchie Ergonomique à 2 Niveaux Projet vs Sujet (Pattern A)** :
+  - **En-tête global (`src/routes/+layout.svelte`)** : ajout d'une pastille compacte d'engagement actif (`data-testid="active-engagement-pill"`) renvoyant directement vers `/workspaces`, en remplacement de l'ancien panneau massif *« Projet & Engagement Actif : »* qui encombrait `/deliberation`.
+  - **Barre de navigation à 2 niveaux (`ProjectEngagementHeader.svelte`)** : séparation visuelle explicite entre l'échelle **Projet** (*Phase 1 · Corpus & Règles*, *Tableau des Sujets*) et l'échelle **Sujet** (*Phase 2 · Délibération → Phase 3 · Rendu HLD → Phase 4 · Raffinement*).
+  - **Barre de contexte Sujet 1 ligne (`Phase3SubjectSelector.svelte`)** : remplacement de la grille de cartes par une barre compacte 1 ligne (`← Tableau`, navigation rapide `◀`/`▶` entre sujets, tiroir de sélection à la demande).
 ### Alignement RBAC & Gestion des Erreurs du Banc d'Évaluation KB (`/kb/evals` - Porte G6)
 - **Contrôle d'Accès RBAC Strict & Alignement LLMOps (`src/routes/kb/evals/+page.server.ts`, `src/routes/kb/evals/+page.svelte`)** :
   - Correction du calcul de `canEvaluate` : les droits d'évaluation et d'annotation de la vérité terrain exigent désormais strictement le rôle `kb:evaluate` ou `kb:maintain` (aligné avec les invariants de souveraineté et de séparation des fonctions du Hub LLMOps).

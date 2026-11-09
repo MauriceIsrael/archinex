@@ -318,24 +318,18 @@
 	<!-- ═════════════════════════════════════════════════════════════════════════ -->
 	<!-- EN-TÊTE PRINCIPAL                                                         -->
 	<!-- ═════════════════════════════════════════════════════════════════════════ -->
-	<div class="rounded-2xl border bg-card p-6 shadow-sm space-y-3">
+	<div class="rounded-2xl border bg-card p-6 shadow-sm">
 		<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
 			<div class="flex items-center gap-3">
 				<div class="p-3 rounded-xl bg-primary text-primary-foreground shadow-xs">
 					<FolderPlus class="h-6 w-6" />
 				</div>
 				<div>
-					<div class="flex items-center gap-2">
-						<h1 class="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
-							Initialiser un Nouvel Espace de Travail
-						</h1>
-						<span class="inline-flex items-center gap-1 rounded bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/25 px-2 py-0.5 text-[10px] font-semibold">
-							<ShieldCheck class="h-3 w-3" />
-							100% Local & Souverain
-						</span>
-					</div>
+					<h1 class="text-xl sm:text-2xl font-bold tracking-tight text-foreground">
+						Nouveau Projet
+					</h1>
 					<p class="text-xs sm:text-sm text-muted-foreground mt-0.5">
-						Cadrage du projet, stratégie d'architecture, versement des documents amonts et assignation de l'équipe
+						Cadrage, stratégie d'architecture, documents amonts et équipe
 					</p>
 				</div>
 			</div>
@@ -344,16 +338,8 @@
 				href="/workspaces"
 				class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border text-xs font-semibold text-muted-foreground hover:text-foreground hover:bg-muted transition-colors self-start sm:self-center"
 			>
-				<span>← Retour aux Espaces</span>
+				<span>← Retour aux projets</span>
 			</a>
-		</div>
-
-		<!-- Invariant Clé Rappelé -->
-		<div class="pt-3 border-t text-xs text-muted-foreground leading-relaxed flex items-center gap-2">
-			<ShieldCheck class="h-4 w-4 text-emerald-600 shrink-0" />
-			<span>
-				<strong>Règle d'or Archinex :</strong> Seule la base de connaissances s'enrichit au fil des engagements et reste <strong>commune et valide de facto</strong> pour l'ensemble des projets.
-			</span>
 		</div>
 	</div>
 
@@ -443,7 +429,7 @@
 			<div class="space-y-6">
 				<div class="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
 					<div class="space-y-1.5 sm:col-span-2">
-						<label for="step1-title" class="font-bold text-foreground">Titre du Projet / Contexte de Réflexion *</label>
+						<label for="step1-title" class="font-bold text-foreground">Titre du projet *</label>
 						<input
 							id="step1-title"
 							type="text"
@@ -763,9 +749,9 @@
 			<div class="space-y-6 text-xs">
 				<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
 					<div>
-						<h3 class="text-sm font-bold text-foreground">Équipe Projet & Experts Habilités</h3>
+						<h3 class="text-sm font-bold text-foreground">Équipe projet & experts</h3>
 						<p class="text-xs text-muted-foreground mt-0.5">
-							Identifiez les architectes en charge des controverses dialectiques et de l'approbation formelle des énoncés
+							Architectes et experts participant au projet
 						</p>
 					</div>
 					<button

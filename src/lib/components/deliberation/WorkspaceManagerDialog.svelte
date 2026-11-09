@@ -86,19 +86,11 @@
 						<FolderKanban class="h-5 w-5" />
 					</div>
 					<div>
-						<div class="flex items-center gap-2">
-							<h2 class="text-base sm:text-lg font-bold">
-								Gestion des Espaces de Travail & Projets
-							</h2>
-							<span
-								class="inline-flex items-center gap-1 rounded bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/25 px-2 py-0.5 text-[10px] font-semibold"
-							>
-								<ShieldCheck class="h-3 w-3" />
-								100% Souverain & Local
-							</span>
-						</div>
+						<h2 class="text-base sm:text-lg font-bold">
+							Gérer les Projets
+						</h2>
 						<p class="text-xs text-muted-foreground mt-0.5">
-							Basculez, archivez ou supprimez vos projets. La base de connaissance reste commune et enrichie de facto.
+							Basculez, archivez, exportez ou supprimez vos projets.
 						</p>
 					</div>
 				</div>

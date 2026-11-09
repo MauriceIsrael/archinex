@@ -10,25 +10,25 @@
  *   the initial bundle small.
  */
 
-import { register, init, getLocaleFromNavigator, waitLocale } from 'svelte-i18n';
+import { addMessages, init, waitLocale } from 'svelte-i18n';
 import en from './locales/en.json';
+import fr from './locales/fr-FR.json';
+import es from './locales/es.json';
+import enUK from './locales/en-UK.json';
 
-// ── Step 1: Register locales ───────────────────────────────────────────────
-// Static for default locale (best for SSR speed)
-register('en',    () => Promise.resolve(en));
-register('en-US', () => Promise.resolve(en));
-
-// Dynamic for others (best for bundle size)
-register('fr',    () => import('./locales/fr-FR.json'));
-register('fr-FR', () => import('./locales/fr-FR.json'));
-register('es',    () => import('./locales/es.json'));
-register('en-UK', () => import('./locales/en-UK.json'));
-register('en-GB', () => import('./locales/en-UK.json'));
+// ── Step 1: Synchronously register all locales so SSR + Vite HMR stay in sync ─
+addMessages('en', en);
+addMessages('en-US', en);
+addMessages('fr', fr);
+addMessages('fr-FR', fr);
+addMessages('es', es);
+addMessages('en-UK', enUK);
+addMessages('en-GB', enUK);
 
 // ── Step 2: Initialize ─────────────────────────────────────────────────────
 init({
-  fallbackLocale: 'en',
-  initialLocale: 'en', // Force 'en' during SSR for maximum speed
+  fallbackLocale: 'fr-FR',
+  initialLocale: 'fr-FR',
 });
 
 export { waitLocale };

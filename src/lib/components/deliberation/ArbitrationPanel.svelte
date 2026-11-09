@@ -133,7 +133,7 @@
 				return;
 			}
 
-			successMessage = 'Arbitrage opposable scellé avec succès (Niveau L3_decided).';
+			successMessage = 'Arbitrage opposable scellé avec succès (Niveau L3 · Décidé).';
 			onDecisionMade();
 		} catch (err: any) {
 			errorMessage = err.message || 'Erreur réseau lors de l’arbitrage.';
@@ -152,10 +152,10 @@
 			</div>
 			<div>
 				<h3 class="font-semibold text-foreground text-base flex items-center gap-2">
-					Porte d'Arbitrage Opposable (G3)
+					Arbitrage d'architecture
 					{#if decision}
 						<span class="inline-flex items-center gap-1 text-xs px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 font-semibold border border-emerald-500/30">
-							<Lock class="w-3 h-3" /> Décision Scellée (L3_decided)
+							<Lock class="w-3 h-3" /> Décision scellée (L3 · Décidé)
 						</span>
 					{:else if maturityResult?.readyForArbitration}
 						<span class="inline-flex items-center gap-1 text-xs px-2.5 py-0.5 rounded-full bg-emerald-500/15 text-emerald-600 font-semibold border border-emerald-500/30">
@@ -168,7 +168,7 @@
 					{/if}
 				</h3>
 				<p class="text-xs text-muted-foreground mt-0.5">
-					Niveau calculé : <span class="font-mono font-medium text-foreground">{maturityResult?.level || 'L0_named'}</span>
+					Niveau calculé : <span class="font-mono font-medium text-foreground">{(maturityResult?.level || 'L0_named').split('_')[0]}</span>
 					{#if maturityResult?.blockers?.length}
 						· <span class="text-amber-600 font-medium">{maturityResult.blockers.length} condition(s) bloquante(s)</span>
 					{/if}
@@ -182,7 +182,7 @@
 		<div class="p-4 rounded-xl border border-amber-500/30 bg-amber-500/5 space-y-3">
 			<div class="flex items-center gap-2 text-amber-600 font-semibold text-sm">
 				<ShieldAlert class="w-4 h-4 shrink-0" />
-				Conditions préalables requises avant arbitrage (Porte G3) :
+				Conditions préalables avant arbitrage :
 			</div>
 			<ul class="space-y-2 text-xs">
 				{#each maturityResult.blockers as blocker}
@@ -466,7 +466,7 @@
 			<div class="flex items-center justify-between pt-2">
 				<p class="text-[11px] text-muted-foreground flex items-center gap-1.5">
 					<Info class="w-3.5 h-3.5" />
-					L'arbitrage scelle le passage à L3_decided et valide les énoncés dérivés comme relus par l'humain.
+					L'arbitrage scelle le passage au niveau L3 · Décidé et valide les énoncés dérivés comme relus par l'humain.
 				</p>
 
 				<button

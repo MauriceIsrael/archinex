@@ -452,7 +452,7 @@
 				body: JSON.stringify({ action: 'validate', ...(event.detail || event) })
 			});
 			if (res.ok) {
-				deliberationStore.logNotification('Paquet de Décision Exécutable validé (G3) !', 'success');
+				deliberationStore.logNotification('Paquet de décision exécutable validé !', 'success');
 				await loadEdpForSubject();
 			}
 		} catch (e: any) {
@@ -913,7 +913,7 @@
 					deliberationStore.requestFormalDecision(subjectId);
 				} else {
 					deliberationStore.logNotification(
-						'Consultez la carte d’affirmation K16 et les faits K18 dans le volet Options, Matrice & Arbitrage.',
+						'Consultez la carte de co-signature et les faits d\'architecture dans le volet Options, Matrice & Arbitrage.',
 						'info'
 					);
 				}
@@ -1332,10 +1332,10 @@
 								}, 80);
 							}}
 							class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold transition-colors cursor-pointer shadow-2xs"
-							title="Préparer et transmettre les candidats de capitalisation à LLMOps (Porte G4)"
+							title="Préparer et transmettre les candidats de capitalisation au Knowledge Hub"
 						>
 							<Database class="h-3.5 w-3.5" />
-							<span>Candidats KB (G4)</span>
+							<span>Capitaliser</span>
 						</button>
 
 						<button
@@ -1346,7 +1346,7 @@
 							}}
 							class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-emerald-500/35 bg-background text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/15 text-xs font-semibold transition-colors cursor-pointer shadow-2xs"
 						>
-							<span>Matrice & Faits K18 →</span>
+							<span>Matrice & Faits →</span>
 						</button>
 					</div>
 				</div>

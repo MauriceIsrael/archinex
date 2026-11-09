@@ -22,6 +22,7 @@
   import Database from 'lucide-svelte/icons/database';
   import ShieldCheck from 'lucide-svelte/icons/shield-check';
   import ChevronDown from 'lucide-svelte/icons/chevron-down';
+  import FolderKanban from 'lucide-svelte/icons/folder-kanban';
 
 
   import { Button } from '$lib/components/ui/button';
@@ -73,16 +74,15 @@
 
   /**
    * Progressive Knowledge Hub sub-menus organized by ergonomic stage:
-   * 1. Visualisation & Exploration (Consultation)
+   * 1. Exploration (Consultation)
    * 2. Doctrine & Rédaction (Élaboration)
-   * 3. Validation & Évaluation (Homologation & Publication — Portes G5 → G6 → G7)
+   * 3. Validation & Publication (Homologation & Publication)
    */
   interface KnowledgeHubItem {
     href: string;
     labelKey: string;
     defaultLabel: string;
     icon: any;
-    gate?: string;
   }
 
   interface KnowledgeHubGroup {
@@ -96,11 +96,11 @@
     {
       id: 'visualisation',
       labelKey: 'nav.kbGroupVisualisation',
-      defaultLabel: '1. Visualisation & Exploration',
+      defaultLabel: '1. Exploration',
       items: [
-        { href: '/knowledge',     labelKey: 'nav.knowledge',    defaultLabel: 'Base de Connaissance',      icon: Network,     gate: undefined },
-        { href: '/kb/me',         labelKey: 'nav.kbMe',         defaultLabel: 'Profil Expert KB',          icon: Shield,      gate: undefined },
-        { href: '/kb/frameworks', labelKey: 'nav.kbFrameworks', defaultLabel: 'Référentiels & Couverture', icon: FileText,    gate: undefined },
+        { href: '/knowledge',     labelKey: 'nav.knowledge',    defaultLabel: 'Base de Connaissance',      icon: Network },
+        { href: '/kb/me',         labelKey: 'nav.kbMe',         defaultLabel: 'Mon profil expert',         icon: Shield },
+        { href: '/kb/frameworks', labelKey: 'nav.kbFrameworks', defaultLabel: 'Référentiels & Couverture', icon: FileText },
       ],
     },
     {
@@ -108,18 +108,18 @@
       labelKey: 'nav.kbGroupDoctrine',
       defaultLabel: '2. Doctrine & Rédaction',
       items: [
-        { href: '/kb/workshop',   labelKey: 'nav.kbWorkshop',   defaultLabel: 'Atelier de Doctrine',       icon: Sparkles,    gate: undefined },
-        { href: '/kb/clauses',    labelKey: 'nav.kbClauses',    defaultLabel: 'Clauses vérifiables',       icon: ShieldCheck, gate: undefined },
+        { href: '/kb/workshop',   labelKey: 'nav.kbWorkshop',   defaultLabel: 'Atelier de doctrine',       icon: Sparkles },
+        { href: '/kb/clauses',    labelKey: 'nav.kbClauses',    defaultLabel: 'Clauses vérifiables',       icon: ShieldCheck },
       ],
     },
     {
       id: 'validation',
       labelKey: 'nav.kbGroupValidation',
-      defaultLabel: '3. Validation & Évaluation',
+      defaultLabel: '3. Validation & Publication',
       items: [
-        { href: '/kb/reviews',    labelKey: 'nav.kbReviews',    defaultLabel: 'Boîte de Revue KB',              icon: Inbox,       gate: 'G5' },
-        { href: '/kb/evals',      labelKey: 'nav.kbEvals',      defaultLabel: "Banc d'Évaluation KB",           icon: CheckCircle, gate: 'G6' },
-        { href: '/kb/dashboard',  labelKey: 'nav.kbDashboard',  defaultLabel: 'Tableau de Bord & Publication',  icon: Database,    gate: 'G7' },
+        { href: '/kb/reviews',    labelKey: 'nav.kbReviews',    defaultLabel: 'Boîte de revue',             icon: Inbox },
+        { href: '/kb/evals',      labelKey: 'nav.kbEvals',      defaultLabel: "Banc d'évaluation",          icon: CheckCircle },
+        { href: '/kb/dashboard',  labelKey: 'nav.kbDashboard',  defaultLabel: 'Gouvernance & Publication',  icon: Database },
       ],
     },
   ];
@@ -276,12 +276,6 @@
                             <SubIcon class="h-3.5 w-3.5 shrink-0" />
                             <span class="truncate">{$t(sub.labelKey, { default: sub.defaultLabel })}</span>
                           </span>
-                          {#if sub.gate}
-                            <span class="shrink-0 rounded px-1 py-0.2 text-[10px] font-semibold
-                                         {subActive ? 'bg-primary-foreground/20 text-primary-foreground' : 'bg-muted text-muted-foreground'}">
-                              {sub.gate}
-                            </span>
-                          {/if}
                         </a>
                       {/each}
                     {/each}
@@ -362,6 +356,24 @@
     <span class="text-lg font-bold tracking-tight truncate">
       {$t('app.title', { default: 'archinex' })}
     </span>
+
+    <!-- Rappel compact de l'engagement actif (cliquable vers /workspaces) -->
+    {#if deliberationStore.activeEngagement}
+      <a
+        href="/workspaces"
+        data-testid="active-engagement-pill"
+        title="Engagement actif : {deliberationStore.activeEngagement.title} — Cliquer pour changer d'espace de travail"
+        class="hidden sm:inline-flex items-center gap-2 rounded-lg border bg-muted/40 hover:bg-muted px-2.5 py-1 text-xs transition-colors max-w-xs lg:max-w-md truncate"
+      >
+        <FolderKanban class="h-3.5 w-3.5 text-primary shrink-0" />
+        <span class="font-semibold text-foreground truncate">
+          {deliberationStore.activeEngagement.title}
+        </span>
+        <span class="rounded bg-primary/10 text-primary px-1.5 py-0.2 font-mono text-[10px] font-bold shrink-0">
+          {deliberationStore.activeEngagement.badge}
+        </span>
+      </a>
+    {/if}
 
     <!-- Right-side controls -->
     <div class="ml-auto flex items-center gap-1">
@@ -463,11 +475,6 @@
                           <SubIcon class="h-4 w-4 text-primary shrink-0" />
                           <span class="truncate">{$t(sub.labelKey, { default: sub.defaultLabel })}</span>
                         </span>
-                        {#if sub.gate}
-                          <span class="ml-2 rounded bg-muted px-1 py-0.5 text-[10px] font-semibold text-muted-foreground">
-                            {sub.gate}
-                          </span>
-                        {/if}
                       </DropdownMenu.Item>
                     {/each}
                   {/each}
@@ -510,12 +517,6 @@
                             <SubIcon class="h-3.5 w-3.5 shrink-0" />
                             <span class="truncate">{$t(sub.labelKey, { default: sub.defaultLabel })}</span>
                           </span>
-                          {#if sub.gate}
-                            <span class="shrink-0 rounded px-1 py-0.2 text-[10px] font-semibold
-                                         {subActive ? 'bg-primary-foreground/20 text-primary-foreground' : 'bg-muted text-muted-foreground'}">
-                              {sub.gate}
-                            </span>
-                          {/if}
                         </a>
                       {/each}
                     {/each}

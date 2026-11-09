@@ -53,11 +53,9 @@
 
 <div class="space-y-4">
 	<!-- ═════════════════════════════════════════════════════════════════════════ -->
-	<!-- EN-TÊTE SUPÉRIEUR : SÉLECTEUR DE PROJET & 4 GRANDS ONGLETS DE PHASE       -->
+	<!-- EN-TÊTE SUPÉRIEUR 2 NIVEAUX : PROJET (Cadrage & Tableau) vs SUJET (Focus) -->
 	<!-- ═════════════════════════════════════════════════════════════════════════ -->
-	{#if deliberationStore.deliberationViewMode === 'board' || deliberationStore.activePosture !== 'deliberation'}
-		<ProjectEngagementHeader isExperimentalEnabled={data?.isExperimentalEnabled} />
-	{/if}
+	<ProjectEngagementHeader isExperimentalEnabled={data?.isExperimentalEnabled} />
 
 	<!-- ═════════════════════════════════════════════════════════════════════════ -->
 	<!-- PHASE 1 : APPROPRIATION DOCUMENTAIRE                                       -->
@@ -73,75 +71,15 @@
 	<!-- ═════════════════════════════════════════════════════════════════════════ -->
 	{:else if deliberationStore.activePosture === 'deliberation'}
 		<div class="space-y-3 animate-in fade-in duration-150">
-			<!-- Tableau de bord opérationnel & KPIs de Délibération (affiché en vue Board) -->
+			<!-- 1. Vue Tableau de maturité (Périmètre Projet) -->
 			{#if deliberationStore.deliberationViewMode === 'board'}
 				<DeliberationDashboardKpis />
-			{/if}
-
-			<!-- Sélecteur de mode Délibération : Vue d'ensemble (Tableau) vs Délibération par sujet (Workbench) -->
-			<div class="flex items-center justify-between gap-3 bg-muted/30 p-1.5 rounded-xl border">
-				<div class="flex items-center gap-1.5">
-					<button
-						type="button"
-						onclick={() => deliberationStore.setDeliberationViewMode('board')}
-						class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer {deliberationStore.deliberationViewMode ===
-						'board'
-							? 'bg-background text-foreground shadow-xs border'
-							: 'text-muted-foreground hover:text-foreground'}"
-					>
-						<Layers class="h-3.5 w-3.5 text-primary" />
-						<span>Tableau de maturité (Vue d'ensemble)</span>
-					</button>
-
-					<button
-						type="button"
-						onclick={() => deliberationStore.setDeliberationViewMode('conversation')}
-						class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer {deliberationStore.deliberationViewMode ===
-						'conversation'
-							? 'bg-background text-foreground shadow-xs border'
-							: 'text-muted-foreground hover:text-foreground'}"
-					>
-						<MessagesSquare class="h-3.5 w-3.5 text-primary" />
-						<span>
-							Fil de délibération
-							{#if deliberationStore.activeSubject}
-								· <span class="font-normal font-mono">{deliberationStore.activeSubject.section_ref}</span>
-							{/if}
-						</span>
-					</button>
-				</div>
-
-				<div class="flex items-center gap-1.5 flex-wrap">
-					<button
-						type="button"
-						onclick={() => deliberationStore.setPosture('rendu')}
-						class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border bg-background hover:bg-muted text-foreground transition-colors cursor-pointer"
-					>
-						<CheckCircle2 class="h-3.5 w-3.5 text-emerald-500" />
-						<span>Phase 3 : Rendu HLD →</span>
-					</button>
-					{#if data?.isExperimentalEnabled}
-						<button
-							type="button"
-							data-testid="goto-phase4-refinement-btn"
-							onclick={() => deliberationStore.setPosture('refinement')}
-							class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-indigo-600 hover:bg-indigo-700 text-white shadow-xs transition-colors cursor-pointer"
-						>
-							<Cpu class="h-3.5 w-3.5" />
-							<span>🧪 Phase 4 : Refinement & Hydratation →</span>
-						</button>
-					{/if}
-				</div>
-			</div>
-
-			<!-- 1. Vue Tableau de maturité -->
-			{#if deliberationStore.deliberationViewMode === 'board'}
 				<div class="space-y-4">
 					<MaturityBoardTable
 						onOpenSubject={() => deliberationStore.setDeliberationViewMode('conversation')}
 					/>
 				</div>
-			<!-- 2. Vue Délibération par sujet : Arbre à gauche + Espace Sujet Unifié à droite -->
+			<!-- 2. Vue Délibération par sujet (Périmètre Sujet) -->
 			{:else}
 				<div class="space-y-4">
 					<DeliberationWorkbench

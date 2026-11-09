@@ -350,7 +350,7 @@
 		if (!activeSubject) return;
 		activeTab = 'arbitration';
 		deliberationStore.logNotification(
-			'La capitalisation s’effectue désormais via la Porte G4 dans l’onglet Arbitrage & Capitalisation.',
+			'La capitalisation s’effectue dans l’onglet Arbitrage & Capitalisation.',
 			'info'
 		);
 	}
@@ -477,16 +477,16 @@
 						{/if}
 					</button>
 
-					<!-- Raccourci vers la capitalisation (Porte G4) -->
+					<!-- Raccourci vers la capitalisation -->
 					{#if draft.retenu.length > 0}
 						<button
 							type="button"
 							class="inline-flex items-center gap-1 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white px-2.5 py-1 text-xs font-semibold shadow-2xs transition-colors shrink-0 cursor-pointer"
 							onclick={openCapitalization}
-							title="Capitaliser les décisions validées de ce sujet dans la base de connaissances (Porte G4)"
+							title="Capitaliser les décisions validées de ce sujet dans la base de connaissances"
 						>
 							<Database class="h-3.5 w-3.5 text-indigo-200" />
-							<span>Capitaliser (G4)</span>
+							<span>Capitaliser</span>
 						</button>
 					{/if}
 				{/if}
@@ -548,7 +548,7 @@
 				: 'text-muted-foreground hover:text-foreground'}"
 		>
 			<Gavel class="h-3.5 w-3.5 text-emerald-500" />
-			<span>4. Arbitrage G3 & Capitalisation G4 {#if matrixDecision}✅{:else if subjectMaturityResult?.readyForArbitration}⚡{/if}</span>
+			<span>4. Arbitrage & Capitalisation {#if matrixDecision}✅{:else if subjectMaturityResult?.readyForArbitration}⚡{/if}</span>
 		</button>
 	</div>
 	{/if}
@@ -771,7 +771,7 @@
 						<div class="rounded-xl border border-dashed p-4 bg-card text-center space-y-3">
 							<div class="flex flex-col items-center justify-center space-y-1">
 								<Scale class="h-6 w-6 text-primary" />
-								<h4 class="text-xs font-bold text-foreground">Matrice Multi-Critères (Lot A2)</h4>
+								<h4 class="text-xs font-bold text-foreground">Matrice multicritères</h4>
 								<p class="text-[11px] text-muted-foreground max-w-md">
 									Ce sujet ne dispose pas encore de critères d'évaluation ni d'options normalisées. Vous pouvez lancer l'élicitation automatique (3 critères, 3 options) ou convertir la variante existante.
 								</p>

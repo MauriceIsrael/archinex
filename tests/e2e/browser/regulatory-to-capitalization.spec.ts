@@ -28,16 +28,16 @@ test.describe.serial('Parcours E2E Navigateur : Réglementation → RFP → Dél
     const page = await context.newPage();
 
     await page.goto('/kb/dashboard');
-    await expect(page.locator('h1')).toContainText('Tableau de Bord de Gouvernance KB');
+    await expect(page.locator('h1')).toContainText('Tableau de Bord de Gouvernance');
 
     // Vérification de l'absence du bandeau de stockage éphémère (mode persistant actif)
     await expect(page.locator('text=Mode Stockage Éphémère (Démo) Détecté')).not.toBeVisible();
 
     // Vérification des 4 compteurs et de la couverture initiale
     await expect(page.locator('text=Doctrine Active')).toBeVisible();
-    await expect(page.locator('text=Boîte de Revue (G5)')).toBeVisible();
+    await expect(page.locator('text=Revues en attente')).toBeVisible();
     await expect(page.locator('text=Couverture Référentiels')).toBeVisible();
-    await expect(page.locator('text=Rappel Benchmark (G6)')).toBeVisible();
+    await expect(page.locator('text=Taux de rappel')).toBeVisible();
 
     // Audit d'accessibilité avec axe-core (0 violation critique)
     const axeResults = await new AxeBuilder({ page }).analyze();
@@ -56,7 +56,7 @@ test.describe.serial('Parcours E2E Navigateur : Réglementation → RFP → Dél
     await expect(page.locator('text=Démonstration E2E Réglementation vers Capitalisation')).toBeVisible();
 
     // Passer en Phase 1 : Appropriation Documentaire
-    await page.locator('button:has-text("Appropriation Documentaire")').click();
+    await page.locator('[data-testid="phase-tab-appropriation"]').click();
 
     // Ouverture du modal de dépouillement RFP via LLMOps
     const shredBtn = page.locator('[data-testid="btn-open-rfp-shredder"], button:has-text("Dépouillement CCTP · RFP Shredder")');
@@ -233,7 +233,7 @@ test.describe.serial('Parcours E2E Navigateur : Réglementation → RFP → Dél
     await page.goto('/deliberation', { waitUntil: 'networkidle' });
 
     // Passer en Phase 1 : Appropriation Documentaire
-    await page.locator('button:has-text("Appropriation Documentaire")').click();
+    await page.locator('[data-testid="phase-tab-appropriation"]').click();
 
     // Réouverture du dialogue de confrontation RFP
     const shredBtn = page.locator('[data-testid="btn-open-rfp-shredder"], button:has-text("Dépouillement CCTP · RFP Shredder")');
@@ -449,7 +449,7 @@ Sites with on-site hands available around the clock.
     // Vérification sur le tableau de bord de la dernière release scellée
     await page.goto('/kb/dashboard');
     await page.waitForLoadState('networkidle');
-    await expect(page.locator('h1')).toContainText('Tableau de Bord de Gouvernance KB');
+    await expect(page.locator('h1')).toContainText('Tableau de Bord de Gouvernance');
     await expect(page.locator('text=Doctrine Active')).toBeVisible();
 
     await page.screenshot({ path: 'tests/e2e/screenshots/acte-6-boucle-fermee.png', fullPage: true });
@@ -472,7 +472,7 @@ Sites with on-site hands available around the clock.
     await maintPage.goto('/kb/dashboard');
     
     // Le dashboard est stable et ne présente pas d'erreur 500
-    await expect(maintPage.locator('h1')).toContainText('Tableau de Bord de Gouvernance KB');
+    await expect(maintPage.locator('h1')).toContainText('Tableau de Bord de Gouvernance');
     await maintContext.close();
   });
 

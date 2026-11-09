@@ -941,7 +941,7 @@
 					</div>
 				</div>
 
-				<!-- Validation formelle G3 du paquet -->
+				<!-- Validation formelle du paquet -->
 				<div class="pt-3 border-t flex items-center justify-between gap-2 flex-wrap">
 					<div class="text-[11px] text-muted-foreground">
 						Statut du paquet :
@@ -950,11 +950,11 @@
 					<button
 						type="button"
 						disabled={isActionRunning || lastVerdict?.verdict === 'violated'}
-						onclick={() => triggerEdpAction({ action: 'validate' }, 'Paquet Exécutable Multi-Axes homologué (Porte G3) !')}
+						onclick={() => triggerEdpAction({ action: 'validate' }, 'Paquet exécutable multi-axes homologué !')}
 						class="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-bold shadow-xs transition-colors cursor-pointer"
 						data-testid="phase4-validate-btn"
 					>
-						✓ Homologuer le Raffinement & l'EDP (G3)
+						✓ Homologuer le paquet exécutable
 					</button>
 				</div>
 			</div>

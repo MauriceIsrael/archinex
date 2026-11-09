@@ -188,7 +188,7 @@
           </span>
         {:else if edp.metadata?.status === 'stale'}
           <span class="px-2 py-0.5 rounded-full text-xs font-semibold bg-rose-100 text-rose-800 dark:bg-rose-950 dark:text-rose-300" data-testid="status-badge">
-            ⚠️ STALE (CADUC)
+            ⚠️ CADUC
           </span>
         {:else}
           <span class="px-2 py-0.5 rounded-full text-xs font-semibold bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300" data-testid="status-badge">
@@ -201,7 +201,7 @@
     <!-- Alerte Stale si caduc -->
     {#if isStale}
       <div class="mt-3 p-3 bg-rose-50 border border-rose-200 rounded text-xs text-rose-800 dark:bg-rose-950/40 dark:border-rose-900 dark:text-rose-300" data-testid="stale-alert">
-        <strong>⚠️ Paquet d'exécution caduc (Invariant VI) :</strong>
+        <strong>⚠️ Paquet d'exécution caduc :</strong>
         {edp.staleReason || 'Un antécédent d’architecture ou une liaison d’ontologie a été modifié ou invalidé.'}
       </div>
     {/if}
@@ -233,7 +233,7 @@
               on:click={handleValidate}
               data-testid="validate-btn"
             >
-              ✓ Valider le Paquet (G3)
+              ✓ Valider le paquet
             </button>
           {:else if edp.metadata?.status === 'validated'}
             <div class="mt-2 text-[10px] text-emerald-700 dark:text-emerald-300 font-mono truncate">
@@ -482,7 +482,7 @@
         </p>
       </div>
       <div>
-        <p class="text-slate-500 font-medium">Validateur humain (Invariant II) :</p>
+        <p class="text-slate-500 font-medium">Validateur :</p>
         <p class="font-semibold text-slate-800 dark:text-slate-200" data-testid="edp-validator">
           {edp.provenance?.validator ? `${edp.provenance.validator.role} (${edp.provenance.validator.id})` : 'En attente de validation humaine'}
         </p>
@@ -547,7 +547,7 @@
           on:click={() => showChallengeDialog = true}
           data-testid="challenge-btn"
         >
-          ⚠️ Contester (Human Statement)
+          ⚠️ Contester
         </button>
       </div>
 
@@ -558,7 +558,7 @@
             class="px-3 py-1.5 text-xs font-semibold rounded bg-emerald-600 text-white hover:bg-emerald-700 shadow-sm transition-colors cursor-pointer"
             on:click={handleValidate}
           >
-            ✓ Valider le Paquet (G3)
+            ✓ Valider le paquet
           </button>
         {:else if isStale}
           <span class="text-xs text-slate-400 italic">Validation désactivée (paquet caduc)</span>

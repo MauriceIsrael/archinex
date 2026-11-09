@@ -9,25 +9,23 @@ async function main() {
 	const evalResultPath = resolve(repoRoot, 'eval-results/resultat-1.json');
 	const outPath = resolve(repoRoot, 'examples/lulu-noc/factorization-result.json');
 
-	let factorized: FactorizationResponse;
-
-	if (existsSync(evalResultPath)) {
-		console.log(`[build-lulu-demo] Lecture de ${evalResultPath}...`);
-		const raw = JSON.parse(readFileSync(evalResultPath, 'utf-8'));
-		factorized = toFactorizationResponse({
-			report: raw.report,
-			subjects: raw.subjects,
-			warnings: raw.warnings || [],
-			modelUsed: raw.model || 'claude-sonnet-5-5'
-		});
-		writeFileSync(outPath, JSON.stringify(factorized, null, 2), 'utf-8');
-		console.log(`[build-lulu-demo] ✅ Sauvegardé dans ${outPath} (${factorized.totalClauses} clauses)`);
-	} else if (existsSync(outPath)) {
-		console.log(`[build-lulu-demo] Utilisation du snapshot de référence ${outPath}...`);
-		factorized = JSON.parse(readFileSync(outPath, 'utf-8')) as FactorizationResponse;
-	} else {
-		throw new Error(`Aucune source trouvée pour la factorisation : ni ${evalResultPath} ni ${outPath}`);
+	if (!existsSync(evalResultPath)) {
+		throw new Error(
+			`[build-lulu-demo] Fichier source d'évaluation requis introuvable : ${evalResultPath}. ` +
+			`Aucun fallback silencieux n'est autorisé. Pour générer ce fichier, exécutez d'abord l'évaluation réelle (npm run eval:requirements).`
+		);
 	}
+
+	console.log(`[build-lulu-demo] Lecture de ${evalResultPath}...`);
+	const raw = JSON.parse(readFileSync(evalResultPath, 'utf-8'));
+	const factorized: FactorizationResponse = toFactorizationResponse({
+		report: raw.report,
+		subjects: raw.subjects,
+		warnings: raw.warnings || [],
+		modelUsed: raw.model || 'claude-sonnet-5-5'
+	});
+	writeFileSync(outPath, JSON.stringify(factorized, null, 2), 'utf-8');
+	console.log(`[build-lulu-demo] ✅ Sauvegardé dans ${outPath} (${factorized.totalClauses} clauses)`);
 
 	// Initialisation dans Prisma
 	const prisma = createPrismaClient();

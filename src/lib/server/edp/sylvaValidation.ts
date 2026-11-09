@@ -12,7 +12,7 @@ function getValidator(): ReturnType<Ajv['compile']> {
   }
   const schemaPath = resolve(
     process.cwd(),
-    'tests/fixtures/sylva/sylva-workload-cluster.schema.json'
+    'src/lib/schemas/sylva-workload-cluster.schema.json'
   );
   if (!existsSync(schemaPath)) {
     throw new Error(`Sylva JSON Schema not found at: ${schemaPath}`);

@@ -2,8 +2,9 @@ import { readFileSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { execSync } from 'node:child_process';
 import { describe, it, expect } from 'vitest';
+import { loadOntologyCatalog } from '$lib/server/edp/ontologyClient';
 
-describe('Isolation de la Persistance et Pureté du Code (Issue #252)', () => {
+describe('Isolation de la Persistance et Pureté du Code (Issue #252 & #253)', () => {
 	const repoRoot = process.cwd();
 
 	it('.gitignore contient les règles d’exclusion des artefacts de run et persistance', () => {
@@ -56,5 +57,33 @@ describe('Isolation de la Persistance et Pureté du Code (Issue #252)', () => {
 		} catch (e: any) {
 			expect(e.stdout ? e.stdout.trim() : '').toBe('');
 		}
+	});
+
+	describe('Interdiction absolue des fallbacks gracieux et mocks masqués (Règles de codage)', () => {
+		it('lève une erreur explicite sans fallback si le Knowledge Hub configuré est inaccessible', async () => {
+			await expect(
+				loadOntologyCatalog({ hubUrl: 'http://127.0.0.1:54321/hub-down' })
+			).rejects.toThrow(/Knowledge Hub indisponible.*Aucun repli silencieux autorisé/);
+		});
+
+		it('refuse de charger silencieusement une fixture en production si aucun Hub n’est configuré', async () => {
+			const originalNodeEnv = process.env.NODE_ENV;
+			const originalVitest = process.env.VITEST;
+			const originalLlmopsUrl = process.env.LLMOPS_BASE_URL;
+
+			try {
+				process.env.NODE_ENV = 'production';
+				delete (process.env as any).VITEST;
+				delete (process.env as any).LLMOPS_BASE_URL;
+
+				await expect(loadOntologyCatalog()).rejects.toThrow(
+					/Aucun Knowledge Hub configuré.*aucun mock en dur ni repli gracieux n'est autorisé en production/
+				);
+			} finally {
+				process.env.NODE_ENV = originalNodeEnv;
+				if (originalVitest !== undefined) process.env.VITEST = originalVitest;
+				if (originalLlmopsUrl !== undefined) process.env.LLMOPS_BASE_URL = originalLlmopsUrl;
+			}
+		});
 	});
 });

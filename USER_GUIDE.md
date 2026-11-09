@@ -51,7 +51,7 @@ Lorsqu'un sujet est sélectionné dans l'arbre de gauche, tout l'écran de droit
 3. Le sujet passe du niveau `L0_named` au niveau `L1_framed`.
 
 ### Étape 2 : Critères & Alternatives Contrastées (Onglet 1)
-1. **Critères** : Ajoutez au moins deux critères pondérés (technique, réglementaire/sécurité, coût, résilience).
+1. **Critères** : Ajoutez au moins deux critères pondérés (technique, réglementaire/sécurité, coût, résilience). Les critères saisis s'affichent immédiatement en lignes dans la matrice (même avant la saisie d'options), et la carte de jalon *« Critères de choix définis »* passe instantanément au vert dès le deuxième critère enregistré.
 2. **Options** : Formulez au moins deux options d'architecture viables. Vous pouvez saisir une alternative manuellement ou solliciter l'agent *Proposer* pour compléter la matrice.
 3. **Matrice d'Évaluation** : Notez chaque option sur l'échelle [-2; +2] avec une justification textuelle concise. Dès que toutes les options sont évaluées, le sujet atteint le niveau `L2_decomposed`. Chaque colonne d'option présente un badge distinctif (`Option A`, `Option B`), un titre complet enveloppé sur plusieurs lignes (sans tronquage) et un bouton d'information « Détails » dépliant son résumé technique.
 

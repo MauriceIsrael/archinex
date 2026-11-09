@@ -1,6 +1,6 @@
-import { readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { toFactorizationResponse } from '../src/lib/server/ingest/arckitRequirementsPipeline';
+import { toFactorizationResponse, type FactorizationResponse } from '../src/lib/server/ingest/arckitRequirementsPipeline';
 import { createPrismaClient } from '../src/lib/server/prismaFactory';
 import { seedProject } from './seed';
 
@@ -9,18 +9,25 @@ async function main() {
 	const evalResultPath = resolve(repoRoot, 'eval-results/resultat-1.json');
 	const outPath = resolve(repoRoot, 'examples/lulu-noc/factorization-result.json');
 
-	console.log(`[build-lulu-demo] Lecture de ${evalResultPath}...`);
-	const raw = JSON.parse(readFileSync(evalResultPath, 'utf-8'));
+	let factorized: FactorizationResponse;
 
-	const factorized = toFactorizationResponse({
-		report: raw.report,
-		subjects: raw.subjects,
-		warnings: raw.warnings || [],
-		modelUsed: raw.model || 'claude-sonnet-5-5'
-	});
-
-	writeFileSync(outPath, JSON.stringify(factorized, null, 2), 'utf-8');
-	console.log(`[build-lulu-demo] ✅ Sauvegardé dans ${outPath} (${factorized.totalClauses} clauses)`);
+	if (existsSync(evalResultPath)) {
+		console.log(`[build-lulu-demo] Lecture de ${evalResultPath}...`);
+		const raw = JSON.parse(readFileSync(evalResultPath, 'utf-8'));
+		factorized = toFactorizationResponse({
+			report: raw.report,
+			subjects: raw.subjects,
+			warnings: raw.warnings || [],
+			modelUsed: raw.model || 'claude-sonnet-5-5'
+		});
+		writeFileSync(outPath, JSON.stringify(factorized, null, 2), 'utf-8');
+		console.log(`[build-lulu-demo] ✅ Sauvegardé dans ${outPath} (${factorized.totalClauses} clauses)`);
+	} else if (existsSync(outPath)) {
+		console.log(`[build-lulu-demo] Utilisation du snapshot de référence ${outPath}...`);
+		factorized = JSON.parse(readFileSync(outPath, 'utf-8')) as FactorizationResponse;
+	} else {
+		throw new Error(`Aucune source trouvée pour la factorisation : ni ${evalResultPath} ni ${outPath}`);
+	}
 
 	// Initialisation dans Prisma
 	const prisma = createPrismaClient();

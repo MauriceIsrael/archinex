@@ -8,6 +8,17 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Découplage de la Persistance d'État, du Code Applicatif et du Knowledge Hub (Lot A7, Issues #251 & #252)
+- **Exclusion et Purge des Artefacts de Persistance et d'Évaluation du Contrôle de Version (`.gitignore`)** :
+  - Désindexation du suivi Git des rapports et résultats d'évaluation (`eval-results/`), des artefacts de projets locaux (`projects/001-veille-techno/`) et d'un résidu de base de test SQLite binaire (`prisma/prisma/e2e-tmp.db`).
+  - Ajout des règles d'exclusion strictes dans `.gitignore` pour bloquer définitivement tout ajout de bases SQLite (`*.db`, `*.sqlite`, `prisma/**/*.db*`), d'artefacts d'évaluation (`eval-results/`) et d'arborescences de projets locaux (`projects/*`), tout en préservant les répertoires de politiques globales (`projects/000-global/`).
+- **Résilience du Script de Démonstration (`scripts/build-lulu-demo.ts`)** :
+  - Prise en charge transparente de l'exécution hors-ligne en s'appuyant directement sur le snapshot de référence commité (`examples/lulu-noc/factorization-result.json`) dès lors que les fichiers volatils de `eval-results/` ne sont pas présents sur le disque.
+- **Garde-Fou Contractuel d'Isolation (`tests/contract/persistence-isolation-guard.test.ts`)** :
+  - 4 tests de contrat validant l'absence de base de données SQLite binaire dans Git, l'exclusion d'artefacts d'évaluation, le respect du `.gitignore` et l'intégrité de l'arborescence des projets.
+- **Documentation d'Architecture (`ARCHITECTURE.md`)** :
+  - Ajout de la section §10 formalisant le découplage tri-partite entre le Moteur Logiciel Stateless (`archinex`), la Persistance d'État Applicatif (base Prisma PostgreSQL/SQLite) et l'Autorité Doctrinale Souveraine (`LLMOps` via API/MCP).
+
 ### Restauration de l'Encodage UTF-8 et Élimination du Mojibake (USER_GUIDE.md, CHANGELOG.md, engagementsDb.ts)
 - **Correction du double encodage UTF-8 / Windows-1252** :
   - Restauration intégrale des caractères accentués français (`é`, `è`, `à`, `ê`, `ô`, `î`, `ç`), ligatures et symboles typographiques (`—`, `«`, `»`, `·`) altérés par une conversion intempestive UTF-8 → CP1252 → UTF-8 dans `USER_GUIDE.md` (1 143+ occurrences réparées) et `CHANGELOG.md` (2 680+ occurrences réparées).

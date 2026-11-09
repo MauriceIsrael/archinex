@@ -894,3 +894,52 @@ La feuille de route ci-dessous détaille les prochaines étapes d'évolution d'A
      - Maintenir statiquement $N$ répertoires `overlays/site-001` … `overlays/site-500` devient ingérable lors des montées de version globales.
      - Dans ce scénario, Archinex conserve son rôle de **gouvernance amont et d'oracle formel (KAOS + OPA)** mais publie un **Package KRM amont unique (*Blueprint*)** accompagné d'un descripteur **`PackageVariantSet` Nephio**.
      - Les contrôleurs Nephio / Porch prennent alors le relais pour le **fan-out dynamique par sélecteurs de labels** (instanciation et spécialisation automatique de chaque variante site par site selon les capacités matérielles locales déclarées dans l'inventaire Nautobot, injection des IP/VLAN locaux et déploiement progressif par vagues *Canary / Ring Deployment*).
+
+
+---
+
+## 10. Frontière d'Architecture : Découplage Code Engine, État Runtime & Knowledge Hub (Lot A7 / Issue #252)
+
+Afin d'éviter tout couplage anti-pattern entre le code source du moteur applicatif, la persistance vivante des données et le corpus de connaissances doctrinales d'entreprise, le système respecte une stricte séparation en trois tiers étanches :
+
+```mermaid
+flowchart TD
+    subgraph RepoCode["1. Dépôt Git : archinex (Moteur Logiciel Stateless)"]
+        UI["SvelteKit 2 / Svelte 5 SSR & Hydratation"]
+        OPA["Compilateur de Projections OPA / Rego"]
+        Connectors["Connecteurs Nautobot, Sylva, Batfish"]
+        Fixtures["tests/fixtures/ (Mocks figés pour la CI)"]
+    end
+
+    subgraph StateRuntime["2. Persistance d'État Applicatif (Runtime DB & Storage)"]
+        PrismaORM["Prisma ORM (PostgreSQL en prod, SQLite en dev local)"]
+        DB[(Tables SQL : Projects, Topics, Decisions, Votes)]
+        IgnoredFiles[".gitignore : *.db, eval-results/, projects/*"]
+    end
+
+    subgraph SovereignHub["3. Dépôt Git / Service : LLMOps (Knowledge Hub)"]
+        GraphDB[(Dual-Plane Graph DB : Knowledge + Engagement)]
+        DoctrineRegistry["Référentiel Doctrinal, Ontologie SI/Telco, Règles OPA"]
+        GateG4["File de Révision & Capitalisation Souveraine (Porte G4)"]
+    end
+
+    UI <--> PrismaORM
+    PrismaORM <--> DB
+    OPA -.-> Fixtures
+    UI <-->|API REST / MCP / X-Actor-Email| SovereignHub
+```
+
+### 1. Dépôt Applicatif `archinex` (Stateless Engine)
+- **Rôle** : Fournir le moteur d'exécution, l'IHM, les pipelines de délibération, les agents de débat et les compilateurs d'infrastructure.
+- **Principe d'indifférence aux données de production** : Le code applicatif ne contient **aucun artefact d'exécution vivant**, aucun résultat d'évaluation récursive (`eval-results/`), aucun fichier binaire de base de données (`*.db`, `*.sqlite`), ni aucun projet utilisateur en dur.
+- **Fixtures de test étanches** : Seules les fixtures statiques et anonymisées dans `tests/fixtures/` sont versionnées pour garantir l'autonomie totale de la suite de tests unitaires et de contrat (`vitest`, `playwright`).
+
+### 2. Couche de Persistance Runtime (State DB)
+- **Rôle** : Stocker l'état vivant des projets, sessions d'utilisateurs, étapes de délibération, votes du collège et jetons d'authentification.
+- **Support** : Base PostgreSQL managée en production (ou base locale `dev.db` en développement).
+- **Règle Git** : Strictement exclue du contrôle de version. Les tables relationnelles Prisma portent l'ensemble de la mémoire opérationnelle ; aucun commit Git n'est jamais émis pour persister l'état d'un projet utilisateur.
+
+### 3. Knowledge Hub Souverain (`LLMOps`)
+- **Rôle** : Autorité doctrinale souveraine et registre patrimonial de l'architecture d'entreprise.
+- **Support** : Dépôt dédié [`MauriceIsrael/LLMOps`](https://github.com/MauriceIsrael/LLMOps) et service Knowledge Graph servi par MCP / API REST.
+- **Consommation** : Archinex interroge LLMOps pour résoudre l'ontologie d'architecture et les règles de conformité. Lors de la Porte G4 (Capitalisation), les nouveaux assets et amendements sont expédiés vers la file de révision de LLMOps sans dépendance locale.

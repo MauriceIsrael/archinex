@@ -11,6 +11,7 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 ### Export HLD & Interopérabilité Document Engine / Document Studio (Phase 3 « Rendu & Homologation »)
 - **Passerelle d'exportation documentaire Document Engine (`src/lib/server/projects/documentEngineBridge.ts`)** :
   - Traduction sans perte du dossier de conception HLD assemblé sous Archinex vers les contrats `ProjectedGraph` et `Blueprint` du compilateur Document Engine.
+  - Extraction sémantique des diagrammes Mermaid (`parseMermaidToGraphElements`) vers le `ProjectedGraph` et génération de blocs `figure` Document Engine, produisant de véritables diagrammes d'architecture graphiques (vectoriels PNG haute définition avec palettes de composants, typologies et flux) directement incorporés dans les documents Word (`.docx`), accompagnés du code source Mermaid.
   - Structuration du livrable en sections complètes avec synthèse exécutive, tableau de métadonnées du dossier, blocs de décisions formalisées, contexte, exigences rattachées, comparaison des options multicritères et schémas Mermaid C4.
   - Gestion des formats `.docx` (Word typographié avec pagination et styles), `.md` (Markdown pur) et `.pdf`.
   - Résilience et détection de disponibilité de l'API Document Engine (`http://localhost:3001` par défaut, configurable via `DOCUMENT_ENGINE_URL`) avec exception dédiée `DocumentEngineUnavailableError`.

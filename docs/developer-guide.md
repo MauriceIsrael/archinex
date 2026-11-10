@@ -39,13 +39,14 @@ LLM_LOCAL_ENDPOINT="http://localhost:11434"
 # ANTHROPIC_BASE_URL="https://api.anthropic.com"
 ```
 
-### 2.3 Initialisation de la Base de Données
+### 2.3 Initialisation et Restauration de la Base de Données
 ```bash
 npx prisma generate
 npx prisma db push
 npx prisma db seed
 # Ou réinitialisation complète : npm run db:reset
 ```
+Pour la restauration d'une ancienne base SQLite (`.db` ou `.bak`) et la récupération des comptes utilisateurs associés, consultez le [Guide de Restauration de la Base de Données (`docs/backup-restore.md`)](file:///c:/Users/Momo/Documents/Dev/archinex/docs/backup-restore.md).
 
 ### 2.4 Lancement du Serveur de Développement
 ```bash

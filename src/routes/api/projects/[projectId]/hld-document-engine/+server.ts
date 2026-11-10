@@ -45,6 +45,12 @@ export const GET: RequestHandler = async (event) => {
 			}
 		});
 	} catch (err: unknown) {
+		const message = err instanceof Error ? err.message : String(err);
+		console.error(
+			`[hld-document-engine] Erreur compilation (${event.params.projectId}, format=${format}) :`,
+			message
+		);
+
 		if (err instanceof DocumentEngineUnavailableError) {
 			return json(
 				{
@@ -58,7 +64,6 @@ export const GET: RequestHandler = async (event) => {
 			);
 		}
 
-		const message = err instanceof Error ? err.message : String(err);
 		return json(
 			{
 				status: 'error',

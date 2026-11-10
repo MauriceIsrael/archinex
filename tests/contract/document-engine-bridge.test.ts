@@ -132,6 +132,22 @@ describe('Passerelle Document Engine (Bridge)', () => {
 		expect(getDocumentStudioUrl()).toContain('5174');
 	});
 
+	it('normalise les URLs en supprimant les slashs de fin accidentels', () => {
+		const prevEngine = process.env.DOCUMENT_ENGINE_URL;
+		const prevStudio = process.env.DOCUMENT_STUDIO_URL;
+		try {
+			process.env.DOCUMENT_ENGINE_URL = 'http://localhost:3001///';
+			process.env.DOCUMENT_STUDIO_URL = 'http://localhost:5174/';
+			expect(getDocumentEngineUrl()).toBe('http://localhost:3001');
+			expect(getDocumentStudioUrl()).toBe('http://localhost:5174');
+		} finally {
+			if (prevEngine !== undefined) process.env.DOCUMENT_ENGINE_URL = prevEngine;
+			else delete process.env.DOCUMENT_ENGINE_URL;
+			if (prevStudio !== undefined) process.env.DOCUMENT_STUDIO_URL = prevStudio;
+			else delete process.env.DOCUMENT_STUDIO_URL;
+		}
+	});
+
 	it('compile un livrable réel (.docx et .md) face à Document Engine lorsque le service est démarré', async () => {
 		const { compileDossierWithDocumentEngine, checkDocumentEngineHealth } = await import('$lib/server/projects/documentEngineBridge');
 		const health = await checkDocumentEngineHealth(1000);

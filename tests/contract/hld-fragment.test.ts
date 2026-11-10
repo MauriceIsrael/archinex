@@ -113,6 +113,17 @@ describe('Fragment de HLD construit depuis la délibération', () => {
 		expect(md).toContain('```mermaid');
 		expect(md).toContain('flowchart TB');
 	});
+
+	it('embarque automatiquement la chaîne de déploiement sécurisée & homologation dans le fragment et son rendu Markdown', () => {
+		const f = buildHldFragment(base());
+		expect(f.deploymentSequenceMermaid).toBeDefined();
+		expect(f.deploymentSequenceMermaid).toContain('sequenceDiagram');
+
+		const md = renderHldFragmentMarkdown(f);
+		expect(md).toContain('### Chaîne de Déploiement Sécurisée & Homologation');
+		expect(md).toContain('```mermaid');
+		expect(md).toContain('sequenceDiagram');
+	});
 });
 /**
  * Lecture « tableau blanc » : la réponse d'abord, le détail ensuite, et rien qui ne dise ce qu'une décision n'a pas encore dit.

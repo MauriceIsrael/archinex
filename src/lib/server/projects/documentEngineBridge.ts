@@ -30,6 +30,16 @@ export interface DocumentEnginePayload {
 			name: string;
 			itemIds: string[];
 		}>;
+		scenarios?: Array<{
+			id: string;
+			name: string;
+			description?: string;
+			steps: Array<{
+				id: string;
+				relationRef: string;
+				label?: string;
+			}>;
+		}>;
 	};
 	blueprint: {
 		version: string;
@@ -226,9 +236,171 @@ export function parseMermaidToGraphElements(
 }
 
 /**
+ * Extrait les acteurs, participants, interactions et étapes de phases d'un diagramme de séquence Mermaid (`sequenceDiagram`).
+ * Génère les items/relations pour le graphe, la chaîne ordonnée pour `ProjectedScenario` et les lignes tabulaires pour le document Word.
+ */
+export function parseMermaidSequenceToElements(
+	mermaid: string,
+	prefix: string
+): {
+	items: Array<{
+		id: string;
+		kind: string;
+		layer: 'application';
+		attributes: Record<string, unknown>;
+	}>;
+	relations: Array<{
+		id: string;
+		kind: string;
+		sourceId: string;
+		targetId: string;
+		provenance: 'fact';
+	}>;
+	scenario: {
+		id: string;
+		name: string;
+		steps: Array<{
+			id: string;
+			relationRef: string;
+			label: string;
+		}>;
+	};
+	tableRows: string[][];
+} {
+	const items: Array<{
+		id: string;
+		kind: string;
+		layer: 'application';
+		attributes: Record<string, unknown>;
+	}> = [];
+	const relations: Array<{
+		id: string;
+		kind: string;
+		sourceId: string;
+		targetId: string;
+		provenance: 'fact';
+	}> = [];
+	const steps: Array<{
+		id: string;
+		relationRef: string;
+		label: string;
+	}> = [];
+	const tableRows: string[][] = [];
+
+	const seenItems = new Map<string, { id: string; name: string }>();
+
+	const getOrCreateItem = (rawId: string, rawLabel?: string, isActor?: boolean) => {
+		const cleanId = rawId.trim();
+		if (!cleanId || ['autonumber'].includes(cleanId)) return null;
+		const itemId = `${prefix}-${cleanId.toLowerCase()}`;
+		if (!seenItems.has(itemId)) {
+			const cleanName = (rawLabel || cleanId)
+				.replace(/<[^>]*>/g, ' ')
+				.replace(/\s+/g, ' ')
+				.trim();
+			const item = {
+				id: itemId,
+				kind: isActor ? 'Person' : inferKind(cleanName),
+				layer: 'application' as const,
+				attributes: {
+					name: cleanName
+				}
+			};
+			items.push(item);
+			seenItems.set(itemId, { id: itemId, name: cleanName });
+		}
+		return seenItems.get(itemId)!;
+	};
+
+	let currentPhase = 'Processus Nominal';
+	let stepCounter = 1;
+	const lines = mermaid.split('\n');
+
+	for (const line of lines) {
+		const trimmed = line.trim();
+		if (!trimmed || trimmed.startsWith('%%') || trimmed === 'sequenceDiagram' || trimmed === 'autonumber') {
+			continue;
+		}
+
+		// 1. Détection des acteurs et participants (ex: actor MME as MME Tiers (Lot 3))
+		const actorParticipantMatch = trimmed.match(/^(actor|participant)\s+([a-zA-Z0-9_-]+)(?:\s+as\s+(.+))?$/i);
+		if (actorParticipantMatch) {
+			const isActor = actorParticipantMatch[1].toLowerCase() === 'actor';
+			const rawId = actorParticipantMatch[2];
+			const rawLabel = actorParticipantMatch[3] || rawId;
+			getOrCreateItem(rawId, rawLabel, isActor);
+			continue;
+		}
+
+		// 2. Détection des Notes de phase (ex: Note over MME,SecGW: Phase 1 : Négociation IKEv2...)
+		const noteMatch = trimmed.match(/^Note(?:\s+over\s+[^:]+)?:\s*(.+)$/i);
+		if (noteMatch) {
+			currentPhase = noteMatch[1].trim();
+			continue;
+		}
+
+		// 3. Détection des messages et interactions (ex: MME->>SecGW: IKE_SA_INIT..., SecGW-->>MME: SA...)
+		// Noter l'utilisation de [a-zA-Z0-9_]+(?:-[a-zA-Z0-9_]+)* pour éviter d'avaler le premier tiret de -->> ou -->
+		const interactionMatch = trimmed.match(
+			/^([a-zA-Z0-9_]+(?:-[a-zA-Z0-9_]+)*)\s*(?:-->>|->>|-->|->)\s*([a-zA-Z0-9_]+(?:-[a-zA-Z0-9_]+)*)\s*:\s*(.+)$/
+		);
+		if (interactionMatch) {
+			const sourceRaw = interactionMatch[1];
+			const targetRaw = interactionMatch[2];
+			const actionText = interactionMatch[3].trim();
+
+			const sourceItem = getOrCreateItem(sourceRaw, sourceRaw);
+			const targetItem = getOrCreateItem(targetRaw, targetRaw);
+
+			if (sourceItem && targetItem) {
+				const relationId = `${prefix}-seq-rel-${stepCounter}`;
+				relations.push({
+					id: relationId,
+					kind: actionText.slice(0, 50),
+					sourceId: sourceItem.id,
+					targetId: targetItem.id,
+					provenance: 'fact'
+				});
+
+				steps.push({
+					id: `step-${stepCounter}`,
+					relationRef: relationId,
+					label: actionText
+				});
+
+				tableRows.push([
+					String(stepCounter),
+					currentPhase,
+					sourceItem.name,
+					targetItem.name,
+					actionText
+				]);
+
+				stepCounter++;
+			}
+		}
+	}
+
+	return {
+		items,
+		relations,
+		scenario: {
+			id: `scenario-${prefix}`,
+			name: `Chaîne de Déploiement Sécurisée & Homologation`,
+			steps
+		},
+		tableRows
+	};
+}
+
+/**
  * Traduit un fragment HLD Archinex en blocs de Blueprint conformes au contrat Document Engine.
  */
-function fragmentToBlueprintBlocks(frag: HldFragment, viewId?: string): Array<Record<string, unknown>> {
+function fragmentToBlueprintBlocks(
+	frag: HldFragment,
+	viewId?: string,
+	sequenceTableRows?: string[][]
+): Array<Record<string, unknown>> {
 	const blocks: Array<Record<string, unknown>> = [];
 
 	// 1. Décision / Statut
@@ -346,6 +518,33 @@ function fragmentToBlueprintBlocks(frag: HldFragment, viewId?: string): Array<Re
 		});
 	}
 
+	// 6.b. Chaîne de Déploiement Sécurisée & Homologation
+	if (frag.deploymentSequenceMermaid) {
+		blocks.push({
+			type: 'heading',
+			level: 3,
+			text: 'Chaîne de Déploiement Sécurisée & Homologation'
+		});
+		blocks.push({
+			type: 'callout',
+			variant: 'info',
+			text: 'Séquence ordonnancée des jalons de qualification, de validation cryptographique et d homologation continue.'
+		});
+		if (sequenceTableRows && sequenceTableRows.length > 0) {
+			blocks.push({
+				type: 'authored-table',
+				caption: `Jalons & Interactions de Déploiement / Homologation — ${frag.title}`,
+				headers: ['Étape', 'Phase / Contexte', 'Émetteur', 'Destinataire', 'Opération / Contrôle'],
+				rows: sequenceTableRows
+			});
+		}
+		blocks.push({
+			type: 'code',
+			language: 'mermaid',
+			content: frag.deploymentSequenceMermaid
+		});
+	}
+
 	// 7. Conséquences & Risques acceptés
 	if (frag.consequences.acceptedViolations.length || frag.consequences.acceptedRisks.length) {
 		blocks.push({
@@ -417,6 +616,7 @@ export function buildDocumentEnginePayload(dossier: ProjectHldDossier): Document
 	const allItems: DocumentEnginePayload['projectedGraph']['items'] = [];
 	const allRelations: DocumentEnginePayload['projectedGraph']['relations'] = [];
 	const views: Array<{ id: string; name: string; itemIds: string[] }> = [];
+	const allScenarios: NonNullable<DocumentEnginePayload['projectedGraph']['scenarios']> = [];
 	const seenItemIds = new Set<string>();
 
 	// Sections 2..N : Chaque sujet d'architecture instruit
@@ -429,6 +629,26 @@ export function buildDocumentEnginePayload(dossier: ProjectHldDossier): Document
 			const parsed = parseMermaidToGraphElements(frag.targetArchitectureMermaid, prefix);
 			fragItems = parsed.items;
 			fragRelations = parsed.relations;
+		}
+
+		let seqTableRows: string[][] = [];
+		if (frag.deploymentSequenceMermaid) {
+			const seqParsed = parseMermaidSequenceToElements(frag.deploymentSequenceMermaid, prefix);
+			seqTableRows = seqParsed.tableRows;
+			if (seqParsed.scenario.steps.length > 0) {
+				allScenarios.push(seqParsed.scenario);
+			}
+			for (const seqIt of seqParsed.items) {
+				if (!seenItemIds.has(seqIt.id)) {
+					seenItemIds.add(seqIt.id);
+					allItems.push(seqIt);
+				}
+				// Assurer la présence des participants dans les éléments du fragment pour la vue
+				if (!fragItems.some((it) => it.id === seqIt.id)) {
+					fragItems.push(seqIt);
+				}
+			}
+			fragRelations.push(...seqParsed.relations);
 		}
 
 		// Si le diagramme Mermaid n'a pas produit de nœuds, créer des nœuds par défaut
@@ -477,7 +697,7 @@ export function buildDocumentEnginePayload(dossier: ProjectHldDossier): Document
 		sections.push({
 			id: secId,
 			title: frag.title,
-			blocks: fragmentToBlueprintBlocks(frag, viewId)
+			blocks: fragmentToBlueprintBlocks(frag, viewId, seqTableRows)
 		});
 	}
 
@@ -485,7 +705,8 @@ export function buildDocumentEnginePayload(dossier: ProjectHldDossier): Document
 		projectedGraph: {
 			items: allItems,
 			relations: allRelations,
-			views
+			views,
+			...(allScenarios.length > 0 ? { scenarios: allScenarios } : {})
 		},
 		blueprint: {
 			version: '1.0',

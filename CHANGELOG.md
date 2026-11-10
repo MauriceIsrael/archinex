@@ -15,6 +15,21 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
   - Documentation de la persistance des comptes utilisateurs (`users`, `kb_profiles`, `casbin_rule`), de la préservation intégrale des mots de passe hachés existants, du rafraîchissement non destructif via `npx prisma db seed` (upsert), et de la réinitialisation de mot de passe administrateur (`prisma/bootstrap-admin.ts`).
   - Procédures de vérification immédiate post-restauration en ligne de commande et instructions pour les environnements conteneurisés Docker.
   - Liens et intégration dans le guide de démarrage neuf (`docs/fresh-install.md`) et le guide développeur (`docs/developer-guide.md`).
+### Export HLD & Interopérabilité Document Engine / Document Studio (Phase 3 « Rendu & Homologation »)
+- **Passerelle d'exportation documentaire Document Engine (`src/lib/server/projects/documentEngineBridge.ts`)** :
+  - Traduction sans perte du dossier de conception HLD assemblé sous Archinex vers les contrats `ProjectedGraph` et `Blueprint` du compilateur Document Engine.
+  - Structuration du livrable en sections complètes avec synthèse exécutive, tableau de métadonnées du dossier, blocs de décisions formalisées, contexte, exigences rattachées, comparaison des options multicritères et schémas Mermaid C4.
+  - Gestion des formats `.docx` (Word typographié avec pagination et styles), `.md` (Markdown pur) et `.pdf`.
+  - Résilience et détection de disponibilité de l'API Document Engine (`http://localhost:3001` par défaut, configurable via `DOCUMENT_ENGINE_URL`) avec exception dédiée `DocumentEngineUnavailableError`.
+- **Nouvelle Route d'API (`src/routes/api/projects/[projectId]/hld-document-engine/+server.ts`)** :
+  - Endpoint de génération en direct (`GET /api/projects/:projectId/hld-document-engine?format=docx|markdown|pdf`) renvoyant le flux binaire avec les en-têtes MIME et `Content-Disposition` appropriés.
+  - Endpoint de contrôle d'état (`GET ?action=check`) signalant la disponibilité du moteur et fournissant l'URL du cockpit Document Studio.
+- **Interface Utilisateur en Phase 3 (`src/lib/components/deliberation/HldFragmentView.svelte`)** :
+  - Ajout du bouton d'action dédié **« Générer HLD Word (.docx) »** avec indicateur de chargement en direct et toasts de statut.
+  - Ajout du bouton de rebond **« Document Studio »** ouvrant le cockpit de rédaction dans un nouvel onglet (`http://localhost:5174`).
+- **Tests de Contrat & Validation (`tests/contract/document-engine-bridge.test.ts`)** :
+  - Tests automatisés validant la conformité du payload au schéma Document Engine, le formatage des messages d'erreur et la compilation réelle en direct face au serveur.
+
 
 ### Découplage de la Persistance d'État, du Code Applicatif et du Knowledge Hub (Lot A7, Issues #251, #252 & #253)
 - **Exclusion et Purge des Artefacts de Persistance et d'Évaluation du Contrôle de Version (`.gitignore`)** :

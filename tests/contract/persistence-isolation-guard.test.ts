@@ -59,6 +59,26 @@ describe('Isolation de la Persistance et Pureté du Code (Issue #252 & #253)', (
 		}
 	});
 
+	it('la documentation de sauvegarde et restauration de base (docs/backup-restore.md) existe et est référencée', () => {
+		const backupRestoreDoc = resolve(repoRoot, 'docs/backup-restore.md');
+		expect(existsSync(backupRestoreDoc)).toBe(true);
+		const docContent = readFileSync(backupRestoreDoc, 'utf-8');
+
+		expect(docContent).toMatch(/prisma\/dev\.db/);
+		expect(docContent).toMatch(/dev\.db-wal/);
+		expect(docContent).toMatch(/dev\.db-shm/);
+		expect(docContent).toMatch(/wal_checkpoint/);
+		expect(docContent).toMatch(/VACUUM INTO/);
+		expect(docContent).toMatch(/bootstrap-admin\.ts/);
+		expect(docContent).toMatch(/prisma db push/);
+
+		const freshInstall = readFileSync(resolve(repoRoot, 'docs/fresh-install.md'), 'utf-8');
+		expect(freshInstall).toMatch(/backup-restore\.md/);
+
+		const devGuide = readFileSync(resolve(repoRoot, 'docs/developer-guide.md'), 'utf-8');
+		expect(devGuide).toMatch(/backup-restore\.md/);
+	});
+
 	describe('Interdiction absolue des fallbacks gracieux et mocks masqués (Règles de codage)', () => {
 		it('lève une erreur explicite sans fallback si le Knowledge Hub configuré est inaccessible', async () => {
 			await expect(

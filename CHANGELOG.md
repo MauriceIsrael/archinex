@@ -8,6 +8,13 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Documentation Opérationnelle de Restauration de Base de Données et Comptes Utilisateurs
+- **Guide Opérationnel de Sauvegarde & Restauration (`docs/backup-restore.md`)** :
+  - Procédure détaillée pas-à-pas pour restaurer une ancienne base de données SQLite (`dev.db.bak` ou cliché externe) dans Archinex.
+  - Spécification exhaustive de la gestion du mode SQLite WAL (`dev.db-wal`, `dev.db-shm`) : rôle du journal d'écriture séquentiel, nature volatile de l'index SHM, danger de corruption par rejeu croisé (*Cross-WAL replay*), procédure de purge obligatoire avant restauration et méthodes de sauvegarde cohérentes (`PRAGMA wal_checkpoint(TRUNCATE)`, `VACUUM INTO`).
+  - Documentation de la persistance des comptes utilisateurs (`users`, `kb_profiles`, `casbin_rule`), de la préservation intégrale des mots de passe hachés existants, du rafraîchissement non destructif via `npx prisma db seed` (upsert), et de la réinitialisation de mot de passe administrateur (`prisma/bootstrap-admin.ts`).
+  - Procédures de vérification immédiate post-restauration en ligne de commande et instructions pour les environnements conteneurisés Docker.
+  - Liens et intégration dans le guide de démarrage neuf (`docs/fresh-install.md`) et le guide développeur (`docs/developer-guide.md`).
 ### Export HLD & Interopérabilité Document Engine / Document Studio (Phase 3 « Rendu & Homologation »)
 - **Passerelle d'exportation documentaire Document Engine (`src/lib/server/projects/documentEngineBridge.ts`)** :
   - Traduction sans perte du dossier de conception HLD assemblé sous Archinex vers les contrats `ProjectedGraph` et `Blueprint` du compilateur Document Engine.

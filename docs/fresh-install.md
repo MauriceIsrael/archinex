@@ -76,6 +76,8 @@ Les développeurs se demandent souvent pourquoi deux commandes sont nécessaires
 > npm run db:reset
 > ```
 > Cette commande vide la base de données, réapplique le schéma et relance l'ensemble du seed.
+>
+> Pour restaurer une ancienne base de données (`.db` ou `.bak`) existante avec ses comptes utilisateurs, reportez-vous au [Guide de Restauration (`docs/backup-restore.md`)](file:///c:/Users/Momo/Documents/Dev/archinex/docs/backup-restore.md).
 
 ---
 

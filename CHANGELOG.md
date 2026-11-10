@@ -8,6 +8,22 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Export HLD & Interopérabilité Document Engine / Document Studio (Phase 3 « Rendu & Homologation »)
+- **Passerelle d'exportation documentaire Document Engine (`src/lib/server/projects/documentEngineBridge.ts`)** :
+  - Traduction sans perte du dossier de conception HLD assemblé sous Archinex vers les contrats `ProjectedGraph` et `Blueprint` du compilateur Document Engine.
+  - Structuration du livrable en sections complètes avec synthèse exécutive, tableau de métadonnées du dossier, blocs de décisions formalisées, contexte, exigences rattachées, comparaison des options multicritères et schémas Mermaid C4.
+  - Gestion des formats `.docx` (Word typographié avec pagination et styles), `.md` (Markdown pur) et `.pdf`.
+  - Résilience et détection de disponibilité de l'API Document Engine (`http://localhost:3001` par défaut, configurable via `DOCUMENT_ENGINE_URL`) avec exception dédiée `DocumentEngineUnavailableError`.
+- **Nouvelle Route d'API (`src/routes/api/projects/[projectId]/hld-document-engine/+server.ts`)** :
+  - Endpoint de génération en direct (`GET /api/projects/:projectId/hld-document-engine?format=docx|markdown|pdf`) renvoyant le flux binaire avec les en-têtes MIME et `Content-Disposition` appropriés.
+  - Endpoint de contrôle d'état (`GET ?action=check`) signalant la disponibilité du moteur et fournissant l'URL du cockpit Document Studio.
+- **Interface Utilisateur en Phase 3 (`src/lib/components/deliberation/HldFragmentView.svelte`)** :
+  - Ajout du bouton d'action dédié **« Générer HLD Word (.docx) »** avec indicateur de chargement en direct et toasts de statut.
+  - Ajout du bouton de rebond **« Document Studio »** ouvrant le cockpit de rédaction dans un nouvel onglet (`http://localhost:5174`).
+- **Tests de Contrat & Validation (`tests/contract/document-engine-bridge.test.ts`)** :
+  - Tests automatisés validant la conformité du payload au schéma Document Engine, le formatage des messages d'erreur et la compilation réelle en direct face au serveur.
+
+
 ### Découplage de la Persistance d'État, du Code Applicatif et du Knowledge Hub (Lot A7, Issues #251, #252 & #253)
 - **Exclusion et Purge des Artefacts de Persistance et d'Évaluation du Contrôle de Version (`.gitignore`)** :
   - Désindexation du suivi Git des rapports et résultats d'évaluation (`eval-results/`), des artefacts de projets locaux (`projects/001-veille-techno/`) et d'un résidu de base de test SQLite binaire (`prisma/prisma/e2e-tmp.db`).

@@ -1,7 +1,7 @@
 <script lang="ts">
 	import { deliberationStore } from '$lib/stores/deliberationStore.svelte';
 	import type { HldFragment } from '$lib/domain/hldFragment';
-	import { FileText, Download, Copy, Check, RefreshCw, AlertTriangle, Bot, Layers } from 'lucide-svelte';
+	import { FileText, Download, Copy, Check, RefreshCw, AlertTriangle, Bot, Layers, Sparkles, ExternalLink } from 'lucide-svelte';
 	import MermaidViewer from './MermaidViewer.svelte';
 
 	const activeSubject = $derived(deliberationStore.activeSubject);
@@ -13,6 +13,8 @@
 	let loadError = $state('');
 	let copied = $state(false);
 	let isRepairing = $state(false);
+	let isCompilingDocEngine = $state(false);
+	let studioUrl = $state('http://localhost:5174');
 
 	async function load(pId: string, sId: string) {
 		isLoading = true;
@@ -87,6 +89,61 @@
 		}
 	}
 
+	async function compileWithDocumentEngine(format: 'docx' | 'markdown' | 'pdf' = 'docx') {
+		if (!projectId) return;
+		isCompilingDocEngine = true;
+		try {
+			const res = await fetch(`/api/projects/${encodeURIComponent(projectId)}/hld-document-engine?format=${format}`);
+			if (!res.ok) {
+				const errData = await res.json().catch(() => ({}));
+				if (res.status === 503) {
+					deliberationStore.logNotification(
+						`Document Engine indisponible (port 3001) : lancez 'npm run server' dans document-engine.`,
+						'warning'
+					);
+					return;
+				}
+				throw new Error(errData.error || `Erreur HTTP ${res.status}`);
+			}
+			const blob = await res.blob();
+			const url = URL.createObjectURL(blob);
+			const a = document.createElement('a');
+			a.href = url;
+			const disposition = res.headers.get('content-disposition');
+			let filename = `hld-${projectId}.${format === 'markdown' ? 'md' : format}`;
+			if (disposition && disposition.includes('filename=')) {
+				const match = disposition.match(/filename="?([^";]+)"?/);
+				if (match && match[1]) filename = match[1];
+			}
+			a.download = filename;
+			a.click();
+			setTimeout(() => URL.revokeObjectURL(url), 1000);
+			deliberationStore.logNotification(`Dossier HLD (${format.toUpperCase()}) généré avec succès par Document Engine.`, 'success');
+		} catch (err: unknown) {
+			const message = err instanceof Error ? err.message : String(err);
+			deliberationStore.logNotification(`Erreur Document Engine : ${message}`, 'warning');
+		} finally {
+			isCompilingDocEngine = false;
+		}
+	}
+
+	function openDocumentStudio() {
+		window.open(studioUrl, '_blank', 'noopener,noreferrer');
+	}
+
+	$effect(() => {
+		if (projectId) {
+			fetch(`/api/projects/${encodeURIComponent(projectId)}/hld-document-engine?action=check`)
+				.then((res) => res.json())
+				.then((data) => {
+					if (data.status === 'ok' && data.studio?.url) {
+						studioUrl = data.studio.url;
+					}
+				})
+				.catch(() => {});
+		}
+	});
+
 	const scoreClass = (s: number) =>
 		s > 0 ? 'text-emerald-700 dark:text-emerald-300' : s < 0 ? 'text-destructive' : 'text-muted-foreground';
 	const statusClass = {
@@ -107,21 +164,47 @@
 				</p>
 			</div>
 		</div>
-		<div class="flex items-center gap-1.5 shrink-0">
+		<div class="flex items-center gap-1.5 shrink-0 flex-wrap">
 			<button type="button" onclick={() => projectId && activeSubject && load(projectId, activeSubject.id)} class="inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 font-semibold hover:bg-muted cursor-pointer" title="Recharger depuis la délibération">
 				<RefreshCw class="h-3.5 w-3.5 {isLoading ? 'animate-spin' : ''}" />
 			</button>
 			<button type="button" onclick={copy} disabled={!fragment} class="inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 font-semibold hover:bg-muted disabled:opacity-50 cursor-pointer">
 				{#if copied}<Check class="h-3.5 w-3.5" />{:else}<Copy class="h-3.5 w-3.5" />{/if}
-				<span>Copier (Markdown)</span>
+				<span>Copier</span>
 			</button>
-			<button type="button" onclick={download} disabled={!fragment} class="inline-flex items-center gap-1 rounded-lg bg-primary text-primary-foreground px-2.5 py-1.5 font-semibold hover:opacity-90 disabled:opacity-50 cursor-pointer" title="Télécharger le fragment HLD (.md)">
+			<button type="button" onclick={download} disabled={!fragment} class="inline-flex items-center gap-1 rounded-lg border px-2.5 py-1.5 font-semibold hover:bg-muted disabled:opacity-50 cursor-pointer" title="Télécharger le fragment HLD (.md)">
 				<Download class="h-3.5 w-3.5" />
 				<span>Fragment .md</span>
 			</button>
-			<button type="button" onclick={downloadFullDossier} class="inline-flex items-center gap-1 rounded-lg border border-primary/30 bg-primary/5 text-primary hover:bg-primary/10 px-2.5 py-1.5 font-semibold cursor-pointer" title="Télécharger le dossier complet HLD rassemblant tous les fragments du projet">
+			<button type="button" onclick={downloadFullDossier} class="inline-flex items-center gap-1 rounded-lg border border-primary/30 bg-primary/5 text-primary hover:bg-primary/10 px-2.5 py-1.5 font-semibold cursor-pointer" title="Télécharger le dossier complet HLD rassemblant tous les fragments du projet en Markdown">
 				<Download class="h-3.5 w-3.5" />
-				<span>Dossier complet .md</span>
+				<span>Dossier .md</span>
+			</button>
+			<button
+				type="button"
+				onclick={() => compileWithDocumentEngine('docx')}
+				disabled={isCompilingDocEngine}
+				class="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 font-semibold shadow-sm hover:shadow transition cursor-pointer disabled:opacity-50"
+				title="Compiler le dossier HLD complet en Word (.docx) avec Document Engine"
+				data-testid="hld-export-docx-btn"
+			>
+				{#if isCompilingDocEngine}
+					<RefreshCw class="h-3.5 w-3.5 animate-spin" />
+					<span>Génération en cours...</span>
+				{:else}
+					<Sparkles class="h-3.5 w-3.5 text-emerald-200" />
+					<span>Générer HLD Word (.docx)</span>
+				{/if}
+			</button>
+			<button
+				type="button"
+				onclick={openDocumentStudio}
+				class="inline-flex items-center gap-1 rounded-lg border border-purple-500/30 bg-purple-500/10 text-purple-700 dark:text-purple-300 hover:bg-purple-500/20 px-2.5 py-1.5 font-semibold cursor-pointer"
+				title="Ouvrir Document Studio pour inspecter les blocs et le canevas de rédaction"
+				data-testid="hld-open-studio-btn"
+			>
+				<ExternalLink class="h-3.5 w-3.5" />
+				<span>Document Studio</span>
 			</button>
 		</div>
 	</div>

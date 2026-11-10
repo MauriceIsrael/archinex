@@ -66,6 +66,9 @@ describe('Isolation de la Persistance et Pureté du Code (Issue #252 & #253)', (
 
 		expect(docContent).toMatch(/prisma\/dev\.db/);
 		expect(docContent).toMatch(/dev\.db-wal/);
+		expect(docContent).toMatch(/dev\.db-shm/);
+		expect(docContent).toMatch(/wal_checkpoint/);
+		expect(docContent).toMatch(/VACUUM INTO/);
 		expect(docContent).toMatch(/bootstrap-admin\.ts/);
 		expect(docContent).toMatch(/prisma db push/);
 

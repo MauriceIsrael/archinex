@@ -3,7 +3,8 @@ import {
 	buildDocumentEnginePayload,
 	DocumentEngineUnavailableError,
 	getDocumentEngineUrl,
-	getDocumentStudioUrl
+	getDocumentStudioUrl,
+	parseMermaidToGraphElements
 } from '$lib/server/projects/documentEngineBridge';
 import type { ProjectHldDossier } from '$lib/server/projects/hldFragmentDb';
 import type { HldFragment } from '$lib/domain/hldFragment';
@@ -109,14 +110,62 @@ describe('Passerelle Document Engine (Bridge)', () => {
 		expect(sec1.title).toBe(mockFragment.title);
 		expect(sec1.blocks.some((b) => b.type === 'callout' && b.variant === 'decision')).toBe(true);
 		expect(sec1.blocks.some((b) => b.type === 'authored-table' && b.caption?.toString().includes('Exigences'))).toBe(true);
+		// Vérification du bloc Figure vectoriel et du bloc code Mermaid
+		const figureBlock = sec1.blocks.find((b) => b.type === 'figure');
+		expect(figureBlock).toMatchObject({
+			type: 'figure',
+			layerId: 'application',
+			viewRef: 'view-sub-s6a'
+		});
 		expect(sec1.blocks.some((b) => b.type === 'code' && b.language === 'mermaid')).toBe(true);
 
-		// 3. ProjectedGraph
-		expect(payload.projectedGraph.items.length).toBe(1);
-		expect(payload.projectedGraph.items[0]).toMatchObject({
-			id: 'subj-sub-s6a',
-			kind: 'ArchitectureSubject',
-			layer: 'application'
+		// 3. ProjectedGraph (Extraction sémantique des composants et flux du schéma)
+		expect(payload.projectedGraph.items.length).toBe(4);
+		expect(payload.projectedGraph.items.map((i) => i.id)).toEqual([
+			'sub-s6a-mme',
+			'sub-s6a-secgw',
+			'sub-s6a-dea',
+			'sub-s6a-hss'
+		]);
+		expect(payload.projectedGraph.relations.length).toBe(3);
+		expect(payload.projectedGraph.views).toEqual([
+			{
+				id: 'view-sub-s6a',
+				name: mockFragment.title,
+				itemIds: ['sub-s6a-mme', 'sub-s6a-secgw', 'sub-s6a-dea', 'sub-s6a-hss']
+			}
+		]);
+	});
+
+	it('extrait fidèlement les composants et flux depuis un diagramme Mermaid complexe', () => {
+		const mmd = `flowchart TD
+			subgraph SYSTEM["Système : Cœur Roaming"]
+				MME["MME (Opérateur Visité)"]
+				SecGW["SecGW IPsec ESP"]
+				DEA["DEA (Diameter Edge Agent)"]
+				HSS["HSS Base Profils"]
+			end
+			MME -->|Flux Roaming S6a| SecGW
+			SecGW -->|Trafic Déchiffré| DEA
+			DEA -->|Requête Filtrée| HSS`;
+
+		const { items, relations } = parseMermaidToGraphElements(mmd, 'demo');
+		expect(items).toHaveLength(4);
+		expect(items[0]).toMatchObject({ id: 'demo-mme', kind: 'Person' });
+		expect(items[1]).toMatchObject({ id: 'demo-secgw', kind: 'Service' });
+		expect(items[2]).toMatchObject({ id: 'demo-dea', kind: 'Service' });
+		expect(items[3]).toMatchObject({ id: 'demo-hss', kind: 'Database' });
+
+		expect(relations).toHaveLength(3);
+		expect(relations[0]).toMatchObject({
+			sourceId: 'demo-mme',
+			targetId: 'demo-secgw',
+			kind: 'Flux Roaming S6a'
+		});
+		expect(relations[1]).toMatchObject({
+			sourceId: 'demo-secgw',
+			targetId: 'demo-dea',
+			kind: 'Trafic Déchiffré'
 		});
 	});
 

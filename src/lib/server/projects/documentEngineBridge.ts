@@ -25,6 +25,11 @@ export interface DocumentEnginePayload {
 			targetId: string;
 			provenance: 'fact' | 'presumption';
 		}>;
+		views?: Array<{
+			id: string;
+			name: string;
+			itemIds: string[];
+		}>;
 	};
 	blueprint: {
 		version: string;
@@ -65,9 +70,151 @@ function sanitizeId(str: string): string {
 }
 
 /**
+ * Infère un `kind` d'item Document Engine à partir d'un libellé pour appliquer la charte
+ * visuelle native (palette de couleurs et icônes : System, Container, Component, Service, Database, Person).
+ */
+export function inferKind(label: string): string {
+	const l = label.toLowerCase();
+	if (/base|donn[ée]es?|bdd|database|storage|stockage|sql|hss|registre/.test(l)) return 'Database';
+	if (/service|gateway|passerelle|proxy|agent|dea|secgw|api|microservice/.test(l)) return 'Service';
+	if (/person|utilisateur|humain|op[ée]rateur|admin|exploitant|client/.test(l)) return 'Person';
+	if (/syst[èe]me|system|c[œo]ur|plateforme|r[ée]seau|network|mme|cloud/.test(l)) return 'System';
+	if (/module|serveur|conteneur|container/.test(l)) return 'Container';
+	return 'Component';
+}
+
+/**
+ * Extrait les composants (items) et les flux (relations) d'un schéma Mermaid pour alimenter
+ * le graphe sémantique (`projectedGraph`) de Document Engine et générer des figures vectorielles réelles.
+ */
+export function parseMermaidToGraphElements(
+	mermaid: string,
+	prefix: string
+): {
+	items: Array<{
+		id: string;
+		kind: string;
+		layer: 'application';
+		attributes: Record<string, unknown>;
+	}>;
+	relations: Array<{
+		id: string;
+		kind: string;
+		sourceId: string;
+		targetId: string;
+		provenance: 'fact';
+	}>;
+} {
+	const items: Array<{
+		id: string;
+		kind: string;
+		layer: 'application';
+		attributes: Record<string, unknown>;
+	}> = [];
+	const relations: Array<{
+		id: string;
+		kind: string;
+		sourceId: string;
+		targetId: string;
+		provenance: 'fact';
+	}> = [];
+	const seenItems = new Map<string, { id: string; kind: string; layer: 'application'; attributes: Record<string, unknown> }>();
+
+	const getOrCreateItem = (rawId: string, rawLabel?: string) => {
+		const cleanId = rawId.trim();
+		if (!cleanId || ['SYSTEM', 'direction', 'BANNER', 'PENDING', 'OPT'].includes(cleanId)) return null;
+		const itemId = `${prefix}-${cleanId.toLowerCase()}`;
+		if (!seenItems.has(itemId)) {
+			const cleanLabel = (rawLabel || cleanId)
+				.replace(/<[^>]*>/g, ' ')
+				.replace(/:::[\w-]+/g, '')
+				.replace(/\s+/g, ' ')
+				.trim();
+			const item = {
+				id: itemId,
+				kind: inferKind(cleanLabel),
+				layer: 'application' as const,
+				attributes: { name: cleanLabel || cleanId }
+			};
+			seenItems.set(itemId, item);
+			items.push(item);
+		}
+		return seenItems.get(itemId)!;
+	};
+
+	const lines = mermaid.split('\n');
+	let relCount = 1;
+
+	for (const line of lines) {
+		const trimmed = line.trim();
+		if (
+			!trimmed ||
+			trimmed.startsWith('%%') ||
+			trimmed.startsWith('subgraph') ||
+			trimmed.startsWith('end') ||
+			trimmed.startsWith('direction') ||
+			trimmed.startsWith('classDef')
+		)
+			continue;
+
+		// 1. Déclarations de nœuds isolés : id["..."] ou id[...] ou id(...)
+		const nodeDefMatch = trimmed.match(
+			/^([a-zA-Z0-9_-]+)\s*(?:\[(?:"([^"]+)"|([^\]]+))\]|\((?:"([^"]+)"|([^)]+))\))/
+		);
+		if (nodeDefMatch && !trimmed.includes('-->') && !trimmed.includes('==>') && !trimmed.includes('-.->')) {
+			getOrCreateItem(
+				nodeDefMatch[1],
+				nodeDefMatch[2] || nodeDefMatch[3] || nodeDefMatch[4] || nodeDefMatch[5]
+			);
+			continue;
+		}
+
+		// 2. Lignes avec flèches (simples ou enchaînées : A --> B --> C)
+		if (trimmed.includes('-->') || trimmed.includes('==>') || trimmed.includes('-.->')) {
+			const segments = trimmed.split(/\s*(?:-->|==>|-\.->)\s*/);
+			let prevItem: ReturnType<typeof getOrCreateItem> = null;
+
+			for (let i = 0; i < segments.length; i++) {
+				let seg = segments[i].trim();
+				let edgeLabel = 'connecte';
+
+				const edgeLabelMatch = seg.match(/^\|([^|]+)\|\s*(.*)$/);
+				if (edgeLabelMatch) {
+					edgeLabel = edgeLabelMatch[1].trim();
+					seg = edgeLabelMatch[2].trim();
+				}
+
+				const segNodeMatch = seg.match(
+					/^([a-zA-Z0-9_-]+)(?:\s*(?:\[(?:"([^"]+)"|([^\]]+))\]|\((?:"([^"]+)"|([^)]+))\)))?/
+				);
+				if (!segNodeMatch) continue;
+
+				const rawId = segNodeMatch[1];
+				const rawLabel =
+					segNodeMatch[2] || segNodeMatch[3] || segNodeMatch[4] || segNodeMatch[5] || rawId;
+				const currentItem = getOrCreateItem(rawId, rawLabel);
+
+				if (prevItem && currentItem) {
+					relations.push({
+						id: `${prefix}-rel-${relCount++}`,
+						kind: edgeLabel,
+						sourceId: prevItem.id,
+						targetId: currentItem.id,
+						provenance: 'fact'
+					});
+				}
+				prevItem = currentItem;
+			}
+		}
+	}
+
+	return { items, relations };
+}
+
+/**
  * Traduit un fragment HLD Archinex en blocs de Blueprint conformes au contrat Document Engine.
  */
-function fragmentToBlueprintBlocks(frag: HldFragment): Array<Record<string, unknown>> {
+function fragmentToBlueprintBlocks(frag: HldFragment, viewId?: string): Array<Record<string, unknown>> {
 	const blocks: Array<Record<string, unknown>> = [];
 
 	// 1. Décision / Statut
@@ -164,12 +311,19 @@ function fragmentToBlueprintBlocks(frag: HldFragment): Array<Record<string, unkn
 		}
 	}
 
-	// 6. Architecture Spécifiée (Mermaid C4)
+	// 6. Architecture Spécifiée (Diagramme vectoriel C4 natif & code Mermaid)
 	if (frag.targetArchitectureMermaid) {
 		blocks.push({
 			type: 'heading',
 			level: 3,
 			text: 'Architecture Spécifiée (Topologie C4 & Flux)'
+		});
+		blocks.push({
+			type: 'figure',
+			layerId: 'application',
+			...(viewId ? { viewRef: viewId } : {}),
+			caption: `Architecture Spécifiée — ${frag.title}`,
+			altText: `Schéma d'architecture vectoriel illustrant la topologie et les flux pour ${frag.title}`
 		});
 		blocks.push({
 			type: 'code',
@@ -246,29 +400,78 @@ export function buildDocumentEnginePayload(dossier: ProjectHldDossier): Document
 		]
 	});
 
+	const allItems: DocumentEnginePayload['projectedGraph']['items'] = [];
+	const allRelations: DocumentEnginePayload['projectedGraph']['relations'] = [];
+	const views: Array<{ id: string; name: string; itemIds: string[] }> = [];
+	const seenItemIds = new Set<string>();
+
 	// Sections 2..N : Chaque sujet d'architecture instruit
 	for (const frag of dossier.fragments) {
-		const secId = `sec-${sanitizeId(frag.subjectId)}-${sanitizeId(frag.title).slice(0, 30)}`;
+		const prefix = sanitizeId(frag.subjectId);
+		let fragItems: typeof allItems = [];
+		let fragRelations: typeof allRelations = [];
+
+		if (frag.targetArchitectureMermaid) {
+			const parsed = parseMermaidToGraphElements(frag.targetArchitectureMermaid, prefix);
+			fragItems = parsed.items;
+			fragRelations = parsed.relations;
+		}
+
+		// Si le diagramme Mermaid n'a pas produit de nœuds, créer des nœuds par défaut
+		if (fragItems.length === 0) {
+			const subjId = `subj-${prefix}`;
+			fragItems.push({
+				id: subjId,
+				kind: 'System',
+				layer: 'application',
+				attributes: { name: frag.title }
+			});
+			if (frag.decision?.retained) {
+				const decId = `dec-${prefix}`;
+				fragItems.push({
+					id: decId,
+					kind: 'Service',
+					layer: 'application',
+					attributes: { name: frag.decision.retained }
+				});
+				fragRelations.push({
+					id: `rel-${prefix}-dec`,
+					kind: 'Retient',
+					sourceId: subjId,
+					targetId: decId,
+					provenance: 'fact'
+				});
+			}
+		}
+
+		for (const it of fragItems) {
+			if (!seenItemIds.has(it.id)) {
+				seenItemIds.add(it.id);
+				allItems.push(it);
+			}
+		}
+		allRelations.push(...fragRelations);
+
+		const viewId = `view-${prefix}`;
+		views.push({
+			id: viewId,
+			name: frag.title,
+			itemIds: fragItems.map((i) => i.id)
+		});
+
+		const secId = `sec-${prefix}-${sanitizeId(frag.title).slice(0, 30)}`;
 		sections.push({
 			id: secId,
 			title: frag.title,
-			blocks: fragmentToBlueprintBlocks(frag)
+			blocks: fragmentToBlueprintBlocks(frag, viewId)
 		});
 	}
 
 	return {
 		projectedGraph: {
-			items: dossier.fragments.map((frag) => ({
-				id: `subj-${frag.subjectId}`,
-				kind: 'ArchitectureSubject',
-				layer: 'application',
-				attributes: {
-					title: frag.title,
-					status: frag.status,
-					statusLabel: frag.statusLabel
-				}
-			})),
-			relations: []
+			items: allItems,
+			relations: allRelations,
+			views
 		},
 		blueprint: {
 			version: '1.0',

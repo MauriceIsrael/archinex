@@ -169,6 +169,50 @@ describe('Passerelle Document Engine (Bridge)', () => {
 		});
 	});
 
+	it('gère les schémas multi-zones avec sous-titres HTML, flèches épaisses et interdictions', () => {
+		const userMmd = `flowchart TB
+			classDef boundary fill:#f8f9fa
+			subgraph LOT3["Réseau Tiers (Lot 3)"]
+				MME_Lot3["📡 MME Tiers<br/><small>Initie les requêtes S6a</small>"]:::ext
+			end
+			subgraph DMZ_LOT1["DMZ Frontière (Lot 1)"]
+				SecGW_Lot1["🛡️ SecGW-Lot1<br/><small>Terminaison IPsec ESP</small>"]:::core
+				DEA_Lot1["🔍 DEA-Lot1<br/><small>Médiation S6a</small>"]:::agent
+			end
+			subgraph CORE_LOT1["Cœur Sécurisé (Lot 1)"]
+				HSS_Lot1["🔐 HSS-Lot1<br/><small>Bases abonnés AKA</small>"]:::core
+			end
+			MME_Lot3 ==>|"1. Tunnel IPsec ESP chiffré"| SecGW_Lot1
+			SecGW_Lot1 -->|"2. Flux Diameter décapsulé"| DEA_Lot1
+			DEA_Lot1 -->|"3. Requête médiée"| HSS_Lot1
+			MME_Lot3 -.-x|"⛔ INTERDIT : Flux direct"| HSS_Lot1`;
+
+		const { items, relations } = parseMermaidToGraphElements(userMmd, 'sec-8');
+		expect(items).toHaveLength(4);
+		expect(items[0]).toMatchObject({
+			id: 'sec-8-mme_lot3',
+			attributes: {
+				name: '📡 MME Tiers',
+				description: 'Initie les requêtes S6a'
+			}
+		});
+		expect(items[1]).toMatchObject({
+			id: 'sec-8-secgw_lot1',
+			attributes: {
+				name: '🛡️ SecGW-Lot1',
+				description: 'Terminaison IPsec ESP'
+			}
+		});
+		// 4 flux dont 1 avec ==>, 2 avec --> et 1 avec -.-x
+		expect(relations).toHaveLength(4);
+		expect(relations[0].kind).toBe('1. Tunnel IPsec ESP chiffré');
+		expect(relations[3].kind).toBe('⛔ INTERDIT : Flux direct');
+		expect(relations[3]).toMatchObject({
+			sourceId: 'sec-8-mme_lot3',
+			targetId: 'sec-8-hss_lot1'
+		});
+	});
+
 	it('formate correctement les erreurs de disponibilité de Document Engine', () => {
 		const err = new DocumentEngineUnavailableError('http://localhost:3001');
 		expect(err.name).toBe('DocumentEngineUnavailableError');

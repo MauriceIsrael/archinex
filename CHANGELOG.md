@@ -19,17 +19,25 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 - **Passerelle d'exportation documentaire Document Engine (`src/lib/server/projects/documentEngineBridge.ts`)** :
   - Traduction sans perte du dossier de conception HLD assemblé sous Archinex vers les contrats `ProjectedGraph` et `Blueprint` du compilateur Document Engine.
   - Extraction sémantique des diagrammes Mermaid (`parseMermaidToGraphElements`) vers le `ProjectedGraph` et génération de blocs `figure` Document Engine, produisant de véritables diagrammes d'architecture graphiques (vectoriels PNG haute définition avec palettes de composants, typologies et flux) directement incorporés dans les documents Word (`.docx`), accompagnés du code source Mermaid.
-  - Structuration du livrable en sections complètes avec synthèse exécutive, tableau de métadonnées du dossier, blocs de décisions formalisées, contexte, exigences rattachées, comparaison des options multicritères et schémas Mermaid C4.
+  - **Intégration de la Chaîne de Déploiement Sécurisée & Homologation (`deploymentSequenceMermaid`)** :
+    - Analyse lexicale des diagrammes de séquence Mermaid (`parseMermaidSequenceToElements`) extrayant acteurs, participants, notes de phases, et interactions ordonnées.
+    - Alimentation automatique de la collection de processus `scenarios` (`ProjectedScenario` et étapes `steps` avec références de relations) dans le `ProjectedGraph` de Document Engine.
+    - Génération dans le Blueprint Word d'une sous-section dédiée avec tableau structuré des jalons d'homologation (`authored-table` avec colonnes `Étape`, `Phase / Contexte`, `Émetteur`, `Destinataire`, `Opération / Contrôle`) et bloc de code Mermaid source.
+  - Structuration du livrable en sections complètes avec synthèse exécutive, tableau de métadonnées du dossier, blocs de décisions formalisées, contexte, exigences rattachées, comparaison des options multicritères, schémas Mermaid C4 et séquences d'homologation.
   - Gestion des formats `.docx` (Word typographié avec pagination et styles), `.md` (Markdown pur) et `.pdf`.
   - Résilience et détection de disponibilité de l'API Document Engine (`http://localhost:3001` par défaut, configurable via `DOCUMENT_ENGINE_URL`) avec exception dédiée `DocumentEngineUnavailableError`.
+- **Modèle de Domaine HLD (`src/lib/domain/hldFragment.ts`)** :
+  - Enrichissement de `HldFragment` et `HldFragmentInput` avec `deploymentSequenceMermaid?: string`, généré automatiquement via `generateDeploymentSequenceDiagram` lors de la délibération lorsqu'une option est retenue.
+  - Intégration de la section correspondante dans le rendu Markdown du fragment (`renderHldFragmentMarkdown`).
 - **Nouvelle Route d'API (`src/routes/api/projects/[projectId]/hld-document-engine/+server.ts`)** :
   - Endpoint de génération en direct (`GET /api/projects/:projectId/hld-document-engine?format=docx|markdown|pdf`) renvoyant le flux binaire avec les en-têtes MIME et `Content-Disposition` appropriés.
   - Endpoint de contrôle d'état (`GET ?action=check`) signalant la disponibilité du moteur et fournissant l'URL du cockpit Document Studio.
 - **Interface Utilisateur en Phase 3 (`src/lib/components/deliberation/HldFragmentView.svelte`)** :
+  - Visualisation interactive du diagramme de séquence de la chaîne de déploiement et d'homologation directement sous le schéma d'architecture cible.
   - Ajout du bouton d'action dédié **« Générer HLD Word (.docx) »** avec indicateur de chargement en direct et toasts de statut.
   - Ajout du bouton de rebond **« Document Studio »** ouvrant le cockpit de rédaction dans un nouvel onglet (`http://localhost:5174`).
-- **Tests de Contrat & Validation (`tests/contract/document-engine-bridge.test.ts`)** :
-  - Tests automatisés validant la conformité du payload au schéma Document Engine, le formatage des messages d'erreur et la compilation réelle en direct face au serveur.
+- **Tests de Contrat & Validation (`tests/contract/document-engine-bridge.test.ts`, `tests/contract/hld-fragment.test.ts`)** :
+  - Tests automatisés validant la conformité du payload au schéma Document Engine, l'extraction des processus de déploiement séquentiels, le formatage des messages d'erreur et la compilation réelle en direct face au serveur.
 
 
 ### Découplage de la Persistance d'État, du Code Applicatif et du Knowledge Hub (Lot A7, Issues #251, #252 & #253)

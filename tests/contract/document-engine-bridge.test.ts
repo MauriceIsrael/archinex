@@ -4,7 +4,8 @@ import {
 	DocumentEngineUnavailableError,
 	getDocumentEngineUrl,
 	getDocumentStudioUrl,
-	parseMermaidToGraphElements
+	parseMermaidToGraphElements,
+	parseMermaidSequenceToElements
 } from '$lib/server/projects/documentEngineBridge';
 import type { ProjectHldDossier } from '$lib/server/projects/hldFragmentDb';
 import type { HldFragment } from '$lib/domain/hldFragment';
@@ -67,6 +68,22 @@ describe('Passerelle Document Engine (Bridge)', () => {
 			humanEvaluations: 1
 		},
 		targetArchitectureMermaid: 'flowchart TD\n  MME --> SecGW --> DEA --> HSS',
+		deploymentSequenceMermaid: [
+			'sequenceDiagram',
+			'    autonumber',
+			'    actor MME as MME Tiers (Lot 3)',
+			'    participant SecGW as SecGW-Lot1 (Security Gateway)',
+			'    participant DEA as DEA-Lot1 (Diameter Edge Agent)',
+			'    participant HSS as HSS-Lot1 (Home Subscriber Server)',
+			'',
+			'    Note over MME,SecGW: Phase 1 : Négociation IKEv2 et Établissement du Tunnel IPsec ESP',
+			'    MME->>SecGW: IKE_SA_INIT / IKE_AUTH (Certificats X.509 mutuels)',
+			'    SecGW-->>MME: SA IPsec établie (Chiffrement AES-GCM-256 actif)',
+			'',
+			'    Note over SecGW,DEA: Phase 2 : Médiation & Inspection Applicative Diameter',
+			'    SecGW->>DEA: Requête S6a décapsulée',
+			'    DEA->>HSS: Requête S6a vérifiée transmise au HSS-Lot1'
+		].join('\n'),
 		generatedAt: '2026-11-10T12:00:00.000Z'
 	};
 
@@ -110,7 +127,7 @@ describe('Passerelle Document Engine (Bridge)', () => {
 		expect(sec1.title).toBe(mockFragment.title);
 		expect(sec1.blocks.some((b) => b.type === 'callout' && b.variant === 'decision')).toBe(true);
 		expect(sec1.blocks.some((b) => b.type === 'authored-table' && b.caption?.toString().includes('Exigences'))).toBe(true);
-		// Vérification du bloc Figure vectoriel et du bloc code Mermaid
+		// Vérification du bloc Figure vectoriel et du bloc code Mermaid (Architecture Spécifiée)
 		const figureBlock = sec1.blocks.find((b) => b.type === 'figure');
 		expect(figureBlock).toMatchObject({
 			type: 'figure',
@@ -119,7 +136,18 @@ describe('Passerelle Document Engine (Bridge)', () => {
 		});
 		expect(sec1.blocks.some((b) => b.type === 'code' && b.language === 'mermaid')).toBe(true);
 
-		// 3. ProjectedGraph (Extraction sémantique des composants et flux du schéma)
+		// Vérification des blocs de la Chaîne de Déploiement Sécurisée & Homologation
+		const seqHeading = sec1.blocks.find((b) => b.type === 'heading' && b.text === 'Chaîne de Déploiement Sécurisée & Homologation');
+		expect(seqHeading).toBeDefined();
+
+		const seqTable = sec1.blocks.find(
+			(b) => b.type === 'authored-table' && b.caption?.toString().includes('Jalons & Interactions de Déploiement / Homologation')
+		);
+		expect(seqTable).toBeDefined();
+		expect((seqTable as any).headers).toEqual(['Étape', 'Phase / Contexte', 'Émetteur', 'Destinataire', 'Opération / Contrôle']);
+		expect((seqTable as any).rows.length).toBe(4);
+
+		// 3. ProjectedGraph (Extraction sémantique des composants, flux et scénarios)
 		expect(payload.projectedGraph.items.length).toBe(4);
 		expect(payload.projectedGraph.items.map((i) => i.id)).toEqual([
 			'sub-s6a-mme',
@@ -127,7 +155,8 @@ describe('Passerelle Document Engine (Bridge)', () => {
 			'sub-s6a-dea',
 			'sub-s6a-hss'
 		]);
-		expect(payload.projectedGraph.relations.length).toBe(3);
+		// 3 flux du flowchart + 4 interactions de la séquence
+		expect(payload.projectedGraph.relations.length).toBe(7);
 		expect(payload.projectedGraph.views).toEqual([
 			{
 				id: 'view-sub-s6a',
@@ -135,6 +164,15 @@ describe('Passerelle Document Engine (Bridge)', () => {
 				itemIds: ['sub-s6a-mme', 'sub-s6a-secgw', 'sub-s6a-dea', 'sub-s6a-hss']
 			}
 		]);
+
+		// Vérification des scénarios (ProjectedScenario)
+		expect(payload.projectedGraph.scenarios).toBeDefined();
+		expect(payload.projectedGraph.scenarios).toHaveLength(1);
+		expect(payload.projectedGraph.scenarios![0]).toMatchObject({
+			id: 'scenario-sub-s6a',
+			name: 'Chaîne de Déploiement Sécurisée & Homologation'
+		});
+		expect(payload.projectedGraph.scenarios![0].steps).toHaveLength(4);
 	});
 
 	it('extrait fidèlement les composants et flux depuis un diagramme Mermaid complexe', () => {
@@ -211,6 +249,62 @@ describe('Passerelle Document Engine (Bridge)', () => {
 			sourceId: 'sec-8-mme_lot3',
 			targetId: 'sec-8-hss_lot1'
 		});
+	});
+
+	it('extrait les participants, phases, flux et étapes ordonnées depuis un diagramme de séquence Mermaid', () => {
+		const seqMmd = [
+			'sequenceDiagram',
+			'    autonumber',
+			'    actor Dev as Titulaire (Système)',
+			'    actor Valideur as Responsable RSSI',
+			'    participant Srv as Serveur WAPT',
+			'    participant Host as Hôte Cible',
+			'',
+			'    Note over Dev,Host: Phase 1 : Construction et Signature Cryptographique',
+			'    Dev->>Dev: Construction du paquet applicatif',
+			'    Dev->>Valideur: Dépôt du paquet signé',
+			'',
+			'    Note over Valideur,Srv: Phase 2 : Porte d Homologation',
+			'    Valideur->>Srv: Approbation formelle et publication',
+			'',
+			'    Note over Srv,Host: Phase 3 : Déploiement Sécurisé',
+			'    Srv->>Host: Distribution du paquet validé'
+		].join('\n');
+
+		const { items, relations, scenario, tableRows } = parseMermaidSequenceToElements(seqMmd, 'sec-test');
+
+		expect(items).toHaveLength(4);
+		expect(items[0]).toMatchObject({ id: 'sec-test-dev', kind: 'Person' });
+		expect(items[1]).toMatchObject({ id: 'sec-test-valideur', kind: 'Person' });
+		expect(items[2]).toMatchObject({ id: 'sec-test-srv' });
+		expect(items[3]).toMatchObject({ id: 'sec-test-host' });
+
+		expect(relations).toHaveLength(4);
+		expect(scenario.steps).toHaveLength(4);
+		expect(scenario.id).toBe('scenario-sec-test');
+
+		expect(tableRows).toHaveLength(4);
+		expect(tableRows[0]).toEqual([
+			'1',
+			'Phase 1 : Construction et Signature Cryptographique',
+			'Titulaire (Système)',
+			'Titulaire (Système)',
+			'Construction du paquet applicatif'
+		]);
+		expect(tableRows[1]).toEqual([
+			'2',
+			'Phase 1 : Construction et Signature Cryptographique',
+			'Titulaire (Système)',
+			'Responsable RSSI',
+			'Dépôt du paquet signé'
+		]);
+		expect(tableRows[2]).toEqual([
+			'3',
+			'Phase 2 : Porte d Homologation',
+			'Responsable RSSI',
+			'Serveur WAPT',
+			'Approbation formelle et publication'
+		]);
 	});
 
 	it('formate correctement les erreurs de disponibilité de Document Engine', () => {

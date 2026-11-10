@@ -319,6 +319,22 @@
 						/>
 					</div>
 				{/if}
+				{#if fragment.deploymentSequenceMermaid}
+					<div class="space-y-1.5 pt-2 border-t border-border/40">
+						<div class="flex items-center justify-between text-xs">
+							<span class="font-bold text-foreground flex items-center gap-1.5">
+								<Layers class="h-3.5 w-3.5 text-emerald-500" />
+								Chaîne de Déploiement Sécurisée & Homologation
+							</span>
+							<span class="text-[10px] text-muted-foreground font-mono">Séquence & Jalons</span>
+						</div>
+						<MermaidViewer
+							code={fragment.deploymentSequenceMermaid}
+							title="Chaîne de Déploiement · ${fragment.title}"
+							defaultView="visual"
+						/>
+					</div>
+				{/if}
 			{:else}<p class="text-muted-foreground">Sujet non tranché.</p>{/if}
 		</div>
 

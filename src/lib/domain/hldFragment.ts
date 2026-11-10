@@ -8,7 +8,7 @@
  */
 import type { Criterion, Option, OptionEvaluation, Decision } from './options';
 import type { Argument } from './debate';
-import { generateTargetArchitectureDiagram } from './artifactProjections';
+import { generateTargetArchitectureDiagram, generateDeploymentSequenceDiagram } from './artifactProjections';
 
 export type HldFragmentStatus = 'decided' | 'awaiting_review' | 'undecided';
 
@@ -45,6 +45,7 @@ export interface HldFragmentInput {
 	/** Référentiels applicables pas encore couverts par la base de connaissances (alertes). */
 	coverageWarnings?: string[];
 	targetArchitectureMermaid?: string;
+	deploymentSequenceMermaid?: string;
 	generatedAt: string;
 }
 
@@ -77,6 +78,7 @@ export interface HldFragment {
 	openPoints: string[];
 	provenance: { modelProposedOptions: number; humanOptions: number; modelEvaluations: number; humanEvaluations: number };
 	targetArchitectureMermaid?: string;
+	deploymentSequenceMermaid?: string;
 	generatedAt: string;
 }
 
@@ -199,6 +201,17 @@ export function buildHldFragment(input: HldFragmentInput): HldFragment {
 			};
 
 	const retainedOption = options.find((o) => o.status === 'retained');
+	const projectionContext = {
+		decision: decisionBlock ? {
+			retainedOptionId: input.decision?.retainedOptionId,
+			retainedOptionTitle: retainedOption?.title,
+			rationale: input.decision?.rationale,
+			reversibility: input.decision?.reversibility
+		} : null,
+		options: options.map((o) => ({ id: o.id, title: o.title, summary: o.summary, status: o.status })),
+		requirements: items.map((r) => ({ clauseRef: r.clauseRef, title: r.title }))
+	};
+
 	const targetArchitectureMermaid = input.targetArchitectureMermaid ?? (retainedOption ? generateTargetArchitectureDiagram(
 		{
 			id: subject.id,
@@ -208,16 +221,18 @@ export function buildHldFragment(input: HldFragmentInput): HldFragment {
 		},
 		null,
 		[],
+		projectionContext
+	) : undefined);
+
+	const deploymentSequenceMermaid = input.deploymentSequenceMermaid ?? (retainedOption ? generateDeploymentSequenceDiagram(
 		{
-			decision: decisionBlock ? {
-				retainedOptionId: input.decision?.retainedOptionId,
-				retainedOptionTitle: retainedOption.title,
-				rationale: input.decision?.rationale,
-				reversibility: input.decision?.reversibility
-			} : null,
-			options: options.map((o) => ({ id: o.id, title: o.title, summary: o.summary, status: o.status })),
-			requirements: items.map((r) => ({ clauseRef: r.clauseRef, title: r.title }))
-		}
+			id: subject.id,
+			name: subject.name,
+			sectionRef: subject.sectionRef
+		},
+		null,
+		[],
+		projectionContext
 	) : undefined);
 
 	return {
@@ -251,6 +266,7 @@ export function buildHldFragment(input: HldFragmentInput): HldFragment {
 			humanEvaluations: input.evaluations.filter((e) => !isModel(e.productionMode)).length
 		},
 		targetArchitectureMermaid,
+		deploymentSequenceMermaid,
 		generatedAt: input.generatedAt
 	};
 }
@@ -300,6 +316,10 @@ export function renderHldFragmentMarkdown(f: HldFragment): string {
 
 	if (f.targetArchitectureMermaid) {
 		out.push('### Schéma d\'architecture spécifiée', '', '```' + 'mermaid', f.targetArchitectureMermaid, '```', '');
+	}
+
+	if (f.deploymentSequenceMermaid) {
+		out.push('### Chaîne de Déploiement Sécurisée & Homologation', '', '```' + 'mermaid', f.deploymentSequenceMermaid, '```', '');
 	}
 
 	if (f.consequences.acceptedViolations.length || f.consequences.acceptedRisks.length) {

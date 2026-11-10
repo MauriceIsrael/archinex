@@ -122,19 +122,31 @@ export function parseMermaidToGraphElements(
 
 	const getOrCreateItem = (rawId: string, rawLabel?: string) => {
 		const cleanId = rawId.trim();
-		if (!cleanId || ['SYSTEM', 'direction', 'BANNER', 'PENDING', 'OPT'].includes(cleanId)) return null;
+		if (!cleanId || ['SYSTEM', 'direction', 'BANNER', 'PENDING', 'OPT', 'classDef'].includes(cleanId)) return null;
 		const itemId = `${prefix}-${cleanId.toLowerCase()}`;
 		if (!seenItems.has(itemId)) {
-			const cleanLabel = (rawLabel || cleanId)
+			const labelToClean = rawLabel || cleanId;
+			// Séparer le titre principal et le sous-titre éventuel (délimités par <br/> ou <small>)
+			const splitParts = labelToClean.split(/<br\s*\/?>/i);
+			const cleanName = splitParts[0]
 				.replace(/<[^>]*>/g, ' ')
 				.replace(/:::[\w-]+/g, '')
 				.replace(/\s+/g, ' ')
 				.trim();
+			const cleanDesc = (splitParts[1] || '')
+				.replace(/<[^>]*>/g, ' ')
+				.replace(/:::[\w-]+/g, '')
+				.replace(/\s+/g, ' ')
+				.trim();
+
 			const item = {
 				id: itemId,
-				kind: inferKind(cleanLabel),
+				kind: inferKind(cleanName || cleanId),
 				layer: 'application' as const,
-				attributes: { name: cleanLabel || cleanId }
+				attributes: {
+					name: cleanName || cleanId,
+					...(cleanDesc ? { description: cleanDesc } : {})
+				}
 			};
 			seenItems.set(itemId, item);
 			items.push(item);
@@ -144,6 +156,7 @@ export function parseMermaidToGraphElements(
 
 	const lines = mermaid.split('\n');
 	let relCount = 1;
+	const arrowRegex = /\s*(?:==>|-->|-\.->|-\.-x|-\.-|---|--x|==)\s*/;
 
 	for (const line of lines) {
 		const trimmed = line.trim();
@@ -153,7 +166,8 @@ export function parseMermaidToGraphElements(
 			trimmed.startsWith('subgraph') ||
 			trimmed.startsWith('end') ||
 			trimmed.startsWith('direction') ||
-			trimmed.startsWith('classDef')
+			trimmed.startsWith('classDef') ||
+			trimmed.startsWith('class ')
 		)
 			continue;
 
@@ -161,7 +175,7 @@ export function parseMermaidToGraphElements(
 		const nodeDefMatch = trimmed.match(
 			/^([a-zA-Z0-9_-]+)\s*(?:\[(?:"([^"]+)"|([^\]]+))\]|\((?:"([^"]+)"|([^)]+))\))/
 		);
-		if (nodeDefMatch && !trimmed.includes('-->') && !trimmed.includes('==>') && !trimmed.includes('-.->')) {
+		if (nodeDefMatch && !arrowRegex.test(trimmed)) {
 			getOrCreateItem(
 				nodeDefMatch[1],
 				nodeDefMatch[2] || nodeDefMatch[3] || nodeDefMatch[4] || nodeDefMatch[5]
@@ -169,9 +183,9 @@ export function parseMermaidToGraphElements(
 			continue;
 		}
 
-		// 2. Lignes avec flèches (simples ou enchaînées : A --> B --> C)
-		if (trimmed.includes('-->') || trimmed.includes('==>') || trimmed.includes('-.->')) {
-			const segments = trimmed.split(/\s*(?:-->|==>|-\.->)\s*/);
+		// 2. Lignes avec flèches (simples, enchaînées, interdites ou annotées)
+		if (arrowRegex.test(trimmed)) {
+			const segments = trimmed.split(arrowRegex);
 			let prevItem: ReturnType<typeof getOrCreateItem> = null;
 
 			for (let i = 0; i < segments.length; i++) {
@@ -180,7 +194,7 @@ export function parseMermaidToGraphElements(
 
 				const edgeLabelMatch = seg.match(/^\|([^|]+)\|\s*(.*)$/);
 				if (edgeLabelMatch) {
-					edgeLabel = edgeLabelMatch[1].trim();
+					edgeLabel = edgeLabelMatch[1].replace(/^["']|["']$/g, '').trim();
 					seg = edgeLabelMatch[2].trim();
 				}
 

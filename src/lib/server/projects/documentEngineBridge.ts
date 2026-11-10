@@ -50,11 +50,11 @@ export class DocumentEngineUnavailableError extends Error {
 }
 
 export function getDocumentEngineUrl(): string {
-	return process.env.DOCUMENT_ENGINE_URL?.trim() || 'http://localhost:3001';
+	return (process.env.DOCUMENT_ENGINE_URL?.trim() || 'http://localhost:3001').replace(/\/+$/, '');
 }
 
 export function getDocumentStudioUrl(): string {
-	return process.env.DOCUMENT_STUDIO_URL?.trim() || 'http://localhost:5174';
+	return (process.env.DOCUMENT_STUDIO_URL?.trim() || 'http://localhost:5174').replace(/\/+$/, '');
 }
 
 function sanitizeId(str: string): string {

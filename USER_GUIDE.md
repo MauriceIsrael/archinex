@@ -381,6 +381,12 @@ Pour les sujets d'infrastructure et d'environnements (ex. *Socle 3 plateformes, 
 
 Ces schémas sont directement intégrés dans le fragment Markdown HLD exporté (`renderHldFragmentMarkdown`) et téléchargeables au format `.mmd`.
 
+### 11.5 bis Génération HLD Word (.docx) & Connexion Document Engine / Studio
+En Phase 3 (« Rendu & Homologation »), la barre d'actions du fragment HLD (`HldFragmentView`) intègre une passerelle native vers la suite documentaire :
+1. **📄 Génération Directe Word (.docx)** : En cliquant sur le bouton vert **« Générer HLD Word (.docx) »**, Archinex compile l'ensemble des fragments HLD du projet vers le format Blueprint de **Document Engine** (port `3001` par défaut, configurable via `DOCUMENT_ENGINE_URL`). Document Engine produit alors un livrable Word typographié intégrant le sommaire, les métadonnées, les tableaux d'exigences, les compromis multicritères et les diagrammes d'architecture, téléchargé directement dans le navigateur.
+2. **🎨 Rebond Document Studio** : Le bouton **« Document Studio »** permet d'ouvrir en un clic le cockpit de rédaction (port `5174` par défaut, configurable via `DOCUMENT_STUDIO_URL`) pour inspecter les blocs de contenu dans le canevas d'édition.
+3. **🛡️ Résilience réseau** : Si Document Engine n'est pas démarré, une notification explicite guide l'utilisateur pour lancer `npm run server` dans son dépôt local.
+
 ---
 
 

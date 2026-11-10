@@ -70,8 +70,8 @@ describe('Passerelle Document Engine (Bridge)', () => {
 	};
 
 	const mockDossier: ProjectHldDossier = {
-		projectId: 'proj-lumicc-demo',
-		projectTitle: 'Programme LUMICC Régalien',
+		projectId: 'proj-roaming-demo',
+		projectTitle: 'Programme Souverain Télécom',
 		markdown: '# HLD\nContenu',
 		fragments: [mockFragment],
 		generatedAt: '2026-11-10T12:00:00.000Z'
@@ -85,7 +85,7 @@ describe('Passerelle Document Engine (Bridge)', () => {
 			author: 'Archinex Lead Architect',
 			date: '2026-11-10',
 			project: {
-				name: 'Programme LUMICC Régalien',
+				name: 'Programme Souverain Télécom',
 				version: '1.0.0'
 			}
 		});
@@ -145,7 +145,7 @@ describe('Passerelle Document Engine (Bridge)', () => {
 		expect(mdResult.contentType).toMatch(/text\/(markdown|plain)/);
 		const mdText = Buffer.from(mdResult.buffer).toString('utf-8');
 		expect(mdText).toContain('# HLD');
-		expect(mdText).toContain('Programme LUMICC Régalien');
+		expect(mdText).toContain('Programme Souverain Télécom');
 
 		// 2. DOCX
 		const docxResult = await compileDossierWithDocumentEngine(mockDossier, 'docx');

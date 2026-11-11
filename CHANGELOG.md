@@ -8,6 +8,11 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Concentration de l'Oracle EDP exclusivement en Phase 4 (`SubjectThreadView`, `Phase4RefinementHub`)
+- Suppression de l'onglet `🧪 Oracle EDP` (`tab-unified-edp` / `renderEdpPane`) et des encarts `EdpCard` intégrés dans l'espace de délibération (`src/lib/components/deliberation/SubjectThreadView.svelte`), ainsi que du relais `isExperimentalEnabled` devenu superflu dans `DeliberationWorkbench.svelte` et `src/routes/deliberation/+page.svelte`.
+- L'évaluation par l'Oracle OPA, le raffinement KAOS multi-axes et l'hydratation EDP sont désormais accessibles uniquement dans l'atelier dédié **Phase 4 · Raffinement** (`Phase4RefinementHub.svelte`).
+- Mise à jour des tests de contrat (`tests/contract/edp-ui-integration.test.ts`, `tests/contract/deliberation-conversation.test.ts`) et du guide utilisateur (`USER_GUIDE.md`).
+
 ### Correctif Parseur Mermaid sur `linkStyle` & `classDef` (`src/lib/domain/impactGraph.ts`)
 - Suppression du point-virgule final (`;`) sur les directives `linkStyle` et `classDef` contenant des codes couleur hexadécimaux (`#78350f;`), évitant leur réécriture par le préprocesseur `encodeEntities` (`/#\w+;/g`) de Mermaid v12 (`ﬂ°78350f¶ß`).
 - Ajout d'une assertion de non-régression dans `tests/contract/impact-graph.test.ts`.

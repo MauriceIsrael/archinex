@@ -827,12 +827,38 @@
 							</div>
 						</div>
 
-						{#if lastVerdict.violations && lastVerdict.violations.length > 0}
-							<ul class="space-y-1.5 pt-1 border-t border-rose-500/30">
-								{#each lastVerdict.violations as vMsg}
-									<li class="font-mono text-[11px] flex items-start gap-1.5">
+						{#if (lastVerdict.detailedViolations && lastVerdict.detailedViolations.length > 0) || (lastVerdict.violations && lastVerdict.violations.length > 0)}
+							{@const list = lastVerdict.detailedViolations && lastVerdict.detailedViolations.length > 0 ? lastVerdict.detailedViolations : lastVerdict.violations}
+							<ul class="space-y-2 pt-1 border-t border-rose-500/30">
+								{#each list as v}
+									<li class="font-mono text-[11px] flex items-start gap-1.5" data-testid="phase4-oracle-violation-item">
 										<span class="text-rose-600 font-bold">•</span>
-										<span>{vMsg}</span>
+										<div class="flex flex-col gap-0.5">
+											<span>{typeof v === 'string' ? v : v.message}</span>
+											{#if typeof v === 'object' && v}
+												<div class="flex items-center gap-1.5 mt-0.5 flex-wrap">
+													{#if v.violated_clause_urn}
+														<a
+															href="/kb/clauses?query={encodeURIComponent(v.violated_clause_urn)}"
+															target="_blank"
+															rel="noreferrer"
+															class="inline-flex items-center text-[10px] text-blue-600 hover:underline bg-blue-50 dark:bg-blue-950/40 px-1.5 py-0.5 rounded border border-blue-200 dark:border-blue-800"
+															data-testid="violated-clause-link"
+														>
+															📜 {v.violated_clause_urn}
+														</a>
+													{/if}
+													{#if v.violated_requirement_id}
+														<span
+															class="inline-flex items-center text-[10px] font-semibold text-amber-700 bg-amber-50 dark:bg-amber-950/40 px-1.5 py-0.5 rounded border border-amber-200 dark:border-amber-800"
+															data-testid="violated-req-badge"
+														>
+															🎯 {v.violated_requirement_id}
+														</span>
+													{/if}
+												</div>
+											{/if}
+										</div>
 									</li>
 								{/each}
 							</ul>

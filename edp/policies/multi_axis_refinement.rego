@@ -6,6 +6,25 @@ package archinex.edp.multiaxis
 
 import rego.v1
 
+# Helpers pour extraire dynamiquement les clauses et exigences liées à une projection
+get_clause_urn(proj, fallback) := u if {
+	proj != null
+	is_array(proj.governed_by_clauses)
+	count(proj.governed_by_clauses) > 0
+	some c in proj.governed_by_clauses
+	startswith(c, "urn:")
+	u := c
+} else := fallback
+
+get_req_id(proj, fallback) := r if {
+	proj != null
+	is_array(proj.governed_by_clauses)
+	count(proj.governed_by_clauses) > 0
+	some c in proj.governed_by_clauses
+	not startswith(c, "urn:")
+	r := c
+} else := fallback
+
 # ==============================================================================
 # AXE 1 : SUBSTRAT COMPUTE BARE-METAL (data.ontology.infrastructure_server_baremetal)
 # ==============================================================================
@@ -18,6 +37,8 @@ violations contains v if {
 		"rule": "data.archinex.edp.multiaxis.deny_unapproved_hardware_profile",
 		"axis": "urn:archinex:ontology:axis:compute_substrate",
 		"message": sprintf("Profil matériel '%v' sur '%v' non homologué dans data.ontology (attendu: %v)", [dev.device_type, dev.name, bm_proj.baremetal_types]),
+		"violated_clause_urn": get_clause_urn(bm_proj, "urn:archinex:kb:clause:infrastructure:baremetal_sylva"),
+		"violated_requirement_id": get_req_id(bm_proj, "REQ-Lot1-268"),
 	}
 }
 
@@ -29,6 +50,8 @@ violations contains v if {
 		"rule": "data.archinex.edp.multiaxis.deny_invalid_node_role",
 		"axis": "urn:archinex:ontology:axis:compute_substrate",
 		"message": sprintf("Rôle CAPI '%v' sur '%v' interdit par data.ontology (attendu: %v)", [bmh.spec.role, bmh.metadata.name, bm_proj.allowed_roles]),
+		"violated_clause_urn": get_clause_urn(bm_proj, "urn:archinex:kb:clause:infrastructure:baremetal_sylva"),
+		"violated_requirement_id": get_req_id(bm_proj, "REQ-Lot1-268"),
 	}
 }
 
@@ -44,6 +67,8 @@ violations contains v if {
 		"rule": "data.archinex.edp.multiaxis.deny_invalid_device_status",
 		"axis": "urn:archinex:ontology:axis:oob_management",
 		"message": sprintf("Statut Nautobot '%v' sur '%v' non conforme à data.ontology (requis: '%v')", [dev.status, dev.name, oob_proj.required_status]),
+		"violated_clause_urn": get_clause_urn(oob_proj, "urn:archinex:kb:clause:telecom:oob_isolation"),
+		"violated_requirement_id": get_req_id(oob_proj, "REQ-Lot1-OOB-01"),
 	}
 }
 
@@ -55,22 +80,26 @@ violations contains v if {
 		"rule": "data.archinex.edp.multiaxis.deny_insufficient_interfaces",
 		"axis": "urn:archinex:ontology:axis:oob_management",
 		"message": sprintf("Équipement '%v' n'a que %d interface(s) ; data.ontology exige au moins %d interfaces (OOB + Data)", [dev.name, count(dev.interfaces), oob_proj.min_interfaces]),
+		"violated_clause_urn": get_clause_urn(oob_proj, "urn:archinex:kb:clause:telecom:oob_isolation"),
+		"violated_requirement_id": get_req_id(oob_proj, "REQ-Lot1-OOB-01"),
 	}
 }
 
 violations contains v if {
-	_ := data.ontology.telecom_network_oob
+	oob_proj := data.ontology.telecom_network_oob
 	some dev in input.nautobot_planned_devices
 	dev.oob_ip == ""
 	v := {
 		"rule": "data.archinex.edp.multiaxis.deny_missing_oob_ip",
 		"axis": "urn:archinex:ontology:axis:oob_management",
 		"message": sprintf("Adresse IP OOB manquante sur l'équipement '%v'", [dev.name]),
+		"violated_clause_urn": get_clause_urn(oob_proj, "urn:archinex:kb:clause:telecom:oob_isolation"),
+		"violated_requirement_id": get_req_id(oob_proj, "REQ-Lot1-OOB-01"),
 	}
 }
 
 violations contains v if {
-	_ := data.ontology.telecom_network_oob
+	oob_proj := data.ontology.telecom_network_oob
 	some dev in input.nautobot_planned_devices
 	some bmh in input.k8s_manifests
 	dev.name == bmh.metadata.name
@@ -80,6 +109,8 @@ violations contains v if {
 		"rule": "data.archinex.edp.multiaxis.deny_bmc_oob_drift",
 		"axis": "urn:archinex:ontology:axis:oob_management",
 		"message": sprintf("Dérive (Drift) BMC/OOB sur '%v' : l'URL Redfish '%v' ne pointe pas vers l'IP OOB '%v'", [dev.name, bmh.spec.bmc.address, dev.oob_ip]),
+		"violated_clause_urn": get_clause_urn(oob_proj, "urn:archinex:kb:clause:telecom:oob_isolation"),
+		"violated_requirement_id": get_req_id(oob_proj, "REQ-Lot1-OOB-01"),
 	}
 }
 
@@ -95,6 +126,8 @@ violations contains v if {
 		"rule": "data.archinex.edp.multiaxis.deny_missing_oam_zone",
 		"axis": "urn:archinex:ontology:axis:security_zoning",
 		"message": "Aucune zone de sécurité OAM déclarée dans l'inventaire alors que la feuille OAM est liée",
+		"violated_clause_urn": get_clause_urn(oam_proj, "urn:archinex:kb:clause:nis2:oam_strict_bastion"),
+		"violated_requirement_id": get_req_id(oam_proj, "REQ-Lot1-SecZone-01"),
 	}
 }
 
@@ -107,6 +140,8 @@ violations contains v if {
 		"rule": "data.archinex.edp.multiaxis.deny_weak_oam_isolation",
 		"axis": "urn:archinex:ontology:axis:security_zoning",
 		"message": sprintf("Niveau d'isolation de la zone '%v' ('%v') inférieur à l'exigence data.ontology ('%v')", [z.zone_id, z.isolation_level, oam_proj.isolation_level]),
+		"violated_clause_urn": get_clause_urn(oam_proj, "urn:archinex:kb:clause:nis2:oam_strict_bastion"),
+		"violated_requirement_id": get_req_id(oam_proj, "REQ-Lot1-SecZone-01"),
 	}
 }
 
@@ -119,6 +154,8 @@ violations contains v if {
 		"rule": "data.archinex.edp.multiaxis.deny_unproxied_oam_access",
 		"axis": "urn:archinex:ontology:axis:security_zoning",
 		"message": sprintf("La zone OAM '%v' doit imposer un bastion/proxy obligatoire (proxy_required=%v)", [z.zone_id, oam_proj.proxy_required]),
+		"violated_clause_urn": get_clause_urn(oam_proj, "urn:archinex:kb:clause:nis2:oam_strict_bastion"),
+		"violated_requirement_id": get_req_id(oam_proj, "REQ-Lot1-SecZone-01"),
 	}
 }
 
@@ -135,6 +172,8 @@ violations contains v if {
 		"rule": "data.archinex.edp.multiaxis.deny_missing_environment_tier",
 		"axis": "urn:archinex:ontology:axis:env_fidelity",
 		"message": sprintf("Palier d'environnement obligatoire '%v' absent de la topologie LLD", [req_tier]),
+		"violated_clause_urn": get_clause_urn(env_proj, "urn:archinex:kb:clause:platform:isoprod_parity"),
+		"violated_requirement_id": get_req_id(env_proj, "REQ-Lot1-Env-01"),
 	}
 }
 
@@ -148,6 +187,8 @@ violations contains v if {
 		"rule": "data.archinex.edp.multiaxis.deny_non_isoprod_staging",
 		"axis": "urn:archinex:ontology:axis:env_fidelity",
 		"message": sprintf("Rupture de parité : l'environnement '%v' doit être strictement Iso-Prod (isoprod=true)", [e.env]),
+		"violated_clause_urn": get_clause_urn(env_proj, "urn:archinex:kb:clause:platform:isoprod_parity"),
+		"violated_requirement_id": get_req_id(env_proj, "REQ-Lot1-Env-01"),
 	}
 }
 
@@ -163,6 +204,8 @@ violations contains v if {
 		"rule": "data.archinex.edp.multiaxis.deny_single_power_feed",
 		"axis": "urn:archinex:ontology:axis:power_cooling_resilience",
 		"message": sprintf("Résilience électrique violée sur '%v' : %d alimentation(s) raccordée(s) au lieu de %d (mode %v)", [dev.name, count(dev.power_feeds), pwr_proj.min_power_supplies, pwr_proj.redundancy_mode]),
+		"violated_clause_urn": get_clause_urn(pwr_proj, "urn:archinex:kb:clause:facilities:dual_feed_2n"),
+		"violated_requirement_id": get_req_id(pwr_proj, "REQ-Lot1-269"),
 	}
 }
 
@@ -179,6 +222,8 @@ violations contains v if {
 		"rule": "data.archinex.edp.multiaxis.deny_weak_wan_cipher",
 		"axis": "urn:archinex:ontology:axis:wan_interco_encryption",
 		"message": sprintf("Suite cryptographique '%v' sur le tunnel '%v' non conforme à data.ontology (attendu: '%v')", [tun.cipher_suite, tun.id, ipsec_proj.cipher_suite]),
+		"violated_clause_urn": get_clause_urn(ipsec_proj, "urn:archinex:kb:clause:nis2:art21_crypto"),
+		"violated_requirement_id": get_req_id(ipsec_proj, "REQ-Lot1-1343"),
 	}
 }
 
@@ -192,6 +237,8 @@ violations contains v if {
 		"rule": "data.archinex.edp.multiaxis.deny_unmediated_s6a_direct_flow",
 		"axis": "urn:archinex:ontology:axis:wan_interco_encryption",
 		"message": sprintf("Violation §14 (Contournement de médiation) : le flux '%v' (%v -> %v) omet le bond obligatoire '%v' exigé par data.ontology (%v)", [flow.id, flow.source_shadow_ref, flow.destination_core_ref, req_hop, ipsec_proj.required_mediation_hops]),
+		"violated_clause_urn": get_clause_urn(ipsec_proj, "urn:archinex:kb:clause:nis2:art21_crypto"),
+		"violated_requirement_id": get_req_id(ipsec_proj, "REQ-Lot1-1343"),
 	}
 }
 
@@ -206,6 +253,8 @@ violations contains v if {
 		"rule": "data.archinex.edp.multiaxis.deny_unreconciled_partner_objects",
 		"axis": "urn:archinex:ontology:axis:wan_interco_encryption",
 		"message": sprintf("Rupture de réconciliation multi-domaine : le flux '%v' (pivot tenant_ref='%v') n'est pas réconcilié avec une Organisation Partenaire et un Contrat SLA / Sonde NOC", [flow.id, flow.tenant_ref]),
+		"violated_clause_urn": get_clause_urn(ipsec_proj, "urn:archinex:kb:clause:nis2:art21_crypto"),
+		"violated_requirement_id": get_req_id(ipsec_proj, "REQ-Lot1-1343"),
 	}
 }
 
@@ -225,4 +274,3 @@ evaluation := {
 	"violation_messages": violation_messages,
 	"evaluated_axes_count": count(data.ontology),
 }
-

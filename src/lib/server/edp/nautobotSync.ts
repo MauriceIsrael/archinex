@@ -144,6 +144,23 @@ export async function syncHydratedInventoryToNautobot(
     return summary;
   }
 
+  // Extraction des clauses satisfaites pour les Custom Fields et Tags Nautobot (Issue #262)
+  const satisfiedClauses = (Array.isArray(hydrated.satisfied_clauses) && hydrated.satisfied_clauses.length > 0)
+    ? hydrated.satisfied_clauses
+    : (typeof hydrated.sylva_workload_cluster_values?.metadata === 'object' &&
+       (hydrated.sylva_workload_cluster_values.metadata as any)?.annotations?.['archinex.io/satisfied-clauses'])
+      ? String((hydrated.sylva_workload_cluster_values.metadata as any).annotations['archinex.io/satisfied-clauses'])
+          .split(',')
+          .map((s) => s.trim())
+          .filter(Boolean)
+      : [];
+
+  const satisfiedClausesStr = satisfiedClauses.join(', ');
+  const clauseTags = satisfiedClauses.map((c) => ({
+    name: c.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 100),
+    slug: c.toLowerCase().replace(/[^a-z0-9_-]/g, '-').slice(0, 100)
+  }));
+
   try {
     // 0. Récupérer les référentiels de base Nautobot (Status Active/Planned, Location pop-valmondois, Namespace Global)
     const statusesRes = await nbFetch('/api/extras/statuses/?limit=50', {}, clientOpts);
@@ -268,6 +285,10 @@ export async function syncHydratedInventoryToNautobot(
           };
           if (pivotTenantUuid) {
             circuitPayload.tenant = pivotTenantUuid;
+          }
+          if (satisfiedClauses.length > 0) {
+            circuitPayload.custom_fields = { satisfied_clauses: satisfiedClausesStr };
+            circuitPayload.tags = clauseTags;
           }
 
           const circuitObj = await getOrCreateByQuery(
@@ -493,17 +514,22 @@ export async function syncHydratedInventoryToNautobot(
       for (const dev of hydrated.nautobot_planned_devices || []) {
         try {
           const isHpe = String(dev.device_type).toLowerCase().includes('dl380');
+          const devPayload: Record<string, unknown> = {
+            name: String(dev.name),
+            device_type: isHpe ? dtDl380.id : dtR750.id,
+            role: roleWorker.id,
+            location: defaultLocationId,
+            status: statusPlanned,
+            comments: `Pool Sylva : ${dev.cluster_pool || 'sylva-default'} | Profil : ${dev.dataplane_profile || 'Standard'} | OOB : ${dev.oob_ip} | PDU : ${(dev.power_feeds as string[] || []).join(' + ')}`
+          };
+          if (satisfiedClauses.length > 0) {
+            devPayload.custom_fields = { satisfied_clauses: satisfiedClausesStr };
+            devPayload.tags = clauseTags;
+          }
           const devObj = await getOrCreateByQuery(
             '/api/dcim/devices/',
             `name=${encodeURIComponent(String(dev.name))}`,
-            {
-              name: String(dev.name),
-              device_type: isHpe ? dtDl380.id : dtR750.id,
-              role: roleWorker.id,
-              location: defaultLocationId,
-              status: statusPlanned,
-              comments: `Pool Sylva : ${dev.cluster_pool || 'sylva-default'} | Profil : ${dev.dataplane_profile || 'Standard'} | OOB : ${dev.oob_ip} | PDU : ${(dev.power_feeds as string[] || []).join(' + ')}`
-            },
+            devPayload,
             true,
             clientOpts
           );

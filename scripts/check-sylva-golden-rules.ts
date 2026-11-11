@@ -101,6 +101,24 @@ async function main() {
   console.log('   ✓ Règle 14 : Adresses BMC Redfish virtuelles conformes');
   console.log('   ✓ Règle 15 : Adresses MAC de boot présentes et valides\n');
 
+  // 3. Traçabilité des Clauses Doctrinales & Triplets Ontologiques (Issue #262)
+  const annotations = (manifest.metadata as any)?.annotations || {};
+  const satisfiedClauses = annotations['archinex.io/satisfied-clauses'];
+  const evaluatedTriplets = annotations['archinex.io/evaluated-triplets'];
+
+  if (!satisfiedClauses || typeof satisfiedClauses !== 'string' || satisfiedClauses.length === 0) {
+    console.error('❌ Annotation manquante ou vide: archinex.io/satisfied-clauses');
+    process.exit(1);
+  }
+  if (!evaluatedTriplets || typeof evaluatedTriplets !== 'string' || evaluatedTriplets.length === 0) {
+    console.error('❌ Annotation manquante ou vide: archinex.io/evaluated-triplets');
+    process.exit(1);
+  }
+
+  console.log('✅ Rétro-traçabilité Doctrinale & KRM Sylva (Annotations Validées) :');
+  console.log(`   ✓ archinex.io/satisfied-clauses  : "${satisfiedClauses}"`);
+  console.log(`   ✓ archinex.io/evaluated-triplets : "${evaluatedTriplets}"\n`);
+
   process.exit(0);
 }
 

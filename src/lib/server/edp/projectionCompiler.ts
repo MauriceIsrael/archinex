@@ -67,6 +67,7 @@ export function compileOntologyProjections(
       revision: b.revision,
       title: entity.title,
       domain: entity.domain,
+      governed_by_clauses: entity.governed_by_clauses || [],
       ...(entity.projections || {})
     };
   }

@@ -7,6 +7,10 @@
       "revision": 1,
       "kind": "leaf",
       "is_default_standard": true,
+      "governed_by_clauses": [
+        "urn:archinex:kb:clause:infrastructure:baremetal_sylva",
+        "REQ-Lot1-268"
+      ],
       "title": "Cluster Sylva Bare-Metal SR-IOV / DPDK (Pool CNF Cœur de Réseau — NUMA / HugePages 1Gi)",
       "domain": "infrastructure",
       "keywords": ["baremetal", "bare-metal", "serveur", "worker", "control-plane", "dell", "hpe", "r750", "dl380", "compute", "sylva", "metal3", "sriov", "sr-iov", "dpdk", "numa", "hugepages", "cnf", "coeur", "upf"],
@@ -37,6 +41,10 @@
       "revision": 1,
       "kind": "leaf",
       "is_default_standard": false,
+      "governed_by_clauses": [
+        "urn:archinex:kb:clause:infrastructure:sylva_standard_nis2",
+        "REQ-Lot1-271"
+      ],
       "title": "Cluster SUSE Telco Cloud & Sylva Standard (Pool Workloads / Isolement NIS2 Normal)",
       "domain": "infrastructure",
       "keywords": ["suse", "telco", "sylva", "rke2", "rancher", "slemicro", "sle-micro", "capi", "cluster-api", "kubernetes", "standard", "nis2", "middleware", "oss", "mcx"],
@@ -69,6 +77,10 @@
       "urn": "urn:archinex:ontology:telecom:network:oob",
       "revision": 1,
       "kind": "leaf",
+      "governed_by_clauses": [
+        "urn:archinex:kb:clause:telecom:oob_isolation",
+        "REQ-Lot1-OOB-01"
+      ],
       "title": "Réseau d'Administration Hors-Bande (OOB Redfish)",
       "domain": "telecom",
       "keywords": ["oob", "hors-bande", "bmc", "idrac", "ilo", "redfish", "administration", "management", "ipmi"],
@@ -115,6 +127,10 @@
       "revision": 1,
       "kind": "leaf",
       "is_default_standard": true,
+      "governed_by_clauses": [
+        "urn:archinex:kb:clause:nis2:art21_crypto",
+        "REQ-Lot1-1343"
+      ],
       "title": "Chiffrement IPsec ESP (IKEv2 AES-256-GCM) & Médiation DEA S6a Inter-Lots (SecGW-Lot1 → DEA-Lot1 → HSS-Lot1)",
       "domain": "security",
       "keywords": ["ipsec", "esp", "ikev2", "aes-256", "gcm", "vpn", "tunnel", "wan", "interco", "macsec", "chiffrement", "s6a", "dea", "secgw", "mme", "hss", "lot3", "lot 3", "mediation", "médiation"],
@@ -141,6 +157,10 @@
       "urn": "urn:archinex:ontology:security:zone:oam",
       "revision": 2,
       "kind": "leaf",
+      "governed_by_clauses": [
+        "urn:archinex:kb:clause:nis2:oam_strict_bastion",
+        "REQ-Lot1-SecZone-01"
+      ],
       "title": "Zone de Sécurité OAM (Exploitation & Bastion)",
       "domain": "security",
       "keywords": ["oam", "exploitation", "bastion", "proxy", "isolation", "nis2", "zone", "sécurité", "admin"],
@@ -186,6 +206,10 @@
       "urn": "urn:archinex:ontology:platform:env:iso_prod_3tiers",
       "revision": 1,
       "kind": "leaf",
+      "governed_by_clauses": [
+        "urn:archinex:kb:clause:platform:isoprod_parity",
+        "REQ-Lot1-Env-01"
+      ],
       "title": "Topologie 3 Environnements (Dev / Recette Iso-Prod / Prod)",
       "domain": "platform",
       "keywords": ["environnement", "environnements", "dev", "recette", "pré-prod", "preprod", "prod", "production", "iso-prod", "qualification", "parité"],
@@ -209,6 +233,10 @@
       "urn": "urn:archinex:ontology:facilities:power:dual_feed_2n",
       "revision": 1,
       "kind": "leaf",
+      "governed_by_clauses": [
+        "urn:archinex:kb:clause:facilities:dual_feed_2n",
+        "REQ-Lot1-269"
+      ],
       "title": "Alimentation Électrique Redondante Dual-Feed (2N)",
       "domain": "facilities",
       "keywords": ["électrique", "alimentation", "pdu", "2n", "dual-feed", "onduleur", "energie"],
@@ -743,6 +771,27 @@
       "predicate": "requires_aspect",
       "object": "urn:archinex:ontology:axis:oob_management",
       "rationale": "L'administration des équipements réseau et passerelles doit passer par un canal OOB isolé."
+    },
+    {
+      "id": "tr-008",
+      "subject": "urn:archinex:ontology:security:crypto:ipsec_ikev2_aes256",
+      "predicate": "satisfies_clause",
+      "object": "REQ-Lot1-1343",
+      "rationale": "Lien fort formel: le chiffrement IPsec ESP satisfait l'exigence REQ-Lot1-1343."
+    },
+    {
+      "id": "tr-trace-042",
+      "subject": "urn:archinex:ontology:security:crypto:ipsec_ikev2_aes256",
+      "predicate": "satisfies_clause",
+      "object": "urn:archinex:kb:clause:nis2:art21_crypto",
+      "rationale": "Lien fort formel: conformité Article 21 NIS2 sur le chiffrement."
+    },
+    {
+      "id": "tr-009",
+      "subject": "urn:archinex:ontology:infrastructure:server:baremetal",
+      "predicate": "satisfies_clause",
+      "object": "REQ-Lot1-268",
+      "rationale": "Lien fort: substrat bare-metal pour REQ-Lot1-268."
     },
 
     {

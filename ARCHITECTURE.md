@@ -457,6 +457,21 @@ Pour éliminer toute latence lors du clic sur le Dashboard (`/`) ou lors du basc
 
 ---
 
+## 11 bis. Projections Multi-Modèles & Pont d'Architecture « Petites Briques »
+
+Dans l'onglet de délibération et de rendu (`ArtifactRegenerationHub.svelte`), Archinex transforme instantanément toute décision d'architecture arbitrée (Niveau L3) en projections formelles synchronisées, sans aucune dérive documentaire (*Zero-Drift*) :
+1. **Diagrammes d'Architecture Hi-Fi (Mermaid)** :
+   - Modélisation de motifs canoniques : Actif/Actif Géoredondant Bi-Site (Dual-DC avec Quorum et DCI synchrone), Survie Edge Tactique (Mode Îlotage), Découplage de services critiques 3GPP (SIP Core, App Servers, Common Services) et Passerelle Hybride LMR/IWF.
+   - Chaîne de déploiement progressive Zero-Downtime adaptée à la topologie retenue.
+2. **Modèle C4 Structurizr (DSL & Visuel)** : Hiérarchie logicielle System/Container.
+3. **Modélisation SysML v2 (BDD)** : Définition des blocs et contraintes d'ingénierie système.
+4. **Configuration JSON Technique** : Paramétrage opérationnel opposable scellé.
+5. **Pont d'Export Canvas « Petites Briques » (`petitesBriquesBridge.ts`)** :
+   - Traduction des exigences architecturales en canevas déclaratifs compatibles avec le moteur Petites Briques (Sites `on-prem`, `managed-self`, briques physiques/logiques empilées selon les règles *Poka-Yoke*, zones fonctionnelles et flux d'interconnexion normalisés).
+   - Export immédiat aux formats YAML (`petitesbriques_canvas.yaml`) et JSON.
+
+---
+
 ## 12. Paquet de Décision Exécutable (EDP) & Oracles OPA/Rego (Expérimental)
 
 Dans le cadre de l'initiative expérimentale (`ARCHINEX_EXPERIMENTAL_EDP=1`), Archinex associe à chaque décision d'architecture arbitrée un **Paquet de Décision Exécutable** (EDP) assurant l'opposabilité et la vérifiabilité continue du HLD face aux instanciations LLD réelles ou simulées :

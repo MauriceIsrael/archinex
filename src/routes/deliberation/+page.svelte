@@ -12,6 +12,7 @@
 	import Phase4RefinementHub from '$lib/components/deliberation/Phase4RefinementHub.svelte';
 	import WhyInspector from '$lib/components/deliberation/WhyInspector.svelte';
 	import FreezeSectionDialog from '$lib/components/deliberation/FreezeSectionDialog.svelte';
+	import ImpactGraphExplorer from '$lib/components/deliberation/ImpactGraphExplorer.svelte';
 	import { deliberationStore } from '$lib/stores/deliberationStore.svelte';
 	import { page } from '$app/stores';
 	import { Layers, MessagesSquare, CheckCircle2, Cpu } from 'lucide-svelte';
@@ -27,7 +28,7 @@
 
 		if (querySubject && deliberationStore.subjects.some((s) => s.id === querySubject)) {
 			deliberationStore.selectSubject(querySubject);
-		} else if (queryMode === 'board' || queryMode === 'conversation') {
+		} else if (queryMode === 'board' || queryMode === 'conversation' || queryMode === 'graph') {
 			deliberationStore.setDeliberationViewMode(queryMode);
 		}
 
@@ -79,7 +80,12 @@
 						onOpenSubject={() => deliberationStore.setDeliberationViewMode('conversation')}
 					/>
 				</div>
-			<!-- 2. Vue Délibération par sujet (Périmètre Sujet) -->
+			<!-- 2. Vue Graphe Causal & Analyse d'Impact (Périmètre Projet) -->
+			{:else if deliberationStore.deliberationViewMode === 'graph'}
+				<div class="space-y-4">
+					<ImpactGraphExplorer />
+				</div>
+			<!-- 3. Vue Délibération par sujet (Périmètre Sujet) -->
 			{:else}
 				<div class="space-y-4">
 					<DeliberationWorkbench

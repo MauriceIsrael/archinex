@@ -8,6 +8,20 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Graphe Causal d'Impact & Simulateur de Compromis Coût V1 (What-If Simulator)
+- **Moteur de Simulation & Modélisation Causal (`src/lib/domain/impactGraph.ts`)** :
+  - Modélisation typée des graphes d'arbitrage multicritères à 5 types de nœuds (`requirement`, `compliance`, `cost_constraint`, `decision`, `option`) et 5 types d'arêtes (`satisfies`, `violates`, `based_on`, `tradeoff_degrades`, `enforces`).
+  - Simulation de scénarios en direct : bascule entre *Scénario Nominal V2 (100% Conforme)* et *Scénario Optimisé Coût V1 (Compromis & Dégradations)*.
+  - Calcul immédiat du rayon d'impact (*blast radius*) : dégradations contractuelles (SLA, RTO/RPO, latence), ruptures réglementaires (DORA, NIS2, RGPD), économies budgétaires (OPEX/CAPEX) et formalisation de la dette technique assumée avec clauses d'extinction (*sunset clauses*).
+  - Générateur syntaxique Mermaid vectoriel interactif (`generateMermaidImpactDiagram`) avec sous-graphes et classes CSS distinctes.
+- **Interface Utilisateur `ImpactGraphExplorer` (`src/lib/components/deliberation/ImpactGraphExplorer.svelte`)** :
+  - Nouveau composant interactif avec sélecteur de scénario What-If en un clic.
+  - Bandeau de 4 KPIs d'impact réactifs (Économie V1, Impact Réglementaire, Exigences Dégradées, Dette Assumée).
+  - 3 vues complémentaires : Diagramme graphique vectoriel (zoom/pan/plein écran via `MermaidViewer`), Tableau du rayon d'impact par niveau de sévérité (`CRITICAL`, `HIGH`, `MEDIUM`), et Registre de Dette Technique avec bouton de consignation d'ADR de dérogation transitoire.
+  - Intégration ergonomique dans la barre de navigation projet (`ProjectEngagementHeader.svelte`) et le routeur de délibération (`src/routes/deliberation/+page.svelte` en mode `graph`).
+- **Tests de Contrat & Validation** :
+  - Suite de tests contractuels dans `tests/contract/impact-graph.test.ts` (5 tests validant les 5 types de nœuds, le scénario nominal, le compromis V1, la syntaxe Mermaid et l'intégration dans `deliberationStore`).
+
 ### Suppression de la Duplication Textuelle Mermaid dans les Dossiers Word HLD
 - **Suppression des blocs de code Mermaid bruts superflus (`src/lib/server/projects/documentEngineBridge.ts`)** :
   - Dans la construction des sections de blueprint pour Document Engine (`fragmentToBlueprintBlocks`), suppression de l'émission par défaut des blocs de code textuels (`type: 'code', language: 'mermaid'`) sous la figure vectorielle C4 et le tableau de la chaîne de déploiement.

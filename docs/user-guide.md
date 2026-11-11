@@ -54,9 +54,19 @@ L'assistant de création d'espace (`/workspaces/new` ou modale du bandeau de pro
   - Les sujets en haut du tableau sont ceux qui possèdent le plus fort effet multiplicateur (`Débloque`).
   - Un simple clic sur une ligne du tableau ouvre directement le **Fil de Délibération du sujet** dans le Workbench 3 colonnes sans changer d'écran.
   - **Mémorisation du sujet, du mode de vue et de la posture active (`localStorage`)** :
-    - Le dernier sujet sélectionné, le mode d'affichage (`board` pour le Tableau de maturité / vue d'ensemble ou `conversation` pour le Fil de délibération) ainsi que la posture active (`appropriation`, `deliberation`, `rendu`) sont automatiquement mémorisés dans le stockage local du navigateur (clés scopées par projet : `archinex:activeSubjectId:<id>`, `archinex:deliberationViewMode:<id>`, `archinex:activePosture:<id>`).
+    - Le dernier sujet sélectionné, le mode d'affichage (`board` pour le Tableau de maturité / vue d'ensemble, `graph` pour le Graphe d'Impact Causal ou `conversation` pour le Fil de délibération) ainsi que la posture active (`appropriation`, `deliberation`, `rendu`) sont automatiquement mémorisés dans le stockage local du navigateur (clés scopées par projet : `archinex:activeSubjectId:<id>`, `archinex:deliberationViewMode:<id>`, `archinex:activePosture:<id>`).
     - Lors de toute navigation transversale ou rafraîchissement de page, votre position exacte de travail est fidèlement restaurée sans vous faire resauter sur le tableau global.
     - La synchronisation avec LLMOps en arrière-plan opère en mode silencieux (`silent: true`) : elle ne déclenche pas de toasts intempestifs lors du chargement de page et préserve scrupuleusement la vue courante. Les notifications visuelles restent réservées aux clics manuels de resynchronisation.
+
+- **Graphe Causal d'Impact & Simulateur de Compromis Coût V1 (What-If Simulator)** :
+  - Accessible via l'onglet **« Graphe d'Impact & Décisions »** dans l'en-tête de projet.
+  - Permet de visualiser les liens de dépendance causale entre les **Exigences Client**, la **Conformité Réglementaire (DORA, NIS2, RGPD)**, les **Décisions d'Architecture (ADR)** et les **Contraintes Budgétaires V1**.
+  - **Simulateur What-If en direct** : basculez d'un clic entre le *Scénario Nominal V2 (100% Conforme)* et le *Scénario Optimisé Coût V1 (Compromis & Dégradations)*.
+  - **Détection des ondes de choc budgétaires** :
+    - Chiffrage instantané des économies OPEX/CAPEX (ex: `-135 k€/an`).
+    - Mise en évidence immédiate des exigences client dégradées (ex: SLA chutant de 99.95% à 99.0%, RTO passant de 15 min à 24h).
+    - Signalement en rouge clignotant des non-conformités légales critiques (ex: violation DORA Art. 12 sur la continuité d'activité).
+  - **Registre de Dette Technique & Sunset Clauses** : formalise les concessions dans un ADR de dérogation temporaire avec condition et date de re-bascule V2 afin d'éviter la dérive silencieuse.
 - **Workbench de Délibération (3 colonnes)** :
   - **Colonne de gauche (Liste des sujets)** : navigation instantanée entre toutes les conversations de sujets avec filtres rapides (Bloquants, À faire, Actés).
   - **Colonne centrale (Fil du sujet)** :

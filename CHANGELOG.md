@@ -8,6 +8,10 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Correctif Parseur Mermaid sur `linkStyle` & `classDef` (`src/lib/domain/impactGraph.ts`)
+- Suppression du point-virgule final (`;`) sur les directives `linkStyle` et `classDef` contenant des codes couleur hexadécimaux (`#78350f;`), évitant leur réécriture par le préprocesseur `encodeEntities` (`/#\w+;/g`) de Mermaid v12 (`ﬂ°78350f¶ß`).
+- Ajout d'une assertion de non-régression dans `tests/contract/impact-graph.test.ts`.
+
 ### Déblocage du Ré-arbitrage L3, Coloration Explicite Mermaid & Labels Génériques Vx/Vy
 - **Révision d'une Décision L3 (`src/lib/domain/maturityRules.ts`, `src/lib/server/projects/arbitrationDb.ts`)** :
   - Ajout de l'option `allowRevision?: boolean` à `computeMaturity()` et du code de blocage `SEALED_SUBJECT` pour `L5_archived`.

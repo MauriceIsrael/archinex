@@ -8,6 +8,19 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Graphe d'Impact Contextualisé par Sujet & Enrichissement IA (LLM)
+- **Génération Déterministe Contextualisée (`buildContextualImpactGraph` dans `src/lib/domain/impactGraph.ts`)** :
+  - Remplacement du graphe statique par un moteur dynamique générant les nœuds et arêtes directement à partir du sujet sélectionné (critères `functional`/`nfr`/`cost`/`compliance`/`risk`, options, évaluations pondérées `-2..+2`, compromis déclarés, décision, exigences RFP liées et référentiels du projet).
+  - Adaptation générique de `simulateCostOptimization()` pour déduire dynamiquement les exigences dégradées, alertes réglementaires et clauses d'extinction sur n'importe quel graphe (déterministe ou généré par IA).
+- **Agent Serveur d'Enrichissement IA (`src/lib/server/agents/impactGraphGenerator.ts`) & API (`GET`/`POST /api/projects/[projectId]/subjects/[subjectId]/impact-graph`)** :
+  - `GET` retourne instantanément le graphe déterministe calculé depuis la base relationnelle du sujet.
+  - `POST` interroge le LLM souverain/Claude (`localLlmClient`) avec validation Zod stricte (`ImpactGraphLlmSchema`) pour produire une analyse de compromis coûts V1 vs cibles V2 sur-mesure, avec repli automatique sur le graphe déterministe si le LLM est indisponible.
+- **Interface Utilisateur (`src/lib/components/deliberation/ImpactGraphExplorer.svelte`)** :
+  - Sélecteur de sujet en tête de vue synchronisé avec `deliberationStore.activeSubjectId`.
+  - Bouton **« Contextualiser / Enrichir par IA (LLM) »**, badge de provenance (`Données du sujet` vs `Contextualisé par IA`) et réinitialisation à la demande.
+- **Tests de Contrat** :
+  - Extension de `tests/contract/impact-graph.test.ts` (7 tests) couvrant le graphe contextuel multi-domaines (Santé/HDS), la génération LLM validée par Zod et le fallback hors-ligne.
+
 ### Graphe Causal d'Impact & Simulateur de Compromis Coût V1 (What-If Simulator)
 - **Moteur de Simulation & Modélisation Causal (`src/lib/domain/impactGraph.ts`)** :
   - Modélisation typée des graphes d'arbitrage multicritères à 5 types de nœuds (`requirement`, `compliance`, `cost_constraint`, `decision`, `option`) et 5 types d'arêtes (`satisfies`, `violates`, `based_on`, `tradeoff_degrades`, `enforces`).

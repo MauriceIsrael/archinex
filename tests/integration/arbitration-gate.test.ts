@@ -353,5 +353,25 @@ describe('Lot A4 Integration: Calculated Maturity & Human Arbitration Gate (Port
 		});
 		expect(event).toBeDefined();
 		expect(event?.actorId).toBe(securityExpert.userId);
+
+		// 7. Ré-arbitrage sur un sujet déjà L3_decided (révision de décision : ex. coupe budgétaire 3 DC -> 2 DC)
+		const revisedDecision = await recordArbitrationDecision(
+			testSubjectId,
+			{
+				retainedOptionId: opt2Id,
+				rejected: [{ optionId: opt1Id, reason: 'Coupe budgétaire : bascule vers l’option économique.' }],
+				rationale: 'Moins cher pour tenue de budget.',
+				reversibility: 'irreversible',
+				acceptedViolations: []
+			},
+			leadArchitect
+		);
+		expect(revisedDecision.retainedOptionId).toBe(opt2Id);
+		expect(revisedDecision.version).toBeGreaterThan(leadDecision.version ?? 0);
+
+		const opt1After = await prisma.option.findUnique({ where: { id: opt1Id } });
+		const opt2After = await prisma.option.findUnique({ where: { id: opt2Id } });
+		expect(opt1After?.status).toBe('rejected');
+		expect(opt2After?.status).toBe('retained');
 	});
 });

@@ -122,6 +122,7 @@
 						rationale: decisionCtx.decision.rationale,
 						reversibility: decisionCtx.decision.reversibility,
 						complianceStatus: decisionCtx.decision.complianceStatus,
+						version: decisionCtx.decision.version,
 						acceptedViolations: decisionCtx.decision.acceptedViolations
 					}
 				: null,
@@ -344,19 +345,24 @@
 							<span>
 								Graphe d'Impact{selectedSubject ? ` · ${selectedSubject.section_ref} ${selectedSubject.name}` : ''}
 							</span>
+							{#if baseGraph.meta?.decisionVersion}
+								<span class="rounded-full bg-emerald-500/15 border border-emerald-500/30 px-2 py-0.5 text-[11px] font-mono font-semibold text-emerald-700 dark:text-emerald-300">
+									Décision rév. v{baseGraph.meta.decisionVersion}{baseGraph.meta.retainedOptionTitle ? ` · ${baseGraph.meta.retainedOptionTitle}` : ''}
+								</span>
+							{/if}
 							<span class="rounded-full bg-primary/10 px-2 py-0.5 text-[11px] font-semibold text-primary">
 								What-If Simulator
 							</span>
 						</h2>
 						<p class="text-xs text-muted-foreground">
 							{selectedSubject?.problem_statement ||
-								'Visualisez les ondes de choc d’une optimisation budgétaire V1 sur les engagements contractuels et la conformité légale.'}
+								'Visualisez les ondes de choc d’une optimisation budgétaire sur les engagements contractuels et la conformité légale.'}
 						</p>
 					</div>
 				</div>
 			</div>
 
-			<!-- Sélecteur de Scénario (Nominal V2 vs Optimisé Coût V1) -->
+			<!-- Sélecteur de Scénario (Optimum Nominal Vx vs Compromis Coût Vy) -->
 			<div class="flex items-center gap-1.5 p-1 bg-muted/60 rounded-xl border shrink-0">
 				<button
 					type="button"
@@ -367,7 +373,7 @@
 						: 'text-muted-foreground hover:text-foreground'}"
 				>
 					<CheckCircle2 class="h-3.5 w-3.5 text-emerald-500" />
-					<span>Scénario Nominal V2</span>
+					<span>Optimum Nominal</span>
 				</button>
 				<button
 					type="button"
@@ -378,7 +384,7 @@
 						: 'text-muted-foreground hover:text-foreground'}"
 				>
 					<DollarSign class="h-3.5 w-3.5" />
-					<span>Compromis Coût V1</span>
+					<span>Compromis Coût</span>
 				</button>
 			</div>
 		</div>
@@ -390,7 +396,7 @@
 			<!-- KPI 1 : Économie Budgétaire -->
 			<div class="rounded-lg border bg-amber-500/5 border-amber-500/20 p-3">
 				<div class="flex items-center justify-between text-xs text-amber-700 dark:text-amber-300 font-medium">
-					<span>Gain Coût V1</span>
+					<span>Gain Coût Compromis</span>
 					<DollarSign class="h-4 w-4" />
 				</div>
 				<div class="mt-1 font-mono text-base font-bold text-amber-600 dark:text-amber-400 truncate" title={simulation.estimatedSavingsOpex}>
@@ -436,11 +442,11 @@
 			<!-- KPI 4 : Dette Assumée & Sunset Clauses -->
 			<div class="rounded-lg border bg-indigo-500/5 border-indigo-500/20 p-3">
 				<div class="flex items-center justify-between text-xs text-indigo-700 dark:text-indigo-300 font-medium">
-					<span>Dette Architecturale V1</span>
+					<span>Dette & Clauses Vx → Vy</span>
 					<Clock class="h-4 w-4" />
 				</div>
 				<div class="mt-1 font-mono text-xl font-bold text-indigo-600 dark:text-indigo-400">
-					{simulation.assumedTechnicalDebt.length} clause(s) V2
+					{simulation.assumedTechnicalDebt.length} clause(s)
 				</div>
 				<div class="text-[11px] text-muted-foreground mt-0.5 truncate">
 					{simulation.assumedTechnicalDebt.length > 0 ? 'ADR transitoire à borner' : 'Aucune dette active'}
@@ -497,7 +503,7 @@
 					: 'bg-muted/50 text-muted-foreground hover:text-foreground'}"
 			>
 				<Clock class="h-3.5 w-3.5" />
-				<span>Dette Assumée & Sunset Clauses V2 ({simulation.assumedTechnicalDebt.length})</span>
+				<span>Dette Assumée &amp; Clauses Vx → Vy ({simulation.assumedTechnicalDebt.length})</span>
 			</button>
 		</div>
 	</div>
@@ -511,16 +517,16 @@
 				<div class="flex items-center gap-3 flex-wrap">
 					<span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-amber-400"></span> Contrainte Coût</span>
 					<span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-indigo-400"></span> Décision / Option</span>
-					<span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-emerald-400"></span> Exigence Satisfaite</span>
-					<span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span> Exigence Dégradée</span>
-					<span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-rose-500"></span> Non-conformité Légale</span>
+					<span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-emerald-500"></span> Satisfait</span>
+					<span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span> Dégradé</span>
+					<span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-rose-600"></span> Non-conforme</span>
 				</div>
-				<span class="font-mono text-[11px]">Rendu vectoriel zoomable</span>
+				<span class="font-mono text-[11px]">Rendu vectoriel colorisé &amp; zoomable</span>
 			</div>
 
 			<MermaidViewer
 				code={mermaidCode}
-				title={selectedSubject ? `Graphe Causal · ${selectedSubject.section_ref} ${selectedSubject.name}` : 'Cartographie Causal d\'Impact · V1 vs V2'}
+				title={selectedSubject ? `Graphe Causal · ${selectedSubject.section_ref} ${selectedSubject.name}` : 'Cartographie Causale d\'Impact · Optimum vs Compromis'}
 				defaultView="visual"
 			/>
 		</div>
@@ -602,11 +608,11 @@
 								</div>
 								<div class="grid grid-cols-1 md:grid-cols-2 gap-2 text-xs pt-1">
 									<div class="p-2 rounded bg-emerald-500/10 border border-emerald-500/20">
-										<span class="text-[10px] font-bold uppercase text-emerald-700 dark:text-emerald-300">Cible V2 Nominale :</span>
+										<span class="text-[10px] font-bold uppercase text-emerald-700 dark:text-emerald-300">Optimum Nominal :</span>
 										<div class="font-mono text-emerald-800 dark:text-emerald-200 mt-0.5">{req.nominal}</div>
 									</div>
 									<div class="p-2 rounded bg-amber-500/10 border border-amber-500/20">
-										<span class="text-[10px] font-bold uppercase text-amber-700 dark:text-amber-300">Compromis V1 Dégradé :</span>
+										<span class="text-[10px] font-bold uppercase text-amber-700 dark:text-amber-300">Compromis Coût :</span>
 										<div class="font-mono text-amber-800 dark:text-amber-200 mt-0.5">{req.degraded}</div>
 									</div>
 								</div>
@@ -628,16 +634,16 @@
 			<div>
 				<h3 class="text-sm font-bold text-foreground flex items-center gap-2">
 					<Clock class="h-4 w-4 text-indigo-500" />
-					<span>Dette Technique Assumée & Clauses d'Extinction (Sunset Clauses)</span>
+					<span>Dette Technique Assumée &amp; Clauses de Révision (Vx → Vy)</span>
 				</h3>
 				<p class="text-xs text-muted-foreground mt-0.5">
-					L'optimisation des coûts en V1 n'est saine que si les concessions sont formalisées dans un ADR assorti d'une date ou d'un seuil de re-bascule.
+					Un arbitrage économique n'est sain que si ses concessions sont formalisées dans un ADR assorti d'un seuil ou d'une condition de révision.
 				</p>
 			</div>
 
 			{#if simulation.assumedTechnicalDebt.length === 0}
 				<div class="p-4 rounded-lg bg-emerald-500/10 border border-emerald-500/20 text-xs text-emerald-800 dark:text-emerald-200">
-					Aucune dette technique V1 assumée dans le scénario nominal.
+					Aucune dette technique assumée dans le scénario optimum nominal.
 				</div>
 			{:else}
 				<div class="space-y-3">
@@ -658,7 +664,7 @@
 							<div class="p-2.5 rounded bg-background border text-xs space-y-1">
 								<div class="flex items-center gap-1.5 text-primary font-bold text-[11px]">
 									<Clock class="h-3.5 w-3.5" />
-									<span>Condition d'extinction & re-bascule V2 (Sunset Clause) :</span>
+									<span>Condition de révision / extinction (Vx → Vy) :</span>
 								</div>
 								<p class="text-foreground/90 pl-5">
 									{debt.sunsetClause}

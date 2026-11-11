@@ -95,6 +95,8 @@ export interface ImpactGraphMeta {
 	subjectName?: string;
 	sectionRef?: string;
 	projectTitle?: string;
+	decisionVersion?: number;
+	retainedOptionTitle?: string;
 	source: 'default' | 'deterministic' | 'llm';
 	modelUsed?: string;
 	generatedAt?: string;
@@ -144,6 +146,7 @@ export interface ContextualSubjectInput {
 		rationale: string;
 		reversibility: string;
 		complianceStatus?: string;
+		version?: number;
 		acceptedViolations?: Array<{ typedId: string; justification: string }>;
 	} | null;
 	requirements?: Array<{
@@ -213,12 +216,12 @@ export function buildContextualImpactGraph(input: ContextualSubjectInput): Impac
 	const complianceCriteria = criteria.filter((c) => c.kind === 'compliance' || c.kind === 'risk');
 	const functionalAndNfrCriteria = criteria.filter((c) => c.kind === 'functional' || c.kind === 'nfr');
 
-	// 2. Nœud Contrainte de Coût V1 spécifique au sujet
-	const costNodeId = 'COST_V1_SUBJECT';
+	// 2. Nœud Contrainte de Coût spécifique au sujet
+	const costNodeId = 'COST_CONSTRAINT_SUBJECT';
 	const costLabel =
 		costCriteria.length > 0
-			? `Optimisation Coût V1 : ${costCriteria.map((c) => c.name).join(' / ')}`
-			: `Contrainte Budgétaire V1 sur ${sectionLabel}${subject.name}`;
+			? `Optimisation Coût : ${costCriteria.map((c) => c.name).join(' / ')}`
+			: `Contrainte Budgétaire sur ${sectionLabel}${subject.name}`;
 
 	nodes.push({
 		id: costNodeId,
@@ -226,20 +229,21 @@ export function buildContextualImpactGraph(input: ContextualSubjectInput): Impac
 		label: costLabel,
 		description:
 			costCriteria[0]?.description ||
-			`Réduction d'investissement V1 (CAPEX/OPEX) appliquée au sujet « ${subject.name} »`,
+			`Réduction de budget (CAPEX/OPEX) appliquée au sujet « ${subject.name} »`,
 		status: 'active',
 		scenarioRole: 'cost_v1',
 		metadata: {
-			financialDelta: 'Cible optimisation coûts V1'
+			financialDelta: 'Cible d\'optimisation budgétaire'
 		}
 	});
 
-	// 3. Nœud Décision d'Architecture du sujet
+	// 3. Nœud Décision d'Architecture du sujet (avec révision réelle si arbitrée)
 	const decisionNodeId = sanitizeMermaidId(`DEC_${subject.id}`);
+	const revTag = decision?.version ? ` (rév. v${decision.version})` : '';
 	nodes.push({
 		id: decisionNodeId,
 		type: 'decision',
-		label: `Décision ${sectionLabel}${subject.name}`,
+		label: `Décision ${sectionLabel}${subject.name}${revTag}`,
 		description:
 			decision?.rationale ||
 			subject.problemStatement ||
@@ -249,8 +253,8 @@ export function buildContextualImpactGraph(input: ContextualSubjectInput): Impac
 		metadata: {
 			sunsetTarget:
 				decision?.reversibility === 'irreversible'
-					? 'Attention : décision irréversible — audit requis avant V1'
-					: 'Clause de révision V2 (jalon post-MVP)',
+					? 'Attention : choix irréversible — validation formelle requise avant déploiement'
+					: 'Condition de révision (Vx → Vy) à définir selon les seuils d\'exploitation',
 			residualRisk:
 				decision?.acceptedViolations && decision.acceptedViolations.length > 0
 					? `${decision.acceptedViolations.length} dérogation(s) acceptée(s) consignée(s)`
@@ -258,7 +262,7 @@ export function buildContextualImpactGraph(input: ContextualSubjectInput): Impac
 		}
 	});
 
-	// 4. Identification ou synthèse des options (Nominale V2 vs Compromis Coût V1)
+	// 4. Identification ou synthèse des options (Optimum Nominal vs Compromis Coût)
 	const scoreFor = (optionId: string, kindFilter: (k: string) => boolean): number => {
 		let sum = 0;
 		for (const ev of evaluations) {
@@ -288,30 +292,30 @@ export function buildContextualImpactGraph(input: ContextualSubjectInput): Impac
 	}
 
 	const nominalOptNodeId = nominalOpt ? sanitizeMermaidId(`OPT_NOM_${nominalOpt.id}`) : 'OPT_NOMINAL_SYNTH';
-	const costOptNodeId = costOpt ? sanitizeMermaidId(`OPT_COST_${costOpt.id}`) : 'OPT_COST_V1_SYNTH';
+	const costOptNodeId = costOpt ? sanitizeMermaidId(`OPT_COST_${costOpt.id}`) : 'OPT_COST_SYNTH';
 
 	if (nominalOpt) {
 		nodes.push({
 			id: nominalOptNodeId,
 			type: 'option',
-			label: `Option Nominale V2 : ${nominalOpt.title}`,
+			label: `Optimum Nominal : ${nominalOpt.title}`,
 			description: nominalOpt.summary || 'Variante nominale maximisant les exigences techniques et réglementaires',
 			status: decision?.retainedOptionId === nominalOpt.id ? 'retained' : 'candidate',
 			scenarioRole: 'nominal',
 			metadata: {
-				financialDelta: 'Coût nominal (cible V2)'
+				financialDelta: 'Coût nominal (optimum global)'
 			}
 		});
 	} else {
 		nodes.push({
 			id: nominalOptNodeId,
 			type: 'option',
-			label: `Architecture Nominale V2 · ${subject.name}`,
+			label: `Architecture Nominale · ${subject.name}`,
 			description: 'Architecture de référence couvrant l’ensemble des exigences sans compromis',
 			status: 'candidate',
 			scenarioRole: 'nominal',
 			metadata: {
-				financialDelta: 'Budget complet V2'
+				financialDelta: 'Budget nominal complet'
 			}
 		});
 	}
@@ -321,16 +325,16 @@ export function buildContextualImpactGraph(input: ContextualSubjectInput): Impac
 		nodes.push({
 			id: costOptNodeId,
 			type: 'option',
-			label: `Compromis Coût V1 : ${costOpt.title}`,
+			label: `Compromis Coût : ${costOpt.title}`,
 			description:
 				costOpt.summary ||
 				costTradeoff?.gains ||
-				'Variante optimisée sur la dimension financière pour le lancement V1',
+				'Variante optimisée sur la dimension financière avec compromis assumés',
 			status: decision?.retainedOptionId === costOpt.id ? 'retained' : 'candidate',
 			scenarioRole: 'cost_v1',
 			metadata: {
-				financialDelta: costTradeoff?.gains || 'Économie V1 estimée',
-				sunsetTarget: `Re-bascule vers ${nominalOpt?.title || 'cible V2'} après validation marché`,
+				financialDelta: costTradeoff?.gains || 'Économie budgétaire ciblée',
+				sunsetTarget: `Condition de bascule (Vx → Vy) vers « ${nominalOpt?.title || 'optimum nominal'} »`,
 				residualRisk: costTradeoff?.sacrifices || 'Concessions NFR / conformité à borner par ADR'
 			}
 		});
@@ -338,14 +342,14 @@ export function buildContextualImpactGraph(input: ContextualSubjectInput): Impac
 		nodes.push({
 			id: costOptNodeId,
 			type: 'option',
-			label: `Variante Allégée Coût V1 · ${subject.name}`,
-			description: `Simplification temporaire de « ${subject.name} » pour tenir l'enveloppe V1`,
+			label: `Variante Allégée Coût · ${subject.name}`,
+			description: `Simplification de « ${subject.name} » pour respecter la contrainte budgétaire`,
 			status: 'candidate',
 			scenarioRole: 'cost_v1',
 			metadata: {
-				financialDelta: 'Réduction CAPEX/OPEX V1',
-				sunsetTarget: 'Montée en charge V2 dès levée des contraintes budgétaires',
-				residualRisk: 'Dégradation ciblée des capacités non-critiques en V1'
+				financialDelta: 'Réduction CAPEX/OPEX',
+				sunsetTarget: 'Révision (Vx → Vy) dès levée des contraintes budgétaires',
+				residualRisk: 'Dégradation ciblée des capacités non-critiques'
 			}
 		});
 	}
@@ -362,7 +366,7 @@ export function buildContextualImpactGraph(input: ContextualSubjectInput): Impac
 		from: decisionNodeId,
 		to: nominalOptNodeId,
 		type: 'based_on',
-		label: 'Cible V2',
+		label: 'Optimum nominal',
 		active: true,
 		scenarioScope: 'nominal_v2'
 	});
@@ -370,7 +374,7 @@ export function buildContextualImpactGraph(input: ContextualSubjectInput): Impac
 		from: decisionNodeId,
 		to: costOptNodeId,
 		type: 'based_on',
-		label: 'Arbitrage V1',
+		label: 'Arbitrage coût',
 		active: true,
 		scenarioScope: 'cost_optimized_v1'
 	});
@@ -393,9 +397,9 @@ export function buildContextualImpactGraph(input: ContextualSubjectInput): Impac
 			label: `${req.clauseRef ? req.clauseRef + ' : ' : ''}${req.title}`,
 			description: `Exigence client contractuelle (${req.criticality || 'standard'})`,
 			nominalVal: 'Conforme à 100% aux spécifications contractuelles',
-			degradedVal: 'Couverture partielle en V1 (dérogation contractuelle requise)',
+			degradedVal: 'Couverture dégradée sous compromis coût (dérogation requise)',
 			severity: isBlocking ? 'HIGH' : 'MEDIUM',
-			cause: `Arbitrage coût V1 sur ${subject.name}`
+			cause: `Arbitrage coût sur ${subject.name}`
 		});
 	}
 
@@ -415,10 +419,10 @@ export function buildContextualImpactGraph(input: ContextualSubjectInput): Impac
 				description: crit.description || `Critère ${crit.kind.toUpperCase()} du sujet`,
 				nominalVal: nomEval
 					? `Score ${nomEval.score >= 0 ? '+' : ''}${nomEval.score} · ${nomEval.justification}`
-					: 'Niveau nominal V2 garanti',
+					: 'Niveau nominal garanti',
 				degradedVal: costEval
 					? `Score ${costEval.score} · ${costEval.justification}`
-					: `Niveau réduit en V1 (${costTradeoff?.sacrifices || 'capacité allégée'})`,
+					: `Niveau réduit sous compromis (${costTradeoff?.sacrifices || 'capacité allégée'})`,
 				severity: crit.weight >= 4 || (costEval && costEval.score <= -2) ? 'HIGH' : 'MEDIUM',
 				cause: costEval?.justification || `Compromis financier sur ${crit.name}`
 			});
@@ -431,9 +435,9 @@ export function buildContextualImpactGraph(input: ContextualSubjectInput): Impac
 			label: `Périmètre fonctionnel & SLA · ${subject.name}`,
 			description: `Engagements de service attendus pour ${subject.name}`,
 			nominalVal: 'Périmètre complet et redondance nominale',
-			degradedVal: 'Périmètre MVP V1 allégé',
+			degradedVal: 'Périmètre allégé sous contrainte budgétaire',
 			severity: 'MEDIUM',
-			cause: `Réduction de coût V1 sur ${subject.name}`
+			cause: `Réduction de coût sur ${subject.name}`
 		});
 	}
 
@@ -464,7 +468,7 @@ export function buildContextualImpactGraph(input: ContextualSubjectInput): Impac
 			from: costOptNodeId,
 			to: req.id,
 			type: 'tradeoff_degrades',
-			label: req.severity === 'HIGH' ? 'Dégradation majeure' : 'Concession V1',
+			label: req.severity === 'HIGH' ? 'Dégradation majeure' : 'Concession coût',
 			active: true,
 			impactSeverity: req.severity,
 			scenarioScope: 'cost_optimized_v1',
@@ -499,9 +503,9 @@ export function buildContextualImpactGraph(input: ContextualSubjectInput): Impac
 				article: crit.name,
 				legalRisk:
 					costEval?.justification ||
-					`Exposition réglementaire ou risque accru sur « ${crit.name} » en configuration V1 allégée`,
+					`Exposition réglementaire ou risque accru sur « ${crit.name} » en variante allégée`,
 				severity: isViolated || crit.weight >= 4 ? 'CRITICAL' : 'HIGH',
-				mitigation: `Consigner un ADR transitoire avec mesure compensatoire et échéance V2 sur ${subject.name}`,
+				mitigation: `Consigner un ADR de dérogation avec mesure compensatoire et jalon de révision (Vx → Vy) sur ${subject.name}`,
 				violated: isViolated
 			});
 		}
@@ -519,9 +523,9 @@ export function buildContextualImpactGraph(input: ContextualSubjectInput): Impac
 				article: `Exigences applicables (${fw})`,
 				legalRisk: hasViolation
 					? `Dérogation explicite enregistrée vis-à-vis de ${fw}`
-					: `Vérifier l'absence de régression ${fw} suite aux compromis de coût V1 sur ${subject.name}`,
+					: `Vérifier l'absence de régression ${fw} suite aux compromis de coût sur ${subject.name}`,
 				severity: hasViolation ? 'CRITICAL' : 'HIGH',
-				mitigation: `Contrôle de conformité ${fw} obligatoire avant mise en production V1`,
+				mitigation: `Contrôle de conformité ${fw} obligatoire avant déploiement de cette révision`,
 				violated: Boolean(hasViolation)
 			});
 		}
@@ -563,6 +567,10 @@ export function buildContextualImpactGraph(input: ContextualSubjectInput): Impac
 		});
 	}
 
+	const retainedOpt = decision
+		? options.find((o) => o.id === decision.retainedOptionId)
+		: undefined;
+
 	return {
 		nodes,
 		edges,
@@ -571,10 +579,12 @@ export function buildContextualImpactGraph(input: ContextualSubjectInput): Impac
 			subjectName: subject.name,
 			sectionRef: subject.sectionRef,
 			projectTitle,
+			decisionVersion: decision?.version,
+			retainedOptionTitle: retainedOpt?.title,
 			source: 'deterministic',
 			generatedAt: new Date().toISOString(),
-			estimatedSavingsOpex: costTradeoff?.gains ? costTradeoff.gains : 'Optimisation V1 ciblée',
-			estimatedSavingsCapex: 'À chiffrer selon devis V1'
+			estimatedSavingsOpex: costTradeoff?.gains ? costTradeoff.gains : 'Optimisation budgétaire ciblée',
+			estimatedSavingsCapex: 'À chiffrer selon devis'
 		}
 	};
 }
@@ -863,9 +873,9 @@ export function simulateCostOptimization(
 		const subjectContext = baseGraph.meta?.subjectName ? ` sur « ${baseGraph.meta.subjectName} »` : '';
 		return {
 			scenario: 'nominal_v2',
-			summaryMessage: `Scénario Nominal V2${subjectContext} : Toutes les exigences clients et conformités réglementaires sont satisfaites. Budget nominal sans concession technique.`,
-			estimatedSavingsOpex: '0 k€ (Base)',
-			estimatedSavingsCapex: '0 k€ (Base)',
+			summaryMessage: `Scénario Optimum Nominal${subjectContext} : Toutes les exigences clients et conformités réglementaires sont satisfaites sans concession technique.`,
+			estimatedSavingsOpex: '0 k€ (Base nominale)',
+			estimatedSavingsCapex: '0 k€ (Base nominale)',
 			severityMax: 'LOW',
 			degradedRequirements: [],
 			compromisedCompliance: [],
@@ -876,7 +886,7 @@ export function simulateCostOptimization(
 		};
 	}
 
-	// Scénario Optimisé Coût V1 : activation des compromis et propagation dynamique sur les cibles
+	// Scénario Compromis Coût : activation des concessions et propagation dynamique sur les cibles
 	for (const node of nodes) {
 		if (node.type === 'requirement' || node.type === 'compliance') {
 			node.status = 'compliant';
@@ -932,10 +942,10 @@ export function simulateCostOptimization(
 			degradedRequirements.push({
 				id: target.id,
 				label: target.label,
-				nominal: target.metadata?.nominalValue || 'Cible nominale V2',
-				degraded: target.metadata?.degradedValue || edge.label || 'Dégradation V1',
+				nominal: target.metadata?.nominalValue || 'Cible nominale',
+				degraded: target.metadata?.degradedValue || edge.label || 'Niveau dégradé sous compromis coût',
 				severity: sev,
-				cause: edge.cause || target.metadata?.cause || edge.label || 'Arbitrage coût V1'
+				cause: edge.cause || target.metadata?.cause || edge.label || 'Arbitrage budgétaire'
 			});
 		}
 
@@ -958,12 +968,12 @@ export function simulateCostOptimization(
 				severity: sev,
 				mitigation:
 					target.metadata?.mitigation ||
-					'Consigner un ADR de dérogation avec clause d\'extinction V2 et mesure compensatoire.'
+					'Consigner un ADR de dérogation avec clause de révision (Vx → Vy) et mesure compensatoire.'
 			});
 		}
 	}
 
-	// Extraction dynamique de la dette technique assumée (à partir des décisions & options V1)
+	// Extraction dynamique de la dette technique assumée (à partir des décisions & options de compromis)
 	const assumedTechnicalDebt: AssumedTechnicalDebt[] = [];
 	const decisionNodes = nodes.filter((n) => n.type === 'decision');
 	const costOptionNodes = nodes.filter((n) => n.type === 'option' && n.scenarioRole === 'cost_v1');
@@ -973,8 +983,8 @@ export function simulateCostOptimization(
 			assumedTechnicalDebt.push({
 				decisionId: dec.id,
 				title: dec.label,
-				savings: dec.metadata?.financialDelta || baseGraph.meta?.estimatedSavingsOpex || 'Économie V1',
-				sunsetClause: dec.metadata?.sunsetTarget || 'Re-bascule V2 planifiée',
+				savings: dec.metadata?.financialDelta || baseGraph.meta?.estimatedSavingsOpex || 'Économie ciblée',
+				sunsetClause: dec.metadata?.sunsetTarget || 'Condition de révision (Vx → Vy) à définir',
 				residualRisk: dec.metadata?.residualRisk || dec.description
 			});
 		}
@@ -983,11 +993,11 @@ export function simulateCostOptimization(
 			assumedTechnicalDebt.push({
 				decisionId: decisionNodes[0]?.id || opt.id,
 				title: opt.label,
-				savings: opt.metadata?.financialDelta || baseGraph.meta?.estimatedSavingsOpex || 'Économie V1',
+				savings: opt.metadata?.financialDelta || baseGraph.meta?.estimatedSavingsOpex || 'Économie ciblée',
 				sunsetClause:
 					opt.metadata?.sunsetTarget ||
 					decisionNodes[0]?.metadata?.sunsetTarget ||
-					'Clause de révision V2 à définir lors de l\'arbitrage',
+					'Clause de révision (Vx → Vy) à définir lors de l\'arbitrage',
 				residualRisk: opt.metadata?.residualRisk || opt.description
 			});
 		}
@@ -999,7 +1009,7 @@ export function simulateCostOptimization(
 
 	return {
 		scenario: 'cost_optimized_v1',
-		summaryMessage: `Scénario Optimisé Coût V1${subjectContext} : ${degradedRequirements.length} exigence(s) client dégradée(s) et ${compromisedCompliance.length} alerte(s) de conformité identifiée(s) pour une économie estimée (${opex} OPEX / ${capex} CAPEX).`,
+		summaryMessage: `Scénario Compromis Coût${subjectContext} : ${degradedRequirements.length} exigence(s) client dégradée(s) et ${compromisedCompliance.length} alerte(s) de conformité identifiée(s) pour une économie estimée (${opex} OPEX / ${capex} CAPEX).`,
 		estimatedSavingsOpex: opex,
 		estimatedSavingsCapex: capex,
 		severityMax,
@@ -1012,8 +1022,21 @@ export function simulateCostOptimization(
 	};
 }
 
+const NODE_STYLES: Record<string, string> = {
+	costNode: 'fill:#fef3c7,stroke:#d97706,stroke-width:2px,color:#78350f',
+	decisionNode: 'fill:#e0e7ff,stroke:#4f46e5,stroke-width:2px,color:#312e81',
+	optionRetained: 'fill:#d1fae5,stroke:#059669,stroke-width:2.5px,color:#064e3b',
+	optionCandidate: 'fill:#f3f4f6,stroke:#9ca3af,stroke-width:1.5px,color:#374151,stroke-dasharray: 4 4',
+	reqCompliant: 'fill:#ecfdf5,stroke:#10b981,stroke-width:2px,color:#065f46',
+	reqDegraded: 'fill:#fef3c7,stroke:#d97706,stroke-width:2.5px,color:#92400e',
+	regCompliant: 'fill:#f5f3ff,stroke:#8b5cf6,stroke-width:2px,color:#5b21b6',
+	regDegraded: 'fill:#ffedd5,stroke:#ea580c,stroke-width:2.5px,color:#9a3412',
+	regViolated: 'fill:#fee2e2,stroke:#dc2626,stroke-width:3px,color:#7f1d1d'
+};
+
 /**
- * Génère la représentation syntaxique Mermaid (flowchart TD) pour le rendu interactif.
+ * Génère la représentation syntaxique Mermaid (flowchart TD) pour le rendu interactif
+ * avec coloration SVG explicite par nœud, sous-graphe et arête.
  */
 export function generateMermaidImpactDiagram(
 	graph: ImpactGraphData,
@@ -1022,17 +1045,22 @@ export function generateMermaidImpactDiagram(
 	const lines: string[] = ['flowchart TD'];
 
 	const safeId = (id: string) => sanitizeMermaidId(id);
+	const nodeStyleDirectives: string[] = [];
+	const subgraphStyleDirectives: string[] = [];
 
 	// Sous-graphe 1 : Contrainte Coût
 	const costNodes = graph.nodes.filter((n) => n.type === 'cost_constraint');
 	if (costNodes.length > 0) {
-		lines.push('    subgraph G_COST ["💰 Contraintes de Coût & Budget V1"]');
+		lines.push('    subgraph G_COST ["💰 Contraintes de Coût & Budget"]');
 		for (const node of costNodes) {
+			const sid = safeId(node.id);
 			lines.push(
-				`        ${safeId(node.id)}["<b>${escapeMermaid(node.label)}</b><br/><i>${escapeMermaid(node.metadata?.financialDelta || '')}</i>"]:::costNode`
+				`        ${sid}["<b>${escapeMermaid(node.label)}</b><br/><i>${escapeMermaid(node.metadata?.financialDelta || '')}</i>"]:::costNode`
 			);
+			nodeStyleDirectives.push(`    style ${sid} ${NODE_STYLES.costNode}`);
 		}
 		lines.push('    end');
+		subgraphStyleDirectives.push('    style G_COST fill:#fffbeb,stroke:#f59e0b,stroke-width:1.5px,color:#92400e');
 	}
 
 	// Sous-graphe 2 : Décisions & Options
@@ -1040,19 +1068,24 @@ export function generateMermaidImpactDiagram(
 	if (decNodes.length > 0) {
 		lines.push('    subgraph G_DEC ["⚖️ Décisions d\'Architecture & Options"]');
 		for (const node of graph.nodes.filter((n) => n.type === 'decision')) {
+			const sid = safeId(node.id);
 			lines.push(
-				`        ${safeId(node.id)}["<b>${escapeMermaid(node.label)}</b><br/>${escapeMermaid(truncate(node.description, 85))}"]:::decisionNode`
+				`        ${sid}["<b>${escapeMermaid(node.label)}</b><br/>${escapeMermaid(truncate(node.description, 85))}"]:::decisionNode`
 			);
+			nodeStyleDirectives.push(`    style ${sid} ${NODE_STYLES.decisionNode}`);
 		}
 		for (const node of graph.nodes.filter((n) => n.type === 'option')) {
+			const sid = safeId(node.id);
 			const isRetained = node.status === 'retained';
 			const cssClass = isRetained ? 'optionRetained' : 'optionCandidate';
-			const badge = isRetained ? '⭐ [RETENU]' : '⚪ [ALTERNATIVE]';
+			const badge = isRetained ? '⭐ [RETENUE]' : '⚪ [ALTERNATIVE]';
 			lines.push(
-				`        ${safeId(node.id)}["<b>${badge} ${escapeMermaid(node.label)}</b><br/><i>${escapeMermaid(node.metadata?.financialDelta || '')}</i>"]:::${cssClass}`
+				`        ${sid}["<b>${badge} ${escapeMermaid(node.label)}</b><br/><i>${escapeMermaid(node.metadata?.financialDelta || '')}</i>"]:::${cssClass}`
 			);
+			nodeStyleDirectives.push(`    style ${sid} ${NODE_STYLES[cssClass]}`);
 		}
 		lines.push('    end');
+		subgraphStyleDirectives.push('    style G_DEC fill:#eef2ff,stroke:#6366f1,stroke-width:1.5px,color:#312e81');
 	}
 
 	// Sous-graphe 3 : Exigences Client
@@ -1060,15 +1093,18 @@ export function generateMermaidImpactDiagram(
 	if (reqNodes.length > 0) {
 		lines.push('    subgraph G_REQ ["🎯 Exigences Client & Engagements de Service"]');
 		for (const node of reqNodes) {
+			const sid = safeId(node.id);
 			const isDegraded = node.status === 'degraded' || node.status === 'violated';
 			const cssClass = isDegraded ? 'reqDegraded' : 'reqCompliant';
-			const badge = isDegraded ? '⚠️ [DÉGRADÉ V1]' : '✅ [SATISFAIT]';
+			const badge = isDegraded ? '⚠️ [DÉGRADÉE]' : '✅ [SATISFAITE]';
 			const metric = isDegraded ? node.metadata?.degradedValue : node.metadata?.nominalValue;
 			lines.push(
-				`        ${safeId(node.id)}["<b>${badge} ${escapeMermaid(node.label)}</b><br/>${escapeMermaid(truncate(metric || '', 90))}"]:::${cssClass}`
+				`        ${sid}["<b>${badge} ${escapeMermaid(node.label)}</b><br/>${escapeMermaid(truncate(metric || '', 90))}"]:::${cssClass}`
 			);
+			nodeStyleDirectives.push(`    style ${sid} ${NODE_STYLES[cssClass]}`);
 		}
 		lines.push('    end');
+		subgraphStyleDirectives.push('    style G_REQ fill:#f0fdf4,stroke:#22c55e,stroke-width:1.5px,color:#166534');
 	}
 
 	// Sous-graphe 4 : Conformité Réglementaire
@@ -1076,9 +1112,10 @@ export function generateMermaidImpactDiagram(
 	if (compNodes.length > 0) {
 		lines.push('    subgraph G_REG ["🛡️ Conformité Légale & Réglementaire"]');
 		for (const node of compNodes) {
+			const sid = safeId(node.id);
 			const isViolated = node.status === 'violated';
 			const isDegraded = node.status === 'degraded';
-			let cssClass = 'regCompliant';
+			let cssClass: keyof typeof NODE_STYLES = 'regCompliant';
 			let badge = '✅ [CONFORME]';
 			if (isViolated) {
 				cssClass = 'regViolated';
@@ -1088,13 +1125,17 @@ export function generateMermaidImpactDiagram(
 				badge = '⚠️ [SOUS SURVEILLANCE]';
 			}
 			lines.push(
-				`        ${safeId(node.id)}["<b>${badge} ${escapeMermaid(node.label)}</b><br/><i>${escapeMermaid(node.metadata?.framework || '')}</i>"]:::${cssClass}`
+				`        ${sid}["<b>${badge} ${escapeMermaid(node.label)}</b><br/><i>${escapeMermaid(node.metadata?.framework || '')}</i>"]:::${cssClass}`
 			);
+			nodeStyleDirectives.push(`    style ${sid} ${NODE_STYLES[cssClass]}`);
 		}
 		lines.push('    end');
+		subgraphStyleDirectives.push('    style G_REG fill:#faf5ff,stroke:#a855f7,stroke-width:1.5px,color:#5b21b6');
 	}
 
-	// Liens actifs
+	// Liens actifs + linkStyle explicite par index
+	const linkStyleDirectives: string[] = [];
+	let edgeIndex = 0;
 	for (const edge of graph.edges) {
 		if (!edge.active) continue;
 
@@ -1104,28 +1145,31 @@ export function generateMermaidImpactDiagram(
 
 		if (edge.type === 'violates') {
 			lines.push(`    ${fromId} ==x ${edgeLabel} ${toId}`);
+			linkStyleDirectives.push(`    linkStyle ${edgeIndex} stroke:#dc2626,stroke-width:3px,color:#991b1b;`);
 		} else if (edge.type === 'tradeoff_degrades') {
 			lines.push(`    ${fromId} -.-> ${edgeLabel} ${toId}`);
+			linkStyleDirectives.push(`    linkStyle ${edgeIndex} stroke:#d97706,stroke-width:2.5px,color:#92400e;`);
 		} else if (edge.type === 'enforces') {
 			lines.push(`    ${fromId} ==> ${edgeLabel} ${toId}`);
+			linkStyleDirectives.push(`    linkStyle ${edgeIndex} stroke:#b45309,stroke-width:2.5px,color:#78350f;`);
 		} else if (edge.type === 'satisfies') {
 			lines.push(`    ${fromId} --> ${edgeLabel} ${toId}`);
+			linkStyleDirectives.push(`    linkStyle ${edgeIndex} stroke:#059669,stroke-width:2px,color:#065f46;`);
 		} else {
 			lines.push(`    ${fromId} --- ${edgeLabel} ${toId}`);
+			linkStyleDirectives.push(`    linkStyle ${edgeIndex} stroke:#4f46e5,stroke-width:1.5px,color:#312e81;`);
 		}
+		edgeIndex++;
 	}
 
-	// Styles CSS Mermaid
+	// Styles CSS Mermaid (classDef + styles directs par nœud/sous-graphe + linkStyle)
 	lines.push('');
-	lines.push('    classDef costNode fill:#fef3c7,stroke:#d97706,stroke-width:2px,color:#92400e;');
-	lines.push('    classDef decisionNode fill:#e0e7ff,stroke:#4f46e5,stroke-width:2px,color:#3730a3;');
-	lines.push('    classDef optionRetained fill:#d1fae5,stroke:#059669,stroke-width:2px,color:#065f46;');
-	lines.push('    classDef optionCandidate fill:#f3f4f6,stroke:#9ca3af,stroke-width:1px,color:#4b5563,stroke-dasharray: 4 4;');
-	lines.push('    classDef reqCompliant fill:#ecfdf5,stroke:#10b981,stroke-width:1.5px,color:#047857;');
-	lines.push('    classDef reqDegraded fill:#fffbeb,stroke:#f59e0b,stroke-width:2px,color:#b45309;');
-	lines.push('    classDef regCompliant fill:#f5f3ff,stroke:#8b5cf6,stroke-width:1.5px,color:#6d28d9;');
-	lines.push('    classDef regDegraded fill:#fff7ed,stroke:#ea580c,stroke-width:2px,color:#c2410c;');
-	lines.push('    classDef regViolated fill:#fee2e2,stroke:#dc2626,stroke-width:3px,color:#991b1b;');
+	for (const [clsName, styleVal] of Object.entries(NODE_STYLES)) {
+		lines.push(`    classDef ${clsName} ${styleVal};`);
+	}
+	lines.push(...subgraphStyleDirectives);
+	lines.push(...nodeStyleDirectives);
+	lines.push(...linkStyleDirectives);
 
 	return lines.join('\n');
 }

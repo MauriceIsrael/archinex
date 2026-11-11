@@ -8,6 +8,17 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Déblocage du Ré-arbitrage L3, Coloration Explicite Mermaid & Labels Génériques Vx/Vy
+- **Révision d'une Décision L3 (`src/lib/domain/maturityRules.ts`, `src/lib/server/projects/arbitrationDb.ts`)** :
+  - Ajout de l'option `allowRevision?: boolean` à `computeMaturity()` et du code de blocage `SEALED_SUBJECT` pour `L5_archived`.
+  - Activation de `allowRevision: true` dans `recordArbitrationDecision()`, débloquant la révision d'un arbitrage déjà passé en `L3_decided` ou `L4_specified` (tout en vérifiant les évaluations de la nouvelle option, les objections et la conformité) et mettant fin au message paradoxal `(0 blocage(s) actif(s))`.
+  - Rétrogradation automatique de l'ancienne option retenue en `rejected` lors du basculement de décision.
+- **Coloration Vectorielle & Labels Agnostiques Vx/Vy (`src/lib/domain/impactGraph.ts`, `src/lib/server/agents/impactGraphGenerator.ts`, `src/lib/components/deliberation/ImpactGraphExplorer.svelte`)** :
+  - Émission systématique des directives SVG `style <nodeId>`, `style G_<subgraph>` et `linkStyle <index>` dans `generateMermaidImpactDiagram()` pour colorer explicitement nœuds, sous-graphes et arêtes (rouge pour les violations, ambre pour les dégradations, vert pour les satisfactions, indigo pour les dérivations).
+  - Suppression des libellés inversables « V1 / V2 » au profit de termes agnostiques (*Optimum Nominal* vs *Compromis Coût*, clauses `Vx → Vy`) avec affichage de la révision réelle de la décision (`Décision rév. vX`).
+- **Tests** :
+  - Ajout du test de ré-arbitrage L3 dans `tests/integration/arbitration-gate.test.ts`, des tests `allowRevision` / `SEALED_SUBJECT` dans `tests/contract/maturity-rules.test.ts`, et de la vérification des directives `style` / `linkStyle` dans `tests/contract/impact-graph.test.ts`.
+
 ### Graphe d'Impact Contextualisé par Sujet & Enrichissement IA (LLM)
 - **Génération Déterministe Contextualisée (`buildContextualImpactGraph` dans `src/lib/domain/impactGraph.ts`)** :
   - Remplacement du graphe statique par un moteur dynamique générant les nœuds et arêtes directement à partir du sujet sélectionné (critères `functional`/`nfr`/`cost`/`compliance`/`risk`, options, évaluations pondérées `-2..+2`, compromis déclarés, décision, exigences RFP liées et référentiels du projet).

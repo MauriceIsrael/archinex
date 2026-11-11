@@ -11,8 +11,14 @@ export class MaturityUnreadyError extends Error {
 	blockers: MaturityBlocker[];
 
 	constructor(blockers: MaturityBlocker[]) {
+		const details =
+			blockers.length > 0
+				? blockers.map((b) => b.message).join(' | ')
+				: 'Le sujet ne remplit pas encore les conditions d’arbitrage (vérifiez son cadrage et son statut de scellement).';
 		super(
-			`Le sujet n'est pas mûr pour l'arbitrage opposable (${blockers.length} blocage(s) actif(s)).`
+			blockers.length > 0
+				? `Le sujet n'est pas mûr pour l'arbitrage opposable (${blockers.length} blocage(s) actif(s)) : ${details}`
+				: details
 		);
 		this.name = 'MaturityUnreadyError';
 		this.blockers = blockers;
@@ -288,7 +294,8 @@ export async function recordArbitrationDecision(
 		evaluations: ctx.evaluations,
 		arguments: ctx.arguments,
 		acceptedViolations: data.acceptedViolations || [],
-		requiredFrameworks: (await getProjectFrameworks(subject.projectId)).frameworks
+		requiredFrameworks: (await getProjectFrameworks(subject.projectId)).frameworks,
+		allowRevision: true
 	});
 
 	if (!readinessWithViolations.readyForArbitration) {
@@ -365,7 +372,16 @@ export async function recordArbitrationDecision(
 			}
 		});
 
-		// 2. Mise à jour des statuts des options
+		// 2. Mise à jour des statuts des options (rétrograde toute ancienne option retenue en cas de ré-arbitrage)
+		await tx.option.updateMany({
+			where: {
+				subjectId,
+				id: { not: data.retainedOptionId },
+				status: 'retained'
+			},
+			data: { status: 'rejected', version: { increment: 1 } }
+		});
+
 		await tx.option.update({
 			where: { id: data.retainedOptionId },
 			data: { status: 'retained', version: { increment: 1 } }

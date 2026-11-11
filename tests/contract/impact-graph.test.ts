@@ -63,9 +63,10 @@ describe('Graphe d\'Impact & Simulation de Compromis Coût V1 (Contrat & Domaine
 		expect(result.assumedTechnicalDebt[0].sunsetClause).toBeTruthy();
 	});
 
-	it('génère un diagramme Mermaid valide contenant les 4 sous-graphes essentiels', () => {
+	it('génère un diagramme Mermaid valide avec coloration explicite des sous-graphes, nœuds et arêtes', () => {
 		const graph = buildDefaultImpactGraph();
-		const mermaidCode = generateMermaidImpactDiagram(graph, 'cost_optimized_v1');
+		const sim = simulateCostOptimization(graph, 'cost_optimized_v1');
+		const mermaidCode = generateMermaidImpactDiagram(sim, 'cost_optimized_v1');
 
 		expect(mermaidCode).toContain('flowchart TD');
 		expect(mermaidCode).toContain('subgraph G_COST');
@@ -74,6 +75,11 @@ describe('Graphe d\'Impact & Simulation de Compromis Coût V1 (Contrat & Domaine
 		expect(mermaidCode).toContain('subgraph G_REG');
 		expect(mermaidCode).toContain('classDef costNode');
 		expect(mermaidCode).toContain('classDef regViolated');
+		expect(mermaidCode).toContain('style G_COST');
+		expect(mermaidCode).toContain('style G_REG');
+		expect(mermaidCode).toContain('style REG_DORA_RESILIENCE fill:#fee2e2');
+		expect(mermaidCode).toContain('linkStyle ');
+		expect(mermaidCode).toContain('stroke:#dc2626');
 	});
 
 	it('s\'intègre dans le store de délibération avec le mode de vue "graph"', async () => {

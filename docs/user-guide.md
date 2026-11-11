@@ -58,12 +58,14 @@ L'assistant de création d'espace (`/workspaces/new` ou modale du bandeau de pro
     - Lors de toute navigation transversale ou rafraîchissement de page, votre position exacte de travail est fidèlement restaurée sans vous faire resauter sur le tableau global.
     - La synchronisation avec LLMOps en arrière-plan opère en mode silencieux (`silent: true`) : elle ne déclenche pas de toasts intempestifs lors du chargement de page et préserve scrupuleusement la vue courante. Les notifications visuelles restent réservées aux clics manuels de resynchronisation.
 
-- **Graphe Causal d'Impact & Simulateur de Compromis Coût V1 (What-If Simulator)** :
+- **Graphe Causal d'Impact & Simulateur de Compromis Coût (What-If Simulator)** :
   - Accessible via l'onglet **« Graphe d'Impact & Décisions »** dans l'en-tête de projet.
-  - **Contextualisation par sujet** : sélectionnez n'importe quel sujet du projet via le menu déroulant pour générer automatiquement un graphe à partir de ses critères, options, évaluations pondérées, exigences RFP et référentiels applicables.
-  - **Enrichissement IA (LLM)** : cliquez sur **« Contextualiser / Enrichir par IA (LLM) »** pour demander au modèle d'analyser les compromis spécifiques du sujet, estimer les économies OPEX/CAPEX, qualifier les dégradations et proposer des clauses d'extinction V2 (avec repli automatique sur l'analyse déterministe si le LLM est hors-ligne).
-  - **Simulateur What-If en direct** : basculez d'un clic entre le *Scénario Nominal V2 (100% Conforme)* et le *Scénario Optimisé Coût V1 (Compromis & Dégradations)*.
-  - **Registre de Dette Technique & Sunset Clauses** : formalise les concessions dans un ADR de dérogation temporaire avec condition et date de re-bascule V2 afin d'éviter la dérive silencieuse.
+  - **Contextualisation par sujet** : sélectionnez n'importe quel sujet du projet via le menu déroulant pour générer automatiquement un graphe colorisé (nœuds, sous-graphes et arêtes d'impact) à partir de ses critères, options, évaluations pondérées, exigences RFP et référentiels applicables.
+  - **Enrichissement IA (LLM)** : cliquez sur **« Contextualiser / Enrichir par IA (LLM) »** pour demander au modèle d'analyser les compromis spécifiques du sujet, estimer les économies OPEX/CAPEX, qualifier les dégradations et proposer des clauses de révision `Vx → Vy` (avec repli automatique sur l'analyse déterministe si le LLM est hors-ligne).
+  - **Simulateur What-If en direct** : basculez d'un clic entre l'*Optimum Nominal* et le *Compromis Coût* indépendamment de l'ordre des versions du projet.
+  - **Registre de Dette Technique & Clauses de Révision (`Vx → Vy`)** : formalise les concessions dans un ADR de dérogation temporaire avec condition de révision afin d'éviter la dérive silencieuse.
+- **Révision d'un Arbitrage L3** :
+  - Tant qu'un sujet n'est pas scellé (`L5_archived`), il est possible de ré-arbitrer une décision déjà actée (`L3_decided` / `L4_specified`, par exemple suite à une coupe budgétaire) après avoir évalué la nouvelle option sur tous les critères ; la décision est alors versionnée (`rév. v2`, etc.).
 - **Workbench de Délibération (3 colonnes)** :
   - **Colonne de gauche (Liste des sujets)** : navigation instantanée entre toutes les conversations de sujets avec filtres rapides (Bloquants, À faire, Actés).
   - **Colonne centrale (Fil du sujet)** :

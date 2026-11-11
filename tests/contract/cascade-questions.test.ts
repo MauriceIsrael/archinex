@@ -336,4 +336,90 @@ describe('Lot A28 Contract Tests: Cascade de questions, sujets enfants & détect
 		expect(result.questions).toHaveLength(0);
 		expect(await prisma.subject.count({ where: { id: { startsWith: `sub-child-${unrelatedId}` } } })).toBe(0);
 	});
+
+	it('Scenario 7: GET /cascade returns structured discoveryTree with ancestors, real decision, grandchildren, and isolates subject facts', async () => {
+		const childSplitId = `sub-child-${testSubjectId}-split`;
+		const grandChildId = `sub-child-${childSplitId}-witness`;
+
+		// Créer un sous-sous-sujet existant pour l'enfant split-brain
+		await prisma.subject.upsert({
+			where: { id: grandChildId },
+			create: {
+				id: grandChildId,
+				projectId: testProjectId,
+				sectionRef: '§4.2.1',
+				name: 'Choix du Tiers-Témoin',
+				problemStatement: 'Où héberger le quorum témoin ?',
+				maturityLevel: 'L1_framed',
+				deliberationStatus: 'open',
+				waitingForRole: 'security_officer',
+				relativeEffort: 'S',
+				version: 1
+			},
+			update: {}
+		});
+
+		// Créer un événement DECISION_ASSERTED sur le sujet parent pour vérifier qu'il ne fuit pas vers unrelatedId
+		await prisma.domainEvent.upsert({
+			where: { id: `evt-assert-${testSubjectId}` },
+			create: {
+				id: `evt-assert-${testSubjectId}`,
+				projectId: testProjectId,
+				entityType: 'decision',
+				entityId: `dec-${testSubjectId}`,
+				type: 'DECISION_ASSERTED',
+				actorId: 'user-architect-39',
+				actorRole: 'lead_architect',
+				productionMode: 'human-authored',
+				payload: JSON.stringify({
+					facts: [
+						{ key: 'site_count', value: '2' },
+						{ key: 'resilience_mode', value: 'actif/actif' }
+					]
+				})
+			},
+			update: {}
+		});
+
+		// 1. Appel sur le sujet parent : retourne discoveryTree avec enfants + petits-enfants
+		const parentEvent = {
+			params: { projectId: testProjectId, subjectId: testSubjectId },
+			request: new Request('http://localhost')
+		} as unknown as RequestEvent;
+
+		const parentRes = await getCascadeEndpoint(parentEvent as any);
+		expect(parentRes.status).toBe(200);
+		const parentBody = await parentRes.json();
+		expect(parentBody.discoveryTree).toBeDefined();
+		expect(parentBody.discoveryTree.decision?.isAsserted).toBe(true);
+		expect(parentBody.discoveryTree.affirmedFacts.length).toBeGreaterThanOrEqual(2);
+
+		const splitNode = parentBody.discoveryTree.children.find((c: any) => c.subjectId === childSplitId);
+		expect(splitNode).toBeDefined();
+		expect(splitNode.children.some((gc: any) => gc.subjectId === grandChildId)).toBe(true);
+
+		// 2. Appel sur le sous-sujet enfant : remonte le parent dans ancestors
+		const childEvent = {
+			params: { projectId: testProjectId, subjectId: childSplitId },
+			request: new Request('http://localhost')
+		} as unknown as RequestEvent;
+
+		const childRes = await getCascadeEndpoint(childEvent as any);
+		expect(childRes.status).toBe(200);
+		const childBody = await childRes.json();
+		expect(childBody.discoveryTree.ancestors.some((a: any) => a.id === testSubjectId)).toBe(true);
+
+		// 3. Sujet non relié : aucun fait ne doit fuir depuis dec-testSubjectId
+		const unrelatedEvent = {
+			params: { projectId: testProjectId, subjectId: 'sub-unrelated-os-39' },
+			request: new Request('http://localhost')
+		} as unknown as RequestEvent;
+
+		const unrelatedRes = await getCascadeEndpoint(unrelatedEvent as any);
+		expect(unrelatedRes.status).toBe(200);
+		const unrelatedBody = await unrelatedRes.json();
+		expect(unrelatedBody.cascade.questions).toHaveLength(0);
+		expect(unrelatedBody.discoveryTree.affirmedFacts).toHaveLength(0);
+		expect(unrelatedBody.discoveryTree.decision).toBeNull();
+	});
 });

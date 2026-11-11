@@ -8,6 +8,18 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Arbre de Découverte Interactif & Diagnostic des Règles par Sujet
+- **Arborescence HTML Navigable (`src/lib/components/deliberation/DiscoveryTreeView.svelte`)** :
+  - Vue **Arbre lisible** par défaut (avec bascule vers le **Graphe** ECharts dont les marges et troncatures ont été élargies dans `buildDiscoveryTreeData`) dans `SubjectThreadView.svelte` et `SubjectDossierView.svelte`.
+  - Affiche l'ascendance cliquable (`ancestors`), le sujet courant avec sa décision réelle (titre de l'option retenue, statut d'affirmation) et ses faits affirmés, les sous-sujets enfants cliquables avec maturité/statut/contestation ainsi que les sous-sous-sujets déjà ouverts, et un accès direct au bouton **Rechercher des angles morts 🤖** même lorsqu'aucune règle déterministe n'a déclenché de branche.
+- **Diagnostic Formels des Règles par Sujet (`src/lib/domain/projectRules.ts`, `src/lib/server/rules/projectRulesService.ts`, `src/lib/components/deliberation/ProjectRulesPanel.svelte`)** :
+  - Ajout de `diagnoseRuleAgainstFacts()` et du paramètre `?subjectId=...` sur `GET /api/projects/[projectId]/rules`.
+  - Affichage des faits du sujet, des filtres **Toutes / Déclenchées / Non déclenchées** et du diagnostic clause par clause (`✓ Matche ce sujet`, `○ Fait absent sur ce sujet`, `✗ Valeur ≠ sur ce sujet`, `🚫 Désactivée (projet)`).
+- **Isolation Stricte des Faits par Sujet (`src/lib/server/projects/subjectFacts.ts`, `src/lib/server/cascade/cascadeService.ts`)** :
+  - Correction de la fuite inter-sujets lors de la lecture des événements `DECISION_ASSERTED` : les faits sont désormais résolus strictement pour la décision et les énoncés du sujet demandé, et `getDiscoveryTreeForSubject()` fournit l'arbre complet via `GET /api/projects/[projectId]/subjects/[subjectId]/cascade`.
+- **Tests & Documentation** :
+  - Ajout des scénarios contractuels dans `tests/contract/cascade-questions.test.ts` et `tests/contract/project-rules.test.ts`, et mise à jour de `USER_GUIDE.md`.
+
 ### Performance & Fluidité du Changement de Sujet en Délibération
 - **Client LLMOps (`src/lib/server/llmops/client.ts`) & Conformité (`src/lib/server/compliance/complianceService.ts`)** :
   - Mise en cache (`cachedFetch`) et suppression des appels abusifs à `invalidateCache()` en lecture sur `getDoctrineContext()`, `checkOption()` et `getFrameworkCoverage()`, tout en évitant la mise en cache des replis hors-ligne.
@@ -37,7 +49,6 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 - Suppression de l'onglet `🧪 Oracle EDP` (`tab-unified-edp` / `renderEdpPane`) et des encarts `EdpCard` intégrés dans l'espace de délibération (`src/lib/components/deliberation/SubjectThreadView.svelte`), ainsi que du relais `isExperimentalEnabled` devenu superflu dans `DeliberationWorkbench.svelte` et `src/routes/deliberation/+page.svelte`.
 - L'évaluation par l'Oracle OPA, le raffinement KAOS multi-axes et l'hydratation EDP sont désormais accessibles uniquement dans l'atelier dédié **Phase 4 · Raffinement** (`Phase4RefinementHub.svelte`).
 - Mise à jour des tests de contrat (`tests/contract/edp-ui-integration.test.ts`, `tests/contract/deliberation-conversation.test.ts`) et du guide utilisateur (`USER_GUIDE.md`).
-
 ### Correctif Parseur Mermaid sur `linkStyle` & `classDef` (`src/lib/domain/impactGraph.ts`)
 - Suppression du point-virgule final (`;`) sur les directives `linkStyle` et `classDef` contenant des codes couleur hexadécimaux (`#78350f;`), évitant leur réécriture par le préprocesseur `encodeEntities` (`/#\w+;/g`) de Mermaid v12 (`ﬂ°78350f¶ß`).
 - Ajout d'une assertion de non-régression dans `tests/contract/impact-graph.test.ts`.

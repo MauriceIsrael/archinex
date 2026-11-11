@@ -52,6 +52,65 @@ export interface CascadeResult {
 	questions: CascadeQuestion[];
 }
 
+export interface DiscoveryTreeAncestor {
+	id: string;
+	name: string;
+	sectionRef?: string;
+	maturityLevel?: string;
+}
+
+export interface DiscoveryTreeNode {
+	subjectId: string;
+	sectionRef?: string;
+	name: string;
+	maturityLevel?: string;
+	deliberationStatus?: string;
+	sourceType: CascadeSourceType;
+	mandatory: boolean;
+	questionId: string;
+	questionText: string;
+	questionStatus: 'open' | 'assigned' | 'merged' | 'closed';
+	mergedWithSubjectId?: string | null;
+	closedReason?: string | null;
+	foundationContested?: boolean;
+	contestationReason?: string;
+	triggeringFacts: Array<{ key: string; value: string }>;
+	ruleRef?: string;
+	ruleName?: string;
+	grounds?: string;
+	children?: DiscoveryTreeNode[];
+}
+
+export interface DiscoveryTreeDisabledRule {
+	ruleId: string;
+	ruleName: string;
+	justification: string;
+	disabledBy?: string;
+	mandatory: boolean;
+}
+
+export interface DiscoveryTreeData {
+	ancestors: DiscoveryTreeAncestor[];
+	currentSubject: {
+		id: string;
+		name: string;
+		sectionRef?: string;
+		maturityLevel?: string;
+		deliberationStatus?: string;
+	};
+	decision: {
+		id: string;
+		retainedOptionId: string;
+		retainedOptionTitle: string;
+		rationale?: string;
+		reversibility?: string;
+		isAsserted: boolean;
+	} | null;
+	affirmedFacts: Array<{ key: string; value: string }>;
+	children: DiscoveryTreeNode[];
+	disabledRules: DiscoveryTreeDisabledRule[];
+}
+
 /**
  * Valide et applique la clôture d'une question de cascade.
  * RÈGLE STRICTE (A28) : Clore une question obligatoire (mandatory) sans justification est impossible.
@@ -206,23 +265,27 @@ export function buildDiscoveryTreeData(params: {
 		{
 			type: 'tree',
 			data: [rootNode],
-			top: '5%',
-			left: '10%',
-			bottom: '5%',
-			right: '20%',
-			symbolSize: 10,
+			top: '6%',
+			left: '24%',
+			bottom: '6%',
+			right: '26%',
+			symbolSize: 11,
 			orient: 'LR',
 			label: {
 				position: 'left',
 				verticalAlign: 'middle',
 				align: 'right',
-				fontSize: 11
+				fontSize: 11,
+				width: 140,
+				overflow: 'truncate'
 			},
 			leaves: {
 				label: {
 					position: 'right',
 					verticalAlign: 'middle',
-					align: 'left'
+					align: 'left',
+					width: 160,
+					overflow: 'truncate'
 				}
 			},
 			emphasis: {

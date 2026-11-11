@@ -237,6 +237,63 @@ export function evaluateRuleConditions(
 	return true;
 }
 
+export type RuleMatchStatus =
+	| 'matched'
+	| 'unmatched_missing_facts'
+	| 'unmatched_value_mismatch'
+	| 'disabled';
+
+export interface RuleEvaluationDiagnostic {
+	status: RuleMatchStatus;
+	matches: boolean;
+	details: string[];
+	missingKeys: string[];
+	mismatchedKeys: string[];
+	satisfiedKeys: string[];
+}
+
+function inspectConditionsAgainstFacts(
+	conditions: RuleCondition[],
+	facts: Array<{ key: string; value: string }>
+): {
+	allSatisfied: boolean;
+	details: string[];
+	missingKeys: string[];
+	mismatchedKeys: string[];
+	satisfiedKeys: string[];
+} {
+	const factsMap = new Map<string, string>();
+	for (const f of facts) {
+		factsMap.set(f.key, f.value);
+	}
+
+	const details: string[] = [];
+	const missingKeys: string[] = [];
+	const mismatchedKeys: string[] = [];
+	const satisfiedKeys: string[] = [];
+	let allSatisfied = conditions.length > 0;
+
+	for (const cond of conditions) {
+		const factVal = factsMap.get(cond.key);
+		const satisfied = evaluateCondition(cond, factVal);
+		if (satisfied) {
+			satisfiedKeys.push(cond.key);
+			details.push(`✓ Condition satisfaite : [${cond.key} ${cond.op} ${cond.value}] (valeur actuelle: "${factVal}")`);
+		} else {
+			allSatisfied = false;
+			if (factVal === undefined) {
+				missingKeys.push(cond.key);
+				details.push(`○ Fait absent : [${cond.key} ${cond.op} ${cond.value}]`);
+			} else {
+				mismatchedKeys.push(cond.key);
+				details.push(`✗ Valeur différente : [${cond.key} ${cond.op} ${cond.value}] (valeur actuelle: "${factVal}")`);
+			}
+		}
+	}
+
+	return { allSatisfied, details, missingKeys, mismatchedKeys, satisfiedKeys };
+}
+
 /**
  * Aperçu dynamique d'une règle (locale ou référence) :
  * « Avec les faits actuels, voici ce qui s'ouvrirait ».
@@ -256,41 +313,63 @@ export function previewRuleEvaluation(
 	triggeredQuestion?: string;
 	details: string[];
 } {
-	const factsMap = new Map<string, string>();
-	for (const f of facts) {
-		factsMap.set(f.key, f.value);
-	}
+	const inspected = inspectConditionsAgainstFacts(rule.conditions, facts);
 
-	const details: string[] = [];
-	let allSatisfied = true;
-
-	for (const cond of rule.conditions) {
-		const factVal = factsMap.get(cond.key);
-		const satisfied = evaluateCondition(cond, factVal);
-		if (satisfied) {
-			details.push(`✓ Condition satisfaite : [${cond.key} ${cond.op} ${cond.value}] (valeur actuelle: "${factVal}")`);
-		} else {
-			allSatisfied = false;
-			if (factVal === undefined) {
-				details.push(`✗ Condition non vérifiée : [${cond.key} ${cond.op} ${cond.value}] (fait absent)`);
-			} else {
-				details.push(`✗ Condition non vérifiée : [${cond.key} ${cond.op} ${cond.value}] (valeur actuelle: "${factVal}")`);
-			}
-		}
-	}
-
-	if (allSatisfied) {
+	if (inspected.allSatisfied) {
 		return {
 			matches: true,
 			triggeredSubjectName: rule.action.subjectName,
 			triggeredQuestion: rule.action.question,
-			details
+			details: inspected.details
 		};
 	}
 
 	return {
 		matches: false,
-		details
+		details: inspected.details
+	};
+}
+
+/**
+ * Diagnostic détaillé d'une règle face aux faits d'un sujet donné :
+ * distingue règle déclenchée, fait absent, valeur différente ou règle désactivée.
+ */
+export function diagnoseRuleAgainstFacts(
+	conditions: RuleCondition[],
+	facts: Array<{ key: string; value: string }>,
+	disabled = false
+): RuleEvaluationDiagnostic {
+	const inspected = inspectConditionsAgainstFacts(conditions, facts);
+
+	if (disabled) {
+		return {
+			status: 'disabled',
+			matches: false,
+			details: inspected.details,
+			missingKeys: inspected.missingKeys,
+			mismatchedKeys: inspected.mismatchedKeys,
+			satisfiedKeys: inspected.satisfiedKeys
+		};
+	}
+
+	if (inspected.allSatisfied) {
+		return {
+			status: 'matched',
+			matches: true,
+			details: inspected.details,
+			missingKeys: [],
+			mismatchedKeys: [],
+			satisfiedKeys: inspected.satisfiedKeys
+		};
+	}
+
+	return {
+		status: inspected.mismatchedKeys.length > 0 ? 'unmatched_value_mismatch' : 'unmatched_missing_facts',
+		matches: false,
+		details: inspected.details,
+		missingKeys: inspected.missingKeys,
+		mismatchedKeys: inspected.mismatchedKeys,
+		satisfiedKeys: inspected.satisfiedKeys
 	};
 }
 

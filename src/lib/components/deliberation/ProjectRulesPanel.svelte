@@ -1,12 +1,12 @@
 <script lang="ts">
-	import { onMount } from 'svelte';
 	import {
 		ARCHINEX_FACT_VOCABULARY,
 		type ReferenceRule,
 		type LocalRule,
 		type RuleCondition,
 		type RuleOperator,
-		type ProjectRuleOverride
+		type ProjectRuleOverride,
+		type RuleEvaluationDiagnostic
 	} from '$lib/domain/projectRules';
 	import {
 		Scale,
@@ -41,9 +41,19 @@
 		onRuleChanged = () => {}
 	}: Props = $props();
 
-	let referenceRules = $state<Array<ReferenceRule & { status: 'active' | 'disabled'; override?: ProjectRuleOverride }>>([]);
-	let localRules = $state<LocalRule[]>([]);
+	let referenceRules = $state<
+		Array<
+			ReferenceRule & {
+				status: 'active' | 'disabled';
+				override?: ProjectRuleOverride;
+				evaluation?: RuleEvaluationDiagnostic;
+			}
+		>
+	>([]);
+	let localRules = $state<Array<LocalRule & { evaluation?: RuleEvaluationDiagnostic }>>([]);
 	let disabledOverrides = $state<ProjectRuleOverride[]>([]);
+	let subjectFacts = $state<Array<{ key: string; value: string }>>([]);
+	let ruleFilter = $state<'all' | 'matched' | 'unmatched'>('all');
 	let isLoading = $state(false);
 	let errorMsg = $state<string | null>(null);
 	let successMsg = $state<string | null>(null);
@@ -83,21 +93,70 @@
 		)
 	);
 
-	onMount(async () => {
-		await loadRules();
+	$effect(() => {
+		if (projectId) {
+			void subjectId;
+			void loadRules();
+		}
 	});
+
+	const matchedRulesCount = $derived(
+		referenceRules.filter((r) => r.evaluation?.status === 'matched').length +
+			localRules.filter((r) => r.evaluation?.status === 'matched').length
+	);
+	const unmatchedRulesCount = $derived(
+		referenceRules.filter((r) => r.evaluation && r.evaluation.status !== 'matched').length +
+			localRules.filter((r) => r.evaluation && r.evaluation.status !== 'matched').length
+	);
+
+	function passesRuleFilter(evaluation?: RuleEvaluationDiagnostic): boolean {
+		if (!subjectId || !evaluation || ruleFilter === 'all') return true;
+		if (ruleFilter === 'matched') return evaluation.status === 'matched';
+		return evaluation.status !== 'matched';
+	}
+
+	const filteredReferenceRules = $derived(referenceRules.filter((r) => passesRuleFilter(r.evaluation)));
+	const filteredLocalRules = $derived(localRules.filter((r) => passesRuleFilter(r.evaluation)));
+
+	function evaluationBadge(evaluation?: RuleEvaluationDiagnostic): { label: string; cls: string } | null {
+		if (!evaluation) return null;
+		switch (evaluation.status) {
+			case 'matched':
+				return {
+					label: '✓ Matche ce sujet',
+					cls: 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 border-emerald-500/30'
+				};
+			case 'unmatched_value_mismatch':
+				return {
+					label: '✗ Valeur ≠ sur ce sujet',
+					cls: 'bg-amber-500/15 text-amber-800 dark:text-amber-300 border-amber-500/30'
+				};
+			case 'unmatched_missing_facts':
+				return {
+					label: '○ Fait absent sur ce sujet',
+					cls: 'bg-muted text-muted-foreground border-border'
+				};
+			case 'disabled':
+				return {
+					label: '🚫 Désactivée (projet)',
+					cls: 'bg-amber-500/10 text-amber-700 dark:text-amber-300 border-amber-500/30'
+				};
+		}
+	}
 
 	async function loadRules() {
 		if (!projectId) return;
 		isLoading = true;
 		errorMsg = null;
 		try {
-			const res = await fetch(`/api/projects/${projectId}/rules`);
+			const query = subjectId ? `?subjectId=${encodeURIComponent(subjectId)}` : '';
+			const res = await fetch(`/api/projects/${projectId}/rules${query}`);
 			if (res.ok) {
 				const data = await res.json();
 				referenceRules = data.referenceRules || [];
 				localRules = data.localRules || [];
 				disabledOverrides = data.disabledOverrides || [];
+				subjectFacts = data.subjectFacts || [];
 			} else {
 				const err = await res.json();
 				errorMsg = err.error || 'Erreur lors du chargement des règles.';
@@ -374,24 +433,94 @@
 		</div>
 	{/if}
 
+	{#if subjectId}
+		<div
+			class="p-2.5 rounded-lg border bg-muted/30 space-y-2 text-[11px]"
+			data-testid="rules-subject-diagnostics-bar"
+		>
+			<div class="flex items-center justify-between gap-2 flex-wrap">
+				<span class="font-semibold text-foreground">
+					Diagnostic sur ce sujet :
+					<span class="text-emerald-700 dark:text-emerald-300">{matchedRulesCount} déclenchée(s)</span>
+					·
+					<span class="text-muted-foreground">{unmatchedRulesCount} non déclenchée(s)</span>
+				</span>
+
+				<div class="inline-flex items-center rounded-md border bg-background p-0.5 text-[10px]">
+					<button
+						type="button"
+						onclick={() => (ruleFilter = 'all')}
+						class="px-2 py-0.5 rounded font-medium cursor-pointer transition-colors {ruleFilter === 'all'
+							? 'bg-muted text-foreground font-semibold'
+							: 'text-muted-foreground hover:text-foreground'}"
+					>
+						Toutes ({referenceRules.length + localRules.length})
+					</button>
+					<button
+						type="button"
+						onclick={() => (ruleFilter = 'matched')}
+						class="px-2 py-0.5 rounded font-medium cursor-pointer transition-colors {ruleFilter === 'matched'
+							? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 font-semibold'
+							: 'text-muted-foreground hover:text-foreground'}"
+					>
+						Déclenchées ({matchedRulesCount})
+					</button>
+					<button
+						type="button"
+						onclick={() => (ruleFilter = 'unmatched')}
+						class="px-2 py-0.5 rounded font-medium cursor-pointer transition-colors {ruleFilter === 'unmatched'
+							? 'bg-amber-500/15 text-amber-800 dark:text-amber-300 font-semibold'
+							: 'text-muted-foreground hover:text-foreground'}"
+					>
+						Non déclenchées ({unmatchedRulesCount})
+					</button>
+				</div>
+			</div>
+
+			{#if subjectFacts.length > 0}
+				<div class="flex items-center gap-1 flex-wrap">
+					<span class="text-[10px] text-muted-foreground">Faits du sujet :</span>
+					{#each subjectFacts as fact (`${fact.key}:${fact.value}`)}
+						<span class="px-1.5 py-0.2 rounded bg-background border font-mono text-[10px] text-foreground">
+							{fact.key}={fact.value}
+						</span>
+					{/each}
+				</div>
+			{:else}
+				<p class="text-[10px] text-muted-foreground italic">
+					Aucun fait affirmé sur ce sujet — les règles ci-dessous indiquent les faits manquants.
+				</p>
+			{/if}
+		</div>
+	{/if}
+
 	<!-- Section 1 : Règles de Référence (K19) -->
 	<section class="space-y-2">
 		<div class="flex items-center justify-between">
 			<h4 class="font-semibold text-xs text-foreground flex items-center gap-1.5">
 				<BookOpen class="h-3.5 w-3.5 text-indigo-500" />
-				<span>Règles de Référence Applicables ({referenceRules.length})</span>
+				<span>Règles de Référence du Projet ({filteredReferenceRules.length}/{referenceRules.length})</span>
 			</h4>
 			<span class="text-[10px] text-muted-foreground">Socle de connaissances commun</span>
 		</div>
 
 		<div class="space-y-2">
-			{#each referenceRules as rule (rule.id)}
-				<div class="p-3 rounded-lg border bg-card/60 transition-all {rule.status === 'disabled' ? 'border-amber-500/40 opacity-75' : 'border-border'}">
+			{#if filteredReferenceRules.length === 0}
+				<p class="text-xs text-muted-foreground italic p-2">Aucune règle de référence ne correspond à ce filtre.</p>
+			{/if}
+			{#each filteredReferenceRules as rule (rule.id)}
+				{@const evalBadge = evaluationBadge(rule.evaluation)}
+				<div class="p-3 rounded-lg border bg-card/60 transition-all {rule.status === 'disabled' ? 'border-amber-500/40 opacity-75' : rule.evaluation?.matches ? 'border-emerald-500/35' : 'border-border'}">
 					<div class="flex items-start justify-between gap-2">
 						<div class="space-y-1">
 							<div class="flex items-center gap-1.5 flex-wrap">
 								<span class="font-mono text-xs font-bold text-foreground">{rule.id}</span>
 								<span class="text-xs font-semibold text-foreground">{rule.title}</span>
+								{#if evalBadge}
+									<span class="px-1.5 py-0.5 rounded text-[10px] font-semibold border {evalBadge.cls}">
+										{evalBadge.label}
+									</span>
+								{/if}
 								<span class="px-1.5 py-0.5 rounded text-[10px] font-mono bg-muted text-muted-foreground border">
 									Actif: {rule.assetRef} ({rule.assetType})
 								</span>
@@ -417,6 +546,16 @@
 								<span class="mx-1">→</span>
 								<span class="italic text-foreground">Ouvre : {rule.action.subjectName}</span>
 							</div>
+
+							{#if rule.evaluation && rule.evaluation.details.length > 0}
+								<div class="text-[10px] font-mono text-muted-foreground space-y-0.5 pt-0.5">
+									{#each rule.evaluation.details as detail}
+										<div class={detail.startsWith('✓') ? 'text-emerald-700 dark:text-emerald-300' : detail.startsWith('✗') ? 'text-amber-700 dark:text-amber-300' : ''}>
+											{detail}
+										</div>
+									{/each}
+								</div>
+							{/if}
 
 							{#if rule.status === 'disabled' && rule.override}
 								<div class="p-2 rounded bg-amber-500/10 border border-amber-500/20 text-xs text-amber-800 dark:text-amber-200 mt-2">
@@ -727,15 +866,23 @@
 		<div class="space-y-2">
 			{#if localRules.length === 0}
 				<p class="text-xs text-muted-foreground italic p-2">Aucune règle locale n’a encore été créée pour ce projet.</p>
+			{:else if filteredLocalRules.length === 0}
+				<p class="text-xs text-muted-foreground italic p-2">Aucune règle locale ne correspond à ce filtre.</p>
 			{/if}
 
-			{#each localRules as lRule (lRule.id)}
-				<div class="p-3 rounded-lg border bg-card/60 space-y-2 border-border">
+			{#each filteredLocalRules as lRule (lRule.id)}
+				{@const localEvalBadge = evaluationBadge(lRule.evaluation)}
+				<div class="p-3 rounded-lg border bg-card/60 space-y-2 {lRule.evaluation?.matches ? 'border-emerald-500/35' : 'border-border'}">
 					<div class="flex items-start justify-between gap-2">
 						<div class="space-y-1">
 							<div class="flex items-center gap-1.5 flex-wrap">
 								<span class="font-mono text-xs font-bold text-foreground">{lRule.id}</span>
 								<span class="text-xs font-semibold text-foreground">{lRule.name}</span>
+								{#if localEvalBadge}
+									<span class="px-1.5 py-0.5 rounded text-[10px] font-semibold border {localEvalBadge.cls}">
+										{localEvalBadge.label}
+									</span>
+								{/if}
 								{#if lRule.status === 'affirmed'}
 									<span class="px-1.5 py-0.5 rounded text-[10px] font-semibold bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
 										Affirmée
@@ -758,6 +905,16 @@
 								<span class="mx-1">→</span>
 								<span class="italic text-foreground">{lRule.action.subjectName} : {lRule.action.question}</span>
 							</div>
+
+							{#if lRule.evaluation && lRule.evaluation.details.length > 0}
+								<div class="text-[10px] font-mono text-muted-foreground space-y-0.5 pt-0.5">
+									{#each lRule.evaluation.details as detail}
+										<div class={detail.startsWith('✓') ? 'text-emerald-700 dark:text-emerald-300' : detail.startsWith('✗') ? 'text-amber-700 dark:text-amber-300' : ''}>
+											{detail}
+										</div>
+									{/each}
+								</div>
+							{/if}
 
 							<div class="text-[10px] text-muted-foreground">
 								Auteur : <span class="font-mono">{lRule.authorId}</span> ({lRule.authorRole})

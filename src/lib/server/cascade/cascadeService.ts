@@ -1,9 +1,13 @@
 import { prisma } from '../prisma';
 import { ensureSubjectExists } from '../projects/projectsDb';
+import { getSubjectAffirmedFacts } from '../projects/subjectFacts';
 import type {
 	CascadeQuestion,
 	CascadeResult,
-	CascadeLineage
+	CascadeLineage,
+	DiscoveryTreeAncestor,
+	DiscoveryTreeData,
+	DiscoveryTreeNode
 } from '$lib/domain/cascade';
 import { closeCascadeQuestion } from '$lib/domain/cascade';
 import {
@@ -53,33 +57,12 @@ export async function getOrCreateCascadeForDecision(params: {
 		}
 	}
 
-	// Lire les faits affirmés du sujet (soit depuis statements, soit depuis payload d'affirmation)
-	const assertionEvent = await prisma.domainEvent.findFirst({
-		where: {
-			projectId,
-			entityType: 'decision',
-			type: 'DECISION_ASSERTED'
-		},
-		orderBy: { createdAt: 'desc' }
+	// Lire les faits affirmés strictement rattachés au sujet (et à sa décision s'il en a une)
+	const { facts: affirmedFacts } = await getSubjectAffirmedFacts({
+		projectId,
+		subjectId,
+		decisionId: decision?.id
 	});
-
-	let affirmedFacts: Array<{ key: string; value: string }> = [];
-	if (assertionEvent) {
-		try {
-			const payload = JSON.parse(assertionEvent.payload || '{}');
-			affirmedFacts = payload.facts || [];
-		} catch {
-			// ignore
-		}
-	}
-
-	// Si aucun fait trouvé dans l'événement, chercher dans les statements
-	if (affirmedFacts.length === 0) {
-		const activeStmts = await prisma.statement.findMany({
-			where: { projectId, subjectId, status: 'active' }
-		});
-		affirmedFacts = activeStmts.map((s) => ({ key: s.predicate, value: s.value }));
-	}
 
 	// Valeur clé utilisée pour la règle locale historique de routage multi-site
 	const resilienceModeFact = affirmedFacts.find((f) => f.key === 'resilience_mode')?.value;
@@ -350,10 +333,11 @@ export async function proposeAndPersistComplementaryQuestions(params: {
 	}
 
 	const allSubjects = await prisma.subject.findMany({ where: { projectId } });
-	const statements = await prisma.statement.findMany({
-		where: { projectId, subjectId, status: 'active' }
+	const { facts: affirmedFacts } = await getSubjectAffirmedFacts({
+		projectId,
+		subjectId,
+		decisionId: parentSubject.decision.id
 	});
-	const affirmedFacts = statements.map((s) => ({ key: s.predicate, value: s.value }));
 
 	const deterministicCascade = await getOrCreateCascadeForDecision({
 		projectId,
@@ -432,8 +416,9 @@ export async function proposeAndPersistComplementaryQuestions(params: {
 			});
 		}
 
-		await prisma.domainEvent.create({
-			data: {
+		await prisma.domainEvent.upsert({
+			where: { id: `evt-prop-${childId}` },
+			create: {
 				id: `evt-prop-${childId}`,
 				projectId,
 				entityType: 'cascade_question',
@@ -442,6 +427,9 @@ export async function proposeAndPersistComplementaryQuestions(params: {
 				actorId: 'agent:proposer',
 				actorRole: 'agent',
 				productionMode: 'llm-derived',
+				payload: JSON.stringify(q)
+			},
+			update: {
 				payload: JSON.stringify(q)
 			}
 		});
@@ -478,4 +466,218 @@ export async function checkFoundationContested(childSubjectId: string): Promise<
 	}
 
 	return { foundationContested: false };
+}
+
+function findDirectParentId(
+	childId: string,
+	allSubjects: Array<{ id: string }>,
+	proposedParentByChild: Map<string, string>
+): string | null {
+	const fromEvent = proposedParentByChild.get(childId);
+	if (fromEvent && fromEvent !== childId) return fromEvent;
+
+	for (const s of allSubjects) {
+		if (s.id === childId) continue;
+		if (
+			childId.startsWith(`sub-child-${s.id}-`) ||
+			childId.startsWith(`sub-child-agent-${s.id}-`)
+		) {
+			return s.id;
+		}
+	}
+	return null;
+}
+
+/**
+ * Construit les données structurées et navigables de l'Arbre de Découverte :
+ * Ascendance (Parents) → Sujet courant + Décision réelle + Faits affirmés → Enfants (et petits-enfants existants) + Règles désactivées.
+ */
+export async function getDiscoveryTreeForSubject(params: {
+	projectId: string;
+	subjectId: string;
+	cascade: CascadeResult;
+	disabledRules: DiscoveryTreeData['disabledRules'];
+}): Promise<DiscoveryTreeData> {
+	const { projectId, subjectId, cascade, disabledRules } = params;
+
+	const [allSubjects, agentProposedEvents, mergeEvents] = await Promise.all([
+		prisma.subject.findMany({
+			where: { projectId },
+			include: {
+				decision: true,
+				options: { select: { id: true, title: true } }
+			}
+		}),
+		prisma.domainEvent.findMany({
+			where: { projectId, entityType: 'cascade_question', type: 'CASCADE_QUESTION_PROPOSED' },
+			orderBy: { createdAt: 'asc' }
+		}),
+		prisma.domainEvent.findMany({
+			where: { projectId, entityType: 'cascade_question', type: 'CASCADE_QUESTION_MERGED' }
+		})
+	]);
+
+	const subjectById = new Map(allSubjects.map((s) => [s.id, s]));
+	const current = subjectById.get(subjectId);
+
+	const proposedParentByChild = new Map<string, string>();
+	const proposedQuestionsByParent = new Map<string, CascadeQuestion[]>();
+	const mergedIds = new Set(mergeEvents.map((e) => e.entityId));
+
+	for (const ev of agentProposedEvents) {
+		try {
+			const q = JSON.parse(ev.payload || '{}') as CascadeQuestion;
+			if (q?.childSubjectId && q?.lineage?.parentSubjectId) {
+				proposedParentByChild.set(q.childSubjectId, q.lineage.parentSubjectId);
+			}
+			if (q?.lineage?.parentSubjectId) {
+				if (mergedIds.has(q.id)) q.status = 'merged';
+				const list = proposedQuestionsByParent.get(q.lineage.parentSubjectId) || [];
+				list.push(q);
+				proposedQuestionsByParent.set(q.lineage.parentSubjectId, list);
+			}
+		} catch {
+			// ignore malformed event
+		}
+	}
+
+	// 1. Remonter la chaîne d'ascendance (max 5 niveaux, anti-cycle)
+	const ancestors: DiscoveryTreeAncestor[] = [];
+	const visited = new Set<string>([subjectId]);
+	let cursorId = subjectId;
+	for (let depth = 0; depth < 5; depth++) {
+		const parentId = findDirectParentId(cursorId, allSubjects, proposedParentByChild);
+		if (!parentId || visited.has(parentId)) break;
+		visited.add(parentId);
+		const parentSubj = subjectById.get(parentId);
+		if (parentSubj) {
+			ancestors.unshift({
+				id: parentSubj.id,
+				name: parentSubj.name,
+				sectionRef: parentSubj.sectionRef,
+				maturityLevel: parentSubj.maturityLevel
+			});
+		}
+		cursorId = parentId;
+	}
+
+	// 2. Décision réelle et faits affirmés sur le sujet courant
+	const { facts: affirmedFacts, hasAssertionEvent } = await getSubjectAffirmedFacts({
+		projectId,
+		subjectId,
+		decisionId: current?.decision?.id
+	});
+
+	let decisionSummary: DiscoveryTreeData['decision'] = null;
+	if (current?.decision) {
+		const retainedOption = current.options.find((o) => o.id === current.decision?.retainedOptionId);
+		decisionSummary = {
+			id: current.decision.id,
+			retainedOptionId: current.decision.retainedOptionId,
+			retainedOptionTitle: retainedOption?.title || current.decision.retainedOptionId,
+			rationale: current.decision.rationale,
+			reversibility: current.decision.reversibility,
+			isAsserted: hasAssertionEvent || current.maturityLevel === 'L3_decided' || current.maturityLevel === 'L4_specified'
+		};
+	}
+
+	// 3. Enfants directs + petits-enfants existants (lecture seule, sans création en base)
+	const children: DiscoveryTreeNode[] = await Promise.all(
+		cascade.questions.map(async (q) => {
+			const childId = q.childSubjectId || q.id;
+			const childSubj = subjectById.get(childId);
+			const contestation = await checkFoundationContested(childId);
+
+			// Petits-enfants déjà matérialisés en base pour cet enfant
+			const directPrefix = `sub-child-${childId}-`;
+			const agentPrefix = `sub-child-agent-${childId}-`;
+			const proposedGrandChildren = proposedQuestionsByParent.get(childId) || [];
+			const grandChildrenNodes: DiscoveryTreeNode[] = [];
+			const seenGrandChildIds = new Set<string>();
+
+			for (const gcProp of proposedGrandChildren) {
+				const gcId = gcProp.childSubjectId || gcProp.id;
+				if (seenGrandChildIds.has(gcId)) continue;
+				seenGrandChildIds.add(gcId);
+				const gcSubj = subjectById.get(gcId);
+				grandChildrenNodes.push({
+					subjectId: gcId,
+					sectionRef: gcSubj?.sectionRef || gcProp.subjectSectionRef,
+					name: gcSubj?.name || gcProp.subjectName,
+					maturityLevel: gcSubj?.maturityLevel || gcProp.initialLevel || 'L0_named',
+					deliberationStatus: gcSubj?.deliberationStatus,
+					sourceType: gcProp.sourceType,
+					mandatory: gcProp.mandatory,
+					questionId: gcProp.id,
+					questionText: gcProp.text,
+					questionStatus: gcProp.status,
+					mergedWithSubjectId: gcProp.mergedWithSubjectId,
+					closedReason: gcProp.closedReason,
+					triggeringFacts: gcProp.lineage.triggeringFacts || [],
+					ruleRef: gcProp.lineage.ruleRef,
+					ruleName: gcProp.lineage.ruleName,
+					grounds: gcProp.grounds
+				});
+			}
+
+			for (const s of allSubjects) {
+				if (
+					(s.id.startsWith(directPrefix) || s.id.startsWith(agentPrefix)) &&
+					!seenGrandChildIds.has(s.id)
+				) {
+					seenGrandChildIds.add(s.id);
+					grandChildrenNodes.push({
+						subjectId: s.id,
+						sectionRef: s.sectionRef,
+						name: s.name,
+						maturityLevel: s.maturityLevel,
+						deliberationStatus: s.deliberationStatus,
+						sourceType: s.id.startsWith(agentPrefix) ? 'agent' : 'doctrine',
+						mandatory: !s.id.startsWith(agentPrefix),
+						questionId: s.id,
+						questionText: s.problemStatement || s.name,
+						questionStatus: s.deliberationStatus === 'arbitrated' ? 'closed' : 'open',
+						triggeringFacts: []
+					});
+				}
+			}
+
+			return {
+				subjectId: childId,
+				sectionRef: childSubj?.sectionRef || q.subjectSectionRef,
+				name: childSubj?.name || q.subjectName,
+				maturityLevel: childSubj?.maturityLevel || q.initialLevel || 'L1_framed',
+				deliberationStatus: childSubj?.deliberationStatus,
+				sourceType: q.sourceType,
+				mandatory: q.mandatory,
+				questionId: q.id,
+				questionText: q.text,
+				questionStatus: q.status,
+				mergedWithSubjectId: q.mergedWithSubjectId,
+				closedReason: q.closedReason,
+				foundationContested: contestation.foundationContested,
+				contestationReason: contestation.contestationReason,
+				triggeringFacts: q.lineage.triggeringFacts || [],
+				ruleRef: q.lineage.ruleRef,
+				ruleName: q.lineage.ruleName,
+				grounds: q.grounds,
+				children: grandChildrenNodes
+			};
+		})
+	);
+
+	return {
+		ancestors,
+		currentSubject: {
+			id: subjectId,
+			name: current?.name || cascade.parentSubjectName,
+			sectionRef: current?.sectionRef || '§',
+			maturityLevel: current?.maturityLevel,
+			deliberationStatus: current?.deliberationStatus
+		},
+		decision: decisionSummary,
+		affirmedFacts,
+		children,
+		disabledRules
+	};
 }

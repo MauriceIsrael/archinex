@@ -29,8 +29,8 @@
 	import TelegraphicDraftView from './TelegraphicDraftView.svelte';
 	import CapitalizationPanel from './CapitalizationPanel.svelte';
 	import ProjectRulesPanel from './ProjectRulesPanel.svelte';
-	import KnowledgeTreeChart from '$lib/components/knowledge/KnowledgeTreeChart.svelte';
-	import type { CascadeResult } from '$lib/domain/cascade';
+	import DiscoveryTreeView from './DiscoveryTreeView.svelte';
+	import type { CascadeResult, DiscoveryTreeData } from '$lib/domain/cascade';
 	import {
 		computeMaturityCriteria,
 		type MaturityTransitionsReport,
@@ -145,7 +145,9 @@
 	let doctrineItems = $state<DoctrineItem[]>([]);
 	let isLoadingDoctrine = $state(false);
 	let treeSeries = $state<any[]>([]);
+	let discoveryTree = $state<DiscoveryTreeData | null>(null);
 	let isLoadingTree = $state(false);
+	let isProposingAnglesMorts = $state(false);
 
 	// Filtre de posture dans le fil
 	let postureFilter = $state<Stance | 'all'>('all');
@@ -420,6 +422,7 @@
 	interface CachedCascade {
 		cascade: CascadeResult | null;
 		treeSeries: any[];
+		discoveryTree: DiscoveryTreeData | null;
 		foundationContested: boolean;
 		contestationReason?: string;
 	}
@@ -499,11 +502,13 @@
 		if (cachedCasc) {
 			cascadeResult = cachedCasc.cascade;
 			treeSeries = cachedCasc.treeSeries;
+			discoveryTree = cachedCasc.discoveryTree;
 			foundationContested = cachedCasc.foundationContested;
 			contestationReason = cachedCasc.contestationReason;
 		} else if (!force) {
 			cascadeResult = null;
 			treeSeries = [];
+			discoveryTree = null;
 			foundationContested = false;
 			contestationReason = undefined;
 		}
@@ -528,11 +533,13 @@
 				const nextCasc: CachedCascade = {
 					cascade: cascData.cascade || null,
 					treeSeries: cascData.treeSeries || [],
+					discoveryTree: cascData.discoveryTree || null,
 					foundationContested: cascData.foundationContested || false,
 					contestationReason: cascData.contestationReason
 				};
 				cascadeResult = nextCasc.cascade;
 				treeSeries = nextCasc.treeSeries;
+				discoveryTree = nextCasc.discoveryTree;
 				foundationContested = nextCasc.foundationContested;
 				contestationReason = nextCasc.contestationReason;
 				cascadeCache.set(cacheKey, nextCasc);
@@ -660,12 +667,32 @@
 			if (res.ok) {
 				const data = await res.json();
 				treeSeries = data.treeSeries || [];
+				discoveryTree = data.discoveryTree || null;
 				cascadeResult = data.cascade || cascadeResult;
 			}
 		} catch {
 			// ignore
 		} finally {
 			isLoadingTree = false;
+		}
+	}
+
+	async function handleProposeAnglesMortsFromTree() {
+		if (!projectId || !subjectId || isProposingAnglesMorts) return;
+		isProposingAnglesMorts = true;
+		try {
+			const res = await fetch(`/api/projects/${projectId}/subjects/${subjectId}/cascade/propose`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: '{}'
+			});
+			if (res.ok) {
+				await loadArgumentsAndContext();
+			}
+		} catch (err) {
+			console.warn('[Cascade] Erreur agent proposeur :', err);
+		} finally {
+			isProposingAnglesMorts = false;
 		}
 	}
 
@@ -1811,22 +1838,23 @@
 				<div class="flex items-center justify-between pb-2 border-b text-foreground font-bold">
 					<span class="flex items-center gap-1.5">
 						<GitFork class="h-4 w-4 text-primary" />
-						<span>Arbre de découverte (Parents → Décisions → Enfants)</span>
+						<span>Arbre de découverte (Parents → Décision → Enfants)</span>
 					</span>
 				</div>
-				{#if isLoadingTree}
-					<div class="p-8 text-center text-muted-foreground animate-pulse">
-						Génération de l'arbre généalogique...
-					</div>
-				{:else if treeSeries && treeSeries.length > 0}
-					<div class="rounded-xl border bg-card p-2 min-h-[380px]">
-						<KnowledgeTreeChart series={treeSeries} height="380px" />
-					</div>
-				{:else}
-					<div class="p-8 text-center text-muted-foreground border-2 border-dashed rounded-xl">
-						Aucune cascade de décision générée pour ce sujet.
-					</div>
-				{/if}
+				<DiscoveryTreeView
+					{discoveryTree}
+					{treeSeries}
+					isLoading={isLoadingTree}
+					{isProposingAnglesMorts}
+					onSelectSubject={(targetSubjectId) => {
+						deliberationStore.selectSubject(targetSubjectId);
+					}}
+					onOpenMatrix={() => {
+						activeWorkspaceTab = 'matrix';
+						void refreshMatrixData();
+					}}
+					onProposeAnglesMorts={handleProposeAnglesMortsFromTree}
+				/>
 			</div>
 
 			<div class="space-y-3 rounded-xl border bg-card/50 p-3.5" data-testid="dossier-project-rules">

@@ -423,4 +423,204 @@ describe('Projections dynamiques d\'architecture (No Doc Drift - Issue #64)', ()
 		expect(liveSeq).toContain('Phase 1 : Négociation IKEv2 et Établissement du Tunnel IPsec ESP');
 		expect(liveSeq).toContain('Phase 2 : Envoi Sécurisé du Flux S6a Encapsulé');
 	});
+
+	it('14. Pattern Actif/Actif Géoredondant Bi-Site : modélise les 2 Datacenters, Anycast/GSLB et arbitrage Split-Brain', () => {
+		const subject: MaturitySubject = {
+			id: 'sub-ha',
+			section_ref: '§2.3, §10, §15',
+			name: 'Topologie de haute disponibilité et reprise : actif/actif géoredondant ou schéma alternatif',
+			level: 'L3_decided',
+			blocking_count: 0,
+			unlocks_count: 0,
+			waiting_for_role: 'lead_architect',
+			relative_effort: 'L',
+			last_transition_date: '2026-11-11T00:00:00Z',
+			stall_days: 0,
+			is_stalled: false,
+			dependent_subject_ids: []
+		};
+
+		const context: ProjectionContext = {
+			projectId: 'lot1-mcx',
+			projectName: 'Système Radio Critique',
+			decision: {
+				retainedOptionId: 'opt-aa-geo',
+				retainedOptionTitle: 'Actif/actif géoredondant généralisé',
+				rationale: 'Zones indépendantes et routage multiple sur toutes les chaînes répondent directement à REQ-Lot1-22 et REQ-Lot1-1387.'
+			},
+			options: [
+				{
+					id: 'opt-aa-geo',
+					title: 'Actif/actif géoredondant généralisé',
+					summary: 'Cœur, OSS et MCX en actif/actif sur au moins deux zones indépendantes, avec répartition de charge géoredondante, réplication des données et routage multiple depuis plusieurs couches radio.',
+					status: 'retained'
+				}
+			]
+		};
+
+		const diagram = generateTargetArchitectureDiagram(subject, null, [], context);
+
+		expect(diagram).toContain('flowchart TB');
+		expect(diagram).toContain('DATACENTER 1 — Zone Primaire A (Actif 50%)');
+		expect(diagram).toContain('DATACENTER 2 — Zone Primaire B (Actif 50%)');
+		expect(diagram).toContain('Anycast BGP & GSLB / Geo-DNS');
+		expect(diagram).toContain('Témoin de Quorum / Tie-Breaker');
+		expect(diagram).toContain('Interconnect DCI (Fibre Noire / DWDM)');
+		expect(diagram).toContain('REQ-Lot1-22');
+		expect(diagram).toContain('REQ-Lot1-1387');
+		expect(diagram).toContain('Cœur Réseau A');
+		expect(diagram).toContain('Cœur Réseau B');
+		expect(diagram).toContain('Services Critiques A');
+		expect(diagram).toContain('Services Critiques B');
+		expect(diagram).toContain('OSS / Supervision A');
+		expect(diagram).toContain('OSS / Supervision B');
+	});
+
+	it('15. Pattern Survie Edge Tactique : modélise le mode îlotage et la bulle autonome', () => {
+		const subject: MaturitySubject = {
+			id: 'sub-edge',
+			section_ref: '§3.2',
+			name: 'Bulle tactique projetable',
+			level: 'L3_decided',
+			blocking_count: 0,
+			unlocks_count: 0,
+			waiting_for_role: 'lead_architect',
+			relative_effort: 'M',
+			last_transition_date: '2026-11-11T00:00:00Z',
+			stall_days: 0,
+			is_stalled: false,
+			dependent_subject_ids: []
+		};
+
+		const context: ProjectionContext = {
+			projectId: 'tactical-edge',
+			projectName: 'Système Edge Tactique',
+			decision: {
+				retainedOptionId: 'opt-edge-survie',
+				retainedOptionTitle: 'Survie locale Edge autonome en mode îlotage',
+				rationale: 'Maintien des communications de groupe locales en cas de rupture du backhaul national.'
+			}
+		};
+
+		const diagram = generateTargetArchitectureDiagram(subject, null, [], context);
+
+		expect(diagram).toContain('Cœur National Central');
+		expect(diagram).toContain('Bulle Tactique Locale / Site Edge Autonome (Survie Locale)');
+		expect(diagram).toContain('UPF Locale (User Plane Function)');
+		expect(diagram).toContain('Serveur Edge Autonome');
+		expect(diagram).toContain('RUPTURE : Déconnexion Backhaul');
+	});
+
+	it('16. Pattern Découplage Canonique 3GPP MCX : sépare SIP Core Kamailio, MCX App Servers et Common Services', () => {
+		const subject: MaturitySubject = {
+			id: 'sub-mcx-stack',
+			section_ref: '§5.1',
+			name: 'Architecture applicative MCX',
+			level: 'L3_decided',
+			blocking_count: 0,
+			unlocks_count: 0,
+			waiting_for_role: 'lead_architect',
+			relative_effort: 'M',
+			last_transition_date: '2026-11-11T00:00:00Z',
+			stall_days: 0,
+			is_stalled: false,
+			dependent_subject_ids: []
+		};
+
+		const context: ProjectionContext = {
+			projectId: 'openmcx-platform',
+			projectName: 'Serveur MCX 3GPP',
+			decision: {
+				retainedOptionId: 'opt-mcx-stack',
+				retainedOptionTitle: 'Découplage openMCX modulaire 3GPP Rel-19',
+				rationale: 'Séparation SIP Core, App Servers MCPTT/MCData/MCVideo et Common Services OIDC/XCAP.'
+			}
+		};
+
+		const diagram = generateTargetArchitectureDiagram(subject, null, [], context);
+
+		expect(diagram).toContain('SIP Core Layer (Kamailio / CSCF)');
+		expect(diagram).toContain('MCPTT Server');
+		expect(diagram).toContain('MCData Server');
+		expect(diagram).toContain('MCVideo Server');
+		expect(diagram).toContain('Group Management (XCAP / CMS / GMS)');
+	});
+
+	it('17. Pattern Passerelle Hybride LMR / MCX : modélise la fonction IWF et le transcodage vocodeur', () => {
+		const subject: MaturitySubject = {
+			id: 'sub-interop',
+			section_ref: '§7.4',
+			name: 'Interopérabilité radio legacy',
+			level: 'L3_decided',
+			blocking_count: 0,
+			unlocks_count: 0,
+			waiting_for_role: 'lead_architect',
+			relative_effort: 'M',
+			last_transition_date: '2026-11-11T00:00:00Z',
+			stall_days: 0,
+			is_stalled: false,
+			dependent_subject_ids: []
+		};
+
+		const context: ProjectionContext = {
+			projectId: 'interop-pmr',
+			projectName: 'Passerelle LMR Cible',
+			decision: {
+				retainedOptionId: 'opt-iwf',
+				retainedOptionTitle: 'Passerelle d\'interconnexion hybride IWF TETRA vers MCX',
+				rationale: 'Conforme 3GPP TS 29.314 avec transcodage vocodeur ACELP vers AMR-WB.'
+			}
+		};
+
+		const diagram = generateTargetArchitectureDiagram(subject, null, [], context);
+
+		expect(diagram).toContain('Réseau Radio Historique (PMR / TETRA / P25)');
+		expect(diagram).toContain('Passerelle d\'Interconnexion Sécurisée (3GPP TS 29.314)');
+		expect(diagram).toContain('Contrôleur IWF (InterWorking Function)');
+		expect(diagram).toContain('Passerelle Vocodeur & Média');
+		expect(diagram).toContain('Système Haut-Débit Cible (3GPP / MCPTT)');
+	});
+
+	it('18. Chaîne de déploiement actif/actif progressive : modélise le drainage GSLB, le déploiement GitOps par zone et le contrôle de quorum', () => {
+		const subject: MaturitySubject = {
+			id: 'sub-ha',
+			section_ref: '§2.3, §10, §15',
+			name: 'Topologie de haute disponibilité et reprise',
+			level: 'L3_decided',
+			blocking_count: 0,
+			unlocks_count: 0,
+			waiting_for_role: 'lead_architect',
+			relative_effort: 'L',
+			last_transition_date: '2026-11-11T00:00:00Z',
+			stall_days: 0,
+			is_stalled: false,
+			dependent_subject_ids: []
+		};
+
+		const context: ProjectionContext = {
+			projectId: 'lot1-mcx',
+			projectName: 'Système Radio Critique',
+			enterpriseName: 'Gendarmerie Nationale',
+			decision: {
+				retainedOptionId: 'opt-aa-geo',
+				retainedOptionTitle: 'Actif/actif géoredondant généralisé',
+				rationale: 'Zones indépendantes et routage multiple sur toutes les chaînes répondent directement à REQ-Lot1-22 et REQ-Lot1-1387.'
+			}
+		};
+
+		const seq = generateDeploymentSequenceDiagram(subject, null, [], context);
+
+		expect(seq).toContain('sequenceDiagram');
+		expect(seq).toContain('autonumber');
+		expect(seq).toContain('Phase 1 : Qualification et Préparation de Version');
+		expect(seq).toContain('Phase 2 : Déploiement Progressif Zone A avec Drainage Trafic (REQ-Lot1-1387)');
+		expect(seq).toContain('Phase 3 : Rééquilibrage et Validation en Charge');
+		expect(seq).toContain('Phase 4 : Déploiement Miroir Zone B (Zéro Interruption)');
+		expect(seq).toContain('Dépôt GitOps (Sylva / Helm Manifests)');
+		expect(seq).toContain('Répartiteur Géoredondant (GSLB / Anycast)');
+		expect(seq).toContain('Datacenter 1 (Zone A)');
+		expect(seq).toContain('Datacenter 2 (Zone B)');
+		expect(seq).toContain('Témoin de Quorum (Tie-Breaker)');
+		expect(seq).toContain('Gendarmerie Nationale');
+	});
 });

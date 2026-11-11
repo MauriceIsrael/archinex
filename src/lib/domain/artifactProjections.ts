@@ -393,7 +393,15 @@ export function targetArchitectureClassDefs(indent = '    '): string[] {
 		`${indent}classDef human fill:#fff3e0,stroke:#e65100,stroke-width:2px,stroke-dasharray:3 3,color:#bf360c`,
 		`${indent}classDef deploy fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px,color:#1b5e20`,
 		`${indent}classDef person fill:#08427b,stroke:#073b6e,color:#fff,font-weight:bold`,
-		`${indent}classDef draft fill:#fff8e1,stroke:#f57f17,stroke-width:2px,stroke-dasharray:5 5,color:#b78103`
+		`${indent}classDef draft fill:#fff8e1,stroke:#f57f17,stroke-width:2px,stroke-dasharray:5 5,color:#b78103`,
+		`${indent}classDef radio fill:#f3e8ff,stroke:#7e22ce,stroke-width:2px,color:#581c87,font-weight:bold`,
+		`${indent}classDef routing fill:#e0f2fe,stroke:#0284c7,stroke-width:2px,color:#0369a1,font-weight:bold`,
+		`${indent}classDef dcBox fill:#f8fafc,stroke:#334155,stroke-width:2px,stroke-dasharray:6 3,color:#0f172a,font-weight:bold`,
+		`${indent}classDef coreApp fill:#ecfdf5,stroke:#059669,stroke-width:2px,color:#065f46`,
+		`${indent}classDef criticalApp fill:#fef3c7,stroke:#d97706,stroke-width:2px,color:#92400e`,
+		`${indent}classDef ossApp fill:#f1f5f9,stroke:#64748b,stroke-width:2px,color:#334155`,
+		`${indent}classDef dbApp fill:#fee2e2,stroke:#dc2626,stroke-width:2px,color:#991b1b`,
+		`${indent}classDef quorum fill:#fdf4ff,stroke:#c026d3,stroke-width:1.5px,stroke-dasharray:3 3,color:#701a75`
 	];
 }
 
@@ -495,6 +503,212 @@ export function generateTargetArchitectureDiagram(
 			'',
 			'    %% Règle d\'interdiction stricte',
 			'    MME_Lot3 -.-x|"⛔ INTERDIT : Flux direct non chiffré ou sans DEA"| HSS_Lot1'
+		].join('\n');
+	}
+
+	// Cas Pattern 1 : Actif / Actif Géoredondant Bi-Site (Dual-DC + GSLB + Arbitrage Split-Brain)
+	const hasActiveActiveGeo = /actif[\s/-]*actif|g[eé]oredondan|bi-site|deux zones|multi-sites|dual[\s/-]*site|split[\s/-]*brain|2 zones/i.test(lower);
+	if (hasActiveActiveGeo) {
+		const req22 = lower.includes('req-lot1-22') ? ' (REQ-Lot1-22)' : '';
+		const req1387 = lower.includes('req-lot1-1387') ? ' (REQ-Lot1-1387)' : '';
+		return [
+			'flowchart TB',
+			...targetArchitectureClassDefs(),
+			'',
+			'    %% Ingress & Couches Radio',
+			'    subgraph INGRESS["📡 Accès Radio Multi-Couches & Terminaux Tactiques"]',
+			'        direction LR',
+			'        RadioA["Site Radio Couche 1<br/><b>(4G / 5G Tactique)</b>"]:::radio',
+			'        RadioB["Site Radio Couche 2<br/><b>(PMR / Satcom / Fibre)</b>"]:::radio',
+			'        Clients["Opérateurs & Terminaux Tactiques<br/><i>(Double attachement)</i>"]:::radio',
+			'    end',
+			'',
+			`    %% Répartition géoredondante${req22}`,
+			`    subgraph GSLB_LAYER["🌐 Répartition Géoredondante & Routage Multiple${req22}"]`,
+			`        GSLB["<b>Anycast BGP & GSLB / Geo-DNS</b><br/>Distribution de charge active/active & Bascule sans interruption${req1387}"]:::routing`,
+			'    end',
+			'',
+			'    %% Témoin de Quorum',
+			'    Quorum["⚖️ Témoin de Quorum / Tie-Breaker<br/><i>(Tiers-Site / Prévention Split-Brain)</i>"]:::quorum',
+			'',
+			'    %% Datacenter 1',
+			`    subgraph DCA["🏢 DATACENTER 1 — Zone Primaire A (Actif 50%) [Projet: ${projectId}]"]`,
+			'        direction TB',
+			'        subgraph DCA_APPS["Services & Applications A"]',
+			'            direction LR',
+			'            Core_A["⚙️ <b>Cœur Réseau A</b><br/>Session & Control Plane"]:::coreApp',
+			'            MCS_A["🎙️ <b>Services Critiques A</b><br/>Voix/Vidéo Mission-Critical (MCPTT)"]:::criticalApp',
+			'            OSS_A["📊 <b>OSS / Supervision A</b><br/>Monitoring & Métriques"]:::ossApp',
+			'        end',
+			'        DB_A[("💾 <b>Données & État A</b><br/>Base distribuée / KV Store")]:::dbApp',
+			'        DCA_APPS --> DB_A',
+			'    end',
+			'    class DCA dcBox',
+			'',
+			'    %% Datacenter 2',
+			`    subgraph DCB["🏢 DATACENTER 2 — Zone Primaire B (Actif 50%) [Projet: ${projectId}]"]`,
+			'        direction TB',
+			'        subgraph DCB_APPS["Services & Applications B"]',
+			'            direction LR',
+			'            Core_B["⚙️ <b>Cœur Réseau B</b><br/>Session & Control Plane"]:::coreApp',
+			'            MCS_B["🎙️ <b>Services Critiques B</b><br/>Voix/Vidéo Mission-Critical (MCPTT)"]:::criticalApp',
+			'            OSS_B["📊 <b>OSS / Supervision B</b><br/>Monitoring & Métriques"]:::ossApp',
+			'        end',
+			'        DB_B[("💾 <b>Données & État B</b><br/>Base distribuée / KV Store")]:::dbApp',
+			'        DCB_APPS --> DB_B',
+			'    end',
+			'    class DCB dcBox',
+			'',
+			'    %% Flux de raccordement et distribution',
+			'    Clients --> RadioA & RadioB',
+			'    RadioA & RadioB ==>|"Double adduction étanche"| GSLB',
+			'    GSLB ==>|"50% Trafic actif"| DCA_APPS',
+			'    GSLB ==>|"50% Trafic actif"| DCB_APPS',
+			'',
+			'    %% Synchronisation Inter-DC',
+			'    DB_A <===>|"Interconnect DCI (Fibre Noire / DWDM)<br/><b>Réplication synchrone d\'état</b>"| DB_B',
+			'    Core_A <-.->|"Synchronisation des contextes de session"| Core_B',
+			'    MCS_A <-.->|"Fédération voix de groupe Mission-Critical"| MCS_B',
+			'',
+			'    %% Quorum',
+			'    DB_A -.->|"Heartbeat & Consensus"| Quorum',
+			'    DB_B -.->|"Heartbeat & Consensus"| Quorum'
+		].join('\n');
+	}
+
+	// Cas Pattern 2 : Survie Edge Tactique (Mode Îlotage / Isolated Island / Bulle Tactique)
+	const hasEdgeSurvie = /survie|edge.*tactique|bulle tactique|isolated island|[iî]lotage|autonome.*local|mode d[eé]grad[eé]/i.test(lower);
+	if (hasEdgeSurvie) {
+		return [
+			'flowchart TB',
+			...targetArchitectureClassDefs(),
+			'',
+			'    %% Site Central National',
+			`    subgraph NATIONAL["🏢 Cœur National Central (Mode Fédéré) [Projet: ${projectId}]"]`,
+			'        direction TB',
+			'        Core_Nat["⚙️ Cœur 5G SA National<br/><small>(AMF / SMF / UDM)</small>"]:::coreApp',
+			'        MCS_Nat["🎙️ Serveur National Critique<br/><small>(Groupes nationaux & passerelle centrale)</small>"]:::criticalApp',
+			'        CMS_Nat["📋 CMS / GMS Central<br/><small>(Annuaire global & profils de sécurité)</small>"]:::coreApp',
+			'    end',
+			'    class NATIONAL boundary',
+			'',
+			'    %% Lien Backhaul Hybride',
+			'    subgraph WAN_BACKHAUL["🌐 Liaison Backhaul (Fibre / Faisceau Hertzien / Satcom)"]',
+			'        Backhaul["<b>Liaison Opérateur Résiliente</b><br/><i>(Sujette à coupure / brouillage tactique)</i>"]:::routing',
+			'    end',
+			'',
+			'    %% Site Edge Tactique Projetable',
+			'    subgraph TACTICAL_EDGE["🛡️ Bulle Tactique Locale / Site Edge Autonome (Survie Locale)"]',
+			'        direction TB',
+			'        Radio_Local["📡 Spectre Radio Local<br/><small>(gNodeB / eNodeB tactique)</small>"]:::radio',
+			'        UPF_Local["⚡ UPF Locale (User Plane Function)<br/><small>(Routage local trafic voix/données)</small>"]:::coreApp',
+			'        MCS_Local["🎙️ Serveur Edge Autonome<br/><small>(Groupes de parole locaux en îlotage)</small>"]:::criticalApp',
+			'        Terminaux_Edge["👥 Forces d\'Intervention & Terminaux PPDR"]:::person',
+			'        Radio_Local --> UPF_Local',
+			'        UPF_Local --> MCS_Local',
+			'        Terminaux_Edge --> Radio_Local',
+			'    end',
+			'    class TACTICAL_EDGE dcBox',
+			'',
+			'    %% Flux nominaux et mode survie',
+			'    MCS_Local <==>|"1. Synchronisation nominale profils"| Backhaul',
+			'    Backhaul <==>|"2. Fédération réseau national"| NATIONAL',
+			'    Backhaul -.x|"⛔ RUPTURE : Déconnexion Backhaul"| MCS_Local',
+			'    Terminaux_Edge ==>|"3. Survie autonome maintenue (Appels de groupe locaux PTT)"| MCS_Local'
+		].join('\n');
+	}
+
+	// Cas Pattern 3 : Passerelle d'Interconnexion Hybride (LMR / TETRA / P25 <-> IWF 3GPP)
+	const hasLmrInterworking = /(?:passerelle|interworking|iwf|interconnexion).*(?:lmr|tetra|pmr|p25)|(?:lmr|tetra|tetrapol|p25).*(?:vers.*(?:m[c]x|mcptt|haut-d[eé]bit)|interconnexion|passerelle.*(?:iwf|audio|radio|voix)|interworking)/i.test(lower);
+	if (hasLmrInterworking) {
+		return [
+			'flowchart TB',
+			...targetArchitectureClassDefs(),
+			'',
+			'    %% Réseau Historique LMR',
+			'    subgraph LMR_LEGACY["📻 Réseau Radio Historique (PMR / TETRA / P25)"]',
+			'        direction TB',
+			'        Terminaux_LMR["Terminaux Radio TETRA"]:::person',
+			'        BS_LMR["Station de Base LMR"]:::radio',
+			'        Switch_LMR["Commutateur Réseau PMR<br/><small>(SwMI / Vocodeur ACELP)</small>"]:::ext',
+			'        Terminaux_LMR --> BS_LMR --> Switch_LMR',
+			'    end',
+			'    class LMR_LEGACY boundary',
+			'',
+			'    %% Passerelle d\'Interconnexion IWF',
+			`    subgraph IWF_GATEWAY["🌉 Passerelle d'Interconnexion Sécurisée (3GPP TS 29.314) [Projet: ${projectId}]"]`,
+			'        direction TB',
+			'        IWF_Ctrl["Contrôleur IWF (InterWorking Function)<br/><small>(Médiation signalisation TETRA <-> SIP)</small>"]:::coreApp',
+			'        Transcoder["Passerelle Vocodeur & Média<br/><small>(Transcodage ACELP / AMR-WB)</small>"]:::agent',
+			'    end',
+			'    class IWF_GATEWAY dcBox',
+			'',
+			'    %% Système Cible Haut-Débit Mission-Critical',
+			'    subgraph MCS_TARGET["🚀 Système Haut-Débit Cible (3GPP / MCPTT)"]',
+			'        direction TB',
+			'        MCS_Server["Serveur Mission-Critical (MCPTT / Voix Critique)"]:::criticalApp',
+			'        Core_5G["Cœur Réseau 4G/5G"]:::coreApp',
+			'        Terminaux_MCS["Terminaux Mobiles Critiques"]:::person',
+			'        Terminaux_MCS --> Core_5G --> MCS_Server',
+			'    end',
+			'    class MCS_TARGET boundary',
+			'',
+			'    %% Flux de passerelle',
+			'    Switch_LMR <==>|"Flux audio & signalisation propriétaire"| IWF_Ctrl',
+			'    IWF_Ctrl <--> Transcoder',
+			'    Transcoder <==>|"Flux SIP & SRTP normalisé 3GPP"| MCS_Server'
+		].join('\n');
+	}
+
+	// Cas Pattern 4 : Découplage Canonique 3GPP (Inspiration openMCX: SIP Core vs App Servers vs Common Services)
+	const hasMcxDecoupling = /(?:^|[^\w])(openm[c]x|m[c]x|mcptt|mcvideo|mcdata|kamailio)(?:$|[^\w])/i.test(lower);
+	if (hasMcxDecoupling) {
+		return [
+			'flowchart TB',
+			...targetArchitectureClassDefs(),
+			'',
+			'    %% Clients Mission-Critical',
+			'    subgraph CLIENTS["📱 Terminaux & Consoles Clients (Clients Critiques 3GPP)"]',
+			'        direction LR',
+			'        MCS_App["Terminaux Durcis PPDR<br/><small>(Clients Mission-Critical Android / Linux)</small>"]:::person',
+			'        Dispatcher["Console de Régulation<br/><small>(Pupitre de Commandement)</small>"]:::person',
+			'    end',
+			'',
+			`    %% Pile Serveur Découplée (3GPP Rel-19)`,
+			`    subgraph MCS_STACK["🏢 Plateforme de Services Critiques 3GPP [Projet: ${projectId}]"]`,
+			'        direction TB',
+			'        %% 1. SIP Core',
+			'        subgraph SIP_CORE["1. SIP Core Layer (Kamailio / CSCF)"]',
+			'            SIP["⚡ Routage & Enregistrement SIP<br/><small>(Signalisation sessions & contrôle d\'appel)</small>"]:::coreApp',
+			'        end',
+			'        %% 2. Application Servers',
+			'        subgraph APP_SERVERS["2. Application Servers Mission-Critical (Plans Média & Métier)"]',
+			'            direction LR',
+			'            MCPTT["🎙️ <b>MCPTT Server</b><br/><small>Floor Control & Group Calls</small>"]:::criticalApp',
+			'            MCData["📄 <b>MCData Server</b><br/><small>SDS & Distribution de fichiers</small>"]:::criticalApp',
+			'            MCVideo["🎥 <b>MCVideo Server</b><br/><small>Flux vidéo Push/Pull temps réel</small>"]:::criticalApp',
+			'        end',
+			'        %% 3. Common Services',
+			'        subgraph COMMON_SVC["3. Common Services Core"]',
+			'            direction LR',
+			'            OIDC["🔑 Gestion d\'Identité (OIDC / OAuth2)"]:::core',
+			'            XCAP["👥 Group Management (XCAP / CMS / GMS)"]:::core',
+			'            KMS["🔐 Gestion Clés Chiffrement (KMS / LMS)"]:::core',
+			'        end',
+			'    end',
+			'    class MCS_STACK dcBox',
+			'',
+			'    %% Console Admin',
+			'    subgraph ADMIN["Console d\'Exploitation & Administration"]',
+			'        AdminUI["Console Admin Titulaire<br/><small>(Provisioning des profils & groupes)</small>"]:::agent',
+			'    end',
+			'',
+			'    %% Flux 3GPP normalisés',
+			'    CLIENTS ==>|"1. Signalisation SIP (Enregistrement & Sessions)"| SIP',
+			'    SIP -->|"2. Dispatch vers serveurs spécialisés"| MCPTT & MCData & MCVideo',
+			'    CLIENTS ==>|"3. Plan Média Temps Réel (SRTP / RTCP Floor Control)"| APP_SERVERS',
+			'    CLIENTS -->|"4. Authentification & Profils (OIDC / XCAP)"| COMMON_SVC',
+			'    AdminUI -->|"Provisioning & Configuration"| COMMON_SVC'
 		].join('\n');
 	}
 
@@ -766,6 +980,44 @@ export function generateDeploymentSequenceDiagram(
 			'    HSS-->>DEA: Réponse Diameter S6a (AIA / ULA)',
 			'    DEA-->>SecGW: Réponse avec masquage topologique réappliqué',
 			'    SecGW-->>MME: Réponse chiffrée et encapsulée dans le tunnel IPsec ESP'
+		].join('\n');
+	}
+
+	const hasActiveActiveGeo = /actif[\s/-]*actif|g[eé]oredondan|bi-site|deux zones|multi-sites|dual[\s/-]*site|split[\s/-]*brain|2 zones/i.test(fullSpec);
+	if (hasActiveActiveGeo) {
+		const req1387 = fullSpec.includes('req-lot1-1387') ? ' (REQ-Lot1-1387)' : '';
+		return [
+			'sequenceDiagram',
+			'    autonumber',
+			`    actor Ops as Équipe Déploiement & GitOps (${enterpriseName !== 'Organisation' ? enterpriseName : 'Titulaire'})`,
+			'    participant Git as Dépôt GitOps (Sylva / Helm Manifests)',
+			'    participant GSLB as Répartiteur Géoredondant (GSLB / Anycast)',
+			'    participant DCA as Datacenter 1 (Zone A)',
+			'    participant DCB as Datacenter 2 (Zone B)',
+			'    participant Quorum as Témoin de Quorum (Tie-Breaker)',
+			'',
+			'    Note over Ops,Quorum: Phase 1 : Qualification et Préparation de Version',
+			'    Ops->>Git: Push des manifestes déclaratifs de la version candidate',
+			'    Git->>Git: Validation syntaxique, scan de sécurité & signature cryptographique',
+			'',
+			`    Note over GSLB,DCB: Phase 2 : Déploiement Progressif Zone A avec Drainage Trafic${req1387}`,
+			'    Ops->>GSLB: Bascule préventive : drainage progressif du trafic vers Zone B',
+			'    GSLB-->>DCB: 100% Trafic actif absorbé sans bascule destructive',
+			'    Git->>DCA: Application des manifestes déclaratifs (Rolling Update Zone A)',
+			'    DCA->>DCA: Démarrage des pods applicatifs/Cœur & tests de santé locaux',
+			'    DCA->>Quorum: Validation de cohérence d\'état & quorum maintenu',
+			'',
+			'    Note over GSLB,DCB: Phase 3 : Rééquilibrage et Validation en Charge',
+			'    Ops->>GSLB: Réouverture du trafic sur Zone A (Équilibrage nominal 50% / 50%)',
+			'    GSLB-->>DCA: 50% Trafic actif distribué',
+			'    GSLB-->>DCB: 50% Trafic actif distribué',
+			'',
+			'    Note over GSLB,DCB: Phase 4 : Déploiement Miroir Zone B (Zéro Interruption)',
+			'    Ops->>GSLB: Drainage progressif du trafic vers Zone A',
+			'    Git->>DCB: Application des manifestes déclaratifs (Rolling Update Zone B)',
+			'    DCB->>DCB: Tests de santé locaux & resynchronisation d\'état DCI',
+			'    Ops->>GSLB: Rétablissement complet Actif/Actif (50% / 50%)',
+			'    Note over Ops,Quorum: Déploiement géoredondant achevé avec succès sans coupure de service'
 		].join('\n');
 	}
 

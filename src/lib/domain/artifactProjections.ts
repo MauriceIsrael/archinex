@@ -1021,6 +1021,66 @@ export function generateDeploymentSequenceDiagram(
 		].join('\n');
 	}
 
+	const hasEdgeSurvie = /survie|edge.*tactique|bulle tactique|isolated island|[iî]lotage|autonome.*local|mode d[eé]grad[eé]/i.test(fullSpec);
+	if (hasEdgeSurvie) {
+		return [
+			'sequenceDiagram',
+			'    autonumber',
+			`    actor Ops as Cellule Opérations & Ingénierie (${enterpriseName !== 'Organisation' ? enterpriseName : 'Forces'})`,
+			'    participant Dépôt as Dépôt & Usine Logicielle (Packages Validés)',
+			'    participant Edge as Bulle Tactique Locale (Matériel Projetable)',
+			'    participant CoreNat as Cœur National Central (Mode Fédéré)',
+			'',
+			'    Note over Ops,CoreNat: Phase 1 : Préparation & Signature du Profil de Mission',
+			'    Ops->>Dépôt: Génération de l\'image système & annuaire local pour la mission',
+			'    Dépôt->>Dépôt: Signature cryptographique & scellement du profil de survie',
+			'',
+			'    Note over Dépôt,Edge: Phase 2 : Déploiement & Initialisation sur Site Tactique',
+			'    Dépôt->>Edge: Flashage / Déploiement sécurisé sur le matériel durci',
+			'    Edge->>Edge: Auto-tests matériels, initialisation radio & UPF locale',
+			'    Edge->>CoreNat: Raccordement initial & synchronisation des profils nominaux',
+			'',
+			'    Note over Edge,CoreNat: Phase 3 : Épreuve d\'Îlotage (Validation Survie Autonome)',
+			'    Ops->>Edge: Simulation coupure volontaire du lien backhaul',
+			'    Edge->>Edge: Bascule immédiate en mode îlotage autonome',
+			'    Edge->>Edge: Validation des appels de groupe locaux (Zéro dépendance centrale)',
+			'',
+			'    Note over Edge,CoreNat: Phase 4 : Rétablissement & Resynchronisation',
+			'    Ops->>Edge: Rétablissement de la liaison backhaul',
+			'    Edge->>CoreNat: Resynchronisation automatique des logs d\'audit et profils',
+			'    Note over Ops,CoreNat: Bulle tactique qualifiée et prête au déploiement opérationnel'
+		].join('\n');
+	}
+
+	const hasLmrInterworking = /(?:passerelle|interworking|iwf|interconnexion).*(?:lmr|tetra|pmr|p25)|(?:lmr|tetra|tetrapol|p25).*(?:vers.*(?:m[c]x|mcptt|haut-d[eé]bit)|interconnexion|passerelle.*(?:iwf|audio|radio|voix)|interworking)/i.test(fullSpec);
+	if (hasLmrInterworking) {
+		return [
+			'sequenceDiagram',
+			'    autonumber',
+			`    actor Tech as Ingénierie & Intégration (${enterpriseName !== 'Organisation' ? enterpriseName : 'Opérateur'})`,
+			'    participant LMR as Commutateur Radio Historique (TETRA / P25)',
+			'    participant IWF as Passerelle d\'Interconnexion IWF (3GPP TS 29.314)',
+			'    participant CoreTarget as Système Haut-Débit Cible (3GPP)',
+			'',
+			'    Note over Tech,CoreTarget: Phase 1 : Provisioning & Configuration des Passerelles',
+			'    Tech->>IWF: Déploiement et configuration des profils de transcodage vocodeur',
+			'    IWF->>CoreTarget: Enregistrement SIP / Trunking auprès du cœur haut-débit',
+			'    IWF->>LMR: Raccordement interfaces SwMI / LMR propriétaires',
+			'',
+			'    Note over LMR,CoreTarget: Phase 2 : Établissement du Pont Audio (Double Écoute)',
+			'    Tech->>IWF: Activation de la translation des groupes de parole unifiés',
+			'    LMR->>IWF: Flux voix TETRA (ACELP)',
+			'    IWF->>IWF: Transcodage temps réel vers AMR-WB & médiation signalisation',
+			'    IWF->>CoreTarget: Injection du flux voix dans le groupe haut-débit cible',
+			'    Note over LMR,CoreTarget: Les utilisateurs TETRA et terminaux haut-débit communiquent ensemble',
+			'',
+			'    Note over Tech,CoreTarget: Phase 3 : Migration Progressive sans Rupture',
+			'    Tech->>CoreTarget: Migration progressive des unités opérationnelles vers le haut-débit',
+			'    Tech->>IWF: Réduction progressive des ponts LMR au fur et à mesure de l\'extinction PMR',
+			'    Note over Tech,CoreTarget: Migration unifiée réussie sans interruption des secours critiques'
+		].join('\n');
+	}
+
 	const tituActor = `Titulaire (${projectName})`;
 	const clientActor = enterpriseName !== 'Organisation'
 		? `Responsable Exploitation (${enterpriseName})`

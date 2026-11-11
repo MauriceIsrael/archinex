@@ -470,8 +470,8 @@ describe('Projections dynamiques d\'architecture (No Doc Drift - Issue #64)', ()
 		expect(diagram).toContain('REQ-Lot1-1387');
 		expect(diagram).toContain('Cœur Réseau A');
 		expect(diagram).toContain('Cœur Réseau B');
-		expect(diagram).toContain('Plateforme MCX A');
-		expect(diagram).toContain('Plateforme MCX B');
+		expect(diagram).toContain('Services Critiques A');
+		expect(diagram).toContain('Services Critiques B');
 		expect(diagram).toContain('OSS / Supervision A');
 		expect(diagram).toContain('OSS / Supervision B');
 	});
@@ -507,7 +507,7 @@ describe('Projections dynamiques d\'architecture (No Doc Drift - Issue #64)', ()
 		expect(diagram).toContain('Cœur National Central');
 		expect(diagram).toContain('Bulle Tactique Locale / Site Edge Autonome (Survie Locale)');
 		expect(diagram).toContain('UPF Locale (User Plane Function)');
-		expect(diagram).toContain('Serveur MCX Edge Autonome');
+		expect(diagram).toContain('Serveur Edge Autonome');
 		expect(diagram).toContain('RUPTURE : Déconnexion Backhaul');
 	});
 
@@ -578,7 +578,7 @@ describe('Projections dynamiques d\'architecture (No Doc Drift - Issue #64)', ()
 		expect(diagram).toContain('Passerelle d\'Interconnexion Sécurisée (3GPP TS 29.314)');
 		expect(diagram).toContain('Contrôleur IWF (InterWorking Function)');
 		expect(diagram).toContain('Passerelle Vocodeur & Média');
-		expect(diagram).toContain('Système Haut-Débit MCX 4G/5G Cible');
+		expect(diagram).toContain('Système Haut-Débit Cible (3GPP / MCPTT)');
 	});
 
 	it('18. Chaîne de déploiement actif/actif progressive : modélise le drainage GSLB, le déploiement GitOps par zone et le contrôle de quorum', () => {

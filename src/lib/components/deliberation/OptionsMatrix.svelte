@@ -40,6 +40,7 @@
 		tradeOffs = $bindable<TradeOff[]>([]),
 		decision = $bindable<Decision | null>(null),
 		userRole = 'lead_architect',
+		initialSingleOptionRationale = undefined,
 		onDecisionMade = () => {},
 		onError = (msg: string) => {},
 		onCriteriaChanged = (_c: Criterion[]) => {},
@@ -54,6 +55,7 @@
 		tradeOffs: TradeOff[];
 		decision: Decision | null;
 		userRole?: string;
+		initialSingleOptionRationale?: string | null;
 		onDecisionMade?: (dec: Decision) => void;
 		onError?: (msg: string) => void;
 		onCriteriaChanged?: (newCriteria: Criterion[]) => void;
@@ -104,13 +106,39 @@
 		return base;
 	}
 
+	type CompliancePayload = { frameworks: string[]; offline: boolean; violations: ComplianceViolation[]; unassessedCount: number; coverageWarnings?: string[] };
+	const complianceCache = new Map<string, CompliancePayload>();
+
 	$effect(() => {
-		const optionCount = options.length;
-		if (!projectId || !subjectId || optionCount === 0) return;
-		fetch(`/api/projects/${projectId}/subjects/${subjectId}/compliance`)
+		const subjectOwnedOptions = options.filter((o) => !o.subjectId || o.subjectId === subjectId);
+		if (!projectId || !subjectId || subjectOwnedOptions.length === 0) {
+			compliance = null;
+			return;
+		}
+		const cacheKey = `${projectId}:${subjectId}:${subjectOwnedOptions.map((o) => `${o.id}:${o.version}:${o.title}`).join('|')}`;
+		const cached = complianceCache.get(cacheKey);
+		if (cached) {
+			compliance = cached;
+			if (!cached.offline) return;
+		}
+
+		const controller = new AbortController();
+		fetch(`/api/projects/${projectId}/subjects/${subjectId}/compliance`, { signal: controller.signal })
 			.then((r) => (r.ok ? r.json() : null))
-			.then((data) => (compliance = data?.status === 'ok' ? data : null))
-			.catch(() => (compliance = null));
+			.then((data) => {
+				if (controller.signal.aborted) return;
+				if (data?.status === 'ok') {
+					compliance = data;
+					complianceCache.set(cacheKey, data);
+				} else {
+					compliance = null;
+				}
+			})
+			.catch(() => {
+				if (!controller.signal.aborted) compliance = null;
+			});
+
+		return () => controller.abort();
 	});
 
 	// Option unique : certains sujets n'ont pas d'alternative réelle ; la justification lève l'exigence de 2 options.
@@ -120,13 +148,22 @@
 
 	$effect(() => {
 		if (!projectId || !subjectId) return;
-		fetch(`/api/projects/${projectId}/subjects/${subjectId}`)
+		if (initialSingleOptionRationale !== undefined) {
+			singleOptionRationale = initialSingleOptionRationale ?? '';
+			singleOptionSaved = singleOptionRationale;
+			singleOptionStatus = null;
+			return;
+		}
+		const controller = new AbortController();
+		fetch(`/api/projects/${projectId}/subjects/${subjectId}`, { signal: controller.signal })
 			.then((r) => (r.ok ? r.json() : null))
 			.then((data) => {
+				if (controller.signal.aborted) return;
 				singleOptionRationale = data?.subject?.singleOptionRationale ?? '';
 				singleOptionSaved = singleOptionRationale;
 			})
 			.catch(() => {});
+		return () => controller.abort();
 	});
 
 	async function saveSingleOptionRationale() {

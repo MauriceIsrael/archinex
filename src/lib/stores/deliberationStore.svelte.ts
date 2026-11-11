@@ -39,6 +39,11 @@ import {
 	type ProjectionContext
 } from '$lib/domain/artifactProjections';
 import {
+	generatePetitesBriquesCanvas,
+	generatePetitesBriquesYAML,
+	type PetitesBriquesCanvas
+} from '$lib/domain/petitesBriquesBridge';
+import {
 	type CorpusDocument,
 	type CorpusStats,
 	type DocumentOrigin,
@@ -1699,7 +1704,9 @@ class DeliberationStore {
 			structurizrVisual: generateStructurizrVisualMermaid(subject, draft, sectionStatements, context),
 			sysmlV2: generateSysMLv2(subject, draft, sectionStatements, context),
 			sysmlVisual: generateSysMLVisualMermaid(subject, draft, sectionStatements, context),
-			configJSON: generateConfigJSON(subject, draft, sectionStatements, sealedAt, context)
+			configJSON: generateConfigJSON(subject, draft, sectionStatements, sealedAt, context),
+			petitesBriquesCanvas: generatePetitesBriquesCanvas(subject, draft, sectionStatements, context),
+			petitesBriquesYAML: generatePetitesBriquesYAML(generatePetitesBriquesCanvas(subject, draft, sectionStatements, context))
 		};
 	}
 

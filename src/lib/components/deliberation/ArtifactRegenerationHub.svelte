@@ -1,12 +1,13 @@
 <script lang="ts">
 	import { deliberationStore } from '$lib/stores/deliberationStore.svelte';
 	import MermaidViewer from './MermaidViewer.svelte';
-	import { RefreshCw, Download, Copy, Check, Terminal, FileCode, Layers, Cpu, ShieldCheck, Scale, FileSpreadsheet } from 'lucide-svelte';
+	import { RefreshCw, Download, Copy, Check, Terminal, FileCode, Layers, Cpu, ShieldCheck, Scale, FileSpreadsheet, Boxes } from 'lucide-svelte';
 
-	type TabType = 'mermaid' | 'structurizr' | 'sysml' | 'config' | 'compliance';
+	type TabType = 'mermaid' | 'structurizr' | 'sysml' | 'config' | 'compliance' | 'petites-briques';
 
 	let activeTab = $state<TabType>('mermaid');
 	let mermaidSubView = $state<'target' | 'sequence' | 'causal'>('target');
+	let petitesBriquesSubView = $state<'visual' | 'yaml' | 'json'>('visual');
 	let copied = $state(false);
 	let isRegenerating = $state(false);
 	let lastSyncTime = $state<string>(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
@@ -84,6 +85,13 @@
 				return projections.sysmlV2;
 			case 'config':
 				return projections.configJSON;
+			case 'petites-briques':
+				if (petitesBriquesSubView === 'json') {
+					return (projections as any).petitesBriquesCanvas
+						? JSON.stringify((projections as any).petitesBriquesCanvas, null, 2)
+						: '';
+				}
+				return (projections as any).petitesBriquesYAML || '';
 		}
 	}
 
@@ -118,6 +126,15 @@
 				break;
 			case 'compliance':
 				filename = `${activeSubject?.id || 'arch'}_matrice_conformite.md`;
+				break;
+			case 'petites-briques':
+				if (petitesBriquesSubView === 'json') {
+					filename = `${activeSubject?.id || 'arch'}_canvas.json`;
+					mimeType = 'application/json';
+				} else {
+					filename = `${activeSubject?.id || 'arch'}_canvas.yaml`;
+					mimeType = 'text/yaml';
+				}
 				break;
 		}
 
@@ -241,6 +258,18 @@
 			>
 				<Scale class="h-3.5 w-3.5" />
 				<span>Matrice de Conformité</span>
+			</button>
+
+			<button
+				type="button"
+				onclick={() => (activeTab = 'petites-briques')}
+				class="px-3 py-1.5 font-semibold rounded-lg transition-colors flex items-center gap-1.5 whitespace-nowrap {activeTab === 'petites-briques'
+					? 'bg-primary text-primary-foreground shadow-2xs'
+					: 'text-muted-foreground hover:text-foreground hover:bg-muted/60'}"
+				data-testid="tab-petites-briques"
+			>
+				<Boxes class="h-3.5 w-3.5" />
+				<span>Canvas Petites Briques (Poka-Yoke)</span>
 			</button>
 		</div>
 
@@ -420,6 +449,128 @@
 					{:else}
 						<div class="p-6 text-center text-xs text-muted-foreground border rounded-lg">
 							Aucune donnée de conformité disponible pour cet engagement.
+						</div>
+					{/if}
+				</div>
+			{:else if activeTab === 'petites-briques'}
+				<div class="space-y-3" data-testid="petites-briques-view">
+					<div class="flex flex-wrap items-center justify-between gap-2 border-b pb-2">
+						<div class="flex items-center gap-1.5 p-1 rounded-lg bg-muted/60 border border-border/40 w-fit text-xs">
+							<button
+								type="button"
+								onclick={() => (petitesBriquesSubView = 'visual')}
+								class="px-2.5 py-1 rounded-md font-medium transition-colors {petitesBriquesSubView === 'visual' ? 'bg-background shadow-xs text-foreground font-bold' : 'text-muted-foreground hover:text-foreground'}"
+								data-testid="subtab-pb-visual"
+							>
+								🧱 Canvas Graphique (Sites & Briques)
+							</button>
+							<button
+								type="button"
+								onclick={() => (petitesBriquesSubView = 'yaml')}
+								class="px-2.5 py-1 rounded-md font-medium transition-colors {petitesBriquesSubView === 'yaml' ? 'bg-background shadow-xs text-foreground font-bold' : 'text-muted-foreground hover:text-foreground'}"
+								data-testid="subtab-pb-yaml"
+							>
+								📄 Spécification YAML Canvas
+							</button>
+							<button
+								type="button"
+								onclick={() => (petitesBriquesSubView = 'json')}
+								class="px-2.5 py-1 rounded-md font-medium transition-colors {petitesBriquesSubView === 'json' ? 'bg-background shadow-xs text-foreground font-bold' : 'text-muted-foreground hover:text-foreground'}"
+								data-testid="subtab-pb-json"
+							>
+								⚡ JSON Normalisé
+							</button>
+						</div>
+
+						<div class="text-[11px] text-muted-foreground font-medium">
+							Modèle Poka-Yoke · {(projections as any)?.petitesBriquesCanvas?.sites?.length || 0} sites · {(projections as any)?.petitesBriquesCanvas?.zones?.length || 0} zones · {(projections as any)?.petitesBriquesCanvas?.connections?.length || 0} liaisons
+						</div>
+					</div>
+
+					{#if petitesBriquesSubView === 'visual'}
+						{@const canvas = (projections as any)?.petitesBriquesCanvas}
+						{#if canvas}
+							<div class="space-y-4">
+								<!-- Périmètres et métadonnées -->
+								<div class="flex flex-wrap items-center gap-2 text-xs">
+									{#each canvas.perimeters as perim}
+										<span class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md border font-semibold" style="border-color: {perim.color}; color: {perim.color}; background-color: {perim.color}15">
+											🛡️ {perim.name}
+										</span>
+									{/each}
+									<span class="text-muted-foreground italic text-[11px]">{canvas.description}</span>
+								</div>
+
+								<!-- Rendu visuel en colonnes des sites et briques -->
+								<div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+									{#each canvas.sites as site}
+										<div class="rounded-xl border bg-card p-4 shadow-xs space-y-3">
+											<div class="flex items-center justify-between border-b pb-2">
+												<div class="font-bold text-xs flex items-center gap-1.5 text-foreground">
+													<span>🏢 {site.name}</span>
+												</div>
+												<span class="text-[10px] uppercase font-mono px-2 py-0.5 rounded-full bg-muted text-muted-foreground border">
+													{site.siteType}
+												</span>
+											</div>
+
+											<div class="space-y-2">
+												{#each site.bricks as brick}
+													<div class="p-2.5 rounded-lg border bg-muted/40 hover:bg-muted/70 transition-colors space-y-1">
+														<div class="flex items-center justify-between text-xs">
+															<span class="font-semibold text-foreground">{brick.label || brick.templateId}</span>
+															<span class="text-[10px] font-mono text-muted-foreground">Ordre {brick.order}</span>
+														</div>
+														<div class="flex items-center gap-2 text-[10px] text-muted-foreground font-mono">
+															<span class="px-1.5 py-0.2 rounded bg-background border">tpl: {brick.templateId}</span>
+															<span>id: {brick.instanceId}</span>
+														</div>
+													</div>
+												{/each}
+											</div>
+										</div>
+									{/each}
+								</div>
+
+								<!-- Synthèse des connexions inter-briques -->
+								{#if canvas.connections.length > 0}
+									<div class="rounded-xl border bg-muted/20 p-3 space-y-2 text-xs">
+										<div class="font-bold text-muted-foreground flex items-center gap-1.5">
+											<span>🔗 Flux & Interconnexions Physiques/Logiques ({canvas.connections.length}) :</span>
+										</div>
+										<div class="grid grid-cols-1 sm:grid-cols-2 gap-2 text-[11px] font-mono">
+											{#each canvas.connections as conn}
+												<div class="p-2 rounded bg-background border flex items-center justify-between">
+													<div class="flex items-center gap-1.5 truncate">
+														<span class="font-bold text-foreground">{conn.sourceBrickId}</span>
+														<span class="text-muted-foreground">➔</span>
+														<span class="font-bold text-foreground">{conn.targetBrickId}</span>
+													</div>
+													<span class="px-1.5 py-0.5 rounded bg-primary/10 text-primary font-semibold text-[10px]">
+														{conn.linkTypeId}
+													</span>
+												</div>
+											{/each}
+										</div>
+									</div>
+								{/if}
+							</div>
+						{/if}
+					{:else if petitesBriquesSubView === 'yaml'}
+						<div class="space-y-2">
+							<div class="flex items-center justify-between text-xs font-bold text-muted-foreground">
+								<span>Spécification Declarative YAML (Compatible PetitesBriques) :</span>
+								<span class="font-mono text-[10px] text-emerald-600 dark:text-emerald-400">YAML Opposable</span>
+							</div>
+							<pre class="rounded-lg bg-muted/80 p-4 font-mono text-xs text-foreground overflow-x-auto max-h-[500px] leading-relaxed border shadow-inner whitespace-pre">{ (projections as any)?.petitesBriquesYAML || '' }</pre>
+						</div>
+					{:else}
+						<div class="space-y-2">
+							<div class="flex items-center justify-between text-xs font-bold text-muted-foreground">
+								<span>Modèle JSON Normalisé (Petites Briques Canvas) :</span>
+								<span class="font-mono text-[10px] text-emerald-600 dark:text-emerald-400">JSON Formaté</span>
+							</div>
+							<pre class="rounded-lg bg-muted/80 p-4 font-mono text-xs text-foreground overflow-x-auto max-h-[500px] leading-relaxed border shadow-inner whitespace-pre">{ JSON.stringify((projections as any)?.petitesBriquesCanvas, null, 2) }</pre>
 						</div>
 					{/if}
 				</div>

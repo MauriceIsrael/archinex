@@ -60,12 +60,9 @@ L'assistant de création d'espace (`/workspaces/new` ou modale du bandeau de pro
 
 - **Graphe Causal d'Impact & Simulateur de Compromis Coût V1 (What-If Simulator)** :
   - Accessible via l'onglet **« Graphe d'Impact & Décisions »** dans l'en-tête de projet.
-  - Permet de visualiser les liens de dépendance causale entre les **Exigences Client**, la **Conformité Réglementaire (DORA, NIS2, RGPD)**, les **Décisions d'Architecture (ADR)** et les **Contraintes Budgétaires V1**.
+  - **Contextualisation par sujet** : sélectionnez n'importe quel sujet du projet via le menu déroulant pour générer automatiquement un graphe à partir de ses critères, options, évaluations pondérées, exigences RFP et référentiels applicables.
+  - **Enrichissement IA (LLM)** : cliquez sur **« Contextualiser / Enrichir par IA (LLM) »** pour demander au modèle d'analyser les compromis spécifiques du sujet, estimer les économies OPEX/CAPEX, qualifier les dégradations et proposer des clauses d'extinction V2 (avec repli automatique sur l'analyse déterministe si le LLM est hors-ligne).
   - **Simulateur What-If en direct** : basculez d'un clic entre le *Scénario Nominal V2 (100% Conforme)* et le *Scénario Optimisé Coût V1 (Compromis & Dégradations)*.
-  - **Détection des ondes de choc budgétaires** :
-    - Chiffrage instantané des économies OPEX/CAPEX (ex: `-135 k€/an`).
-    - Mise en évidence immédiate des exigences client dégradées (ex: SLA chutant de 99.95% à 99.0%, RTO passant de 15 min à 24h).
-    - Signalement en rouge clignotant des non-conformités légales critiques (ex: violation DORA Art. 12 sur la continuité d'activité).
   - **Registre de Dette Technique & Sunset Clauses** : formalise les concessions dans un ADR de dérogation temporaire avec condition et date de re-bascule V2 afin d'éviter la dérive silencieuse.
 - **Workbench de Délibération (3 colonnes)** :
   - **Colonne de gauche (Liste des sujets)** : navigation instantanée entre toutes les conversations de sujets avec filtres rapides (Bloquants, À faire, Actés).

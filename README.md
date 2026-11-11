@@ -69,6 +69,57 @@ Chaque architecte évolue à son rythme sur chaque section sans bloquer le reste
 
 ---
 
+## 🔄 Le Moteur Fondamental : De la Règle Doctrinale au Déploiement GitOps en Boucle Fermée
+
+Archinex ne se contente pas d'être un carnet de délibération : il matérialise une **boucle fermée d'apprentissage architectural** entre les projets de terrain, le référentiel de doctrine d'entreprise (**Knowledge Hub LLMOps**) et les usines de déploiement d'infrastructure (**Sylva Telco Cloud GitOps & SSoT Nautobot**).
+
+```mermaid
+sequenceDiagram
+    autonumber
+    actor ArchX as 1. Architecte Projet X
+    participant ARC as Archinex (Phase 1 → 4)
+    participant G4 as Porte G4 (Capitalisation)
+    participant LLM as Knowledge Hub (LLMOps)
+    actor ArchY as 4. Architecte Projet Y
+    participant OPA as Oracle OPA & Sylva GitOps
+
+    Note over ArchX,ARC: Émergence & Arbitrage Terrain
+    ArchX->>ARC: Résout un problème d'architecture (ex: Sécurité NIS2 + Dataplane SR-IOV)
+    ARC->>G4: Décision L3_decided → Candidat anonymisé (new_asset, amendment, rex)
+
+    Note over G4,LLM: Généralisation & Autorité Doctrinale
+    G4->>LLM: Ingestion souveraine (POST /api/knowledge/candidates)
+    LLM->>LLM: Revue par les pairs (Portes G5 → G6 → G7) : Règle Globale homologuée
+
+    Note over LLM: Incarnation par le Triplet Ontologique
+    LLM->>LLM: Associe la Règle à un Triplet & une Feuille d'Ontologie Technique
+
+    Note over ArchY,OPA: Réutilisation & Enforcement Automatique
+    ArchY->>ARC: Nouveau Projet Y mobilisant cette intention
+    LLM-->>ARC: Synchronisation continue (/api/knowledge/ontology/export)
+    ARC->>ARC: Raffinement KAOS : l'Axe et la Feuille sont automatiquement suggérés/liés
+    ARC->>OPA: Hydratation : génère SylvaWorkloadCluster (KRM) + Nautobot DCIM/IPAM
+    OPA-->>ARC: Oracle OPA (15 règles d'or Sylva) : conformité validée face à la Règle Globale
+```
+
+### Comment une Règle Globale prend « Corps » grâce au Triplet Ontologique
+
+Lorsqu'une règle générale est capitalisée dans LLMOps (ex: *« Tout cluster hébergeant des fonctions sensibles NIS2 doit ségréguer ses secrets et isoler son dataplane »*), elle cesse d'être un simple vœu pieux consigné dans un document PDF. En lui associant un triplet ontologique :
+$$\text{(Axe\_Obligatoire, implemented\_by, Feuille\_Technique)} \quad \text{et} \quad \text{(Feuille\_Technique, satisfies\_clause, Règle\_Globale)}$$
+l'architecture lui confère immédiatement **3 corps concrets** dans Archinex :
+
+1. **Un Corps d'Exécution (Le Template d'Hydratation) :**
+   * La feuille d'ontologie embarque son `hydration_template` (gabarit KRM et DCIM).
+   * Sur le Projet Y, l'appui sur « Hydrater » génère automatiquement les manifests Kubernetes [`SylvaWorkloadCluster`](https://gitlab.com/sylva-projects) durcis (unités `vault: { enabled: true }`, CNI Cilium, images `sle-micro` durcies, hugepages 1Gi, pinning NUMA) et les équipements `dcim.Device` dans Nautobot. L'architecte n'a plus à réinventer l'ingénierie d'infrastructure.
+2. **Un Corps de Contrôle (L'Oracle OPA Rego) :**
+   * La feuille lie des contraintes formelles (`projections`) et des règles de vérification (`oracle_rules`).
+   * L'Oracle OPA évalue automatiquement l'inventaire face aux **15 règles d'or de Sylva** (`npm run check:sylva` en < 60ms). Toute tentative de contournement (ex: serveur non homologué, Vault désactivé sous NIS2) est immédiatement bloquée en citant la clause réglementaire violée.
+3. **Un Corps de Traçabilité & d'Audit (Le Lien Fort) :**
+   * Le descripteur KRM généré et l'inventaire Nautobot reçoivent dans leurs métadonnées les annotations immuables `archinex.io/satisfied-clauses`.
+   * La preuve mathématique et opposable de conformité est établie sans rupture, du texte de doctrine jusqu'au code GitOps déployé.
+
+---
+
 ## 🛠️ Stack Technique
 
 - **Framework Web** : [SvelteKit 2](https://kit.svelte.dev/) avec Svelte 5 (100% Runes : `$state`, `$derived`, `$props`).
@@ -122,7 +173,10 @@ Accédez directement au Workbench : [http://localhost:5173/deliberation](http://
 Le projet maintient une politique stricte de zéro régression et zéro avertissement :
 
 ```bash
-# Lancer l'intégralité de la suite de tests Vitest (les tests « live » contre un LLMOps réel sont ignorés sans `LLMOPS_LIVE_URL`)
+# Vérifier la conformité KRM CRD et évaluer les 15 règles d'or Sylva via OPA (< 60ms)
+npm run check:sylva
+
+# Lancer l'intégralité de la suite de tests Vitest (1 100+ tests de contrat et d'intégration)
 npm run test
 
 # Vérifier le typage strict TypeScript et les Runes Svelte 5 (0 erreur, 0 avertissement)
@@ -131,7 +185,7 @@ npm run check
 # Compiler l'application pour la production avec l'adaptateur Node
 npm run build
 
-# Commande tout-en-un : tests + check + build
+# Porte qualité unique Smart-Light : Denylist + Sylva OPA Gate + Tests + Check + Build (< 3 min)
 npm run verify
 ```
 

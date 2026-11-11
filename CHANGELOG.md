@@ -19,6 +19,9 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
   - Interface réservée au rôle `admin` (entrée **Studio Réflexes** dans le menu admin) avec 4 onglets : Catalogue & Éditeur No-Code, Bac à sable & Replay historique anonymisé, Vocabulaire & Synonymes, Signaux terrain & Promotion des angles morts IA.
 - **Tests & Documentation** :
   - Ajout de `tests/contract/admin-reflexes-studio.test.ts` (4 scénarios : normalisation, heuristique/sémantique/recouvrements, garde RBAC 403, cycle complet brouillon → publication → révision → cascade → simulation) et mise à jour de `USER_GUIDE.md`.
+### Correctif Parseur Mermaid sur `linkStyle` & `classDef` (`src/lib/domain/impactGraph.ts`)
+- Suppression du point-virgule final (`;`) sur les directives `linkStyle` et `classDef` contenant des codes couleur hexadécimaux (`#78350f;`), évitant leur réécriture par le préprocesseur `encodeEntities` (`/#\w+;/g`) de Mermaid v12 (`ﬂ°78350f¶ß`).
+- Ajout d'une assertion de non-régression dans `tests/contract/impact-graph.test.ts`.
 
 ### Déblocage du Ré-arbitrage L3, Coloration Explicite Mermaid & Labels Génériques Vx/Vy
 - **Révision d'une Décision L3 (`src/lib/domain/maturityRules.ts`, `src/lib/server/projects/arbitrationDb.ts`)** :

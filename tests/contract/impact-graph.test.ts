@@ -80,6 +80,8 @@ describe('Graphe d\'Impact & Simulation de Compromis Coût V1 (Contrat & Domaine
 		expect(mermaidCode).toContain('style REG_DORA_RESILIENCE fill:#fee2e2');
 		expect(mermaidCode).toContain('linkStyle ');
 		expect(mermaidCode).toContain('stroke:#dc2626');
+		// Régression Mermaid encodeEntities : aucun code couleur hexadécimal ne doit se terminer par ';'
+		expect(mermaidCode).not.toMatch(/#[0-9a-fA-F]{3,8};/);
 	});
 
 	it('s\'intègre dans le store de délibération avec le mode de vue "graph"', async () => {

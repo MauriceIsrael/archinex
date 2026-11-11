@@ -33,10 +33,11 @@ export const GET: RequestHandler = async (event) => {
 
 	const rawFormat = event.url.searchParams.get('format') || 'docx';
 	const format = rawFormat === 'markdown' || rawFormat === 'pdf' ? rawFormat : 'docx';
+	const includeMermaidCode = event.url.searchParams.get('includeMermaidCode') === 'true';
 
 	try {
 		const dossier = await loadProjectHldDossier(event.params.projectId);
-		const result = await compileDossierWithDocumentEngine(dossier, format);
+		const result = await compileDossierWithDocumentEngine(dossier, format, { includeMermaidCode });
 
 		return new Response(result.buffer, {
 			headers: {

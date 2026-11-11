@@ -395,11 +395,14 @@ export function parseMermaidSequenceToElements(
 
 /**
  * Traduit un fragment HLD Archinex en blocs de Blueprint conformes au contrat Document Engine.
+ * Par défaut, n'insère pas de bloc de code textuel Mermaid brut si une figure vectorielle ou un tableau
+ * de séquence ordonnancé est déjà présent (évite la duplication textuelle dans le document Word généré).
  */
 function fragmentToBlueprintBlocks(
 	frag: HldFragment,
 	viewId?: string,
-	sequenceTableRows?: string[][]
+	sequenceTableRows?: string[][],
+	options?: { includeMermaidCode?: boolean }
 ): Array<Record<string, unknown>> {
 	const blocks: Array<Record<string, unknown>> = [];
 
@@ -497,7 +500,7 @@ function fragmentToBlueprintBlocks(
 		}
 	}
 
-	// 6. Architecture Spécifiée (Diagramme vectoriel C4 natif & code Mermaid)
+	// 6. Architecture Spécifiée (Diagramme vectoriel C4 natif)
 	if (frag.targetArchitectureMermaid) {
 		blocks.push({
 			type: 'heading',
@@ -511,11 +514,13 @@ function fragmentToBlueprintBlocks(
 			caption: `Architecture Spécifiée — ${frag.title}`,
 			altText: `Schéma d'architecture vectoriel illustrant la topologie et les flux pour ${frag.title}`
 		});
-		blocks.push({
-			type: 'code',
-			language: 'mermaid',
-			content: frag.targetArchitectureMermaid
-		});
+		if (options?.includeMermaidCode) {
+			blocks.push({
+				type: 'code',
+				language: 'mermaid',
+				content: frag.targetArchitectureMermaid
+			});
+		}
 	}
 
 	// 6.b. Chaîne de Déploiement Sécurisée & Homologation
@@ -538,11 +543,13 @@ function fragmentToBlueprintBlocks(
 				rows: sequenceTableRows
 			});
 		}
-		blocks.push({
-			type: 'code',
-			language: 'mermaid',
-			content: frag.deploymentSequenceMermaid
-		});
+		if (options?.includeMermaidCode) {
+			blocks.push({
+				type: 'code',
+				language: 'mermaid',
+				content: frag.deploymentSequenceMermaid
+			});
+		}
 	}
 
 	// 7. Conséquences & Risques acceptés
@@ -584,7 +591,10 @@ function fragmentToBlueprintBlocks(
  * Construit le payload complet pour l'API `/compile/*` de Document Engine
  * à partir du dossier HLD assemblé sous Archinex.
  */
-export function buildDocumentEnginePayload(dossier: ProjectHldDossier): DocumentEnginePayload {
+export function buildDocumentEnginePayload(
+	dossier: ProjectHldDossier,
+	options?: { includeMermaidCode?: boolean }
+): DocumentEnginePayload {
 	const now = dossier.generatedAt.slice(0, 10);
 
 	const sections: Array<{ id: string; title: string; blocks: Array<Record<string, unknown>> }> = [];
@@ -697,7 +707,7 @@ export function buildDocumentEnginePayload(dossier: ProjectHldDossier): Document
 		sections.push({
 			id: secId,
 			title: frag.title,
-			blocks: fragmentToBlueprintBlocks(frag, viewId, seqTableRows)
+			blocks: fragmentToBlueprintBlocks(frag, viewId, seqTableRows, options)
 		});
 	}
 
@@ -754,10 +764,11 @@ export async function checkDocumentEngineHealth(timeoutMs = 1500): Promise<{ ava
  */
 export async function compileDossierWithDocumentEngine(
 	dossier: ProjectHldDossier,
-	format: 'docx' | 'markdown' | 'pdf' = 'docx'
+	format: 'docx' | 'markdown' | 'pdf' = 'docx',
+	options?: { includeMermaidCode?: boolean }
 ): Promise<{ buffer: ArrayBuffer; contentType: string; filename: string }> {
 	const url = getDocumentEngineUrl();
-	const payload = buildDocumentEnginePayload(dossier);
+	const payload = buildDocumentEnginePayload(dossier, options);
 
 	const sanitizedProject = sanitizeId(dossier.projectTitle || dossier.projectId);
 	const filename = `hld-${sanitizedProject}-${dossier.generatedAt.slice(0, 10)}.${format === 'markdown' ? 'md' : format}`;

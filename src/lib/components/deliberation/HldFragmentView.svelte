@@ -3,6 +3,8 @@
 	import type { HldFragment } from '$lib/domain/hldFragment';
 	import { FileText, Download, Copy, Check, RefreshCw, AlertTriangle, Bot, Layers, Sparkles, ExternalLink } from 'lucide-svelte';
 	import MermaidViewer from './MermaidViewer.svelte';
+	import DocumentEngineStatusBadge from '$lib/components/DocumentEngineStatusBadge.svelte';
+	import { toast } from '$lib/toast/index.svelte';
 
 	const activeSubject = $derived(deliberationStore.activeSubject);
 	const projectId = $derived(deliberationStore.activeEngagement?.id);
@@ -15,6 +17,9 @@
 	let isRepairing = $state(false);
 	let isCompilingDocEngine = $state(false);
 	let studioUrl = $state('http://localhost:5174');
+
+	const isDocEngineConnected = $derived(deliberationStore.docEngineStatus === 'connected');
+	const docEngineUrl = $derived(deliberationStore.docEngineUrl);
 
 	async function load(pId: string, sId: string) {
 		isLoading = true;
@@ -91,14 +96,31 @@
 
 	async function compileWithDocumentEngine(format: 'docx' | 'markdown' | 'pdf' = 'docx') {
 		if (!projectId) return;
+		if (!isDocEngineConnected) {
+			toast(
+				`Document Engine indisponible (${docEngineUrl}) : lancez 'npm run server' dans document-engine pour activer la génération Word.`,
+				{ variant: 'warning' }
+			);
+			deliberationStore.logNotification(
+				`Document Engine indisponible (${docEngineUrl}) : lancez 'npm run server' dans document-engine.`,
+				'warning'
+			);
+			return;
+		}
+
 		isCompilingDocEngine = true;
 		try {
 			const res = await fetch(`/api/projects/${encodeURIComponent(projectId)}/hld-document-engine?format=${format}`);
 			if (!res.ok) {
 				const errData = await res.json().catch(() => ({}));
 				if (res.status === 503) {
+					deliberationStore.docEngineStatus = 'offline';
+					toast(
+						`Document Engine indisponible (${docEngineUrl}) : lancez 'npm run server' dans document-engine.`,
+						{ variant: 'warning' }
+					);
 					deliberationStore.logNotification(
-						`Document Engine indisponible (port 3001) : lancez 'npm run server' dans document-engine.`,
+						`Document Engine indisponible (${docEngineUrl}) : lancez 'npm run server' dans document-engine.`,
 						'warning'
 					);
 					return;
@@ -118,9 +140,11 @@
 			a.download = filename;
 			a.click();
 			setTimeout(() => URL.revokeObjectURL(url), 1000);
+			toast(`Dossier HLD (${format.toUpperCase()}) généré avec succès par Document Engine.`, { variant: 'success' });
 			deliberationStore.logNotification(`Dossier HLD (${format.toUpperCase()}) généré avec succès par Document Engine.`, 'success');
 		} catch (err: unknown) {
 			const message = err instanceof Error ? err.message : String(err);
+			toast(`Erreur Document Engine : ${message}`, { variant: 'error' });
 			deliberationStore.logNotification(`Erreur Document Engine : ${message}`, 'warning');
 		} finally {
 			isCompilingDocEngine = false;
@@ -133,14 +157,9 @@
 
 	$effect(() => {
 		if (projectId) {
-			fetch(`/api/projects/${encodeURIComponent(projectId)}/hld-document-engine?action=check`)
-				.then((res) => res.json())
-				.then((data) => {
-					if (data.status === 'ok' && data.studio?.url) {
-						studioUrl = data.studio.url;
-					}
-				})
-				.catch(() => {});
+			deliberationStore.checkDocEngine({ silent: true, projectId }).then(() => {
+				studioUrl = deliberationStore.docStudioUrl;
+			}).catch(() => {});
 		}
 	});
 
@@ -180,19 +199,24 @@
 				<Download class="h-3.5 w-3.5" />
 				<span>Dossier .md</span>
 			</button>
+			<DocumentEngineStatusBadge {projectId} />
 			<button
 				type="button"
 				onclick={() => compileWithDocumentEngine('docx')}
-				disabled={isCompilingDocEngine}
-				class="inline-flex items-center gap-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white px-3 py-1.5 font-semibold shadow-sm hover:shadow transition cursor-pointer disabled:opacity-50"
-				title="Compiler le dossier HLD complet en Word (.docx) avec Document Engine"
+				disabled={isCompilingDocEngine || !isDocEngineConnected}
+				class="inline-flex items-center gap-1.5 rounded-lg px-3 py-1.5 font-semibold shadow-sm transition cursor-pointer {isDocEngineConnected
+					? 'bg-emerald-600 hover:bg-emerald-700 text-white hover:shadow'
+					: 'bg-muted text-muted-foreground border border-border/60 cursor-not-allowed opacity-50'}"
+				title={isDocEngineConnected
+					? 'Compiler le dossier HLD complet en Word (.docx) avec Document Engine'
+					: `Document Engine indisponible (${docEngineUrl}) : lancez 'npm run server' dans document-engine pour activer la génération Word.`}
 				data-testid="hld-export-docx-btn"
 			>
 				{#if isCompilingDocEngine}
 					<RefreshCw class="h-3.5 w-3.5 animate-spin" />
 					<span>Génération en cours...</span>
 				{:else}
-					<Sparkles class="h-3.5 w-3.5 text-emerald-200" />
+					<Sparkles class="h-3.5 w-3.5 {isDocEngineConnected ? 'text-emerald-200' : 'text-muted-foreground'}" />
 					<span>Générer HLD Word (.docx)</span>
 				{/if}
 			</button>
@@ -200,7 +224,7 @@
 				type="button"
 				onclick={openDocumentStudio}
 				class="inline-flex items-center gap-1 rounded-lg border border-purple-500/30 bg-purple-500/10 text-purple-700 dark:text-purple-300 hover:bg-purple-500/20 px-2.5 py-1.5 font-semibold cursor-pointer"
-				title="Ouvrir Document Studio pour inspecter les blocs et le canevas de rédaction"
+				title="Ouvrir Document Studio ({studioUrl}) pour inspecter les blocs et le canevas de rédaction"
 				data-testid="hld-open-studio-btn"
 			>
 				<ExternalLink class="h-3.5 w-3.5" />

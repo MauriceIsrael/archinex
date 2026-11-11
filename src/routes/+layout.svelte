@@ -32,6 +32,7 @@
   import LanguageSwitcher from '$lib/components/LanguageSwitcher.svelte';
   import ThemeSelector from '$lib/components/ThemeSelector.svelte';
   import LLMOpsStatusBadge from '$lib/components/LLMOpsStatusBadge.svelte';
+  import DocumentEngineStatusBadge from '$lib/components/DocumentEngineStatusBadge.svelte';
   import HelpMenu from '$lib/components/HelpMenu.svelte';
   import Toaster from '$lib/components/Toaster.svelte';
   import { t, locale } from 'svelte-i18n';
@@ -378,6 +379,7 @@
     <!-- Right-side controls -->
     <div class="ml-auto flex items-center gap-1">
       <LLMOpsStatusBadge />
+      <DocumentEngineStatusBadge />
       <HelpMenu />
       <LanguageSwitcher />
       <ThemeSelector />

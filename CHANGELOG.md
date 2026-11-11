@@ -19,6 +19,9 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
   - Correction de la fuite inter-sujets lors de la lecture des événements `DECISION_ASSERTED` : les faits sont désormais résolus strictement pour la décision et les énoncés du sujet demandé, et `getDiscoveryTreeForSubject()` fournit l'arbre complet via `GET /api/projects/[projectId]/subjects/[subjectId]/cascade`.
 - **Tests & Documentation** :
   - Ajout des scénarios contractuels dans `tests/contract/cascade-questions.test.ts` et `tests/contract/project-rules.test.ts`, et mise à jour de `USER_GUIDE.md`.
+### Correctif Parseur Mermaid sur `linkStyle` & `classDef` (`src/lib/domain/impactGraph.ts`)
+- Suppression du point-virgule final (`;`) sur les directives `linkStyle` et `classDef` contenant des codes couleur hexadécimaux (`#78350f;`), évitant leur réécriture par le préprocesseur `encodeEntities` (`/#\w+;/g`) de Mermaid v12 (`ﬂ°78350f¶ß`).
+- Ajout d'une assertion de non-régression dans `tests/contract/impact-graph.test.ts`.
 
 ### Déblocage du Ré-arbitrage L3, Coloration Explicite Mermaid & Labels Génériques Vx/Vy
 - **Révision d'une Décision L3 (`src/lib/domain/maturityRules.ts`, `src/lib/server/projects/arbitrationDb.ts`)** :

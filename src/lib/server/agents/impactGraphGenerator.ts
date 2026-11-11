@@ -90,7 +90,7 @@ export function buildImpactGraphFromLlmPayload(
 		id: costId,
 		type: 'cost_constraint',
 		label: payload.costConstraintLabel,
-		description: `Optimisation budgétaire V1 appliquée au sujet « ${subject.name} »`,
+		description: `Contrainte budgétaire appliquée au sujet « ${subject.name} »`,
 		status: 'active',
 		scenarioRole: 'cost_v1',
 		metadata: {
@@ -98,11 +98,12 @@ export function buildImpactGraphFromLlmPayload(
 		}
 	});
 
+	const revTag = input.decision?.version ? ` (rév. v${input.decision.version})` : '';
 	nodes.push({
 		id: decId,
 		type: 'decision',
-		label: `Décision ${sectionLabel}${subject.name}`,
-		description: subject.problemStatement || `Arbitrage coûts V1 vs cible nominale V2`,
+		label: `Décision ${sectionLabel}${subject.name}${revTag}`,
+		description: subject.problemStatement || `Arbitrage coûts vs optimum nominal`,
 		status: 'retained',
 		scenarioRole: 'both',
 		metadata: {
@@ -142,7 +143,7 @@ export function buildImpactGraphFromLlmPayload(
 		from: costId,
 		to: costOptId,
 		type: 'enforces',
-		label: 'Impose arbitrage V1',
+		label: 'Impose arbitrage coût',
 		active: true,
 		scenarioScope: 'cost_optimized_v1'
 	});
@@ -150,7 +151,7 @@ export function buildImpactGraphFromLlmPayload(
 		from: decId,
 		to: nomOptId,
 		type: 'based_on',
-		label: 'Cible V2',
+		label: 'Optimum nominal',
 		active: false,
 		scenarioScope: 'nominal_v2'
 	});
@@ -158,7 +159,7 @@ export function buildImpactGraphFromLlmPayload(
 		from: decId,
 		to: costOptId,
 		type: 'based_on',
-		label: 'Compromis V1',
+		label: 'Compromis coût',
 		active: true,
 		scenarioScope: 'cost_optimized_v1'
 	});
@@ -298,35 +299,36 @@ export async function generateContextualImpactGraphWithLlm(
 		.map((t) => `- Gains: ${t.gains} | Sacrifices: ${t.sacrifices}`)
 		.join('\n');
 
-	const systemPrompt = `Tu es l'architecte principal d'Archinex spécialisé en analyse d'impact causal et compromis coûts V1 vs cibles V2.
+	const systemPrompt = `Tu es l'architecte principal d'Archinex spécialisé en analyse d'impact causal et compromis entre Optimum Nominal (Vx) et Variante Optimisée Coût (Vy).
 À partir du sujet d'architecture réel fourni, produis une analyse de graphe d'impact STRICTEMENT contextualisée à CE sujet (domaines, composants, exigences et lois applicables).
 NE JAMAIS inventer un domaine étranger au sujet (pas de télécoms si le sujet est du cloud/ERP/IA, pas de DORA si hors finance/critique sauf si mentionné).
+Ne suppose pas d'ordre fixe V1/V2 : l'optimum nominal peut être l'état initial et le compromis coût une révision ultérieure (ou inversement).
 
 Réponds STRICTEMENT en JSON valide respectant ce schéma exact :
 {
-  "costConstraintLabel": "Titre court de la contrainte budgétaire V1 pour ce sujet",
+  "costConstraintLabel": "Titre court de la contrainte budgétaire pour ce sujet",
   "estimatedSavingsOpex": "ex: -45 k€/an",
   "estimatedSavingsCapex": "ex: -30 k€",
   "nominalOption": {
-    "title": "Option Nominale V2 (fidèle au sujet)",
+    "title": "Optimum Nominal (fidèle au sujet)",
     "description": "Description technique concise",
-    "financialDelta": "Coût complet V2"
+    "financialDelta": "Budget nominal complet"
   },
   "costOption": {
-    "title": "Option Optimisée Coût V1 (fidèle au sujet)",
-    "description": "Compromis technique V1 concret",
-    "financialDelta": "ex: -75 k€ V1",
-    "sunsetClause": "Condition exacte de re-bascule V2 (seuil, date ou jalon)",
+    "title": "Variante Compromis Coût (fidèle au sujet)",
+    "description": "Compromis technique concret",
+    "financialDelta": "ex: -75 k€",
+    "sunsetClause": "Condition exacte de révision ou retour à l'optimum (Vx → Vy : seuil, date ou jalon)",
     "residualRisk": "Risque résiduel assumé"
   },
   "degradedRequirements": [
     {
       "id": "REQ_1",
       "label": "Exigence client impactée",
-      "nominalValue": "Niveau cible V2",
-      "degradedValue": "Niveau dégradé V1",
+      "nominalValue": "Niveau optimum nominal",
+      "degradedValue": "Niveau dégradé sous compromis coût",
       "severity": "CRITICAL | HIGH | MEDIUM | LOW",
-      "cause": "Lien causal exact avec l'option V1"
+      "cause": "Lien causal exact avec l'option économique"
     }
   ],
   "compromisedCompliance": [
@@ -337,7 +339,7 @@ Réponds STRICTEMENT en JSON valide respectant ce schéma exact :
       "legalRisk": "Impact sur la conformité",
       "severity": "CRITICAL | HIGH | MEDIUM | LOW",
       "violated": true,
-      "mitigation": "Mesure compensatoire V1"
+      "mitigation": "Mesure compensatoire requise"
     }
   ]
 }`;

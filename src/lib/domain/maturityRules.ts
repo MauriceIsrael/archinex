@@ -10,7 +10,8 @@ export type MaturityBlockerCode =
 	| 'OPEN_OBJECTION'
 	| 'UNRESOLVED_VIOLATION'
 	| 'OPEN_BLOCKING_QUESTION'
-	| 'COVERAGE_INCOMPLETE';
+	| 'COVERAGE_INCOMPLETE'
+	| 'SEALED_SUBJECT';
 
 export interface MaturityBlocker {
 	code: MaturityBlockerCode;
@@ -43,6 +44,8 @@ export interface MaturityComputationInput {
 	requiredFrameworks?: FrameworkCoverageStatus[];
 	acceptedViolations?: Array<{ typedId: string; justification: string }>;
 	decision?: Decision | null;
+	/** Autorise la ré-évaluation d'un sujet déjà arbitré (L3/L4) en vue d'une révision de décision. */
+	allowRevision?: boolean;
 }
 
 /** Alertes « vérification réglementaire incomplète » pour les référentiels applicables non couverts. */
@@ -83,15 +86,33 @@ export interface MaturityComputationResult {
 export function computeMaturity(input: MaturityComputationInput): MaturityComputationResult {
 	const currentLevel = input.subject.maturityLevel;
 
-	// Si le sujet est déjà arbitré, spécifié ou scellé, on préserve son statut
+	// Un sujet scellé (L5_archived) ne peut jamais être ré-arbitré sans descellement explicite
+	if (currentLevel === 'L5_archived') {
+		return {
+			level: 'L5_archived',
+			readyForArbitration: false,
+			blockers: input.allowRevision
+				? [
+						{
+							code: 'SEALED_SUBJECT',
+							message:
+								'Le sujet est scellé (L5_archived) : veuillez le desceller avant de réviser la décision.'
+						}
+					]
+				: [],
+			warnings: []
+		};
+	}
+
+	// Si le sujet est déjà arbitré ou spécifié et qu'on n'est pas en mode révision, on préserve son statut
 	if (
-		input.decision ||
-		currentLevel === 'L3_decided' ||
-		currentLevel === 'L4_specified' ||
-		currentLevel === 'L5_archived'
+		!input.allowRevision &&
+		(input.decision ||
+			currentLevel === 'L3_decided' ||
+			currentLevel === 'L4_specified')
 	) {
 		return {
-			level: currentLevel && ['L3_decided', 'L4_specified', 'L5_archived'].includes(currentLevel)
+			level: currentLevel && ['L3_decided', 'L4_specified'].includes(currentLevel)
 				? currentLevel
 				: 'L3_decided',
 			readyForArbitration: false,

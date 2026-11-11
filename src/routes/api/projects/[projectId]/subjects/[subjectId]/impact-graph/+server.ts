@@ -103,6 +103,7 @@ async function loadContextualInput(
 					rationale: ctx.decision.rationale,
 					reversibility: ctx.decision.reversibility,
 					complianceStatus: ctx.decision.complianceStatus,
+					version: ctx.decision.version,
 					acceptedViolations: ctx.decision.acceptedViolations
 				}
 			: null,

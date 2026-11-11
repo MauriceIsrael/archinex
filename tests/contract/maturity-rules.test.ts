@@ -382,4 +382,31 @@ describe('Lot A4 Contract: Maturity Rules & Arbitration Gate (computeMaturity)',
 		expect(resL3.readyForArbitration).toBe(false);
 		expect(resL3.blockers.length).toBe(0);
 	});
+
+	it('12. Autorise la révision d\'un sujet L3_decided avec allowRevision: true et bloque L5_archived avec SEALED_SUBJECT', () => {
+		const resReviseL3 = computeMaturity({
+			subject: { ...baseSubject, maturityLevel: 'L3_decided' },
+			criteria: [crit1, crit2],
+			options: [opt1, opt2],
+			evaluations: [evalOpt1Crit1, evalOpt1Crit2, evalOpt2Crit1, evalOpt2Crit2],
+			arguments: [],
+			allowRevision: true
+		});
+
+		expect(resReviseL3.readyForArbitration).toBe(true);
+		expect(resReviseL3.blockers.length).toBe(0);
+
+		const resSealedL5 = computeMaturity({
+			subject: { ...baseSubject, maturityLevel: 'L5_archived' },
+			criteria: [crit1, crit2],
+			options: [opt1, opt2],
+			evaluations: [evalOpt1Crit1, evalOpt1Crit2, evalOpt2Crit1, evalOpt2Crit2],
+			arguments: [],
+			allowRevision: true
+		});
+
+		expect(resSealedL5.level).toBe('L5_archived');
+		expect(resSealedL5.readyForArbitration).toBe(false);
+		expect(resSealedL5.blockers[0]?.code).toBe('SEALED_SUBJECT');
+	});
 });

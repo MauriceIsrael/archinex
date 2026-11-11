@@ -67,6 +67,7 @@ import {
 } from '$lib/domain/spaceActor';
 
 export type DeliberationPosture = 'appropriation' | 'deliberation' | 'rendu' | 'refinement';
+export type DeliberationViewMode = 'board' | 'conversation' | 'graph';
 
 class DeliberationStore {
 	engagements = $state<EngagementProfile[]>([]);
@@ -80,8 +81,8 @@ class DeliberationStore {
 				const savedId = localStorage.getItem('archinex:activeEngagementId');
 				if (savedId) {
 					this.activeEngagementId = savedId;
-					const savedMode = localStorage.getItem(`archinex:deliberationViewMode:${savedId}`) as 'board' | 'conversation' | null;
-					if (savedMode === 'board' || savedMode === 'conversation') {
+					const savedMode = localStorage.getItem(`archinex:deliberationViewMode:${savedId}`) as DeliberationViewMode | null;
+					if (savedMode === 'board' || savedMode === 'conversation' || savedMode === 'graph') {
 						this.deliberationViewMode = savedMode;
 					}
 					const savedPosture = localStorage.getItem(`archinex:activePosture:${savedId}`) as DeliberationPosture | null;
@@ -156,7 +157,7 @@ class DeliberationStore {
 	activeSubjectId = $state<string>('');
 	activePosture = $state<DeliberationPosture>('deliberation');
 	selectedPartId = $state<string>('all');
-	deliberationViewMode = $state<'board' | 'conversation'>('board');
+	deliberationViewMode = $state<DeliberationViewMode>('board');
 	currentRole = $state<ArchitectRole>('lead_architect');
 	currentUser = $state<{ id: string; email: string; name?: string; role?: string } | null>(null);
 
@@ -234,7 +235,7 @@ class DeliberationStore {
 			activeSubjectId: string;
 			activeDocumentId: string;
 			dialogueMessages: DialogueMessage[];
-			deliberationViewMode?: 'board' | 'conversation';
+			deliberationViewMode?: DeliberationViewMode;
 			activePosture?: DeliberationPosture;
 			selectedPartId?: string;
 			decisionContexts?: Record<string, { decision: any; options: any[] }>;
@@ -308,12 +309,12 @@ class DeliberationStore {
 			this.statements = [...targetProfile.statements];
 			this.corpusDocuments = [...targetProfile.corpusDocuments];
 			let restoredSubjectId: string | null = null;
-			let restoredViewMode: 'board' | 'conversation' | null = null;
+			let restoredViewMode: DeliberationViewMode | null = null;
 			let restoredPosture: DeliberationPosture | null = null;
 			if (typeof window !== 'undefined') {
 				try {
 					restoredSubjectId = localStorage.getItem(`archinex:activeSubjectId:${targetId}`);
-					restoredViewMode = localStorage.getItem(`archinex:deliberationViewMode:${targetId}`) as 'board' | 'conversation' | null;
+					restoredViewMode = localStorage.getItem(`archinex:deliberationViewMode:${targetId}`) as DeliberationViewMode | null;
 					restoredPosture = localStorage.getItem(`archinex:activePosture:${targetId}`) as DeliberationPosture | null;
 				} catch {}
 			}
@@ -321,7 +322,7 @@ class DeliberationStore {
 			this.activeSubjectId = isValid ? restoredSubjectId! : targetProfile.defaultSubjectId;
 			this.activeDocumentId = targetProfile.defaultDocId;
 			this.dialogueMessages = [...(targetProfile.dialogueMessages || [])];
-			if (restoredViewMode === 'board' || restoredViewMode === 'conversation') {
+			if (restoredViewMode === 'board' || restoredViewMode === 'conversation' || restoredViewMode === 'graph') {
 				this.deliberationViewMode = restoredViewMode;
 			}
 			if (restoredPosture === 'appropriation' || restoredPosture === 'deliberation' || restoredPosture === 'rendu') {
@@ -437,12 +438,12 @@ class DeliberationStore {
 				this.statements = current.statements || [];
 				this.corpusDocuments = current.corpusDocuments || [];
 				let restoredSubjectId: string | null = null;
-				let restoredViewMode: 'board' | 'conversation' | null = null;
+				let restoredViewMode: DeliberationViewMode | null = null;
 				let restoredPosture: DeliberationPosture | null = null;
 				if (typeof window !== 'undefined') {
 					try {
 						restoredSubjectId = localStorage.getItem(`archinex:activeSubjectId:${current.id}`);
-						restoredViewMode = localStorage.getItem(`archinex:deliberationViewMode:${current.id}`) as 'board' | 'conversation' | null;
+						restoredViewMode = localStorage.getItem(`archinex:deliberationViewMode:${current.id}`) as DeliberationViewMode | null;
 						restoredPosture = localStorage.getItem(`archinex:activePosture:${current.id}`) as DeliberationPosture | null;
 					} catch {}
 				}
@@ -452,7 +453,7 @@ class DeliberationStore {
 					: (current.defaultSubjectId || current.subjects[0]?.id || '');
 				this.activeDocumentId = current.defaultDocId || current.corpusDocuments[0]?.id || '';
 				this.dialogueMessages = current.dialogueMessages || [];
-				if (restoredViewMode === 'board' || restoredViewMode === 'conversation') {
+				if (restoredViewMode === 'board' || restoredViewMode === 'conversation' || restoredViewMode === 'graph') {
 					this.deliberationViewMode = restoredViewMode;
 				}
 				if (restoredPosture === 'appropriation' || restoredPosture === 'deliberation' || restoredPosture === 'rendu' || restoredPosture === 'refinement') {
@@ -799,7 +800,7 @@ class DeliberationStore {
 		}
 	}
 
-	setDeliberationViewMode(mode: 'board' | 'conversation') {
+	setDeliberationViewMode(mode: DeliberationViewMode) {
 		this.deliberationViewMode = mode;
 		if (typeof window !== 'undefined' && this.activeEngagementId) {
 			try {

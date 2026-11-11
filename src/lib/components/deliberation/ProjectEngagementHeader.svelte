@@ -8,7 +8,8 @@
 		Layers,
 		Archive,
 		RotateCcw,
-		Target
+		Target,
+		Network
 	} from 'lucide-svelte';
 
 	interface Props {
@@ -36,6 +37,11 @@
 	function openProjectBoard() {
 		deliberationStore.setPosture('deliberation');
 		deliberationStore.setDeliberationViewMode('board');
+	}
+
+	function openProjectGraph() {
+		deliberationStore.setPosture('deliberation');
+		deliberationStore.setDeliberationViewMode('graph');
 	}
 
 	function openSubjectDeliberation() {
@@ -145,6 +151,28 @@
 						: 'bg-background text-muted-foreground'}"
 				>
 					{deliberationStore.subjects.length}
+				</span>
+			</button>
+
+			<!-- Vue d'ensemble : Graphe Causal & Analyse d'Impact (What-If Simulator) -->
+			<button
+				type="button"
+				data-testid="project-graph-tab"
+				onclick={openProjectGraph}
+				class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs transition-all cursor-pointer {activePosture ===
+					'deliberation' && viewMode === 'graph'
+					? 'bg-primary text-primary-foreground font-bold shadow-xs'
+					: 'bg-muted/40 hover:bg-muted text-foreground/80 hover:text-foreground font-medium'}"
+			>
+				<Network class="h-3.5 w-3.5 shrink-0" />
+				<span>Graphe d'Impact & Décisions</span>
+				<span
+					class="font-mono text-[10px] px-1.5 py-0.2 rounded {activePosture === 'deliberation' &&
+					viewMode === 'graph'
+						? 'bg-primary-foreground/20 text-primary-foreground'
+						: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 font-semibold'}"
+				>
+					What-If
 				</span>
 			</button>
 		</div>

@@ -1,0 +1,7 @@
+schema: "1.0"
+change:
+  name: "requirements-quick-ask"
+  title: "Interrogation Rapide des Exigences par Chatbot Contextuel (Quick-Ask)"
+  description: "Fenêtre flottante activable au clavier (Ctrl+K / Alt+/) permettant à tout architecte d'interroger les exigences d'un projet en langage naturel avec réponses sourcées par clauseRef, cache de préfixe partagé multi-utilisateurs et respect strict des invariants épistémiques."
+  status: "proposed"
+  created_at: "2026-11-11"

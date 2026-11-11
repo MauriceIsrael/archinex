@@ -8,6 +8,18 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Arbre de Découverte Interactif & Diagnostic des Règles par Sujet
+- **Arborescence HTML Navigable (`src/lib/components/deliberation/DiscoveryTreeView.svelte`)** :
+  - Vue **Arbre lisible** par défaut (avec bascule vers le **Graphe** ECharts dont les marges et troncatures ont été élargies dans `buildDiscoveryTreeData`) dans `SubjectThreadView.svelte` et `SubjectDossierView.svelte`.
+  - Affiche l'ascendance cliquable (`ancestors`), le sujet courant avec sa décision réelle (titre de l'option retenue, statut d'affirmation) et ses faits affirmés, les sous-sujets enfants cliquables avec maturité/statut/contestation ainsi que les sous-sous-sujets déjà ouverts, et un accès direct au bouton **Rechercher des angles morts 🤖** même lorsqu'aucune règle déterministe n'a déclenché de branche.
+- **Diagnostic Formels des Règles par Sujet (`src/lib/domain/projectRules.ts`, `src/lib/server/rules/projectRulesService.ts`, `src/lib/components/deliberation/ProjectRulesPanel.svelte`)** :
+  - Ajout de `diagnoseRuleAgainstFacts()` et du paramètre `?subjectId=...` sur `GET /api/projects/[projectId]/rules`.
+  - Affichage des faits du sujet, des filtres **Toutes / Déclenchées / Non déclenchées** et du diagnostic clause par clause (`✓ Matche ce sujet`, `○ Fait absent sur ce sujet`, `✗ Valeur ≠ sur ce sujet`, `🚫 Désactivée (projet)`).
+- **Isolation Stricte des Faits par Sujet (`src/lib/server/projects/subjectFacts.ts`, `src/lib/server/cascade/cascadeService.ts`)** :
+  - Correction de la fuite inter-sujets lors de la lecture des événements `DECISION_ASSERTED` : les faits sont désormais résolus strictement pour la décision et les énoncés du sujet demandé, et `getDiscoveryTreeForSubject()` fournit l'arbre complet via `GET /api/projects/[projectId]/subjects/[subjectId]/cascade`.
+- **Tests & Documentation** :
+  - Ajout des scénarios contractuels dans `tests/contract/cascade-questions.test.ts` et `tests/contract/project-rules.test.ts`, et mise à jour de `USER_GUIDE.md`.
+
 ### Déblocage du Ré-arbitrage L3, Coloration Explicite Mermaid & Labels Génériques Vx/Vy
 - **Révision d'une Décision L3 (`src/lib/domain/maturityRules.ts`, `src/lib/server/projects/arbitrationDb.ts`)** :
   - Ajout de l'option `allowRevision?: boolean` à `computeMaturity()` et du code de blocage `SEALED_SUBJECT` pour `L5_archived`.

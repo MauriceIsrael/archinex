@@ -6,6 +6,7 @@ import {
 	validateRuleConditionsVocabulary,
 	evaluateRuleConditions,
 	previewRuleEvaluation,
+	diagnoseRuleAgainstFacts,
 	buildAnonymizedCandidateFromLocalRule
 } from '$lib/domain/projectRules';
 import {
@@ -20,7 +21,7 @@ import {
 import { getOrCreateCascadeForDecision } from '$lib/server/cascade/cascadeService';
 import { buildDiscoveryTreeData } from '$lib/domain/cascade';
 import { POST as disableEndpoint } from '../../src/routes/api/projects/[projectId]/rules/[ruleId]/disable/+server';
-import { POST as localRuleEndpoint } from '../../src/routes/api/projects/[projectId]/rules/+server';
+import { GET as getRulesEndpoint, POST as localRuleEndpoint } from '../../src/routes/api/projects/[projectId]/rules/+server';
 import { POST as affirmEndpoint } from '../../src/routes/api/projects/[projectId]/rules/[ruleId]/affirm/+server';
 import { POST as proposeKbEndpoint } from '../../src/routes/api/projects/[projectId]/rules/[ruleId]/propose-kb/+server';
 import type { RequestEvent } from '@sveltejs/kit';
@@ -396,5 +397,49 @@ describe('Lot A30 Contract Tests: Règles du projet, désactivation justifiée, 
 		expect(JSON.stringify(candidate)).not.toContain('user-contributor-bob');
 		expect(JSON.stringify(candidate)).not.toContain('user-decider-alice');
 		expect(JSON.stringify(candidate)).not.toContain('user-lead-41');
+	});
+
+	it('10. Diagnostic par sujet : distingue règles déclenchées, faits absents, valeurs divergentes et règles désactivées', async () => {
+		const singleSiteDiag = diagnoseRuleAgainstFacts(
+			[{ key: 'site_count', op: 'gte', value: '2' }],
+			[{ key: 'site_count', value: '1' }],
+			false
+		);
+		expect(singleSiteDiag.status).toBe('unmatched_value_mismatch');
+		expect(singleSiteDiag.mismatchedKeys).toContain('site_count');
+
+		const missingFactDiag = diagnoseRuleAgainstFacts(
+			[{ key: 'sovereignty_level', op: 'eq', value: 'secnumcloud' }],
+			[{ key: 'site_count', value: '2' }],
+			false
+		);
+		expect(missingFactDiag.status).toBe('unmatched_missing_facts');
+		expect(missingFactDiag.missingKeys).toContain('sovereignty_level');
+
+		// Appel GET /rules?subjectId=... sur testSubjectId (où DOC-HA-01 est désactivée, SEC-RESIL-02 matche, NIS2/SOV ont des faits absents)
+		const getRulesEvent = {
+			params: { projectId: testProjectId },
+			url: new URL(`http://localhost/api/projects/${testProjectId}/rules?subjectId=${testSubjectId}`)
+		} as unknown as RequestEvent;
+
+		const res = await getRulesEndpoint(getRulesEvent as any);
+		expect(res.status).toBe(200);
+		const body = await res.json();
+
+		expect(body.subjectFacts).toEqual(
+			expect.arrayContaining([
+				{ key: 'site_count', value: '2' },
+				{ key: 'resilience_mode', value: 'actif/actif' }
+			])
+		);
+
+		const docHa = body.referenceRules.find((r: any) => r.id === 'DOC-HA-01');
+		const secResil = body.referenceRules.find((r: any) => r.id === 'SEC-RESIL-02');
+		const sovData = body.referenceRules.find((r: any) => r.id === 'SOV-DATA-01');
+
+		expect(docHa.evaluation.status).toBe('disabled');
+		expect(secResil.evaluation.status).toBe('matched');
+		expect(sovData.evaluation.status).toBe('unmatched_missing_facts');
+		expect(sovData.evaluation.missingKeys).toContain('sovereignty_level');
 	});
 });

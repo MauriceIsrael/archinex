@@ -77,6 +77,15 @@ Dès que tous les blocages sont levés :
 3. Exposez la motivation d'arbitrage et qualifiez sa réversibilité (*réversible*, *coûteuse*, *structurante/irréversible*).
 4. Cliquez sur **Prononcer l'arbitrage opposable**. Le sujet passe au niveau scellé `L3_decided`.
 
+### Étape 5 bis : Extraction des faits, Arbre de découverte & Diagnostic des règles (Onglet 4 « Cascade & Règles »)
+1. **Extraction & affirmation des faits (`K18`)** : dans l'onglet **Options, Matrice & Arbitrage**, les faits machine-lisibles (ex. `resilience_mode=actif/actif`, `site_count=2`, `sovereignty_level=secnumcloud`) sont extraits de votre motivation et validés lors de l'affirmation L3. Ces faits alimentent le moteur de cascade, l'agent Proposeur (*Angles morts*), la détection de remise en cause et l'export/synchronisation Hub LLMOps.
+2. **Arbre de découverte interactif (`DiscoveryTreeView`)** : l'onglet **Cascade & Règles** s'ouvre par défaut sur une arborescence HTML lisible (avec bascule optionnelle vers la vue `Graphe` ECharts) :
+   - **Ascendance** : liens cliquables vers le ou les sujets parents si le sujet courant est issu d'une cascade ;
+   - **Sujet courant, option retenue & faits affirmés** : synthèse de l'arbitrage et pastilles des faits actifs sur ce sujet ;
+   - **Branches enfants & sous-sous-sujets** : chaque sous-sujet généré affiche son origine (`📐 Doctrine`, `⚖️ Contrôle`, `🔧 Règle locale`, `🤖 Agent IA`), son niveau de maturité (`L0`–`L5`), son statut (ouvert, clos, fusionné, contesté ⚠️) et un bouton **Ouvrir** pour y naviguer directement, ainsi que ses éventuels petits-enfants déjà ouverts.
+3. **Diagnostic des règles par sujet (`ProjectRulesPanel`)** : chaque règle de référence et locale affiche son statut face aux faits du sujet courant (`✓ Matche ce sujet`, `○ Fait absent sur ce sujet`, `✗ Valeur ≠ sur ce sujet`, `🚫 Désactivée`) avec le détail clause par clause et des filtres rapides (*Toutes*, *Déclenchées*, *Non déclenchées*).
+4. **Angles morts (`🤖`)** : sollicitez l'agent Proposeur directement depuis la carte de cascade ou depuis l'arbre (au plus 2 sous-questions complémentaires facultatives et dédupliquées).
+
 ### Étape 6 : Capitalisation vers le Knowledge Hub LLMOps (Porte G4)
 Une fois le sujet arbitré, la section de capitalisation s'active :
 1. Cliquez sur **Préparer les Candidats KB**.

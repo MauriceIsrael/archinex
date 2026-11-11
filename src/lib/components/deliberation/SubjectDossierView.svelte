@@ -18,8 +18,9 @@
 		GitFork,
 		Sliders
 	} from 'lucide-svelte';
-	import KnowledgeTreeChart from '$lib/components/knowledge/KnowledgeTreeChart.svelte';
+	import DiscoveryTreeView from './DiscoveryTreeView.svelte';
 	import ProjectRulesPanel from './ProjectRulesPanel.svelte';
+	import type { DiscoveryTreeData } from '$lib/domain/cascade';
 
 	let {
 		subjectId = '',
@@ -111,6 +112,7 @@
 	}
 
 	let treeSeries = $state<any[]>([]);
+	let discoveryTree = $state<DiscoveryTreeData | null>(null);
 	let isLoadingTree = $state(false);
 
 	$effect(() => {
@@ -167,6 +169,7 @@
 			if (res.ok) {
 				const data = await res.json();
 				treeSeries = data.treeSeries || [];
+				discoveryTree = data.discoveryTree || null;
 			}
 		} catch (err) {
 			console.warn('[Dossier] Erreur chargement arbre cascade:', err);
@@ -421,19 +424,14 @@
 						</span>
 						<span class="text-[10px] font-mono">Parents → Décisions → Enfants</span>
 					</div>
-					{#if isLoadingTree}
-						<div class="p-8 text-center text-xs text-muted-foreground animate-pulse">
-							Génération de l'arbre généalogique...
-						</div>
-					{:else if treeSeries && treeSeries.length > 0}
-						<div class="rounded-xl border bg-card p-2 min-h-[420px]">
-							<KnowledgeTreeChart series={treeSeries} height="420px" />
-						</div>
-					{:else}
-						<div class="p-8 text-center text-xs text-muted-foreground border-2 border-dashed rounded-xl">
-							Aucune cascade de décision générée pour ce sujet.
-						</div>
-					{/if}
+					<DiscoveryTreeView
+						{discoveryTree}
+						{treeSeries}
+						isLoading={isLoadingTree}
+						onSelectSubject={(targetSubjectId) => {
+							deliberationStore.selectSubject(targetSubjectId);
+						}}
+					/>
 				</div>
 			{:else if activeTab === 'rules'}
 				<!-- 5. Règles du projet et déclencheurs de cascade (Lot A30) -->

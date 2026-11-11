@@ -10,9 +10,10 @@ import { UnauthorizedArbitrationError } from '$lib/server/projects/arbitrationDb
 
 export const GET: RequestHandler = async (event) => {
 	const { projectId } = event.params;
+	const subjectId = event.url.searchParams.get('subjectId') || undefined;
 
 	try {
-		const rulesState = await getProjectRules(projectId);
+		const rulesState = await getProjectRules(projectId, subjectId);
 		return json({
 			status: 'ok',
 			...rulesState

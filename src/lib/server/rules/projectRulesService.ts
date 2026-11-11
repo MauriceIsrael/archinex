@@ -1,6 +1,7 @@
 import { prisma } from '../prisma';
 import type { ActorInfo } from '../projects/projectsDb';
 import { UnauthorizedArbitrationError } from '../projects/arbitrationDb';
+import { getSubjectAffirmedFacts } from '../projects/subjectFacts';
 import {
 	DEFAULT_REFERENCE_RULES,
 	type ReferenceRule,
@@ -8,8 +9,10 @@ import {
 	type LocalRule,
 	type RuleCondition,
 	type QuestionTriggerAction,
+	type RuleEvaluationDiagnostic,
 	validateRuleConditionsVocabulary,
 	previewRuleEvaluation,
+	diagnoseRuleAgainstFacts,
 	buildAnonymizedCandidateFromLocalRule
 } from '$lib/domain/projectRules';
 import { doctrineService } from '$lib/server/doctrine/doctrineService';
@@ -46,11 +49,22 @@ function parseProjectStrategy(project: { strategy?: string | null }): ProjectStr
  * Récupère l'état complet des règles pour un projet :
  * - Règles de référence avec leur état effectif (active ou désactivée avec justification)
  * - Règles locales créées pour ce projet
+ * - Lorsque subjectId est fourni, évalue chaque règle face aux faits affirmés du sujet.
  */
-export async function getProjectRules(projectId: string): Promise<{
-	referenceRules: Array<ReferenceRule & { status: 'active' | 'disabled'; override?: ProjectRuleOverride }>;
-	localRules: LocalRule[];
+export async function getProjectRules(
+	projectId: string,
+	subjectId?: string
+): Promise<{
+	referenceRules: Array<
+		ReferenceRule & {
+			status: 'active' | 'disabled';
+			override?: ProjectRuleOverride;
+			evaluation?: RuleEvaluationDiagnostic;
+		}
+	>;
+	localRules: Array<LocalRule & { evaluation?: RuleEvaluationDiagnostic }>;
 	disabledOverrides: ProjectRuleOverride[];
+	subjectFacts?: Array<{ key: string; value: string }>;
 }> {
 	const project = await prisma.project.findUnique({
 		where: { id: projectId }
@@ -62,7 +76,13 @@ export async function getProjectRules(projectId: string): Promise<{
 
 	const strategy = parseProjectStrategy(project);
 	const overrides = strategy.ruleOverrides || {};
-	const localRules = strategy.localRules || [];
+	const rawLocalRules = strategy.localRules || [];
+
+	let subjectFacts: Array<{ key: string; value: string }> | undefined;
+	if (subjectId) {
+		const resolved = await getSubjectAffirmedFacts({ projectId, subjectId });
+		subjectFacts = resolved.facts;
+	}
 
 	const referenceRules = DEFAULT_REFERENCE_RULES.map((refRule) => {
 		const override = overrides[refRule.id];
@@ -70,16 +90,33 @@ export async function getProjectRules(projectId: string): Promise<{
 		return {
 			...refRule,
 			status: status as 'active' | 'disabled',
-			override: override || undefined
+			override: override || undefined,
+			...(subjectFacts !== undefined
+				? {
+						evaluation: diagnoseRuleAgainstFacts(
+							refRule.conditions,
+							subjectFacts,
+							status === 'disabled'
+						)
+					}
+				: {})
 		};
 	});
+
+	const localRules = rawLocalRules.map((lRule) => ({
+		...lRule,
+		...(subjectFacts !== undefined
+			? { evaluation: diagnoseRuleAgainstFacts(lRule.conditions, subjectFacts, false) }
+			: {})
+	}));
 
 	const disabledOverrides = Object.values(overrides).filter((o) => o.status === 'disabled');
 
 	return {
 		referenceRules,
 		localRules,
-		disabledOverrides
+		disabledOverrides,
+		...(subjectFacts !== undefined ? { subjectFacts } : {})
 	};
 }
 
@@ -391,44 +428,7 @@ export async function previewRuleAgainstProjectFacts(params: {
 }> {
 	const { projectId, ruleId, customRule, subjectId } = params;
 
-	// Récupérer les faits affirmés du projet ou sujet
-	const stmts = await prisma.statement.findMany({
-		where: {
-			projectId,
-			...(subjectId ? { subjectId } : {}),
-			status: 'active'
-		}
-	});
-
-	const currentFacts: Array<{ key: string; value: string }> = stmts.map((s) => ({
-		key: s.predicate,
-		value: s.value
-	}));
-
-	// Ajouter les faits des événements DECISION_ASSERTED s'il y en a
-	const lastAssertion = await prisma.domainEvent.findFirst({
-		where: {
-			projectId,
-			entityType: 'decision',
-			type: 'DECISION_ASSERTED'
-		},
-		orderBy: { createdAt: 'desc' }
-	});
-
-	if (lastAssertion) {
-		try {
-			const payload = JSON.parse(lastAssertion.payload || '{}');
-			if (Array.isArray(payload.facts)) {
-				for (const f of payload.facts) {
-					if (!currentFacts.some((cf) => cf.key === f.key)) {
-						currentFacts.push(f);
-					}
-				}
-			}
-		} catch {
-			// ignore
-		}
-	}
+	const { facts: currentFacts } = await getSubjectAffirmedFacts({ projectId, subjectId });
 
 	let targetRule: {
 		id: string;

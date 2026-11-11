@@ -8,6 +8,13 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Documentation Fondamentale : Boucle Fermée de Capitalisation Archinex ↔ LLMOps ↔ Sylva GitOps
+- **Manifeste et Diagramme de Boucle Fermée dans le `README.md`** :
+  - Ajout d'une section majeure explicitant le moteur fondamental : comment une décision sur un projet X est généralisée via la Porte G4 vers le Knowledge Hub souverain (`LLMOps`).
+  - Démonstration des 3 corps conférés à une règle globale par son association à un triplet ontologique (`implemented_by` / `satisfies_clause`) : Corps d'Exécution (template d'hydratation Sylva/Nautobot), Corps de Contrôle (Oracle OPA 15 règles d'or) et Corps de Traçabilité (annotations KRM immuables).
+  - Mise à jour de la documentation des commandes de tests et de la porte qualité Smart-Light (`npm run check:sylva` & `npm run verify`).
+
+
 ### Lien Fort Clause <-> Feuille d'Ontologie dans la Couverture KAOS, l'Oracle OPA et les Annotations Sylva/Nautobot (Issue #262)
 - **Couverture de Raffinement KAOS (`src/lib/server/edp/refinementCoverage.ts`)** :
   - Consommation formelle du champ `governed_by_clauses?: string[]` sur les entités feuilles (`OntologyEntity`) et des triplets ontologiques portant le prédicat `satisfies_clause`.

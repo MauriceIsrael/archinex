@@ -855,6 +855,11 @@ Pour garantir en local sur le poste de développement et en CI que l'hydratation
    - `tests/contract/edp-sylva-integration-schema-and-rules.test.ts` : valide le cas démo nominal et détecte les dérives de production.
    - Intégration dans la porte qualité unique `verify.yml` (`npm run verify`).
 
+4. **Lien Fort Clause <-> Feuille d'Ontologie & Rétro-traçabilité (Issue #262)** :
+   - **Ancrage déterministe** : dans `src/lib/server/edp/refinementCoverage.ts`, la décomposition des intentions KAOS exploite le champ `governed_by_clauses?: string[]` sur les entités feuilles et les triplets avec prédicat `satisfies_clause`. L'association est déterministe et prioritaire avant tout repli heuristique.
+   - **Rétro-traçabilité OPA** : `multi_axis_refinement.rego` et `sylva_golden_rules.rego` retournent `violated_clause_urn` et `violated_requirement_id` sur chaque violation, permettant à l'IHM (`Phase4RefinementHub.svelte`) d'afficher le lien direct cliquable vers la clause violée.
+   - **Annotations KRM Sylva & Nautobot 2.x** : `composeMultiAxisHydration()` injecte `archinex.io/satisfied-clauses` et `archinex.io/evaluated-triplets` dans les annotations de `SylvaWorkloadCluster`, et `syncHydratedInventoryToNautobot()` propage ces identifiants dans les Custom Fields et Tags Nautobot.
+
 ---
 
 ## 16. Feuille de Route (Roadmap) Archinex : De l'Hydratation SSoT à l'Orchestration en Boucle Fermée

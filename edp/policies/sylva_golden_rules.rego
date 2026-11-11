@@ -37,6 +37,8 @@ violations contains v if {
 		"rule": "sylva_rule_01_cni_cilium_mandatory",
 		"category": "networking",
 		"message": "Le CNI Cilium (spec.units.cilium.enabled) est mandataire pour la conformité réseau et sécurité Sylva.",
+		"violated_clause_urn": "urn:archinex:kb:clause:sylva:cilium_mandatory",
+		"violated_requirement_id": "REQ-Sylva-01",
 	}
 }
 
@@ -50,6 +52,8 @@ violations contains v if {
 		"rule": "sylva_rule_02_capi_providers_capm3",
 		"category": "infrastructure",
 		"message": sprintf("Le fournisseur d'infrastructure CAPI doit être 'capm3' (reçu: '%v')", [infra]),
+		"violated_clause_urn": "urn:archinex:kb:clause:sylva:capi_providers",
+		"violated_requirement_id": "REQ-Sylva-02",
 	}
 }
 
@@ -60,6 +64,8 @@ violations contains v if {
 		"rule": "sylva_rule_02_capi_providers_cabpr",
 		"category": "infrastructure",
 		"message": sprintf("Le fournisseur de bootstrap CAPI doit être 'cabpr' pour RKE2 (reçu: '%v')", [bootstrap]),
+		"violated_clause_urn": "urn:archinex:kb:clause:sylva:capi_providers",
+		"violated_requirement_id": "REQ-Sylva-02",
 	}
 }
 
@@ -73,6 +79,8 @@ violations contains v if {
 		"rule": "sylva_rule_03_os_image_hardened",
 		"category": "security",
 		"message": "L'image du système d'exploitation hôte (spec.os_image_selector.hardened) doit être explicitement durcie.",
+		"violated_clause_urn": "urn:archinex:kb:clause:sylva:hardened_os",
+		"violated_requirement_id": "REQ-Sylva-03",
 	}
 }
 
@@ -86,6 +94,8 @@ violations contains v if {
 		"rule": "sylva_rule_04_kyverno_admission_mandatory",
 		"category": "governance",
 		"message": "Le contrôleur d'admission Kyverno (spec.units.kyverno.enabled) doit être actif pour l'enforcement des politiques de sécurité.",
+		"violated_clause_urn": "urn:archinex:kb:clause:sylva:kyverno_admission",
+		"violated_requirement_id": "REQ-Sylva-04",
 	}
 }
 
@@ -99,6 +109,8 @@ violations contains v if {
 		"rule": "sylva_rule_05_monitoring_observability_mandatory",
 		"category": "observability",
 		"message": "L'unité de supervision telco (spec.units.monitoring.enabled) doit être activée.",
+		"violated_clause_urn": "urn:archinex:kb:clause:sylva:monitoring_observability",
+		"violated_requirement_id": "REQ-Sylva-05",
 	}
 }
 
@@ -112,6 +124,8 @@ violations contains v if {
 		"rule": "sylva_rule_06_metallb_loadbalancer_mandatory",
 		"category": "networking",
 		"message": "L'unité d'équilibrage MetalLB (spec.units.metallb.enabled) doit être activée pour router les VIP de contrôle.",
+		"violated_clause_urn": "urn:archinex:kb:clause:sylva:metallb_loadbalancer",
+		"violated_requirement_id": "REQ-Sylva-06",
 	}
 }
 
@@ -136,6 +150,8 @@ violations contains v if {
 		"rule": "sylva_rule_07_vault_mandatory_for_nis2",
 		"category": "security",
 		"message": "Pour tout profil déployant des nœuds NIS2, l'unité HashiCorp Vault (spec.units.vault.enabled) est mandataire.",
+		"violated_clause_urn": "urn:archinex:kb:clause:nis2:art21_crypto",
+		"violated_requirement_id": "REQ-Lot1-1343",
 	}
 }
 
@@ -155,6 +171,8 @@ violations contains v if {
 		"rule": "sylva_rule_08_multus_mandatory_with_sriov",
 		"category": "networking",
 		"message": "Le méta-CNI Multus (spec.units.multus.enabled) doit être activé lorsqu'un pool de calcul utilise le dataplane SR-IOV/DPDK.",
+		"violated_clause_urn": "urn:archinex:kb:clause:sylva:multus_sriov",
+		"violated_requirement_id": "REQ-Sylva-08",
 	}
 }
 
@@ -169,6 +187,8 @@ violations contains v if {
 		"rule": "sylva_rule_09_sriov_operators_mandatory_with_sriov",
 		"category": "dataplane",
 		"message": "L'opérateur 'sriov' (spec.units.sriov.enabled) doit être activé en présence de pools SR-IOV.",
+		"violated_clause_urn": "urn:archinex:kb:clause:sylva:sriov_operator",
+		"violated_requirement_id": "REQ-Sylva-09",
 	}
 }
 
@@ -180,6 +200,8 @@ violations contains v if {
 		"rule": "sylva_rule_09_sriov_resources_mandatory_with_sriov",
 		"category": "dataplane",
 		"message": "L'opérateur 'sriov-resources' (spec.units['sriov-resources'].enabled) doit être activé en présence de pools SR-IOV.",
+		"violated_clause_urn": "urn:archinex:kb:clause:sylva:sriov_operator",
+		"violated_requirement_id": "REQ-Sylva-09",
 	}
 }
 
@@ -195,6 +217,8 @@ violations contains v if {
 		"rule": "sylva_rule_10_machine_deployment_host_selector",
 		"category": "scheduling",
 		"message": sprintf("Le MachineDeployment '%v' doit définir matchLabels['host-group'] pour le ciblage Metal3.", [md_name]),
+		"violated_clause_urn": "urn:archinex:kb:clause:sylva:host_selector_match_labels",
+		"violated_requirement_id": "REQ-Sylva-10",
 	}
 }
 
@@ -210,6 +234,8 @@ violations contains v if {
 		"rule": "sylva_rule_11_machine_deployment_node_labels_pool",
 		"category": "scheduling",
 		"message": sprintf("Le MachineDeployment '%v' doit comporter le nodeLabel 'sylva.org/pool'.", [md_name]),
+		"violated_clause_urn": "urn:archinex:kb:clause:sylva:node_labels_dataplane",
+		"violated_requirement_id": "REQ-Sylva-11",
 	}
 }
 
@@ -222,6 +248,8 @@ violations contains v if {
 		"rule": "sylva_rule_11_machine_deployment_node_labels_dataplane",
 		"category": "scheduling",
 		"message": sprintf("Le MachineDeployment '%v' doit comporter le nodeLabel 'sylva.org/dataplane'.", [md_name]),
+		"violated_clause_urn": "urn:archinex:kb:clause:sylva:node_labels_dataplane",
+		"violated_requirement_id": "REQ-Sylva-11",
 	}
 }
 
@@ -237,6 +265,8 @@ violations contains v if {
 		"rule": "sylva_rule_12_sriov_static_cpu_manager",
 		"category": "dataplane",
 		"message": sprintf("Le pool CNF '%v' requiert '--cpu-manager-policy=static' dans kubeletExtraArgs.", [md_name]),
+		"violated_clause_urn": "urn:archinex:kb:clause:sylva:static_cpu_manager",
+		"violated_requirement_id": "REQ-Sylva-12",
 	}
 }
 
@@ -252,6 +282,8 @@ violations contains v if {
 		"rule": "sylva_rule_13_sriov_topology_manager_single_numa",
 		"category": "dataplane",
 		"message": sprintf("Le pool CNF '%v' requiert '--topology-manager-policy=single-numa-node' dans kubeletExtraArgs pour l'alignement NUMA PCIe/CPU.", [md_name]),
+		"violated_clause_urn": "urn:archinex:kb:clause:sylva:single_numa_topology",
+		"violated_requirement_id": "REQ-Sylva-13",
 	}
 }
 
@@ -275,6 +307,8 @@ violations contains v if {
 		"rule": "sylva_rule_14_baremetal_hosts_valid_bmc",
 		"category": "hardware",
 		"message": sprintf("L'hôte '%v' doit définir une adresse BMC Redfish conforme (reçu: '%v').", [host_name, addr]),
+		"violated_clause_urn": "urn:archinex:kb:clause:sylva:baremetal_bmc_redfish",
+		"violated_requirement_id": "REQ-Sylva-14",
 	}
 }
 
@@ -298,6 +332,8 @@ violations contains v if {
 		"rule": "sylva_rule_15_baremetal_hosts_valid_mac",
 		"category": "hardware",
 		"message": sprintf("L'hôte '%v' doit définir une adresse bootMACAddress valide.", [host_name]),
+		"violated_clause_urn": "urn:archinex:kb:clause:sylva:baremetal_boot_mac",
+		"violated_requirement_id": "REQ-Sylva-15",
 	}
 }
 

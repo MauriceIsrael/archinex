@@ -39,6 +39,10 @@ export interface ClauseCoverageItem {
   matchedLeafUrn?: string;
   matchedLeafTitle?: string;
   status: 'covered' | 'unmapped';
+  matchMethod?: 'strong_link' | 'heuristic';
+  matchedClauseUrn?: string;
+  matchedRequirementId?: string;
+  tripletId?: string;
 }
 
 export interface CrossAxisDependencyIssue {
@@ -133,12 +137,16 @@ export interface MultiAxisHydratedInventory {
   power_feeds: string[];
   coveredDomains: string[];
   reconciliation_graph: ReconciliationObjectGraph;
+  satisfied_clauses?: string[];
+  evaluated_triplets?: string[];
 }
 
 export interface MultiAxisOracleViolation {
   rule: string;
   axis: string;
   message: string;
+  violated_clause_urn?: string;
+  violated_requirement_id?: string;
 }
 
 export interface MultiAxisOracleEvaluationResult {
@@ -148,6 +156,67 @@ export interface MultiAxisOracleEvaluationResult {
   evaluatedAxesCount: number;
   ontologyFingerprint: string;
   durationMs: number;
+}
+
+/**
+ * Extrait les URNs de clauses doctrinales et identifiants d'exigences (ex: REQ-Lot1-1343) d'un texte ou d'un fait.
+ */
+export function extractClauseIdentifiers(text: string): string[] {
+  const matches = new Set<string>();
+  if (!text) return [];
+
+  // URNs: urn:archinex:kb:clause:...
+  const urnRegex = /urn:[a-zA-Z0-9._:-]+/g;
+  let m: RegExpExecArray | null;
+  while ((m = urnRegex.exec(text)) !== null) {
+    const cleaned = m[0].replace(/[.,;:!?)]+$/, '');
+    if (cleaned) matches.add(cleaned);
+  }
+
+  // Identifiants d'exigences ou clauses : REQ-..., EXIG-..., etc.
+  const reqRegex = /\b(?:REQ|EXIG|CLAUSE)-[A-Za-z0-9_-]+\b/gi;
+  while ((m = reqRegex.exec(text)) !== null) {
+    const cleaned = m[0].replace(/[.,;:!?)]+$/, '');
+    if (cleaned) matches.add(cleaned);
+  }
+
+  return Array.from(matches);
+}
+
+/**
+ * Recherche un lien fort formel et déterministe entre une feuille d'ontologie et des identifiants de clauses/exigences.
+ * Priorise `leaf.governed_by_clauses` et les triplets portant le prédicat `satisfies_clause`.
+ */
+export function findStrongLinkForLeaf(
+  leaf: OntologyEntity,
+  candidateIdentifiers: string[],
+  catalog: OntologyCatalog
+): { matchedIdentifier: string; tripletId?: string; isUrn: boolean } | null {
+  const governed = Array.isArray(leaf.governed_by_clauses) ? leaf.governed_by_clauses : [];
+  for (const id of candidateIdentifiers) {
+    if (governed.includes(id)) {
+      return { matchedIdentifier: id, isUrn: id.startsWith('urn:') };
+    }
+  }
+
+  const triplets = queryOntologyTriplets(catalog, {
+    subject: leaf.urn,
+    predicate: 'satisfies_clause'
+  });
+  for (const id of candidateIdentifiers) {
+    const matchingTriplet = triplets.find((t) => t.object === id);
+    if (matchingTriplet) {
+      return { matchedIdentifier: id, tripletId: matchingTriplet.id, isUrn: id.startsWith('urn:') };
+    }
+  }
+
+  for (const id of candidateIdentifiers) {
+    if (leaf.urn === id) {
+      return { matchedIdentifier: id, isUrn: true };
+    }
+  }
+
+  return null;
 }
 
 function normalizeText(str: string): string {
@@ -325,23 +394,77 @@ export function decomposeIntentionClauses(
 
   return rawEntries.map((entry, idx) => {
     const normSeg = normalizeText(entry.text);
-    let bestLeaf: OntologyEntity | null = null;
-    let bestScore = 0;
+    const candIds = extractClauseIdentifiers(entry.text);
 
-    for (const leaf of leafEntities) {
-      const sc = scoreEntityAgainstCorpus(leaf, normSeg);
-      if (sc > bestScore) {
-        bestScore = sc;
-        bestLeaf = leaf;
+    if (entry.source === 'k18_fact') {
+      const matchingFact = (input.structuredFacts || []).find(
+        (f) => f.statement && f.statement.trim() === entry.text
+      );
+      if (matchingFact) {
+        if (matchingFact.id) candIds.push(matchingFact.id);
+        if (matchingFact.target) candIds.push(...extractClauseIdentifiers(matchingFact.target));
       }
     }
 
-    if (!bestLeaf && boundLeafUrns.size > 0) {
-      for (const urn of boundLeafUrns) {
-        const entity = catalog.entities[urn];
-        if (entity && scoreEntityAgainstCorpus(entity, normSeg) > 0) {
-          bestLeaf = entity;
+    let bestLeaf: OntologyEntity | null = null;
+    let matchMethod: 'strong_link' | 'heuristic' = 'heuristic';
+    let matchedClauseUrn: string | undefined;
+    let matchedRequirementId: string | undefined;
+    let matchedTripletId: string | undefined;
+
+    // 1. Priorisation stricte du Lien Fort formel (déterministe sans scoring heuristique flou)
+    if (candIds.length > 0) {
+      for (const leaf of leafEntities) {
+        const link = findStrongLinkForLeaf(leaf, candIds, catalog);
+        if (link) {
+          bestLeaf = leaf;
+          matchMethod = 'strong_link';
+          matchedTripletId = link.tripletId;
+          if (link.isUrn) {
+            matchedClauseUrn = link.matchedIdentifier;
+          } else {
+            matchedRequirementId = link.matchedIdentifier;
+          }
+
+          if (Array.isArray(leaf.governed_by_clauses)) {
+            if (!matchedClauseUrn) {
+              matchedClauseUrn = leaf.governed_by_clauses.find((c) => c.startsWith('urn:'));
+            }
+            if (!matchedRequirementId) {
+              matchedRequirementId = leaf.governed_by_clauses.find((c) => !c.startsWith('urn:'));
+            }
+          }
           break;
+        }
+      }
+    }
+
+    // 2. Repli heuristique par mots-clés si aucun lien fort formel n'a été trouvé
+    if (!bestLeaf) {
+      let bestScore = 0;
+      for (const leaf of leafEntities) {
+        const sc = scoreEntityAgainstCorpus(leaf, normSeg);
+        if (sc > bestScore) {
+          bestScore = sc;
+          bestLeaf = leaf;
+        }
+      }
+
+      if (!bestLeaf && boundLeafUrns.size > 0) {
+        for (const urn of boundLeafUrns) {
+          const entity = catalog.entities[urn];
+          if (entity && scoreEntityAgainstCorpus(entity, normSeg) > 0) {
+            bestLeaf = entity;
+            break;
+          }
+        }
+      }
+
+      if (bestLeaf) {
+        matchMethod = 'heuristic';
+        if (Array.isArray(bestLeaf.governed_by_clauses)) {
+          matchedClauseUrn = bestLeaf.governed_by_clauses.find((c) => c.startsWith('urn:'));
+          matchedRequirementId = bestLeaf.governed_by_clauses.find((c) => !c.startsWith('urn:'));
         }
       }
     }
@@ -356,7 +479,11 @@ export function decomposeIntentionClauses(
         matchedAxisUrn: parentAxisTriplet?.subject,
         matchedLeafUrn: bestLeaf.urn,
         matchedLeafTitle: bestLeaf.title || bestLeaf.urn,
-        status: isBound ? 'covered' : 'unmapped'
+        status: isBound ? 'covered' : 'unmapped',
+        matchMethod,
+        matchedClauseUrn,
+        matchedRequirementId,
+        tripletId: matchedTripletId
       };
     }
 
@@ -386,6 +513,17 @@ export function computeRefinementCoverage(
       input.decisionText || '',
       input.detailedSpec || '',
       factsText
+    ].join(' ')
+  );
+
+  const corpusCandidateIds = extractClauseIdentifiers(
+    [
+      input.title || '',
+      input.problem || '',
+      input.decisionText || '',
+      input.detailedSpec || '',
+      factsText,
+      ...(input.structuredFacts || []).map((f) => `${f.id || ''} ${f.target || ''}`)
     ].join(' ')
   );
 
@@ -430,10 +568,14 @@ export function computeRefinementCoverage(
       candidateLeaves.push(summary);
 
       const isExplicitlyBound = boundLeafUrns.has(leafEntity.urn);
+      const hasStrongLinkInCorpus =
+        shouldAutoBind && corpusCandidateIds.length > 0
+          ? Boolean(findStrongLinkForLeaf(leafEntity, corpusCandidateIds, catalog))
+          : false;
       const semanticScore = shouldAutoBind ? scoreEntityAgainstCorpus(leafEntity, corpus) : 0;
       const isDefaultStandard = shouldAutoBind && leafEntity.is_default_standard === true;
 
-      if (isExplicitlyBound || semanticScore > 0 || isDefaultStandard) {
+      if (isExplicitlyBound || hasStrongLinkInCorpus || semanticScore > 0 || isDefaultStandard) {
         boundLeafUrns.add(leafEntity.urn);
         boundLeaves.push(summary);
       }
@@ -834,6 +976,41 @@ export function composeMultiAxisHydration(
     String(d.cluster_pool || '').includes('sriov')
   );
 
+  // Collecte déterministe des clauses satisfaites et des triplets ontologiques évalués (Issue #262)
+  const satisfiedClausesSet = new Set<string>();
+  const evaluatedTripletsSet = new Set<string>();
+
+  for (const b of bindings) {
+    const entity = catalog.entities[b.urn];
+    if (entity) {
+      if (Array.isArray(entity.governed_by_clauses)) {
+        for (const c of entity.governed_by_clauses) {
+          satisfiedClausesSet.add(c);
+        }
+      }
+      const satisfiesTriplets = queryOntologyTriplets(catalog, {
+        subject: b.urn,
+        predicate: 'satisfies_clause'
+      });
+      for (const t of satisfiesTriplets) {
+        satisfiedClausesSet.add(t.object);
+        evaluatedTripletsSet.add(t.id);
+      }
+    }
+  }
+
+  for (const t of catalog.triplets || []) {
+    if (
+      (t.predicate === 'depends_on' || t.predicate === 'constrains' || t.predicate === 'implemented_by') &&
+      bindings.some((b) => b.urn === t.subject || b.urn === t.object)
+    ) {
+      evaluatedTripletsSet.add(t.id);
+    }
+  }
+
+  const satisfiedClauses = Array.from(satisfiedClausesSet).sort();
+  const evaluatedTriplets = Array.from(evaluatedTripletsSet).sort();
+
   const sylvaWorkloadClusterValues: Record<string, unknown> = {
     apiVersion: 'workloadcluster.sylva.org/v1alpha1',
     kind: 'SylvaWorkloadCluster',
@@ -842,7 +1019,9 @@ export function composeMultiAxisHydration(
       namespace: 'sylva-workload-clusters',
       annotations: {
         'archinex.io/gitops-target': `workload-clusters/wc-${cleanSubj.slice(-12) || 'lot1'}`,
-        'archinex.io/source-subject': subjectId
+        'archinex.io/source-subject': subjectId,
+        'archinex.io/satisfied-clauses': satisfiedClauses.join(','),
+        'archinex.io/evaluated-triplets': evaluatedTriplets.join(',')
       }
     },
     spec: {
@@ -1033,7 +1212,9 @@ export function composeMultiAxisHydration(
     environments,
     power_feeds: powerFeeds,
     coveredDomains: Array.from(coveredDomains),
-    reconciliation_graph: reconciliationGraph
+    reconciliation_graph: reconciliationGraph,
+    satisfied_clauses: satisfiedClauses,
+    evaluated_triplets: evaluatedTriplets
   };
 }
 

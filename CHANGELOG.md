@@ -8,6 +8,24 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Lien Fort Clause <-> Feuille d'Ontologie dans la Couverture KAOS, l'Oracle OPA et les Annotations Sylva/Nautobot (Issue #262)
+- **Couverture de Raffinement KAOS (`src/lib/server/edp/refinementCoverage.ts`)** :
+  - Consommation formelle du champ `governed_by_clauses?: string[]` sur les entités feuilles (`OntologyEntity`) et des triplets ontologiques portant le prédicat `satisfies_clause`.
+  - Priorisation stricte du lien fort déterministe dans `decomposeIntentionClauses()` et `computeRefinementCoverage()` (`findStrongLinkForLeaf()`), garantissant une opposabilité juridique sans recourir au scoring heuristique lexical.
+  - Repli propre sur l'appariement par mots-clés (`matchMethod: 'heuristic'`) uniquement pour les clauses ad-hoc non répertoriées.
+  - Enrichissement de `ClauseCoverageItem` avec `matchMethod`, `matchedClauseUrn`, `matchedRequirementId` et `tripletId`.
+- **Rétro-traçabilité des Clauses dans les Violations OPA Rego** :
+  - Enrichissement des violations dans `edp/policies/multi_axis_refinement.rego` et `edp/policies/sylva_golden_rules.rego` avec `violated_clause_urn` (URN doctrinale enfreinte) et `violated_requirement_id` (identifiant d'exigence RFP associé).
+  - Ajout des extracteurs dynamiques `get_clause_urn(proj, fallback)` et `get_req_id(proj, fallback)` basés sur `governed_by_clauses`.
+  - Intégration de `violated_clause_urn` et `violated_requirement_id` dans `SylvaGoldenRuleViolation` (`src/lib/server/edp/sylvaValidation.ts`) et `MultiAxisOracleViolation`.
+  - Interface IHM Phase 4 (`src/lib/components/deliberation/Phase4RefinementHub.svelte`) affichant des liens cliquables vers `/kb/clauses?query=...` et des badges d'exigences cibles pour chaque règle en échec.
+- **Empreinte de Traçabilité dans les Artefacts Hydratés (`SylvaWorkloadCluster` & Nautobot)** :
+  - Injection dans `composeMultiAxisHydration()` des annotations KRM `archinex.io/satisfied-clauses` et `archinex.io/evaluated-triplets` sur les métadonnées de `SylvaWorkloadCluster`.
+  - Répercussion des identifiants de clauses sous forme de Custom Fields (`custom_fields.satisfied_clauses`) et de Tags (`tags`) dans l'inventaire Nautobot 2.x (`syncHydratedInventoryToNautobot`).
+- **Tests de Contrat & Script CI** :
+  - Ajout de `tests/contract/edp-strong-clause-link.test.ts` (5 tests contractuels couvrant l'extraction d'identifiants, la priorité lien fort, les violations OPA enrichies et la synchronisation Nautobot).
+  - Mise à jour de `scripts/check-sylva-golden-rules.ts` (`npm run check:sylva`) pour valider et afficher les annotations de traçabilité.
+
 ### Knowledge Hub Souverain : Source de Vérité Doctrinale, Ontologique & Porte G4 Stateless (Issue #253, Épopée #251)
 - **Client d'Ontologie SI (`src/lib/server/edp/ontologyClient.ts`)** :
   - Interrogation en priorité absolue du Knowledge Hub souverain (MauriceIsrael/LLMOps) via son endpoint d'export REST (`/api/knowledge/ontology/export`).

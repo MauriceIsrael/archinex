@@ -67,6 +67,8 @@ export interface SylvaGoldenRuleViolation {
   rule: string;
   category?: string;
   message: string;
+  violated_clause_urn?: string;
+  violated_requirement_id?: string;
 }
 
 export interface SylvaGoldenRulesResult {

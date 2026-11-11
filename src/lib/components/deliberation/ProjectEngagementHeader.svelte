@@ -9,14 +9,16 @@
 		Archive,
 		RotateCcw,
 		Target,
-		Network
+		Network,
+		FileSearch
 	} from 'lucide-svelte';
 
 	interface Props {
 		isExperimentalEnabled?: boolean;
+		onOpenQuickAsk?: () => void;
 	}
 
-	let { isExperimentalEnabled = true }: Props = $props();
+	let { isExperimentalEnabled = true, onOpenQuickAsk }: Props = $props();
 
 	const activeEngagement = $derived(deliberationStore.activeEngagement);
 	const activePosture = $derived(deliberationStore.activePosture);
@@ -175,6 +177,22 @@
 					What-If
 				</span>
 			</button>
+
+			{#if onOpenQuickAsk}
+				<button
+					type="button"
+					data-testid="quick-ask-trigger"
+					onclick={onOpenQuickAsk}
+					title="Interroger les exigences du projet (Alt+/ ou Ctrl+K)"
+					class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs bg-muted/40 hover:bg-muted text-foreground/80 hover:text-foreground font-medium border border-border/60 transition-all cursor-pointer"
+				>
+					<FileSearch class="h-3.5 w-3.5 text-primary shrink-0" />
+					<span>Exigences</span>
+					<kbd class="hidden sm:inline-block rounded border bg-background px-1 py-0.2 font-mono text-[10px] text-muted-foreground">
+						Alt+/
+					</kbd>
+				</button>
+			{/if}
 		</div>
 
 		<div class="hidden xl:block h-6 w-px bg-border"></div>

@@ -137,3 +137,10 @@ Règles à respecter dans `src/` :
 - Les analyses de référence (écrites à la main) vivent dans `examples/`, jamais dans `src/`.
 - Toute nouvelle règle d'intégrité s'ajoute dans `applyClassificationInvariants` ou `applySubjectInvariants` (fonctions pures, testées sans LLM).
 
+## 7. Quick-Ask Exigences & Prompt Caching (`requirements-quick-ask`)
+
+- **Domaine pur** : `src/lib/domain/requirementsQa.ts` fournit les schémas Zod (`QuickAskRequestSchema`, `QuickAskLlmRawResponseSchema`), la sérialisation canonique déterministe (`buildCanonicalRequirementsContext`), le repli de sélection hybride (`selectRelevantRequirements`) et la réconciliation stricte des citations (`reconcileQuickAskCitations` rejetant toute `clauseRef` absente de la base).
+- **Service & Prompt Caching** : `src/lib/server/projects/requirementsQaService.ts` charge les `RequirementSource` du projet et marque le préfixe système `cacheable: true`. Sur Anthropic, `LocalLlmClient` émet `cache_control: { type: 'ephemeral' }` afin que tous les architectes d'un même projet partagent le préfixe en cache ; sur Ollama/vLLM local, l'ordre canonique identique maximise la réutilisation du KV-cache. Si le corpus dépasse le budget (`REQUIREMENTS_QA_MAX_CHARS` ou défaut selon le modèle), le service bascule en mode `filtered` et l'indique dans `caveats`.
+- **API & UI** : `POST /api/projects/[projectId]/requirements/ask` (protégé par `authorizeProjectAccess`) et panneau flottant non bloquant `src/lib/components/deliberation/RequirementsQuickAskModal.svelte` (raccourci `Alt+/` ou `Ctrl/Cmd+K`).
+
+

@@ -13,11 +13,28 @@
 	import WhyInspector from '$lib/components/deliberation/WhyInspector.svelte';
 	import FreezeSectionDialog from '$lib/components/deliberation/FreezeSectionDialog.svelte';
 	import ImpactGraphExplorer from '$lib/components/deliberation/ImpactGraphExplorer.svelte';
+	import RequirementsQuickAskModal from '$lib/components/deliberation/RequirementsQuickAskModal.svelte';
 	import { deliberationStore } from '$lib/stores/deliberationStore.svelte';
 	import { page } from '$app/stores';
 	import { Layers, MessagesSquare, CheckCircle2, Cpu } from 'lucide-svelte';
 
 	let { data } = $props();
+	let isQuickAskOpen = $state(false);
+
+	function handleGlobalKeydown(e: KeyboardEvent) {
+		const isCmdOrCtrlK = (e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === 'k';
+		const isAltSlash = e.altKey && !e.ctrlKey && !e.metaKey && (e.key === '/' || e.code === 'Slash');
+
+		if (isCmdOrCtrlK || isAltSlash) {
+			e.preventDefault();
+			isQuickAskOpen = !isQuickAskOpen;
+			return;
+		}
+		if (e.key === 'Escape' && isQuickAskOpen) {
+			e.preventDefault();
+			isQuickAskOpen = false;
+		}
+	}
 
 	onMount(() => {
 		// 1. Prise en compte prioritaire des paramètres d'URL explicites si renseignés
@@ -48,6 +65,8 @@
 	});
 </script>
 
+<svelte:window onkeydown={handleGlobalKeydown} />
+
 <svelte:head>
 	<title>Archinex · Workbench de Délibération ({deliberationStore.activeEngagement.shortName})</title>
 </svelte:head>
@@ -56,7 +75,10 @@
 	<!-- ═════════════════════════════════════════════════════════════════════════ -->
 	<!-- EN-TÊTE SUPÉRIEUR 2 NIVEAUX : PROJET (Cadrage & Tableau) vs SUJET (Focus) -->
 	<!-- ═════════════════════════════════════════════════════════════════════════ -->
-	<ProjectEngagementHeader isExperimentalEnabled={data?.isExperimentalEnabled} />
+	<ProjectEngagementHeader
+		isExperimentalEnabled={data?.isExperimentalEnabled}
+		onOpenQuickAsk={() => (isQuickAskOpen = true)}
+	/>
 
 	<!-- ═════════════════════════════════════════════════════════════════════════ -->
 	<!-- PHASE 1 : APPROPRIATION DOCUMENTAIRE                                       -->
@@ -122,4 +144,5 @@
 	<!-- Modales d'Inspection & Scellement -->
 	<WhyInspector />
 	<FreezeSectionDialog />
+	<RequirementsQuickAskModal open={isQuickAskOpen} onClose={() => (isQuickAskOpen = false)} />
 </div>

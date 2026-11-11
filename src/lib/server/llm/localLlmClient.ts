@@ -400,18 +400,44 @@ export class LocalLlmClient {
 			const resolvedModel = resolveAnthropicModel(model, this.anthropicModel);
 			const caps = anthropicCapabilities(resolvedModel);
 
-			// Extraction du prompt système
-			const systemParts = options.messages
-				.filter((m) => m.role === 'system')
-				.map((m) => m.content);
+			// Extraction du prompt système (avec support du cache de préfixe si au moins un bloc est marqué `cacheable`)
+			const systemMessages = options.messages.filter(
+				(m) => m.role === 'system' && m.content.trim().length > 0
+			);
+			const jsonInstruction =
+				"INSTRUCTION STRICTE : Réponds EXCLUSIVEMENT par un objet ou tableau JSON valide et parseable sans aucun texte d'accompagnement en amont ou en aval.";
+			const hasCacheableSystem = systemMessages.some((m) => m.cacheable);
 
-			if (options.format === 'json') {
-				systemParts.push(
-					'INSTRUCTION STRICTE : Réponds EXCLUSIVEMENT par un objet ou tableau JSON valide et parseable sans aucun texte d\'accompagnement en amont ou en aval.'
-				);
+			let systemPayload:
+				| string
+				| Array<{ type: 'text'; text: string; cache_control?: { type: 'ephemeral' } }>
+				| undefined;
+
+			if (hasCacheableSystem) {
+				const blocks: Array<{ type: 'text'; text: string; cache_control?: { type: 'ephemeral' } }> = [];
+				if (options.format === 'json') {
+					blocks.push({ type: 'text', text: jsonInstruction });
+				}
+				for (const m of systemMessages) {
+					blocks.push({
+						type: 'text',
+						text: m.content,
+						...(m.cacheable ? { cache_control: { type: 'ephemeral' as const } } : {})
+					});
+				}
+				if (blocks.length > 0) {
+					systemPayload = blocks;
+				}
+			} else {
+				const systemParts = systemMessages.map((m) => m.content);
+				if (options.format === 'json') {
+					systemParts.push(jsonInstruction);
+				}
+				const systemPrompt = systemParts.join('\n\n');
+				if (systemPrompt.trim().length > 0) {
+					systemPayload = systemPrompt;
+				}
 			}
-
-			const systemPrompt = systemParts.join('\n\n');
 
 			// Filtrage des messages non-système
 			const nonSystem = options.messages.filter((m) => m.role !== 'system');
@@ -454,8 +480,8 @@ export class LocalLlmClient {
 				payload.temperature = options.temperature ?? this.temperature;
 			}
 
-			if (systemPrompt.trim().length > 0) {
-				payload.system = systemPrompt;
+			if (systemPayload) {
+				payload.system = systemPayload;
 			}
 
 			const betas: AnthropicBeta[] = [];
@@ -575,10 +601,10 @@ export class LocalLlmClient {
 		const timer = setTimeout(() => controller.abort(), timeout);
 
 		try {
-			// Requête native Ollama /api/chat
+			// Requête native Ollama /api/chat (on ne transmet pas les champs internes comme `cacheable`)
 			const payload: any = {
 				model: resolvedModel,
-				messages: options.messages,
+				messages: options.messages.map(({ role, content }) => ({ role, content })),
 				stream: false,
 				options: {
 					temperature: options.temperature ?? this.temperature

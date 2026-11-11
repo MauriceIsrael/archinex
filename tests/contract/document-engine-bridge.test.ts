@@ -127,14 +127,15 @@ describe('Passerelle Document Engine (Bridge)', () => {
 		expect(sec1.title).toBe(mockFragment.title);
 		expect(sec1.blocks.some((b) => b.type === 'callout' && b.variant === 'decision')).toBe(true);
 		expect(sec1.blocks.some((b) => b.type === 'authored-table' && b.caption?.toString().includes('Exigences'))).toBe(true);
-		// Vérification du bloc Figure vectoriel et du bloc code Mermaid (Architecture Spécifiée)
+		// Vérification du bloc Figure vectoriel (Architecture Spécifiée)
 		const figureBlock = sec1.blocks.find((b) => b.type === 'figure');
 		expect(figureBlock).toMatchObject({
 			type: 'figure',
 			layerId: 'application',
 			viewRef: 'view-sub-s6a'
 		});
-		expect(sec1.blocks.some((b) => b.type === 'code' && b.language === 'mermaid')).toBe(true);
+		// Par défaut, pas de bloc de code Mermaid textuel superflu pour éviter la pollution du document Word
+		expect(sec1.blocks.some((b) => b.type === 'code' && b.language === 'mermaid')).toBe(false);
 
 		// Vérification des blocs de la Chaîne de Déploiement Sécurisée & Homologation
 		const seqHeading = sec1.blocks.find((b) => b.type === 'heading' && b.text === 'Chaîne de Déploiement Sécurisée & Homologation');
@@ -173,6 +174,13 @@ describe('Passerelle Document Engine (Bridge)', () => {
 			name: 'Chaîne de Déploiement Sécurisée & Homologation'
 		});
 		expect(payload.projectedGraph.scenarios![0].steps).toHaveLength(4);
+	});
+
+	it('inclut les blocs de code Mermaid lorsque includeMermaidCode est explicitement activé', () => {
+		const payload = buildDocumentEnginePayload(mockDossier, { includeMermaidCode: true });
+		const sec1 = payload.blueprint.sections[1];
+		const codeBlocks = sec1.blocks.filter((b) => b.type === 'code' && b.language === 'mermaid');
+		expect(codeBlocks.length).toBe(2); // Topologie C4 + Chaîne de déploiement
 	});
 
 	it('extrait fidèlement les composants et flux depuis un diagramme Mermaid complexe', () => {

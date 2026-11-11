@@ -22,6 +22,15 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 - **Tests de Contrat & Validation** :
   - Suite de tests contractuels dans `tests/contract/impact-graph.test.ts` (5 tests validant les 5 types de nœuds, le scénario nominal, le compromis V1, la syntaxe Mermaid et l'intégration dans `deliberationStore`).
 
+### Suppression de la Duplication Textuelle Mermaid dans les Dossiers Word HLD
+- **Suppression des blocs de code Mermaid bruts superflus (`src/lib/server/projects/documentEngineBridge.ts`)** :
+  - Dans la construction des sections de blueprint pour Document Engine (`fragmentToBlueprintBlocks`), suppression de l'émission par défaut des blocs de code textuels (`type: 'code', language: 'mermaid'`) sous la figure vectorielle C4 et le tableau de la chaîne de déploiement.
+  - La figure vectorielle C4 (`type: 'figure'`) et le tableau ordonnancé des jalons de déploiement/homologation (`type: 'authored-table'`) sont pleinement suffisants et constituent les artefacts graphiques et structurés de référence dans le document Word (.docx).
+  - Préservation de l'option `includeMermaidCode: true` (paramétrable via query string ou options) pour les besoins de débogage ou d'audit technique avancé.
+- **Mise à jour de l'API de compilation HLD (`src/routes/api/projects/[projectId]/hld-document-engine/+server.ts`)** :
+  - Prise en charge du paramètre de requête `?includeMermaidCode=true` (par défaut `false`).
+- **Tests de contrat (`tests/contract/document-engine-bridge.test.ts`)** :
+  - Validation de l'absence de blocs textuels Mermaid par défaut et vérification de leur présence conditionnelle sur activation explicite de l'option.
 ### Documentation Fondamentale : Boucle Fermée de Capitalisation Archinex ↔ LLMOps ↔ Sylva GitOps
 - **Manifeste et Diagramme de Boucle Fermée dans le `README.md`** :
   - Ajout d'une section majeure explicitant le moteur fondamental : comment une décision sur un projet X est généralisée via la Porte G4 vers le Knowledge Hub souverain (`LLMOps`).

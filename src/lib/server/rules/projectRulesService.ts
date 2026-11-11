@@ -3,7 +3,6 @@ import type { ActorInfo } from '../projects/projectsDb';
 import { UnauthorizedArbitrationError } from '../projects/arbitrationDb';
 import { getSubjectAffirmedFacts } from '../projects/subjectFacts';
 import {
-	DEFAULT_REFERENCE_RULES,
 	type ReferenceRule,
 	type ProjectRuleOverride,
 	type LocalRule,
@@ -15,6 +14,7 @@ import {
 	diagnoseRuleAgainstFacts,
 	buildAnonymizedCandidateFromLocalRule
 } from '$lib/domain/projectRules';
+import { listPublishedReferenceRules } from './reflexCatalogService';
 import { doctrineService } from '$lib/server/doctrine/doctrineService';
 
 export function isDeciderRole(role: string): boolean {
@@ -77,6 +77,7 @@ export async function getProjectRules(
 	const strategy = parseProjectStrategy(project);
 	const overrides = strategy.ruleOverrides || {};
 	const rawLocalRules = strategy.localRules || [];
+	const publishedRefRules = await listPublishedReferenceRules();
 
 	let subjectFacts: Array<{ key: string; value: string }> | undefined;
 	if (subjectId) {
@@ -84,7 +85,7 @@ export async function getProjectRules(
 		subjectFacts = resolved.facts;
 	}
 
-	const referenceRules = DEFAULT_REFERENCE_RULES.map((refRule) => {
+	const referenceRules = publishedRefRules.map((refRule) => {
 		const override = overrides[refRule.id];
 		const status = override?.status === 'disabled' ? 'disabled' : 'active';
 		return {
@@ -153,7 +154,8 @@ export async function disableReferenceRule(params: {
 		throw new Error(`Projet ${projectId} introuvable.`);
 	}
 
-	const refRule = DEFAULT_REFERENCE_RULES.find((r) => r.id === ruleId);
+	const publishedRefRules = await listPublishedReferenceRules();
+	const refRule = publishedRefRules.find((r) => r.id === ruleId);
 	if (!refRule) {
 		throw new Error(`Règle de référence introuvable : ${ruleId}`);
 	}
@@ -452,7 +454,8 @@ export async function previewRuleAgainstProjectFacts(params: {
 		if (localRule) {
 			targetRule = localRule;
 		} else {
-			const refRule = DEFAULT_REFERENCE_RULES.find((r) => r.id === ruleId);
+			const publishedRefRules = await listPublishedReferenceRules();
+			const refRule = publishedRefRules.find((r) => r.id === ruleId);
 			if (refRule) {
 				targetRule = refRule;
 			}

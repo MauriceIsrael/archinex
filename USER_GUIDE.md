@@ -112,6 +112,13 @@ La vue **Administration** (`/admin`) permet aux administrateurs de piloter l'ens
 - **Enrôlement automatique à la volée (Zero-Touch JIT Provisioning)** : Lorsqu'un utilisateur Archinex accède aux fonctionnalités de doctrine ou de revue (`/kb/me`, `/kb/reviews`), il est automatiquement inscrit et aligné dans le registre LLMOps sans aucune intervention manuelle.
 - **Ajustement des politiques Casbin & audit** : supervision en temps réel des règles RBAC/ABAC et des journaux d'audit.
 
+### Studio Admin des Réflexes d'Architecture (`/admin/reflexes`)
+Réservée strictement aux administrateurs (`role: admin`, invisible aux utilisateurs projet), cette micro-app gouverne les **« bons réflexes » de cascade** hors du code figé :
+1. **Catalogue & Éditeur No-Code (« Si on décide X → Penser à Y »)** : création, édition versionnée (`v1`, `v2`…), publication (`draft` → `published` → `deprecated`) et détection automatique de recouvrements entre réflexes. Seuls les réflexes `published` déclenchent des cascades dans les projets.
+2. **Vocabulaire Canonique & Synonymes** : gestion des valeurs canoniques et de leurs alias (ex. `active-active`, `bi-site actif` → `actif/actif` ; `2 datacenters` → `2`), éliminant la fragilité du matching syntaxique exact.
+3. **Bac à sable & Replay Historique** : simulation sur texte libre (extraction normalisée + déclenchement déterministe + filet sémantique par concepts) et replay à blanc sur l’historique anonymisé des décisions existantes avant publication.
+4. **Signaux Terrain & Promotion des Angles morts (`🤖`)** : suivi des réflexes les plus désactivés sur les projets (avec justifications) et promotion en 1 clic des questions récurrentes proposées par l’agent IA en réflexes déterministes.
+
 ---
 
 ## 4. Gouvernance Knowledge Hub & Comptes Experts
@@ -517,7 +524,7 @@ Pour tester les décisions et oracles dans un environnement d'intégration réel
   - **OPA Server REST** : `http://localhost:8181/v1/data`
 
 ### 13.6 Phase 4 Dédiée « Refinement & Hydratation », Matrice KAOS Multi-Axes & Simulateur de Drift
-Pour séparer clairement la délibération HLD (Phase 2) et l'homologation documentaire (Phase 3) de l'ingénierie d'exécution LLD, un **4ème grand onglet de phase** est disponible en haut du projet (`/deliberation?posture=refinement`) :
+Pour séparer clairement la délibération HLD (Phase 2) et l'homologation documentaire (Phase 3) de l'ingénierie d'exécution LLD, l'expérience **Oracle EDP & Raffinement** est concentrée exclusivement dans le **4ème grand onglet de phase** en haut du projet (`/deliberation?posture=refinement`) (l'ancien onglet et les encarts `Oracle EDP` de l'espace Délibération ont été retirés) :
 - **Atelier Plein Écran « Phase 4 : Refinement & Hydratation » (`Phase4RefinementHub`)** :
   - **Colonne Gauche — Matrice KAOS des 5 Axes Obligatoires (`requires_aspect` → `implemented_by`)** : affiche pour le sujet sélectionné le statut de chaque sous-axe obligatoire (*1. Substrat Compute*, *2. Plan Hors-Bande OOB*, *3. Zonage Sécurité NIS2*, *4. Fidélité Environnements Dev/Recette/Prod*, *5. Résilience Électrique 2N*), les clauses de la spécification rattachées et un bouton **`Compléter tous les axes manquants`** (ou liaison axe par axe).
   - **Colonne Droite — Hydratation LLD & Oracle OPA Multi-Axes (`multi_axis_refinement.rego`)** : génère l'inventaire LLD multi-axes (`nautobot_planned_devices`, `k8s_manifests`, `security_zones`, `environments`, `power_feeds`) et l'évalue réellement via OPA contre `data.ontology`.

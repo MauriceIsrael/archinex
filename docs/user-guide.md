@@ -241,3 +241,10 @@ Pour traiter les appels d'offres volumineux (plusieurs centaines ou milliers de 
   - La reprise relit instantanément les étapes déjà calculées depuis le cache local (quelques millisecondes) et ne sollicite le modèle LLM que pour les lots restants et les étapes de synthèse finale.
 - **Partitionnement sécurisé (`PARTITION_MAX_CHARS: 250 000`)** :
   - Les exigences à délibérer sont découpées en tranches indépendantes de 250k caractères au plus lors de la cartographie (étape 3a), garantissant une consommation de jetons maîtrisée et une mise en cache par tranche.
+
+### 4.11 Interrogation Rapide des Exigences au Clavier (`Quick-Ask`)
+À tout moment depuis le Workbench de Délibération (quelle que soit la posture active, conformément à l'Invariant VIII), l'architecte peut ouvrir une fenêtre flottante non bloquante pour poser une question factuelle sur le dossier d'exigences du projet :
+- **Raccourci clavier** : `Alt+/` (ou `Ctrl+K` / `Cmd+K`), ou clic sur le bouton **« Exigences · Alt+/ »** dans le bandeau de projet (`ProjectEngagementHeader`). La touche `Échap` masque la fenêtre sans perdre le fil de la session.
+- **Réponses sourcées & anti-hallucination** : chaque réponse indique un verdict (`Exigé`, `Partiel / Implicite`, `Non mentionné`, `Contradictoire`), signale les clauses en attente de clarification (`caveats`) et affiche les `clauseRef` citées avec un lien direct vers le sujet de délibération associé.
+- **Portée épistémique** : cette vue est strictement en lecture assistée et ne modifie aucune décision ni statut d'énoncé (Invariants II et III).
+

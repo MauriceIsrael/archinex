@@ -24,23 +24,33 @@ describe('EDP UI & API Integration Contract', () => {
     expect(content).toContain("event.url.searchParams.get('edp') === '1'");
   });
 
-  it('intègre EdpCard dans SubjectThreadView avec transmission des props', () => {
+  it('retire l’onglet et les sections Oracle EDP de SubjectThreadView (délibération)', () => {
     const viewFile = resolve(rootDir, 'src/lib/components/deliberation/SubjectThreadView.svelte');
     const content = readFileSync(viewFile, 'utf-8');
 
-    expect(content).toContain("import EdpCard from '$lib/components/edp/EdpCard.svelte';");
-    expect(content).toContain('isExperimentalEnabled = false');
-    expect(content).toContain('loadEdpForSubject');
-    expect(content).toContain('handleValidateEdp');
-    expect(content).toContain('handleRunVerifyEdp');
-    expect(content).toContain('edp-section-matrix');
+    expect(content).not.toContain('tab-unified-edp');
+    expect(content).not.toContain('unified-edp-pane');
+    expect(content).not.toContain('edp-section-matrix');
+    expect(content).not.toContain('edp-section-doctrines');
+    expect(content).not.toContain('Oracle EDP');
+    expect(content).not.toContain('EdpCard');
   });
 
-  it('transmet isExperimentalEnabled à travers DeliberationWorkbench', () => {
-    const workbenchFile = resolve(rootDir, 'src/lib/components/deliberation/DeliberationWorkbench.svelte');
-    const content = readFileSync(workbenchFile, 'utf-8');
+  it('concentre l’atelier Oracle EDP & Raffinement exclusivement en Phase 4', () => {
+    const headerFile = resolve(rootDir, 'src/lib/components/deliberation/ProjectEngagementHeader.svelte');
+    const headerContent = readFileSync(headerFile, 'utf-8');
+    expect(headerContent).toContain('phase-tab-refinement');
+    expect(headerContent).toContain('{#if isExperimentalEnabled}');
 
-    expect(content).toContain('isExperimentalEnabled = false');
-    expect(content).toContain('{isExperimentalEnabled}');
+    const pageFile = resolve(rootDir, 'src/routes/deliberation/+page.svelte');
+    const pageContent = readFileSync(pageFile, 'utf-8');
+    expect(pageContent).toContain('Phase4RefinementHub');
+    expect(pageContent).toContain("activePosture === 'refinement'");
+
+    const phase4File = resolve(rootDir, 'src/lib/components/deliberation/Phase4RefinementHub.svelte');
+    expect(existsSync(phase4File)).toBe(true);
+    const phase4Content = readFileSync(phase4File, 'utf-8');
+    expect(phase4Content).toContain('phase4-refinement-hub');
+    expect(phase4Content).toContain("Exécuter l'Oracle OPA");
   });
 });

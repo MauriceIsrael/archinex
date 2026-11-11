@@ -336,6 +336,8 @@ describe('A24 — Délibération : Un sujet = une conversation (Issue #35)', () 
 			expect(html).toContain('data-testid="tab-unified-matrix"');
 			expect(html).toContain('data-testid="tab-unified-kb"');
 			expect(html).toContain('data-testid="tab-unified-cascade"');
+			expect(html).not.toContain('data-testid="tab-unified-edp"');
+			expect(html).not.toContain('Oracle EDP');
 			expect(html).toContain('data-testid="btn-toggle-split"');
 		});
 

@@ -455,6 +455,14 @@ Pour éliminer toute latence lors du clic sur le Dashboard (`/`) ou lors du basc
 ### 3. Résolution Granulaire des Icônes (`vite.config.ts`)
 - **Plugin de Transformation `lucideOptimizePlugin`** : réécrit à la compilation les imports barils `import { A, B } from 'lucide-svelte'` en imports directs `import A from 'lucide-svelte/icons/a'`, empêchant le navigateur de télécharger et compiler les 1 929 modules d'icônes et d'alias en mode développement (baisse de 3 788 requêtes à quelques dizaines par vue).
 
+### 4. Fluidité du Changement de Sujet en Délibération (`DeliberationWorkbench`, `SubjectThreadView`, `OptionsMatrix`, `workbench`)
+- **Montage Unique (`DeliberationWorkbench.svelte`)** : détection responsive via `matchMedia('(min-width: 1024px)')` afin de ne jamais monter simultanément les instances mobile et desktop de `SubjectThreadView` (division par 2 du trafic réseau au basculement).
+- **Endpoint Agrégé SQLite (`GET /api/projects/[projectId]/subjects/[subjectId]/workbench`)** : regroupe en un seul aller-retour local (`arguments`, `options`, `criteria`, `evaluations`, `tradeOffs`, `decision`, `criteriaReport`, métadonnées `subject`) sans dépendance bloquante sur LLMOps, tout en partageant la logique métier (`parseSubjectDecision` dans `arbitrationDb.ts` et `computeSubjectMaturityReport` dans `maturityCriteriaService.ts`).
+- **Chargement Non-Bloquant, Annulation & Cache Client SWR (`SubjectThreadView.svelte`, `OptionsMatrix.svelte`)** :
+  - Découplage des appels secondaires (`cascade`, `doctrine-context`, `compliance`) hors du chemin critique du fil et de la matrice.
+  - Annulation systématique des requêtes obsolètes par `AbortController` + garde de séquence lors des basculements rapides, et cache mémoire client (*stale-while-revalidate*) pour un affichage instantané des sujets déjà visités.
+  - Mise en cache (`cachedFetch`) et parallélisation (`Promise.all` dans `checkSubjectCompliance`) des lectures LLMOps `getDoctrineContext`, `checkOption` et `getFrameworkCoverage`, sans invalidation globale du cache lors d'une lecture.
+
 ---
 
 ## 11 bis. Projections Multi-Modèles & Pont d'Architecture « Petites Briques »

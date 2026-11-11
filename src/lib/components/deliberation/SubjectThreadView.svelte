@@ -26,7 +26,6 @@
 	import SubjectProblemCard from './SubjectProblemCard.svelte';
 	import SplitSubjectDialog from './SplitSubjectDialog.svelte';
 	import OptionsMatrix from './OptionsMatrix.svelte';
-	import EdpCard from '$lib/components/edp/EdpCard.svelte';
 	import TelegraphicDraftView from './TelegraphicDraftView.svelte';
 	import CapitalizationPanel from './CapitalizationPanel.svelte';
 	import ProjectRulesPanel from './ProjectRulesPanel.svelte';
@@ -68,9 +67,7 @@
 		Compass,
 		HelpCircle,
 		Lightbulb,
-		Split,
-		ShieldCheck,
-		Play
+		Split
 	} from 'lucide-svelte';
 
 	let {
@@ -85,8 +82,7 @@
 		onToggleDossier = () => {},
 		onBackToBoard = () => {},
 		initialActiveWorkspaceTab = 'thread',
-		initialDecision = null,
-		isExperimentalEnabled = false
+		initialDecision = null
 	}: {
 		subjectId: string;
 		projectId: string;
@@ -100,11 +96,10 @@
 		onBackToBoard?: () => void;
 		initialActiveWorkspaceTab?: UnifiedWorkspaceTab;
 		initialDecision?: Decision | null;
-		isExperimentalEnabled?: boolean;
 	} = $props();
 
 	// ─── État de navigation unifié (Onglets pleine largeur + Mode Split optionnel) ───
-	type UnifiedWorkspaceTab = 'thread' | 'matrix' | 'kb' | 'cascade' | 'edp';
+	type UnifiedWorkspaceTab = 'thread' | 'matrix' | 'kb' | 'cascade';
 	let activeWorkspaceTab = $state<UnifiedWorkspaceTab>(initialActiveWorkspaceTab);
 	let isSplitView = $state(true);
 	// En mode Split, la colonne de gauche affiche le fil ('thread') et la colonne de droite affiche l'un des 3 volets d'analyse :
@@ -121,6 +116,7 @@
 	let allowedKbRefs = $state<string[]>([]);
 	let criteriaReport = $state<MaturityTransitionsReport | null>(null);
 	let subjectDecision = $state<Decision | null>(initialDecision);
+	let singleOptionRationale = $state<string | null | undefined>(undefined);
 	let cascadeResult = $state<CascadeResult | null>(null);
 	let foundationContested = $state(false);
 	let contestationReason = $state<string | undefined>(undefined);
@@ -413,243 +409,216 @@
 		return argumentsList.filter((a) => a.stance === postureFilter);
 	});
 
+	interface CachedWorkbench {
+		singleOptionRationale: string | null;
+		arguments: Argument[];
+		options: Option[];
+		criteria: Criterion[];
+		evaluations: OptionEvaluation[];
+		tradeOffs: TradeOff[];
+		decision: Decision | null;
+		criteriaReport: MaturityTransitionsReport | null;
+	}
+	interface CachedCascade {
+		cascade: CascadeResult | null;
+		treeSeries: any[];
+		discoveryTree: DiscoveryTreeData | null;
+		foundationContested: boolean;
+		contestationReason?: string;
+	}
+	interface CachedDoctrine {
+		allowedKbRefs: string[];
+		items: DoctrineItem[];
+	}
+
+	const workbenchCache = new Map<string, CachedWorkbench>();
+	const cascadeCache = new Map<string, CachedCascade>();
+	const doctrineCache = new Map<string, CachedDoctrine>();
+	let activeLoadController: AbortController | null = null;
+	let activeLoadSeq = 0;
+
+	function syncWorkbenchCache() {
+		if (!projectId || !subjectId) return;
+		const key = `${projectId}:${subjectId}`;
+		const existing = workbenchCache.get(key);
+		if (!existing) return;
+		workbenchCache.set(key, {
+			...existing,
+			arguments: argumentsList,
+			options: subjectOptions,
+			criteria: matrixCriteria,
+			evaluations: matrixEvaluations,
+			tradeOffs: matrixTradeOffs,
+			decision: subjectDecision,
+			criteriaReport
+		});
+	}
+
 	$effect(() => {
 		if (subjectId && projectId) {
-			loadArgumentsAndContext();
-			void loadEdpForSubject();
+			void loadArgumentsAndContext({ force: false });
 		}
 	});
 
-	
-	// ─── État & Actions EDP (Paquet de Décision Exécutable) ──────────────────────────
-	let currentEdp = $state<any>(null);
-	let isLoadingEdp = $state(false);
-
-	async function loadEdpForSubject() {
-		if (!isExperimentalEnabled || !subjectId) {
-			currentEdp = null;
-			return;
-		}
-		isLoadingEdp = true;
-		try {
-			const res = await fetch(`/api/projects/${projectId}/subjects/${subjectId}/edp?edp=1`);
-			if (res.ok) {
-				const data = await res.json();
-				currentEdp = data.edp;
-			} else {
-				currentEdp = null;
-			}
-		} catch {
-			currentEdp = null;
-		} finally {
-			isLoadingEdp = false;
-		}
-	}
-
-	async function handleValidateEdp(event: any) {
-		try {
-			const res = await fetch(`/api/projects/${projectId}/subjects/${subjectId}/edp`, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ action: 'validate', ...(event.detail || event) })
-			});
-			if (res.ok) {
-				deliberationStore.logNotification('Paquet de décision exécutable validé !', 'success');
-				await loadEdpForSubject();
-			}
-		} catch (e: any) {
-			deliberationStore.logNotification(e.message, 'warning');
-		}
-	}
-
-	async function handleChallengeEdp(event: any) {
-		try {
-			const res = await fetch(`/api/projects/${projectId}/subjects/${subjectId}/edp`, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ action: 'challenge', ...(event.detail || event) })
-			});
-			if (res.ok) {
-				deliberationStore.logNotification('Contestation de décision enregistrée.', 'info');
-				await loadEdpForSubject();
-			}
-		} catch (e: any) {
-			deliberationStore.logNotification(e.message, 'warning');
-		}
-	}
-
-	async function handleRunVerifyEdp(event: any) {
-		try {
-			const res = await fetch(`/api/projects/${projectId}/subjects/${subjectId}/edp`, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ action: 'verify', ...(event.detail || event) })
-			});
-			if (res.ok) {
-				const data = await res.json();
-				if (data.verdict === 'compliant') {
-					deliberationStore.logNotification('Vérification OPA : CONFORME (0 violation)', 'success');
-				} else {
-					deliberationStore.logNotification(`Vérification OPA : ${data.verdict}`, 'warning');
-				}
-				await loadEdpForSubject();
-			}
-		} catch (e: any) {
-			deliberationStore.logNotification(e.message, 'warning');
-		}
-	}
-
-	async function handleHydrateEdp(event: any) {
-		try {
-			const res = await fetch(`/api/projects/${projectId}/subjects/${subjectId}/edp?edp=1`, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ action: 'hydrate', ...(event?.detail || event || {}) })
-			});
-			if (res.ok) {
-				const data = await res.json();
-				deliberationStore.logNotification(
-					data.message || 'Inventaire Planned (Nautobot & Sylva) hydraté avec succès !',
-					'success'
-				);
-				await loadEdpForSubject();
-			} else {
-				const err = await res.json();
-				deliberationStore.logNotification(err.error || 'Erreur hydratation', 'warning');
-			}
-		} catch (e: any) {
-			deliberationStore.logNotification(e.message, 'warning');
-		}
-	}
-
-	async function handleBindAspectEdp(event: any) {
-		try {
-			const payload = event?.detail || event || {};
-			const res = await fetch(`/api/projects/${projectId}/subjects/${subjectId}/edp?edp=1`, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ action: 'bind_aspect', ...payload })
-			});
-			if (res.ok) {
-				const data = await res.json();
-				if (data.edp) currentEdp = data.edp;
-				deliberationStore.logNotification(data.message || 'Sous-axe lié avec succès !', 'success');
-			}
-		} catch (e: any) {
-			deliberationStore.logNotification(e.message, 'warning');
-		}
-	}
-
-	async function handleSynthesizeEdp(event?: any) {
-		try {
-			const res = await fetch(`/api/projects/${projectId}/subjects/${subjectId}/edp?edp=1`, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ action: 'synthesize', ...(event?.detail || event || {}) })
-			});
-			if (res.ok) {
-				const data = await res.json();
-				currentEdp = data.edp;
-				deliberationStore.logNotification(
-					data.message || 'EDP synthétisé avec succès pour ce sujet !',
-					'success'
-				);
-				await loadEdpForSubject();
-			} else {
-				const err = await res.json();
-				deliberationStore.logNotification(err.error || 'Erreur synthèse EDP', 'warning');
-			}
-		} catch (e: any) {
-			deliberationStore.logNotification(e.message, 'warning');
-		}
-	}
-
-	async function loadArgumentsAndContext() {
+	async function loadArgumentsAndContext(options: { force?: boolean } = { force: true }) {
 		if (!projectId || !subjectId) return;
-		isLoadingArguments = true;
-		try {
-			const [argsRes, optsRes, critListRes, evalsRes, tradeRes, docRes, critRes, decRes, cascadeRes] =
-				await Promise.all([
-					fetch(`/api/projects/${projectId}/subjects/${subjectId}/arguments`),
-					fetch(`/api/projects/${projectId}/subjects/${subjectId}/options`),
-					fetch(`/api/projects/${projectId}/subjects/${subjectId}/criteria`).catch(() => null),
-					fetch(`/api/projects/${projectId}/subjects/${subjectId}/evaluations`).catch(() => null),
-					fetch(`/api/projects/${projectId}/subjects/${subjectId}/tradeoffs`).catch(() => null),
-					fetch(`/api/projects/${projectId}/subjects/${subjectId}/doctrine-context`),
-					fetch(`/api/projects/${projectId}/subjects/${subjectId}/maturity-criteria`).catch(() => null),
-					fetch(`/api/projects/${projectId}/subjects/${subjectId}/decision`).catch(() => null),
-					fetch(`/api/projects/${projectId}/subjects/${subjectId}/cascade`).catch(() => null)
-				]);
+		const targetProjectId = projectId;
+		const targetSubjectId = subjectId;
+		const cacheKey = `${targetProjectId}:${targetSubjectId}`;
+		const force = options.force ?? true;
 
-			if (argsRes.ok) {
-				const data = await argsRes.json();
-				argumentsList = Array.isArray(data) ? data : (data.arguments || []);
-			} else {
-				argumentsList = [];
-			}
+		activeLoadController?.abort();
+		const controller = new AbortController();
+		activeLoadController = controller;
+		const seq = ++activeLoadSeq;
 
-			if (optsRes.ok) {
-				const optsData = await optsRes.json();
-				subjectOptions = Array.isArray(optsData) ? optsData : (optsData.options || []);
-			} else {
-				subjectOptions = [];
-			}
+		const cachedWb = workbenchCache.get(cacheKey);
+		const cachedCasc = cascadeCache.get(cacheKey);
+		const cachedDoc = doctrineCache.get(cacheKey);
 
-			if (critListRes && critListRes.ok) {
-				const cData = await critListRes.json();
-				matrixCriteria = Array.isArray(cData) ? cData : (cData.criteria || []);
-			} else {
-				matrixCriteria = [];
-			}
-
-			if (evalsRes && evalsRes.ok) {
-				const eData = await evalsRes.json();
-				matrixEvaluations = Array.isArray(eData) ? eData : (eData.evaluations || []);
-			} else {
-				matrixEvaluations = [];
-			}
-
-			if (tradeRes && tradeRes.ok) {
-				const tData = await tradeRes.json();
-				matrixTradeOffs = Array.isArray(tData) ? tData : (tData.tradeOffs || []);
-			} else {
-				matrixTradeOffs = [];
-			}
-
-			if (docRes.ok) {
-				const docData = await docRes.json();
-				allowedKbRefs = docData.allowedKbRefs || [];
-				doctrineItems = docData.items || [];
-			} else {
-				allowedKbRefs = [];
-				doctrineItems = [];
-			}
-
-			if (critRes && critRes.ok) {
-				const critData = await critRes.json();
-				criteriaReport = critData.report || null;
-			}
-
-			if (decRes && decRes.ok) {
-				const decData = await decRes.json();
-				subjectDecision = decData.decision || null;
-			}
-
-			void deliberationStore.refreshSubjectFromServer(subjectId, projectId);
-
-			if (cascadeRes && cascadeRes.ok) {
-				const cascData = await cascadeRes.json();
-				cascadeResult = cascData.cascade || null;
-				treeSeries = cascData.treeSeries || [];
-				discoveryTree = cascData.discoveryTree || null;
-				foundationContested = cascData.foundationContested || false;
-				contestationReason = cascData.contestationReason;
-			}
-		} catch (err) {
-			console.warn('[Espace Sujet] Erreur chargement contexte:', err);
-		} finally {
+		if (cachedWb) {
+			argumentsList = cachedWb.arguments;
+			subjectOptions = cachedWb.options;
+			matrixCriteria = cachedWb.criteria;
+			matrixEvaluations = cachedWb.evaluations;
+			matrixTradeOffs = cachedWb.tradeOffs;
+			subjectDecision = cachedWb.decision;
+			criteriaReport = cachedWb.criteriaReport;
+			singleOptionRationale = cachedWb.singleOptionRationale;
 			isLoadingArguments = false;
+		} else if (!force) {
+			// Réinitialise immédiatement les données de l'ancien sujet pour éviter les appels fantômes (ex: /compliance sur anciennes options)
+			argumentsList = [];
+			subjectOptions = [];
+			matrixCriteria = [];
+			matrixEvaluations = [];
+			matrixTradeOffs = [];
+			subjectDecision = initialDecision;
+			criteriaReport = null;
+			singleOptionRationale = undefined;
+			isLoadingArguments = true;
 		}
+
+		if (cachedCasc) {
+			cascadeResult = cachedCasc.cascade;
+			treeSeries = cachedCasc.treeSeries;
+			discoveryTree = cachedCasc.discoveryTree;
+			foundationContested = cachedCasc.foundationContested;
+			contestationReason = cachedCasc.contestationReason;
+		} else if (!force) {
+			cascadeResult = null;
+			treeSeries = [];
+			discoveryTree = null;
+			foundationContested = false;
+			contestationReason = undefined;
+		}
+
+		if (cachedDoc) {
+			allowedKbRefs = cachedDoc.allowedKbRefs;
+			doctrineItems = cachedDoc.items;
+		} else if (!force) {
+			allowedKbRefs = [];
+			doctrineItems = [];
+		}
+
+		// Chargements non bloquants en arrière-plan (cascade locale + contexte doctrinal LLMOps)
+		const cascadePromise = fetch(
+			`/api/projects/${targetProjectId}/subjects/${targetSubjectId}/cascade`,
+			{ signal: controller.signal }
+		)
+			.then(async (res) => {
+				if (!res.ok || controller.signal.aborted || seq !== activeLoadSeq) return;
+				const cascData = await res.json();
+				if (controller.signal.aborted || seq !== activeLoadSeq) return;
+				const nextCasc: CachedCascade = {
+					cascade: cascData.cascade || null,
+					treeSeries: cascData.treeSeries || [],
+					discoveryTree: cascData.discoveryTree || null,
+					foundationContested: cascData.foundationContested || false,
+					contestationReason: cascData.contestationReason
+				};
+				cascadeResult = nextCasc.cascade;
+				treeSeries = nextCasc.treeSeries;
+				discoveryTree = nextCasc.discoveryTree;
+				foundationContested = nextCasc.foundationContested;
+				contestationReason = nextCasc.contestationReason;
+				cascadeCache.set(cacheKey, nextCasc);
+			})
+			.catch(() => {});
+
+		const doctrinePromise =
+			!force && cachedDoc
+				? Promise.resolve()
+				: fetch(`/api/projects/${targetProjectId}/subjects/${targetSubjectId}/doctrine-context`, {
+						signal: controller.signal
+					})
+						.then(async (res) => {
+							if (controller.signal.aborted || seq !== activeLoadSeq) return;
+							if (res.ok) {
+								const docData = await res.json();
+								if (controller.signal.aborted || seq !== activeLoadSeq) return;
+								const nextDoc: CachedDoctrine = {
+									allowedKbRefs: docData.allowedKbRefs || [],
+									items: docData.items || []
+								};
+								allowedKbRefs = nextDoc.allowedKbRefs;
+								doctrineItems = nextDoc.items;
+								doctrineCache.set(cacheKey, nextDoc);
+							}
+						})
+						.catch(() => {});
+
+		try {
+			const wbRes = await fetch(
+				`/api/projects/${targetProjectId}/subjects/${targetSubjectId}/workbench`,
+				{ signal: controller.signal }
+			);
+			if (controller.signal.aborted || seq !== activeLoadSeq) return;
+
+			if (wbRes.ok) {
+				const wb = await wbRes.json();
+				if (controller.signal.aborted || seq !== activeLoadSeq) return;
+
+				const nextWb: CachedWorkbench = {
+					singleOptionRationale: wb.subject?.singleOptionRationale ?? null,
+					arguments: Array.isArray(wb.arguments) ? wb.arguments : [],
+					options: Array.isArray(wb.options) ? wb.options : [],
+					criteria: Array.isArray(wb.criteria) ? wb.criteria : [],
+					evaluations: Array.isArray(wb.evaluations) ? wb.evaluations : [],
+					tradeOffs: Array.isArray(wb.tradeOffs) ? wb.tradeOffs : [],
+					decision: wb.decision || null,
+					criteriaReport: wb.criteriaReport || null
+				};
+
+				argumentsList = nextWb.arguments;
+				subjectOptions = nextWb.options;
+				matrixCriteria = nextWb.criteria;
+				matrixEvaluations = nextWb.evaluations;
+				matrixTradeOffs = nextWb.tradeOffs;
+				subjectDecision = nextWb.decision;
+				criteriaReport = nextWb.criteriaReport;
+				singleOptionRationale = nextWb.singleOptionRationale;
+				workbenchCache.set(cacheKey, nextWb);
+
+				if (wb.subject?.maturityLevel) {
+					deliberationStore.applyServerSubjectLevel(
+						targetSubjectId,
+						wb.subject.maturityLevel,
+						wb.subject.deliberationStatus
+					);
+				}
+			}
+		} catch (err: any) {
+			if (err?.name !== 'AbortError') {
+				console.warn('[Espace Sujet] Erreur chargement contexte:', err);
+			}
+		} finally {
+			if (seq === activeLoadSeq) {
+				isLoadingArguments = false;
+			}
+		}
+
+		void Promise.all([cascadePromise, doctrinePromise]);
 	}
 
 	async function refreshMatrixData() {
@@ -1048,6 +1017,7 @@
 				'info'
 			);
 		}
+		syncWorkbenchCache();
 	}
 
 	async function handleInvokeAgent(role: 'challenger' | 'proposer' | 'verifier' | 'synthesizer') {
@@ -1489,14 +1459,18 @@
 				bind:tradeOffs={matrixTradeOffs}
 				bind:decision={subjectDecision}
 				userRole={deliberationStore.currentRole}
+				initialSingleOptionRationale={singleOptionRationale}
 				onCriteriaChanged={(newCrit) => {
 					matrixCriteria = [...newCrit];
+					syncWorkbenchCache();
 				}}
 				onOptionsChanged={(newOpts) => {
 					subjectOptions = [...newOpts];
+					syncWorkbenchCache();
 				}}
 				onEvaluationsChanged={(newEvals) => {
 					matrixEvaluations = [...newEvals];
+					syncWorkbenchCache();
 				}}
 				onDecisionMade={() => {
 					void loadArgumentsAndContext();
@@ -1526,24 +1500,6 @@
 				}}
 			/>
 		</div>
-	
-		<!-- 3. Paquet de Décision Exécutable (EDP) & Oracles OPA [Expérimental] -->
-		{#if isExperimentalEnabled}
-			<div class="pt-4 border-t border-border/60" data-testid="edp-section-matrix">
-				<EdpCard
-					edp={currentEdp}
-					{isExperimentalEnabled}
-					currentUserRole={userRole}
-					currentUserId={sessionUser?.id || 'lead-architect'}
-					on:validate={handleValidateEdp}
-					on:challenge={handleChallengeEdp}
-					on:runVerify={handleRunVerifyEdp}
-					on:hydrate={handleHydrateEdp}
-					on:synthesize={handleSynthesizeEdp}
-					on:bindAspect={handleBindAspectEdp}
-				/>
-			</div>
-		{/if}
 	</div>
 {/snippet}
 
@@ -1856,99 +1812,6 @@
 				</div>
 			{/if}
 		</div>
-		<!-- Section EDP & Oracles OPA [Expérimental] -->
-		{#if isExperimentalEnabled}
-			<div class="pt-4 border-t border-border/60" data-testid="edp-section-doctrines">
-				<EdpCard
-					edp={currentEdp}
-					{isExperimentalEnabled}
-					currentUserRole={userRole}
-					currentUserId={sessionUser?.id || 'lead-architect'}
-					on:validate={handleValidateEdp}
-					on:challenge={handleChallengeEdp}
-					on:runVerify={handleRunVerifyEdp}
-					on:hydrate={handleHydrateEdp}
-					on:synthesize={handleSynthesizeEdp}
-					on:bindAspect={handleBindAspectEdp}
-				/>
-			</div>
-		{/if}
-	</div>
-{/snippet}
-
-{#snippet renderEdpPane()}
-	<div class="h-full overflow-y-auto p-4 space-y-4 text-xs" data-testid="unified-edp-pane">
-		<div class="rounded-xl border border-indigo-500/30 bg-indigo-500/10 p-3.5 flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-			<div class="space-y-0.5">
-				<span class="text-xs font-bold text-indigo-900 dark:text-indigo-200">
-					🧪 Phase 4 dédiée disponible : Refinement Multi-Axes, Hydratation LLD & Simulateur de Drift
-				</span>
-				<p class="text-[11px] text-muted-foreground">
-					Basculez vers la Phase 4 pour piloter en plein écran les 5 axes KAOS, hydrater Nautobot/Sylva et tester les dérives Rego.
-				</p>
-			</div>
-			<button
-				type="button"
-				onclick={() => deliberationStore.setPosture('refinement')}
-				class="shrink-0 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer"
-			>
-				Ouvrir en Phase 4 →
-			</button>
-		</div>
-		{#if currentEdp}
-			<EdpCard
-				edp={currentEdp}
-				{isExperimentalEnabled}
-				currentUserRole={userRole}
-				currentUserId={sessionUser?.id || 'lead-architect'}
-				on:validate={handleValidateEdp}
-				on:challenge={handleChallengeEdp}
-				on:runVerify={handleRunVerifyEdp}
-				on:hydrate={handleHydrateEdp}
-				on:synthesize={handleSynthesizeEdp}
-				on:bindAspect={handleBindAspectEdp}
-			/>
-		{:else}
-			<div class="rounded-xl border border-dashed border-amber-500/40 bg-amber-500/5 p-6 text-center space-y-3">
-				<ShieldCheck class="h-8 w-8 mx-auto text-amber-500" />
-				<div class="space-y-1">
-					<p class="font-semibold text-foreground text-sm">🧪 Paquet de Décision Exécutable (EDP)</p>
-					<p class="text-xs text-muted-foreground max-w-md mx-auto">
-						L'oracle Rego et les projections d'infrastructure (Nautobot DCIM, Sylva CAPI) permettent d'évaluer automatiquement la conformité de l'architecture.
-					</p>
-				</div>
-				<div class="flex items-center justify-center gap-2 flex-wrap">
-					<button
-						type="button"
-						class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white font-medium text-xs transition-colors shadow-sm cursor-pointer"
-						onclick={handleSynthesizeEdp}
-					>
-						<Sparkles class="h-3.5 w-3.5" />
-						✨ Synthétiser l'EDP pour ce sujet
-					</button>
-
-					<button
-						type="button"
-						class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-medium text-xs transition-colors shadow-sm cursor-pointer"
-						onclick={async () => {
-							try {
-								const res = await fetch(`/api/projects/${projectId}/subjects/${subjectId}/edp?edp=1`);
-								if (res.ok) {
-									const data = await res.json();
-									currentEdp = data.edp;
-									deliberationStore.logNotification('Oracle EDP chargé avec succès !', 'success');
-								}
-							} catch {
-								deliberationStore.logNotification('Erreur chargement EDP', 'warning');
-							}
-						}}
-					>
-						<Play class="h-3.5 w-3.5" />
-						Charger l'oracle témoin ADR-012 (Baremetal)
-					</button>
-				</div>
-			</div>
-		{/if}
 	</div>
 {/snippet}
 
@@ -2340,27 +2203,6 @@
 					</span>
 				{/if}
 			</button>
-			{#if isExperimentalEnabled}
-				<button
-					type="button"
-					data-testid="tab-unified-edp"
-					onclick={() => {
-						activeWorkspaceTab = 'edp';
-						void loadEdpForSubject();
-					}}
-					class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer whitespace-nowrap {(isSplitView ? splitRightTab === 'edp' : activeWorkspaceTab === 'edp')
-						? 'bg-amber-500/15 text-amber-800 dark:text-amber-200 shadow-2xs border border-amber-500/40'
-						: 'text-muted-foreground hover:text-foreground hover:bg-background/50'}"
-				>
-					<ShieldCheck class="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
-					<span>🧪 Oracle EDP</span>
-					{#if currentEdp}
-						<span class="px-1.5 py-0.2 rounded-full bg-amber-500/20 text-amber-800 dark:text-amber-300 text-[10px] font-mono font-bold">
-							{currentEdp.metadata?.id || 'EDP'}
-						</span>
-					{/if}
-				</button>
-			{/if}
 		</div>
 	</div>
 
@@ -2378,8 +2220,6 @@
 						{@render renderMatrixPane()}
 					{:else if splitRightTab === 'kb'}
 						{@render renderDoctrinesAndDraftPane()}
-					{:else if splitRightTab === 'edp'}
-						{@render renderEdpPane()}
 					{:else}
 						{@render renderCascadeAndRulesPane()}
 					{/if}
@@ -2391,8 +2231,6 @@
 			{@render renderMatrixPane()}
 		{:else if activeWorkspaceTab === 'kb'}
 			{@render renderDoctrinesAndDraftPane()}
-		{:else if activeWorkspaceTab === 'edp'}
-			{@render renderEdpPane()}
 		{:else if activeWorkspaceTab === 'cascade'}
 			{@render renderCascadeAndRulesPane()}
 		{/if}

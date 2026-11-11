@@ -64,75 +64,75 @@ export async function getOrCreateCascadeForDecision(params: {
 		decisionId: decision?.id
 	});
 
-	// Valeurs des faits clés : une règle de doctrine ne s'ouvre que sur un fait réellement affirmé,
-	// jamais sur une valeur supposée (sinon toute décision, même sans rapport, ouvre la cascade bi-site).
-	const siteCountFact = affirmedFacts.find((f) => f.key === 'site_count')?.value;
+	// Valeur clé utilisée pour la règle locale historique de routage multi-site
 	const resilienceModeFact = affirmedFacts.find((f) => f.key === 'resilience_mode')?.value;
-	const isMultiSite = siteCountFact !== undefined && Number.parseInt(siteCountFact, 10) >= 2;
-	const isActiveActive =
-		resilienceModeFact !== undefined && /actif\s*\/\s*actif|active\s*\/\s*active/i.test(resilienceModeFact);
 
-	// 1. Lire les règles et désactivations du projet (Lot A30)
+	// 1. Lire les règles publiées, le vocabulaire normalisé et les désactivations du projet (Lot A30)
 	const { getProjectRules } = await import('$lib/server/rules/projectRulesService');
+	const { listPublishedVocabulary } = await import('$lib/server/rules/reflexCatalogService');
 	const { evaluateRuleConditions } = await import('$lib/domain/projectRules');
-	const projectRulesState = await getProjectRules(projectId);
+	const [projectRulesState, vocabulary] = await Promise.all([
+		getProjectRules(projectId),
+		listPublishedVocabulary()
+	]);
 	const disabledMap = new Map(projectRulesState.disabledOverrides.map((o) => [o.ruleId, o]));
 
-	// Génération des questions déterministes de la cascade
-	const candidateQuestions: CascadeQuestion[] = [
-		{
-			id: `q-casc-${subjectId}-replication`,
-			text: 'Quelle stratégie de réplication synchrone et quel RPO cible garantissent le maintien des transactions ?',
-			subjectName: 'Réplication et RPO',
-			subjectSectionRef: `${parentSubject.sectionRef || '§4'}.1`,
-			sourceType: 'doctrine',
-			mandatory: true,
+	const candidateQuestions: CascadeQuestion[] = [];
+
+	// Évaluation dynamique de toutes les règles publiées du catalogue (avec normalisation canonique & alias)
+	for (const refRule of projectRulesState.referenceRules) {
+		if (refRule.status === 'disabled' || disabledMap.has(refRule.id)) continue;
+		if (!evaluateRuleConditions(refRule.conditions, affirmedFacts, vocabulary)) continue;
+
+		const isLegacyRepl = refRule.id === 'DOC-HA-01';
+		const isLegacySplit = refRule.id === 'SEC-RESIL-02';
+		const qId = isLegacyRepl
+			? `q-casc-${subjectId}-replication`
+			: isLegacySplit
+				? `q-casc-${subjectId}-split-brain`
+				: `q-casc-${subjectId}-${refRule.id}`;
+		const childId = isLegacyRepl
+			? `sub-child-${subjectId}-repl`
+			: isLegacySplit
+				? `sub-child-${subjectId}-split`
+				: `sub-child-${subjectId}-${refRule.id}`;
+
+		candidateQuestions.push({
+			id: qId,
+			text: refRule.action.question,
+			subjectName: refRule.action.subjectName,
+			subjectSectionRef: `${parentSubject.sectionRef || '§4'}.${candidateQuestions.length + 1}`,
+			sourceType: refRule.assetType === 'control' ? 'control' : 'doctrine',
+			mandatory: refRule.mandatory,
 			status: 'open',
-			childSubjectId: `sub-child-${subjectId}-repl`,
+			childSubjectId: childId,
 			lineage: {
-				ruleRef: 'DOC-HA-01',
-				ruleName: 'Topologie de Continuité d’Activité Bi-Site',
-				triggeringFacts: [{ key: 'resilience_mode', value: resilienceModeFact ?? '' }],
+				...(isLegacySplit ? { assetRef: refRule.assetRef } : {}),
+				ruleRef: refRule.id,
+				ruleName: refRule.title,
+				triggeringFacts: refRule.conditions.map((c) => ({
+					key: c.key,
+					value: affirmedFacts.find((f) => f.key === c.key)?.value || String(c.value)
+				})),
 				parentDecisionId: decisionId,
 				parentSubjectId: subjectId,
 				parentSubjectName: parentSubject.name
 			},
-			initialLevel: 'L1_framed',
+			initialLevel: refRule.action.initialLevel || 'L1_framed',
 			prefillFraming: {
-				problemStatement: `Définir le mode de réplication synchrone pour garantir un RPO = 0 entre les deux sites en mode ${resilienceModeFact}.`,
-				scope: 'Couche de persistance et stockage répliqué'
+				problemStatement: refRule.action.rationale || refRule.action.question,
+				scope: refRule.title
 			}
-		},
-		{
-			id: `q-casc-${subjectId}-split-brain`,
-			text: 'Comment prévenir le split-brain et assurer le quorum d’arbitrage entre les deux sites ?',
-			subjectName: 'Split-Brain et Quorum',
-			subjectSectionRef: `${parentSubject.sectionRef || '§4'}.2`,
-			sourceType: 'control',
-			mandatory: true,
-			status: 'open',
-			childSubjectId: `sub-child-${subjectId}-split`,
-			lineage: {
-				assetRef: 'SEC-RESIL-02',
-				ruleRef: 'SEC-RESIL-02',
-				ruleName: 'Quorum d’Arbitrage et Témoin Indépendant',
-				triggeringFacts: [{ key: 'site_count', value: siteCountFact ?? '' }],
-				parentDecisionId: decisionId,
-				parentSubjectId: subjectId,
-				parentSubjectName: parentSubject.name
-			},
-			initialLevel: 'L1_framed',
-			prefillFraming: {
-				problemStatement:
-					'Implanter un tiers-témoin (witness) ou un quorum externe pour éviter les écritures concurrentes en cas de coupure de lien.',
-				scope: 'Arbitrage réseau et consensus'
-			}
-		},
-		{
+		});
+	}
+
+	// Règle locale historique de routage multi-site lorsque resilience_mode est affirmé
+	if (resilienceModeFact !== undefined && !disabledMap.has('LOC-NET-01')) {
+		candidateQuestions.push({
 			id: `q-casc-${subjectId}-failover`,
 			text: 'Quel mécanisme de bascule automatique du trafic réseau et applicatif (DNS vs BGP Anycast) déployer ?',
 			subjectName: 'Bascule de Trafic Applicatif',
-			subjectSectionRef: `${parentSubject.sectionRef || '§4'}.3`,
+			subjectSectionRef: `${parentSubject.sectionRef || '§4'}.${candidateQuestions.length + 1}`,
 			sourceType: 'local_rule',
 			mandatory: false,
 			status: 'open',
@@ -140,29 +140,19 @@ export async function getOrCreateCascadeForDecision(params: {
 			lineage: {
 				ruleRef: 'LOC-NET-01',
 				ruleName: 'Règle Locale de Routage Multi-Site',
-				triggeringFacts: [{ key: 'resilience_mode', value: resilienceModeFact ?? '' }],
+				triggeringFacts: [{ key: 'resilience_mode', value: resilienceModeFact }],
 				parentDecisionId: decisionId,
 				parentSubjectId: subjectId,
 				parentSubjectName: parentSubject.name
 			},
 			initialLevel: 'L0_named'
-		}
-	];
-
-	const triggered = new Set([
-		...(isActiveActive ? ['replication'] : []),
-		...(isMultiSite ? ['split-brain'] : []),
-		...(resilienceModeFact !== undefined ? ['failover'] : [])
-	]);
-	for (let i = candidateQuestions.length - 1; i >= 0; i--) {
-		const kind = candidateQuestions[i].id.slice(`q-casc-${subjectId}-`.length);
-		if (!triggered.has(kind)) candidateQuestions.splice(i, 1);
+		});
 	}
 
 	// Évaluation des règles locales affirmées (K21/A30)
 	for (const localRule of projectRulesState.localRules) {
 		if (localRule.status === 'affirmed') {
-			if (evaluateRuleConditions(localRule.conditions, affirmedFacts)) {
+			if (evaluateRuleConditions(localRule.conditions, affirmedFacts, vocabulary)) {
 				candidateQuestions.push({
 					id: `q-casc-${subjectId}-${localRule.id}`,
 					text: localRule.action.question,

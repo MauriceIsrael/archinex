@@ -19,6 +19,36 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
   - Correction de la fuite inter-sujets lors de la lecture des événements `DECISION_ASSERTED` : les faits sont désormais résolus strictement pour la décision et les énoncés du sujet demandé, et `getDiscoveryTreeForSubject()` fournit l'arbre complet via `GET /api/projects/[projectId]/subjects/[subjectId]/cascade`.
 - **Tests & Documentation** :
   - Ajout des scénarios contractuels dans `tests/contract/cascade-questions.test.ts` et `tests/contract/project-rules.test.ts`, et mise à jour de `USER_GUIDE.md`.
+
+### Performance & Fluidité du Changement de Sujet en Délibération
+- **Client LLMOps (`src/lib/server/llmops/client.ts`) & Conformité (`src/lib/server/compliance/complianceService.ts`)** :
+  - Mise en cache (`cachedFetch`) et suppression des appels abusifs à `invalidateCache()` en lecture sur `getDoctrineContext()`, `checkOption()` et `getFrameworkCoverage()`, tout en évitant la mise en cache des replis hors-ligne.
+  - Parallélisation via `Promise.all` des vérifications d'options (`checkOption`) et de la couverture des référentiels dans `checkSubjectCompliance()`.
+- **Endpoint Agrégé & Découplage (`src/routes/api/projects/[projectId]/subjects/[subjectId]/workbench/+server.ts`, `maturityCriteriaService.ts`, `arbitrationDb.ts`)** :
+  - Nouvel endpoint `GET /workbench` agrégeant en une seule requête SQLite/Prisma locale le fil d'arguments, les options, les critères, les évaluations, les compromis, la décision et le rapport de maturité sans bloquer sur LLMOps.
+- **Composants IHM (`DeliberationWorkbench.svelte`, `SubjectThreadView.svelte`, `OptionsMatrix.svelte`)** :
+  - Suppression du double montage simultané mobile/desktop de `SubjectThreadView` dans `DeliberationWorkbench.svelte`.
+  - Chargement non-bloquant de `cascade` et `doctrine-context`, annulation des requêtes obsolètes (`AbortController`), cache client *stale-while-revalidate* par sujet et par signature d'options pour `/compliance`, et suppression de la requête redondante sur `/subjects/[subjectId]` depuis `OptionsMatrix`.
+- **Tests & Documentation** :
+  - Ajout de `tests/contract/deliberation-subject-switch-perf.test.ts` (cache LLMOps non destructif en lecture, parallélisation de `checkSubjectCompliance`, endpoint `/workbench`, montage unique dans `DeliberationWorkbench`).
+  - Mise à jour de `ARCHITECTURE.md` (Section 11.4).
+
+### Micro-App Studio Admin des Réflexes d'Architecture (`/admin/reflexes`)
+- **Persistance & Cycle de Vie en Base (`prisma/schema.prisma`, `src/lib/server/rules/reflexCatalogService.ts`)** :
+  - Ajout des modèles `ReflexRule` (`draft` | `published` | `deprecated`, versioning automatique, `semanticHints`, domaine) et `FactVocabularyEntry` (valeurs canoniques + synonymes/alias), initialisés paresseusement depuis le socle par défaut.
+  - Raccordement de `projectRulesService.ts` et `cascadeService.ts` sur les réflexes publiés en base : **tous** les réflexes publiés (y compris ceux créés depuis le Studio Admin) déclenchent dynamiquement les cascades projet.
+- **Normalisation par Synonymes, Filet Sémantique & Détection de Recouvrements (`src/lib/domain/reflexStudio.ts`, `src/lib/domain/projectRules.ts`)** :
+  - `normalizeFactValue()` et `evaluateCondition()` résolvent les alias (ex. `active-active` → `actif/actif`, `2 sites` → `2`, `SecNumCloud 3.2` → `secnumcloud`).
+  - Ajout de `extractFactsHeuristicallyFromText()`, `evaluateSemanticReflexMatch()` et `detectOverlappingReflexes()`.
+- **Micro-App Admin & API (`src/routes/admin/reflexes/`, `src/routes/api/admin/reflexes/`)** :
+  - Interface réservée au rôle `admin` (entrée **Studio Réflexes** dans le menu admin) avec 4 onglets : Catalogue & Éditeur No-Code, Bac à sable & Replay historique anonymisé, Vocabulaire & Synonymes, Signaux terrain & Promotion des angles morts IA.
+- **Tests & Documentation** :
+  - Ajout de `tests/contract/admin-reflexes-studio.test.ts` (4 scénarios : normalisation, heuristique/sémantique/recouvrement, garde RBAC 403, cycle complet brouillon → publication → révision → cascade → simulation) et mise à jour de `USER_GUIDE.md`.
+
+### Concentration de l'Oracle EDP exclusivement en Phase 4 (`SubjectThreadView`, `Phase4RefinementHub`)
+- Suppression de l'onglet `🧪 Oracle EDP` (`tab-unified-edp` / `renderEdpPane`) et des encarts `EdpCard` intégrés dans l'espace de délibération (`src/lib/components/deliberation/SubjectThreadView.svelte`), ainsi que du relais `isExperimentalEnabled` devenu superflu dans `DeliberationWorkbench.svelte` et `src/routes/deliberation/+page.svelte`.
+- L'évaluation par l'Oracle OPA, le raffinement KAOS multi-axes et l'hydratation EDP sont désormais accessibles uniquement dans l'atelier dédié **Phase 4 · Raffinement** (`Phase4RefinementHub.svelte`).
+- Mise à jour des tests de contrat (`tests/contract/edp-ui-integration.test.ts`, `tests/contract/deliberation-conversation.test.ts`) et du guide utilisateur (`USER_GUIDE.md`).
 ### Correctif Parseur Mermaid sur `linkStyle` & `classDef` (`src/lib/domain/impactGraph.ts`)
 - Suppression du point-virgule final (`;`) sur les directives `linkStyle` et `classDef` contenant des codes couleur hexadécimaux (`#78350f;`), évitant leur réécriture par le préprocesseur `encodeEntities` (`/#\w+;/g`) de Mermaid v12 (`ﬂ°78350f¶ß`).
 - Ajout d'une assertion de non-régression dans `tests/contract/impact-graph.test.ts`.

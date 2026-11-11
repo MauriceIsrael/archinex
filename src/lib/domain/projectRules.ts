@@ -1,4 +1,9 @@
 import type { KbCandidate } from '$lib/types/llmops';
+import {
+	normalizeFactValue,
+	DEFAULT_FACT_VOCABULARY_ITEMS,
+	type FactVocabularyItem
+} from './reflexStudio';
 
 export type RuleOperator = 'eq' | 'neq' | 'gte' | 'lte' | 'in';
 
@@ -163,40 +168,42 @@ export function validateRuleConditionsVocabulary(conditions: RuleCondition[]): {
 }
 
 /**
- * Évalue une condition unitaire sur un fait donné.
+ * Évalue une condition unitaire sur un fait donné, avec normalisation canonique (alias/synonymes).
  */
 export function evaluateCondition(
 	condition: RuleCondition,
-	factValue: string | undefined
+	factValue: string | undefined,
+	vocabulary: FactVocabularyItem[] = DEFAULT_FACT_VOCABULARY_ITEMS
 ): boolean {
 	if (factValue === undefined) {
 		return false;
 	}
 
-	const normalizedFact = String(factValue).trim().toLowerCase();
+	const normalizedFact = normalizeFactValue(condition.key, String(factValue), vocabulary).canonical;
+	const normalizedTarget = normalizeFactValue(condition.key, String(condition.value), vocabulary).canonical;
 	const op = condition.op;
 
 	switch (op) {
 		case 'eq':
-			return normalizedFact === String(condition.value).trim().toLowerCase();
+			return normalizedFact === normalizedTarget;
 		case 'neq':
-			return normalizedFact !== String(condition.value).trim().toLowerCase();
+			return normalizedFact !== normalizedTarget;
 		case 'gte': {
 			const factNum = parseFloat(normalizedFact);
-			const targetNum = parseFloat(String(condition.value));
+			const targetNum = parseFloat(normalizedTarget);
 			return !isNaN(factNum) && !isNaN(targetNum) && factNum >= targetNum;
 		}
 		case 'lte': {
 			const factNum = parseFloat(normalizedFact);
-			const targetNum = parseFloat(String(condition.value));
+			const targetNum = parseFloat(normalizedTarget);
 			return !isNaN(factNum) && !isNaN(targetNum) && factNum <= targetNum;
 		}
 		case 'in': {
 			const targetList = Array.isArray(condition.value)
-				? condition.value.map((v) => String(v).trim().toLowerCase())
+				? condition.value.map((v) => normalizeFactValue(condition.key, String(v), vocabulary).canonical)
 				: String(condition.value)
 						.split(',')
-						.map((v) => v.trim().toLowerCase());
+						.map((v) => normalizeFactValue(condition.key, v, vocabulary).canonical);
 			return targetList.includes(normalizedFact);
 		}
 		default:
@@ -210,7 +217,8 @@ export function evaluateCondition(
  */
 export function evaluateRuleConditions(
 	conditions: RuleCondition[],
-	facts: Array<{ key: string; value: string }>
+	facts: Array<{ key: string; value: string }>,
+	vocabulary: FactVocabularyItem[] = DEFAULT_FACT_VOCABULARY_ITEMS
 ): boolean {
 	if (!conditions || conditions.length === 0) return false;
 
@@ -221,7 +229,7 @@ export function evaluateRuleConditions(
 
 	for (const cond of conditions) {
 		const factVal = factsMap.get(cond.key);
-		if (!evaluateCondition(cond, factVal)) {
+		if (!evaluateCondition(cond, factVal, vocabulary)) {
 			return false;
 		}
 	}

@@ -782,28 +782,33 @@ export class LLMOpsClient {
     max_items?: number;
     max_chars?: number;
   } = {}): Promise<DoctrineContext> {
-    try {
-      const q = new URLSearchParams();
-      if (params.subject) q.set('subject', params.subject);
-      if (params.domains && params.domains.length > 0) q.set('domains', params.domains.join(','));
-      if (params.frameworks && params.frameworks.length > 0) q.set('frameworks', params.frameworks.join(','));
-      if (params.max_items) q.set('max_items', String(params.max_items));
-      if (params.max_chars) q.set('max_chars', String(params.max_chars));
+    const q = new URLSearchParams();
+    if (params.subject) q.set('subject', params.subject);
+    if (params.domains && params.domains.length > 0) q.set('domains', params.domains.join(','));
+    if (params.frameworks && params.frameworks.length > 0) q.set('frameworks', params.frameworks.join(','));
+    if (params.max_items) q.set('max_items', String(params.max_items));
+    if (params.max_chars) q.set('max_chars', String(params.max_chars));
 
-      const url = `${this.baseUrl}/api/knowledge/context?${q.toString()}`;
-      const res = await this.fetchWithTimeout(url, { headers: this.getHeaders() });
-      if (res.ok) {
-        this.invalidateCache();
-        const body = await res.json();
-        const data = (body.data || body) as DoctrineContext;
-        return { ...data, offline: false };
+    const cacheKey = `kb:doctrine-context:${q.toString()}`;
+    const live = await this.cachedFetch<DoctrineContext | null>(cacheKey, async () => {
+      try {
+        const url = `${this.baseUrl}/api/knowledge/context?${q.toString()}`;
+        const res = await this.fetchWithTimeout(url, { headers: this.getHeaders() });
+        if (res.ok) {
+          const body = await res.json();
+          const data = (body.data || body) as DoctrineContext;
+          return { ...data, offline: false };
+        }
+        // Hub joignable mais requête refusée (paramètre manquant, jeton…) : à distinguer d'une indisponibilité.
+        const detail = await res.text().catch(() => '');
+        console.warn(`[LLMOps] Contexte de doctrine refusé (HTTP ${res.status}) : ${detail.slice(0, 200)}`);
+      } catch {
+        // Live unreachable -> fallback offline
       }
-      // Hub joignable mais requête refusée (paramètre manquant, jeton…) : à distinguer d'une indisponibilité.
-      const detail = await res.text().catch(() => '');
-      console.warn(`[LLMOps] Contexte de doctrine refusé (HTTP ${res.status}) : ${detail.slice(0, 200)}`);
-    } catch {
-      // Live unreachable -> fallback offline
-    }
+      return null;
+    });
+
+    if (live) return live;
 
     // Repli hors ligne scellé : filtre l'instantané scellé par termes et domaines
     return this.getDoctrineContextOffline(params);
@@ -845,28 +850,45 @@ export class LLMOpsClient {
     domains?: string[];
     frameworks?: string[];
   }): Promise<CheckResult> {
-    try {
-      const url = `${this.baseUrl}/api/knowledge/check`;
-      const bodyPayload = {
-        ...params,
-        // Le juge de LLMOps lit title, description et statements : le résumé d'Archinex doit arriver en description
-        option: { ...params.option, description: params.option.summary },
-        domain: params.domain || (params.domains && params.domains[0])
-      };
-      const res = await this.fetchWithTimeout(url, {
-        method: 'POST',
-        headers: this.getHeaders(),
-        body: JSON.stringify(bodyPayload)
-      });
-      if (res.ok) {
-        this.invalidateCache();
-        const body = await res.json();
-        const data = (body.data || body) as CheckResult;
-        return { ...data, offline: false };
+    const domain = params.domain || (params.domains && params.domains[0]);
+    const cacheKey = `compliance:check:${JSON.stringify({
+      subject: params.subject ?? '',
+      domain: domain ?? '',
+      frameworks: [...(params.frameworks ?? [])].sort(),
+      option: {
+        id: params.option.id,
+        title: params.option.title,
+        summary: params.option.summary,
+        kbRefs: [...(params.option.kbRefs ?? [])].sort()
       }
-    } catch {
-      // Live unreachable -> fallback offline
-    }
+    })}`;
+
+    const live = await this.cachedFetch<CheckResult | null>(cacheKey, async () => {
+      try {
+        const url = `${this.baseUrl}/api/knowledge/check`;
+        const bodyPayload = {
+          ...params,
+          // Le juge de LLMOps lit title, description et statements : le résumé d'Archinex doit arriver en description
+          option: { ...params.option, description: params.option.summary },
+          domain
+        };
+        const res = await this.fetchWithTimeout(url, {
+          method: 'POST',
+          headers: this.getHeaders(),
+          body: JSON.stringify(bodyPayload)
+        });
+        if (res.ok) {
+          const body = await res.json();
+          const data = (body.data || body) as CheckResult;
+          return { ...data, offline: false };
+        }
+      } catch {
+        // Live unreachable -> fallback offline
+      }
+      return null;
+    });
+
+    if (live) return live;
 
     // Repli hors-ligne : renvoie tout en unassessed, avec offline: true. Ne jamais inventer de verdict.
     const kbRefs = params.option.kbRefs || [];
@@ -897,34 +919,39 @@ export class LLMOpsClient {
    */
   async getFrameworkCoverage(engagement?: string): Promise<FrameworkCoverage> {
     const remoteEng = this.resolveRemoteEngagement(engagement || this.defaultEngagement);
-    try {
-      const url = `${this.baseUrl}/api/compliance/frameworks/applicable?engagement=${encodeURIComponent(remoteEng)}`;
-      const res = await this.fetchWithTimeout(url, { headers: this.getHeaders(remoteEng) });
-      if (res.ok) {
-        this.invalidateCache();
-        const body = await res.json();
-        const data = body.data || body;
-        // Format servi par LLMOps : { applicable_frameworks, coverage: { NIS2: { status, expected, validated, missing_ids } } }
-        if (data && typeof data.coverage === 'object' && data.coverage !== null) {
-          const frameworks = Object.entries(data.coverage as Record<string, any>).map(([name, c]) => ({
-            name,
-            required: true,
-            status: (['covered', 'partial', 'missing'].includes(c?.status) ? c.status : 'unknown') as FrameworkStatus['status'],
-            covered_count: c?.validated ?? 0,
-            total_count: c?.expected ?? 0,
-            missing_clauses: Array.isArray(c?.missing_ids) ? c.missing_ids : []
-          }));
-          const overall: FrameworkCoverage['overall_coverage'] = frameworks.length === 0
-            ? 'unknown'
-            : frameworks.every((f) => f.status === 'covered') ? 'covered'
-            : frameworks.some((f) => f.status === 'missing') ? 'missing' : 'partial';
-          return { frameworks, overall_coverage: overall, checked_at: new Date().toISOString(), offline: false };
+    const cacheKey = `compliance:coverage:${remoteEng}`;
+    const live = await this.cachedFetch<FrameworkCoverage | null>(cacheKey, async () => {
+      try {
+        const url = `${this.baseUrl}/api/compliance/frameworks/applicable?engagement=${encodeURIComponent(remoteEng)}`;
+        const res = await this.fetchWithTimeout(url, { headers: this.getHeaders(remoteEng) });
+        if (res.ok) {
+          const body = await res.json();
+          const data = body.data || body;
+          // Format servi par LLMOps : { applicable_frameworks, coverage: { NIS2: { status, expected, validated, missing_ids } } }
+          if (data && typeof data.coverage === 'object' && data.coverage !== null) {
+            const frameworks = Object.entries(data.coverage as Record<string, any>).map(([name, c]) => ({
+              name,
+              required: true,
+              status: (['covered', 'partial', 'missing'].includes(c?.status) ? c.status : 'unknown') as FrameworkStatus['status'],
+              covered_count: c?.validated ?? 0,
+              total_count: c?.expected ?? 0,
+              missing_clauses: Array.isArray(c?.missing_ids) ? c.missing_ids : []
+            }));
+            const overall: FrameworkCoverage['overall_coverage'] = frameworks.length === 0
+              ? 'unknown'
+              : frameworks.every((f) => f.status === 'covered') ? 'covered'
+              : frameworks.some((f) => f.status === 'missing') ? 'missing' : 'partial';
+            return { frameworks, overall_coverage: overall, checked_at: new Date().toISOString(), offline: false };
+          }
+          return { ...(data as FrameworkCoverage), frameworks: data?.frameworks ?? [], offline: false };
         }
-        return { ...(data as FrameworkCoverage), frameworks: data?.frameworks ?? [], offline: false };
+      } catch {
+        // Live unreachable -> fallback offline
       }
-    } catch {
-      // Live unreachable -> fallback offline
-    }
+      return null;
+    });
+
+    if (live) return live;
 
     return {
       frameworks: [],

@@ -623,4 +623,75 @@ describe('Projections dynamiques d\'architecture (No Doc Drift - Issue #64)', ()
 		expect(seq).toContain('Témoin de Quorum (Tie-Breaker)');
 		expect(seq).toContain('Gendarmerie Nationale');
 	});
+
+	it('19. Chaîne de déploiement Survie Edge : modélise l\'épreuve d\'îlotage et la resynchronisation au retour du backhaul', () => {
+		const subject: MaturitySubject = {
+			id: 'sub-edge-seq',
+			section_ref: '§3.2',
+			name: 'Bulle tactique projetable',
+			level: 'L3_decided',
+			blocking_count: 0,
+			unlocks_count: 0,
+			waiting_for_role: 'lead_architect',
+			relative_effort: 'M',
+			last_transition_date: '2026-11-11T00:00:00Z',
+			stall_days: 0,
+			is_stalled: false,
+			dependent_subject_ids: []
+		};
+
+		const context: ProjectionContext = {
+			projectId: 'tactical-edge',
+			projectName: 'Système Edge Tactique',
+			decision: {
+				retainedOptionId: 'opt-edge-survie',
+				retainedOptionTitle: 'Survie locale Edge autonome en mode îlotage',
+				rationale: 'Maintien des communications de groupe locales sans dépendance centrale.'
+			}
+		};
+
+		const seq = generateDeploymentSequenceDiagram(subject, null, [], context);
+
+		expect(seq).toContain('sequenceDiagram');
+		expect(seq).toContain('Phase 1 : Préparation & Signature du Profil de Mission');
+		expect(seq).toContain('Phase 2 : Déploiement & Initialisation sur Site Tactique');
+		expect(seq).toContain('Phase 3 : Épreuve d\'Îlotage (Validation Survie Autonome)');
+		expect(seq).toContain('Phase 4 : Rétablissement & Resynchronisation');
+		expect(seq).toContain('Bulle Tactique Locale (Matériel Projetable)');
+	});
+
+	it('20. Chaîne de déploiement Passerelle IWF/LMR : modélise la double écoute audio et la migration progressive', () => {
+		const subject: MaturitySubject = {
+			id: 'sub-iwf-seq',
+			section_ref: '§7.4',
+			name: 'Migration radio LMR vers 3GPP',
+			level: 'L3_decided',
+			blocking_count: 0,
+			unlocks_count: 0,
+			waiting_for_role: 'lead_architect',
+			relative_effort: 'M',
+			last_transition_date: '2026-11-11T00:00:00Z',
+			stall_days: 0,
+			is_stalled: false,
+			dependent_subject_ids: []
+		};
+
+		const context: ProjectionContext = {
+			projectId: 'interop-pmr',
+			projectName: 'Passerelle LMR Cible',
+			decision: {
+				retainedOptionId: 'opt-iwf',
+				retainedOptionTitle: 'Passerelle d\'interconnexion hybride IWF TETRA vers MCX',
+				rationale: 'Migration progressive avec transcodage ACELP vers AMR-WB sans interruption.'
+			}
+		};
+
+		const seq = generateDeploymentSequenceDiagram(subject, null, [], context);
+
+		expect(seq).toContain('sequenceDiagram');
+		expect(seq).toContain('Phase 1 : Provisioning & Configuration des Passerelles');
+		expect(seq).toContain('Phase 2 : Établissement du Pont Audio (Double Écoute)');
+		expect(seq).toContain('Phase 3 : Migration Progressive sans Rupture');
+		expect(seq).toContain('Passerelle d\'Interconnexion IWF (3GPP TS 29.314)');
+	});
 });

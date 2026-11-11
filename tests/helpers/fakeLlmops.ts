@@ -73,6 +73,7 @@ export interface FakeLlmopsState {
   checkClauses: CheckClauseRow[];
   mandatoryWithoutClause?: MandatoryControlWithoutClause[];
   evalDatasets: Record<string, EvalDataset>;
+  ontology?: any;
   verdictFeedbacks: VerdictFeedbackItem[];
   publications: KbPublication[];
   campaigns: KbCampaign[];
@@ -1098,6 +1099,27 @@ export async function startFakeLlmopsServer(initialState?: Partial<FakeLlmopsSta
       return json(200, {
         status: 'ok',
         data: state.health
+      });
+    }
+
+    // Ontology export: GET /api/knowledge/ontology/export
+    if (pathname === '/api/knowledge/ontology/export' && method === 'GET') {
+      const ont = state.ontology || {
+        catalog_version: '1.0',
+        generated_at: new Date().toISOString(),
+        entities: {
+          'urn:archinex:ontology:infrastructure:server:baremetal': {
+            urn: 'urn:archinex:ontology:infrastructure:server:baremetal',
+            revision: 1,
+            kind: 'concept',
+            title: 'Serveur Baremetal Hub LLMOps'
+          }
+        },
+        triplets: []
+      };
+      return json(200, {
+        status: 'ok',
+        data: ont
       });
     }
 

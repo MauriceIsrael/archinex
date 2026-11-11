@@ -12,7 +12,7 @@ describe('Contract: Distinction 403 non-enregistré / 401 / 503 & maintien pasti
   let originalBaseUrl: string | undefined;
 
   const registeredEmail = 'maint@example.org';
-  const unregisteredEmail = 'admin@archinex.local';
+  const unregisteredEmail = 'unknown-ghost-expert@archinex.local';
 
   beforeAll(async () => {
     fakeLlmops = await startFakeLlmopsServer({

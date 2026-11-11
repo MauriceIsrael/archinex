@@ -422,6 +422,10 @@ export class LLMOpsClient {
     this.invalidateCache();
   }
 
+  getBaseUrl(): string {
+    return this.baseUrl;
+  }
+
   /**
    * Vérifie si une URL appartient strictement au réseau local ou à la machine hôte.
    * Tout domaine cloud externe (GCP, AWS, Azure, internet public) est bloqué par défaut.
@@ -753,6 +757,19 @@ export class LLMOpsClient {
     } catch (e: any) {
       throw e;
     }
+  }
+
+  /**
+   * Export du catalogue d'ontologie SI et relations depuis le Knowledge Hub (GET /api/knowledge/ontology/export)
+   */
+  async getOntologyExport(): Promise<any> {
+    const url = `${this.baseUrl}/api/knowledge/ontology/export`;
+    const res = await this.fetchWithTimeout(url, { headers: this.getHeaders() });
+    if (!res.ok) {
+      throw new Error(`Knowledge Hub indisponible pour l'ontologie : code HTTP ${res.status}`);
+    }
+    const json = await res.json();
+    return json.data || json;
   }
 
   /**

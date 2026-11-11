@@ -1,3 +1,5 @@
+import { readFileSync, existsSync } from 'node:fs';
+import { resolve } from 'node:path';
 import { llmopsClient } from '$lib/server/llmops/client';
 import type {
 	DoctrineContext,
@@ -9,9 +11,93 @@ import type {
 } from '$lib/types/llmops';
 
 export class DoctrineService {
+	private cachedSealedSnapshot: any = null;
+
+	private getSealedSnapshot(): any {
+		if (this.cachedSealedSnapshot) return this.cachedSealedSnapshot;
+		const snapshotPath = resolve(process.cwd(), 'tests/fixtures/llmops/llmops-sealed-snapshot.json');
+		if (existsSync(snapshotPath)) {
+			try {
+				this.cachedSealedSnapshot = JSON.parse(readFileSync(snapshotPath, 'utf-8').replace(/^﻿/, ''));
+				return this.cachedSealedSnapshot;
+			} catch {
+				// ignore
+			}
+		}
+		return null;
+	}
+
 	/**
-	 * Récupère le contexte doctrinal applicable depuis LLMOps (ou le snapshot offline si déconnecté).
-	 * Zéro règle en dur dans le code source.
+	 * Charge les règles doctrinales depuis le snapshot scellé en environnement hors-ligne/test.
+	 * En production, cette méthode retourne un tableau vide.
+	 */
+	loadOfflineDoctrineFixtures(params: {
+		subject?: string;
+		domains?: string[];
+		frameworks?: string[];
+		maxItems?: number;
+	} = {}): DoctrineItem[] {
+		if (process.env.NODE_ENV === 'production') {
+			return [];
+		}
+
+		const snapshot = this.getSealedSnapshot();
+		if (!snapshot || !Array.isArray(snapshot.assets)) {
+			return [];
+		}
+
+		let filtered = snapshot.assets.filter((a: any) => a.status === 'active' || !a.status);
+
+		if (params.domains && params.domains.length > 0) {
+			const requestedDomains = params.domains.map((d) => d.toLowerCase());
+			filtered = filtered.filter((a: any) => {
+				const assetDomains = (a.domain || '').toLowerCase().split(',').map((d: string) => d.trim());
+				return requestedDomains.some((rd) => assetDomains.includes(rd));
+			});
+		}
+
+		if (params.subject) {
+			const terms = params.subject
+				.toLowerCase()
+				.split(/\s+/)
+				.filter((w) => w.length > 2);
+			if (terms.length > 0) {
+				const matched = filtered.filter((a: any) => {
+					const text = `${a.id} ${a.title || ''} ${a.domain || ''}`.toLowerCase();
+					return terms.some((t) => text.includes(t));
+				});
+				if (matched.length > 0) {
+					filtered = matched;
+				}
+			}
+		}
+
+		const items: DoctrineItem[] = filtered.map((a: any) => {
+			const rawType = (a.type || 'rule').toLowerCase();
+			const mappedType: DoctrineItem['type'] =
+				rawType === 'decision' ? 'adr' :
+				rawType === 'principle' ? 'principle' :
+				rawType === 'pattern' ? 'pattern' :
+				rawType === 'standard' ? 'standard' : 'rule';
+
+			return {
+				id: a.id,
+				type: mappedType,
+				title: a.title || a.id,
+				content: a.title || a.id,
+				domain: a.domain,
+				confidence: a.confidence || 'verified'
+			};
+		});
+
+		const max = params.maxItems || 20;
+		return items.slice(0, max);
+	}
+
+	/**
+	 * Récupère le contexte doctrinal applicable depuis LLMOps (priorité absolue au Hub REST/MCP).
+	 * En environnement hors-ligne/test, active un fallback propre sur les fixtures scellées.
+	 * En production, aucun repli gracieux n'est autorisé en cas d'indisponibilité.
 	 */
 	async getDoctrineContext(params: {
 		topics?: string[];
@@ -24,13 +110,41 @@ export class DoctrineService {
 		maxChars?: number;
 	} = {}): Promise<DoctrineContext> {
 		const subject = params.topics && params.topics.length > 0 ? params.topics.join(' ') : params.projectType;
-		return llmopsClient.getDoctrineContext({
+		const ctx = await llmopsClient.getDoctrineContext({
 			subject,
 			domains: params.domains,
 			frameworks: params.frameworks,
 			max_items: params.maxItems,
 			max_chars: params.maxChars
 		});
+
+		// 1. Si le Hub distant répond en live avec des règles, retour direct (priorité absolue)
+		if (!ctx.offline && ctx.items && ctx.items.length > 0) {
+			return ctx;
+		}
+
+		// 2. En mode hors-ligne / test (hors production), repli propre sur les fixtures scellées
+		if (process.env.NODE_ENV !== 'production' && (ctx.offline || ctx.items.length === 0)) {
+			const fallbackItems = this.loadOfflineDoctrineFixtures({
+				subject,
+				domains: params.domains,
+				frameworks: params.frameworks,
+				maxItems: params.maxItems
+			});
+			if (fallbackItems.length > 0) {
+				return {
+					subject,
+					domains: params.domains,
+					frameworks: params.frameworks,
+					items: fallbackItems,
+					total_items: fallbackItems.length,
+					truncated: false,
+					offline: true
+				};
+			}
+		}
+
+		return ctx;
 	}
 
 	/**
@@ -66,15 +180,15 @@ export class DoctrineService {
 	/**
 	 * Soumet un candidat à la base de connaissances LLMOps (Porte G4)
 	 */
-	async submitKbCandidate(candidate: KbCandidate): Promise<{ candidate_id: string; status: string }> {
-		return llmopsClient.submitCandidate(candidate);
+	async submitKbCandidate(candidate: KbCandidate, actorEmail?: string): Promise<{ candidate_id: string; status: string }> {
+		return llmopsClient.submitCandidate(candidate, actorEmail);
 	}
 
 	/**
 	 * Récupère la liste des candidats de doctrine pour un engagement ou une source
 	 */
-	async listKbCandidates(filter: { source?: string; engagement?: string } = {}): Promise<KbCandidate[]> {
-		return llmopsClient.listCandidates(filter);
+	async listKbCandidates(filter: { source?: string; engagement?: string } = {}, actorEmail?: string): Promise<KbCandidate[]> {
+		return llmopsClient.listCandidates(filter, actorEmail);
 	}
 
 	/**

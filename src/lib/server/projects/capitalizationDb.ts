@@ -244,7 +244,8 @@ export async function submitSubjectKbCandidates(
 		};
 		payload.proposed_content = formatCandidateProposedContent(payload);
 
-		const res = await doctrineService.submitKbCandidate(payload);
+		const actorEmail = (actor as any).email || (actor.userId?.includes('@') ? actor.userId : undefined);
+		const res = await doctrineService.submitKbCandidate(payload, actorEmail);
 		submittedResults.push({
 			id: cand.id,
 			candidate_id: res.candidate_id,
@@ -305,7 +306,7 @@ export async function submitSubjectKbCandidates(
 /**
  * Récupère le statut des candidats KB soumis pour un sujet.
  */
-export async function getSubjectKbCandidatesStatus(subjectId: string): Promise<{
+export async function getSubjectKbCandidatesStatus(subjectId: string, actorEmail?: string): Promise<{
 	decisionId?: string;
 	candidateIds: string[];
 	candidates: KbCandidate[];
@@ -327,7 +328,7 @@ export async function getSubjectKbCandidatesStatus(subjectId: string): Promise<{
 	const remoteCandidates = await doctrineService.listKbCandidates({
 		source: 'archinex',
 		engagement: subject.projectId
-	});
+	}, actorEmail);
 
 	// Filtrage des candidats associés au sujet ou dont l'id figure dans candidateIds
 	const matched = remoteCandidates

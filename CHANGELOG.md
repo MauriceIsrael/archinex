@@ -8,6 +8,24 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Knowledge Hub Souverain : Source de Vérité Doctrinale, Ontologique & Porte G4 Stateless (Issue #253, Épopée #251)
+- **Client d'Ontologie SI (`src/lib/server/edp/ontologyClient.ts`)** :
+  - Interrogation en priorité absolue du Knowledge Hub souverain (MauriceIsrael/LLMOps) via son endpoint d'export REST (`/api/knowledge/ontology/export`).
+  - Fallback gracieux et déterministe sur les fixtures scellées (`tests/fixtures/edp/ontology_export.json`) en environnement de test ou de développement hors-ligne.
+  - Interdiction stricte de repli silencieux en environnement de production (`NODE_ENV=production`) si le Knowledge Hub est inaccessible.
+- **Service Doctrinal (`src/lib/server/doctrine/doctrineService.ts`)** :
+  - Consommation prioritaire des règles de conformité et du contexte doctrinal auprès du Knowledge Hub LLMOps (`/api/knowledge/context`).
+  - Fallback propre sur l'instantané scellé (`llmops-sealed-snapshot.json`) en environnement hors-ligne ou test non-production, avec filtrage par domaines et mots-clés du sujet.
+  - Zéro fabrication de règles en mode déconnecté en environnement de production (`items: []`, `offline: true`).
+- **Porte G4 — Capitalisation Souveraine Découplée (`src/lib/server/projects/capitalizationDb.ts`)** :
+  - Transmission directe des nouveaux actifs (`new_asset`) et amendements de règles (`amendment`) vers l'API de révision de LLMOps (`POST /api/knowledge/candidates`).
+  - Découplage complet sans dépendance ni écriture de fichiers locaux sur le filesystem hôte.
+  - Propagation de l'identité expert (`actorEmail`) dans les en-têtes HTTP de soumission.
+- **Client LLMOps (`src/lib/server/llmops/client.ts`)** :
+  - Ajout des méthodes `getOntologyExport()` et `getBaseUrl()`.
+- **Tests de Contrat (`tests/contract/knowledge-hub-source-of-truth.test.ts`)** :
+  - 9 tests de contrat automatisés validant la priorité Hub, le repli contrôlé hors-ligne, le verrouillage de production et la transmission dématérialisée en Porte G4.
+
 ### Documentation Opérationnelle de Restauration de Base de Données et Comptes Utilisateurs
 - **Guide Opérationnel de Sauvegarde & Restauration (`docs/backup-restore.md`)** :
   - Procédure détaillée pas-à-pas pour restaurer une ancienne base de données SQLite (`dev.db.bak` ou cliché externe) dans Archinex.

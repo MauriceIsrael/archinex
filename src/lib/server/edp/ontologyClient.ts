@@ -6,7 +6,8 @@ export type OntologyPredicate =
   | 'implemented_by'
   | 'depends_on'
   | 'constrains'
-  | 'conflicts_with';
+  | 'conflicts_with'
+  | 'satisfies_clause';
 
 export interface OntologyTriplet {
   id: string;
@@ -23,6 +24,7 @@ export interface OntologyEntity {
   title?: string;
   domain?: string;
   keywords?: string[];
+  governed_by_clauses?: string[];
   oracle_rules?: string[];
   hydration_template?: Record<string, unknown>;
   projections?: Record<string, unknown>;
@@ -60,6 +62,7 @@ export interface LoadOntologyOptions {
   hubUrl?: string;
   authToken?: string;
   includeRuntimeOverlay?: boolean;
+  fallbackToFixture?: boolean;
 }
 
 const DEFAULT_FIXTURE_PATH = resolve(process.cwd(), 'tests/fixtures/edp/ontology_export.json');
@@ -110,9 +113,28 @@ export function resetRuntimeOntologyOverlay(): void {
   }
 }
 
+function applyRuntimeOverlay(catalog: OntologyCatalog): OntologyCatalog {
+  const overlay = getRuntimeOverlay();
+  const mergedEntities: Record<string, OntologyEntity> = {
+    ...catalog.entities,
+    ...overlay.addedEntities
+  };
+  const baseTriplets = Array.isArray(catalog.triplets) ? catalog.triplets : [];
+  const mergedTriplets = [
+    ...baseTriplets.filter((t) => !overlay.deletedTripletIds.includes(t.id)),
+    ...overlay.addedTriplets.filter((t) => !overlay.deletedTripletIds.includes(t.id))
+  ];
+  return {
+    ...catalog,
+    entities: mergedEntities,
+    triplets: mergedTriplets
+  };
+}
+
 /**
- * Charge le catalogue d'ontologie depuis une source locale (mode fixture) ou le Knowledge Hub (Issue #173).
- * En cas d'indisponibilité du Hub, lève une erreur explicite sans jamais inventer de données.
+ * Charge le catalogue d'ontologie en interrogeant en priorité le Knowledge Hub LLMOps (REST / MCP),
+ * avec repli propre sur les fixtures en environnement hors-ligne ou de test (Issue #253).
+ * En production (NODE_ENV=production), tout repli est strictement interdit si le Hub est injoignable.
  */
 export async function loadOntologyCatalog(options: LoadOntologyOptions = {}): Promise<OntologyCatalog> {
   // 1. Mode Fixture explicite (tests contractuels isolés avec fixture dédiée passée en paramètre)
@@ -125,7 +147,7 @@ export async function loadOntologyCatalog(options: LoadOntologyOptions = {}): Pr
     if (!parsed || typeof parsed !== 'object' || !parsed.entities) {
       throw new Error('[OntologyClient] Structure d\'ontologie invalide (champ "entities" requis).');
     }
-    return parsed;
+    return options.includeRuntimeOverlay ? applyRuntimeOverlay(parsed) : parsed;
   }
 
   const isVitestTest = Boolean(process.env.VITEST) || process.env.NODE_ENV === 'test';
@@ -143,29 +165,37 @@ export async function loadOntologyCatalog(options: LoadOntologyOptions = {}): Pr
       headers['Authorization'] = `Bearer ${token}`;
     }
 
-    let res: Response;
     try {
-      res = await fetch(url, { headers });
+      const res = await fetch(url, { headers });
+      if (!res.ok) {
+        throw new Error(`code HTTP ${res.status} (${res.statusText})`);
+      }
+      const json = await res.json();
+      const payload = json.data || json;
+      if (!payload || typeof payload !== 'object' || !payload.entities) {
+        throw new Error("champ 'entities' manquant");
+      }
+      return options.includeRuntimeOverlay ? applyRuntimeOverlay(payload as OntologyCatalog) : (payload as OntologyCatalog);
     } catch (err: any) {
-      throw new Error(
-        `Knowledge Hub indisponible pour la synchronisation d’ontologie (${url}) : ${err.message}. Aucun repli silencieux autorisé.`
+      // Si une URL spécifique de Hub a été exigée par l'appelant sans autoriser le fallback, on propage l'erreur
+      if (options.hubUrl && !options.fallbackToFixture) {
+        throw new Error(
+          `Knowledge Hub indisponible pour la synchronisation d’ontologie (${url}) : ${err.message}. Aucun repli silencieux autorisé.`
+        );
+      }
+
+      // En production : interdiction absolue de repli silencieux sur fixture
+      if (process.env.NODE_ENV === 'production') {
+        throw new Error(
+          `[OntologyClient] Knowledge Hub indisponible (${url}) : ${err.message}. Conformément aux règles d'architecture et de non-complaisance, aucun mock en dur ni repli gracieux n'est autorisé en production.`
+        );
+      }
+
+      // En mode hors-ligne / test / dev : repli propre sur les fixtures
+      console.warn(
+        `[OntologyClient] Knowledge Hub distant injoignable (${url}), bascule propre sur les fixtures hors-ligne scellées.`
       );
     }
-
-    if (!res.ok) {
-      throw new Error(
-        `Knowledge Hub indisponible pour la synchronisation d’ontologie (${url}) : code HTTP ${res.status} (${res.statusText}). Aucun fallback gracieux.`
-      );
-    }
-
-    const json = await res.json();
-    if (!json || typeof json !== 'object' || !json.entities) {
-      throw new Error(
-        `Format de catalogue d’ontologie renvoyé par le Hub (${url}) invalide (champ 'entities' manquant).`
-      );
-    }
-
-    return json as OntologyCatalog;
   }
 
   // 3. En production (NODE_ENV=production) : interdiction absolue de fallback sur fixture
@@ -188,21 +218,7 @@ export async function loadOntologyCatalog(options: LoadOntologyOptions = {}): Pr
   }
 
   if (options.includeRuntimeOverlay) {
-    const overlay = getRuntimeOverlay();
-    const mergedEntities: Record<string, OntologyEntity> = {
-      ...parsed.entities,
-      ...overlay.addedEntities
-    };
-    const baseTriplets = Array.isArray(parsed.triplets) ? parsed.triplets : [];
-    const mergedTriplets = [
-      ...baseTriplets.filter((t) => !overlay.deletedTripletIds.includes(t.id)),
-      ...overlay.addedTriplets.filter((t) => !overlay.deletedTripletIds.includes(t.id))
-    ];
-    return {
-      ...parsed,
-      entities: mergedEntities,
-      triplets: mergedTriplets
-    };
+    return applyRuntimeOverlay(parsed);
   }
 
   return parsed;

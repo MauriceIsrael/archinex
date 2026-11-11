@@ -5,6 +5,7 @@
   import { invalidateAll } from '$app/navigation';
 
   import Shield from 'lucide-svelte/icons/shield';
+  import GitFork from 'lucide-svelte/icons/git-fork';
   import UserPlus from 'lucide-svelte/icons/user-plus';
   import Settings from 'lucide-svelte/icons/settings';
   import Trash2 from 'lucide-svelte/icons/trash-2';
@@ -117,10 +118,19 @@
       </div>
     </div>
 
-    <Button onclick={() => openCreateAccount(null)} class="gap-1.5">
-      <UserPlus class="h-4 w-4" />
-      <span>Nouveau compte</span>
-    </Button>
+    <div class="flex items-center gap-2">
+      <a
+        href="/admin/reflexes"
+        class="inline-flex items-center gap-1.5 rounded-md border px-3 py-2 text-xs font-semibold hover:bg-muted transition-colors"
+      >
+        <GitFork class="h-4 w-4 text-primary" />
+        <span>Studio Réflexes</span>
+      </a>
+      <Button onclick={() => openCreateAccount(null)} class="gap-1.5">
+        <UserPlus class="h-4 w-4" />
+        <span>Nouveau compte</span>
+      </Button>
+    </div>
   </div>
 
   <!-- Bandeau d'alerte si des responsables du registre LLMOps n'ont pas d'adresse e-mail ou de compte -->

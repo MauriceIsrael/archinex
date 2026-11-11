@@ -1145,27 +1145,27 @@ export function generateMermaidImpactDiagram(
 
 		if (edge.type === 'violates') {
 			lines.push(`    ${fromId} ==x ${edgeLabel} ${toId}`);
-			linkStyleDirectives.push(`    linkStyle ${edgeIndex} stroke:#dc2626,stroke-width:3px,color:#991b1b;`);
+			linkStyleDirectives.push(`    linkStyle ${edgeIndex} stroke:#dc2626,stroke-width:3px,color:#991b1b`);
 		} else if (edge.type === 'tradeoff_degrades') {
 			lines.push(`    ${fromId} -.-> ${edgeLabel} ${toId}`);
-			linkStyleDirectives.push(`    linkStyle ${edgeIndex} stroke:#d97706,stroke-width:2.5px,color:#92400e;`);
+			linkStyleDirectives.push(`    linkStyle ${edgeIndex} stroke:#d97706,stroke-width:2.5px,color:#92400e`);
 		} else if (edge.type === 'enforces') {
 			lines.push(`    ${fromId} ==> ${edgeLabel} ${toId}`);
-			linkStyleDirectives.push(`    linkStyle ${edgeIndex} stroke:#b45309,stroke-width:2.5px,color:#78350f;`);
+			linkStyleDirectives.push(`    linkStyle ${edgeIndex} stroke:#b45309,stroke-width:2.5px,color:#78350f`);
 		} else if (edge.type === 'satisfies') {
 			lines.push(`    ${fromId} --> ${edgeLabel} ${toId}`);
-			linkStyleDirectives.push(`    linkStyle ${edgeIndex} stroke:#059669,stroke-width:2px,color:#065f46;`);
+			linkStyleDirectives.push(`    linkStyle ${edgeIndex} stroke:#059669,stroke-width:2px,color:#065f46`);
 		} else {
 			lines.push(`    ${fromId} --- ${edgeLabel} ${toId}`);
-			linkStyleDirectives.push(`    linkStyle ${edgeIndex} stroke:#4f46e5,stroke-width:1.5px,color:#312e81;`);
+			linkStyleDirectives.push(`    linkStyle ${edgeIndex} stroke:#4f46e5,stroke-width:1.5px,color:#312e81`);
 		}
 		edgeIndex++;
 	}
 
-	// Styles CSS Mermaid (classDef + styles directs par nœud/sous-graphe + linkStyle)
+	// Styles CSS Mermaid (classDef + styles directs par nœud/sous-graphe + linkStyle, sans ';' final pour éviter le parseur #hex; de Mermaid)
 	lines.push('');
 	for (const [clsName, styleVal] of Object.entries(NODE_STYLES)) {
-		lines.push(`    classDef ${clsName} ${styleVal};`);
+		lines.push(`    classDef ${clsName} ${styleVal}`);
 	}
 	lines.push(...subgraphStyleDirectives);
 	lines.push(...nodeStyleDirectives);

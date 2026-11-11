@@ -8,6 +8,18 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Micro-App Studio Admin des Réflexes d'Architecture (`/admin/reflexes`)
+- **Persistance & Cycle de Vie en Base (`prisma/schema.prisma`, `src/lib/server/rules/reflexCatalogService.ts`)** :
+  - Ajout des modèles `ReflexRule` (`draft` | `published` | `deprecated`, versioning automatique, `semanticHints`, domaine) et `FactVocabularyEntry` (valeurs canoniques + synonymes/alias), initialisés paresseusement depuis le socle par défaut.
+  - Raccordement de `projectRulesService.ts` et `cascadeService.ts` sur les réflexes publiés en base : **tous** les réflexes publiés (y compris ceux créés depuis le Studio Admin) déclenchent dynamiquement les cascades projet.
+- **Normalisation par Synonymes, Filet Sémantique & Détection de Recouvrements (`src/lib/domain/reflexStudio.ts`, `src/lib/domain/projectRules.ts`)** :
+  - `normalizeFactValue()` et `evaluateCondition()` résolvent les alias (ex. `active-active` → `actif/actif`, `2 sites` → `2`, `SecNumCloud 3.2` → `secnumcloud`).
+  - Ajout de `extractFactsHeuristicallyFromText()`, `evaluateSemanticReflexMatch()` et `detectOverlappingReflexes()`.
+- **Micro-App Admin & API (`src/routes/admin/reflexes/`, `src/routes/api/admin/reflexes/`)** :
+  - Interface réservée au rôle `admin` (entrée **Studio Réflexes** dans le menu admin) avec 4 onglets : Catalogue & Éditeur No-Code, Bac à sable & Replay historique anonymisé, Vocabulaire & Synonymes, Signaux terrain & Promotion des angles morts IA.
+- **Tests & Documentation** :
+  - Ajout de `tests/contract/admin-reflexes-studio.test.ts` (4 scénarios : normalisation, heuristique/sémantique/recouvrement, garde RBAC 403, cycle complet brouillon → publication → révision → cascade → simulation) et mise à jour de `USER_GUIDE.md`.
+
 ### Concentration de l'Oracle EDP exclusivement en Phase 4 (`SubjectThreadView`, `Phase4RefinementHub`)
 - Suppression de l'onglet `🧪 Oracle EDP` (`tab-unified-edp` / `renderEdpPane`) et des encarts `EdpCard` intégrés dans l'espace de délibération (`src/lib/components/deliberation/SubjectThreadView.svelte`), ainsi que du relais `isExperimentalEnabled` devenu superflu dans `DeliberationWorkbench.svelte` et `src/routes/deliberation/+page.svelte`.
 - L'évaluation par l'Oracle OPA, le raffinement KAOS multi-axes et l'hydratation EDP sont désormais accessibles uniquement dans l'atelier dédié **Phase 4 · Raffinement** (`Phase4RefinementHub.svelte`).

@@ -2,7 +2,6 @@ import { prisma } from '../prisma';
 import type { ActorInfo } from '../projects/projectsDb';
 import { UnauthorizedArbitrationError } from '../projects/arbitrationDb';
 import {
-	DEFAULT_REFERENCE_RULES,
 	type ReferenceRule,
 	type ProjectRuleOverride,
 	type LocalRule,
@@ -12,6 +11,7 @@ import {
 	previewRuleEvaluation,
 	buildAnonymizedCandidateFromLocalRule
 } from '$lib/domain/projectRules';
+import { listPublishedReferenceRules } from './reflexCatalogService';
 import { doctrineService } from '$lib/server/doctrine/doctrineService';
 
 export function isDeciderRole(role: string): boolean {
@@ -63,8 +63,9 @@ export async function getProjectRules(projectId: string): Promise<{
 	const strategy = parseProjectStrategy(project);
 	const overrides = strategy.ruleOverrides || {};
 	const localRules = strategy.localRules || [];
+	const publishedRefRules = await listPublishedReferenceRules();
 
-	const referenceRules = DEFAULT_REFERENCE_RULES.map((refRule) => {
+	const referenceRules = publishedRefRules.map((refRule) => {
 		const override = overrides[refRule.id];
 		const status = override?.status === 'disabled' ? 'disabled' : 'active';
 		return {
@@ -116,7 +117,8 @@ export async function disableReferenceRule(params: {
 		throw new Error(`Projet ${projectId} introuvable.`);
 	}
 
-	const refRule = DEFAULT_REFERENCE_RULES.find((r) => r.id === ruleId);
+	const publishedRefRules = await listPublishedReferenceRules();
+	const refRule = publishedRefRules.find((r) => r.id === ruleId);
 	if (!refRule) {
 		throw new Error(`Règle de référence introuvable : ${ruleId}`);
 	}
@@ -452,7 +454,8 @@ export async function previewRuleAgainstProjectFacts(params: {
 		if (localRule) {
 			targetRule = localRule;
 		} else {
-			const refRule = DEFAULT_REFERENCE_RULES.find((r) => r.id === ruleId);
+			const publishedRefRules = await listPublishedReferenceRules();
+			const refRule = publishedRefRules.find((r) => r.id === ruleId);
 			if (refRule) {
 				targetRule = refRule;
 			}

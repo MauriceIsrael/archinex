@@ -84,21 +84,31 @@ export async function checkSubjectCompliance(projectId: string, subjectId: strin
 	let offline = false;
 	let unassessedCount = 0;
 	const violations: ComplianceViolation[] = [];
-	for (const option of options) {
-		const result = (await llmopsClient.checkOption({
-			option: { id: option.id, title: option.title, summary: option.summary, kbRefs: JSON.parse(option.kbRefs || '[]') },
-			subject: subject.name,
-			domain: subject.domain || undefined,
-			frameworks
-		})) as unknown as { verdicts?: RawVerdict[]; offline?: boolean };
+
+	const [optionResults, coverage] = await Promise.all([
+		Promise.all(
+			options.map(async (option) => {
+				const result = (await llmopsClient.checkOption({
+					option: { id: option.id, title: option.title, summary: option.summary, kbRefs: JSON.parse(option.kbRefs || '[]') },
+					subject: subject.name,
+					domain: subject.domain || undefined,
+					frameworks
+				})) as unknown as { verdicts?: RawVerdict[]; offline?: boolean };
+				return { optionId: option.id, result };
+			})
+		),
+		getProjectFrameworks(projectId).catch(() => ({ frameworks: [] }))
+	]);
+
+	for (const { optionId, result } of optionResults) {
 		if (result.offline) {
 			offline = true;
 			continue;
 		}
 		const verdicts = result.verdicts ?? [];
 		unassessedCount = Math.max(unassessedCount, verdicts.filter((v) => v.verdict === 'unassessed').length);
-		violations.push(...toViolations(option.id, verdicts));
+		violations.push(...toViolations(optionId, verdicts));
 	}
-	const coverage = await getProjectFrameworks(projectId).catch(() => ({ frameworks: [] }));
+
 	return { frameworks, offline, violations, unassessedCount, coverageWarnings: coverageWarnings(coverage.frameworks).map((w) => w.message) };
 }

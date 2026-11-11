@@ -75,6 +75,93 @@ export function canArbitrateSubject(actor: ActorInfo, subjectDomain?: string | n
 }
 
 /**
+ * Normalise une ligne Decision Prisma en objet Decision métier (avec assertion K16 éventuelle).
+ */
+export async function parseSubjectDecision(
+	projectId: string,
+	rawDecision: {
+		id: string;
+		subjectId: string;
+		retainedOptionId: string;
+		rejected: string;
+		rationale: string;
+		reversibility: string;
+		acceptedViolations: string;
+		kbCandidateIds: string;
+		arbiterId: string;
+		arbiterRole: string;
+		decidedAt: Date;
+		version: number;
+	} | null | undefined,
+	assertionEventOverride?: { actorId: string } | null
+): Promise<{
+	parsedDecision: Decision | null;
+	acceptedViolationsFromDecision: Array<{ typedId: string; justification: string }>;
+}> {
+	if (!rawDecision) {
+		return { parsedDecision: null, acceptedViolationsFromDecision: [] };
+	}
+
+	const acceptedViolationsFromDecision: Array<{ typedId: string; justification: string }> = JSON.parse(
+		rawDecision.acceptedViolations || '[]'
+	);
+	const complianceEntry = acceptedViolationsFromDecision.find((v) =>
+		v.typedId.startsWith('COMPLIANCE_STATUS:')
+	);
+	const portabilityEntry = acceptedViolationsFromDecision.find((v) =>
+		v.typedId.startsWith('PORTABILITY:')
+	);
+	const realViolations = acceptedViolationsFromDecision.filter(
+		(v) => !v.typedId.startsWith('COMPLIANCE_STATUS:') && !v.typedId.startsWith('PORTABILITY:')
+	);
+	const complianceStatus: 'Compliant' | 'Partially compliant' | 'Non-compliant' = complianceEntry
+		? (complianceEntry.typedId.replace('COMPLIANCE_STATUS:', '') as any)
+		: realViolations.length > 0
+			? 'Partially compliant'
+			: 'Compliant';
+	const complianceRationale = complianceEntry?.justification || undefined;
+	const portability: 'project_specific' | 'reusable_product_capability' | 'reusable_architecture_doctrine' =
+		portabilityEntry
+			? (portabilityEntry.typedId.replace('PORTABILITY:', '') as any)
+			: 'project_specific';
+
+	const assertedEvent =
+		assertionEventOverride !== undefined
+			? assertionEventOverride
+			: await prisma.domainEvent.findFirst({
+					where: {
+						projectId,
+						entityType: 'decision',
+						entityId: rawDecision.id,
+						type: 'DECISION_ASSERTED'
+					},
+					orderBy: { createdAt: 'desc' }
+				});
+
+	return {
+		acceptedViolationsFromDecision,
+		parsedDecision: {
+			id: rawDecision.id,
+			subjectId: rawDecision.subjectId,
+			retainedOptionId: rawDecision.retainedOptionId,
+			rejected: JSON.parse(rawDecision.rejected || '[]'),
+			rationale: rawDecision.rationale,
+			reversibility: rawDecision.reversibility as any,
+			complianceStatus,
+			complianceRationale,
+			portability,
+			arbiterId: rawDecision.arbiterId,
+			arbiterRole: rawDecision.arbiterRole,
+			decidedAt: rawDecision.decidedAt.toISOString(),
+			acceptedViolations: realViolations,
+			kbCandidateIds: JSON.parse(rawDecision.kbCandidateIds || '[]'),
+			validatedBy: assertedEvent?.actorId || undefined,
+			version: rawDecision.version
+		}
+	};
+}
+
+/**
  * Récupère le contexte complet et évalue la maturité calculée d'un sujet.
  */
 export async function getSubjectArbitrationContext(subjectId: string): Promise<{
@@ -172,60 +259,10 @@ export async function getSubjectArbitrationContext(subjectId: string): Promise<{
 
 	const frameworksData = await getProjectFrameworks(subject.projectId);
 
-	let parsedDecision: Decision | null = null;
-	let acceptedViolationsFromDecision: Array<{ typedId: string; justification: string }> = [];
-
-	if (subject.decision) {
-		acceptedViolationsFromDecision = JSON.parse(subject.decision.acceptedViolations || '[]');
-		const complianceEntry = acceptedViolationsFromDecision.find((v) =>
-			v.typedId.startsWith('COMPLIANCE_STATUS:')
-		);
-		const portabilityEntry = acceptedViolationsFromDecision.find((v) =>
-			v.typedId.startsWith('PORTABILITY:')
-		);
-		const realViolations = acceptedViolationsFromDecision.filter(
-			(v) => !v.typedId.startsWith('COMPLIANCE_STATUS:') && !v.typedId.startsWith('PORTABILITY:')
-		);
-		const complianceStatus: 'Compliant' | 'Partially compliant' | 'Non-compliant' = complianceEntry
-			? (complianceEntry.typedId.replace('COMPLIANCE_STATUS:', '') as any)
-			: realViolations.length > 0
-				? 'Partially compliant'
-				: 'Compliant';
-		const complianceRationale = complianceEntry?.justification || undefined;
-		const portability: 'project_specific' | 'reusable_product_capability' | 'reusable_architecture_doctrine' =
-			portabilityEntry
-				? (portabilityEntry.typedId.replace('PORTABILITY:', '') as any)
-				: 'project_specific';
-
-		const assertedEvent = await prisma.domainEvent.findFirst({
-			where: {
-				projectId: subject.projectId,
-				entityType: 'decision',
-				entityId: subject.decision.id,
-				type: 'DECISION_ASSERTED'
-			},
-			orderBy: { createdAt: 'desc' }
-		});
-
-		parsedDecision = {
-			id: subject.decision.id,
-			subjectId: subject.decision.subjectId,
-			retainedOptionId: subject.decision.retainedOptionId,
-			rejected: JSON.parse(subject.decision.rejected || '[]'),
-			rationale: subject.decision.rationale,
-			reversibility: subject.decision.reversibility as any,
-			complianceStatus,
-			complianceRationale,
-			portability,
-			arbiterId: subject.decision.arbiterId,
-			arbiterRole: subject.decision.arbiterRole,
-			decidedAt: subject.decision.decidedAt.toISOString(),
-			acceptedViolations: realViolations,
-			kbCandidateIds: JSON.parse(subject.decision.kbCandidateIds || '[]'),
-			validatedBy: assertedEvent?.actorId || undefined,
-			version: subject.decision.version
-		};
-	}
+	const { parsedDecision, acceptedViolationsFromDecision } = await parseSubjectDecision(
+		subject.projectId,
+		subject.decision
+	);
 
 	const maturityResult = computeMaturity({
 		subject: {

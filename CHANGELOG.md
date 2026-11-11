@@ -8,6 +8,19 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Performance & Fluidité du Changement de Sujet en Délibération
+- **Client LLMOps (`src/lib/server/llmops/client.ts`) & Conformité (`src/lib/server/compliance/complianceService.ts`)** :
+  - Mise en cache (`cachedFetch`) et suppression des appels abusifs à `invalidateCache()` en lecture sur `getDoctrineContext()`, `checkOption()` et `getFrameworkCoverage()`, tout en évitant la mise en cache des replis hors-ligne.
+  - Parallélisation via `Promise.all` des vérifications d'options (`checkOption`) et de la couverture des référentiels dans `checkSubjectCompliance()`.
+- **Endpoint Agrégé & Découplage (`src/routes/api/projects/[projectId]/subjects/[subjectId]/workbench/+server.ts`, `maturityCriteriaService.ts`, `arbitrationDb.ts`)** :
+  - Nouvel endpoint `GET /workbench` agrégeant en une seule requête SQLite/Prisma locale le fil d'arguments, les options, les critères, les évaluations, les compromis, la décision et le rapport de maturité sans bloquer sur LLMOps.
+- **Composants IHM (`DeliberationWorkbench.svelte`, `SubjectThreadView.svelte`, `OptionsMatrix.svelte`)** :
+  - Suppression du double montage simultané mobile/desktop de `SubjectThreadView` dans `DeliberationWorkbench.svelte`.
+  - Chargement non-bloquant de `cascade` et `doctrine-context`, annulation des requêtes obsolètes (`AbortController`), cache client *stale-while-revalidate* par sujet et par signature d'options pour `/compliance`, et suppression de la requête redondante sur `/subjects/[subjectId]` depuis `OptionsMatrix`.
+- **Tests & Documentation** :
+  - Ajout de `tests/contract/deliberation-subject-switch-perf.test.ts` (cache LLMOps non destructif en lecture, parallélisation de `checkSubjectCompliance`, endpoint `/workbench`, montage unique dans `DeliberationWorkbench`).
+  - Mise à jour de `ARCHITECTURE.md` (Section 11.4).
+
 ### Micro-App Studio Admin des Réflexes d'Architecture (`/admin/reflexes`)
 - **Persistance & Cycle de Vie en Base (`prisma/schema.prisma`, `src/lib/server/rules/reflexCatalogService.ts`)** :
   - Ajout des modèles `ReflexRule` (`draft` | `published` | `deprecated`, versioning automatique, `semanticHints`, domaine) et `FactVocabularyEntry` (valeurs canoniques + synonymes/alias), initialisés paresseusement depuis le socle par défaut.

@@ -116,6 +116,7 @@
 	let allowedKbRefs = $state<string[]>([]);
 	let criteriaReport = $state<MaturityTransitionsReport | null>(null);
 	let subjectDecision = $state<Decision | null>(initialDecision);
+	let singleOptionRationale = $state<string | null | undefined>(undefined);
 	let cascadeResult = $state<CascadeResult | null>(null);
 	let foundationContested = $state(false);
 	let contestationReason = $state<string | undefined>(undefined);
@@ -406,97 +407,211 @@
 		return argumentsList.filter((a) => a.stance === postureFilter);
 	});
 
+	interface CachedWorkbench {
+		singleOptionRationale: string | null;
+		arguments: Argument[];
+		options: Option[];
+		criteria: Criterion[];
+		evaluations: OptionEvaluation[];
+		tradeOffs: TradeOff[];
+		decision: Decision | null;
+		criteriaReport: MaturityTransitionsReport | null;
+	}
+	interface CachedCascade {
+		cascade: CascadeResult | null;
+		treeSeries: any[];
+		foundationContested: boolean;
+		contestationReason?: string;
+	}
+	interface CachedDoctrine {
+		allowedKbRefs: string[];
+		items: DoctrineItem[];
+	}
+
+	const workbenchCache = new Map<string, CachedWorkbench>();
+	const cascadeCache = new Map<string, CachedCascade>();
+	const doctrineCache = new Map<string, CachedDoctrine>();
+	let activeLoadController: AbortController | null = null;
+	let activeLoadSeq = 0;
+
+	function syncWorkbenchCache() {
+		if (!projectId || !subjectId) return;
+		const key = `${projectId}:${subjectId}`;
+		const existing = workbenchCache.get(key);
+		if (!existing) return;
+		workbenchCache.set(key, {
+			...existing,
+			arguments: argumentsList,
+			options: subjectOptions,
+			criteria: matrixCriteria,
+			evaluations: matrixEvaluations,
+			tradeOffs: matrixTradeOffs,
+			decision: subjectDecision,
+			criteriaReport
+		});
+	}
+
 	$effect(() => {
 		if (subjectId && projectId) {
-			loadArgumentsAndContext();
+			void loadArgumentsAndContext({ force: false });
 		}
 	});
 
-	async function loadArgumentsAndContext() {
+	async function loadArgumentsAndContext(options: { force?: boolean } = { force: true }) {
 		if (!projectId || !subjectId) return;
-		isLoadingArguments = true;
-		try {
-			const [argsRes, optsRes, critListRes, evalsRes, tradeRes, docRes, critRes, decRes, cascadeRes] =
-				await Promise.all([
-					fetch(`/api/projects/${projectId}/subjects/${subjectId}/arguments`),
-					fetch(`/api/projects/${projectId}/subjects/${subjectId}/options`),
-					fetch(`/api/projects/${projectId}/subjects/${subjectId}/criteria`).catch(() => null),
-					fetch(`/api/projects/${projectId}/subjects/${subjectId}/evaluations`).catch(() => null),
-					fetch(`/api/projects/${projectId}/subjects/${subjectId}/tradeoffs`).catch(() => null),
-					fetch(`/api/projects/${projectId}/subjects/${subjectId}/doctrine-context`),
-					fetch(`/api/projects/${projectId}/subjects/${subjectId}/maturity-criteria`).catch(() => null),
-					fetch(`/api/projects/${projectId}/subjects/${subjectId}/decision`).catch(() => null),
-					fetch(`/api/projects/${projectId}/subjects/${subjectId}/cascade`).catch(() => null)
-				]);
+		const targetProjectId = projectId;
+		const targetSubjectId = subjectId;
+		const cacheKey = `${targetProjectId}:${targetSubjectId}`;
+		const force = options.force ?? true;
 
-			if (argsRes.ok) {
-				const data = await argsRes.json();
-				argumentsList = Array.isArray(data) ? data : (data.arguments || []);
-			} else {
-				argumentsList = [];
-			}
+		activeLoadController?.abort();
+		const controller = new AbortController();
+		activeLoadController = controller;
+		const seq = ++activeLoadSeq;
 
-			if (optsRes.ok) {
-				const optsData = await optsRes.json();
-				subjectOptions = Array.isArray(optsData) ? optsData : (optsData.options || []);
-			} else {
-				subjectOptions = [];
-			}
+		const cachedWb = workbenchCache.get(cacheKey);
+		const cachedCasc = cascadeCache.get(cacheKey);
+		const cachedDoc = doctrineCache.get(cacheKey);
 
-			if (critListRes && critListRes.ok) {
-				const cData = await critListRes.json();
-				matrixCriteria = Array.isArray(cData) ? cData : (cData.criteria || []);
-			} else {
-				matrixCriteria = [];
-			}
-
-			if (evalsRes && evalsRes.ok) {
-				const eData = await evalsRes.json();
-				matrixEvaluations = Array.isArray(eData) ? eData : (eData.evaluations || []);
-			} else {
-				matrixEvaluations = [];
-			}
-
-			if (tradeRes && tradeRes.ok) {
-				const tData = await tradeRes.json();
-				matrixTradeOffs = Array.isArray(tData) ? tData : (tData.tradeOffs || []);
-			} else {
-				matrixTradeOffs = [];
-			}
-
-			if (docRes.ok) {
-				const docData = await docRes.json();
-				allowedKbRefs = docData.allowedKbRefs || [];
-				doctrineItems = docData.items || [];
-			} else {
-				allowedKbRefs = [];
-				doctrineItems = [];
-			}
-
-			if (critRes && critRes.ok) {
-				const critData = await critRes.json();
-				criteriaReport = critData.report || null;
-			}
-
-			if (decRes && decRes.ok) {
-				const decData = await decRes.json();
-				subjectDecision = decData.decision || null;
-			}
-
-			void deliberationStore.refreshSubjectFromServer(subjectId, projectId);
-
-			if (cascadeRes && cascadeRes.ok) {
-				const cascData = await cascadeRes.json();
-				cascadeResult = cascData.cascade || null;
-				treeSeries = cascData.treeSeries || [];
-				foundationContested = cascData.foundationContested || false;
-				contestationReason = cascData.contestationReason;
-			}
-		} catch (err) {
-			console.warn('[Espace Sujet] Erreur chargement contexte:', err);
-		} finally {
+		if (cachedWb) {
+			argumentsList = cachedWb.arguments;
+			subjectOptions = cachedWb.options;
+			matrixCriteria = cachedWb.criteria;
+			matrixEvaluations = cachedWb.evaluations;
+			matrixTradeOffs = cachedWb.tradeOffs;
+			subjectDecision = cachedWb.decision;
+			criteriaReport = cachedWb.criteriaReport;
+			singleOptionRationale = cachedWb.singleOptionRationale;
 			isLoadingArguments = false;
+		} else if (!force) {
+			// Réinitialise immédiatement les données de l'ancien sujet pour éviter les appels fantômes (ex: /compliance sur anciennes options)
+			argumentsList = [];
+			subjectOptions = [];
+			matrixCriteria = [];
+			matrixEvaluations = [];
+			matrixTradeOffs = [];
+			subjectDecision = initialDecision;
+			criteriaReport = null;
+			singleOptionRationale = undefined;
+			isLoadingArguments = true;
 		}
+
+		if (cachedCasc) {
+			cascadeResult = cachedCasc.cascade;
+			treeSeries = cachedCasc.treeSeries;
+			foundationContested = cachedCasc.foundationContested;
+			contestationReason = cachedCasc.contestationReason;
+		} else if (!force) {
+			cascadeResult = null;
+			treeSeries = [];
+			foundationContested = false;
+			contestationReason = undefined;
+		}
+
+		if (cachedDoc) {
+			allowedKbRefs = cachedDoc.allowedKbRefs;
+			doctrineItems = cachedDoc.items;
+		} else if (!force) {
+			allowedKbRefs = [];
+			doctrineItems = [];
+		}
+
+		// Chargements non bloquants en arrière-plan (cascade locale + contexte doctrinal LLMOps)
+		const cascadePromise = fetch(
+			`/api/projects/${targetProjectId}/subjects/${targetSubjectId}/cascade`,
+			{ signal: controller.signal }
+		)
+			.then(async (res) => {
+				if (!res.ok || controller.signal.aborted || seq !== activeLoadSeq) return;
+				const cascData = await res.json();
+				if (controller.signal.aborted || seq !== activeLoadSeq) return;
+				const nextCasc: CachedCascade = {
+					cascade: cascData.cascade || null,
+					treeSeries: cascData.treeSeries || [],
+					foundationContested: cascData.foundationContested || false,
+					contestationReason: cascData.contestationReason
+				};
+				cascadeResult = nextCasc.cascade;
+				treeSeries = nextCasc.treeSeries;
+				foundationContested = nextCasc.foundationContested;
+				contestationReason = nextCasc.contestationReason;
+				cascadeCache.set(cacheKey, nextCasc);
+			})
+			.catch(() => {});
+
+		const doctrinePromise =
+			!force && cachedDoc
+				? Promise.resolve()
+				: fetch(`/api/projects/${targetProjectId}/subjects/${targetSubjectId}/doctrine-context`, {
+						signal: controller.signal
+					})
+						.then(async (res) => {
+							if (controller.signal.aborted || seq !== activeLoadSeq) return;
+							if (res.ok) {
+								const docData = await res.json();
+								if (controller.signal.aborted || seq !== activeLoadSeq) return;
+								const nextDoc: CachedDoctrine = {
+									allowedKbRefs: docData.allowedKbRefs || [],
+									items: docData.items || []
+								};
+								allowedKbRefs = nextDoc.allowedKbRefs;
+								doctrineItems = nextDoc.items;
+								doctrineCache.set(cacheKey, nextDoc);
+							}
+						})
+						.catch(() => {});
+
+		try {
+			const wbRes = await fetch(
+				`/api/projects/${targetProjectId}/subjects/${targetSubjectId}/workbench`,
+				{ signal: controller.signal }
+			);
+			if (controller.signal.aborted || seq !== activeLoadSeq) return;
+
+			if (wbRes.ok) {
+				const wb = await wbRes.json();
+				if (controller.signal.aborted || seq !== activeLoadSeq) return;
+
+				const nextWb: CachedWorkbench = {
+					singleOptionRationale: wb.subject?.singleOptionRationale ?? null,
+					arguments: Array.isArray(wb.arguments) ? wb.arguments : [],
+					options: Array.isArray(wb.options) ? wb.options : [],
+					criteria: Array.isArray(wb.criteria) ? wb.criteria : [],
+					evaluations: Array.isArray(wb.evaluations) ? wb.evaluations : [],
+					tradeOffs: Array.isArray(wb.tradeOffs) ? wb.tradeOffs : [],
+					decision: wb.decision || null,
+					criteriaReport: wb.criteriaReport || null
+				};
+
+				argumentsList = nextWb.arguments;
+				subjectOptions = nextWb.options;
+				matrixCriteria = nextWb.criteria;
+				matrixEvaluations = nextWb.evaluations;
+				matrixTradeOffs = nextWb.tradeOffs;
+				subjectDecision = nextWb.decision;
+				criteriaReport = nextWb.criteriaReport;
+				singleOptionRationale = nextWb.singleOptionRationale;
+				workbenchCache.set(cacheKey, nextWb);
+
+				if (wb.subject?.maturityLevel) {
+					deliberationStore.applyServerSubjectLevel(
+						targetSubjectId,
+						wb.subject.maturityLevel,
+						wb.subject.deliberationStatus
+					);
+				}
+			}
+		} catch (err: any) {
+			if (err?.name !== 'AbortError') {
+				console.warn('[Espace Sujet] Erreur chargement contexte:', err);
+			}
+		} finally {
+			if (seq === activeLoadSeq) {
+				isLoadingArguments = false;
+			}
+		}
+
+		void Promise.all([cascadePromise, doctrinePromise]);
 	}
 
 	async function refreshMatrixData() {
@@ -875,6 +990,7 @@
 				'info'
 			);
 		}
+		syncWorkbenchCache();
 	}
 
 	async function handleInvokeAgent(role: 'challenger' | 'proposer' | 'verifier' | 'synthesizer') {
@@ -1316,14 +1432,18 @@
 				bind:tradeOffs={matrixTradeOffs}
 				bind:decision={subjectDecision}
 				userRole={deliberationStore.currentRole}
+				initialSingleOptionRationale={singleOptionRationale}
 				onCriteriaChanged={(newCrit) => {
 					matrixCriteria = [...newCrit];
+					syncWorkbenchCache();
 				}}
 				onOptionsChanged={(newOpts) => {
 					subjectOptions = [...newOpts];
+					syncWorkbenchCache();
 				}}
 				onEvaluationsChanged={(newEvals) => {
 					matrixEvaluations = [...newEvals];
+					syncWorkbenchCache();
 				}}
 				onDecisionMade={() => {
 					void loadArgumentsAndContext();

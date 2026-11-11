@@ -11,6 +11,7 @@
   import PanelLeftOpen from 'lucide-svelte/icons/panel-left-open';
   import Shield from 'lucide-svelte/icons/shield';
   import GitBranch from 'lucide-svelte/icons/git-branch';
+  import GitFork from 'lucide-svelte/icons/git-fork';
   import LogIn from 'lucide-svelte/icons/log-in';
   import LogOut from 'lucide-svelte/icons/log-out';
   import FolderPlus from 'lucide-svelte/icons/folder-plus';
@@ -153,7 +154,8 @@
   );
 
   const adminMenuItems = [
-    { href: '/admin', labelKey: 'nav.admin', icon: Shield },
+    { href: '/admin', labelKey: 'nav.admin', defaultLabel: 'Admin', icon: Shield },
+    { href: '/admin/reflexes', labelKey: 'nav.adminReflexes', defaultLabel: 'Studio Réflexes', icon: GitFork },
   ];
 
   async function handleLogout() {
@@ -303,7 +305,7 @@
             </div>
             {#each adminMenuItems as item}
               {@const Icon = item.icon}
-              {@const active = $page.url.pathname.startsWith(item.href)}
+              {@const active = item.href === '/admin' ? $page.url.pathname === '/admin' : $page.url.pathname.startsWith(item.href)}
               <a
                 href={item.href}
                 class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors
@@ -311,7 +313,7 @@
                 onclick={() => { sidebarOpen = false; }}
               >
                 <Icon class="h-5 w-5 shrink-0" />
-                {$t(item.labelKey, { default: 'Admin' })}
+                {$t(item.labelKey, { default: item.defaultLabel })}
               </a>
             {/each}
           {/if}
@@ -567,16 +569,16 @@
           </div>
           {#each adminMenuItems as item}
             {@const Icon = item.icon}
-            {@const active = $page.url.pathname.startsWith(item.href)}
+            {@const active = item.href === '/admin' ? $page.url.pathname === '/admin' : $page.url.pathname.startsWith(item.href)}
             <a
               href={item.href}
-              title={sidebarCollapsed ? $t(item.labelKey, { default: 'Admin' }) : undefined}
+              title={sidebarCollapsed ? $t(item.labelKey, { default: item.defaultLabel }) : undefined}
               class="flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-colors
                      {active ? 'bg-primary text-primary-foreground' : 'text-foreground/80 hover:bg-muted hover:text-foreground'}"
             >
               <Icon class="h-5 w-5 shrink-0" />
               {#if !sidebarCollapsed}
-                <span class="truncate">{$t(item.labelKey, { default: 'Admin' })}</span>
+                <span class="truncate">{$t(item.labelKey, { default: item.defaultLabel })}</span>
               {/if}
             </a>
           {/each}

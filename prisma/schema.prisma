@@ -657,3 +657,41 @@ model ExecutableDecisionPackage {
   @@index([status])
   @@map("executable_decision_packages")
 }
+
+// ── Studio Admin des Réflexes d'Architecture & Vocabulaire Canonique ────────
+
+/// Réflexe d'architecture gouverné par les administrateurs (remplace le catalogue figé en dur)
+model ReflexRule {
+  id            String   @id
+  version       Int      @default(1)
+  status        String   @default("draft") // draft | published | deprecated
+  title         String
+  domain        String   @default("general")
+  assetRef      String
+  assetType     String   @default("pattern") // pattern | principle | control | standard
+  mandatory     Boolean  @default(false)
+  conditions    String   // JSON RuleCondition[]
+  semanticHints String   @default("[]") // JSON string[]
+  action        String   // JSON QuestionTriggerAction
+  source        String   @default("catalog") // catalog | promoted_agent | admin_authored
+  createdBy     String?
+  updatedBy     String?
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@index([status])
+  @@index([domain])
+  @@map("reflex_rules")
+}
+
+/// Entrée du vocabulaire canonique des faits (valeurs normalisées + synonymes/alias)
+model FactVocabularyEntry {
+  key             String   @id
+  label           String
+  valueType       String   @default("string") // enum | number | boolean | string
+  canonicalValues String   @default("[]") // JSON Array<{ canonical: string; label: string; aliases: string[] }>
+  description     String   @default("")
+  updatedAt       DateTime @updatedAt
+
+  @@map("fact_vocabulary_entries")
+}

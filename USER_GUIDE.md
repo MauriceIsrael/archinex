@@ -103,6 +103,13 @@ La vue **Administration** (`/admin`) permet aux administrateurs de piloter l'ens
 - **Enrôlement automatique à la volée (Zero-Touch JIT Provisioning)** : Lorsqu'un utilisateur Archinex accède aux fonctionnalités de doctrine ou de revue (`/kb/me`, `/kb/reviews`), il est automatiquement inscrit et aligné dans le registre LLMOps sans aucune intervention manuelle.
 - **Ajustement des politiques Casbin & audit** : supervision en temps réel des règles RBAC/ABAC et des journaux d'audit.
 
+### Studio Admin des Réflexes d'Architecture (`/admin/reflexes`)
+Réservée strictement aux administrateurs (`role: admin`, invisible aux utilisateurs projet), cette micro-app gouverne les **« bons réflexes » de cascade** hors du code figé :
+1. **Catalogue & Éditeur No-Code (« Si on décide X → Penser à Y »)** : création, édition versionnée (`v1`, `v2`…), publication (`draft` → `published` → `deprecated`) et détection automatique de recouvrements entre réflexes. Seuls les réflexes `published` déclenchent des cascades dans les projets.
+2. **Vocabulaire Canonique & Synonymes** : gestion des valeurs canoniques et de leurs alias (ex. `active-active`, `bi-site actif` → `actif/actif` ; `2 datacenters` → `2`), éliminant la fragilité du matching syntaxique exact.
+3. **Bac à sable & Replay Historique** : simulation sur texte libre (extraction normalisée + déclenchement déterministe + filet sémantique par concepts) et replay à blanc sur l’historique anonymisé des décisions existantes avant publication.
+4. **Signaux Terrain & Promotion des Angles morts (`🤖`)** : suivi des réflexes les plus désactivés sur les projets (avec justifications) et promotion en 1 clic des questions récurrentes proposées par l’agent IA en réflexes déterministes.
+
 ---
 
 ## 4. Gouvernance Knowledge Hub & Comptes Experts

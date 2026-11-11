@@ -8,6 +8,18 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Micro-App Studio Admin des Réflexes d'Architecture (`/admin/reflexes`)
+- **Persistance & Cycle de Vie en Base (`prisma/schema.prisma`, `src/lib/server/rules/reflexCatalogService.ts`)** :
+  - Ajout des modèles `ReflexRule` (`draft` | `published` | `deprecated`, versioning automatique, `semanticHints`, domaine) et `FactVocabularyEntry` (valeurs canoniques + synonymes/alias), initialisés paresseusement depuis le socle par défaut.
+  - Raccordement de `projectRulesService.ts` et `cascadeService.ts` sur le catalogue publié en base : **tous** les réflexes publiés (y compris ceux créés depuis le Studio Admin) déclenchent dynamiquement les cascades projet.
+- **Normalisation par Synonymes, Filet Sémantique & Détection de Recouvrements (`src/lib/domain/reflexStudio.ts`, `src/lib/domain/projectRules.ts`)** :
+  - `normalizeFactValue()` et `evaluateCondition()` résolvent les alias (ex. `active-active` → `actif/actif`, `2 sites` → `2`, `SecNumCloud 3.2` → `secnumcloud`).
+  - Ajout de `extractFactsHeuristicallyFromText()`, `evaluateSemanticReflexMatch()` et `detectOverlappingReflexes()`.
+- **Micro-App Admin & API (`src/routes/admin/reflexes/`, `src/routes/api/admin/reflexes/`)** :
+  - Interface réservée au rôle `admin` (entrée **Studio Réflexes** dans le menu admin) avec 4 onglets : Catalogue & Éditeur No-Code, Bac à sable & Replay historique anonymisé, Vocabulaire & Synonymes, Signaux terrain & Promotion des angles morts IA.
+- **Tests & Documentation** :
+  - Ajout de `tests/contract/admin-reflexes-studio.test.ts` (4 scénarios : normalisation, heuristique/sémantique/recouvrements, garde RBAC 403, cycle complet brouillon → publication → révision → cascade → simulation) et mise à jour de `USER_GUIDE.md`.
+
 ### Déblocage du Ré-arbitrage L3, Coloration Explicite Mermaid & Labels Génériques Vx/Vy
 - **Révision d'une Décision L3 (`src/lib/domain/maturityRules.ts`, `src/lib/server/projects/arbitrationDb.ts`)** :
   - Ajout de l'option `allowRevision?: boolean` à `computeMaturity()` et du code de blocage `SEALED_SUBJECT` pour `L5_archived`.

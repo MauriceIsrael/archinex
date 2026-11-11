@@ -70,10 +70,14 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
   - Endpoint de contrôle d'état (`GET ?action=check`) signalant la disponibilité du moteur et fournissant l'URL du cockpit Document Studio.
 - **Interface Utilisateur en Phase 3 (`src/lib/components/deliberation/HldFragmentView.svelte`)** :
   - Visualisation interactive du diagramme de séquence de la chaîne de déploiement et d'homologation directement sous le schéma d'architecture cible.
-  - Ajout du bouton d'action dédié **« Générer HLD Word (.docx) »** avec indicateur de chargement en direct et toasts de statut.
+  - **Pastille de Connectivité & Garde Document Engine (`DocumentEngineStatusBadge.svelte`, `/api/document-engine/health`)** :
+    - Affichage de la pastille de connectivité Document Engine en direct (style badge LLMOps) dans le bandeau supérieur de l'application (`+layout.svelte`) et dans la barre d'outils HLD.
+    - Statut réactif `connected` (pastille verte pulsante), `offline` (ambre / hors ligne) et `checking` (spinner interactif) permettant de re-tester la connexion d'un clic.
+    - **Garde préventive du bouton « Générer HLD Word (.docx) »** : le bouton est automatiquement grisé et désactivé avec infobulle pédagogique tant que Document Engine n'est pas joignable (port 3001), évitant les requêtes en échec 503 silencieuses.
+    - Toasts visuels explicites guidant immédiatement l'utilisateur sur la commande à exécuter (`npm run server` dans le dossier `document-engine`).
   - Ajout du bouton de rebond **« Document Studio »** ouvrant le cockpit de rédaction dans un nouvel onglet (`http://localhost:5174`).
-- **Tests de Contrat & Validation (`tests/contract/document-engine-bridge.test.ts`, `tests/contract/hld-fragment.test.ts`)** :
-  - Tests automatisés validant la conformité du payload au schéma Document Engine, l'extraction des processus de déploiement séquentiels, le formatage des messages d'erreur et la compilation réelle en direct face au serveur.
+- **Tests de Contrat & Validation (`tests/contract/document-engine-status.test.ts`, `tests/contract/document-engine-bridge.test.ts`, `tests/contract/hld-fragment.test.ts`)** :
+  - Tests automatisés validant la détection de connectivité, le basculement dynamique d'état, les notifications et le blocage préventif du bouton.
 
 
 ### Découplage de la Persistance d'État, du Code Applicatif et du Knowledge Hub (Lot A7, Issues #251, #252 & #253)

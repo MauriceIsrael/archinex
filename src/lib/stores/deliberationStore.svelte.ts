@@ -218,6 +218,12 @@ class DeliberationStore {
 	llmopsConflicts = $state<LLMOpsConflict[]>([]);
 	isSyncingLLMOps = $state<boolean>(false);
 
+	// État d'intégration Document Engine (Compilateur HLD & Studio)
+	docEngineStatus = $state<'idle' | 'connected' | 'offline' | 'checking'>('idle');
+	docEngineUrl = $state<string>('http://localhost:3001');
+	docStudioUrl = $state<string>('http://localhost:5174');
+	isCheckingDocEngine = $state<boolean>(false);
+
 	private engagementCache: Record<
 		string,
 		{
@@ -1899,6 +1905,54 @@ class DeliberationStore {
 			return { success: false, error: msg };
 		} finally {
 			this.isSyncingLLMOps = false;
+		}
+	}
+
+	/**
+	 * Contrôle la disponibilité de Document Engine (compilateur de HLD Word/PDF) et de Document Studio.
+	 */
+	async checkDocEngine(
+		options: { silent?: boolean; customFetch?: typeof fetch; projectId?: string } = {}
+	): Promise<{ connected: boolean; url: string; error?: string }> {
+		this.isCheckingDocEngine = true;
+		this.docEngineStatus = 'checking';
+		try {
+			const fetcher = options.customFetch || (typeof window !== 'undefined' ? window.fetch.bind(window) : fetch);
+			const endpoint = options.projectId
+				? `/api/projects/${encodeURIComponent(options.projectId)}/hld-document-engine?action=check`
+				: '/api/document-engine/health';
+
+			const res = await fetcher(endpoint);
+			if (!res.ok) {
+				throw new Error(`Erreur HTTP ${res.status}`);
+			}
+			const data = await res.json();
+			const isAvailable = Boolean(data.engine?.available);
+			this.docEngineStatus = isAvailable ? 'connected' : 'offline';
+			if (data.engine?.url) this.docEngineUrl = data.engine.url;
+			if (data.studio?.url) this.docStudioUrl = data.studio.url;
+
+			if (!options.silent) {
+				if (isAvailable) {
+					this.logNotification(`Document Engine prêt (${this.docEngineUrl}) · Export Word opérationnel`, 'success');
+				} else {
+					this.logNotification(
+						`Document Engine non démarré sur ${this.docEngineUrl} : lancez 'npm run server' dans document-engine.`,
+						'warning'
+					);
+				}
+			}
+
+			return { connected: isAvailable, url: this.docEngineUrl };
+		} catch (err: unknown) {
+			this.docEngineStatus = 'offline';
+			const msg = err instanceof Error ? err.message : 'Erreur de connexion';
+			if (!options.silent) {
+				this.logNotification(`Document Engine indisponible (${this.docEngineUrl}) : lancez 'npm run server'`, 'warning');
+			}
+			return { connected: false, url: this.docEngineUrl, error: msg };
+		} finally {
+			this.isCheckingDocEngine = false;
 		}
 	}
 

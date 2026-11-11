@@ -508,7 +508,7 @@ Pour tester les décisions et oracles dans un environnement d'intégration réel
   - **OPA Server REST** : `http://localhost:8181/v1/data`
 
 ### 13.6 Phase 4 Dédiée « Refinement & Hydratation », Matrice KAOS Multi-Axes & Simulateur de Drift
-Pour séparer clairement la délibération HLD (Phase 2) et l'homologation documentaire (Phase 3) de l'ingénierie d'exécution LLD, un **4ème grand onglet de phase** est disponible en haut du projet (`/deliberation?posture=refinement`) :
+Pour séparer clairement la délibération HLD (Phase 2) et l'homologation documentaire (Phase 3) de l'ingénierie d'exécution LLD, l'expérience **Oracle EDP & Raffinement** est concentrée exclusivement dans le **4ème grand onglet de phase** en haut du projet (`/deliberation?posture=refinement`) (l'ancien onglet et les encarts `Oracle EDP` de l'espace Délibération ont été retirés) :
 - **Atelier Plein Écran « Phase 4 : Refinement & Hydratation » (`Phase4RefinementHub`)** :
   - **Colonne Gauche — Matrice KAOS des 5 Axes Obligatoires (`requires_aspect` → `implemented_by`)** : affiche pour le sujet sélectionné le statut de chaque sous-axe obligatoire (*1. Substrat Compute*, *2. Plan Hors-Bande OOB*, *3. Zonage Sécurité NIS2*, *4. Fidélité Environnements Dev/Recette/Prod*, *5. Résilience Électrique 2N*), les clauses de la spécification rattachées et un bouton **`Compléter tous les axes manquants`** (ou liaison axe par axe).
   - **Colonne Droite — Hydratation LLD & Oracle OPA Multi-Axes (`multi_axis_refinement.rego`)** : génère l'inventaire LLD multi-axes (`nautobot_planned_devices`, `k8s_manifests`, `security_zones`, `environments`, `power_feeds`) et l'évalue réellement via OPA contre `data.ontology`.

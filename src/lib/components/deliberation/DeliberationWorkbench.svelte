@@ -7,12 +7,10 @@
 	let {
 		sessionRole = 'lead_architect',
 		sessionUser = null,
-		isExperimentalEnabled = false,
 		onBackToBoard = () => {}
 	}: {
 		sessionRole?: string;
 		sessionUser?: { id: string; email: string; role: string } | null;
-		isExperimentalEnabled?: boolean;
 		onBackToBoard?: () => void;
 	} = $props();
 
@@ -90,7 +88,6 @@
 				userRole={sessionRole || deliberationStore.currentRole}
 				{sessionUser}
 				isHumanUser={deliberationStore.isHuman}
-				{isExperimentalEnabled}
 				{onBackToBoard}
 			/>
 		{/if}
@@ -122,7 +119,6 @@
 				userRole={sessionRole || deliberationStore.currentRole}
 				{sessionUser}
 				isHumanUser={deliberationStore.isHuman}
-				{isExperimentalEnabled}
 				{isSidebarCollapsed}
 				onToggleSidebar={toggleSidebar}
 				{onBackToBoard}

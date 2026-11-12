@@ -14,6 +14,28 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 - **Lot 3 (#285 — `src/lib/domain/edp/logicalViews.ts`, `src/routes/api/projects/[projectId]/catalog/+server.ts`, `Phase4RefinementHub.svelte`)** : Agrégation transverse Projet (`composeProjectLogicalTopology`), 3 vues Mermaid synchronisées (Logique, Déploiement, Physique CMDB) et comparateur What-If 2 vs 3 DCs dans l'IHM Phase 4.
 - **Lot 4 (#286 — `edp/policies/multi_axis_refinement.rego`)** : Ajout de l'Axe 7 Rego (placement ↔ substrat Sylva, continuité `LogicalInterfaces`, `ref()` non résolues, lint Base).
 - **Lot 5 (#287 — `src/lib/server/edp/sylvaGitopsExport.ts`, `src/lib/server/edp/refinementCoverage.ts`)** : Génération du bundle GitOps Sylva léger par composant (`workloads/<functionalDomain>/<component>/<env>/{namespace.yaml,network-policies.yaml,helm-releases.yaml}`) avec `Namespace`, `CiliumNetworkPolicy` et `HelmRelease` FluxCD (`staged`/`inactive`), validée par `tests/contract/edp-logical-components-and-sylva-workloads.test.ts`.
+### Top 5 Opportunités de Frugalité & Analyse Coût vs Compromis Technique
+- **Moteur de Scoring de Frugalité (`src/lib/domain/frugalityScoring.ts`)** :
+  - Analyse comparative des matrices de décision pour détecter les alternatives à fort levier économique face à l'option de référence technique.
+  - Calcul du gain financier ($\Delta \text{Coût} \ge 0.5$ sur les critères `cost`), du compromis technique consenti ($\Delta \text{Tech} \le 1.0$ sur les critères techniques) et de l'indice de sweet spot.
+  - Typologie des arbitrages : `no-brainer` (gain pur sans concession), `negligible-compromise` (compromis minime) et `acceptable-tradeoff` (compromis modéré et équilibré).
+  - Suivi en temps réel de l'état d'arbitrage : opportunité à saisir (`open`), frugalité actée (`retained_frugal`) ou surcoût premium assumé (`retained_reference`).
+- **Endpoint API Projet (`src/routes/api/projects/[projectId]/frugality-opportunities/+server.ts`)** :
+  - Extraction serveur et calcul à la volée du Top 5 des opportunités pour le projet actif, protégé par le contrôle d'accès projet `authorizeProjectAccess`.
+- **Composant Dashboard (`src/lib/components/deliberation/FrugalityOpportunitiesCard.svelte`, `src/routes/deliberation/+page.svelte`)** :
+  - Affichage pliable sur le tableau de bord de délibération au-dessus du tableau des sujets, présentant les deltas de coût et d'impact technique, les justifications associées et un bouton d'accès direct à la matrice du sujet.
+- **Tests & Robustesse (`tests/unit/frugality-scoring.test.ts`, `tests/integration/frugality-opportunities.test.ts`, `src/lib/server/projects/optionsDb.ts`)** :
+  - Tests unitaires et d'intégration validant le calcul, les seuils de compromis et la persistance de l'arbitrage. Sécurisation de `recordDecision` avec identifiant par défaut.
+
+### Fragments de Changelog (`changelog.d/`) & Pré-vol CI (`verify` / `hub-live`)
+- **Suppression des conflits sur `CHANGELOG.md` (`changelog.d/`, `scripts/consolidate-changelog.mjs`, `.github/workflows/changelog-consolidate.yml`)** :
+  - Remplacement de l'édition directe de `CHANGELOG.md` dans les PRs par des fragments isolés `changelog.d/<slug>.md`, validés par `npm run changelog:check` (intégré à `scripts/verify.mjs`) et consolidés automatiquement sous `## Non publié` lors du push sur `main`.
+- **Court-circuit CI pour changements Markdown/Documentation (`scripts/ci-preflight.mjs`, `.github/workflows/verify.yml`, `.github/workflows/hub-live.yml`)** :
+  - Ajout d'un pré-vol calculant l'empreinte Git de l'arbre hors documentation/changelog (`computeCodeTreeSignature`) et vérifiant le diff contre `main` ainsi que le marqueur de réussite en cache (`actions/cache`) pour éviter de relancer les ~4-5 min de tests/build quand seul du Markdown ou du changelog change.
+- **Pratiques & Conventions (`.github/pull_request_template.md`, `.gitignore`, `docs/developer-guide.md`, `docs/testing.md`)** :
+  - Mise à jour du template de PR, de la documentation développeur/tests et ajout de `.worktrees/` et `.ci-pass-marker` dans `.gitignore`.
+- **Tests** :
+  - Ajout de `tests/contract/changelog-consolidate.test.ts` et `tests/contract/ci-preflight.test.ts`.
 
 ### Arbre de Découverte Interactif & Diagnostic des Règles par Sujet
 - **Arborescence HTML Navigable (`src/lib/components/deliberation/DiscoveryTreeView.svelte`)** :

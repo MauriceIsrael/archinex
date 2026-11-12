@@ -8,6 +8,10 @@ name: hub-live
 # Déclencheurs : les PR, `main`, chaque nuit (le Hub bouge sans qu'Archinex bouge) et à la demande, avec la référence du Hub
 # à éprouver (`llmops_ref` : branche, étiquette ou empreinte ; `main` par défaut).
 #
+# Optimisation pré-vol (`scripts/ci-preflight.mjs`) :
+# - Si une PR ne modifie que de la documentation / `changelog.d/`, ou si l'arbre de code est identique à un run `hub-live`
+#   déjà vert aujourd'hui sur la même PR, le démarrage du serveur Python et les tests live sont court-circuités.
+#
 # Ce que ce contrôle éprouve : Archinex contre le Hub tel qu'il est sur `main` (ou la référence demandée), pas contre une
 # version figée. Un échec la nuit sans changement d'Archinex veut dire que le Hub a changé.
 # Le contrôle miroir côté Hub (une PR du Hub éprouvée contre Archinex) est un autre chantier.
@@ -42,8 +46,35 @@ jobs:
       LLMOPS_LIVE_URL: http://127.0.0.1:8099
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Calculer l'empreinte de l'arbre de code
+        id: preflight_hash
+        run: node scripts/ci-preflight.mjs --mode hash --workflow hub-live
+
+      - name: Vérifier si cette empreinte est déjà validée aujourd'hui sur cette PR
+        id: ci_cache
+        if: github.event_name == 'pull_request'
+        uses: actions/cache/restore@v4
+        with:
+          path: .ci-pass-marker
+          key: ci-pass-hub-live-pr${{ github.event.pull_request.number }}-${{ steps.preflight_hash.outputs.code_hash }}-${{ steps.preflight_hash.outputs.utc_date }}
+
+      - name: Évaluer la nécessité d'exécuter les tests live
+        id: preflight_eval
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          CACHE_HIT: ${{ steps.ci_cache.outputs.cache-hit }}
+        run: node scripts/ci-preflight.mjs --mode eval --workflow hub-live
 
       - name: Récupérer le Hub (dépôt public)
+        if: steps.preflight_eval.outputs.should_run == 'true'
         uses: actions/checkout@v4
         with:
           repository: MauriceIsrael/LLMOps
@@ -52,19 +83,23 @@ jobs:
 
       # La même version de Poetry que celle qui a écrit llmops/poetry.lock (docs/TESTING.md du Hub).
       - name: Installer Poetry
+        if: steps.preflight_eval.outputs.should_run == 'true'
         run: pipx install poetry==2.5.1
 
       - uses: actions/setup-python@v5
+        if: steps.preflight_eval.outputs.should_run == 'true'
         with:
           python-version: "3.11"
           cache: poetry
           cache-dependency-path: llmops/poetry.lock
 
       - name: Installer les dépendances du Hub (verrou, sans les outils de développement)
+        if: steps.preflight_eval.outputs.should_run == 'true'
         working-directory: llmops
         run: poetry install --no-interaction --no-ansi --only main --no-root
 
       - name: Démarrer le serveur de contrat du Hub
+        if: steps.preflight_eval.outputs.should_run == 'true'
         working-directory: llmops
         run: |
           nohup poetry run python scripts/contract_server.py --port 8099 > "$RUNNER_TEMP/contract-server.log" 2>&1 &
@@ -75,20 +110,28 @@ jobs:
           curl -fs "$LLMOPS_LIVE_URL/health" > /dev/null || { echo "Le Hub n'a pas démarré"; tail -60 "$RUNNER_TEMP/contract-server.log"; exit 1; }
           echo "Contrat du Hub :" && grep -m1 'CONTRACT_VERSION =' mcp_server/core/version.py
 
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 22
-          cache: npm
-
       - name: Installer les dépendances
+        if: steps.preflight_eval.outputs.should_run == 'true'
         run: npm ci
 
       - name: Créer la base SQLite et générer le client Prisma
+        if: steps.preflight_eval.outputs.should_run == 'true'
         run: npx prisma generate && npx prisma db push
 
       - name: Tests live contre le Hub
+        if: steps.preflight_eval.outputs.should_run == 'true'
         run: npx vitest run tests/contract/*live*.test.ts tests/integration/llmops-mcp.test.ts
 
       - name: Journal du serveur de contrat (en cas d'échec)
-        if: failure()
+        if: failure() && steps.preflight_eval.outputs.should_run == 'true'
         run: tail -200 "$RUNNER_TEMP/contract-server.log" || true
+
+      - name: Mémoriser la validation verte pour cette empreinte
+        if: success() && steps.preflight_eval.outputs.should_run == 'true' && github.event_name == 'pull_request'
+        run: echo "${{ steps.preflight_hash.outputs.code_hash }}" > .ci-pass-marker
+
+      - uses: actions/cache/save@v4
+        if: success() && steps.preflight_eval.outputs.should_run == 'true' && github.event_name == 'pull_request'
+        with:
+          path: .ci-pass-marker
+          key: ci-pass-hub-live-pr${{ github.event.pull_request.number }}-${{ steps.preflight_hash.outputs.code_hash }}-${{ steps.preflight_hash.outputs.utc_date }}

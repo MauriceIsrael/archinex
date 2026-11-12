@@ -71,3 +71,7 @@ tools/bin/
 *.exe
 
 .archinex-ontology-overlay.json
+
+# Git worktrees & CI preflight marker
+.worktrees/
+.ci-pass-marker

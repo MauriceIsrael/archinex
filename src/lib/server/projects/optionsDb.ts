@@ -570,7 +570,7 @@ export async function getDecision(subjectId: string) {
 export async function recordDecision(
 	subjectId: string,
 	data: {
-		id: string;
+		id?: string;
 		retainedOptionId: string;
 		rejected?: Array<{ optionId: string; reason: string }>;
 		rationale: string;
@@ -588,7 +588,7 @@ export async function recordDecision(
 		const decision = await tx.decision.upsert({
 			where: { subjectId },
 			create: {
-				id: data.id,
+				id: data.id || `dec-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
 				subjectId,
 				retainedOptionId: data.retainedOptionId,
 				rejected: JSON.stringify(data.rejected || []),

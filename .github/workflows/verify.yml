@@ -1,10 +1,15 @@
 name: verify
 
-# Porte qualité unique : garde-fou denylist, tests, types Svelte, build de production.
+# Porte qualité unique : garde-fou denylist, validation changelog.d, tests, types Svelte, build de production.
 # C'est la commande locale `npm run verify`, exécutée sur un clone propre.
 #
 # Déclencheurs : les PR et `main`. Sans filtre sur `push`, une branche avec une PR ouverte lançait deux runs à chaque push
 # (un pour le push, un pour la PR). Une branche sans PR n'est pas vérifiée ici : ouvrir la PR, en brouillon au besoin.
+#
+# Optimisation pré-vol (`scripts/ci-preflight.mjs`) :
+# - Si une PR ne modifie que de la documentation / `changelog.d/`, les étapes lourdes sont court-circuitées.
+# - Si l'arbre de code hors documentation est identique à un run `verify` déjà vert sur la même PR, les étapes lourdes
+#   sont également court-circuitées (ex. rebase ou ajout de doc après validation).
 #
 # Les tests « live » (contre un vrai serveur LLMOps) et les parcours Playwright ne tournent pas ici :
 # ils exigent un LLMOps réel (LLMOPS_LIVE_URL ou Docker) et sont ignorés sans lui.
@@ -31,22 +36,60 @@ jobs:
       # Aucune clé de modèle n'est fournie en CI : les tests n'appellent jamais un vrai LLM.
     steps:
       - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - uses: actions/setup-node@v4
         with:
           node-version: 22
           cache: npm
 
+      - name: Valider les fragments changelog.d/
+        run: node scripts/consolidate-changelog.mjs --check
+
+      - name: Calculer l'empreinte de l'arbre de code
+        id: preflight_hash
+        run: node scripts/ci-preflight.mjs --mode hash --workflow verify
+
+      - name: Vérifier si cette empreinte est déjà validée sur cette PR
+        id: ci_cache
+        if: github.event_name == 'pull_request'
+        uses: actions/cache/restore@v4
+        with:
+          path: .ci-pass-marker
+          key: ci-pass-verify-pr${{ github.event.pull_request.number }}-${{ steps.preflight_hash.outputs.code_hash }}
+
+      - name: Évaluer la nécessité d'exécuter la suite complète
+        id: preflight_eval
+        env:
+          BASE_SHA: ${{ github.event.pull_request.base.sha }}
+          CACHE_HIT: ${{ steps.ci_cache.outputs.cache-hit }}
+        run: node scripts/ci-preflight.mjs --mode eval --workflow verify
+
       - name: Installer les dépendances
+        if: steps.preflight_eval.outputs.should_run == 'true'
         run: npm ci
 
       - name: Installer Open Policy Agent (OPA)
+        if: steps.preflight_eval.outputs.should_run == 'true'
         run: |
           chmod +x scripts/install-opa.sh
           bash scripts/install-opa.sh
 
       - name: Créer la base SQLite et générer le client Prisma
+        if: steps.preflight_eval.outputs.should_run == 'true'
         run: npx prisma generate && npx prisma db push
 
-      - name: Vérifier (denylist, tests, types, build)
+      - name: Vérifier (denylist, changelog, tests, types, build)
+        if: steps.preflight_eval.outputs.should_run == 'true'
         run: npm run verify
+
+      - name: Mémoriser la validation verte pour cette empreinte
+        if: success() && steps.preflight_eval.outputs.should_run == 'true' && github.event_name == 'pull_request'
+        run: echo "${{ steps.preflight_hash.outputs.code_hash }}" > .ci-pass-marker
+
+      - uses: actions/cache/save@v4
+        if: success() && steps.preflight_eval.outputs.should_run == 'true' && github.event_name == 'pull_request'
+        with:
+          path: .ci-pass-marker
+          key: ci-pass-verify-pr${{ github.event.pull_request.number }}-${{ steps.preflight_hash.outputs.code_hash }}

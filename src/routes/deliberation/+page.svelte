@@ -2,6 +2,7 @@
 	import { onMount } from 'svelte';
 	import ProjectEngagementHeader from '$lib/components/deliberation/ProjectEngagementHeader.svelte';
 	import DeliberationDashboardKpis from '$lib/components/deliberation/DeliberationDashboardKpis.svelte';
+	import FrugalityOpportunitiesCard from '$lib/components/deliberation/FrugalityOpportunitiesCard.svelte';
 	import MaturityBoardTable from '$lib/components/deliberation/MaturityBoardTable.svelte';
 	import DeliberationWorkbench from '$lib/components/deliberation/DeliberationWorkbench.svelte';
 	import CorpusAppropriationHub from '$lib/components/deliberation/CorpusAppropriationHub.svelte';
@@ -97,6 +98,7 @@
 			<!-- 1. Vue Tableau de maturité (Périmètre Projet) -->
 			{#if deliberationStore.deliberationViewMode === 'board'}
 				<DeliberationDashboardKpis />
+				<FrugalityOpportunitiesCard />
 				<div class="space-y-4">
 					<MaturityBoardTable
 						onOpenSubject={() => deliberationStore.setDeliberationViewMode('conversation')}

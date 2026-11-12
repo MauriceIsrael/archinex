@@ -560,3 +560,10 @@ L'expérience utilisateur d'Archinex distingue explicitement deux échelles cogn
   - En Phase 3, la **Barre de Contexte Sujet** compacte (1 ligne) offre un bouton `← Tableau`, une navigation rapide `◀ / ▶` entre sujets, des filtres rapides (`Spécifiés L4`, `Arbitrés L3+`, `Tous`) et un sélecteur dépliable à la demande.
 - **Langage Métier Épuré** :
   - Tous les codes internes de spécification (`Porte G3` à `Porte G7`, `K13` à `K22`, `Contrat 1.9`/`1.11`, identifiants techniques `L3_decided`, `supports`/`violates`) sont remplacés dans l'interface par des intitulés métier directement compréhensibles par les architectes et décideurs.
+
+### 14.1 Top 5 des Opportunités de Frugalité (Analyse Coût vs Compromis)
+Directement accessible sur le **Tableau des Sujets** (`/deliberation`), une carte dépliable met en lumière les **5 meilleurs arbitrages économiques** du projet :
+1. **Détection comparative** : confrontation automatique entre l'option de référence technique maximale et les alternatives plus sobres notées sur les critères de coût (`kind: 'cost'`).
+2. **Filtrage des compromis viables** : seules les alternatives dont le compromis technique n'est pas pénalisant ($\Delta \text{Tech} \le 1.0$) sont retenues. Les sacrifices inacceptables sont automatiquement écartés.
+3. **Statut d'arbitrage en direct** : distingue les opportunités encore ouvertes (`À arbitrer`), les choix sobres déjà validés (`Frugalité actée`) et les surcoûts assumés (`Surcoût premium assumé`).
+4. **Action immédiate** : un clic sur « Matrice » bascule instantanément dans l'espace de délibération du sujet concerné pour arbitrer ou affiner la matrice d'options.

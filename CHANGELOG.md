@@ -8,6 +8,20 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Top 5 Opportunités de Frugalité & Analyse Coût vs Compromis Technique
+- **Moteur de Scoring de Frugalité (`src/lib/domain/frugalityScoring.ts`)** :
+  - Analyse comparative des matrices de décision pour détecter les alternatives à fort levier économique face à l'option de référence technique.
+  - Calcul du gain financier ($\Delta \text{Coût} \ge 0.5$ sur les critères `cost`), du compromis technique consenti ($\Delta \text{Tech} \le 1.0$ sur les critères techniques) et de l'indice de sweet spot.
+  - Typologie des arbitrages : `no-brainer` (gain pur sans concession), `negligible-compromise` (compromis minime) et `acceptable-tradeoff` (compromis modéré et équilibré).
+  - Suivi en temps réel de l'état d'arbitrage : opportunité à saisir (`open`), frugalité actée (`retained_frugal`) ou surcoût premium assumé (`retained_reference`).
+- **Endpoint API Projet (`src/routes/api/projects/[projectId]/frugality-opportunities/+server.ts`)** :
+  - Extraction serveur et calcul à la volée du Top 5 des opportunités pour le projet actif, protégé par le contrôle d'accès projet `authorizeProjectAccess`.
+- **Composant Dashboard (`src/lib/components/deliberation/FrugalityOpportunitiesCard.svelte`, `src/routes/deliberation/+page.svelte`)** :
+  - Affichage pliable sur le tableau de bord de délibération au-dessus du tableau des sujets, présentant les deltas de coût et d'impact technique, les justifications associées et un bouton d'accès direct à la matrice du sujet.
+- **Tests & Robustesse (`tests/unit/frugality-scoring.test.ts`, `tests/integration/frugality-opportunities.test.ts`, `src/lib/server/projects/optionsDb.ts`)** :
+  - Tests unitaires et d'intégration validant le calcul, les seuils de compromis et la persistance de l'arbitrage. Sécurisation de `recordDecision` avec identifiant par défaut.
+
+
 ### Arbre de Découverte Interactif & Diagnostic des Règles par Sujet
 - **Arborescence HTML Navigable (`src/lib/components/deliberation/DiscoveryTreeView.svelte`)** :
   - Vue **Arbre lisible** par défaut (avec bascule vers le **Graphe** ECharts dont les marges et troncatures ont été élargies dans `buildDiscoveryTreeData`) dans `SubjectThreadView.svelte` et `SubjectDossierView.svelte`.

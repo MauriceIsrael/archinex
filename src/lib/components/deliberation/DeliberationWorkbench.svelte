@@ -11,7 +11,7 @@
 		onBackToBoard = () => {}
 	}: {
 		sessionRole?: string;
-		sessionUser?: { id: string; email: string; role: string } | null;
+		sessionUser?: { id: string; email: string; name?: string; role: string } | null;
 		onBackToBoard?: () => void;
 	} = $props();
 

@@ -34,6 +34,7 @@ export interface ActorInfo {
 	role: string;
 	productionMode?: string;
 	domains?: string[];
+	userName?: string;
 }
 
 // -------------------------------------------------------------

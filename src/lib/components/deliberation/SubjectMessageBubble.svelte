@@ -28,6 +28,7 @@
 		targetArgument = null,
 		userRole = 'lead_architect',
 		isHumanUser = true,
+		sessionUser = null,
 		onResolve = (arg: Argument, resolution: ArgumentResolution) => {},
 		onReply = (arg: Argument) => {},
 		onChallenge = (_arg: Argument) => {},
@@ -38,6 +39,7 @@
 		targetArgument?: Argument | null;
 		userRole?: string;
 		isHumanUser?: boolean;
+		sessionUser?: { id?: string; name?: string; email?: string; role?: string } | null;
 		onResolve?: (arg: Argument, resolution: ArgumentResolution) => void;
 		onReply?: (arg: Argument) => void;
 		onChallenge?: (arg: Argument) => void;
@@ -46,6 +48,20 @@
 	} = $props();
 
 	const isAgent = $derived(argument.authorKind.startsWith('agent:'));
+	const isTargetAgent = $derived(Boolean(targetArgument?.authorKind?.startsWith('agent:')));
+
+	function resolveDisplayAuthor(rawAuthor: string, kind?: string): string {
+		if (kind?.startsWith('agent:')) return rawAuthor;
+		if (sessionUser && (rawAuthor === sessionUser.id || (sessionUser.email && rawAuthor === sessionUser.email))) {
+			return sessionUser.name?.trim() || sessionUser.email || rawAuthor;
+		}
+		return rawAuthor;
+	}
+
+	const displayAuthor = $derived(resolveDisplayAuthor(argument.author, argument.authorKind));
+	const displayTargetAuthor = $derived(
+		targetArgument ? resolveDisplayAuthor(targetArgument.author, targetArgument.authorKind) : ''
+	);
 	const isSynthesis = $derived(argument.stance === 'synthesis');
 	const isProposal = $derived(
 		argument.authorKind === 'agent:proposer' ||
@@ -105,7 +121,7 @@
 						{/if}
 					</div>
 					<div class="text-[11px] text-muted-foreground">
-						Proposée par <strong class="text-foreground">{argument.author}</strong> ({isAgent ? formatAgentRole(argument.authorKind) : argument.authorKind})
+						Proposée par <strong class="text-foreground">{displayAuthor}</strong> ({isAgent ? formatAgentRole(argument.authorKind) : argument.authorKind})
 					</div>
 				</div>
 			</div>
@@ -119,7 +135,7 @@
 		{#if targetArgument}
 			<blockquote class="text-xs italic border-l-2 border-indigo-400 pl-3 py-1 bg-background/50 rounded-r text-muted-foreground">
 				<div class="font-semibold text-[10px] not-italic text-foreground">
-					En réponse à {targetArgument.author} :
+					En réponse à {displayTargetAuthor} :
 				</div>
 				<div class="line-clamp-2">« {targetArgument.claim} »</div>
 			</blockquote>
@@ -209,7 +225,7 @@
 						{/if}
 					</div>
 					<div class="text-[11px] text-muted-foreground">
-						Formulée par <strong class="text-foreground">{argument.author}</strong>
+						Formulée par <strong class="text-foreground">{displayAuthor}</strong>
 						{#if argument.confidence}
 							· Confiance : <span class="font-mono">{argument.confidence}</span>
 						{/if}
@@ -226,7 +242,7 @@
 		{#if targetArgument}
 			<blockquote class="text-xs italic border-l-2 border-amber-400 pl-3 py-1 bg-background/50 rounded-r text-muted-foreground">
 				<div class="font-semibold text-[10px] not-italic text-foreground">
-					En réponse à {targetArgument.author} :
+					En réponse à {displayTargetAuthor} :
 				</div>
 				<div class="line-clamp-2">« {targetArgument.claim} »</div>
 			</blockquote>
@@ -353,7 +369,7 @@
 						>
 							<UserCheck class="h-3.5 w-3.5" />
 						</span>
-						<strong class="text-foreground">{argument.author}</strong>
+						<strong class="text-foreground">{displayAuthor}</strong>
 						<span class="text-[10px] font-mono text-muted-foreground px-1 py-0.2 rounded bg-muted/60">
 							{argument.authorKind === 'human' ? 'Humain' : argument.authorKind}
 						</span>
@@ -375,7 +391,7 @@
 				<blockquote class="text-xs italic border-l-2 border-primary/40 pl-2.5 py-1 text-muted-foreground bg-muted/30 rounded-r">
 					<div class="font-semibold text-[10px] not-italic text-foreground flex items-center gap-1">
 						<CornerDownRight class="h-3 w-3 text-primary" />
-						<span>En réponse à {targetArgument.author} :</span>
+						<span>En réponse à {displayTargetAuthor} :</span>
 					</div>
 					<div class="line-clamp-2">« {targetArgument.claim} »</div>
 				</blockquote>

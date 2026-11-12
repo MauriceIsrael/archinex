@@ -31,11 +31,21 @@ export function getActorFromEvent(event: RequestEvent): ActorInfo {
 		domains = (sessionUser as any).domains;
 	}
 
+	const isCuidOrTechnical = (val: string) =>
+		/^c[a-z0-9]{20,32}$/i.test(val) || /^usr_[a-z0-9_-]+$/i.test(val);
+
+	const userName =
+		event.request.headers.get('x-user-name') ||
+		sessionUser?.name ||
+		sessionUser?.email ||
+		(userId && !isCuidOrTechnical(userId) ? userId : undefined);
+
 	return {
 		userId,
 		role,
 		productionMode,
-		domains
+		domains,
+		userName
 	};
 }
 
@@ -82,10 +92,18 @@ export function getActorInfo(input: RequestEvent | Request): ActorInfo {
 			domains = domainsHeader.split(',').map((d) => d.trim());
 		}
 	}
+	const userId = req.headers.get('x-user-id') || 'lead-architect';
+	const isCuidOrTechnical = (val: string) =>
+		/^c[a-z0-9]{20,32}$/i.test(val) || /^usr_[a-z0-9_-]+$/i.test(val);
+	const userName =
+		req.headers.get('x-user-name') ||
+		(userId && !isCuidOrTechnical(userId) ? userId : undefined);
+
 	return {
-		userId: req.headers.get('x-user-id') || 'lead-architect',
+		userId,
 		role: req.headers.get('x-user-role') || 'lead_architect',
 		productionMode: req.headers.get('x-production-mode') || 'human-authored',
-		domains
+		domains,
+		userName
 	};
 }

@@ -7,7 +7,8 @@ export const CreateArgumentSchema = z.object({
 	claim: z.string().min(3, "L'affirmation doit contenir au moins 3 caractères."),
 	grounds: z.string().min(5, "Le fondement ('grounds') doit être étayé (au moins 5 caractères)."),
 	kbRefs: z.array(z.string()).default([]),
-	confidence: z.enum(['verified', 'designed', 'vendor-stated', 'stated-by-client', 'assumed']).default('assumed')
+	confidence: z.enum(['verified', 'designed', 'vendor-stated', 'stated-by-client', 'assumed']).default('assumed'),
+	author: z.string().optional()
 });
 
 export const ResolveArgumentSchema = z.object({

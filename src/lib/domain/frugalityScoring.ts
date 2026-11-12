@@ -13,6 +13,9 @@ export interface FrugalityOpportunity {
 	subjectId: string;
 	subjectName: string;
 	sectionRef: string;
+	projectId?: string;
+	projectTitle?: string;
+	projectBadge?: string;
 	frugalOption: FrugalityOptionSummary;
 	referenceOption: FrugalityOptionSummary;
 	costDelta: number;
@@ -28,6 +31,9 @@ export interface SubjectMatrixInput {
 	id: string;
 	name: string;
 	sectionRef: string;
+	projectId?: string;
+	projectTitle?: string;
+	projectBadge?: string;
 	options: Array<{
 		id: string;
 		title: string;
@@ -155,6 +161,9 @@ export function extractSubjectFrugalityOpportunity(subject: SubjectMatrixInput):
 				subjectId: subject.id,
 				subjectName: subject.name,
 				sectionRef: subject.sectionRef,
+				projectId: subject.projectId,
+				projectTitle: subject.projectTitle,
+				projectBadge: subject.projectBadge,
 				frugalOption: optFrugal,
 				referenceOption: optRef,
 				costDelta,

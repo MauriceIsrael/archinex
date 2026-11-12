@@ -4,6 +4,7 @@
 	import { deliberationStore } from '$lib/stores/deliberationStore.svelte';
 	import { computeGlobalOverview, type EngagementSizeMetric } from '$lib/domain/dashboardOverview';
 	import GlobalKpiCards from '$lib/components/dashboard/GlobalKpiCards.svelte';
+	import FrugalityOpportunitiesCard from '$lib/components/dashboard/FrugalityOpportunitiesCard.svelte';
 	import EngagementsSizeTable from '$lib/components/dashboard/EngagementsSizeTable.svelte';
 	import TeamMonopolizationCard from '$lib/components/dashboard/TeamMonopolizationCard.svelte';
 	import KnowledgeGrowthChart from '$lib/components/dashboard/KnowledgeGrowthChart.svelte';
@@ -216,6 +217,11 @@
 	<!-- 1. BANDEAU DE SYNTHÈSE EXÉCUTIVE (KPIS CLÉS)                               -->
 	<!-- ═════════════════════════════════════════════════════════════════════════ -->
 	<GlobalKpiCards summary={overviewSummary} />
+
+	<!-- ═════════════════════════════════════════════════════════════════════════ -->
+	<!-- 1b. TOP 5 DES OPPORTUNITÉS DE FRUGALITÉ (COÛT VS COMPROMIS TECHNIQUE)     -->
+	<!-- ═════════════════════════════════════════════════════════════════════════ -->
+	<FrugalityOpportunitiesCard opportunities={data.frugalityOpportunities} />
 
 	<!-- ═════════════════════════════════════════════════════════════════════════ -->
 	<!-- 2. TAILLE ET AVANCEMENT DÉTAILLÉ DES ENGAGEMENTS (TABLEAU COMPARATIF)      -->

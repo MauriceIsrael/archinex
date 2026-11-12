@@ -11,6 +11,7 @@
 	import HldFragmentView from '$lib/components/deliberation/HldFragmentView.svelte';
 	import Phase3SubjectSelector from '$lib/components/deliberation/Phase3SubjectSelector.svelte';
 	import Phase4RefinementHub from '$lib/components/deliberation/Phase4RefinementHub.svelte';
+	import Phase5ConsolidationHub from '$lib/components/deliberation/Phase5ConsolidationHub.svelte';
 	import WhyInspector from '$lib/components/deliberation/WhyInspector.svelte';
 	import FreezeSectionDialog from '$lib/components/deliberation/FreezeSectionDialog.svelte';
 	import ImpactGraphExplorer from '$lib/components/deliberation/ImpactGraphExplorer.svelte';
@@ -54,7 +55,8 @@
 			queryPosture === 'appropriation' ||
 			queryPosture === 'deliberation' ||
 			queryPosture === 'rendu' ||
-			queryPosture === 'refinement'
+			queryPosture === 'refinement' ||
+			queryPosture === 'consolidation'
 		) {
 			deliberationStore.setPosture(queryPosture);
 		}
@@ -140,6 +142,14 @@
 				sessionRole={data?.sessionRole}
 				sessionUser={data?.sessionUser}
 			/>
+		</div>
+
+	<!-- ═════════════════════════════════════════════════════════════════════════ -->
+	<!-- PHASE 5 : CONSOLIDATION PROJET (CATALOGUE, VUES LOGIQUES & WHAT-IF DCs)   -->
+	<!-- ═════════════════════════════════════════════════════════════════════════ -->
+	{:else if deliberationStore.activePosture === 'consolidation'}
+		<div class="space-y-4 animate-in fade-in duration-150">
+			<Phase5ConsolidationHub />
 		</div>
 	{/if}
 

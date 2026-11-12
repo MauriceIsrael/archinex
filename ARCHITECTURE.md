@@ -986,7 +986,8 @@ Pour combler l'écart entre la délibération d'architecture et le déploiement 
    - Sépare strictement la **Base** (agnostique de l'environnement, vérifiée par `lintBaseComponentNoHardcodedEnv`) des **`EnvironmentOverlay`** (substitutions `param.*` et liste de `datacenters`), éditables dans `ComponentCatalogEditor.svelte`.
 2. **Résolveur `ref()`, Graphe d'Impact & Flux Implicites (`src/lib/domain/edp/refResolver.ts`)** :
    - Projette `Base × EnvironmentOverlay × Datacenter` en instances résolues avec IPs calculées par `offset`, vérifie la continuité des segments de `LogicalInterfaces` (`S6a`, `Rx-N5`, `WMS-WFS`), génère les flux implicites (`auto-generated` : NFS, SIEM, PKI) avec priorité aux règles explicites, et permet la **simulation What-If (2 vs 3 DCs)**.
-3. **Agrégation Projet & 3 Vues Synchronisées (`src/lib/domain/edp/logicalViews.ts`, `Phase4RefinementHub.svelte`)** :
+3. **Phase 5 · Consolidation Projet & 3 Vues Synchronisées (`src/lib/domain/edp/logicalViews.ts`, `Phase5ConsolidationHub.svelte`)** :
+   - Vue transversale au niveau Projet (`activePosture = 'consolidation'`, accessible depuis l'onglet **Phase 5 · Consolidation** dans `ProjectEngagementHeader.svelte`), distincte de la Phase 4 centrée sur un sujet.
    - `composeProjectLogicalTopology()` consolide les composants de référence (`core-network`, `ptt-server`, `gis-server`, `eir-proxy`, `gsma-eir`) et génère 3 diagrammes Mermaid synchronisés : **Vue Logique**, **Vue Déploiement (DC → Pool Sylva → Tenant)** et **Vue Physique / CMDB**.
 4. **Oracle OPA Étendu (`edp/policies/multi_axis_refinement.rego`) & Export GitOps Sylva Tenant (`src/lib/server/edp/sylvaGitopsExport.ts`)** :
    - L'Axe 7 vérifie l'alignement placement ↔ dataplane, la continuité des `LogicalInterfaces`, l'absence de `ref()` non résolues et les règles de lint Base.

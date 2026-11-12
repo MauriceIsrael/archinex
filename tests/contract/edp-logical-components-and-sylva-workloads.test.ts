@@ -187,4 +187,25 @@ describe('Lots 1-5 : Composants Logiques, Base x Overlay x DC, What-If & Export 
     const stagedHelm = stagedFiles.find((f) => f.path.endsWith('helm-releases.yaml'));
     expect(stagedHelm?.yaml).toContain('"archinex.io/exposure": disabled');
   });
+
+  it('expose la vue Consolidation Projet en tant que Phase 5 au niveau Projet', async () => {
+    const fs = await import('node:fs');
+    const path = await import('node:path');
+    const root = process.cwd();
+
+    const store = fs.readFileSync(path.join(root, 'src/lib/stores/deliberationStore.svelte.ts'), 'utf-8');
+    const header = fs.readFileSync(path.join(root, 'src/lib/components/deliberation/ProjectEngagementHeader.svelte'), 'utf-8');
+    const page = fs.readFileSync(path.join(root, 'src/routes/deliberation/+page.svelte'), 'utf-8');
+    const phase5 = fs.readFileSync(path.join(root, 'src/lib/components/deliberation/Phase5ConsolidationHub.svelte'), 'utf-8');
+    const phase4 = fs.readFileSync(path.join(root, 'src/lib/components/deliberation/Phase4RefinementHub.svelte'), 'utf-8');
+
+    expect(store).toContain("'consolidation'");
+    expect(header).toContain('phase-tab-consolidation');
+    expect(header).toContain('Phase 5 · Consolidation');
+    expect(page).toContain('Phase5ConsolidationHub');
+    expect(page).toContain("activePosture === 'consolidation'");
+    expect(phase5).toContain('phase5-consolidation-hub');
+    expect(phase5).toContain('ComponentCatalogEditor');
+    expect(phase4).not.toContain('phase4-logical-views-hub');
+  });
 });

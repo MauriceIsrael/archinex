@@ -58,6 +58,10 @@
 	function openSubjectRefinement() {
 		deliberationStore.setPosture('refinement');
 	}
+
+	function openProjectConsolidation() {
+		deliberationStore.setPosture('consolidation');
+	}
 </script>
 
 <div class="space-y-2.5" data-testid="project-engagement-header">
@@ -177,6 +181,22 @@
 					What-If
 				</span>
 			</button>
+
+			{#if isExperimentalEnabled}
+				<!-- Phase 5 : Consolidation Projet (transversale multi-sujets) -->
+				<button
+					type="button"
+					data-testid="phase-tab-consolidation"
+					onclick={openProjectConsolidation}
+					class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-all cursor-pointer {activePosture ===
+					'consolidation'
+						? 'bg-indigo-600 text-white font-bold shadow-xs'
+						: 'bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 font-medium border border-indigo-500/20'}"
+				>
+					<Layers class="h-3.5 w-3.5 shrink-0" />
+					<span>Phase 5 · Consolidation</span>
+				</button>
+			{/if}
 
 			{#if onOpenQuickAsk}
 				<button

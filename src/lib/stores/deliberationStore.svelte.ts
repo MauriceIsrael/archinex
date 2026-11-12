@@ -71,7 +71,12 @@ import {
 	type SpaceRoleInfo
 } from '$lib/domain/spaceActor';
 
-export type DeliberationPosture = 'appropriation' | 'deliberation' | 'rendu' | 'refinement';
+export type DeliberationPosture =
+	| 'appropriation'
+	| 'deliberation'
+	| 'rendu'
+	| 'refinement'
+	| 'consolidation';
 export type DeliberationViewMode = 'board' | 'conversation' | 'graph';
 
 class DeliberationStore {

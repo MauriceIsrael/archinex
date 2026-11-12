@@ -39,7 +39,7 @@ Supprimer ce commentaire avant de publier.
 - [ ] La CI de la PR est verte après le dernier rebase ou la dernière mise à jour depuis `main`
 - [ ] Tests « live » rejoués contre un Hub au contrat annoncé ci-dessus (`docs/testing.md`) : _N réussis / N_
 - [ ] Aucune assertion sur une **version exacte** d'un contrat ou d'un schéma du Hub dans les tests live (famille + minimum, pas `toBe('1.7')`)
-- [ ] Docs et `CHANGELOG.md` à jour
+- [ ] Docs à jour et fragment ajouté dans `changelog.d/<branche>.md` (ne pas éditer `CHANGELOG.md` directement)
 
 <!-- Chiffres réels : fichiers, tests réussis / ignorés / échecs. Ne pas arrondir un échec en « flaky » sans l'avoir rejoué seul. -->
 

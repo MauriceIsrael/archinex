@@ -1,0 +1,48 @@
+name: changelog-consolidate
+
+# Consolide automatiquement les fragments de `changelog.d/*.md` dans `CHANGELOG.md`
+# lors de chaque push sur `main` qui ajoute ou modifie un fragment.
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'changelog.d/*.md'
+      - '!changelog.d/README.md'
+  workflow_dispatch:
+
+concurrency:
+  group: changelog-consolidate
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+
+jobs:
+  consolidate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Consolider changelog.d/ dans CHANGELOG.md
+        run: node scripts/consolidate-changelog.mjs
+
+      - name: Commiter et pousser la consolidation
+        run: |
+          if git status --porcelain CHANGELOG.md changelog.d/ | grep -q .; then
+            git config user.name "github-actions[bot]"
+            git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+            git add CHANGELOG.md changelog.d/
+            git commit -m "docs(changelog): consolider les fragments changelog.d [skip ci]"
+            git pull --rebase origin main
+            git push origin main
+          else
+            echo "Aucun fragment à consolider."
+          fi

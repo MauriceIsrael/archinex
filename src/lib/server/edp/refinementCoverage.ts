@@ -8,6 +8,20 @@ import {
 } from './ontologyClient.js';
 import { compileOntologyProjections } from './projectionCompiler.js';
 import { runOpaEval } from './opaRunner.js';
+import {
+  DEFAULT_COMPONENT_CATALOG,
+  DEFAULT_ENVIRONMENT_OVERLAYS,
+  DEFAULT_VALUE_CATALOGS,
+  lintBaseComponentNoHardcodedEnv,
+  validateComponentAgainstCatalogs,
+  type BaseLintIssue
+} from '../../domain/edp/componentCatalog.js';
+import {
+  buildReferenceGraph,
+  resolveComponentInstance,
+  type ReferenceGraph,
+  type ResolvedComponentInstance
+} from '../../domain/edp/refResolver.js';
 
 export type AxisCoverageStatus = 'covered_executable' | 'covered_no_oracle' | 'missing_refinement';
 
@@ -137,6 +151,9 @@ export interface MultiAxisHydratedInventory {
   power_feeds: string[];
   coveredDomains: string[];
   reconciliation_graph: ReconciliationObjectGraph;
+  resolved_components?: ResolvedComponentInstance[];
+  component_lint_issues?: BaseLintIssue[];
+  reference_graph?: ReferenceGraph;
   satisfied_clauses?: string[];
   evaluated_triplets?: string[];
 }
@@ -1204,6 +1221,17 @@ export function composeMultiAxisHydration(
         ]
   };
 
+  const prodOverlay = DEFAULT_ENVIRONMENT_OVERLAYS[0];
+  const primaryDc = prodOverlay.spec.datacenters[0] || 'dc1';
+  const componentLintIssues = DEFAULT_COMPONENT_CATALOG.flatMap((comp) => [
+    ...lintBaseComponentNoHardcodedEnv(comp),
+    ...validateComponentAgainstCatalogs(comp, DEFAULT_VALUE_CATALOGS)
+  ]);
+  const resolvedComponents = DEFAULT_COMPONENT_CATALOG.filter((c) => !c.metadata.external).map(
+    (comp) => resolveComponentInstance(comp, prodOverlay, primaryDc, DEFAULT_VALUE_CATALOGS)
+  );
+  const referenceGraph = buildReferenceGraph(DEFAULT_COMPONENT_CATALOG);
+
   return {
     nautobot_planned_devices: nautobotDevices,
     k8s_manifests: k8sManifests,
@@ -1213,6 +1241,9 @@ export function composeMultiAxisHydration(
     power_feeds: powerFeeds,
     coveredDomains: Array.from(coveredDomains),
     reconciliation_graph: reconciliationGraph,
+    resolved_components: resolvedComponents,
+    component_lint_issues: componentLintIssues,
+    reference_graph: referenceGraph,
     satisfied_clauses: satisfiedClauses,
     evaluated_triplets: evaluatedTriplets
   };

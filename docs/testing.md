@@ -1,6 +1,6 @@
 # Tests : repartir d'une base propre
 
-`npm run verify` (denylist, tests, types Svelte, build) est la porte qualité, et c'est ce que lance la CI (sur chaque PR et sur `main`, pas sur chaque push d'une branche sans PR : ouvrir la PR, en brouillon au besoin). Ce document dit comment
+`npm run verify` (denylist, `changelog:check`, Sylva/OPA, tests, types Svelte, build) est la porte qualité, et c'est ce que lance la CI (sur chaque PR et sur `main`, pas sur chaque push d'une branche sans PR : ouvrir la PR, en brouillon au besoin ; sur PR, le pré-vol `scripts/ci-preflight.mjs` court-circuite les étapes lourdes si seule la doc ou `changelog.d/` change depuis le dernier run vert). Ce document dit comment
 obtenir un résultat **reproductible**, ce que `verify` ne lance **pas**, et comment lire les écarts connus.
 
 ## Les règles
@@ -22,7 +22,7 @@ cd ../archinex-clean
 export DATABASE_URL=file:./dev.db JWT_SECRET=ci-only-secret-not-used-anywhere-else-0123456789
 npm ci
 npx prisma db push && npx prisma generate      # dev.db neuve, puis le client (Prisma 7 ne le génère plus au db push)
-npm run verify                                   # les 4 portes : denylist, vitest, svelte-check, build
+npm run verify                                   # les 6 portes : denylist, changelog:check, sylva, vitest, svelte-check, build
 # La porte « build » peut manquer de mémoire avec le tas par défaut de Node (mesuré sur main : code 134) :
 # NODE_OPTIONS=--max-old-space-size=8192 npx vite build
 ```

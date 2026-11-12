@@ -21,9 +21,13 @@ import {
   upsertCatalogComponent,
   upsertEnvironmentOverlay
 } from '$lib/server/edp/componentCatalogRepository';
+import { authorizeProjectAccess } from '$lib/server/projects/projectAccess';
 
-export const GET: RequestHandler = async ({ params, url }) => {
+export const GET: RequestHandler = async (event) => {
+  const { params, url } = event;
   const projectId = params.projectId || 'default';
+  const auth = await authorizeProjectAccess(event, projectId);
+  if (auth.error) return auth.error;
   const env = url.searchParams.get('env') || 'prod';
   const bundle = loadProjectComponentCatalog(projectId);
 
@@ -60,8 +64,11 @@ export const GET: RequestHandler = async ({ params, url }) => {
   });
 };
 
-export const POST: RequestHandler = async ({ params, request }) => {
+export const POST: RequestHandler = async (event) => {
+  const { params, request } = event;
   const projectId = params.projectId || 'default';
+  const auth = await authorizeProjectAccess(event, projectId);
+  if (auth.error) return auth.error;
   const body = (await request.json()) as Record<string, any>;
   const action = String(body.action || '');
 

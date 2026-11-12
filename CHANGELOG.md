@@ -8,6 +8,18 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Remplacement des Identifiants Obscurs par le Nom de Login en Délibération
+- **Résolution Automatique des Auteurs (`src/lib/server/projects/debateDb.ts`, `src/lib/server/projects/actorHelper.ts`, `src/lib/schemas/debateApiSchemas.ts`)** :
+  - `createArgument()` résout automatiquement l'auteur humain vers son nom de compte / login (`name` ou `email` du compte connecté) au lieu du CUID technique de base de données (`cmv...`).
+  - `listArguments()` résout dynamiquement les arguments historiques stockés avec un identifiant technique ou CUID en interrogeant les utilisateurs associés dans la base de données.
+  - `ActorInfo` et `getActorFromEvent()` / `getActorInfo()` propagent le champ `userName` extrait de la session ou des en-têtes.
+- **Interface Utilisateur du Chat de Délibération (`SubjectMessageBubble.svelte`, `StructuredComposer.svelte`, `SubjectThreadView.svelte`, `DeliberationWorkbench.svelte`, `routes/deliberation/+page.server.ts`)** :
+  - Transmission du nom complet et du login de la session (`sessionUser.name`, `sessionUser.email`) au composeur structuré et aux bulles de messages du fil de discussion.
+  - Dérivation réactive de l'auteur affiché (`displayAuthor`, `displayTargetAuthor`) garantissant le remplacement immédiat de tout CUID résiduel par le nom du compte ou l'email du login connecté.
+- **Tests de Non-Régression & Intégration** :
+  - Ajout de tests de contrat dans `tests/contract/deliberation-conversation.test.ts` validant le masquage des CUID obscurs au profit du nom ou de l'email de session.
+  - Ajout d'une suite d'intégration dans `tests/integration/debate-author-login-resolution.test.ts` (création avec nom, repli sur l'email, résolution dynamique des anciens arguments, préservation des rôles d'agents IA).
+
 ### Arbre de Découverte Interactif & Diagnostic des Règles par Sujet
 - **Arborescence HTML Navigable (`src/lib/components/deliberation/DiscoveryTreeView.svelte`)** :
   - Vue **Arbre lisible** par défaut (avec bascule vers le **Graphe** ECharts dont les marges et troncatures ont été élargies dans `buildDiscoveryTreeData`) dans `SubjectThreadView.svelte` et `SubjectDossierView.svelte`.

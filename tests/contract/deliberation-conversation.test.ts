@@ -153,6 +153,55 @@ describe('A24 — Délibération : Un sujet = une conversation (Issue #35)', () 
 			expect(html).toContain('Risque de latence sur le plan de contrôle');
 		});
 
+		it('rendu HTML : remplace un ID cuid obscur par le login / nom de l\'utilisateur connecté', () => {
+			const obscureCuid = 'cmv4bb2ev0002wqzsx6amtw2t';
+			const argWithCuid: Argument = {
+				...mockHumanArg,
+				author: obscureCuid
+			};
+
+			const { html } = render(SubjectMessageBubble, {
+				props: {
+					argument: argWithCuid,
+					targetArgument: null,
+					userRole: 'lead_architect',
+					isHumanUser: true,
+					sessionUser: {
+						id: obscureCuid,
+						name: 'M. Israel (Lead Architect)',
+						email: 'admin@archinex.local'
+					}
+				}
+			});
+
+			expect(html).not.toContain(obscureCuid);
+			expect(html).toContain('M. Israel (Lead Architect)');
+		});
+
+		it('rendu HTML : utilise l\'email de login si le nom de compte est absent', () => {
+			const obscureCuid = 'cmv4bb2ev0002wqzsx6amtw2t';
+			const argWithCuid: Argument = {
+				...mockHumanArg,
+				author: obscureCuid
+			};
+
+			const { html } = render(SubjectMessageBubble, {
+				props: {
+					argument: argWithCuid,
+					targetArgument: null,
+					userRole: 'lead_architect',
+					isHumanUser: true,
+					sessionUser: {
+						id: obscureCuid,
+						email: 'architect@archinex.local'
+					}
+				}
+			});
+
+			expect(html).not.toContain(obscureCuid);
+			expect(html).toContain('architect@archinex.local');
+		});
+
 		it('rendu HTML : carte de synthèse pleine largeur (stance: synthesis)', () => {
 			const { html } = render(SubjectMessageBubble, {
 				props: {

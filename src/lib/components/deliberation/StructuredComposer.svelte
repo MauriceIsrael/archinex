@@ -24,6 +24,7 @@
 		options = [],
 		allowedKbRefs = [],
 		replyingTo = null,
+		sessionUser = null,
 		selectedOptionId = $bindable(''),
 		onCancelReply = () => {},
 		onArgumentCreated = (created: Argument, triggeredArgs?: Argument[]) => {},
@@ -34,6 +35,7 @@
 		options?: Option[];
 		allowedKbRefs?: string[];
 		replyingTo?: Argument | null;
+		sessionUser?: { id?: string; name?: string; email?: string; role?: string } | null;
 		selectedOptionId?: string;
 		onCancelReply?: () => void;
 		onArgumentCreated?: (created: Argument, triggeredArgs?: Argument[]) => void;
@@ -177,7 +179,8 @@
 					grounds: grounds.trim(),
 					confidence: 'designed',
 					kbRefs: extracted.kbRefs,
-					targetArgumentId: replyingTo?.id || null
+					targetArgumentId: replyingTo?.id || null,
+					author: sessionUser?.name || sessionUser?.email
 				})
 			});
 

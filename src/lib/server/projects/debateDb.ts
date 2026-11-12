@@ -19,6 +19,7 @@ export interface CreateArgumentData {
 	grounds: string;
 	kbRefs?: string[];
 	confidence?: EpistemicConfidence;
+	author?: string;
 	authorKind?: string;
 	round?: number;
 }
@@ -37,8 +38,32 @@ export async function listArguments(
 		orderBy: { createdAt: 'asc' }
 	});
 
+	// Résolution des identifiants techniques / CUID vers le nom du login (name ou email)
+	const isCuidOrTechnical = (val: string) =>
+		/^c[a-z0-9]{20,32}$/i.test(val) || /^usr_[a-z0-9_-]+$/i.test(val);
+
+	const rawAuthors = Array.from(new Set(args.map((a) => a.author).filter(Boolean)));
+	const candidateUserIds = rawAuthors.filter(
+		(a) => !a.startsWith('agent:') && isCuidOrTechnical(a)
+	);
+
+	const authorMap = new Map<string, string>();
+	if (candidateUserIds.length > 0) {
+		const users = await prisma.user.findMany({
+			where: { id: { in: candidateUserIds } },
+			select: { id: true, name: true, email: true }
+		});
+		for (const u of users) {
+			const loginName = u.name?.trim() || u.email;
+			if (loginName) {
+				authorMap.set(u.id, loginName);
+			}
+		}
+	}
+
 	return args.map((a) => ({
 		...a,
+		author: authorMap.get(a.author) || a.author,
 		stance: a.stance as Stance,
 		confidence: a.confidence as EpistemicConfidence,
 		productionMode: a.productionMode as ProductionMode,
@@ -103,6 +128,34 @@ export async function createArgument(
 			}
 		}
 
+		const isCuidOrTechnical = (val: string) =>
+			/^c[a-z0-9]{20,32}$/i.test(val) || /^usr_[a-z0-9_-]+$/i.test(val);
+
+		let effectiveAuthor = data.author || actor.userName;
+		if (isAgent) {
+			effectiveAuthor = data.author || (actor.userId.startsWith('agent:') ? actor.userId : authorKind);
+		} else {
+			if (!effectiveAuthor || isCuidOrTechnical(effectiveAuthor)) {
+				if (actor.userId) {
+					const user = await tx.user.findUnique({
+						where: { id: actor.userId },
+						select: { name: true, email: true }
+					});
+					if (user) {
+						effectiveAuthor = user.name?.trim() || user.email;
+					}
+				}
+			}
+			if (!effectiveAuthor || isCuidOrTechnical(effectiveAuthor)) {
+				effectiveAuthor =
+					actor.userId && !isCuidOrTechnical(actor.userId)
+						? actor.userId
+						: actor.role === 'lead_architect'
+							? 'Lead Architect'
+							: 'Architecte';
+			}
+		}
+
 		if (data.optionId) {
 			const option = await tx.option.findUnique({ where: { id: data.optionId } });
 			if (!option) {
@@ -113,7 +166,7 @@ export async function createArgument(
 						title: `Option ${data.optionId}`,
 						summary: 'Option proposée lors de la délibération',
 						origin: authorKind.startsWith('agent:') ? 'llm-proposed' : 'human',
-						author: actor.userId,
+						author: effectiveAuthor,
 						role: actor.role || 'lead_architect',
 						productionMode,
 						status: 'proposed'
@@ -143,7 +196,7 @@ export async function createArgument(
 				grounds: data.grounds.trim(),
 				kbRefs: JSON.stringify(data.kbRefs || []),
 				confidence: data.confidence || 'assumed',
-				author: actor.userId,
+				author: effectiveAuthor,
 				authorKind,
 				productionMode,
 				round: data.round || 1,

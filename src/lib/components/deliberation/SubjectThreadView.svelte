@@ -87,7 +87,7 @@
 		subjectId: string;
 		projectId: string;
 		userRole?: string;
-		sessionUser?: { id: string; email: string; role?: string } | null;
+		sessionUser?: { id: string; email: string; name?: string; role?: string } | null;
 		isHumanUser?: boolean;
 		isSidebarCollapsed?: boolean;
 		onToggleSidebar?: () => void;
@@ -1381,6 +1381,7 @@
 						targetArgument={targetArg}
 						{userRole}
 						{isHumanUser}
+						{sessionUser}
 						onResolve={handleResolveArgument}
 						onChallenge={handleChallengeArgument}
 						onArbitrateOption={handleArbitrateOption}
@@ -1433,6 +1434,7 @@
 				bind:selectedOptionId={selectedComposerOptionId}
 				{allowedKbRefs}
 				{replyingTo}
+				{sessionUser}
 				onCancelReply={() => (replyingTo = null)}
 				onArgumentCreated={handleArgumentCreated}
 				onError={(msg) => deliberationStore.logNotification(msg, 'warning')}

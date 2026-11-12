@@ -112,11 +112,13 @@ Pour ajouter un nouveau format cible de projection (ex: Terraform ou PlantUML C4
 
 ---
 
-## 5. Intégration continue
+## 5. Intégration continue & Journal des modifications (`changelog.d/`)
 
-`.github/workflows/verify.yml` exécute `npm run verify` sur un clone propre à chaque push et pull request. Une PR rouge ne se fusionne pas. Pour reproduire localement : `cp .env.example .env && npx prisma generate && npx prisma db push && npm run verify`.
+- `.github/workflows/verify.yml` exécute `npm run verify` (6 portes : denylist, `changelog:check`, Sylva/OPA, Vitest, Svelte check, build) sur un clone propre à chaque push sur `main` et pull request. Une PR rouge ne se fusionne pas. Pour reproduire localement : `cp .env.example .env && npx prisma generate && npx prisma db push && npm run verify`.
+- **Pré-vol CI (`scripts/ci-preflight.mjs`)** : sur `pull_request`, si une PR ne modifie que de la documentation / `changelog.d/` (hors docs vérifiées par contrat) ou si l'arbre de code hors documentation est identique à un run déjà vert mémorisé en cache sur la même PR, les étapes lourdes de `verify.yml` et `hub-live.yml` sont court-circuitées en quelques secondes tout en rapportant un statut vert.
+- **Fragments de Changelog (`changelog.d/`)** : pour éviter tout conflit de fusion sur `CHANGELOG.md` entre PRs parallèles, ne modifiez pas `CHANGELOG.md` directement dans vos PRs. Ajoutez un fichier `changelog.d/<nom-de-branche>.md` (validé par `npm run changelog:check`). Le workflow `.github/workflows/changelog-consolidate.yml` consolide automatiquement les fragments sous `## Non publié` lors de la fusion sur `main`.
 
-Les tests « live » (vrai LLMOps) et les parcours Playwright ne tournent pas en CI : ils sont ignorés sans `LLMOPS_LIVE_URL` ou Docker. Lancez-les avant une fusion qui touche l'intégration LLMOps.
+Les tests « live » (vrai LLMOps) et les parcours Playwright ne tournent pas dans `verify` : ils sont ignorés sans `LLMOPS_LIVE_URL` ou Docker. Lancez-les avant une fusion qui touche l'intégration LLMOps.
 
 ## 6. Évaluer l'audit des exigences d'un RFP
 

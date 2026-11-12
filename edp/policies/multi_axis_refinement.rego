@@ -259,6 +259,60 @@ violations contains v if {
 }
 
 # ==============================================================================
+# AXE 7 : COMPOSANTS LOGIQUES, PLACEMENT SYLVA, MULTI-NIC / VRF & REF() (LOT 4)
+# ==============================================================================
+
+violations contains v if {
+	some comp in object.get(input, "resolved_components", [])
+	some mod in object.get(comp, "modules", [])
+	mod.placement.requiredDataplane == "sriov-dpdk"
+	pool := object.get(mod.placement, "pool", "")
+	not contains(lower(pool), "sriov")
+	v := {
+		"rule": "data.archinex.edp.multiaxis.deny_component_substrate_mismatch",
+		"axis": "urn:archinex:ontology:axis:logical_components",
+		"message": sprintf("Incohérence placement : le module '%v/%v' exige 'sriov-dpdk' mais cible le pool '%v'.", [comp.name, mod.name, pool]),
+		"violated_clause_urn": "urn:archinex:kb:clause:infrastructure:baremetal_sylva",
+		"violated_requirement_id": "REQ-Sylva-08",
+	}
+}
+
+violations contains v if {
+	some comp in object.get(input, "resolved_components", [])
+	some err in object.get(comp, "continuityErrors", [])
+	v := {
+		"rule": "data.archinex.edp.multiaxis.deny_logical_interface_discontinuity",
+		"axis": "urn:archinex:ontology:axis:logical_components",
+		"message": sprintf("Discontinuité sur '%v' : %v", [comp.name, err]),
+		"violated_clause_urn": "urn:archinex:kb:clause:nis2:art21_crypto",
+		"violated_requirement_id": "REQ-Lot1-1343",
+	}
+}
+
+violations contains v if {
+	some comp in object.get(input, "resolved_components", [])
+	some ref_err in object.get(comp, "unresolvedRefs", [])
+	v := {
+		"rule": "data.archinex.edp.multiaxis.deny_unresolved_component_refs",
+		"axis": "urn:archinex:ontology:axis:logical_components",
+		"message": sprintf("Référence non résolue sur '%v' (%v/%v) : '%v'", [comp.name, comp.environment, comp.datacenter, ref_err]),
+		"violated_clause_urn": "urn:archinex:kb:clause:platform:isoprod_parity",
+		"violated_requirement_id": "REQ-Lot1-Env-01",
+	}
+}
+
+violations contains v if {
+	some issue in object.get(input, "component_lint_issues", [])
+	v := {
+		"rule": "data.archinex.edp.multiaxis.deny_component_lint_violation",
+		"axis": "urn:archinex:ontology:axis:logical_components",
+		"message": sprintf("[%v] %v : %v", [issue.component, issue.code, issue.message]),
+		"violated_clause_urn": "urn:archinex:kb:clause:telecom:oob_isolation",
+		"violated_requirement_id": "REQ-Lot1-OOB-01",
+	}
+}
+
+# ==============================================================================
 # SYNTHÈSE DU VERDICT MULTI-AXES
 # ==============================================================================
 

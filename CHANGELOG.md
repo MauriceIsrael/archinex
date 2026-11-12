@@ -1,4 +1,4 @@
-# Changelog
+﻿# Changelog
 
 Journal des évolutions d'Archinex, reconstitué à partir de l'historique git.
 Les lots (`A0`…`A30`) correspondent aux issues GitHub du projet. Le journal d'ArcKit
@@ -7,6 +7,13 @@ Les lots (`A0`…`A30`) correspondent aux issues GitHub du projet. Le journal d'
 Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
+
+### Hydratation des Composants Logiques, Modèle Terrain & Export GitOps Sylva Tenant (#283–#287)
+- **Lot 1 (#283 — `src/lib/domain/edp/componentCatalog.ts`, `src/lib/server/edp/componentCatalogRepository.ts`, `src/lib/components/edp/ComponentCatalogEditor.svelte`)** : Ajout du Catalogue de Composants Logiques (`Component → Module → Instance`, `Tenant`, `FunctionalDomain/Editor`, Multi-NIC par classe, VRF ↔ DNS, adressage par `offset`, `SVM + tiers`, `active/staged/inactive`), séparation `Base × EnvironmentOverlay × Datacenter` avec linter anti-valeurs en dur (`lintBaseComponentNoHardcodedEnv`) et éditeur/formulaire dédié (`core-network`, `ptt-server`, `gis-server`, `eir-proxy`, `gsma-eir`).
+- **Lot 2 (#284 — `src/lib/domain/edp/refResolver.ts`)** : Résolveur `ref()`, matérialisation IP par `offset`, graphe de références pour analyse d'impact (`computeImpactRadius`), vérification de continuité `UseCase → LogicalInterface → Segments`, générateur déterministe de flux implicites (`auto-generated`) et simulation What-If (2 vs 3 DCs).
+- **Lot 3 (#285 — `src/lib/domain/edp/logicalViews.ts`, `src/routes/api/projects/[projectId]/catalog/+server.ts`, `Phase4RefinementHub.svelte`)** : Agrégation transverse Projet (`composeProjectLogicalTopology`), 3 vues Mermaid synchronisées (Logique, Déploiement, Physique CMDB) et comparateur What-If 2 vs 3 DCs dans l'IHM Phase 4.
+- **Lot 4 (#286 — `edp/policies/multi_axis_refinement.rego`)** : Ajout de l'Axe 7 Rego (placement ↔ substrat Sylva, continuité `LogicalInterfaces`, `ref()` non résolues, lint Base).
+- **Lot 5 (#287 — `src/lib/server/edp/sylvaGitopsExport.ts`, `src/lib/server/edp/refinementCoverage.ts`)** : Génération du bundle GitOps Sylva léger par composant (`workloads/<functionalDomain>/<component>/<env>/{namespace.yaml,network-policies.yaml,helm-releases.yaml}`) avec `Namespace`, `CiliumNetworkPolicy` et `HelmRelease` FluxCD (`staged`/`inactive`), validée par `tests/contract/edp-logical-components-and-sylva-workloads.test.ts`.
 
 ### Arbre de Découverte Interactif & Diagnostic des Règles par Sujet
 - **Arborescence HTML Navigable (`src/lib/components/deliberation/DiscoveryTreeView.svelte`)** :

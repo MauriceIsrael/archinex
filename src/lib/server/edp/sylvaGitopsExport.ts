@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { sanitizeManifests } from './adapters/sylvaAdapter.js';
 import type { MultiAxisHydratedInventory } from './refinementCoverage.js';
+import type { ResolvedComponentInstance } from '../../domain/edp/refResolver.js';
 
 export interface SylvaGitopsExportInput {
   edpId: string;
@@ -15,6 +16,11 @@ export interface SylvaGitopsExportInput {
   fetchImpl?: typeof fetch;
 }
 
+export interface SylvaTenantWorkloadFile {
+  path: string;
+  yaml: string;
+}
+
 export interface SylvaGitopsExportResult {
   clusterName: string;
   branchName: string;
@@ -23,6 +29,7 @@ export interface SylvaGitopsExportResult {
   workloadClusterManifestPath: string;
   valuesYaml: string;
   workloadClusterManifestYaml: string;
+  tenantWorkloads: SylvaTenantWorkloadFile[];
   sha256: string;
   mode: 'github_pr' | 'gitlab_mr' | 'local_bundle';
   pullRequestUrl?: string;
@@ -97,6 +104,134 @@ export function serializeToDeterministicYaml(value: unknown, indent = 0): string
       .join('\n');
   }
   return String(value);
+}
+
+/**
+ * Projette un composant logique résolu en manifests Kubernetes/FluxCD Sylva-compliant légers :
+ * Namespace + CiliumNetworkPolicy + HelmRelease (Lot 5 — Issue #287).
+ */
+export function buildSylvaTenantWorkloadManifests(
+  resolved: ResolvedComponentInstance
+): SylvaTenantWorkloadFile[] {
+  const baseDir = `workloads/${resolved.functionalDomain}/${resolved.name}/${resolved.environment}`;
+  const commonLabels = {
+    'archinex.io/tenant': resolved.tenant,
+    'archinex.io/component': resolved.name,
+    'archinex.io/functional-domain': resolved.functionalDomain,
+    'archinex.io/environment': resolved.environment,
+    'archinex.io/datacenter': resolved.datacenter
+  };
+
+  const namespaceManifest = sanitizeManifests({
+    apiVersion: 'v1',
+    kind: 'Namespace',
+    metadata: {
+      name: resolved.tenant,
+      labels: {
+        ...commonLabels,
+        'pod-security.kubernetes.io/enforce': 'restricted'
+      }
+    }
+  });
+
+  const cnpManifests = resolved.effectiveRules.map((rule) =>
+    sanitizeManifests({
+      apiVersion: 'cilium.io/v2',
+      kind: 'CiliumNetworkPolicy',
+      metadata: {
+        name: rule.id.toLowerCase().replace(/[^a-z0-9-]/g, '-'),
+        namespace: resolved.tenant,
+        labels: {
+          ...commonLabels,
+          'archinex.io/rule-category': rule.category || 'explicit'
+        },
+        annotations: {
+          ...(rule.functionalFlow ? { 'archinex.io/logical-interface': rule.functionalFlow } : {}),
+          ...(rule.generatedFrom ? { 'archinex.io/generated-from': rule.generatedFrom } : {})
+        }
+      },
+      spec: {
+        endpointSelector: {},
+        egress: [
+          {
+            toPorts: [
+              {
+                ports: rule.ports.map((p) => ({
+                  port: String(p),
+                  protocol: rule.proto.toUpperCase()
+                }))
+              }
+            ]
+          }
+        ]
+      }
+    })
+  );
+
+  const helmManifests = resolved.modules
+    .filter((m) => m.kind === 'container' || m.kind === 'forward-proxy')
+    .map((mod) =>
+      sanitizeManifests({
+        apiVersion: 'helm.toolkit.fluxcd.io/v2',
+        kind: 'HelmRelease',
+        metadata: {
+          name: `${resolved.name}-${mod.name}`,
+          namespace: resolved.tenant,
+          labels: {
+            ...commonLabels,
+            'archinex.io/module': mod.name,
+            'archinex.io/lifecycle-status': mod.status
+          },
+          annotations: {
+            ...(mod.status === 'staged' ? { 'archinex.io/exposure': 'disabled' } : {}),
+            ...(mod.status === 'inactive' ? { 'kustomize.toolkit.fluxcd.io/prune': 'disabled' } : {})
+          }
+        },
+        spec: {
+          interval: '5m',
+          chart: {
+            spec: {
+              chart: mod.helm?.chart || mod.name,
+              version: mod.chartVersion || '1.0.0',
+              sourceRef: {
+                kind: 'HelmRepository',
+                name: 'sylva-internal',
+                namespace: 'flux-system'
+              }
+            }
+          },
+          values: {
+            replicaCount: mod.replicas,
+            nodeSelector: {
+              'sylva.org/pool': mod.placement.pool || mod.placement.requiredDataplane
+            }
+          }
+        }
+      })
+    );
+
+  const files: SylvaTenantWorkloadFile[] = [
+    {
+      path: `${baseDir}/namespace.yaml`,
+      yaml: `${serializeToDeterministicYaml(namespaceManifest)}\n`
+    }
+  ];
+
+  if (cnpManifests.length > 0) {
+    files.push({
+      path: `${baseDir}/network-policies.yaml`,
+      yaml: cnpManifests.map((m) => serializeToDeterministicYaml(m)).join('\n---\n') + '\n'
+    });
+  }
+
+  if (helmManifests.length > 0) {
+    files.push({
+      path: `${baseDir}/helm-releases.yaml`,
+      yaml: helmManifests.map((m) => serializeToDeterministicYaml(m)).join('\n---\n') + '\n'
+    });
+  }
+
+  return files;
 }
 
 /**
@@ -184,6 +319,9 @@ export async function exportSylvaWorkloadClusterGitops(
 
   const valuesYaml = `${headerComment}\n${serializeToDeterministicYaml(sanitizedValues)}\n`;
   const workloadClusterManifestYaml = `${headerComment}\n${serializeToDeterministicYaml(sanitizedSwc)}\n`;
+  const tenantWorkloads: SylvaTenantWorkloadFile[] = (
+    input.hydratedInventory.resolved_components || []
+  ).flatMap((comp) => buildSylvaTenantWorkloadManifests(comp));
   const sha256 = createHash('sha256').update(valuesYaml).digest('hex');
 
   const repoUrl = input.repoUrl ?? process.env.SYLVA_GITOPS_REPO_URL ?? '';
@@ -319,6 +457,7 @@ export async function exportSylvaWorkloadClusterGitops(
     workloadClusterManifestPath,
     valuesYaml,
     workloadClusterManifestYaml,
+    tenantWorkloads,
     sha256,
     mode,
     pullRequestUrl,

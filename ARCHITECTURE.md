@@ -1,4 +1,4 @@
-# Archinex · Software Architecture Documentation
+﻿# Archinex · Software Architecture Documentation
 
 > **Document d'Architecture Système du Moteur de Co-Conception et Délibération Archinex.**
 > Conforme aux standards de modélisation système, à la constitution épistémique et aux spécifications *LLMOps*.
@@ -974,3 +974,20 @@ flowchart TD
   - **Ontologie SI (`src/lib/server/edp/ontologyClient.ts`)** : Interroge en priorité absolue le service LLMOps via son API REST (`GET /api/knowledge/ontology/export`). En environnement hors-ligne ou de test déconnecté, bascule de manière transparente sur les fixtures scellées (`tests/fixtures/edp/ontology_export.json`). En environnement de production (`NODE_ENV=production`), tout repli silencieux est strictement interdit afin de garantir l'authenticité des contrôles d'architecture.
   - **Doctrine & Règles de Conformité (`src/lib/server/doctrine/doctrineService.ts`)** : Interroge en priorité absolue le Knowledge Hub (`GET /api/knowledge/context`). En mode hors-ligne/test déconnecté, active un repli propre sur les fixtures doctrinales scellées (`llmops-sealed-snapshot.json`) en filtrant par domaines et sujets. En production, le statut hors-ligne (`offline: true`) est propagé sans aucune invention de règles.
   - **Porte G4 — Capitalisation Souveraine (`src/lib/server/projects/capitalizationDb.ts`)** : Les nouveaux patterns architecturaux (`new_asset`) et amendements/dérogations (`amendment`) sont transmis directement vers l'API du Knowledge Hub (`POST /api/knowledge/candidates`) par requêtes HTTP sécurisées avec propagation de l'identité d'acteur (`X-Actor-Email`). L'ensemble de la Porte G4 fonctionne de manière strictement *stateless*, sans aucune écriture ni lecture de fichiers locaux sur le système de fichiers.
+
+---
+
+## 17. Catalogue de Composants Logiques, Modèle Terrain (`Base × Overlay × DC`) & Export Sylva Tenant (#283–#287)
+
+Pour combler l'écart entre la délibération d'architecture et le déploiement terrain tout en restant **Sylva-compliant first**, Archinex complète la Phase 4 avec un étage logique intermédiaire séparé de l'ontologie normative :
+
+1. **Catalogue de Composants & Valeurs (`src/lib/domain/edp/componentCatalog.ts`, `src/lib/server/edp/componentCatalogRepository.ts`, `GET/POST /api/projects/[projectId]/catalog`)** :
+   - Modélise la triade **`LogicalComponent` (`Component → Module → Instance`)**, le cloisonnement **`1 Component = 1 Tenant`**, l'axe **`FunctionalDomain / Editor`**, le Multi-NIC par classe (`admin`, `business`, `events`, `internal`), le routage VRF ↔ DNS, l'adressage relatif (`offset`, `dhcp`, `reserved`), le stockage (`SVM + tiers hot/warm/cold`) et les statuts (`active | staged | inactive`).
+   - Sépare strictement la **Base** (agnostique de l'environnement, vérifiée par `lintBaseComponentNoHardcodedEnv`) des **`EnvironmentOverlay`** (substitutions `param.*` et liste de `datacenters`), éditables dans `ComponentCatalogEditor.svelte`.
+2. **Résolveur `ref()`, Graphe d'Impact & Flux Implicites (`src/lib/domain/edp/refResolver.ts`)** :
+   - Projette `Base × EnvironmentOverlay × Datacenter` en instances résolues avec IPs calculées par `offset`, vérifie la continuité des segments de `LogicalInterfaces` (`S6a`, `Rx-N5`, `WMS-WFS`), génère les flux implicites (`auto-generated` : NFS, SIEM, PKI) avec priorité aux règles explicites, et permet la **simulation What-If (2 vs 3 DCs)**.
+3. **Agrégation Projet & 3 Vues Synchronisées (`src/lib/domain/edp/logicalViews.ts`, `Phase4RefinementHub.svelte`)** :
+   - `composeProjectLogicalTopology()` consolide les composants de référence (`core-network`, `ptt-server`, `gis-server`, `eir-proxy`, `gsma-eir`) et génère 3 diagrammes Mermaid synchronisés : **Vue Logique**, **Vue Déploiement (DC → Pool Sylva → Tenant)** et **Vue Physique / CMDB**.
+4. **Oracle OPA Étendu (`edp/policies/multi_axis_refinement.rego`) & Export GitOps Sylva Tenant (`src/lib/server/edp/sylvaGitopsExport.ts`)** :
+   - L'Axe 7 vérifie l'alignement placement ↔ dataplane, la continuité des `LogicalInterfaces`, l'absence de `ref()` non résolues et les règles de lint Base.
+   - `exportSylvaWorkloadClusterGitops()` émet, en plus de `workload-clusters/<cluster>/values.yaml`, les manifests natifs Sylva/FluxCD par composant dans `workloads/<functionalDomain>/<component>/<env>/` (`Namespace`, `CiliumNetworkPolicy`, `HelmRelease` avec gestion `staged`/`inactive`), assainis par `sanitizeManifests()`.

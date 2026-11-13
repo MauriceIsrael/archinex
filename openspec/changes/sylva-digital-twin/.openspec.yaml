@@ -1,0 +1,9 @@
+schema: "1.0"
+change:
+  name: "sylva-digital-twin"
+  title: "Jumeau numérique pré-déploiement de Sylva, branché à l'hydratation (Phase 4)"
+  description: "Remplace le what-if naïf '2 vs 3 DCs' (comptage multiplicatif) par un jumeau numérique à fidélité graduée (T0-T4) qui compile l'inventaire hydraté en modèle exécutable, rejoue des scénarios (variations de topologie, injections de pannes) et produit une source de preuve 'twin_report' consommée par les oracles OPA."
+  status: "proposed"
+  authors:
+    - "Maurice Israel <maurice@archinex.io>"
+  created_at: "2026-11-13"

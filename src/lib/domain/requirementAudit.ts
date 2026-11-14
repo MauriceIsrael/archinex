@@ -9,6 +9,7 @@
  */
 
 import { universalSha256 } from '$lib/validation/epistemicEnvelope';
+import type { TogafDomainId } from '$lib/domain/edp/togafTaxonomy';
 
 export type RequirementDisposition = 'deliberated' | 'evacuated' | 'clarification_needed' | 'to_qualify';
 
@@ -71,6 +72,9 @@ export interface ReviewedClause {
 	text: string;
 	criticality: 'bloquant' | 'majeur' | 'info';
 	category?: string;
+	togafDomain?: TogafDomainId;
+	commoditySlotId?: string;
+	commodityAxisUrn?: string;
 	disposition: RequirementDisposition;
 	evacuationReason?: string;
 	clarificationQuestion?: string;

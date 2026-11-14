@@ -7,7 +7,20 @@ export type OntologyPredicate =
   | 'depends_on'
   | 'constrains'
   | 'conflicts_with'
-  | 'satisfies_clause';
+  | 'satisfies_clause'
+  | 'requires_prerequisite_axis'
+  | 'instantiates_component';
+
+export const VALID_ONTOLOGY_PREDICATES: readonly OntologyPredicate[] = [
+  'requires_aspect',
+  'implemented_by',
+  'depends_on',
+  'constrains',
+  'conflicts_with',
+  'satisfies_clause',
+  'requires_prerequisite_axis',
+  'instantiates_component'
+];
 
 export interface OntologyTriplet {
   id: string;
@@ -23,6 +36,10 @@ export interface OntologyEntity {
   kind?: 'concept' | 'axis' | 'leaf';
   title?: string;
   domain?: string;
+  togaf_domain?: string;
+  document_engine_layer?: string;
+  instantiated_component?: string;
+  default_decision_type?: 'type1_deliberate' | 'type2_default_ratify';
   keywords?: string[];
   governed_by_clauses?: string[];
   oracle_rules?: string[];

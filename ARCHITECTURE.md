@@ -991,3 +991,22 @@ Pour combler l'écart entre la délibération d'architecture et le déploiement 
 4. **Oracle OPA Étendu (`edp/policies/multi_axis_refinement.rego`) & Export GitOps Sylva Tenant (`src/lib/server/edp/sylvaGitopsExport.ts`)** :
    - L'Axe 7 vérifie l'alignement placement ↔ dataplane, la continuité des `LogicalInterfaces`, l'absence de `ref()` non résolues et les règles de lint Base.
    - `exportSylvaWorkloadClusterGitops()` émet, en plus de `workload-clusters/<cluster>/values.yaml`, les manifests natifs Sylva/FluxCD par composant dans `workloads/<functionalDomain>/<component>/<env>/` (`Namespace`, `CiliumNetworkPolicy`, `HelmRelease` avec gestion `staged`/`inactive`), assainis par `sanitizeManifests()`.
+
+---
+
+## 18. Taxonomie Unifiée TOGAF, Emplacements de Décision, Conscientisation & Hydratation de la Chaîne de Confiance
+
+Pour éviter que les composants d'infrastructure critiques mais standardisés (HSM, hiérarchie PKI, coffre Vault/OpenBao, bastion PAM, proxy filtrant sortant/WAF, DNS/IPAM, synchronisation temporelle, registre OCI) ne restent invisibles entre l'évacuation des « commodités » en Phase 1 et la génération LLD, Archinex unifie le pipeline autour de quatre mécanismes :
+
+1. **Taxonomie Canonique à 7 Domaines TOGAF (`src/lib/domain/edp/togafTaxonomy.ts`)** :
+   - Unifie les catégories d'exigences, le Document Engine (`application`, `component`, `infrastructure`, `iaas`) et les domaines d'ontologie en 7 domaines : `application-business`, `security-trust`, `network-connectivity`, `platform-compute`, `data-persistence`, `operations-observability`, `facilities-sovereignty`.
+   - Expose un catalogue de 29 briques de référence (`TOGAF_REFERENCE_BUILDING_BLOCKS`) et le détecteur d'angles morts `scanProjectArchitecturalBlindSpots()`.
+2. **Routage des Clauses « Commodité » Sans Rétro-Injection en Débat (`src/lib/server/ingest/arckitRequirementsPipeline.ts`)** :
+   - Les clauses qualifiées `commodity` restent évacuées du débat contradictoire multi-agents, mais sont classées par domaine TOGAF et rattachées à un emplacement de décision cible (`commoditySlotId`, `commodityAxisUrn`, résumé dans `ArcKitAuditReport.commoditySlots`).
+3. **Conscientisation, Oracles Fantômes & Fermeture Transitive (`src/lib/server/edp/refinementCoverage.ts`)** :
+   - **Proposition par défaut vs Décision ratifiée** : chaque axe et chaque emplacement de décision (`decisionSlots`) distingue l'origine de liaison (`explicit`, `strong_link`, `default_proposed`, `none`) et son statut (`open`, `default_proposed`, `bound_unverified`, `bound_verified`, `waived`). `conscientiousMetrics.isConscientiouslyComplete` reste faux tant qu'un défaut n'est pas explicitement ratifié (`ratifyDefaultDecisionSlots()`), qu'une feuille n'a pas d'oracle exécutable ou qu'un oracle fantôme subsiste.
+   - **Détection d'oracles fantômes (`loadImplementedRegoRuleNames`)** : extrait les règles réellement encodées dans `edp/policies/multi_axis_refinement.rego` et sépare `executableOracleRules` de `phantomOracleRules`.
+   - **Fermeture transitive (`computeTransitivePrerequisiteAxes`)** : propage les dépendances structurelles déclarées par `requires_prerequisite_axis` (par exemple IPsec IKEv2 → PKI 3GPP CMPv2 → Hiérarchie PKI → HSM, ou Zone OAM → Bastion PAM → IAM FIDO2, ou Chiffrement LUKS2 → Auto-Unseal Vault → HSM).
+4. **Catalogue Traverse & Intégrité Référentielle (`src/lib/domain/edp/componentCatalog.ts`, `src/lib/domain/edp/refResolver.ts`)** :
+   - Complète le catalogue logique de base par `TRANSVERSE_COMPONENT_CATALOG` (7 composants lint-conformes avec overlays `prod`, `preprod`, `lab` : `hsm-appliance`, `pki-ca`, `vault-cluster`, `iam-keycloak`, `admin-bastion`, `siem-soc`, `ingress-waf-proxy`), instanciés dynamiquement via `instantiateCatalogFromOntologyBindings()` à partir des triplets `instantiates_component`.
+   - `verifyCatalogDanglingReferences()` contrôle l'existence effective des cibles `group:pki-ca-endpoints`, `group:siem-collectors`, `dependsOn` et des références `vault://*`, tandis que l'Axe 8 d'`edp/policies/multi_axis_refinement.rego` vérifie `input.trust_chain` (custody HSM du Root CA, auto-unseal Vault/OpenBao PKCS#11, enregistrement de session OAM et proxy sortant explicite).

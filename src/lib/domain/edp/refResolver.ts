@@ -492,3 +492,78 @@ export function simulateWhatIfDatacenters(
     };
   });
 }
+
+export interface CatalogDanglingReferenceReport {
+  valid: boolean;
+  danglingFirewallGroups: string[];
+  missingDependencies: string[];
+  missingVaultComponent: boolean;
+}
+
+/**
+ * Audit d'intégrité référentielle d'un catalogue de composants logiques :
+ * vérifie que chaque groupe firewall `group:<nom>` ciblé par une règle explicite ou implicite
+ * (`pki-ca-endpoints`, `siem-collectors`, etc.), chaque `dependsOn` et chaque montage `vault://*`
+ * est effectivement soutenu par un composant actif présent dans le catalogue.
+ */
+export function verifyCatalogDanglingReferences(
+  components: LogicalComponent[]
+): CatalogDanglingReferenceReport {
+  const activeComponents = components.filter((c) => c.metadata.status !== 'inactive');
+  const activeNames = new Set(activeComponents.map((c) => c.metadata.name));
+  const declaredGroups = new Set<string>();
+
+  for (const comp of activeComponents) {
+    for (const grp of comp.spec.firewall?.groups || []) {
+      declaredGroups.add(grp.name);
+    }
+  }
+
+  const danglingGroupsSet = new Set<string>();
+  const missingDepsSet = new Set<string>();
+  let usesVault = false;
+
+  for (const comp of activeComponents) {
+    for (const dep of comp.spec.dependsOn || []) {
+      if (!activeNames.has(dep)) {
+        missingDepsSet.add(dep);
+      }
+    }
+
+    if (comp.spec.security?.vault?.mount?.startsWith('vault://')) {
+      usesVault = true;
+    }
+    for (const mod of comp.spec.compute?.modules || []) {
+      if (mod.proxy?.accountRef?.startsWith('vault://')) {
+        usesVault = true;
+      }
+    }
+
+    const explicitRules = comp.spec.firewall?.rules || [];
+    const implicitRules = generateImplicitFlows(comp, explicitRules);
+    for (const rule of [...explicitRules, ...implicitRules]) {
+      for (const endpoint of [rule.from, rule.to]) {
+        if (typeof endpoint === 'string' && endpoint.startsWith('group:')) {
+          const groupName = endpoint.slice('group:'.length).trim();
+          if (groupName && !declaredGroups.has(groupName)) {
+            danglingGroupsSet.add(groupName);
+          }
+        }
+      }
+    }
+  }
+
+  const missingVaultComponent = usesVault && !activeNames.has('vault-cluster');
+  const danglingFirewallGroups = Array.from(danglingGroupsSet).sort();
+  const missingDependencies = Array.from(missingDepsSet).sort();
+
+  return {
+    valid:
+      danglingFirewallGroups.length === 0 &&
+      missingDependencies.length === 0 &&
+      !missingVaultComponent,
+    danglingFirewallGroups,
+    missingDependencies,
+    missingVaultComponent
+  };
+}

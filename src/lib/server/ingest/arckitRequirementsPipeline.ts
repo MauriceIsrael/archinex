@@ -25,6 +25,12 @@ import { cleanJsonString, inferTargetSubjectsCount, type KbItemSummary } from '$
 import type { ChatOptions } from '$lib/server/llm/types';
 import type { RequirementDisposition } from '$lib/domain/requirementAudit';
 import { findAutomationMarker } from '$lib/domain/automationMarkers';
+import {
+	TOGAF_REFERENCE_BUILDING_BLOCKS,
+	matchReferenceBuildingBlock,
+	resolveTogafDomain,
+	type TogafDomainId
+} from '$lib/domain/edp/togafTaxonomy';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
 
@@ -39,6 +45,9 @@ export interface AuditedRequirement {
 	title: string;
 	text: string;
 	category?: ArcKitRequirementCategory;
+	togafDomain?: TogafDomainId;
+	commoditySlotId?: string;
+	commodityAxisUrn?: string;
 	criticality: 'bloquant' | 'majeur' | 'info';
 	disposition: RequirementDisposition;
 	/** Motif de l'évacuation proposée (obligatoire pour `evacuated`). */
@@ -52,6 +61,19 @@ export interface AuditedRequirement {
 	linkedSubjectId?: string;
 }
 
+export interface CommodityDecisionSlotSummary {
+	slotId: string;
+	title: string;
+	togafDomain: TogafDomainId;
+	documentEngineLayer: string;
+	axisUrn: string;
+	defaultLeafUrn: string;
+	logicalComponentName?: string;
+	coveredClauseIds: string[];
+	coveredRawRefs: string[];
+	status: 'default_proposed';
+}
+
 export interface ArcKitAuditReport {
 	totalCount: number;
 	evacuatedCount: number;
@@ -61,6 +83,7 @@ export interface ArcKitAuditReport {
 	categoryDistribution: Record<ArcKitRequirementCategory, number>;
 	requirements: AuditedRequirement[];
 	clarifications: Array<{ clauseRef: string; title: string; question: string }>;
+	commoditySlots?: CommodityDecisionSlotSummary[];
 	warnings: string[];
 }
 
@@ -390,40 +413,78 @@ export function applyClassificationInvariants(
 		const reason = (item.reason || '').trim();
 		const question = (item.question || '').trim();
 
+		const matchedBlock = matchReferenceBuildingBlock(`${clause.title}\n${clause.text}`, category);
+		const resolvedTogafDomain = matchedBlock?.togafDomain ?? resolveTogafDomain(category);
+
 		if (disposition === 'deliberate') {
-			return { ...base, category, disposition: 'deliberated', deliberationReason: reason || undefined };
+			return {
+				...base,
+				category,
+				togafDomain: resolvedTogafDomain,
+				disposition: 'deliberated',
+				deliberationReason: reason || undefined
+			};
 		}
 
 		if (disposition === 'commodity') {
 			if (reason.length < MIN_REASON_CHARS) {
-				return toQualify('Évacuation proposée sans motif exploitable : à qualifier par un humain.', category);
+				return {
+					...toQualify('Évacuation proposée sans motif exploitable : à qualifier par un humain.', category),
+					togafDomain: resolvedTogafDomain
+				};
 			}
 			if (clause.criticality === 'bloquant') {
-				return toQualify(
-					`Clause bloquante : le modèle proposait de l'évacuer (« ${clip(reason, 140)} »), ce qui exige une revue humaine.`,
-					category
-				);
+				return {
+					...toQualify(
+						`Clause bloquante : le modèle proposait de l'évacuer (« ${clip(reason, 140)} »), ce qui exige une revue humaine.`,
+						category
+					),
+					togafDomain: resolvedTogafDomain
+				};
 			}
 			// Automatisation d'une action d'exploitation : le degré d'intervention humaine est un choix, pas une commodité (J0, archinex#132).
 			// Les clauses « info » (mobilier, câblage) ne sont pas concernées.
 			const automation = clause.criticality === 'info' ? null : findAutomationMarker(`${clause.title}\n${clause.text}`);
 			if (automation) {
-				return toQualify(
-					`Automatisation (« ${automation} ») : le degré d'intervention humaine est un choix d'exploitation, le modèle ne peut pas l'évacuer seul (« ${clip(reason, 140)} »).`,
-					category
-				);
+				return {
+					...toQualify(
+						`Automatisation (« ${automation} ») : le degré d'intervention humaine est un choix d'exploitation, le modèle ne peut pas l'évacuer seul (« ${clip(reason, 140)} »).`,
+						category
+					),
+					togafDomain: resolvedTogafDomain
+				};
 			}
-			return { ...base, category, disposition: 'evacuated', evacuationReason: reason };
+			return {
+				...base,
+				category,
+				togafDomain: resolvedTogafDomain,
+				commoditySlotId: matchedBlock?.id,
+				commodityAxisUrn: matchedBlock?.axisUrn,
+				disposition: 'evacuated',
+				evacuationReason: reason
+			};
 		}
 
 		if (disposition === 'clarify') {
 			if (question.length < MIN_REASON_CHARS) {
-				return toQualify('Clarification demandée sans question exploitable : à qualifier par un humain.', category);
+				return {
+					...toQualify('Clarification demandée sans question exploitable : à qualifier par un humain.', category),
+					togafDomain: resolvedTogafDomain
+				};
 			}
-			return { ...base, category, disposition: 'clarification_needed', clarificationQuestion: question };
+			return {
+				...base,
+				category,
+				togafDomain: resolvedTogafDomain,
+				disposition: 'clarification_needed',
+				clarificationQuestion: question
+			};
 		}
 
-		return toQualify(`Disposition inconnue renvoyée par le modèle (« ${clip(item.disposition, 40)} »).`, category);
+		return {
+			...toQualify(`Disposition inconnue renvoyée par le modèle (« ${clip(item.disposition, 40)} »).`, category),
+			togafDomain: resolvedTogafDomain
+		};
 	});
 }
 
@@ -895,6 +956,34 @@ export function buildAuditReport(requirements: AuditedRequirement[], warnings: s
 	const count = (d: RequirementDisposition) => requirements.filter((r) => r.disposition === d).length;
 	const categoryDistribution = Object.fromEntries(CATEGORIES.map((c) => [c, 0])) as Record<ArcKitRequirementCategory, number>;
 	for (const r of requirements) if (r.category) categoryDistribution[r.category]++;
+
+	const blocksById = new Map(TOGAF_REFERENCE_BUILDING_BLOCKS.map((b) => [b.id, b]));
+	const slotMap = new Map<string, CommodityDecisionSlotSummary>();
+	for (const req of requirements) {
+		if (req.disposition !== 'evacuated' || !req.commoditySlotId) continue;
+		const block = blocksById.get(req.commoditySlotId);
+		if (!block) continue;
+		const existing = slotMap.get(block.id);
+		if (existing) {
+			existing.coveredClauseIds.push(req.id);
+			existing.coveredRawRefs.push(req.clauseRef);
+		} else {
+			slotMap.set(block.id, {
+				slotId: block.id,
+				title: block.title,
+				togafDomain: block.togafDomain,
+				documentEngineLayer: block.documentEngineLayer,
+				axisUrn: block.axisUrn,
+				defaultLeafUrn: block.defaultLeafUrn,
+				logicalComponentName: block.logicalComponentName,
+				coveredClauseIds: [req.id],
+				coveredRawRefs: [req.clauseRef],
+				status: 'default_proposed'
+			});
+		}
+	}
+	const commoditySlots = Array.from(slotMap.values()).sort((a, b) => a.slotId.localeCompare(b.slotId));
+
 	return {
 		totalCount: requirements.length,
 		evacuatedCount: count('evacuated'),
@@ -906,6 +995,7 @@ export function buildAuditReport(requirements: AuditedRequirement[], warnings: s
 		clarifications: requirements
 			.filter((r) => r.disposition === 'clarification_needed')
 			.map((r) => ({ clauseRef: r.clauseRef, title: r.title, question: r.clarificationQuestion! })),
+		commoditySlots,
 		warnings
 	};
 }
@@ -1295,6 +1385,7 @@ export function toFactorizationResponse(result: StagedAuditResult) {
 		clarificationCount: report.clarificationCount,
 		toQualifyCount: report.toQualifyCount,
 		clarifications: report.clarifications,
+		commoditySlots: report.commoditySlots ?? [],
 		allAuditedRequirements: report.requirements
 	};
 }

@@ -313,6 +313,66 @@ violations contains v if {
 }
 
 # ==============================================================================
+# AXE 8 : CHAÎNE DE CONFIANCE PKI / HSM / VAULT / BASTION PAM / PROXY DMZ
+# ==============================================================================
+
+violations contains v if {
+	pki_proj := object.get(data.ontology, "security_pki_root_offline_airgap", null)
+	pki_proj != null
+	tc := object.get(input, "trust_chain", {})
+	tc.root_ca_key_custody != pki_proj.key_custody_mode
+	v := {
+		"rule": "data.archinex.edp.multiaxis.deny_software_root_ca_key",
+		"axis": "urn:archinex:ontology:axis:pki_hierarchy",
+		"message": sprintf("Clé privée racine PKI non protégée sur matériel dédié (%v au lieu de %v)", [object.get(tc, "root_ca_key_custody", "absent"), pki_proj.key_custody_mode]),
+		"violated_clause_urn": get_clause_urn(pki_proj, "urn:archinex:kb:clause:anssi:rgs_pki_hierarchy"),
+		"violated_requirement_id": "REQ-Sec-PKI-01",
+	}
+}
+
+violations contains v if {
+	vault_proj := object.get(data.ontology, "security_vault_openbao_pkcs11_hsm", null)
+	vault_proj != null
+	tc := object.get(input, "trust_chain", {})
+	tc.vault_unseal_mode != vault_proj.unseal_mechanism
+	v := {
+		"rule": "data.archinex.edp.multiaxis.deny_unsealed_vault_without_hsm",
+		"axis": "urn:archinex:ontology:axis:vault_unseal_mode",
+		"message": sprintf("Mode d'auto-déverrouillage du coffre Vault/OpenBao non conforme (%v au lieu de %v)", [object.get(tc, "vault_unseal_mode", "absent"), vault_proj.unseal_mechanism]),
+		"violated_clause_urn": get_clause_urn(vault_proj, "urn:archinex:kb:clause:nis2:vault_hsm_unseal"),
+		"violated_requirement_id": "REQ-Sec-Vault-01",
+	}
+}
+
+violations contains v if {
+	bastion_proj := object.get(data.ontology, "security_bastion_wallix_pam", null)
+	bastion_proj != null
+	tc := object.get(input, "trust_chain", {})
+	tc.oam_session_recording != bastion_proj.bastion_session_recording
+	v := {
+		"rule": "data.archinex.edp.multiaxis.deny_direct_oam_without_bastion",
+		"axis": "urn:archinex:ontology:axis:pam_admin_bastion",
+		"message": sprintf("Enregistrement de session bastion PAM requis sur la zone OAM (attendu: %v)", [bastion_proj.bastion_session_recording]),
+		"violated_clause_urn": get_clause_urn(bastion_proj, "urn:archinex:kb:clause:nis2:oam_strict_bastion"),
+		"violated_requirement_id": "REQ-Lot1-SecZone-01",
+	}
+}
+
+violations contains v if {
+	proxy_proj := object.get(data.ontology, "network_proxy_squid_explicit_fqdn", null)
+	proxy_proj != null
+	tc := object.get(input, "trust_chain", {})
+	tc.egress_mode != proxy_proj.egress_mode
+	v := {
+		"rule": "data.archinex.edp.multiaxis.deny_unfiltered_internet_egress",
+		"axis": "urn:archinex:ontology:axis:egress_filtering_proxy",
+		"message": sprintf("Sortie DMZ non médiatisée par proxy FQDN explicite (%v au lieu de %v)", [object.get(tc, "egress_mode", "absent"), proxy_proj.egress_mode]),
+		"violated_clause_urn": get_clause_urn(proxy_proj, "urn:archinex:kb:clause:anssi:egress_proxy_whitelist"),
+		"violated_requirement_id": "REQ-Sec-Proxy-01",
+	}
+}
+
+# ==============================================================================
 # SYNTHÈSE DU VERDICT MULTI-AXES
 # ==============================================================================
 

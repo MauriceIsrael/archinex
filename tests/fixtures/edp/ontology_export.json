@@ -705,6 +705,400 @@
       "title": "Axe de Raffinement : Exercices d'Homologation PRA Automatisés & Chaos Testing",
       "domain": "resilience",
       "projections": {}
+    },
+    "urn:archinex:ontology:axis:hsm_key_custody": {
+      "urn": "urn:archinex:ontology:axis:hsm_key_custody",
+      "revision": 1,
+      "kind": "axis",
+      "title": "Axe de Raffinement : Racine Matérielle HSM & Cérémonie de Clés",
+      "domain": "security",
+      "togaf_domain": "security-trust",
+      "document_engine_layer": "component",
+      "default_decision_type": "type2_default_ratify",
+      "projections": {}
+    },
+    "urn:archinex:ontology:axis:pki_hierarchy": {
+      "urn": "urn:archinex:ontology:axis:pki_hierarchy",
+      "revision": 1,
+      "kind": "axis",
+      "title": "Axe de Raffinement : Hiérarchie PKI (Racine Hors Ligne & Autorités Intermédiaires)",
+      "domain": "security",
+      "togaf_domain": "security-trust",
+      "document_engine_layer": "component",
+      "default_decision_type": "type2_default_ratify",
+      "projections": {}
+    },
+    "urn:archinex:ontology:axis:pki_3gpp_ndsaf": {
+      "urn": "urn:archinex:ontology:axis:pki_3gpp_ndsaf",
+      "revision": 1,
+      "kind": "axis",
+      "title": "Axe de Raffinement : PKI Télécom 3GPP TS 33.310 (CMPv2 / NDS-AF)",
+      "domain": "security",
+      "togaf_domain": "security-trust",
+      "document_engine_layer": "component",
+      "default_decision_type": "type2_default_ratify",
+      "projections": {}
+    },
+    "urn:archinex:ontology:axis:vault_unseal_mode": {
+      "urn": "urn:archinex:ontology:axis:vault_unseal_mode",
+      "revision": 1,
+      "kind": "axis",
+      "title": "Axe de Raffinement : Coffre de Secrets & Déverrouillage Automatique PKCS#11",
+      "domain": "security",
+      "togaf_domain": "security-trust",
+      "document_engine_layer": "component",
+      "default_decision_type": "type2_default_ratify",
+      "projections": {}
+    },
+    "urn:archinex:ontology:axis:pam_admin_bastion": {
+      "urn": "urn:archinex:ontology:axis:pam_admin_bastion",
+      "revision": 1,
+      "kind": "axis",
+      "title": "Axe de Raffinement : Bastion d'Administration PAM en Coupure Zone OAM",
+      "domain": "security",
+      "togaf_domain": "security-trust",
+      "document_engine_layer": "component",
+      "default_decision_type": "type2_default_ratify",
+      "projections": {}
+    },
+    "urn:archinex:ontology:axis:egress_filtering_proxy": {
+      "urn": "urn:archinex:ontology:axis:egress_filtering_proxy",
+      "revision": 1,
+      "kind": "axis",
+      "title": "Axe de Raffinement : Proxy Sortant Explicite & Filtrage FQDN",
+      "domain": "security",
+      "togaf_domain": "network-connectivity",
+      "document_engine_layer": "infrastructure",
+      "default_decision_type": "type2_default_ratify",
+      "projections": {}
+    },
+    "urn:archinex:ontology:axis:ingress_reverse_proxy": {
+      "urn": "urn:archinex:ontology:axis:ingress_reverse_proxy",
+      "revision": 1,
+      "kind": "axis",
+      "title": "Axe de Raffinement : Reverse Proxy Ingress, TLS & WAF",
+      "domain": "security",
+      "togaf_domain": "network-connectivity",
+      "document_engine_layer": "infrastructure",
+      "default_decision_type": "type2_default_ratify",
+      "projections": {}
+    },
+    "urn:archinex:ontology:axis:gis_tile_engine": {
+      "urn": "urn:archinex:ontology:axis:gis_tile_engine",
+      "revision": 1,
+      "kind": "axis",
+      "title": "Axe de Raffinement : Serveur Cartographique SIG / GIS & Tuiles Hors Ligne",
+      "domain": "application",
+      "togaf_domain": "application-business",
+      "document_engine_layer": "application",
+      "default_decision_type": "type2_default_ratify",
+      "projections": {}
+    },
+    "urn:archinex:ontology:axis:dns_dhcp_ipam": {
+      "urn": "urn:archinex:ontology:axis:dns_dhcp_ipam",
+      "revision": 1,
+      "kind": "axis",
+      "title": "Axe de Raffinement : Services Réseau Fondamentaux (DNS, DHCP, IPAM)",
+      "domain": "telecom",
+      "togaf_domain": "network-connectivity",
+      "document_engine_layer": "infrastructure",
+      "default_decision_type": "type2_default_ratify",
+      "projections": {}
+    },
+    "urn:archinex:ontology:axis:timing_sync_ntp": {
+      "urn": "urn:archinex:ontology:axis:timing_sync_ntp",
+      "revision": 1,
+      "kind": "axis",
+      "title": "Axe de Raffinement : Synchronisation Temporelle GNSS / IEEE 1588v2 / NTP",
+      "domain": "facilities",
+      "togaf_domain": "facilities-sovereignty",
+      "document_engine_layer": "iaas",
+      "default_decision_type": "type2_default_ratify",
+      "projections": {}
+    },
+    "urn:archinex:ontology:axis:oci_artifact_registry": {
+      "urn": "urn:archinex:ontology:axis:oci_artifact_registry",
+      "revision": 1,
+      "kind": "axis",
+      "title": "Axe de Raffinement : Registre d'Artéfacts OCI Signé & Scanner CVE",
+      "domain": "platform",
+      "togaf_domain": "platform-compute",
+      "document_engine_layer": "infrastructure",
+      "default_decision_type": "type2_default_ratify",
+      "projections": {}
+    },
+    "urn:archinex:ontology:security:hsm:eviden_proteccio": {
+      "urn": "urn:archinex:ontology:security:hsm:eviden_proteccio",
+      "revision": 1,
+      "kind": "leaf",
+      "title": "HSM Réseau Eviden Proteccio (Qualifié ANSSI / CC EAL4+ / FIPS 140-3 L3)",
+      "domain": "security",
+      "togaf_domain": "security-trust",
+      "instantiated_component": "hsm-appliance",
+      "keywords": ["hsm", "eviden", "proteccio", "pkcs11", "anssi", "eal4+"],
+      "governed_by_clauses": ["urn:archinex:kb:clause:anssi:rgs_hsm_root"],
+      "oracle_rules": ["data.archinex.edp.multiaxis.deny_software_root_ca_key"],
+      "projections": {
+        "key_custody_mode": "hardware_hsm",
+        "fips_140_3_level": 3,
+        "cc_eal4_plus": true,
+        "interface": "PKCS#11-Network-MTLS"
+      }
+    },
+    "urn:archinex:ontology:security:hsm:thales_luna": {
+      "urn": "urn:archinex:ontology:security:hsm:thales_luna",
+      "revision": 1,
+      "kind": "leaf",
+      "title": "HSM Réseau Thales Luna (FIPS 140-3 L3 / PKCS#11 HA)",
+      "domain": "security",
+      "togaf_domain": "security-trust",
+      "instantiated_component": "hsm-appliance",
+      "keywords": ["thales", "luna", "hsm", "fips"],
+      "governed_by_clauses": ["urn:archinex:kb:clause:anssi:rgs_hsm_root"],
+      "oracle_rules": ["data.archinex.edp.multiaxis.deny_software_root_ca_key"],
+      "projections": {
+        "key_custody_mode": "hardware_hsm",
+        "fips_140_3_level": 3,
+        "cc_eal4_plus": true,
+        "interface": "PKCS#11-Network-MTLS"
+      }
+    },
+    "urn:archinex:ontology:security:hsm:utimaco_secserver": {
+      "urn": "urn:archinex:ontology:security:hsm:utimaco_secserver",
+      "revision": 1,
+      "kind": "leaf",
+      "title": "HSM Utimaco SecurityServer (FIPS 140-3 L3 / CC EAL4+)",
+      "domain": "security",
+      "togaf_domain": "security-trust",
+      "instantiated_component": "hsm-appliance",
+      "keywords": ["utimaco", "securityserver", "hsm"],
+      "governed_by_clauses": ["urn:archinex:kb:clause:anssi:rgs_hsm_root"],
+      "oracle_rules": ["data.archinex.edp.multiaxis.deny_software_root_ca_key"],
+      "projections": {
+        "key_custody_mode": "hardware_hsm",
+        "fips_140_3_level": 3,
+        "cc_eal4_plus": true,
+        "interface": "PKCS#11-Network-MTLS"
+      }
+    },
+    "urn:archinex:ontology:security:pki:root_offline_airgap": {
+      "urn": "urn:archinex:ontology:security:pki:root_offline_airgap",
+      "revision": 1,
+      "kind": "leaf",
+      "title": "PKI Deux Niveaux : Autorité Racine Hors Ligne (HSM) & Subordonnées en Ligne",
+      "domain": "security",
+      "togaf_domain": "security-trust",
+      "instantiated_component": "pki-ca",
+      "keywords": ["root ca", "ca racine", "airgap", "crl", "ocsp"],
+      "governed_by_clauses": ["urn:archinex:kb:clause:anssi:rgs_pki_hierarchy"],
+      "oracle_rules": ["data.archinex.edp.multiaxis.deny_software_root_ca_key"],
+      "projections": {
+        "pki_tiers": 2,
+        "root_ca_online": false,
+        "key_custody_mode": "hardware_hsm"
+      }
+    },
+    "urn:archinex:ontology:security:pki:step_ca_acme_internal": {
+      "urn": "urn:archinex:ontology:security:pki:step_ca_acme_internal",
+      "revision": 1,
+      "kind": "leaf",
+      "title": "Autorité Intermédiaire Smallstep step-ca (ACME / OIDC) adossée au HSM",
+      "domain": "security",
+      "togaf_domain": "security-trust",
+      "instantiated_component": "pki-ca",
+      "keywords": ["smallstep", "step-ca", "acme"],
+      "governed_by_clauses": ["urn:archinex:kb:clause:anssi:rgs_pki_hierarchy"],
+      "oracle_rules": ["data.archinex.edp.multiaxis.deny_software_root_ca_key"],
+      "projections": {
+        "protocol": "ACME-RFC8555",
+        "key_custody_mode": "hardware_hsm"
+      }
+    },
+    "urn:archinex:ontology:security:pki:ejbca_cmpv2": {
+      "urn": "urn:archinex:ontology:security:pki:ejbca_cmpv2",
+      "revision": 1,
+      "kind": "leaf",
+      "title": "PKI Télécom Keyfactor EJBCA (CMPv2 3GPP TS 33.310 / SCEP / ACME)",
+      "domain": "security",
+      "togaf_domain": "security-trust",
+      "instantiated_component": "pki-ca",
+      "keywords": ["ejbca", "cmpv2", "33.310", "ndsaf", "scep"],
+      "governed_by_clauses": ["urn:archinex:kb:clause:3gpp:ts33_310_cmpv2"],
+      "oracle_rules": ["data.archinex.edp.multiaxis.deny_software_root_ca_key"],
+      "projections": {
+        "standard": "3GPP-TS-33.310",
+        "enrollment_protocol": "CMPv2",
+        "key_custody_mode": "hardware_hsm"
+      }
+    },
+    "urn:archinex:ontology:security:vault:openbao_pkcs11_hsm": {
+      "urn": "urn:archinex:ontology:security:vault:openbao_pkcs11_hsm",
+      "revision": 1,
+      "kind": "leaf",
+      "title": "Coffre OpenBao HA Raft avec Auto-Unseal PKCS#11 sur HSM",
+      "domain": "security",
+      "togaf_domain": "security-trust",
+      "instantiated_component": "vault-cluster",
+      "keywords": ["openbao", "auto-unseal", "pkcs11", "raft"],
+      "governed_by_clauses": ["urn:archinex:kb:clause:nis2:vault_hsm_unseal"],
+      "oracle_rules": ["data.archinex.edp.multiaxis.deny_unsealed_vault_without_hsm"],
+      "projections": {
+        "engine": "OpenBao-HA-Raft",
+        "unseal_mechanism": "pkcs11_hsm"
+      }
+    },
+    "urn:archinex:ontology:security:vault:hashicorp_enterprise_hsm": {
+      "urn": "urn:archinex:ontology:security:vault:hashicorp_enterprise_hsm",
+      "revision": 1,
+      "kind": "leaf",
+      "title": "HashiCorp Vault Enterprise HA avec Seal HSM PKCS#11",
+      "domain": "security",
+      "togaf_domain": "security-trust",
+      "instantiated_component": "vault-cluster",
+      "keywords": ["hashicorp vault enterprise", "vault seal"],
+      "governed_by_clauses": ["urn:archinex:kb:clause:nis2:vault_hsm_unseal"],
+      "oracle_rules": ["data.archinex.edp.multiaxis.deny_unsealed_vault_without_hsm"],
+      "projections": {
+        "engine": "Vault-Enterprise-HA",
+        "unseal_mechanism": "pkcs11_hsm"
+      }
+    },
+    "urn:archinex:ontology:security:bastion:wallix_pam": {
+      "urn": "urn:archinex:ontology:security:bastion:wallix_pam",
+      "revision": 1,
+      "kind": "leaf",
+      "title": "Bastion PAM Wallix / CyberArk (Rupture Protocolaire SSH/RDP & Traçabilité Vidéo)",
+      "domain": "security",
+      "togaf_domain": "security-trust",
+      "instantiated_component": "admin-bastion",
+      "keywords": ["wallix", "pam", "rebond", "session privilegee"],
+      "governed_by_clauses": ["urn:archinex:kb:clause:nis2:oam_strict_bastion"],
+      "oracle_rules": ["data.archinex.edp.multiaxis.deny_direct_oam_without_bastion"],
+      "projections": {
+        "bastion_session_recording": true,
+        "protocol_break": "SSH-RDP-HTTPS"
+      }
+    },
+    "urn:archinex:ontology:security:bastion:teleport_recorded_session": {
+      "urn": "urn:archinex:ontology:security:bastion:teleport_recorded_session",
+      "revision": 1,
+      "kind": "leaf",
+      "title": "Bastion Teleport Cloud-Native (Certificats SSH Éphémères & Audit Kubernetes)",
+      "domain": "security",
+      "togaf_domain": "security-trust",
+      "instantiated_component": "admin-bastion",
+      "keywords": ["teleport", "ssh cert", "bastion kubernetes"],
+      "governed_by_clauses": ["urn:archinex:kb:clause:nis2:oam_strict_bastion"],
+      "oracle_rules": ["data.archinex.edp.multiaxis.deny_direct_oam_without_bastion"],
+      "projections": {
+        "bastion_session_recording": true,
+        "ephemeral_ssh_ttl_hours": 4
+      }
+    },
+    "urn:archinex:ontology:network:proxy:squid_explicit_fqdn": {
+      "urn": "urn:archinex:ontology:network:proxy:squid_explicit_fqdn",
+      "revision": 1,
+      "kind": "leaf",
+      "title": "Proxy Sortant Explicite Squid DMZ avec Liste Blanche FQDN",
+      "domain": "security",
+      "togaf_domain": "network-connectivity",
+      "instantiated_component": "ingress-waf-proxy",
+      "keywords": ["proxy sortant", "squid", "egress", "fqdn", "liste blanche"],
+      "governed_by_clauses": ["urn:archinex:kb:clause:anssi:egress_proxy_whitelist"],
+      "oracle_rules": ["data.archinex.edp.multiaxis.deny_unfiltered_internet_egress"],
+      "projections": {
+        "egress_mode": "explicit_fqdn_whitelist",
+        "direct_internet_egress": false
+      }
+    },
+    "urn:archinex:ontology:network:ingress:envoy_coraza_waf": {
+      "urn": "urn:archinex:ontology:network:ingress:envoy_coraza_waf",
+      "revision": 1,
+      "kind": "leaf",
+      "title": "Reverse Proxy Ingress Envoy + WAF OWASP Coraza CRS en DMZ",
+      "domain": "security",
+      "togaf_domain": "network-connectivity",
+      "instantiated_component": "ingress-waf-proxy",
+      "keywords": ["reverse proxy", "waf", "envoy", "coraza", "ingress"],
+      "governed_by_clauses": ["urn:archinex:kb:clause:anssi:ingress_waf_dmz"],
+      "oracle_rules": ["data.archinex.edp.multiaxis.deny_unfiltered_internet_egress"],
+      "projections": {
+        "waf_ruleset": "OWASP-CRS-4",
+        "egress_mode": "explicit_fqdn_whitelist"
+      }
+    },
+    "urn:archinex:ontology:application:gis:geoserver_postgis_offline": {
+      "urn": "urn:archinex:ontology:application:gis:geoserver_postgis_offline",
+      "revision": 1,
+      "kind": "leaf",
+      "title": "Serveur Cartographique GeoServer + PostGIS & Cache Tuiles Hors Ligne",
+      "domain": "application",
+      "togaf_domain": "application-business",
+      "instantiated_component": "gis-server",
+      "keywords": ["geoserver", "postgis", "cartographie", "gis", "sig", "tuiles", "wmts"],
+      "governed_by_clauses": ["urn:archinex:kb:clause:app:gis_offline_tiles"],
+      "oracle_rules": ["data.archinex.edp.multiaxis.deny_component_substrate_mismatch"],
+      "projections": {
+        "protocols": ["WMS", "WMTS", "WFS"],
+        "offline_tile_cache": true
+      }
+    },
+    "urn:archinex:ontology:application:gis:qgis_server_wmts": {
+      "urn": "urn:archinex:ontology:application:gis:qgis_server_wmts",
+      "revision": 1,
+      "kind": "leaf",
+      "title": "QGIS Server & MapProxy pour Rendu Cartographique OGC Souverain",
+      "domain": "application",
+      "togaf_domain": "application-business",
+      "instantiated_component": "gis-server",
+      "keywords": ["qgis", "mapproxy", "ogc"],
+      "oracle_rules": ["data.archinex.edp.multiaxis.deny_component_substrate_mismatch"],
+      "projections": {
+        "protocols": ["WMS", "WMTS"],
+        "offline_tile_cache": true
+      }
+    },
+    "urn:archinex:ontology:network:dns:unbound_bind9_kea": {
+      "urn": "urn:archinex:ontology:network:dns:unbound_bind9_kea",
+      "revision": 1,
+      "kind": "leaf",
+      "title": "Services DNSSEC Unbound/Bind9 HA (Split-Horizon + RPZ) & Kea DHCP",
+      "domain": "telecom",
+      "togaf_domain": "network-connectivity",
+      "keywords": ["dns", "bind9", "unbound", "kea", "dhcp", "ipam", "dnssec", "rpz"],
+      "oracle_rules": [],
+      "projections": {
+        "dnssec_validation": true,
+        "rpz_sinkhole": true
+      }
+    },
+    "urn:archinex:ontology:facilities:timing:gnss_ieee1588_stratum1": {
+      "urn": "urn:archinex:ontology:facilities:timing:gnss_ieee1588_stratum1",
+      "revision": 1,
+      "kind": "leaf",
+      "title": "Horloge Maître Redondante GNSS + Holdover Oscillateur Atomique (IEEE 1588v2 / NTP Stratum-1)",
+      "domain": "facilities",
+      "togaf_domain": "facilities-sovereignty",
+      "keywords": ["synchronisation temporelle", "ieee 1588", "stratum-1", "ntp", "gnss", "horloge"],
+      "oracle_rules": [],
+      "projections": {
+        "stratum": 1,
+        "ieee_1588v2_profile": "G.8275.1"
+      }
+    },
+    "urn:archinex:ontology:platform:registry:harbor_cosign_trivy": {
+      "urn": "urn:archinex:ontology:platform:registry:harbor_cosign_trivy",
+      "revision": 1,
+      "kind": "leaf",
+      "title": "Registre OCI Souverain Harbor HA (Réplication Air-Gap, Cosign & Trivy)",
+      "domain": "platform",
+      "togaf_domain": "platform-compute",
+      "keywords": ["harbor", "cosign", "trivy", "registre oci", "sbom"],
+      "oracle_rules": ["data.archinex.edp.multiaxis.deny_unsigned_oci_image"],
+      "projections": {
+        "cosign_verification": true,
+        "block_critical_cve": true
+      }
     }
   },
   "triplets": [
@@ -1078,6 +1472,317 @@
       "predicate": "depends_on",
       "object": "urn:archinex:ontology:security:crypto:luks2_kms_hsm",
       "rationale": "Les volumes persistants Ceph RBD critiques doivent activer le chiffrement LUKS2 par KMS."
+    },
+
+    {
+      "id": "tr-075",
+      "subject": "urn:archinex:ontology:axis:hsm_key_custody",
+      "predicate": "implemented_by",
+      "object": "urn:archinex:ontology:security:hsm:eviden_proteccio",
+      "rationale": "Racine cryptographique matérielle qualifiée ANSSI / FIPS 140-3 L3."
+    },
+    {
+      "id": "tr-076",
+      "subject": "urn:archinex:ontology:axis:hsm_key_custody",
+      "predicate": "implemented_by",
+      "object": "urn:archinex:ontology:security:hsm:thales_luna",
+      "rationale": "Alternative HSM réseau haute disponibilité Thales Luna."
+    },
+    {
+      "id": "tr-077",
+      "subject": "urn:archinex:ontology:axis:hsm_key_custody",
+      "predicate": "implemented_by",
+      "object": "urn:archinex:ontology:security:hsm:utimaco_secserver",
+      "rationale": "Alternative HSM réseau Utimaco SecurityServer."
+    },
+    {
+      "id": "tr-078",
+      "subject": "urn:archinex:ontology:axis:pki_hierarchy",
+      "predicate": "implemented_by",
+      "object": "urn:archinex:ontology:security:pki:root_offline_airgap",
+      "rationale": "Hiérarchie PKI à deux niveaux avec autorité racine hors ligne."
+    },
+    {
+      "id": "tr-079",
+      "subject": "urn:archinex:ontology:axis:pki_hierarchy",
+      "predicate": "implemented_by",
+      "object": "urn:archinex:ontology:security:pki:step_ca_acme_internal",
+      "rationale": "Autorité d'émission automatisée interne ACME."
+    },
+    {
+      "id": "tr-080",
+      "subject": "urn:archinex:ontology:axis:pki_3gpp_ndsaf",
+      "predicate": "implemented_by",
+      "object": "urn:archinex:ontology:security:pki:ejbca_cmpv2",
+      "rationale": "Enrôlement CMPv2 conforme 3GPP TS 33.310 pour IPsec / SecGW."
+    },
+    {
+      "id": "tr-081",
+      "subject": "urn:archinex:ontology:axis:vault_unseal_mode",
+      "predicate": "implemented_by",
+      "object": "urn:archinex:ontology:security:vault:openbao_pkcs11_hsm",
+      "rationale": "Déverrouillage automatique sans intervention humaine via HSM PKCS#11."
+    },
+    {
+      "id": "tr-082",
+      "subject": "urn:archinex:ontology:axis:vault_unseal_mode",
+      "predicate": "implemented_by",
+      "object": "urn:archinex:ontology:security:vault:hashicorp_enterprise_hsm",
+      "rationale": "Option Vault Enterprise avec auto-unseal HSM PKCS#11."
+    },
+    {
+      "id": "tr-083",
+      "subject": "urn:archinex:ontology:axis:pam_admin_bastion",
+      "predicate": "implemented_by",
+      "object": "urn:archinex:ontology:security:bastion:wallix_pam",
+      "rationale": "Bastion PAM de coupure en zone OAM avec enregistrement de session."
+    },
+    {
+      "id": "tr-084",
+      "subject": "urn:archinex:ontology:axis:pam_admin_bastion",
+      "predicate": "implemented_by",
+      "object": "urn:archinex:ontology:security:bastion:teleport_recorded_session",
+      "rationale": "Option bastion cloud-native Teleport avec certificats SSH éphémères."
+    },
+    {
+      "id": "tr-085",
+      "subject": "urn:archinex:ontology:axis:egress_filtering_proxy",
+      "predicate": "implemented_by",
+      "object": "urn:archinex:ontology:network:proxy:squid_explicit_fqdn",
+      "rationale": "Proxy sortant explicite DMZ avec liste blanche FQDN."
+    },
+    {
+      "id": "tr-086",
+      "subject": "urn:archinex:ontology:axis:ingress_reverse_proxy",
+      "predicate": "implemented_by",
+      "object": "urn:archinex:ontology:network:ingress:envoy_coraza_waf",
+      "rationale": "Reverse proxy ingress TLS 1.3 + WAF OWASP Coraza."
+    },
+    {
+      "id": "tr-087",
+      "subject": "urn:archinex:ontology:axis:gis_tile_engine",
+      "predicate": "implemented_by",
+      "object": "urn:archinex:ontology:application:gis:geoserver_postgis_offline",
+      "rationale": "Serveur cartographique GeoServer / PostGIS autonome."
+    },
+    {
+      "id": "tr-088",
+      "subject": "urn:archinex:ontology:axis:gis_tile_engine",
+      "predicate": "implemented_by",
+      "object": "urn:archinex:ontology:application:gis:qgis_server_wmts",
+      "rationale": "Alternative QGIS Server OGC WMTS/WMS."
+    },
+    {
+      "id": "tr-089",
+      "subject": "urn:archinex:ontology:axis:dns_dhcp_ipam",
+      "predicate": "implemented_by",
+      "object": "urn:archinex:ontology:network:dns:unbound_bind9_kea",
+      "rationale": "Socle DNS autoritaire/récursif DNSSEC + DHCP Kea."
+    },
+    {
+      "id": "tr-090",
+      "subject": "urn:archinex:ontology:axis:timing_sync_ntp",
+      "predicate": "implemented_by",
+      "object": "urn:archinex:ontology:facilities:timing:gnss_ieee1588_stratum1",
+      "rationale": "Horloge maître redondante Stratum-1 et profil IEEE 1588v2."
+    },
+    {
+      "id": "tr-091",
+      "subject": "urn:archinex:ontology:axis:oci_artifact_registry",
+      "predicate": "implemented_by",
+      "object": "urn:archinex:ontology:platform:registry:harbor_cosign_trivy",
+      "rationale": "Registre OCI air-gap Harbor avec signature Cosign et scan Trivy."
+    },
+
+    {
+      "id": "tr-pre-01",
+      "subject": "urn:archinex:ontology:security:crypto:ipsec_ikev2_aes256",
+      "predicate": "requires_prerequisite_axis",
+      "object": "urn:archinex:ontology:axis:pki_3gpp_ndsaf",
+      "rationale": "L'authentification par certificats des tunnels IPsec IKEv2 requiert une PKI télécom 3GPP TS 33.310 (CMPv2)."
+    },
+    {
+      "id": "tr-pre-02",
+      "subject": "urn:archinex:ontology:axis:pki_3gpp_ndsaf",
+      "predicate": "requires_prerequisite_axis",
+      "object": "urn:archinex:ontology:axis:pki_hierarchy",
+      "rationale": "La PKI d'émission CMPv2 doit s'ancrer dans une hiérarchie PKI définie (racine hors ligne et autorités subordonnées)."
+    },
+    {
+      "id": "tr-pre-03",
+      "subject": "urn:archinex:ontology:axis:pki_hierarchy",
+      "predicate": "requires_prerequisite_axis",
+      "object": "urn:archinex:ontology:axis:hsm_key_custody",
+      "rationale": "La clé privée de l'autorité racine et des sous-CA doit être conservée dans un HSM matériel."
+    },
+    {
+      "id": "tr-pre-04",
+      "subject": "urn:archinex:ontology:security:pki:cert_manager_spiffe_mtls",
+      "predicate": "requires_prerequisite_axis",
+      "object": "urn:archinex:ontology:axis:pki_hierarchy",
+      "rationale": "Les autorités intermédiaires Cert-Manager/SPIFFE doivent s'ancrer sur la hiérarchie PKI du SI."
+    },
+    {
+      "id": "tr-pre-05",
+      "subject": "urn:archinex:ontology:security:secrets:vault_dynamic_leases",
+      "predicate": "requires_prerequisite_axis",
+      "object": "urn:archinex:ontology:axis:vault_unseal_mode",
+      "rationale": "Un coffre de secrets en production doit définir son mécanisme d'auto-déverrouillage."
+    },
+    {
+      "id": "tr-pre-06",
+      "subject": "urn:archinex:ontology:axis:vault_unseal_mode",
+      "predicate": "requires_prerequisite_axis",
+      "object": "urn:archinex:ontology:axis:hsm_key_custody",
+      "rationale": "L'auto-déverrouillage souverain PKCS#11 du coffre s'appuie sur le HSM matériel."
+    },
+    {
+      "id": "tr-pre-07",
+      "subject": "urn:archinex:ontology:security:crypto:luks2_kms_hsm",
+      "predicate": "requires_prerequisite_axis",
+      "object": "urn:archinex:ontology:axis:vault_unseal_mode",
+      "rationale": "Le KMS de déchiffrement des volumes LUKS2 requiert un coffre de secrets hautement disponible."
+    },
+    {
+      "id": "tr-pre-08",
+      "subject": "urn:archinex:ontology:security:zone:oam",
+      "predicate": "requires_prerequisite_axis",
+      "object": "urn:archinex:ontology:axis:pam_admin_bastion",
+      "rationale": "Toute zone OAM à accès mandataire obligatoire requiert le choix d'un bastion PAM d'administration."
+    },
+    {
+      "id": "tr-pre-09",
+      "subject": "urn:archinex:ontology:axis:pam_admin_bastion",
+      "predicate": "requires_prerequisite_axis",
+      "object": "urn:archinex:ontology:axis:iam_federation_mfa",
+      "rationale": "Le bastion PAM fédère l'authentification des administrateurs auprès de l'IAM et impose le MFA."
+    },
+    {
+      "id": "tr-pre-10",
+      "subject": "urn:archinex:ontology:infrastructure:server:baremetal",
+      "predicate": "requires_prerequisite_axis",
+      "object": "urn:archinex:ontology:axis:dns_dhcp_ipam",
+      "rationale": "Le provisionnement bare-metal et la résolution des services du cluster dépendent de DNS/DHCP/IPAM."
+    },
+    {
+      "id": "tr-pre-11",
+      "subject": "urn:archinex:ontology:infrastructure:server:baremetal",
+      "predicate": "requires_prerequisite_axis",
+      "object": "urn:archinex:ontology:axis:timing_sync_ntp",
+      "rationale": "La synchronisation temporelle NTP/IEEE 1588 est requise par les nœuds, certificats X.509 et journaux."
+    },
+    {
+      "id": "tr-pre-12",
+      "subject": "urn:archinex:ontology:axis:oci_artifact_registry",
+      "predicate": "requires_prerequisite_axis",
+      "object": "urn:archinex:ontology:axis:egress_filtering_proxy",
+      "rationale": "La synchronisation contrôlée du registre OCI vers l'amont transite par un proxy sortant filtrant."
+    },
+
+    {
+      "id": "tr-comp-01",
+      "subject": "urn:archinex:ontology:security:hsm:eviden_proteccio",
+      "predicate": "instantiates_component",
+      "object": "urn:archinex:component:hsm-appliance",
+      "rationale": "Hydrate le composant logique hsm-appliance dans le catalogue terrain."
+    },
+    {
+      "id": "tr-comp-02",
+      "subject": "urn:archinex:ontology:security:hsm:thales_luna",
+      "predicate": "instantiates_component",
+      "object": "urn:archinex:component:hsm-appliance",
+      "rationale": "Hydrate le composant logique hsm-appliance dans le catalogue terrain."
+    },
+    {
+      "id": "tr-comp-03",
+      "subject": "urn:archinex:ontology:security:hsm:utimaco_secserver",
+      "predicate": "instantiates_component",
+      "object": "urn:archinex:component:hsm-appliance",
+      "rationale": "Hydrate le composant logique hsm-appliance dans le catalogue terrain."
+    },
+    {
+      "id": "tr-comp-04",
+      "subject": "urn:archinex:ontology:security:pki:root_offline_airgap",
+      "predicate": "instantiates_component",
+      "object": "urn:archinex:component:pki-ca",
+      "rationale": "Hydrate le composant logique pki-ca exposant le groupe pki-ca-endpoints."
+    },
+    {
+      "id": "tr-comp-05",
+      "subject": "urn:archinex:ontology:security:pki:ejbca_cmpv2",
+      "predicate": "instantiates_component",
+      "object": "urn:archinex:component:pki-ca",
+      "rationale": "Hydrate le composant logique pki-ca avec interface CMPv2/ACME."
+    },
+    {
+      "id": "tr-comp-06",
+      "subject": "urn:archinex:ontology:security:pki:step_ca_acme_internal",
+      "predicate": "instantiates_component",
+      "object": "urn:archinex:component:pki-ca",
+      "rationale": "Hydrate le composant logique pki-ca."
+    },
+    {
+      "id": "tr-comp-07",
+      "subject": "urn:archinex:ontology:security:vault:openbao_pkcs11_hsm",
+      "predicate": "instantiates_component",
+      "object": "urn:archinex:component:vault-cluster",
+      "rationale": "Hydrate le composant logique vault-cluster desservant les montages vault://*."
+    },
+    {
+      "id": "tr-comp-08",
+      "subject": "urn:archinex:ontology:security:secrets:vault_dynamic_leases",
+      "predicate": "instantiates_component",
+      "object": "urn:archinex:component:vault-cluster",
+      "rationale": "Hydrate le composant logique vault-cluster."
+    },
+    {
+      "id": "tr-comp-09",
+      "subject": "urn:archinex:ontology:security:iam:oidc_fido2_rbac",
+      "predicate": "instantiates_component",
+      "object": "urn:archinex:component:iam-keycloak",
+      "rationale": "Hydrate le composant logique iam-keycloak."
+    },
+    {
+      "id": "tr-comp-10",
+      "subject": "urn:archinex:ontology:security:bastion:wallix_pam",
+      "predicate": "instantiates_component",
+      "object": "urn:archinex:component:admin-bastion",
+      "rationale": "Hydrate le composant logique admin-bastion."
+    },
+    {
+      "id": "tr-comp-11",
+      "subject": "urn:archinex:ontology:security:bastion:teleport_recorded_session",
+      "predicate": "instantiates_component",
+      "object": "urn:archinex:component:admin-bastion",
+      "rationale": "Hydrate le composant logique admin-bastion."
+    },
+    {
+      "id": "tr-comp-12",
+      "subject": "urn:archinex:ontology:observability:soc:siem_syslog_tls_nis2",
+      "predicate": "instantiates_component",
+      "object": "urn:archinex:component:siem-soc",
+      "rationale": "Hydrate le composant logique siem-soc exposant le groupe siem-collectors."
+    },
+    {
+      "id": "tr-comp-13",
+      "subject": "urn:archinex:ontology:network:proxy:squid_explicit_fqdn",
+      "predicate": "instantiates_component",
+      "object": "urn:archinex:component:ingress-waf-proxy",
+      "rationale": "Hydrate la passerelle proxy/WAF DMZ ingress-waf-proxy."
+    },
+    {
+      "id": "tr-comp-14",
+      "subject": "urn:archinex:ontology:network:ingress:envoy_coraza_waf",
+      "predicate": "instantiates_component",
+      "object": "urn:archinex:component:ingress-waf-proxy",
+      "rationale": "Hydrate la passerelle proxy/WAF DMZ ingress-waf-proxy."
+    },
+    {
+      "id": "tr-comp-15",
+      "subject": "urn:archinex:ontology:application:gis:geoserver_postgis_offline",
+      "predicate": "instantiates_component",
+      "object": "urn:archinex:component:gis-server",
+      "rationale": "Relie l'axe cartographique SIG au composant logique gis-server."
     }
   ]
 }

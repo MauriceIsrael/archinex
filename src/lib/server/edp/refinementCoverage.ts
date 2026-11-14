@@ -1,3 +1,4 @@
+import { existsSync, readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import {
   type OntologyCatalog,
@@ -12,6 +13,7 @@ import {
   DEFAULT_COMPONENT_CATALOG,
   DEFAULT_ENVIRONMENT_OVERLAYS,
   DEFAULT_VALUE_CATALOGS,
+  instantiateCatalogFromOntologyBindings,
   lintBaseComponentNoHardcodedEnv,
   validateComponentAgainstCatalogs,
   type BaseLintIssue
@@ -19,11 +21,24 @@ import {
 import {
   buildReferenceGraph,
   resolveComponentInstance,
+  verifyCatalogDanglingReferences,
+  type CatalogDanglingReferenceReport,
   type ReferenceGraph,
   type ResolvedComponentInstance
 } from '../../domain/edp/refResolver.js';
+import {
+  resolveTogafDomain,
+  type TogafDomainId
+} from '../../domain/edp/togafTaxonomy.js';
 
 export type AxisCoverageStatus = 'covered_executable' | 'covered_no_oracle' | 'missing_refinement';
+export type BindingOrigin = 'explicit' | 'strong_link' | 'default_proposed' | 'none';
+export type DecisionSlotStatus =
+  | 'open'
+  | 'default_proposed'
+  | 'bound_unverified'
+  | 'bound_verified'
+  | 'waived';
 
 export interface CandidateLeafSummary {
   urn: string;
@@ -38,11 +53,18 @@ export interface AxisCoverageItem {
   axisUrn: string;
   axisTitle: string;
   domain: string;
+  togafDomain?: TogafDomainId;
   rationale: string;
   status: AxisCoverageStatus;
+  bindingOrigin?: BindingOrigin;
+  requiresRatification?: boolean;
   boundLeaves: CandidateLeafSummary[];
   candidateLeaves: CandidateLeafSummary[];
   oracleRulesCount: number;
+  executableOracleRules?: string[];
+  phantomOracleRules?: string[];
+  hasPhantomOracle?: boolean;
+  instantiatedComponents?: string[];
 }
 
 export interface ClauseCoverageItem {
@@ -75,6 +97,37 @@ export interface HldConceptSummary {
   score: number;
 }
 
+export interface DecisionSlotItem {
+  slotId: string;
+  axisUrn: string;
+  axisTitle: string;
+  togafDomain: TogafDomainId;
+  status: DecisionSlotStatus;
+  bindingOrigin: BindingOrigin;
+  requiresRatification: boolean;
+  boundLeafUrns: string[];
+  candidateLeafUrns: string[];
+  executableOracleRules: string[];
+  phantomOracleRules: string[];
+  instantiatedComponents: string[];
+  isTransitivePrerequisite: boolean;
+  triggeredByAxisUrn?: string;
+}
+
+export interface ConscientiousCoverageMetrics {
+  totalSlots: number;
+  openSlots: number;
+  defaultProposedSlots: number;
+  boundUnverifiedSlots: number;
+  boundVerifiedSlots: number;
+  waivedSlots: number;
+  humanRatifiedRatio: number;
+  verifiedOracleRatio: number;
+  phantomOracleCount: number;
+  transitivePrerequisitesCount: number;
+  isConscientiouslyComplete: boolean;
+}
+
 export interface RefinementCoverageReport {
   matchedConcepts: Array<{ urn: string; title: string; score: number }>;
   allConcepts?: HldConceptSummary[];
@@ -83,6 +136,8 @@ export interface RefinementCoverageReport {
   clauses: ClauseCoverageItem[];
   dependencyIssues: CrossAxisDependencyIssue[];
   composedBindings: OntologyBindingItem[];
+  decisionSlots?: DecisionSlotItem[];
+  conscientiousMetrics?: ConscientiousCoverageMetrics;
   metrics: {
     coveredExecutableAxes: number;
     coveredNoOracleAxes: number;
@@ -128,6 +183,10 @@ export interface LldHydrationOverrides {
   powerFeedsCount?: number;
   s6aDirectBypassDea?: boolean;
   orphanPartnerTenant?: boolean;
+  rootCaKeyCustody?: string;
+  vaultUnsealMode?: string;
+  oamSessionRecording?: boolean;
+  egressMode?: string;
 }
 
 export interface ReconciliationObjectGraph {
@@ -151,9 +210,16 @@ export interface MultiAxisHydratedInventory {
   power_feeds: string[];
   coveredDomains: string[];
   reconciliation_graph: ReconciliationObjectGraph;
+  trust_chain?: {
+    root_ca_key_custody: string;
+    vault_unseal_mode: string;
+    oam_session_recording: boolean;
+    egress_mode: string;
+  };
   resolved_components?: ResolvedComponentInstance[];
   component_lint_issues?: BaseLintIssue[];
   reference_graph?: ReferenceGraph;
+  dangling_references?: CatalogDanglingReferenceReport;
   satisfied_clauses?: string[];
   evaluated_triplets?: string[];
 }
@@ -514,6 +580,124 @@ export function decomposeIntentionClauses(
 }
 
 /**
+ * Extrait les règles OPA effectivement implémentées dans `edp/policies/multi_axis_refinement.rego`.
+ * Permet de détecter les oracles fantômes déclarés dans l'ontologie sans règle exécutable correspondante.
+ */
+export function loadImplementedRegoRuleNames(policyPath?: string): Set<string> {
+  const targetPath = policyPath ?? resolve(process.cwd(), 'edp/policies/multi_axis_refinement.rego');
+  if (!existsSync(targetPath)) {
+    return new Set();
+  }
+  const source = readFileSync(targetPath, 'utf8');
+  const implemented = new Set<string>();
+  const regex = /"rule"\s*:\s*"([^"]+)"/g;
+  let match: RegExpExecArray | null;
+  while ((match = regex.exec(source)) !== null) {
+    implemented.add(match[1]);
+  }
+  return implemented;
+}
+
+export interface TransitivePrerequisiteMatch {
+  triggeredByAxisUrn: string;
+  triplet: OntologyTriplet;
+}
+
+/**
+ * Calcule la fermeture transitive des axes prérequis via les triplets `requires_prerequisite_axis`
+ * (par ex. IPsec/mTLS -> PKI 3GPP -> Hiérarchie PKI -> HSM, ou OAM -> Bastion PAM -> IAM).
+ */
+export function computeTransitivePrerequisiteAxes(
+  seedUrns: Iterable<string>,
+  catalog: OntologyCatalog
+): Map<string, TransitivePrerequisiteMatch> {
+  const discovered = new Map<string, TransitivePrerequisiteMatch>();
+  const visitedSeeds = new Set<string>();
+  const queue: string[] = Array.from(seedUrns);
+  const prereqTriplets = (catalog.triplets || []).filter(
+    (t) => t.predicate === 'requires_prerequisite_axis'
+  );
+
+  while (queue.length > 0) {
+    const current = queue.shift()!;
+    if (visitedSeeds.has(current)) continue;
+    visitedSeeds.add(current);
+
+    for (const triplet of prereqTriplets) {
+      if (triplet.subject !== current) continue;
+      const targetAxisUrn = triplet.object;
+      if (!discovered.has(targetAxisUrn)) {
+        discovered.set(targetAxisUrn, {
+          triggeredByAxisUrn: current,
+          triplet
+        });
+      }
+      if (!visitedSeeds.has(targetAxisUrn)) {
+        queue.push(targetAxisUrn);
+      }
+    }
+  }
+
+  return discovered;
+}
+
+/**
+ * Transforme les emplacements `default_proposed` (reconnus ou sélectionnés) en liaisons explicites ratifiées.
+ */
+export function ratifyDefaultDecisionSlots(
+  report: RefinementCoverageReport,
+  approvedSlotIds?: string[]
+): OntologyBindingItem[] {
+  const bindingMap = new Map<string, OntologyBindingItem>();
+  for (const b of report.composedBindings) {
+    bindingMap.set(b.urn, b);
+  }
+
+  const axisLeafRevisionMap = new Map<string, number | string>();
+  for (const axis of report.axes) {
+    for (const leaf of axis.candidateLeaves) {
+      axisLeafRevisionMap.set(leaf.urn, leaf.revision);
+    }
+  }
+
+  for (const slot of report.decisionSlots || []) {
+    if (slot.status !== 'default_proposed') continue;
+    if (approvedSlotIds && !approvedSlotIds.includes(slot.slotId)) continue;
+    const leafUrn = slot.boundLeafUrns[0] || slot.candidateLeafUrns[0];
+    if (!leafUrn || bindingMap.has(leafUrn)) continue;
+    bindingMap.set(leafUrn, {
+      urn: leafUrn,
+      revision: axisLeafRevisionMap.get(leafUrn) ?? 1
+    });
+  }
+
+  return Array.from(bindingMap.values()).sort((a, b) => a.urn.localeCompare(b.urn));
+}
+
+function collectInstantiatedComponents(
+  subjectUrns: string[],
+  catalog: OntologyCatalog
+): string[] {
+  const names = new Set<string>();
+  const subjectSet = new Set(subjectUrns);
+
+  for (const urn of subjectUrns) {
+    const entity = catalog.entities[urn];
+    if (entity?.instantiated_component) {
+      names.add(String(entity.instantiated_component).replace(/^urn:archinex:component:/, ''));
+    }
+  }
+
+  for (const triplet of catalog.triplets || []) {
+    if (triplet.predicate === 'instantiates_component' && subjectSet.has(triplet.subject)) {
+      names.add(triplet.object.replace(/^urn:archinex:component:/, ''));
+    }
+  }
+
+  return Array.from(names).sort();
+}
+
+/**
  * Calcule la Matrice de Couverture du Raffinement (KAOS AND/OR Goal Refinement + Ontologie)
  * et compose les liaisons multi-axes d'un sujet.
  */
@@ -522,6 +706,7 @@ export function computeRefinementCoverage(
   catalog: OntologyCatalog
 ): RefinementCoverageReport {
   const matchedConcepts = resolveSubjectConcepts(input, catalog);
+  const implementedRegoRules = loadImplementedRegoRuleNames();
   const factsText = (input.structuredFacts || []).map((f) => f.statement).join(' ');
   const corpus = normalizeText(
     [
@@ -559,11 +744,12 @@ export function computeRefinementCoverage(
   }
 
   // 2. Liaisons explicites déjà présentes sur le paquet + inférence sémantique optionnelle depuis l'ontologie
-  const boundLeafUrns = new Set<string>(
+  const explicitBindingSet = new Set<string>(
     (input.explicitBindings || []).map((b) => b.urn)
   );
+  const boundLeafUrns = new Set<string>(explicitBindingSet);
 
-  const shouldAutoBind = input.autoBindFromText ?? boundLeafUrns.size === 0;
+  const shouldAutoBind = input.autoBindFromText ?? explicitBindingSet.size === 0;
 
   const axes: AxisCoverageItem[] = [];
 
@@ -576,6 +762,8 @@ export function computeRefinementCoverage(
 
     const candidateLeaves: CandidateLeafSummary[] = [];
     const boundLeaves: CandidateLeafSummary[] = [];
+    let hasExplicitBinding = false;
+    let hasStrongLinkBinding = false;
 
     for (const implT of implTriplets) {
       const leafEntity = catalog.entities[implT.object];
@@ -584,7 +772,7 @@ export function computeRefinementCoverage(
       const summary = toCandidateSummary(leafEntity);
       candidateLeaves.push(summary);
 
-      const isExplicitlyBound = boundLeafUrns.has(leafEntity.urn);
+      const isExplicitlyBound = explicitBindingSet.has(leafEntity.urn);
       const hasStrongLinkInCorpus =
         shouldAutoBind && corpusCandidateIds.length > 0
           ? Boolean(findStrongLinkForLeaf(leafEntity, corpusCandidateIds, catalog))
@@ -595,11 +783,16 @@ export function computeRefinementCoverage(
       if (isExplicitlyBound || hasStrongLinkInCorpus || semanticScore > 0 || isDefaultStandard) {
         boundLeafUrns.add(leafEntity.urn);
         boundLeaves.push(summary);
+        if (isExplicitlyBound) {
+          hasExplicitBinding = true;
+        } else if (hasStrongLinkInCorpus) {
+          hasStrongLinkBinding = true;
+        }
       }
     }
 
     // Auto-raffinement par défaut (KAOS OR-Refinement) : tant qu'une feuille standard homologuée existe
-    // dans l'ontologie pour cet axe obligatoire, on la lie automatiquement sans attendre un clic manuel.
+    // dans l'ontologie pour cet axe obligatoire, on la propose comme défaut (à ratifier).
     if (shouldAutoBind && boundLeaves.length === 0 && candidateLeaves.length > 0) {
       const defaultCandidate =
         candidateLeaves.find((c) => c.oracleRules.length > 0) || candidateLeaves[0];
@@ -608,6 +801,20 @@ export function computeRefinementCoverage(
     }
 
     const oracleRulesCount = boundLeaves.reduce((acc, l) => acc + l.oracleRules.length, 0);
+    const uniqueAxisOracleRules = Array.from(new Set(boundLeaves.flatMap((l) => l.oracleRules)));
+    const executableOracleRules = uniqueAxisOracleRules.filter((r) => implementedRegoRules.has(r));
+    const phantomOracleRules = uniqueAxisOracleRules.filter((r) => !implementedRegoRules.has(r));
+
+    const bindingOrigin: BindingOrigin =
+      boundLeaves.length === 0
+        ? 'none'
+        : hasExplicitBinding
+          ? 'explicit'
+          : hasStrongLinkBinding
+            ? 'strong_link'
+            : 'default_proposed';
+
+    const requiresRatification = bindingOrigin === 'default_proposed';
 
     let status: AxisCoverageStatus = 'missing_refinement';
     if (boundLeaves.length > 0) {
@@ -618,11 +825,137 @@ export function computeRefinementCoverage(
       axisUrn,
       axisTitle: axisEntity?.title || axisUrn,
       domain: axisEntity?.domain || 'architecture',
+      togafDomain: resolveTogafDomain(axisEntity?.togaf_domain || axisEntity?.domain),
       rationale: reqTriplet.rationale || 'Axe obligatoire requis par le concept parent.',
       status,
+      bindingOrigin,
+      requiresRatification,
       boundLeaves,
       candidateLeaves,
-      oracleRulesCount
+      oracleRulesCount,
+      executableOracleRules,
+      phantomOracleRules,
+      hasPhantomOracle: phantomOracleRules.length > 0,
+      instantiatedComponents: collectInstantiatedComponents(
+        [axisUrn, ...boundLeaves.map((l) => l.urn)],
+        catalog
+      )
+    });
+  }
+
+  // 2bis. Emplacements de décision (conscientisation : défaut proposé != décision ratifiée + prérequis transitifs)
+  const decisionSlots: DecisionSlotItem[] = axes.map((axis) => {
+    const execCount = axis.executableOracleRules?.length ?? 0;
+    let slotStatus: DecisionSlotStatus = 'open';
+    if (axis.boundLeaves.length > 0) {
+      if (axis.requiresRatification) {
+        slotStatus = 'default_proposed';
+      } else {
+        slotStatus = execCount > 0 ? 'bound_verified' : 'bound_unverified';
+      }
+    }
+
+    return {
+      slotId: `slot:${axis.axisUrn}`,
+      axisUrn: axis.axisUrn,
+      axisTitle: axis.axisTitle,
+      togafDomain: axis.togafDomain || resolveTogafDomain(axis.domain),
+      status: slotStatus,
+      bindingOrigin: axis.bindingOrigin || 'none',
+      requiresRatification: Boolean(axis.requiresRatification),
+      boundLeafUrns: axis.boundLeaves.map((l) => l.urn),
+      candidateLeafUrns: axis.candidateLeaves.map((l) => l.urn),
+      executableOracleRules: axis.executableOracleRules || [],
+      phantomOracleRules: axis.phantomOracleRules || [],
+      instantiatedComponents: axis.instantiatedComponents || [],
+      isTransitivePrerequisite: false
+    };
+  });
+
+  const transitivePrereqs = computeTransitivePrerequisiteAxes(
+    [...mandatoryAxisMap.keys(), ...boundLeafUrns, ...explicitBindingSet],
+    catalog
+  );
+
+  for (const [targetAxisUrn, prereqMatch] of transitivePrereqs.entries()) {
+    if (mandatoryAxisMap.has(targetAxisUrn)) continue;
+    const axisEntity = catalog.entities[targetAxisUrn];
+    const implTriplets = queryOntologyTriplets(catalog, {
+      subject: targetAxisUrn,
+      predicate: 'implemented_by'
+    });
+
+    const candidateLeaves: CandidateLeafSummary[] = [];
+    const slotBoundLeaves: CandidateLeafSummary[] = [];
+    let hasExplicit = false;
+    let hasStrongLink = false;
+
+    for (const implT of implTriplets) {
+      const leafEntity = catalog.entities[implT.object];
+      if (!leafEntity) continue;
+      const summary = toCandidateSummary(leafEntity);
+      candidateLeaves.push(summary);
+
+      const isExplicitlyBound = explicitBindingSet.has(leafEntity.urn);
+      const hasStrongLinkInCorpus =
+        shouldAutoBind && corpusCandidateIds.length > 0
+          ? Boolean(findStrongLinkForLeaf(leafEntity, corpusCandidateIds, catalog))
+          : false;
+
+      if (isExplicitlyBound || hasStrongLinkInCorpus) {
+        slotBoundLeaves.push(summary);
+        if (isExplicitlyBound) {
+          hasExplicit = true;
+        } else {
+          hasStrongLink = true;
+        }
+      }
+    }
+
+    let slotOrigin: BindingOrigin = 'none';
+    if (slotBoundLeaves.length > 0) {
+      slotOrigin = hasExplicit ? 'explicit' : hasStrongLink ? 'strong_link' : 'default_proposed';
+    } else if (shouldAutoBind && candidateLeaves.length > 0) {
+      const proposed =
+        candidateLeaves.find((c) => Boolean(catalog.entities[c.urn]?.is_default_standard)) ||
+        candidateLeaves.find((c) => c.oracleRules.length > 0) ||
+        candidateLeaves[0];
+      slotBoundLeaves.push(proposed);
+      slotOrigin = 'default_proposed';
+    }
+
+    const requiresRatification = slotOrigin === 'default_proposed';
+    const uniqueSlotRules = Array.from(new Set(slotBoundLeaves.flatMap((l) => l.oracleRules)));
+    const executableOracleRules = uniqueSlotRules.filter((r) => implementedRegoRules.has(r));
+    const phantomOracleRules = uniqueSlotRules.filter((r) => !implementedRegoRules.has(r));
+
+    let slotStatus: DecisionSlotStatus = 'open';
+    if (slotBoundLeaves.length > 0) {
+      if (requiresRatification) {
+        slotStatus = 'default_proposed';
+      } else {
+        slotStatus = executableOracleRules.length > 0 ? 'bound_verified' : 'bound_unverified';
+      }
+    }
+
+    decisionSlots.push({
+      slotId: `slot:${targetAxisUrn}`,
+      axisUrn: targetAxisUrn,
+      axisTitle: axisEntity?.title || targetAxisUrn,
+      togafDomain: resolveTogafDomain(axisEntity?.togaf_domain || axisEntity?.domain),
+      status: slotStatus,
+      bindingOrigin: slotOrigin,
+      requiresRatification,
+      boundLeafUrns: slotBoundLeaves.map((l) => l.urn),
+      candidateLeafUrns: candidateLeaves.map((l) => l.urn),
+      executableOracleRules,
+      phantomOracleRules,
+      instantiatedComponents: collectInstantiatedComponents(
+        [targetAxisUrn, ...slotBoundLeaves.map((l) => l.urn)],
+        catalog
+      ),
+      isTransitivePrerequisite: true,
+      triggeredByAxisUrn: prereqMatch.triggeredByAxisUrn
     });
   }
 
@@ -690,6 +1023,32 @@ export function computeRefinementCoverage(
     coveredNoOracleAxes === 0 &&
     dependencyIssues.length === 0;
 
+  const totalSlots = decisionSlots.length;
+  const openSlots = decisionSlots.filter((s) => s.status === 'open').length;
+  const defaultProposedSlots = decisionSlots.filter((s) => s.status === 'default_proposed').length;
+  const boundUnverifiedSlots = decisionSlots.filter((s) => s.status === 'bound_unverified').length;
+  const boundVerifiedSlots = decisionSlots.filter((s) => s.status === 'bound_verified').length;
+  const waivedSlots = decisionSlots.filter((s) => s.status === 'waived').length;
+  const ratifiedCount = boundVerifiedSlots + boundUnverifiedSlots + waivedSlots;
+  const humanRatifiedRatio =
+    totalSlots > 0 ? Math.round((ratifiedCount / totalSlots) * 1000) / 1000 : 0;
+  const verifiedOracleRatio =
+    totalSlots > 0 ? Math.round((boundVerifiedSlots / totalSlots) * 1000) / 1000 : 0;
+  const phantomOracleCount = decisionSlots.reduce(
+    (acc, s) => acc + s.phantomOracleRules.length,
+    0
+  );
+  const transitivePrerequisitesCount = decisionSlots.filter(
+    (s) => s.isTransitivePrerequisite
+  ).length;
+  const isConscientiouslyComplete =
+    totalSlots > 0 &&
+    openSlots === 0 &&
+    defaultProposedSlots === 0 &&
+    boundUnverifiedSlots === 0 &&
+    phantomOracleCount === 0 &&
+    dependencyIssues.length === 0;
+
   const allConcepts: HldConceptSummary[] = Object.values(catalog.entities)
     .filter((e) => e.kind === 'concept')
     .map((e) => {
@@ -715,6 +1074,20 @@ export function computeRefinementCoverage(
     clauses,
     dependencyIssues,
     composedBindings,
+    decisionSlots,
+    conscientiousMetrics: {
+      totalSlots,
+      openSlots,
+      defaultProposedSlots,
+      boundUnverifiedSlots,
+      boundVerifiedSlots,
+      waivedSlots,
+      humanRatifiedRatio,
+      verifiedOracleRatio,
+      phantomOracleCount,
+      transitivePrerequisitesCount,
+      isConscientiouslyComplete
+    },
     metrics: {
       coveredExecutableAxes,
       coveredNoOracleAxes,
@@ -765,6 +1138,10 @@ export function composeMultiAxisHydration(
     { name: 'oob0', type: 'management', ip: '192.0.2.10/24' },
     { name: 'eth0', type: 'data', ip: '10.20.0.10/24' }
   ];
+  let rootCaKeyCustody = 'unspecified';
+  let vaultUnsealMode = 'unspecified';
+  let oamSessionRecording = false;
+  let egressMode = 'unspecified';
 
   for (const b of bindings) {
     const entity = catalog.entities[b.urn];
@@ -773,6 +1150,19 @@ export function composeMultiAxisHydration(
 
     const tpl = (entity.hydration_template || {}) as Record<string, any>;
     const proj = (entity.projections || {}) as Record<string, any>;
+
+    if (proj.key_custody_mode !== undefined) {
+      rootCaKeyCustody = String(proj.key_custody_mode);
+    }
+    if (proj.unseal_mechanism !== undefined) {
+      vaultUnsealMode = String(proj.unseal_mechanism);
+    }
+    if (proj.bastion_session_recording !== undefined) {
+      oamSessionRecording = Boolean(proj.bastion_session_recording);
+    }
+    if (proj.egress_mode !== undefined) {
+      egressMode = String(proj.egress_mode);
+    }
 
     if (tpl.nautobot_device || proj.baremetal_types) {
       hasComputeLeaf = true;
@@ -1223,14 +1613,32 @@ export function composeMultiAxisHydration(
 
   const prodOverlay = DEFAULT_ENVIRONMENT_OVERLAYS[0];
   const primaryDc = prodOverlay.spec.datacenters[0] || 'dc1';
-  const componentLintIssues = DEFAULT_COMPONENT_CATALOG.flatMap((comp) => [
+  const componentUrnMap: Record<string, string> = {};
+  for (const t of catalog.triplets || []) {
+    if (t.predicate === 'instantiates_component') {
+      componentUrnMap[t.subject] = t.object.replace(/^urn:archinex:component:/, '');
+    }
+  }
+  const activeCatalog = instantiateCatalogFromOntologyBindings(
+    bindings.map((b) => b.urn),
+    DEFAULT_COMPONENT_CATALOG,
+    componentUrnMap
+  );
+  const componentLintIssues = activeCatalog.flatMap((comp) => [
     ...lintBaseComponentNoHardcodedEnv(comp),
     ...validateComponentAgainstCatalogs(comp, DEFAULT_VALUE_CATALOGS)
   ]);
-  const resolvedComponents = DEFAULT_COMPONENT_CATALOG.filter((c) => !c.metadata.external).map(
+  const resolvedComponents = activeCatalog.filter((c) => !c.metadata.external).map(
     (comp) => resolveComponentInstance(comp, prodOverlay, primaryDc, DEFAULT_VALUE_CATALOGS)
   );
-  const referenceGraph = buildReferenceGraph(DEFAULT_COMPONENT_CATALOG);
+  const referenceGraph = buildReferenceGraph(activeCatalog);
+  const danglingReferences = verifyCatalogDanglingReferences(activeCatalog);
+  const trustChain = {
+    root_ca_key_custody: overrides.rootCaKeyCustody ?? rootCaKeyCustody,
+    vault_unseal_mode: overrides.vaultUnsealMode ?? vaultUnsealMode,
+    oam_session_recording: overrides.oamSessionRecording ?? oamSessionRecording,
+    egress_mode: overrides.egressMode ?? egressMode
+  };
 
   return {
     nautobot_planned_devices: nautobotDevices,
@@ -1241,9 +1649,11 @@ export function composeMultiAxisHydration(
     power_feeds: powerFeeds,
     coveredDomains: Array.from(coveredDomains),
     reconciliation_graph: reconciliationGraph,
+    trust_chain: trustChain,
     resolved_components: resolvedComponents,
     component_lint_issues: componentLintIssues,
     reference_graph: referenceGraph,
+    dangling_references: danglingReferences,
     satisfied_clauses: satisfiedClauses,
     evaluated_triplets: evaluatedTriplets
   };

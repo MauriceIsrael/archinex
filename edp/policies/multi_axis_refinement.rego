@@ -373,6 +373,288 @@ violations contains v if {
 }
 
 # ==============================================================================
+# AXE 9 : COUVERTURE MULTI-DOMAINES ÉTENDUE (RÉSEAU, STOCKAGE, IAM, OBS, DRP, OCI)
+# ==============================================================================
+
+is_non_evpn_fabric(nf, sf_proj) if {
+	object.get(nf, "underlay_protocol", "") != sf_proj.underlay_protocol
+}
+
+is_non_evpn_fabric(nf, sf_proj) if {
+	object.get(nf, "overlay_protocol", "") != sf_proj.overlay_protocol
+}
+
+violations contains v if {
+	sf_proj := object.get(data.ontology, "telecom_network_spine_leaf_evpn", null)
+	sf_proj != null
+	ed := object.get(input, "extended_domains", {})
+	nf := object.get(ed, "network_fabric", {})
+	nf.tor_uplinks_per_rack < sf_proj.min_tor_switches_per_rack
+	v := {
+		"rule": "data.archinex.edp.multiaxis.deny_single_tor_uplink",
+		"axis": "urn:archinex:ontology:axis:network_underlay_fabric",
+		"message": sprintf("Redondance Top-of-Rack insuffisante (%v liens par baie au lieu de %v)", [object.get(nf, "tor_uplinks_per_rack", "absent"), sf_proj.min_tor_switches_per_rack]),
+		"violated_clause_urn": get_clause_urn(sf_proj, "urn:archinex:kb:clause:net:spine_leaf_uplinks"),
+		"violated_requirement_id": "REQ-Net-Fabric-Uplink",
+	}
+}
+
+violations contains v if {
+	sf_proj := object.get(data.ontology, "telecom_network_spine_leaf_evpn", null)
+	sf_proj != null
+	ed := object.get(input, "extended_domains", {})
+	nf := object.get(ed, "network_fabric", {})
+	is_non_evpn_fabric(nf, sf_proj)
+	v := {
+		"rule": "data.archinex.edp.multiaxis.deny_non_evpn_fabric",
+		"axis": "urn:archinex:ontology:axis:network_underlay_fabric",
+		"message": sprintf("Fabrique réseau non conforme au profil EVPN/eBGP attendu (%v/%v au lieu de %v/%v)", [object.get(nf, "underlay_protocol", "absent"), object.get(nf, "overlay_protocol", "absent"), sf_proj.underlay_protocol, sf_proj.overlay_protocol]),
+		"violated_clause_urn": get_clause_urn(sf_proj, "urn:archinex:kb:clause:net:evpn_overlay"),
+		"violated_requirement_id": "REQ-Net-Fabric-Evpn",
+	}
+}
+
+violations contains v if {
+	up_proj := object.get(data.ontology, "security_zone_user_plane", null)
+	up_proj != null
+	ed := object.get(input, "extended_domains", {})
+	up := object.get(ed, "user_plane_zone", {})
+	up.isolation_level != up_proj.isolation_level
+	v := {
+		"rule": "data.archinex.edp.adr015.deny_user_plane_management_leak",
+		"axis": "urn:archinex:ontology:axis:security_zoning",
+		"message": sprintf("Isolation de zone plan utilisateur non conforme (%v au lieu de %v)", [object.get(up, "isolation_level", "absent"), up_proj.isolation_level]),
+		"violated_clause_urn": get_clause_urn(up_proj, "urn:archinex:kb:clause:sec:user_plane_isolation"),
+		"violated_requirement_id": "REQ-Sec-UserPlane",
+	}
+}
+
+violations contains v if {
+	csi_proj := object.get(data.ontology, "storage_csi_ceph_rbd_3replicas", null)
+	csi_proj != null
+	ed := object.get(input, "extended_domains", {})
+	sc := object.get(ed, "storage_csi", {})
+	sc.replication_factor < csi_proj.min_replication_factor
+	v := {
+		"rule": "data.archinex.edp.multiaxis.deny_insufficient_storage_replicas",
+		"axis": "urn:archinex:ontology:axis:storage_replication",
+		"message": sprintf("Facteur de réplication stockage insuffisant (%v réplicas au lieu de %v)", [object.get(sc, "replication_factor", "absent"), csi_proj.min_replication_factor]),
+		"violated_clause_urn": get_clause_urn(csi_proj, "urn:archinex:kb:clause:storage:csi_replication"),
+		"violated_requirement_id": "REQ-Storage-Replication",
+	}
+}
+
+violations contains v if {
+	obj_proj := object.get(data.ontology, "storage_s3_object_erasure_coding", null)
+	obj_proj != null
+	ed := object.get(input, "extended_domains", {})
+	os := object.get(ed, "object_storage", {})
+	os.versioning_enabled != obj_proj.versioning_required
+	v := {
+		"rule": "data.archinex.edp.multiaxis.deny_unprotected_s3_bucket",
+		"axis": "urn:archinex:ontology:axis:storage_replication",
+		"message": sprintf("Versioning du stockage objet non conforme (requis: %v)", [obj_proj.versioning_required]),
+		"violated_clause_urn": get_clause_urn(obj_proj, "urn:archinex:kb:clause:storage:object_versioning"),
+		"violated_requirement_id": "REQ-Storage-Object",
+	}
+}
+
+violations contains v if {
+	enc_proj := object.get(data.ontology, "security_crypto_luks2_kms_hsm", null)
+	enc_proj != null
+	ed := object.get(input, "extended_domains", {})
+	enc := object.get(ed, "encryption_at_rest", {})
+	enc.cipher != enc_proj.cipher
+	v := {
+		"rule": "data.archinex.edp.multiaxis.deny_unencrypted_storage_volume",
+		"axis": "urn:archinex:ontology:axis:encryption_at_rest",
+		"message": sprintf("Algorithme de chiffrement au repos non conforme (%v au lieu de %v)", [object.get(enc, "cipher", "absent"), enc_proj.cipher]),
+		"violated_clause_urn": get_clause_urn(enc_proj, "urn:archinex:kb:clause:sec:encryption_cipher"),
+		"violated_requirement_id": "REQ-Sec-Encryption",
+	}
+}
+
+violations contains v if {
+	bkp_proj := object.get(data.ontology, "storage_backup_s3_object_lock_worm", null)
+	bkp_proj != null
+	ed := object.get(input, "extended_domains", {})
+	bkp := object.get(ed, "backup_vault", {})
+	bkp.immutability_mode != bkp_proj.immutability_mode
+	v := {
+		"rule": "data.archinex.edp.multiaxis.deny_mutable_backup_repository",
+		"axis": "urn:archinex:ontology:axis:backup_immutability",
+		"message": sprintf("Mode d'immuabilité des sauvegardes non conforme (%v au lieu de %v)", [object.get(bkp, "immutability_mode", "absent"), bkp_proj.immutability_mode]),
+		"violated_clause_urn": get_clause_urn(bkp_proj, "urn:archinex:kb:clause:storage:backup_worm"),
+		"violated_requirement_id": "REQ-Storage-Backup",
+	}
+}
+
+violations contains v if {
+	iam_proj := object.get(data.ontology, "security_iam_oidc_fido2_rbac", null)
+	iam_proj != null
+	ed := object.get(input, "extended_domains", {})
+	iam := object.get(ed, "iam_rbac", {})
+	iam.forbid_cluster_admin_group != iam_proj.forbid_cluster_admin_group
+	v := {
+		"rule": "data.archinex.edp.multiaxis.deny_wildcard_cluster_admin_rbac",
+		"axis": "urn:archinex:ontology:axis:iam_federation_mfa",
+		"message": sprintf("Interdiction de groupe cluster-admin générique requise (%v)", [iam_proj.forbid_cluster_admin_group]),
+		"violated_clause_urn": get_clause_urn(iam_proj, "urn:archinex:kb:clause:sec:rbac_least_privilege"),
+		"violated_requirement_id": "REQ-Sec-IAM-RBAC",
+	}
+}
+
+violations contains v if {
+	iam_proj := object.get(data.ontology, "security_iam_oidc_fido2_rbac", null)
+	iam_proj != null
+	ed := object.get(input, "extended_domains", {})
+	iam := object.get(ed, "iam_rbac", {})
+	iam.mfa_level != iam_proj.mfa_level
+	v := {
+		"rule": "data.archinex.edp.multiaxis.deny_missing_mfa_enforcement",
+		"axis": "urn:archinex:ontology:axis:iam_federation_mfa",
+		"message": sprintf("Niveau d'authentification multifacteur insuffisant (%v au lieu de %v)", [object.get(iam, "mfa_level", "absent"), iam_proj.mfa_level]),
+		"violated_clause_urn": get_clause_urn(iam_proj, "urn:archinex:kb:clause:sec:iam_strong_mfa"),
+		"violated_requirement_id": "REQ-Sec-IAM-MFA",
+	}
+}
+
+violations contains v if {
+	mtls_proj := object.get(data.ontology, "security_pki_cert_manager_spiffe_mtls", null)
+	mtls_proj != null
+	ed := object.get(input, "extended_domains", {})
+	wpki := object.get(ed, "workload_pki", {})
+	wpki.mtls_enforcement != mtls_proj.mtls_enforcement
+	v := {
+		"rule": "data.archinex.edp.multiaxis.deny_plaintext_interservice_flow",
+		"axis": "urn:archinex:ontology:axis:pki_mtls_workload",
+		"message": sprintf("Politique mTLS inter-services insuffisante (%v au lieu de %v)", [object.get(wpki, "mtls_enforcement", "absent"), mtls_proj.mtls_enforcement]),
+		"violated_clause_urn": get_clause_urn(mtls_proj, "urn:archinex:kb:clause:sec:workload_strict_mtls"),
+		"violated_requirement_id": "REQ-Sec-Workload-mTLS",
+	}
+}
+
+violations contains v if {
+	sec_proj := object.get(data.ontology, "security_secrets_vault_dynamic_leases", null)
+	sec_proj != null
+	ed := object.get(input, "extended_domains", {})
+	sec := object.get(ed, "secrets_management", {})
+	sec.allow_static_k8s_secrets != sec_proj.allow_static_k8s_secrets
+	v := {
+		"rule": "data.archinex.edp.multiaxis.deny_static_secret_in_git",
+		"axis": "urn:archinex:ontology:axis:secrets_vault_management",
+		"message": sprintf("Secrets statiques non conformes aux baux dynamiques Vault (allow_static_k8s_secrets attendu: %v)", [sec_proj.allow_static_k8s_secrets]),
+		"violated_clause_urn": get_clause_urn(sec_proj, "urn:archinex:kb:clause:sec:dynamic_secret_leases"),
+		"violated_requirement_id": "REQ-Sec-Vault-Leases",
+	}
+}
+
+violations contains v if {
+	tel_proj := object.get(data.ontology, "observability_telemetry_otel_prometheus_loki", null)
+	tel_proj != null
+	ed := object.get(input, "extended_domains", {})
+	obs := object.get(ed, "observability", {})
+	obs.collector_standard != tel_proj.collector_standard
+	v := {
+		"rule": "data.archinex.edp.multiaxis.deny_unmonitored_workload",
+		"axis": "urn:archinex:ontology:axis:metrics_traces_pipeline",
+		"message": sprintf("Standard collecteur de télémétrie non conforme (%v au lieu de %v)", [object.get(obs, "collector_standard", "absent"), tel_proj.collector_standard]),
+		"violated_clause_urn": get_clause_urn(tel_proj, "urn:archinex:kb:clause:obs:opentelemetry_standard"),
+		"violated_requirement_id": "REQ-Obs-Telemetry",
+	}
+}
+
+violations contains v if {
+	siem_proj := object.get(data.ontology, "observability_soc_siem_syslog_tls_nis2", null)
+	siem_proj != null
+	ed := object.get(input, "extended_domains", {})
+	obs := object.get(ed, "observability", {})
+	obs.siem_transport != siem_proj.transport
+	v := {
+		"rule": "data.archinex.edp.multiaxis.deny_missing_siem_audit_sink",
+		"axis": "urn:archinex:ontology:axis:siem_audit_retention",
+		"message": sprintf("Transport d'audit SIEM non conforme (%v au lieu de %v)", [object.get(obs, "siem_transport", "absent"), siem_proj.transport]),
+		"violated_clause_urn": get_clause_urn(siem_proj, "urn:archinex:kb:clause:obs:siem_tls_audit"),
+		"violated_requirement_id": "REQ-Obs-SIEM",
+	}
+}
+
+violations contains v if {
+	alert_proj := object.get(data.ontology, "observability_noc_alertmanager_slo_burnrate", null)
+	alert_proj != null
+	ed := object.get(input, "extended_domains", {})
+	obs := object.get(ed, "observability", {})
+	obs.require_runbook_annotation != alert_proj.require_runbook_annotation
+	v := {
+		"rule": "data.archinex.edp.multiaxis.deny_alert_without_runbook_url",
+		"axis": "urn:archinex:ontology:axis:slo_alerting_runbooks",
+		"message": sprintf("Annotation runbook requise sur toutes les règles d'alerte SLO (%v)", [alert_proj.require_runbook_annotation]),
+		"violated_clause_urn": get_clause_urn(alert_proj, "urn:archinex:kb:clause:obs:slo_runbook_annotation"),
+		"violated_requirement_id": "REQ-Obs-Runbook",
+	}
+}
+
+violations contains v if {
+	aa_proj := object.get(data.ontology, "resilience_drp_active_active_stretched", null)
+	aa_proj != null
+	ed := object.get(input, "extended_domains", {})
+	drp := object.get(ed, "drp", {})
+	drp.witness_site_present != aa_proj.witness_site_required
+	v := {
+		"rule": "data.archinex.edp.multiaxis.deny_missing_quorum_witness_site",
+		"axis": "urn:archinex:ontology:axis:multi_site_failover",
+		"message": sprintf("Site témoin de quorum requis pour la topologie actif-actif étendue (%v)", [aa_proj.witness_site_required]),
+		"violated_clause_urn": get_clause_urn(aa_proj, "urn:archinex:kb:clause:res:quorum_witness"),
+		"violated_requirement_id": "REQ-Res-DRP-Quorum",
+	}
+}
+
+violations contains v if {
+	ap_proj := object.get(data.ontology, "resilience_drp_active_passive_warm_standby", null)
+	ap_proj != null
+	ed := object.get(input, "extended_domains", {})
+	drp := object.get(ed, "drp", {})
+	drp.rpo_seconds > ap_proj.rpo_seconds
+	v := {
+		"rule": "data.archinex.edp.multiaxis.deny_rpo_exceeding_threshold",
+		"axis": "urn:archinex:ontology:axis:multi_site_failover",
+		"message": sprintf("Objectif RPO dépassé (%v secondes au-delà du maximum de %v s)", [object.get(drp, "rpo_seconds", "absent"), ap_proj.rpo_seconds]),
+		"violated_clause_urn": get_clause_urn(ap_proj, "urn:archinex:kb:clause:res:rpo_threshold"),
+		"violated_requirement_id": "REQ-Res-DRP-RPO",
+	}
+}
+
+violations contains v if {
+	gd_proj := object.get(data.ontology, "resilience_testing_automated_gameday_quarterly", null)
+	gd_proj != null
+	ed := object.get(input, "extended_domains", {})
+	drp := object.get(ed, "drp", {})
+	drp.days_since_last_drill > gd_proj.max_days_between_drills
+	v := {
+		"rule": "data.archinex.edp.multiaxis.deny_untested_drp_plan",
+		"axis": "urn:archinex:ontology:axis:chaos_drp_testing",
+		"message": sprintf("Plan de reprise non exercé dans le délai maximal (%v jours au-delà de %v jours)", [object.get(drp, "days_since_last_drill", "absent"), gd_proj.max_days_between_drills]),
+		"violated_clause_urn": get_clause_urn(gd_proj, "urn:archinex:kb:clause:res:gameday_cadence"),
+		"violated_requirement_id": "REQ-Res-GameDay",
+	}
+}
+
+violations contains v if {
+	reg_proj := object.get(data.ontology, "platform_registry_harbor_cosign_trivy", null)
+	reg_proj != null
+	ed := object.get(input, "extended_domains", {})
+	reg := object.get(ed, "oci_registry", {})
+	reg.cosign_verification != reg_proj.cosign_verification
+	v := {
+		"rule": "data.archinex.edp.multiaxis.deny_unsigned_oci_image",
+		"axis": "urn:archinex:ontology:axis:oci_artifact_registry",
+		"message": sprintf("Vérification cryptographique des signatures d'images OCI requise (%v)", [reg_proj.cosign_verification]),
+		"violated_clause_urn": get_clause_urn(reg_proj, "urn:archinex:kb:clause:plat:signed_oci_images"),
+		"violated_requirement_id": "REQ-Plat-Registry-Cosign",
+	}
+}
+
+# ==============================================================================
 # SYNTHÈSE DU VERDICT MULTI-AXES
 # ==============================================================================
 

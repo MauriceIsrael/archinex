@@ -104,3 +104,11 @@ L'effort des architectes doit être immédiatement gratifié et mesurable :
   2. Bascule visuelle de niveau de maturité (`L0_named` $\rightarrow$ `L4_specified`).
   3. Extinction des bloquants et déblocage en cascade des sujets dépendants.
 
+## Invariant XI : Complétude Conscientisée, Ratification des Commodités & Scellement Intègre (architecture.lock)
+
+Une architecture ne peut être déclarée complète uniquement sur la base de propositions implicites ou de valeurs par défaut non approuvées :
+1. **Conscientisation des emplacements de décision** : Tout sujet ou emplacement architectural (y compris les briques de commodité de la taxonomie TOGAF unifiée — PKI, HSM, Vault, Bastion, Proxy, SIEM, Sauvegarde immuable, DRP) est comptabilisé dans le bilan global de complétude sans complaisance.
+2. **Séparation stricte entre proposition et ratification** : Une brique par défaut injectée automatiquement demeure à l'état « proposé par défaut » (non décidée) tant qu'un architecte dûment habilité ne l'a pas explicitement ratifiée individuellement ou par lot, ou promue en délibération de niveau Type 1.
+3. **Oracles de politique exécutables et vérifiables** : Chaque règle déclarée sur une feuille ontologique doit correspondre à un oracle Rego réellement implémenté et évalué à l'exécution (zéro oracle fantôme).
+4. **Scellement intègre avant génération finale (`architecture.lock`)** : La génération du livrable final verrouillé exige une couverture complète à 100 %, zéro violation de politique OPA, zéro référence pendante dans le catalogue de composants, et un manifeste d'intégrité horodaté et signé par empreinte cryptographique SHA-256.
+

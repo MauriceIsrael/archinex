@@ -1,5 +1,17 @@
 import type { ProjectHldDossier } from './hldFragmentDb';
 import type { HldFragment } from '$lib/domain/hldFragment';
+import type { LogicalComponent } from '$lib/domain/edp/componentCatalog';
+import { TOGAF_REFERENCE_BUILDING_BLOCKS } from '$lib/domain/edp/togafTaxonomy';
+import type {
+	ArchitectureLockManifest,
+	ProjectDecisionSlotEntry
+} from '$lib/server/edp/decisionSlotRegistry';
+
+export interface DocumentEngineTransverseEnrichment {
+	components?: LogicalComponent[];
+	ratifiedSlots?: ProjectDecisionSlotEntry[];
+	architectureLock?: ArchitectureLockManifest | null;
+}
 
 export interface DocumentEngineContext {
 	author: string;
@@ -591,9 +603,237 @@ function fragmentToBlueprintBlocks(
  * Construit le payload complet pour l'API `/compile/*` de Document Engine
  * à partir du dossier HLD assemblé sous Archinex.
  */
+function mapComponentToLayer(
+	comp: LogicalComponent
+): 'context' | 'application' | 'component' | 'infrastructure' | 'iaas' {
+	const matchedBlock = TOGAF_REFERENCE_BUILDING_BLOCKS.find(
+		(b) => b.logicalComponentName === comp.metadata.name
+	);
+	if (matchedBlock) return matchedBlock.documentEngineLayer;
+	if (comp.spec.class === 'external' || comp.metadata.external) return 'context';
+	if (comp.spec.class === 'business' || comp.spec.class === 'domain-functional') {
+		return 'application';
+	}
+	if (comp.spec.class === 'infrastructure') return 'infrastructure';
+	return 'component';
+}
+
+function mapComponentToKind(comp: LogicalComponent): string {
+	const layer = mapComponentToLayer(comp);
+	if (layer === 'context') return 'ExternalSystem';
+	if (layer === 'application') return 'System';
+	if (layer === 'infrastructure' || layer === 'iaas') return 'InfrastructureNode';
+	return 'Component';
+}
+
+function appendTransverseEnrichment(
+	enrichment: DocumentEngineTransverseEnrichment,
+	allItems: DocumentEnginePayload['projectedGraph']['items'],
+	allRelations: DocumentEnginePayload['projectedGraph']['relations'],
+	views: Array<{ id: string; name: string; itemIds: string[] }>,
+	sections: Array<{ id: string; title: string; blocks: Array<Record<string, unknown>> }>,
+	seenItemIds: Set<string>
+): void {
+	const seenRelationIds = new Set(allRelations.map((r) => r.id));
+	const addRelation = (id: string, kind: string, sourceId: string, targetId: string) => {
+		if (seenRelationIds.has(id) || sourceId === targetId) return;
+		seenRelationIds.add(id);
+		allRelations.push({
+			id,
+			kind,
+			sourceId,
+			targetId,
+			provenance: 'fact'
+		});
+	};
+
+	const activeComponents = (enrichment.components || []).filter(
+		(c) => c.metadata.status !== 'inactive'
+	);
+	const ratifiedSlots = (enrichment.ratifiedSlots || []).filter(
+		(s) => s.status === 'bound_verified' || s.status === 'bound_unverified' || s.status === 'waived'
+	);
+	const transverseViewItemIds: string[] = [];
+
+	for (const comp of activeComponents) {
+		const itemId = `transverse-comp-${comp.metadata.name}`;
+		if (!seenItemIds.has(itemId)) {
+			seenItemIds.add(itemId);
+			allItems.push({
+				id: itemId,
+				kind: mapComponentToKind(comp),
+				layer: mapComponentToLayer(comp),
+				attributes: {
+					name: comp.metadata.name,
+					title: comp.metadata.displayName || comp.metadata.name,
+					componentClass: comp.spec.class,
+					functionalDomain: comp.metadata.functionalDomain,
+					lifecycleStatus: comp.metadata.status,
+					provenance: 'fact'
+				}
+			});
+		}
+		transverseViewItemIds.push(itemId);
+	}
+
+	for (const comp of activeComponents) {
+		const sourceId = `transverse-comp-${comp.metadata.name}`;
+		for (const dep of comp.spec.dependsOn || []) {
+			const targetId = `transverse-comp-${dep}`;
+			if (seenItemIds.has(targetId)) {
+				addRelation(`rel-trans-dep-${comp.metadata.name}-${dep}`, 'DependsOn', sourceId, targetId);
+			}
+		}
+		if (
+			(comp.spec.security?.certificates || []).some((c) => c.autoRenew) &&
+			seenItemIds.has('transverse-comp-pki-ca')
+		) {
+			addRelation(
+				`rel-trans-pki-${comp.metadata.name}`,
+				'ObtientCertificat',
+				sourceId,
+				'transverse-comp-pki-ca'
+			);
+		}
+		if (comp.spec.security?.vault?.mount && seenItemIds.has('transverse-comp-vault-cluster')) {
+			addRelation(
+				`rel-trans-vault-${comp.metadata.name}`,
+				'ConsommeSecrets',
+				sourceId,
+				'transverse-comp-vault-cluster'
+			);
+		}
+		if (
+			(comp.spec.compute?.modules || []).some((m) => m.nics.some((n) => n.class === 'events')) &&
+			seenItemIds.has('transverse-comp-siem-soc')
+		) {
+			addRelation(
+				`rel-trans-siem-${comp.metadata.name}`,
+				'EmetLogsAudit',
+				sourceId,
+				'transverse-comp-siem-soc'
+			);
+		}
+	}
+
+	for (const slot of ratifiedSlots) {
+		const slotItemId = `transverse-slot-${slot.slotId.replace(/[^a-zA-Z0-9_-]/g, '-')}`;
+		if (!seenItemIds.has(slotItemId)) {
+			seenItemIds.add(slotItemId);
+			allItems.push({
+				id: slotItemId,
+				kind: 'DecisionSlot',
+				layer: slot.documentEngineLayer || 'component',
+				attributes: {
+					name: slot.axisTitle,
+					axisUrn: slot.axisUrn,
+					togafDomain: slot.togafDomain,
+					status: slot.status,
+					boundLeafUrns: slot.boundLeafUrns,
+					ratifiedBy: slot.ratifiedBy || 'explicit',
+					provenance: 'fact'
+				}
+			});
+		}
+		transverseViewItemIds.push(slotItemId);
+		for (const compName of slot.instantiatedComponents) {
+			const targetId = `transverse-comp-${compName}`;
+			if (seenItemIds.has(targetId)) {
+				addRelation(
+					`rel-slot-comp-${slotItemId}-${compName}`,
+					'InstancieComposant',
+					slotItemId,
+					targetId
+				);
+			}
+		}
+	}
+
+	views.push({
+		id: 'view-socle-transverse',
+		name: 'Architecture Transverse & Chaîne de Confiance (TOGAF)',
+		itemIds: Array.from(new Set(transverseViewItemIds))
+	});
+
+	const lock = enrichment.architectureLock;
+	const blocks: Array<Record<string, unknown>> = [
+		{
+			type: 'callout',
+			variant: lock ? 'decision' : 'info',
+			text: lock
+				? `Socle transverse scellé (architecture.lock SHA-256 : ${lock.integritySha256}) — ${ratifiedSlots.length} emplacement(s) ratifié(s), ${activeComponents.length} composant(s) actif(s), verdict OPA : ${lock.oracleVerdict}.`
+				: `Projection transverse TOGAF : ${ratifiedSlots.length} emplacement(s) ratifié(s) et ${activeComponents.length} composant(s) logique(s) instancié(s).`
+		},
+		{
+			type: 'figure',
+			layerId: 'infrastructure',
+			viewRef: 'view-socle-transverse',
+			caption: 'Topologie Transverse — Chaîne de Confiance PKI / HSM / Vault / PAM / SIEM',
+			altText:
+				"Schéma d'architecture projetant les emplacements de décision ratifiés et les composants logiques transverses"
+		}
+	];
+
+	if (ratifiedSlots.length > 0) {
+		blocks.push({
+			type: 'authored-table',
+			caption: 'Emplacements de Décision TOGAF Ratifiés',
+			headers: ['Axe / Emplacement', 'Domaine TOGAF', 'Couche', 'Feuille(s) Retenue(s)', 'Statut', 'Ratifié par'],
+			rows: ratifiedSlots.map((s) => [
+				s.axisTitle,
+				s.togafDomain,
+				s.documentEngineLayer,
+				s.boundLeafUrns.join(', ') || '—',
+				s.status,
+				s.ratifiedBy ? `${s.ratifiedBy} (${s.ratifiedRole || 'architecte'})` : 'Liaison explicite'
+			])
+		});
+	}
+
+	if (activeComponents.length > 0) {
+		blocks.push({
+			type: 'authored-table',
+			caption: 'Composants Logiques Instanciés du Catalogue Projet',
+			headers: ['Composant', 'Classe', 'Domaine Fonctionnel', 'Couche', 'Dépendances'],
+			rows: activeComponents.map((c) => [
+				c.metadata.name,
+				c.spec.class,
+				c.metadata.functionalDomain,
+				mapComponentToLayer(c),
+				(c.spec.dependsOn || []).join(', ') || '—'
+			])
+		});
+	}
+
+	if (lock) {
+		blocks.push({
+			type: 'authored-table',
+			caption: "Manifeste d'Intégrité architecture.lock",
+			headers: ['Propriété', 'Valeur'],
+			rows: [
+				['Empreinte SHA-256', lock.integritySha256],
+				['Verdict Oracle OPA', lock.oracleVerdict],
+				['Scellé par', `${lock.sealedBy} (${lock.sealedByRole})`],
+				['Horodatage scellement', lock.sealedAt],
+				['Empreinte Ontologie', lock.ontologyFingerprint],
+				['Couverture angles morts TOGAF', `${lock.blindSpotCoveragePercent}%`]
+			]
+		});
+	}
+
+	sections.push({
+		id: 'sec-socle-transverse-togaf',
+		title: 'Socle Transverse, Chaîne de Confiance & Couverture TOGAF',
+		blocks
+	});
+}
+
 export function buildDocumentEnginePayload(
 	dossier: ProjectHldDossier,
-	options?: { includeMermaidCode?: boolean }
+	options?: {
+		includeMermaidCode?: boolean;
+		transverseEnrichment?: DocumentEngineTransverseEnrichment;
+	}
 ): DocumentEnginePayload {
 	const now = dossier.generatedAt.slice(0, 10);
 
@@ -709,6 +949,17 @@ export function buildDocumentEnginePayload(
 			title: frag.title,
 			blocks: fragmentToBlueprintBlocks(frag, viewId, seqTableRows, options)
 		});
+	}
+
+	if (options?.transverseEnrichment) {
+		appendTransverseEnrichment(
+			options.transverseEnrichment,
+			allItems,
+			allRelations,
+			views,
+			sections,
+			seenItemIds
+		);
 	}
 
 	return {

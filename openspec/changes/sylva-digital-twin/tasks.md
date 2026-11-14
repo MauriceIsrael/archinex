@@ -1,25 +1,20 @@
-# Tâches : Jumeau numérique de Sylva (proposition)
+# Tâches : Jumeau numérique de Sylva (#292, #293, #294)
 
-## Palier 1 : Fondations T0 + T1 (tranche livrable)
-- [ ] 1. Cadrage : valider `design.md` (questions ouvertes §9), invariants ontologiques de résilience
-- [ ] 2. `twin/model.ts` + `buildTwinModel` depuis `MultiAxisHydratedInventory` (+ `assumptions[]`)
-- [ ] 3. `twin/scenarios.ts` : `ScenarioSpec`, deltas de topologie, `dc_loss`/`host_loss`/`link_partition`/`feed_loss`
-- [ ] 4. Moteur T1 `analytic` : placement par domaine, quorum etcd, quorum stockage, packing de capacité
-- [ ] 5. Moteur T0 `render` : `helm template` épinglé, DAG des unités, réutilisation `validateSylvaWorkloadClusterSchema` + règles d'or
-- [ ] 6. `TwinReport` canonique + scellement (`model_sha256`, `scenario_sha256`, seed) + cache
-- [ ] 7. Ontologie : `projections.twin_invariants` sur les feuilles de résilience ; `edp/policies/twin_resilience.rego` + mutation
-- [ ] 8. Injection `sources.twin_report` dans le flux `edpDrafting`/`edpVerify` (verdict `insufficient_input` si absent)
-- [ ] 9. Adaptateur de compatibilité du what-if 2/3 DCs ; tests de non-régression
-- [ ] 10. API `twin/runs` + `authorizeProjectAccess` ; Prisma `TwinRun`
-- [ ] 11. UI : comparaison base/variante dans `Phase4RefinementHub` (remplace `whatIfDcCount`)
-- [ ] 12. Docs : `ARCHITECTURE.md`, `USER_GUIDE.md`, `docs/edp/integrator-guide.md` (§ « ce qu'un vert ne prouve pas »), fragment `changelog.d/`
+## Palier 1 : Fondations T0 + T1, Matrice 3 DCs / 2 DCs + Témoin / 2 DCs, Bouchon `sushy` & Oracle OPA (#293)
+- [x] 1. Cadrage OpenSpec (`proposal.md`, `design.md`, `tasks.md`) & création des issues GitHub (#292, #293, #294)
+- [x] 2. Modèle du jumeau (`src/lib/domain/edp/sylvaTwin.ts`) : `buildSylvaTwinModel` depuis l'inventaire hydraté et le catalogue de composants (3 DCs par défaut, pools Sylva, CPU/RAM/Hugepages/SR-IOV, `assumptions[]`)
+- [x] 3. Simulateur de scénarios et d'injections de pannes (`dc_loss`, `host_loss`, `power_feed_loss`, `link_partition`) sur les 3 topologies (`3dc-active`, `2dc-witness`, `2dc-split`)
+- [x] 4. Double mode d'arbitrage : Mode **Proposition d'équipe** (`proposal`) vs Mode **Conformité Client** (`client-mandated`)
+- [x] 5. Générateur de bouchon Redfish `sushy-tools` (`generateSushyEmulatorConfig`) et de nœuds `KWOK` (`generateKwokNodeManifests`) pour la CI
+- [x] 6. Source `twin_report` scellée par SHA-256 (`buildTwinRefinedInputSource`) & Oracle Rego `edp/policies/twin_resilience.rego` + évaluateur `evaluateSylvaTwinResilience`
+- [x] 7. Branchement à `composeMultiAxisHydration`, `summarizeWhatIfComparison` et l'API `/api/projects/[projectId]/catalog`
+- [x] 8. Mise à jour de `Phase4RefinementHub.svelte` : comparateur **3 DCs (défaut) / 2 DCs + Témoin / 2 DCs**, sélecteur de mode (Proposition vs Client), indicateurs de survie (`etcd`, Stockage, Capacité SR-IOV, Médiation) et aperçu du bouchon Redfish `sushy-emulator`
+- [x] 9. Tests de contrat exhaustifs (`tests/contract/sylva-digital-twin.test.ts`) + documentation (`ARCHITECTURE.md`, `USER_GUIDE.md`, `changelog.d/`)
 
-## Palier 2 : Fidélité scheduler et réseau
-- [ ] 13. Moteur T2 `kwok` (nœuds depuis Nautobot, manifestes rendus, panne par zone) + job asynchrone
-- [ ] 14. Moteur T3 `batfish` (flux de médiation, absence de bypass)
-- [ ] 15. Tests de calibration T1 ↔ T2
+## Palier 2 : Exécution CI conteneurisée KWOK & `sushy-emulator` (#294)
+- [ ] 10. Ajout du conteneur `sushy-emulator` dans `deploy/integrator-tools/docker-compose.yml`
+- [ ] 11. Job CI d'exécution `helm template` (Sylva `LATEST`) + `kwok` et test de calibration T1 ↔ T2
 
-## Palier 3 : Boucle jumeau (synchronisation avec l'observé)
-- [ ] 16. Étalon T4 (CAPI + provider de substitution) en nightly
-- [ ] 17. Import de l'état observé (Nautobot actual, Flux/CAPI) via `nautobotSync` + `transformSylvaManifestsToRefinedInput` ; rapport de dérive intention ↔ observé
-- [ ] 18. Péremption automatique (`stale`) des rapports sur changement de modèle ou de version Sylva
+## Palier 3 : Boucle jumeau sur l'état observé (#292)
+- [ ] 12. Réconciliation continue avec l'état observé Nautobot / FluxCD (`nautobotSync` + `transformSylvaManifestsToRefinedInput`)
+- [ ] 13. Péremption automatique (`stale`) des rapports sur dérive de modèle

@@ -13,8 +13,14 @@ import {
 } from '$lib/domain/edp/refResolver';
 import {
   composeProjectLogicalTopology,
+  summarizeSylvaTwinProfiles,
   summarizeWhatIfComparison
 } from '$lib/domain/edp/logicalViews';
+import {
+  runSylvaDigitalTwinMatrix,
+  type SylvaTopologyProfileId,
+  type TwinArbitrationMode
+} from '$lib/domain/edp/sylvaTwin';
 import {
   loadProjectComponentCatalog,
   saveProjectComponentCatalog,
@@ -29,12 +35,15 @@ export const GET: RequestHandler = async (event) => {
   const auth = await authorizeProjectAccess(event, projectId);
   if (auth.error) return auth.error;
   const env = url.searchParams.get('env') || 'prod';
+  const modeParam = (url.searchParams.get('mode') || 'proposal') as TwinArbitrationMode;
+  const mandatedProfileParam = (url.searchParams.get('mandatedProfile') ||
+    '2dc-split') as SylvaTopologyProfileId;
   const bundle = loadProjectComponentCatalog(projectId);
 
   const overlay =
     bundle.overlays.find((o) => o.metadata.environment === env) || bundle.overlays[0];
 
-  const dcs = overlay?.spec.datacenters || ['dc1', 'dc2'];
+  const dcs = overlay?.spec.datacenters || ['dc1', 'dc2', 'dc3'];
   const resolvedInstances = dcs.flatMap((dc) =>
     bundle.components
       .filter((c) => !c.metadata.external && c.metadata.status !== 'inactive')
@@ -53,6 +62,18 @@ export const GET: RequestHandler = async (event) => {
     simulateWhatIfDatacenters(bundle.components, overlay, [2, 3], bundle.catalogs)
   );
 
+  const sylvaTwinReport = runSylvaDigitalTwinMatrix({
+    components: bundle.components,
+    overlay,
+    catalogs: bundle.catalogs,
+    governance: {
+      mode: modeParam === 'client-mandated' ? 'client-mandated' : 'proposal',
+      mandatedProfileId: mandatedProfileParam
+    }
+  });
+
+  const sylvaTwinProfiles = summarizeSylvaTwinProfiles(sylvaTwinReport);
+
   const referenceGraph = buildReferenceGraph(bundle.components);
 
   return json({
@@ -60,6 +81,8 @@ export const GET: RequestHandler = async (event) => {
     bundle,
     topology,
     whatIfScenarios,
+    sylvaTwinReport,
+    sylvaTwinProfiles,
     referenceGraph
   });
 };

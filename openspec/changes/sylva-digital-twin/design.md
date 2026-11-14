@@ -1,179 +1,77 @@
-# Design : Jumeau numérique de Sylva
+# Design : Jumeau numérique de Sylva (#292, #293, #294)
 
-## 1. Principe directeur : une échelle de fidélité, pas un simulateur unique
+## 1. Principe directeur : une échelle de fidélité graduée exécutable en CI
 
-Aucun moteur n'est à la fois rapide (what-if interactif), fidèle (vrai scheduler, vrai CAPI) et déterministe. On
-expose donc **cinq niveaux** derrière un même port ; chaque rapport déclare le niveau atteint et ses hypothèses, et
-l'ontologie exige un `min_fidelity` par invariant.
+Nous exposons **quatre niveaux opérationnels** (+ étalon T4) derrière un même contrat ; chaque rapport déclare le niveau atteint (`fidelity`), la cible Sylva (`sylva-core: latest`) et ses hypothèses explicites (`assumptions[]`).
 
-| Niveau | Moteur | Ce qu'il modélise | Coût | Déterminisme |
+| Niveau | Moteur | Exécutable en CI ? | Ce qu'il modélise | Coût |
 |---|---|---|---|---|
-| **T0 Render** | `helm template` de `sylva-units` à version épinglée | DAG des unités (`dependsOn`), valeurs effectives, schéma + 15 règles d'or (existantes) | secondes | total |
-| **T1 Analytique** | fonctions pures TS | placement par domaine de défaillance, quorum etcd/stockage, packing de capacité, disponibilité | ms | total (graine fixe) |
-| **T2 Scheduler** | KWOK + kube-apiserver/scheduler réels (kind) | nœuds fictifs issus des devices Nautobot (labels/taints/allocatable/zone), manifestes **réellement rendus** : Pending, topologySpread, PDB, anti-affinité sous panne de zone | minutes (job) | quasi (scheduler déterministe à entrée égale) |
-| **T3 Réseau** | Batfish (déjà dans `deploy/integrator-tools`) | joignabilité des flux de médiation (`service_mediation_flows`), VRF, absence de bypass `s6a→dea` | minutes | total |
-| **T4 Contrôle** | CAPI + provider de substitution dans kind (CAPD), ou Metal3 + émulateur Redfish | bootstrap réel de Sylva ; sert d'**étalon** de calibration de T1/T2, pas de moteur interactif | dizaines de min (nightly) | non |
-
-> [!IMPORTANT]
-> Tranche 1 = **T0 + T1** uniquement. T2/T3/T4 sont des paliers ultérieurs ; le port est conçu pour les accueillir sans
-> changer le contrat des rapports. À vérifier avant T4 : la disponibilité effective d'un provider CAPI de substitution
-> sur la version de `sylva-core` épinglée (la règle d'or 2 impose `capm3` en production : l'écart est un delta de
-> fidélité à déclarer, pas à masquer).
+| **T0 · Render** | `helm template` (`sylva-units` `latest`) + JSON Schema + 15 règles d'or | **Oui (CI PR)** | DAG des unités (`dependsOn`), valeurs effectives `SylvaWorkloadCluster`, conformité `capm3`/`cabpr` | ~1 s |
+| **T1 · Analytique** | Fonctions pures TypeScript (`sylvaTwin.ts`) | **Oui (CI PR & UI temps réel)** | Placement par domaine de défaillance (3 DCs / 2 DCs + Témoin / 2 DCs), quorum `etcd` RKE2, quorum d'écriture stockage (RF=3), bin-packing CPU/RAM/Hugepages/SR-IOV sous panne (`dc_loss`, `host_loss`, `power_feed_loss`), continuité des flux de médiation | < 50 ms |
+| **T2 · Scheduler & Redfish Mock** | `kwok` (scheduler K8s réel) + `sushy-tools` (`sushy-emulator` *in-memory*) | **Oui (CI Docker / integrator-tools)** | Bouchon Redfish BMC auto-généré depuis `nautobot_planned_devices` (respecte `infra_provider: capm3`), inspection `BareMetalHost`, re-scheduling K8s réel (`topologySpreadConstraints`, `PodDisruptionBudget`, anti-affinité) | ~15-30 s |
+| **T3 · Réseau** | `Batfish` (déjà dans `deploy/integrator-tools`) | **Job CI / Intégrateur** | Joignabilité des flux de médiation (`service_mediation_flows`), VRFs, absence de bypass `s6a → dea` | ~1 min |
+| **T4 · Contrôle** | CAPI + Metal3 BMO/Ironic face à `sushy-emulator` | **Nightly** | Étalon de calibration de T1/T2 sur le cycle de vie complet des `BareMetalHost` | ~15 min |
 
 ## 2. Architecture
 
 ```mermaid
 flowchart LR
-  subgraph Hyd["Hydratation (existant)"]
+  subgraph Hyd["Hydratation Phase 4 (existant)"]
     ONT["Ontologie: feuilles, projections,\nhydration_template"]
-    CAT["Catalogue composants\nBase x Overlay x DC"]
+    CAT["Catalogue composants\nBase x Overlay x DC (3 DCs défaut)"]
     HYD["composeMultiAxisHydration\n-> MultiAxisHydratedInventory"]
     ONT --> HYD
     CAT --> HYD
   end
-  subgraph Twin["Jumeau (nouveau) src/lib/server/edp/twin/"]
-    BLD["buildTwinModel()\npur, déterministe"]
-    SCN["ScenarioSpec\n(deltas + pannes)"]
-    ENG["Port TwinEngine\nT0 render / T1 analytic /\nT2 kwok / T3 batfish / T4 capi"]
-    REP["TwinReport\n+ provenance + sha256"]
+  subgraph Twin["Jumeau Numérique Sylva (src/lib/domain/edp/sylvaTwin.ts)"]
+    BLD["buildSylvaTwinModel()\npur, déterministe"]
+    SCN["Matrice de Scénarios\n(3 DCs Gold / 2 DCs + Témoin Silver / 2 DCs Bronze)\n× Pannes (dc_loss, host_loss, pdu_loss)"]
+    ENG["Moteurs T0/T1 (+ export sushy-emulator & KWOK T2)"]
+    REP["SylvaTwinReport\n+ provenance + sha256"]
     BLD --> ENG
     SCN --> ENG
     ENG --> REP
   end
   HYD --> BLD
-  ONT -. "twin_invariants\n(intension)" .-> SCN
   REP --> RIN["refined_input.sources.twin_report"]
-  RIN --> OPA["OPA: twin_resilience.rego"]
-  OPA --> EVB["EvidenceBundle / verdict\n(compliant | violated | insufficient_input)"]
-  REP --> UI["Phase4RefinementHub:\npanneau what-if comparatif"]
-  NB["Nautobot actual / Flux (phase 3)"] -. calibration .-> BLD
+  RIN --> OPA["OPA: edp/policies/twin_resilience.rego"]
+  OPA --> EVB["Verdict (Mode Proposition vs Mode Conformité Client)"]
+  REP --> UI["Phase4RefinementHub:\nComparateur Jumeau Sylva & Bouchon sushy"]
 ```
 
-### 2.1 Modèle du jumeau (`twin/model.ts`)
+### 2.1 Topologies modélisées (Baseline = 3 DCs)
 
-Compilé **uniquement** depuis `MultiAxisHydratedInventory` + `ComponentCatalogBundle` + overlay actif :
+Le jumeau modélise explicitement trois architectures de déploiement à partir du même catalogue Base × Overlay :
 
-- `FailureDomain { id, kind: 'datacenter'|'rack'|'power_feed', parent? }` (DC = `DatacenterCatalogEntry`, `drRole` conservé) ;
-- `Host { id, device_type, domain, cpu, mem, hugepages, sriovVfs, nics[], powerFeeds[], bmc }` (depuis `nautobot_planned_devices`) ;
-- `Pool { name, hosts[], dataplaneProfile }` (`cluster_pool` des feuilles compute) ;
-- `Cluster { role: 'management'|'workload', controlPlane{replicas, placement}, machineDeployments[], units: UnitDag }` (depuis `sylva_workload_cluster_values`) ;
-- `Workload { component, module, replicas, requests, spread, antiAffinity, storage{tier, rf}, pdb? }` (depuis `resolved_components`) ;
-- `Link { from, to, kind: 'underlay'|'ipsec'|'oob', domainPair }` (depuis `reconciliation_graph`).
+1. **`3dc-active` (3 DCs Actif/Actif/Actif — Défaut / Profil Gold)** :
+   - Datacenters : `dc1` (`primary`), `dc2` (`secondary`), `dc3` (`tertiary`).
+   - Control-plane RKE2 / `etcd` : 3 nœuds répartis `1 + 1 + 1`.
+   - Stockage (Longhorn/Ceph) : `RF = 3` réparti `1 + 1 + 1`.
+   - Management cluster : étiré `1 + 1 + 1` (survit à la perte de n'importe quel DC).
+   - En cas de panne `dc_loss(dc1)` : `etcd` conserve `2/3` membres (**quorum OK**), le stockage conserve `2/3` réplicas (**écriture OK**), les workloads de `dc1` basculent sur `dc2` + `dc3` si la réserve de capacité (`headroom`) des pools `sylva-cnf-sriov-dpdk` et `sylva-general-compute` est suffisante.
+2. **`2dc-witness` (2 DCs + Site Témoin / Arbiter — Profil Silver)** :
+   - Datacenters : `dc1` (`primary`), `dc2` (`secondary`) pour les charges utiles + `dc3` configuré en mode `witness` (1 seul nœud léger d'arbitrage, zéro workload métier).
+   - Control-plane RKE2 / `etcd` : `1 (dc1) + 1 (dc2) + 1 (dc3-witness)`.
+   - Stockage : `1 (dc1) + 1 (dc2) + 1 tie-breaker (dc3-witness)`.
+   - En cas de panne `dc_loss(dc1)` : le quorum `etcd` (`2/3`) et le quorum stockage restent **maintenus automatiquement** sans payer un 3e DC complet de calcul/SR-IOV, mais toute la charge de `dc1` doit tenir sur le seul `dc2` (exige ≥ 50 % de réserve de capacité sur `dc1`/`dc2`).
+3. **`2dc-split` (2 DCs secs sans témoin — Profil Bronze)** :
+   - Datacenters : `dc1` (`primary`), `dc2` (`secondary`).
+   - Control-plane RKE2 / `etcd` : répartition asymétrique `2 (dc1) + 1 (dc2)`.
+   - En cas de panne `dc_loss(dc1)` : seul `1/3` membre `etcd` survit sur `dc2` ⇒ **perte de quorum `etcd`** (`etcdQuorumSurvives = false`) et perte de quorum d'écriture stockage `RF=3` ⇒ bascule automatique impossible sans intervention humaine (`RTO > 0`).
 
-Le builder émet `assumptions[]` pour tout champ absent (ex. capacité hôte par défaut du `device_type`) : une
-hypothèse non déclarée est interdite, une hypothèse déclarée est visible dans le rapport.
+### 2.2 Double mode d'arbitrage : Proposition d'équipe vs Fixé par le client
 
-### 2.2 Scénarios (`twin/scenarios.ts`)
+Le jumeau accepte une politique d'évaluation (`TwinGovernancePolicy`) fonctionnant selon deux modes :
 
-```ts
-type ScenarioSpec = {
-  id: string;
-  deltas?: TopologyDelta[];      // what-if d'intention : datacenters, hosts/pool, storage rf, version Sylva…
-  faults?: FaultInjection[];     // dc_loss(id) | host_loss(n,domain) | link_partition(a,b) | feed_loss(A|B) | bmc_down(host)
-  rollout?: UpgradeRollout;      // montée de version rolling (maxUnavailable, ordre des pools)
-  seed: number;
-};
-```
+- **`mode: 'proposal'` (À la main de l'équipe d'architecture)** :
+  - Évalue les 3 profils (`3dc-active`, `2dc-witness`, `2dc-split`) sous toutes les pannes élémentaires (`dc_loss(dc1)`, `dc_loss(dc2)`, `host_loss`, `power_feed_loss(PDU-A)`).
+  - Classe les profils et produit une **recommandation argumentée** (ex. recommande `3dc-active` pour une résilience Gold sans point de défaillance unique, ou `2dc-witness` si le client n'a que 2 salles informatiques lourdes mais dispose d'un local tiers pour un témoin).
+- **`mode: 'client-mandated'` (Imposé par le client / CCTP)** :
+  - Confronte la topologie imposée par le client (ex. `mandatedProfile: '2dc-split'`) aux invariants exigés (`requireZeroTouchDcFailover: true`, `requireEtcdQuorumOnDcLoss: true`, `requireStorageWritableOnDcLoss: true`).
+  - Produit la liste exacte des violations pour l'oracle OPA (`edp/policies/twin_resilience.rego`) afin de documenter une réserve formelle au CCTP.
 
-Le what-if « 2 vs 3 DCs » = `deltas:[{kind:'datacenters', count:2|3}]` **croisé** avec `faults:[dc_loss(*)]`. C'est la
-combinaison qui produit une information (« 2 DCs ⇒ perte de quorum etcd si la répartition est 2+1 »), pas le comptage.
+### 2.3 Bouchonnage Bare-Metal Redfish avec `sushy-tools` (`sushy-emulator`)
 
-### 2.3 Port moteur (`twin/engine.ts`)
-
-```ts
-interface TwinEngine {
-  id: 'render'|'analytic'|'kwok'|'batfish'|'capi';
-  fidelity: 0|1|2|3|4;
-  available(): Promise<{ ok: boolean; version?: string; reason?: string }>;  // modèle opaRunner : 'unavailable' explicite
-  run(model: TwinModel, scenario: ScenarioSpec): Promise<TwinRun>;
-}
-```
-
-Même discipline que [`opaRunner.ts`](../../../src/lib/server/edp/opaRunner.ts) : timeout, typage strict, statut
-`unavailable` explicite. **Dégradation de fidélité jamais silencieuse** : si T2 est indisponible, le rapport le dit et
-tout invariant à `min_fidelity: 2` passe en `insufficient_input`.
-
-### 2.4 Rapport (`TwinReport`)
-
-Par scénario : `survives: boolean`, métriques (`etcd_quorum`, `storage_writable`, `unschedulable_pods[]`,
-`capacity_headroom{cpu,mem,vf}`, `unreachable_flows[]`, `availability_estimate` avec hypothèses), `assumptions[]`,
-`engine{id,version,fidelity}`, `model_sha256`, `scenario_sha256`, `seed`. Le tout est **canonisé** (clés triées,
-sans horodatage dans le hash) puis scellé : même modèle + même scénario + même version de moteur ⇒ même hash ⇒ cache
-valide (clé de cache = ces trois valeurs).
-
-## 3. Branchement à l'hydratation
-
-Le point d'accroche est la sortie de `composeMultiAxisHydration` (qui reste **pure et synchrone**) ; l'orchestration
-vit côté `edpDrafting`/`edpVerify` :
-
-1. hydrater → `inventory` (existant) ;
-2. `buildTwinModel(inventory, bundle, overlay)` ;
-3. déduire la suite de scénarios **depuis l'ontologie** : les feuilles liées portent `projections.twin_invariants`
-   (ex. feuille `resilience_drp_continuity` : `{ scenario: 'dc_loss', require: { etcd_quorum: true, storage_writable: true }, min_fidelity: 1 }`) ;
-4. exécuter les moteurs disponibles, produire `TwinReport` ;
-5. injecter `sources.twin_report = { provenance:{tool:'archinex-twin', version, command, sha256, generated_at}, content }`
-   — **aucun changement** de `refined_input.schema.json` (les noms de sources sont libres, la provenance est déjà
-   imposée) ;
-6. OPA évalue `edp/policies/twin_resilience.rego` contre `data.ontology` (aucun littéral métier en dur dans le Rego).
-
-Esquisse du Rego :
-
-```rego
-violations contains v if {
-  some inv in data.ontology.twin_invariants
-  run := input.sources.twin_report.content.runs[inv.scenario]
-  some metric, want in inv.require
-  run.metrics[metric] != want
-  v := {"rule": sprintf("twin_%s_%s", [inv.scenario, metric]), "axis": inv.axis, "message": ...}
-}
-insufficient contains inv.scenario if {      # jamais vert par vacuité
-  some inv in data.ontology.twin_invariants
-  not input.sources.twin_report.content.runs[inv.scenario]
-}
-```
-
-## 4. Valeur pour la délibération
-
-Les `TwinReport` de plusieurs options (2 DCs / 3 DCs / 2 DCs + témoin) alimentent **de manière déterministe** les
-critères du lot A2 (résilience, marge de capacité, nombre d'hôtes) avec provenance : l'arbitrage G3 se fait sur des
-mesures rejouables, plus sur des compteurs. Le panneau `Phase4RefinementHub` remplace le basculeur `whatIfDcCount` par
-une comparaison base/variante (tableau de deltas + liste des invariants violés par option).
-
-## 5. API & persistance
-
-- `POST /api/projects/[projectId]/twin/runs` (corps : `subjectId`, `scenarios[]`, `engines?`) → 202 + `runId` pour T2+, 200 pour T0/T1 ;
-- `GET /api/projects/[projectId]/twin/runs/[runId]` ;
-- accès protégé par `authorizeProjectAccess` (comme la route catalogue) ;
-- Prisma `TwinRun { id, projectId, subjectId, modelSha, scenarioSha, engine, engineVersion, fidelity, status, report Json, createdAt }`, unique `(modelSha, scenarioSha, engine, engineVersion)`.
-
-## 6. Sécurité & hygiène
-
-- réutilisation de `sanitizeManifests` avant tout traitement ; aucun secret en entrée de moteur ;
-- adresses RFC 5737 uniquement (cohérent avec `intentionPurity`) ;
-- outils externes (helm, kind, kwok, batfish) exécutés en conteneurs via `deploy/integrator-tools`, sans réseau
-  sortant, limites CPU/mémoire/temps ; le jumeau est en **lecture seule** vis-à-vis de Nautobot/Flux.
-
-## 7. Stratégie de test (la crédibilité du jumeau)
-
-1. **Tables de vérité analytiques** : quorum 3 membres en 2+1 / 1+1+1 / 2 DCs + témoin ; stockage RF=3 en 2 vs 3 DCs ;
-2. **Snapshots canoniques** du `TwinReport` (hash stable) ;
-3. **Mutation de l'oracle** (déjà pratiquée en A12) : muter `twin_resilience.rego` doit rougir ≥ 1 fixture ;
-4. **Calibration** : sur un jeu de scénarios de référence, T1 doit prédire la même issue que T2 (puis T4 nightly) ;
-   divergence ⇒ test rouge, le modèle T1 est corrigé (le moteur plus fidèle fait foi) ;
-5. **Compatibilité** : le what-if 2/3 DCs existant reste vert via l'adaptateur.
-
-## 8. Risques
-
-| Risque | Mitigation |
-|---|---|
-| Fausse confiance (« vert T1 » prise pour une preuve de production) | `fidelity` et `assumptions` toujours affichés ; extension de la section « Ce qu'un vert ne prouve pas » du guide intégrateur |
-| Dérive du modèle T1 vs Sylva réelle | calibration T2/T4 en CI ; version `sylva-core` épinglée dans la provenance |
-| Coût de maintenance multi-moteurs | tranche 1 limitée à T0+T1 ; ports pour le reste |
-| DAG des unités dépendant de la version de chart | hypothèse à valider sur la version épinglée (T0 lit le rendu réel, ne code rien en dur) |
-
-## 9. Questions ouvertes
-
-1. Versions cibles de `sylva-core` et topologie de référence (management + N workload clusters, 1 ou 2 clusters de stockage) ?
-2. Les invariants de résilience (RTO/RPO, nombre de pertes tolérées) existent-ils déjà dans les exigences du lot, ou faut-il les créer dans l'ontologie ?
-3. Dépendances acceptables en CI : `helm`, `kind`/`kwok`, Batfish (déjà en intégrateur) ?
-4. Persistance : `TwinRun` en base, ou artefacts de fichiers à la manière de l'export GitOps ?
+Pour éviter que les URLs Redfish (`bmc.address`) des `BareMetalHost` CAPI `capm3` ne restent de simples chaînes inertes, le jumeau inclut un générateur déterministe `generateSushyEmulatorConfig(model)` qui produit :
+- Le fichier de configuration `sushy-emulator.conf` (Python/Flask compatible `quay.io/metal3-io/sushy-tools`) contenant les entrées `SUSHY_EMULATOR_FAKE_SYSTEMS` calquées sur chaque équipement de `nautobot_planned_devices` (UUID déterministe dérivé du hostname, `bootMACAddress`, CPU, RAM GiB, `PowerState`, adresse OOB RFC 5737).
+- Les manifestes `KWOK` (`Node` Kubernetes annotés `kwok.x-k8s.io/node: fake` avec labels `topology.kubernetes.io/zone`, `sylva.org/pool`, `sylva.org/dataplane` et ressources `allocatable` `hugepages-1Gi` / `intel.com/sriov_netdevice`) permettant d'exécuter le vrai `kube-scheduler` en CI sans VMs lourdes.

@@ -1,5 +1,11 @@
-### Proposition OpenSpec : jumeau numérique de Sylva branché à l'hydratation
-- **Spécification (`openspec/changes/sylva-digital-twin/`)** :
-  - Cadrage d'un jumeau pré-déploiement à fidélité graduée (T0 render, T1 analytique, T2 scheduler, T3 réseau, T4 contrôle) remplaçant le what-if naïf « 2 vs 3 DCs », avec source de preuve `twin_report` consommée par OPA.
+### Jumeau Numérique Pré-Déploiement de Sylva branché à l'hydratation (#292, #293, #294)
+- **Modèle & Simulateur du Jumeau Sylva (`src/lib/domain/edp/sylvaTwin.ts`, `src/lib/server/edp/sylvaTwinEvaluation.ts`)** :
+  - Cible Sylva `LATEST` avec topologie de référence **3 DCs par défaut (`3dc-active` Gold)** comparée à **2 DCs + Site Témoin/Arbiter (`2dc-witness` Silver)** et **2 DCs secs (`2dc-split` Bronze)**.
+  - Simulation d'injections de pannes (`dc_loss_primary`, `dc_loss_secondary`, `host_loss_sriov`, `power_feed_loss_pdu_a`, `inter_dc_link_partition`) évaluant le quorum `etcd` RKE2, le quorum d'écriture stockage (`RF=3`), le bin-packing CPU/RAM/Hugepages/SR-IOV VFs et le RTO estimé.
+  - Double mode d'arbitrage : **Mode Proposition d'équipe (`proposal`)** et **Mode Fixé par le client (`client-mandated`)**.
+  - Générateur de bouchon Redfish `sushy-tools` (`generateSushyEmulatorConfig`) et de manifestes `Node` pour `KWOK` (`generateKwokNodeManifests`) exécutables en CI.
+- **Oracle OPA & Intégration Phase 4 (`edp/policies/twin_resilience.rego`, `src/lib/server/edp/refinementCoverage.ts`, `src/lib/components/deliberation/Phase4RefinementHub.svelte`)** :
+  - Branchement direct dans `composeMultiAxisHydration` (`sylva_twin_report`) et dans l'API `/api/projects/[projectId]/catalog`.
+  - Évaluation OPA à 7 règles sur `sources.twin_report` et enrichissement de l'UI Phase 4.
 - **Tests & Documentation** :
-  - Document de conception uniquement (aucun code applicatif modifié) ; l'implémentation suivra le palier 1 de `tasks.md`.
+  - Ajout de `tests/contract/sylva-digital-twin.test.ts` et mise à jour de `openspec/changes/sylva-digital-twin/`, `ARCHITECTURE.md` et `USER_GUIDE.md`.

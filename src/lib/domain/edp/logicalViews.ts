@@ -8,6 +8,11 @@
 
 import type { LogicalComponent } from './componentCatalog.js';
 import type { ResolvedComponentInstance, WhatIfDcScenario } from './refResolver.js';
+import {
+  evaluateSylvaTopologyProfile,
+  type SylvaTopologyProfileId,
+  type SylvaTwinArbitrationReport
+} from './sylvaTwin.js';
 
 export interface ProjectLogicalTopology {
   projectId: string;
@@ -227,19 +232,63 @@ export function generatePhysicalCmdbViewMermaid(
 }
 
 /**
- * Formate un résumé comparatif What-If (ex: 2 vs 3 DCs) pour affichage UI et audit.
+ * Formate un résumé comparatif What-If (ex: 2 vs 3 DCs) enrichi par le Jumeau Numérique de Sylva
+ * pour affichage UI et audit (Issues #285, #292, #293).
  */
 export function summarizeWhatIfComparison(scenarios: WhatIfDcScenario[]) {
-  return scenarios.map((s) => ({
-    dcCount: s.dcCount,
-    datacenters: s.datacenters,
-    totalInstances: s.totalInstances,
-    totalNics: s.totalNics,
-    estimatedBareMetalHosts: s.estimatedBareMetalHosts,
-    deploymentMermaid: generateDeploymentViewMermaid(
-      s.resolvedPerDc.flatMap((d) => d.components),
-      s.resolvedPerDc[0]?.components[0]?.environment || 'prod',
-      s.datacenters
-    )
-  }));
+  return scenarios.map((s) => {
+    const profileId: SylvaTopologyProfileId = s.dcCount >= 3 ? '3dc-active' : '2dc-split';
+    const twinProfile = evaluateSylvaTopologyProfile({ profileId });
+    return {
+      dcCount: s.dcCount,
+      profileId,
+      profileLabel: twinProfile.profileLabel,
+      tierBadge: twinProfile.tierBadge,
+      datacenters: s.datacenters,
+      totalInstances: s.totalInstances,
+      totalNics: s.totalNics,
+      estimatedBareMetalHosts: s.estimatedBareMetalHosts,
+      primaryDcLossSurvives: twinProfile.primaryDcLossSurvives,
+      allFaultsSurviveZeroTouch: twinProfile.allFaultsSurviveZeroTouch,
+      worstCaseRtoSeconds: twinProfile.worstCaseRtoSeconds,
+      faultResults: twinProfile.faultResults,
+      sushyEmulator: twinProfile.sushyEmulator,
+      deploymentMermaid: generateDeploymentViewMermaid(
+        s.resolvedPerDc.flatMap((d) => d.components),
+        s.resolvedPerDc[0]?.components[0]?.environment || 'prod',
+        s.datacenters
+      )
+    };
+  });
+}
+
+/**
+ * Formate les 3 profils du Jumeau Numérique de Sylva ('3dc-active', '2dc-witness', '2dc-split')
+ * avec leurs vues Mermaid de déploiement respectives (incluant le nœud Arbiter sur le site témoin).
+ */
+export function summarizeSylvaTwinProfiles(report: SylvaTwinArbitrationReport) {
+  return report.profiles.map((p) => {
+    const env = p.model.environment || 'prod';
+    const baseMermaid = generateDeploymentViewMermaid(
+      p.model.resolvedPerDc.flatMap((d) => d.components),
+      env,
+      p.model.failureDomains.filter((d) => d.workloadBearing).map((d) => d.id)
+    );
+    const witnessDom = p.model.failureDomains.find((d) => !d.workloadBearing);
+    const deploymentMermaid = witnessDom
+      ? baseMermaid.replace(
+          /(\n  end)$/,
+          `\n    subgraph DC_${safeId(witnessDom.id)}["Site Témoin Quorum : ${esc(witnessDom.id)} (Arbiter)"]\n` +
+            `      subgraph POOL_${safeId(witnessDom.id)}_witness["Pool Sylva : sylva-witness-quorum"]\n` +
+            `        MOD_${safeId(witnessDom.id)}_etcd_arbiter["etcd-member-3 + storage-tiebreaker\\n(1x · srv-${esc(witnessDom.id)}-arbiter-01 · capm3 Redfish)"]\n` +
+            `      end\n` +
+            `    end$1`
+        )
+      : baseMermaid;
+
+    return {
+      ...p,
+      deploymentMermaid
+    };
+  });
 }

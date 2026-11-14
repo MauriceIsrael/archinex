@@ -30,6 +30,12 @@ import {
   resolveTogafDomain,
   type TogafDomainId
 } from '../../domain/edp/togafTaxonomy.js';
+import {
+  runSylvaDigitalTwinMatrix,
+  type SylvaTopologyProfileId,
+  type SylvaTwinArbitrationReport,
+  type TwinArbitrationMode
+} from '../../domain/edp/sylvaTwin.js';
 
 export type AxisCoverageStatus = 'covered_executable' | 'covered_no_oracle' | 'missing_refinement';
 export type BindingOrigin = 'explicit' | 'strong_link' | 'default_proposed' | 'none';
@@ -207,6 +213,8 @@ export interface LldHydrationOverrides {
   drpMaxDaysBetweenDrills?: number;
   drpRpoSeconds?: number;
   registryCosignVerification?: boolean;
+  twinArbitrationMode?: TwinArbitrationMode;
+  twinMandatedProfileId?: SylvaTopologyProfileId;
 }
 
 export interface ReconciliationObjectGraph {
@@ -287,6 +295,7 @@ export interface MultiAxisHydratedInventory {
   dangling_references?: CatalogDanglingReferenceReport;
   satisfied_clauses?: string[];
   evaluated_triplets?: string[];
+  sylva_twin_report?: SylvaTwinArbitrationReport;
 }
 
 export interface MultiAxisOracleViolation {
@@ -1832,6 +1841,17 @@ export function composeMultiAxisHydration(
       cosign_verification: overrides.registryCosignVerification ?? registryCosignVerification
     }
   };
+  const sylvaTwinReport = runSylvaDigitalTwinMatrix({
+    components: activeCatalog,
+    overlay: prodOverlay,
+    catalogs: DEFAULT_VALUE_CATALOGS,
+    hydratedPowerFeeds: powerFeeds,
+    sylvaValues: sylvaWorkloadClusterValues,
+    governance: {
+      mode: overrides.twinArbitrationMode || 'proposal',
+      mandatedProfileId: overrides.twinMandatedProfileId
+    }
+  });
 
   return {
     nautobot_planned_devices: nautobotDevices,
@@ -1849,7 +1869,8 @@ export function composeMultiAxisHydration(
     reference_graph: referenceGraph,
     dangling_references: danglingReferences,
     satisfied_clauses: satisfiedClauses,
-    evaluated_triplets: evaluatedTriplets
+    evaluated_triplets: evaluatedTriplets,
+    sylva_twin_report: sylvaTwinReport
   };
 }
 

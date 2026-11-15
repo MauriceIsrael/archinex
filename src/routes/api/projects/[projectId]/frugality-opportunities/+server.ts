@@ -20,6 +20,13 @@ export const GET: RequestHandler = async (event) => {
 		const subjects = await prisma.subject.findMany({
 			where: { projectId },
 			include: {
+				project: {
+					select: {
+						id: true,
+						title: true,
+						badge: true
+					}
+				},
 				criteria: true,
 				options: {
 					include: {
@@ -34,6 +41,9 @@ export const GET: RequestHandler = async (event) => {
 			id: s.id,
 			name: s.name,
 			sectionRef: s.sectionRef,
+			projectId: s.projectId,
+			projectTitle: s.project?.title,
+			projectBadge: s.project?.badge,
 			criteria: s.criteria.map((c) => ({
 				id: c.id,
 				name: c.name,

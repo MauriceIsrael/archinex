@@ -156,11 +156,38 @@ export type ComponentLockStatus =
   | 'default_proposed'
   | 'baseline';
 
+export type SylvaTransversePillarId = 'security' | 'observability' | 'configuration';
+
 export type ArchitectureComponentLayer =
-  | 'application-business'
-  | 'core-mediation'
-  | 'security-trust'
-  | 'infra-sylva';
+  | 'workloads-apps'
+  | 'workloads-core'
+  | 'caas-infra'
+  | 'transverse-security'
+  | 'transverse-observability'
+  | 'transverse-config';
+
+export interface ComponentTransverseBindings {
+  security: {
+    covered: boolean;
+    vaultMount?: string;
+    autoRenewCerts: number;
+    firewallPolicy?: string;
+    securityDeps: string[];
+  };
+  observability: {
+    covered: boolean;
+    hasEventsNic: boolean;
+    eventsVrf?: string;
+    siemLinked: boolean;
+  };
+  configuration: {
+    covered: boolean;
+    hasAdminNic: boolean;
+    helmCharts: string[];
+    paramRefs: string[];
+    placementPools: string[];
+  };
+}
 
 export interface LiveLockedComponentEntry {
   name: string;
@@ -170,6 +197,8 @@ export interface LiveLockedComponentEntry {
   tenant: string;
   external: boolean;
   layer: ArchitectureComponentLayer;
+  transverseRole?: SylvaTransversePillarId;
+  transverseBindings: ComponentTransverseBindings;
   lockStatus: ComponentLockStatus;
   isEmergent: boolean;
   sourceSlotIds: string[];
@@ -190,6 +219,19 @@ export interface LiveLockedComponentEntry {
   storageSvms: string[];
 }
 
+export interface TransversePillarSummary {
+  id: SylvaTransversePillarId;
+  title: string;
+  subtitle: string;
+  nicPlane: string;
+  dedicatedComponents: string[];
+  governingSlotIds: string[];
+  lockedSlotsCount: number;
+  totalSlotsCount: number;
+  coveredWorkloadsCount: number;
+  totalWorkloadsCount: number;
+}
+
 export interface LiveArchitectureLockSnapshot {
   version: '1.0-live';
   projectId: string;
@@ -208,6 +250,12 @@ export interface LiveArchitectureLockSnapshot {
     lockedComponentsCount: number;
     proposedComponentsCount: number;
     emergentComponentsCount: number;
+  };
+  transversePillars: TransversePillarSummary[];
+  sylvaRuntimePlanes: {
+    pools: string[];
+    storageBackends: string[];
+    datacenters: string[];
   };
   lockedBindings: OntologyBindingItem[];
   proposedBindings: OntologyBindingItem[];
@@ -1174,22 +1222,104 @@ export async function recordExplicitProjectSlotRatification(
   saveProjectSlotState(options.projectId, state);
 }
 
-function classifyComponentLayer(comp: LogicalComponent): ArchitectureComponentLayer {
+const SECURITY_COMPONENT_NAMES = new Set([
+  'hsm-appliance',
+  'pki-ca',
+  'vault-cluster',
+  'iam-keycloak',
+  'admin-bastion',
+  'ingress-waf-proxy'
+]);
+
+const OBSERVABILITY_COMPONENT_NAMES = new Set(['siem-soc']);
+
+function classifyComponentLayer(comp: LogicalComponent): {
+  layer: ArchitectureComponentLayer;
+  transverseRole?: SylvaTransversePillarId;
+} {
+  const name = comp.metadata.name;
   const dom = comp.metadata.functionalDomain;
+  const labelLayer = comp.metadata.labels?.layer;
+
+  if (OBSERVABILITY_COMPONENT_NAMES.has(name) || labelLayer === 'observability-soc') {
+    return { layer: 'transverse-observability', transverseRole: 'observability' };
+  }
+  if (dom === 'security' || SECURITY_COMPONENT_NAMES.has(name)) {
+    return { layer: 'transverse-security', transverseRole: 'security' };
+  }
   if (
     dom === 'gis-services' ||
     dom === 'ptt-services' ||
-    comp.metadata.labels?.layer === 'application-emergent'
+    labelLayer === 'application-emergent'
   ) {
-    return 'application-business';
+    return { layer: 'workloads-apps' };
   }
   if (dom === 'core-network' || comp.metadata.external) {
-    return 'core-mediation';
+    return { layer: 'workloads-core' };
   }
-  if (dom === 'security') {
-    return 'security-trust';
-  }
-  return 'infra-sylva';
+  return { layer: 'caas-infra' };
+}
+
+function extractComponentTransverseBindings(comp: LogicalComponent): ComponentTransverseBindings {
+  const modules = comp.spec.compute?.modules || [];
+  const nics = modules.flatMap((m) => m.nics || []);
+  const deps = comp.spec.dependsOn || [];
+
+  const vaultMount = comp.spec.security?.vault?.mount;
+  const autoRenewCerts = (comp.spec.security?.certificates || []).filter((c) => c.autoRenew).length;
+  const firewallPolicy = comp.spec.firewall?.policy;
+  const securityDeps = deps.filter((d) => SECURITY_COMPONENT_NAMES.has(d));
+  const securityCovered =
+    comp.metadata.external ||
+    SECURITY_COMPONENT_NAMES.has(comp.metadata.name) ||
+    Boolean(vaultMount) ||
+    autoRenewCerts > 0 ||
+    securityDeps.length > 0;
+
+  const eventsNic = nics.find((n) => n.class === 'events');
+  const siemLinked = deps.includes('siem-soc') || OBSERVABILITY_COMPONENT_NAMES.has(comp.metadata.name);
+  const observabilityCovered =
+    comp.metadata.external || Boolean(eventsNic) || siemLinked;
+
+  const adminNic = nics.find((n) => n.class === 'admin');
+  const helmCharts = modules
+    .map((m) => (m.helm ? `${m.helm.chart}@${m.helm.version}` : null))
+    .filter((x): x is string => Boolean(x));
+  const placementPools = Array.from(
+    new Set(
+      modules
+        .map((m) => m.placement?.pool || m.placement?.requiredDataplane)
+        .filter((x): x is string => Boolean(x))
+    )
+  );
+  const serialized = JSON.stringify(comp.spec);
+  const paramRefMatches = serialized.match(/ref\(param\.[a-zA-Z0-9_.-]+\)/g) || [];
+  const paramRefs = Array.from(new Set(paramRefMatches));
+  const configurationCovered =
+    comp.metadata.external || Boolean(adminNic) || helmCharts.length > 0 || paramRefs.length > 0;
+
+  return {
+    security: {
+      covered: securityCovered,
+      vaultMount,
+      autoRenewCerts,
+      firewallPolicy,
+      securityDeps
+    },
+    observability: {
+      covered: observabilityCovered,
+      hasEventsNic: Boolean(eventsNic),
+      eventsVrf: eventsNic?.vrf,
+      siemLinked
+    },
+    configuration: {
+      covered: configurationCovered,
+      hasAdminNic: Boolean(adminNic),
+      helmCharts,
+      paramRefs,
+      placementPools
+    }
+  };
 }
 
 function generateStatusAwareMermaid(
@@ -1216,10 +1346,12 @@ function generateStatusAwareMermaid(
   }
 
   const layerLabels: Record<ArchitectureComponentLayer, string> = {
-    'application-business': '1. Services Métier, SIG, MCPTT & Capacités Émergentes',
-    'core-mediation': '2. Cœur de Réseau & Médiation Inter-Opérateurs',
-    'security-trust': '3. Sécurité Transverse & Chaîne de Confiance',
-    'infra-sylva': '4. Socle Infrastructure & Stockage Sylva'
+    'workloads-apps': 'Plan 1a · Workloads Applicatifs, SIG, MCPTT & Émergents',
+    'workloads-core': 'Plan 1b · Cœur de Réseau 4G/5GC & Médiation',
+    'caas-infra': 'Plan 2/3 · Socle CaaS Sylva, Stockage & Fabric',
+    'transverse-security': '🛡️ Transverse · Sécurité, Identité & Confiance',
+    'transverse-observability': '📡 Transverse · Observabilité, SIEM & SLA (events)',
+    'transverse-config': '⚙️ Transverse · Configuration, GitOps & Cycle de Vie (admin)'
   };
 
   const byLayer = new Map<ArchitectureComponentLayer, LiveLockedComponentEntry[]>();
@@ -1232,37 +1364,42 @@ function generateStatusAwareMermaid(
   const esc = (s: string) => s.replace(/"/g, "'");
   const visibleSet = new Set(filtered.map((c) => c.name));
 
-  for (const layerKey of [
-    'application-business',
-    'core-mediation',
-    'security-trust',
-    'infra-sylva'
-  ] as ArchitectureComponentLayer[]) {
-    const comps = byLayer.get(layerKey);
-    if (!comps || comps.length === 0) continue;
-    lines.push(`  subgraph LAYER_${safeId(layerKey)}["${esc(layerLabels[layerKey])}"]`);
-    for (const c of comps) {
-      const nodeId = `COMP_${safeId(c.name)}`;
-      const badge =
-        c.lockStatus === 'emergent_locked'
-          ? '🟣 ÉMERGENT LOCKÉ'
-          : c.lockStatus === 'locked'
-            ? '🔒 LOCKÉ'
-            : c.lockStatus === 'default_proposed'
-              ? '🟠 PROPOSÉ'
-              : '🛡️ SOCLE';
-      const cssClass =
-        c.lockStatus === 'emergent_locked'
-          ? 'emergent'
-          : c.lockStatus === 'locked'
-            ? 'locked'
-            : c.lockStatus === 'default_proposed'
-              ? 'proposed'
-              : 'baseline';
-      lines.push(`    ${nodeId}["${badge} · ${esc(c.displayName)} (${esc(c.name)})"]:::${cssClass}`);
+  const renderGroup = (layerKeys: ArchitectureComponentLayer[]) => {
+    for (const layerKey of layerKeys) {
+      const comps = byLayer.get(layerKey);
+      if (!comps || comps.length === 0) continue;
+      lines.push(`    subgraph LAYER_${safeId(layerKey)}["${esc(layerLabels[layerKey])}"]`);
+      for (const c of comps) {
+        const nodeId = `COMP_${safeId(c.name)}`;
+        const badge =
+          c.lockStatus === 'emergent_locked'
+            ? '🟣 ÉMERGENT LOCKÉ'
+            : c.lockStatus === 'locked'
+              ? '🔒 LOCKÉ'
+              : c.lockStatus === 'default_proposed'
+                ? '🟠 PROPOSÉ'
+                : '🛡️ SOCLE';
+        const cssClass =
+          c.lockStatus === 'emergent_locked'
+            ? 'emergent'
+            : c.lockStatus === 'locked'
+              ? 'locked'
+              : c.lockStatus === 'default_proposed'
+                ? 'proposed'
+                : 'baseline';
+        lines.push(`      ${nodeId}["${badge} · ${esc(c.displayName)} (${esc(c.name)})"]:::${cssClass}`);
+      }
+      lines.push('    end');
     }
-    lines.push('  end');
-  }
+  };
+
+  lines.push('  subgraph STACK_VERTICAL["Empilement Vertical Sylva (Workloads -> CaaS -> Bare-Metal)"]');
+  renderGroup(['workloads-apps', 'workloads-core', 'caas-infra']);
+  lines.push('  end');
+
+  lines.push('  subgraph PILLARS_TRANSVERSE["Piliers Transverses Sylva (Sécurité · Observabilité · GitOps)"]');
+  renderGroup(['transverse-security', 'transverse-observability', 'transverse-config']);
+  lines.push('  end');
 
   const seenEdges = new Set<string>();
   for (const c of filtered) {
@@ -1388,6 +1525,9 @@ export async function buildLiveArchitectureLockSnapshot(
       }
     }
 
+    const classification = classifyComponentLayer(comp);
+    const transverseBindings = extractComponentTransverseBindings(comp);
+
     componentMap.set(comp.metadata.name, {
       name: comp.metadata.name,
       displayName: comp.metadata.displayName,
@@ -1395,7 +1535,9 @@ export async function buildLiveArchitectureLockSnapshot(
       editor: comp.metadata.editor,
       tenant: comp.metadata.tenant,
       external: comp.metadata.external,
-      layer: classifyComponentLayer(comp),
+      layer: classification.layer,
+      transverseRole: classification.transverseRole,
+      transverseBindings,
       lockStatus: isEmergent
         ? 'emergent_locked'
         : sealedManifest
@@ -1471,6 +1613,82 @@ export async function buildLiveArchitectureLockSnapshot(
       ? 'ready_to_seal'
       : 'partial_live_lock';
 
+  const verticalWorkloads = components.filter(
+    (c) => c.layer === 'workloads-apps' || c.layer === 'workloads-core' || c.layer === 'caas-infra'
+  );
+  const totalWorkloadsCount = verticalWorkloads.length;
+
+  const buildPillarSummary = (
+    id: SylvaTransversePillarId,
+    title: string,
+    subtitle: string,
+    nicPlane: string,
+    domainFilter: (s: (typeof slotEntries)[number]) => boolean
+  ): TransversePillarSummary => {
+    const dedicatedComponents = components
+      .filter((c) => c.transverseRole === id)
+      .map((c) => c.name);
+    const matchingSlots = slotEntries.filter(domainFilter);
+    const lockedSlots = matchingSlots.filter((s) => s.lockBadge === 'locked');
+    const coveredWorkloadsCount = verticalWorkloads.filter((w) => w.transverseBindings[id].covered).length;
+    return {
+      id,
+      title,
+      subtitle,
+      nicPlane,
+      dedicatedComponents,
+      governingSlotIds: matchingSlots.map((s) => s.slotId),
+      lockedSlotsCount: lockedSlots.length,
+      totalSlotsCount: matchingSlots.length,
+      coveredWorkloadsCount,
+      totalWorkloadsCount
+    };
+  };
+
+  const transversePillars: TransversePillarSummary[] = [
+    buildPillarSummary(
+      'security',
+      '🛡️ Sécurité, Identité & Confiance',
+      'mTLS (PKI/HSM), secrets Vault, IAM/PAM & pare-feu deny-by-default',
+      'VRF business/trust · Vault & PKI',
+      (s) => s.togafDomain === 'security-trust'
+    ),
+    buildPillarSummary(
+      'observability',
+      '📡 Observabilité, SIEM & SLA',
+      'Collecte Syslog TLS, métrologie Prometheus/Thanos & sondes 3GPP',
+      'NIC #3 class: events · siem-soc',
+      (s) => s.togafDomain === 'operations-observability'
+    ),
+    buildPillarSummary(
+      'configuration',
+      '⚙️ Configuration, GitOps & Cycle de Vie',
+      'Charts Helm OCI, FluxCD, paramètres ref(param.*) & Overlays prod/preprod/lab',
+      'NIC #1 class: admin · Base × Overlay × DC',
+      (s) =>
+        s.togafDomain === 'platform-compute' ||
+        s.togafDomain === 'network-connectivity' ||
+        s.togafDomain === 'data-persistence' ||
+        s.togafDomain === 'facilities-sovereignty'
+    )
+  ];
+
+  const poolSet = new Set<string>();
+  const storageBackendSet = new Set<string>();
+  for (const comp of ledger.activeCatalog) {
+    for (const mod of comp.spec.compute?.modules || []) {
+      if (mod.placement?.pool) poolSet.add(mod.placement.pool);
+    }
+    for (const svm of comp.spec.storage?.svms || []) {
+      if (svm.backend) storageBackendSet.add(svm.backend);
+    }
+  }
+  const sylvaRuntimePlanes = {
+    pools: Array.from(poolSet).sort(),
+    storageBackends: Array.from(storageBackendSet).sort(),
+    datacenters: loadProjectComponentCatalog(input.projectId).overlays[0]?.spec.datacenters || ['dc1', 'dc2', 'dc3']
+  };
+
   const liveIntegritySha256 =
     sealedManifest?.integritySha256 ||
     createHash('sha256')
@@ -1505,6 +1723,8 @@ export async function buildLiveArchitectureLockSnapshot(
       proposedComponentsCount,
       emergentComponentsCount
     },
+    transversePillars,
+    sylvaRuntimePlanes,
     lockedBindings,
     proposedBindings,
     components,

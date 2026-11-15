@@ -350,7 +350,20 @@ describe('Allocation explicite SIG (§9.4, §11 DEMOLULU) & Sujets RFP inédits 
 			expect(gisAfter?.coveredRequirementRefs).toContain('REQ-Lot1-786');
 			expect(pttAfter?.lockStatus).toBe('locked');
 			expect(iotAfter?.lockStatus).toBe('emergent_locked');
-			expect(iotAfter?.layer).toBe('application-business');
+			expect(iotAfter?.layer).toBe('workloads-apps');
+			expect(iotAfter?.transverseBindings.security.covered).toBe(true);
+			expect(iotAfter?.transverseBindings.observability.covered).toBe(true);
+			expect(iotAfter?.transverseBindings.configuration.covered).toBe(true);
+
+			// Vérification de la matrice 2D Sylva (3 Piliers Transverses : Sécurité, Observabilité, Configuration)
+			expect(updatedSnap.transversePillars.map((p) => p.id)).toEqual([
+				'security',
+				'observability',
+				'configuration'
+			]);
+			const obsPillar = updatedSnap.transversePillars.find((p) => p.id === 'observability');
+			expect(obsPillar?.dedicatedComponents).toContain('siem-soc');
+			expect(obsPillar?.coveredWorkloadsCount).toBe(obsPillar?.totalWorkloadsCount);
 
 			expect(updatedSnap.mermaidLockedOnly).toContain('gis-server');
 			expect(updatedSnap.mermaidLockedOnly).toContain('ptt-server');

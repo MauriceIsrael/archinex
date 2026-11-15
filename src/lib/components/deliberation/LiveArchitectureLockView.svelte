@@ -19,6 +19,7 @@
 	let localSlotsState = $state<any>(null);
 	let activeViewTab = $state<'cartography' | 'slots' | 'manifest' | 'mermaid'>('cartography');
 	let componentFilter = $state<'all' | 'locked' | 'proposed' | 'emergent'>('all');
+	let selectedPillarFilter = $state<'security' | 'observability' | 'configuration' | null>(null);
 	let selectedComponentName = $state<string | null>(null);
 	let mermaidLockedOnlyMode = $state<boolean>(false);
 	let emergentComponentInput = $state('iot-gateway');
@@ -77,28 +78,29 @@
 			null
 	);
 
-	const layerDefinitions = [
+	const verticalPlaneDefinitions = [
 		{
-			id: 'application-business',
-			title: '1. Services Métier, SIG, MCPTT & Capacités Émergentes (IoT / Vidéo / IA)',
+			id: 'workloads-apps',
+			title: 'Plan 1a · Workloads Applicatifs, SIG, MCPTT & Capacités Émergentes',
+			subtitle: 'Applications métier, fusion de localisation (§9.4/§11), capacités RFP inédites (IoT / Vidéo / IA)',
 			badgeClass: 'bg-violet-500/15 text-violet-800 dark:text-violet-300 border-violet-500/30'
 		},
 		{
-			id: 'core-mediation',
-			title: '2. Cœur de Réseau 4G/5GC & Médiation Inter-Opérateurs',
+			id: 'workloads-core',
+			title: 'Plan 1b · Fonctions Réseau 4G/5GC & Médiation Inter-Opérateurs',
+			subtitle: 'Cœur 5GC, SecGW, DEA, Proxy EIR & interfaces externes 3GPP',
 			badgeClass: 'bg-sky-500/15 text-sky-800 dark:text-sky-300 border-sky-500/30'
 		},
 		{
-			id: 'security-trust',
-			title: '3. Sécurité Transverse & Chaîne de Confiance (PKI, HSM, Vault, IAM, SIEM)',
-			badgeClass: 'bg-emerald-500/15 text-emerald-800 dark:text-emerald-300 border-emerald-500/30'
-		},
-		{
-			id: 'infra-sylva',
-			title: '4. Socle Infrastructure & Stockage Sylva',
+			id: 'caas-infra',
+			title: 'Plan 2 · Clusters CaaS Sylva, Pools & Stockage',
+			subtitle: 'Pools RKE2 DPDK / NIS2, CNI Cilium/Multus, stockage distribué',
 			badgeClass: 'bg-slate-500/15 text-slate-800 dark:text-slate-300 border-slate-500/30'
 		}
 	] as const;
+
+	const transversePillars = $derived<any[]>(liveSnapshot?.transversePillars || []);
+	const sylvaRuntimePlanes = $derived<any>(liveSnapshot?.sylvaRuntimePlanes || null);
 
 	async function handleRatifyType2Batch() {
 		if (!projectId || isActionRunning) return;
@@ -517,111 +519,239 @@
 				</span>
 			</div>
 
-			<div class="grid grid-cols-1 lg:grid-cols-3 gap-4">
-				<!-- Grille des 4 Strates TOGAF / Sylva (2/3 largeur) -->
-				<div class="lg:col-span-2 space-y-3">
-					{#each layerDefinitions as layerDef (layerDef.id)}
-						{@const layerComps = filteredComponents.filter((c) => c.layer === layerDef.id)}
-						{#if layerComps.length > 0}
+			<div class="grid grid-cols-1 xl:grid-cols-12 gap-4">
+				<!-- COLONNE PRINCIPALE : EMPILEMENT VERTICAL SYLVA (6/12) + 3 PILIERS TRANSVERSES (3/12) -->
+				<div class="xl:col-span-5 space-y-3">
+					<div class="text-[10px] font-bold uppercase tracking-wider text-muted-foreground px-1">
+						Empilement Vertical d'Exécution Sylva (Workloads → CaaS → Bare-Metal)
+					</div>
+					{#each verticalPlaneDefinitions as planeDef (planeDef.id)}
+						{@const planeComps = filteredComponents.filter((c) => c.layer === planeDef.id)}
+						{#if planeComps.length > 0 || planeDef.id === 'caas-infra'}
 							<div class="rounded-lg border bg-background p-3 space-y-2">
-								<div class="flex items-center justify-between gap-2">
-									<span class="px-2 py-0.5 rounded text-[10px] font-bold border {layerDef.badgeClass}">
-										{layerDef.title}
-									</span>
-									<span class="font-mono text-[10px] text-muted-foreground">
-										{layerComps.length} composant(s)
+								<div class="flex items-start justify-between gap-2">
+									<div>
+										<span class="px-2 py-0.5 rounded text-[10px] font-bold border {planeDef.badgeClass}">
+											{planeDef.title}
+										</span>
+										<div class="text-[10px] text-muted-foreground mt-1">
+											{planeDef.subtitle}
+										</div>
+									</div>
+									<span class="font-mono text-[10px] text-muted-foreground shrink-0">
+										{planeComps.length} comp.
 									</span>
 								</div>
 
-								<div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-									{#each layerComps as comp (comp.name)}
-										{@const isSelected = selectedComponent?.name === comp.name}
-										<div
-											role="button"
-											tabindex="0"
-											onclick={() => (selectedComponentName = comp.name)}
-											onkeydown={(e) => e.key === 'Enter' && (selectedComponentName = comp.name)}
-											class="rounded-lg p-2.5 border text-left transition-all cursor-pointer space-y-1.5 {comp.lockStatus ===
-											'emergent_locked'
-												? 'border-violet-500/60 bg-violet-500/5'
-												: comp.lockStatus === 'locked'
-													? 'border-emerald-500/60 bg-emerald-500/5'
-													: comp.lockStatus === 'default_proposed'
-														? 'border-amber-500/60 border-dashed bg-amber-500/5'
-														: 'border-border bg-muted/10'} {isSelected ? 'ring-2 ring-indigo-500 shadow-xs' : ''}"
-											data-testid="live-lock-component-card-{comp.name}"
-										>
-											<div class="flex items-center justify-between gap-1.5 flex-wrap">
-												<span class="font-mono font-bold text-xs text-foreground">{comp.name}</span>
-												<span
-													class="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase {comp.lockStatus ===
-													'emergent_locked'
-														? 'bg-violet-600 text-white'
-														: comp.lockStatus === 'locked'
-															? 'bg-emerald-600 text-white'
-															: comp.lockStatus === 'default_proposed'
-																? 'bg-amber-500/20 text-amber-800 dark:text-amber-300 border border-amber-500/40'
-																: 'bg-slate-500/20 text-slate-700 dark:text-slate-300'}"
-												>
-													{comp.lockStatus === 'emergent_locked'
-														? '🟣 Émergent Locké'
-														: comp.lockStatus === 'locked'
-															? '🔒 Verrouillé'
-															: comp.lockStatus === 'default_proposed'
-																? '🟠 Défaut proposé'
-																: '🛡️ Socle'}
-												</span>
-											</div>
-
-											<div class="text-[11px] font-medium text-foreground/90 truncate">
-												{comp.displayName}
-											</div>
-
-											<div class="flex items-center gap-1.5 flex-wrap text-[10px] font-mono text-muted-foreground">
-												<span>{comp.nicsCount} NICs</span>
-												<span>·</span>
-												<span>{comp.vrfNames.length} VRFs</span>
-												{#if comp.coveredRequirementRefs?.length > 0}
-													<span>·</span>
-													<span class="text-indigo-600 dark:text-indigo-400 font-semibold">
-														{comp.coveredRequirementRefs.slice(0, 2).join(', ')}
+								{#if planeComps.length > 0}
+									<div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+										{#each planeComps as comp (comp.name)}
+											{@const isSelected = selectedComponent?.name === comp.name}
+											{@const highlightedByPillar =
+												!selectedPillarFilter || comp.transverseBindings?.[selectedPillarFilter]?.covered}
+											<div
+												role="button"
+												tabindex="0"
+												onclick={() => (selectedComponentName = comp.name)}
+												onkeydown={(e) => e.key === 'Enter' && (selectedComponentName = comp.name)}
+												class="rounded-lg p-2.5 border text-left transition-all cursor-pointer space-y-1.5 {comp.lockStatus ===
+												'emergent_locked'
+													? 'border-violet-500/60 bg-violet-500/5'
+													: comp.lockStatus === 'locked'
+														? 'border-emerald-500/60 bg-emerald-500/5'
+														: comp.lockStatus === 'default_proposed'
+															? 'border-amber-500/60 border-dashed bg-amber-500/5'
+															: 'border-border bg-muted/10'} {isSelected ? 'ring-2 ring-indigo-500 shadow-xs' : ''} {!highlightedByPillar ? 'opacity-40' : ''}"
+												data-testid="live-lock-component-card-{comp.name}"
+											>
+												<div class="flex items-center justify-between gap-1.5 flex-wrap">
+													<span class="font-mono font-bold text-xs text-foreground">{comp.name}</span>
+													<span
+														class="px-1.5 py-0.5 rounded text-[9px] font-bold uppercase {comp.lockStatus ===
+														'emergent_locked'
+															? 'bg-violet-600 text-white'
+															: comp.lockStatus === 'locked'
+																? 'bg-emerald-600 text-white'
+																: comp.lockStatus === 'default_proposed'
+																	? 'bg-amber-500/20 text-amber-800 dark:text-amber-300 border border-amber-500/40'
+																	: 'bg-slate-500/20 text-slate-700 dark:text-slate-300'}"
+													>
+														{comp.lockStatus === 'emergent_locked'
+															? '🟣 Émergent Locké'
+															: comp.lockStatus === 'locked'
+																? '🔒 Verrouillé'
+																: comp.lockStatus === 'default_proposed'
+																	? '🟠 Défaut proposé'
+																	: '🛡️ Socle'}
 													</span>
+												</div>
+
+												<div class="text-[11px] font-medium text-foreground/90 truncate">
+													{comp.displayName}
+												</div>
+
+												<!-- Couverture des 3 Piliers Transverses sur ce composant -->
+												{#if comp.transverseBindings}
+													<div class="flex items-center gap-1 flex-wrap text-[9px] font-mono">
+														<span
+															class="px-1 py-0.2 rounded border {comp.transverseBindings.security.covered
+																? 'bg-emerald-500/10 border-emerald-500/30 text-emerald-700 dark:text-emerald-300'
+																: 'bg-rose-500/10 border-rose-500/30 text-rose-700 dark:text-rose-300'}"
+															title="Sécurité, Vault, PKI & Firewall"
+														>
+															🛡️ Séc
+														</span>
+														<span
+															class="px-1 py-0.2 rounded border {comp.transverseBindings.observability.covered
+																? 'bg-cyan-500/10 border-cyan-500/30 text-cyan-700 dark:text-cyan-300'
+																: 'bg-rose-500/10 border-rose-500/30 text-rose-700 dark:text-rose-300'}"
+															title="Observabilité, NIC events & SIEM"
+														>
+															📡 Obs
+														</span>
+														<span
+															class="px-1 py-0.2 rounded border {comp.transverseBindings.configuration.covered
+																? 'bg-indigo-500/10 border-indigo-500/30 text-indigo-700 dark:text-indigo-300'
+																: 'bg-rose-500/10 border-rose-500/30 text-rose-700 dark:text-rose-300'}"
+															title="Configuration GitOps, Helm OCI & ref(param.*)"
+														>
+															⚙️ Cfg
+														</span>
+														{#if comp.coveredRequirementRefs?.length > 0}
+															<span class="text-indigo-600 dark:text-indigo-400 font-semibold ml-auto">
+																{comp.coveredRequirementRefs.slice(0, 2).join(', ')}
+															</span>
+														{/if}
+													</div>
+												{/if}
+
+												{#if comp.lockStatus === 'default_proposed' && comp.sourceSlotIds?.[0]}
+													<div class="pt-1">
+														<button
+															type="button"
+															disabled={isActionRunning}
+															onclick={(e) => {
+																e.stopPropagation();
+																void handleRatifySingleSlot(comp.sourceSlotIds[0]);
+															}}
+															class="w-full px-2 py-1 rounded bg-amber-600 hover:bg-amber-700 text-white font-semibold text-[10px] cursor-pointer"
+															data-testid="live-lock-ratify-card-{comp.name}"
+														>
+															✓ Ratifier l'allocation de {comp.name}
+														</button>
+													</div>
 												{/if}
 											</div>
+										{/each}
+									</div>
+								{/if}
 
-											{#if comp.lockStatus === 'default_proposed' && comp.sourceSlotIds?.[0]}
-												<div class="pt-1">
-													<button
-														type="button"
-														disabled={isActionRunning}
-														onclick={(e) => {
-															e.stopPropagation();
-															void handleRatifySingleSlot(comp.sourceSlotIds[0]);
-														}}
-														class="w-full px-2 py-1 rounded bg-amber-600 hover:bg-amber-700 text-white font-semibold text-[10px] cursor-pointer"
-														data-testid="live-lock-ratify-card-{comp.name}"
-													>
-														✓ Ratifier l'allocation de {comp.name}
-													</button>
-												</div>
-											{/if}
+								{#if planeDef.id === 'caas-infra' && sylvaRuntimePlanes}
+									<div class="rounded border bg-muted/20 p-2 space-y-1 text-[10px] font-mono">
+										<div>
+											<span class="text-muted-foreground">Pools Sylva CaaS :</span>
+											{sylvaRuntimePlanes.pools.join(', ') || 'sylva-standard-nis2'}
 										</div>
-									{/each}
-								</div>
+										<div>
+											<span class="text-muted-foreground">Stockage SVM :</span>
+											{sylvaRuntimePlanes.storageBackends.join(', ') || 'longhorn-nvme'}
+										</div>
+										<div>
+											<span class="text-muted-foreground">Substrat Bare-Metal / DCs :</span>
+											{sylvaRuntimePlanes.datacenters.join(', ')} · capm3 / sushy · 2N
+										</div>
+									</div>
+								{/if}
 							</div>
 						{/if}
 					{/each}
-
-					{#if filteredComponents.length === 0}
-						<div class="rounded-lg border border-dashed p-6 text-center text-muted-foreground">
-							Aucun composant ne correspond au filtre sélectionné (« {componentFilter} »).
-						</div>
-					{/if}
 				</div>
 
-				<!-- Inspecteur Multi-Niveaux du Composant Sélectionné (1/3 largeur) -->
+				<!-- COLONNE CENTRALE : LES 3 PILIERS TRANSVERSES SYLVA (4/12) -->
+				<div class="xl:col-span-4 space-y-3" data-testid="live-lock-transverse-pillars">
+					<div class="flex items-center justify-between px-1">
+						<span class="text-[10px] font-bold uppercase tracking-wider text-muted-foreground">
+							3 Piliers Transverses Sylva (Couvrent tous les plans)
+						</span>
+						{#if selectedPillarFilter}
+							<button
+								type="button"
+								onclick={() => (selectedPillarFilter = null)}
+								class="text-[10px] font-semibold text-indigo-600 hover:underline cursor-pointer"
+							>
+								Tout afficher
+							</button>
+						{/if}
+					</div>
+
+					{#each transversePillars as pillar (pillar.id)}
+						{@const pillarComps = filteredComponents.filter((c) => c.transverseRole === pillar.id)}
+						{@const isPillarSelected = selectedPillarFilter === pillar.id}
+						<div
+							role="button"
+							tabindex="0"
+							onclick={() =>
+								(selectedPillarFilter = isPillarSelected ? null : pillar.id)}
+							onkeydown={(e) =>
+								e.key === 'Enter' &&
+								(selectedPillarFilter = isPillarSelected ? null : pillar.id)}
+							class="rounded-lg border p-3 space-y-2 cursor-pointer transition-all {isPillarSelected
+								? 'ring-2 ring-indigo-500 bg-indigo-500/5 border-indigo-500/50'
+								: 'bg-background hover:bg-muted/10'}"
+							data-testid="live-lock-pillar-{pillar.id}"
+						>
+							<div class="flex items-start justify-between gap-2">
+								<div>
+									<div class="font-bold text-xs text-foreground">{pillar.title}</div>
+									<div class="text-[10px] text-muted-foreground mt-0.5">{pillar.subtitle}</div>
+								</div>
+								<span class="px-1.5 py-0.5 rounded font-mono text-[10px] font-bold bg-muted border shrink-0">
+									{pillar.coveredWorkloadsCount}/{pillar.totalWorkloadsCount} workloads
+								</span>
+							</div>
+
+							<div class="flex items-center justify-between gap-2 text-[10px] font-mono text-muted-foreground border-t pt-1.5">
+								<span>Plan : {pillar.nicPlane}</span>
+								<span>
+									Axes lockés : {pillar.lockedSlotsCount}/{pillar.totalSlotsCount}
+								</span>
+							</div>
+
+							{#if pillarComps.length > 0}
+								<div class="flex items-center gap-1.5 flex-wrap pt-1">
+									{#each pillarComps as pComp (pComp.name)}
+										<button
+											type="button"
+											onclick={(e) => {
+												e.stopPropagation();
+												selectedComponentName = pComp.name;
+											}}
+											class="px-2 py-0.5 rounded font-mono text-[10px] border cursor-pointer {selectedComponent?.name ===
+											pComp.name
+												? 'ring-2 ring-indigo-500'
+												: ''} {pComp.lockStatus === 'locked'
+												? 'bg-emerald-500/15 border-emerald-500/40 text-emerald-800 dark:text-emerald-200 font-bold'
+												: pComp.lockStatus === 'default_proposed'
+													? 'bg-amber-500/10 border-amber-500/40 border-dashed text-amber-800 dark:text-amber-200'
+													: 'bg-muted/30 text-foreground'}"
+											data-testid="live-lock-component-card-{pComp.name}"
+										>
+											{pComp.lockStatus === 'locked' ? '🔒 ' : pComp.lockStatus === 'default_proposed' ? '🟠 ' : ''}{pComp.name}
+										</button>
+									{/each}
+								</div>
+							{:else if pillar.id === 'configuration'}
+								<div class="text-[10px] font-mono text-indigo-700 dark:text-indigo-300 bg-indigo-500/10 rounded px-2 py-1">
+									FluxCD · Overlays prod/preprod/lab · ref(param.*)
+								</div>
+							{/if}
+						</div>
+					{/each}
+				</div>
+
+				<!-- Inspecteur Multi-Niveaux du Composant Sélectionné (3/12 largeur) -->
 				<div
-					class="rounded-lg border bg-muted/15 p-3.5 space-y-3 self-start sticky top-4"
+					class="xl:col-span-3 rounded-lg border bg-muted/15 p-3.5 space-y-3 self-start sticky top-4"
 					data-testid="live-lock-component-inspector"
 				>
 					{#if selectedComponent}
@@ -699,10 +829,39 @@
 							</div>
 						</div>
 
-						<!-- 3. Flux Logiques, Contrats & Dépendances -->
+						<!-- 3. Rattachement aux 3 Piliers Transverses Sylva -->
+						{#if selectedComponent.transverseBindings}
+							<div class="space-y-1.5 border-t pt-2">
+								<div class="text-[10px] font-bold uppercase text-muted-foreground">
+									3. Ancrage Piliers Transverses Sylva
+								</div>
+								<div class="space-y-1 text-[10px] font-mono">
+									<div class="px-2 py-1 rounded bg-background border">
+										<span class="font-bold">🛡️ Sécurité :</span>
+										{selectedComponent.transverseBindings.security.vaultMount || 'pas de Vault'} ·
+										{selectedComponent.transverseBindings.security.autoRenewCerts} cert(s) TLS ·
+										{selectedComponent.transverseBindings.security.firewallPolicy || 'n/a'}
+									</div>
+									<div class="px-2 py-1 rounded bg-background border">
+										<span class="font-bold">📡 Observabilité :</span>
+										{selectedComponent.transverseBindings.observability.hasEventsNic
+											? `NIC events (${selectedComponent.transverseBindings.observability.eventsVrf || 'events'})`
+											: 'aucune NIC events'} ·
+										{selectedComponent.transverseBindings.observability.siemLinked ? 'SIEM OK' : 'SIEM absent'}
+									</div>
+									<div class="px-2 py-1 rounded bg-background border">
+										<span class="font-bold">⚙️ Configuration :</span>
+										{selectedComponent.transverseBindings.configuration.helmCharts.join(', ') || 'externe'} ·
+										{selectedComponent.transverseBindings.configuration.paramRefs.length} ref(param.*)
+									</div>
+								</div>
+							</div>
+						{/if}
+
+						<!-- 4. Flux Logiques, Contrats & Dépendances -->
 						<div class="space-y-1 border-t pt-2">
 							<div class="text-[10px] font-bold uppercase text-muted-foreground">
-								3. Flux Sortants & Dépendances ({selectedComponent.outboundTargets?.length || 0})
+								4. Flux Sortants & Dépendances ({selectedComponent.outboundTargets?.length || 0})
 							</div>
 							{#if selectedComponent.outboundTargets?.length > 0}
 								<div class="space-y-1 max-h-40 overflow-y-auto">

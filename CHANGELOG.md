@@ -8,6 +8,18 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Jumeau Numérique Pré-Déploiement de Sylva branché à l'hydratation (#292, #293, #294)
+- **Modèle & Simulateur du Jumeau Sylva (`src/lib/domain/edp/sylvaTwin.ts`, `src/lib/server/edp/sylvaTwinEvaluation.ts`)** :
+  - Cible Sylva `LATEST` avec topologie de référence **3 DCs par défaut (`3dc-active` Gold)** comparée à **2 DCs + Site Témoin/Arbiter (`2dc-witness` Silver)** et **2 DCs secs (`2dc-split` Bronze)**.
+  - Simulation d'injections de pannes (`dc_loss_primary`, `dc_loss_secondary`, `host_loss_sriov`, `power_feed_loss_pdu_a`, `inter_dc_link_partition`) évaluant le quorum `etcd` RKE2, le quorum d'écriture stockage (`RF=3`), le bin-packing CPU/RAM/Hugepages/SR-IOV VFs et le RTO estimé.
+  - Double mode d'arbitrage : **Mode Proposition d'équipe (`proposal`)** et **Mode Fixé par le client (`client-mandated`)**.
+  - Générateur de bouchon Redfish `sushy-tools` (`generateSushyEmulatorConfig`) et de manifestes `Node` pour `KWOK` (`generateKwokNodeManifests`) exécutables en CI.
+- **Oracle OPA & Intégration Phase 4 (`edp/policies/twin_resilience.rego`, `src/lib/server/edp/refinementCoverage.ts`, `src/lib/components/deliberation/Phase4RefinementHub.svelte`)** :
+  - Branchement direct dans `composeMultiAxisHydration` (`sylva_twin_report`) et dans l'API `/api/projects/[projectId]/catalog`.
+  - Évaluation OPA à 7 règles sur `sources.twin_report` et enrichissement de l'UI Phase 4.
+- **Tests & Documentation** :
+  - Ajout de `tests/contract/sylva-digital-twin.test.ts` et mise à jour de `openspec/changes/sylva-digital-twin/`, `ARCHITECTURE.md` et `USER_GUIDE.md`.
+
 ### Ajouté
 - **Registre d'emplacements de décision, ratification en masse & scellement `architecture.lock`** (`src/lib/server/edp/decisionSlotRegistry.ts`, `src/routes/api/projects/[projectId]/decision-slots/+server.ts`, `openspec/constitution.md` Invariant XI) : consolidation multi-axes et commodités ArcKit (`buildProjectCompletenessLedger`), séparation en files d'attente Type 1 / Type 2, ratification en masse sécurisée par rôle (`batchRatifyProjectType2Slots`) avec persistance des composants transverses dans `.archinex-catalogs/`, promotion explicite Type 2 vers Type 1 (`promoteSlotToDeliberationSubject`), et génération d'un manifeste cryptographique SHA-256 `architecture.lock` (`generateArchitectureLockManifest`) bloqué tant qu'un défaut non ratifié, un oracle fantôme, une référence pendante ou une violation OPA subsiste.
 - **Projection Document Engine du socle transverse** (`src/lib/server/projects/documentEngineBridge.ts`) : enrichissement optionnel de `buildDocumentEnginePayload()` via `transverseEnrichment` projetant les composants logiques transverses et emplacements ratifiés sur les couches `context`, `application`, `component`, `infrastructure` et `iaas`, avec relations explicites/implicites (`DependsOn`, `ObtientCertificat`, `ConsommeSecrets`, `EmetLogsAudit`), vue `view-socle-transverse` et section `sec-socle-transverse-togaf` intégrant le manifeste `architecture.lock` tout en préservant une rétrocompatibilité totale.

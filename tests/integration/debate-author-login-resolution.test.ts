@@ -15,7 +15,14 @@ describe('Deliberation Chat - Résolution des IDs obscurs vers le nom du login',
 
 	beforeAll(async () => {
 		await prisma.project.deleteMany({ where: { id: testProjectId } });
-		await prisma.user.deleteMany({ where: { id: { in: [user1Id, user2Id] } } });
+		await prisma.user.deleteMany({
+			where: {
+				OR: [
+					{ id: { in: [user1Id, user2Id] } },
+					{ email: { in: ['admin@archinex.local', 'architect@archinex.local'] } }
+				]
+			}
+		});
 
 		// Créer utilisateur 1 avec un nom complet
 		await prisma.user.create({

@@ -68,11 +68,19 @@ describe('EDP Phase 4 : Sylva Integration Tests, JSON Schema Contract & OPA Gold
     expect(schemaValidation.valid).toBe(true);
     expect(schemaValidation.errors).toHaveLength(0);
 
-    // 2. Vérification des propriétés clés KRM / CAPI
-    expect(sylvaManifest.apiVersion).toBe('workloadcluster.sylva.org/v1alpha1');
+    // 2. Vérification des propriétés clés KRM / CAPI (CRD Officielle workloadclusteroperator.sylva)
+    expect(sylvaManifest.apiVersion).toBe('workloadclusteroperator.sylva/v1alpha1');
     expect(sylvaManifest.kind).toBe('SylvaWorkloadCluster');
 
     const spec = sylvaManifest.spec as any;
+    expect(spec.sylvaUnitsReleasePresets).toContain('base-workload-cluster');
+    expect(spec.infrastructure).toBe('metal3');
+    expect(spec.controlPlane.provider).toBe('rke2');
+    expect(spec.k8sVersion).toBe('1.28');
+    expect(spec.enabledUnits.cilium).toBe(true);
+    expect(spec.enabledUnits.multus).toBe(true);
+    expect(spec.enabledUnits.sriov).toBe(true);
+
     expect(spec.capi_providers).toEqual({
       infra_provider: 'capm3',
       bootstrap_provider: 'cabpr'
@@ -109,7 +117,7 @@ describe('EDP Phase 4 : Sylva Integration Tests, JSON Schema Contract & OPA Gold
     };
     const res1 = validateSylvaWorkloadClusterSchema(badApiVersion);
     expect(res1.valid).toBe(false);
-    expect(res1.errors.some((e) => e.field === 'apiVersion' || e.keyword === 'const')).toBe(true);
+    expect(res1.errors.some((e) => e.field === 'apiVersion' || e.keyword === 'const' || e.keyword === 'enum')).toBe(true);
 
     // Cas 2 : Nom Kubernetes invalide (majuscules)
     const badName = {

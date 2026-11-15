@@ -1572,7 +1572,7 @@ export function composeMultiAxisHydration(
   const evaluatedTriplets = Array.from(evaluatedTripletsSet).sort();
 
   const sylvaWorkloadClusterValues: Record<string, unknown> = {
-    apiVersion: 'workloadcluster.sylva.org/v1alpha1',
+    apiVersion: 'workloadclusteroperator.sylva/v1alpha1',
     kind: 'SylvaWorkloadCluster',
     metadata: {
       name: `wc-${cleanSubj.slice(-12) || 'lot1'}`,
@@ -1585,6 +1585,23 @@ export function composeMultiAxisHydration(
       }
     },
     spec: {
+      sylvaUnitsReleasePresets: ['base-workload-cluster'],
+      infrastructure: 'metal3',
+      controlPlane: {
+        provider: 'rke2',
+        replicas: 3
+      },
+      k8sVersion: '1.28',
+      enabledUnits: {
+        cilium: true,
+        multus: hasSriovPool,
+        sriov: hasSriovPool,
+        'sriov-resources': hasSriovPool,
+        metallb: true,
+        vault: true,
+        kyverno: true,
+        monitoring: true
+      },
       capi_providers: {
         infra_provider: 'capm3',
         bootstrap_provider: 'cabpr'

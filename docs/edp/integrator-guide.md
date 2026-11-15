@@ -146,7 +146,7 @@ Ce lot de preuves peut être archivé comme attestation d'audit pour les revues 
 
 Archinex ne réinvente jamais les opérateurs de **Sylva (`sylva-projects/sylva-core`)** :
 1. **Côté Sylva (`SylvaWorkloadCluster` & `sylva-units`)** :
-   - Le moteur d'hydratation [`composeMultiAxisHydration`](../../src/lib/server/edp/refinementCoverage.ts) produit la ressource native `sylva_workload_cluster_values` (`apiVersion: "workloadcluster.sylva.org/v1alpha1"`, `kind: "SylvaWorkloadCluster"`).
+   - Le moteur d'hydratation [`composeMultiAxisHydration`](../../src/lib/server/edp/refinementCoverage.ts) produit la ressource native `sylva_workload_cluster_values` (`apiVersion: "workloadclusteroperator.sylva/v1alpha1"`, `kind: "SylvaWorkloadCluster"`).
    - Il configure `capi_providers: { infra_provider: "capm3", bootstrap_provider: "cabpr" }`, active les `units` Sylva (`cilium`, `multus`, `sriov`, `sriov-resources`, `metallb`, `vault`, `kyverno`, `monitoring`), et peuple les dictionnaires `baremetal_hosts` et `machine_deployments` (`md-sylva-cnf-sriov-dpdk` et `md-sylva-standard-nis2`).
    - Ce descripteur est consommé tel quel par `sylva-units` / `workload-cluster-operator` pour instancier les ressources CAPI et `metal3.io/v1alpha1` `BareMetalHost`.
 2. **Côté Nautobot 2.x SSoT (`http://localhost:8080`)** :

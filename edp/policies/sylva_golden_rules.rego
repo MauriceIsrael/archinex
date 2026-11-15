@@ -27,16 +27,60 @@ target_metadata := input.sylva_workload_cluster_values.metadata if {
 	input.sylva_workload_cluster_values.metadata != null
 }
 
+# Helpers d'accès tolérants (supportent la structure CRD SylvaWorkloadCluster ET les Helm values sylva-units)
+unit_in_units_is_false(name) if {
+	object.get(object.get(target_spec, "units", {}), name, {}).enabled == false
+}
+
+unit_in_enabled_units_is_false(name) if {
+	object.get(object.get(target_spec, "enabledUnits", {}), name, false) == false
+}
+
+is_unit_active(name) if {
+	not unit_in_units_is_false(name)
+	not unit_in_enabled_units_is_false(name)
+	object.get(object.get(target_spec, "units", {}), name, {}).enabled == true
+}
+
+is_unit_active(name) if {
+	not unit_in_units_is_false(name)
+	not unit_in_enabled_units_is_false(name)
+	object.get(object.get(target_spec, "enabledUnits", {}), name, false) == true
+}
+
+get_infra_provider := infra if {
+	raw := object.get(object.get(target_spec, "capi_providers", {}), "infra_provider", "")
+	raw != ""
+	infra := raw
+} else := infra if {
+	raw := object.get(target_spec, "infrastructure", "")
+	raw == "metal3"
+	infra := "capm3"
+} else := infra if {
+	infra := object.get(target_spec, "infrastructure", "")
+}
+
+get_bootstrap_provider := b if {
+	raw := object.get(object.get(target_spec, "capi_providers", {}), "bootstrap_provider", "")
+	raw != ""
+	b := raw
+} else := b if {
+	raw := object.get(object.get(target_spec, "controlPlane", {}), "provider", "")
+	raw == "rke2"
+	b := "cabpr"
+} else := b if {
+	b := object.get(object.get(target_spec, "controlPlane", {}), "provider", "")
+}
+
 # ==============================================================================
 # RÈGLE 1 : CNI CILIUM MANDATAIRE
 # ==============================================================================
 violations contains v if {
-	cilium_enabled := object.get(object.get(target_spec, "units", {}), "cilium", {}).enabled
-	cilium_enabled != true
+	not is_unit_active("cilium")
 	v := {
 		"rule": "sylva_rule_01_cni_cilium_mandatory",
 		"category": "networking",
-		"message": "Le CNI Cilium (spec.units.cilium.enabled) est mandataire pour la conformité réseau et sécurité Sylva.",
+		"message": "Le CNI Cilium (spec.units.cilium.enabled ou spec.enabledUnits.cilium) est mandataire pour la conformité réseau et sécurité Sylva.",
 		"violated_clause_urn": "urn:archinex:kb:clause:sylva:cilium_mandatory",
 		"violated_requirement_id": "REQ-Sylva-01",
 	}
@@ -46,24 +90,26 @@ violations contains v if {
 # RÈGLE 2 : FOURNISSEURS CAPI CONFORMES (capm3 Baremetal + cabpr RKE2)
 # ==============================================================================
 violations contains v if {
-	infra := object.get(object.get(target_spec, "capi_providers", {}), "infra_provider", "")
+	infra := get_infra_provider
 	infra != "capm3"
+	infra != "metal3"
 	v := {
 		"rule": "sylva_rule_02_capi_providers_capm3",
 		"category": "infrastructure",
-		"message": sprintf("Le fournisseur d'infrastructure CAPI doit être 'capm3' (reçu: '%v')", [infra]),
+		"message": sprintf("Le fournisseur d'infrastructure CAPI doit être 'capm3' ou 'metal3' (reçu: '%v')", [infra]),
 		"violated_clause_urn": "urn:archinex:kb:clause:sylva:capi_providers",
 		"violated_requirement_id": "REQ-Sylva-02",
 	}
 }
 
 violations contains v if {
-	bootstrap := object.get(object.get(target_spec, "capi_providers", {}), "bootstrap_provider", "")
+	bootstrap := get_bootstrap_provider
 	bootstrap != "cabpr"
+	bootstrap != "rke2"
 	v := {
 		"rule": "sylva_rule_02_capi_providers_cabpr",
 		"category": "infrastructure",
-		"message": sprintf("Le fournisseur de bootstrap CAPI doit être 'cabpr' pour RKE2 (reçu: '%v')", [bootstrap]),
+		"message": sprintf("Le fournisseur de bootstrap CAPI doit être 'cabpr' ou 'rke2' (reçu: '%v')", [bootstrap]),
 		"violated_clause_urn": "urn:archinex:kb:clause:sylva:capi_providers",
 		"violated_requirement_id": "REQ-Sylva-02",
 	}
@@ -88,12 +134,11 @@ violations contains v if {
 # RÈGLE 4 : ADMISSION CONTROLLER KYVERNO ACTIF
 # ==============================================================================
 violations contains v if {
-	kyverno_enabled := object.get(object.get(target_spec, "units", {}), "kyverno", {}).enabled
-	kyverno_enabled != true
+	not is_unit_active("kyverno")
 	v := {
 		"rule": "sylva_rule_04_kyverno_admission_mandatory",
 		"category": "governance",
-		"message": "Le contrôleur d'admission Kyverno (spec.units.kyverno.enabled) doit être actif pour l'enforcement des politiques de sécurité.",
+		"message": "Le contrôleur d'admission Kyverno (spec.units.kyverno.enabled ou spec.enabledUnits.kyverno) doit être actif pour l'enforcement des politiques de sécurité.",
 		"violated_clause_urn": "urn:archinex:kb:clause:sylva:kyverno_admission",
 		"violated_requirement_id": "REQ-Sylva-04",
 	}
@@ -103,12 +148,11 @@ violations contains v if {
 # RÈGLE 5 : PILE D'OBSERVABILITÉ / MONITORING ACTIVE
 # ==============================================================================
 violations contains v if {
-	monitoring_enabled := object.get(object.get(target_spec, "units", {}), "monitoring", {}).enabled
-	monitoring_enabled != true
+	not is_unit_active("monitoring")
 	v := {
 		"rule": "sylva_rule_05_monitoring_observability_mandatory",
 		"category": "observability",
-		"message": "L'unité de supervision telco (spec.units.monitoring.enabled) doit être activée.",
+		"message": "L'unité de supervision telco (spec.units.monitoring.enabled ou spec.enabledUnits.monitoring) doit être activée.",
 		"violated_clause_urn": "urn:archinex:kb:clause:sylva:monitoring_observability",
 		"violated_requirement_id": "REQ-Sylva-05",
 	}
@@ -118,12 +162,11 @@ violations contains v if {
 # RÈGLE 6 : LOAD-BALANCER METALLB ACTIF
 # ==============================================================================
 violations contains v if {
-	metallb_enabled := object.get(object.get(target_spec, "units", {}), "metallb", {}).enabled
-	metallb_enabled != true
+	not is_unit_active("metallb")
 	v := {
 		"rule": "sylva_rule_06_metallb_loadbalancer_mandatory",
 		"category": "networking",
-		"message": "L'unité d'équilibrage MetalLB (spec.units.metallb.enabled) doit être activée pour router les VIP de contrôle.",
+		"message": "L'unité d'équilibrage MetalLB (spec.units.metallb.enabled ou spec.enabledUnits.metallb) doit être activée pour router les VIP de contrôle.",
 		"violated_clause_urn": "urn:archinex:kb:clause:sylva:metallb_loadbalancer",
 		"violated_requirement_id": "REQ-Sylva-06",
 	}
@@ -144,12 +187,11 @@ has_nis2_requirement if {
 
 violations contains v if {
 	has_nis2_requirement
-	vault_enabled := object.get(object.get(target_spec, "units", {}), "vault", {}).enabled
-	vault_enabled != true
+	not is_unit_active("vault")
 	v := {
 		"rule": "sylva_rule_07_vault_mandatory_for_nis2",
 		"category": "security",
-		"message": "Pour tout profil déployant des nœuds NIS2, l'unité HashiCorp Vault (spec.units.vault.enabled) est mandataire.",
+		"message": "Pour tout profil déployant des nœuds NIS2, l'unité HashiCorp Vault (spec.units.vault.enabled ou spec.enabledUnits.vault) est mandataire.",
 		"violated_clause_urn": "urn:archinex:kb:clause:nis2:art21_crypto",
 		"violated_requirement_id": "REQ-Lot1-1343",
 	}
@@ -165,12 +207,11 @@ has_sriov_pool if {
 
 violations contains v if {
 	has_sriov_pool
-	multus_enabled := object.get(object.get(target_spec, "units", {}), "multus", {}).enabled
-	multus_enabled != true
+	not is_unit_active("multus")
 	v := {
 		"rule": "sylva_rule_08_multus_mandatory_with_sriov",
 		"category": "networking",
-		"message": "Le méta-CNI Multus (spec.units.multus.enabled) doit être activé lorsqu'un pool de calcul utilise le dataplane SR-IOV/DPDK.",
+		"message": "Le méta-CNI Multus (spec.units.multus.enabled ou spec.enabledUnits.multus) doit être activé lorsqu'un pool de calcul utilise le dataplane SR-IOV/DPDK.",
 		"violated_clause_urn": "urn:archinex:kb:clause:sylva:multus_sriov",
 		"violated_requirement_id": "REQ-Sylva-08",
 	}
@@ -181,12 +222,11 @@ violations contains v if {
 # ==============================================================================
 violations contains v if {
 	has_sriov_pool
-	sriov_enabled := object.get(object.get(target_spec, "units", {}), "sriov", {}).enabled
-	sriov_enabled != true
+	not is_unit_active("sriov")
 	v := {
 		"rule": "sylva_rule_09_sriov_operators_mandatory_with_sriov",
 		"category": "dataplane",
-		"message": "L'opérateur 'sriov' (spec.units.sriov.enabled) doit être activé en présence de pools SR-IOV.",
+		"message": "L'opérateur 'sriov' (spec.units.sriov.enabled ou spec.enabledUnits.sriov) doit être activé en présence de pools SR-IOV.",
 		"violated_clause_urn": "urn:archinex:kb:clause:sylva:sriov_operator",
 		"violated_requirement_id": "REQ-Sylva-09",
 	}
@@ -194,12 +234,11 @@ violations contains v if {
 
 violations contains v if {
 	has_sriov_pool
-	sriov_res_enabled := object.get(object.get(target_spec, "units", {}), "sriov-resources", {}).enabled
-	sriov_res_enabled != true
+	not is_unit_active("sriov-resources")
 	v := {
 		"rule": "sylva_rule_09_sriov_resources_mandatory_with_sriov",
 		"category": "dataplane",
-		"message": "L'opérateur 'sriov-resources' (spec.units['sriov-resources'].enabled) doit être activé en présence de pools SR-IOV.",
+		"message": "L'opérateur 'sriov-resources' (spec.units['sriov-resources'].enabled ou spec.enabledUnits['sriov-resources']) doit être activé en présence de pools SR-IOV.",
 		"violated_clause_urn": "urn:archinex:kb:clause:sylva:sriov_operator",
 		"violated_requirement_id": "REQ-Sylva-09",
 	}

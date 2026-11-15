@@ -2,78 +2,348 @@
   "apiVersion": "apiextensions.k8s.io/v1",
   "kind": "CustomResourceDefinition",
   "metadata": {
-    "name": "sylvaworkloadclusters.workloadcluster.sylva.org",
     "annotations": {
-      "controller-gen.kubebuilder.io/version": "v0.14.0",
-      "sylva.org/description": "Sylva Workload Cluster Management Resource Definition"
-    }
+      "controller-gen.kubebuilder.io/version": "v0.23.0"
+    },
+    "name": "sylvaworkloadclusters.workloadclusteroperator.sylva"
   },
   "spec": {
-    "group": "workloadcluster.sylva.org",
+    "group": "workloadclusteroperator.sylva",
     "names": {
       "kind": "SylvaWorkloadCluster",
       "listKind": "SylvaWorkloadClusterList",
       "plural": "sylvaworkloadclusters",
-      "singular": "sylvaworkloadcluster",
-      "shortNames": ["swc", "sylvacluster"]
+      "shortNames": [
+        "swc"
+      ],
+      "singular": "sylvaworkloadcluster"
     },
     "scope": "Namespaced",
     "versions": [
       {
+        "additionalPrinterColumns": [
+          {
+            "jsonPath": ".metadata.creationTimestamp",
+            "name": "Age",
+            "type": "date"
+          },
+          {
+            "jsonPath": ".status.conditions[?(@.type==\"Ready\")].status",
+            "name": "Ready",
+            "type": "string"
+          },
+          {
+            "jsonPath": ".status.conditions[?(@.type==\"Ready\")].message",
+            "name": "Status",
+            "type": "string"
+          }
+        ],
         "name": "v1alpha1",
-        "served": true,
-        "storage": true,
-        "subresources": {
-          "status": {}
-        },
         "schema": {
           "openAPIV3Schema": {
-            "description": "SylvaWorkloadCluster is the Schema for the sylvaworkloadclusters API in Sylva Core",
-            "type": "object",
-            "required": ["apiVersion", "kind", "metadata", "spec"],
+            "description": "SylvaWorkloadCluster is the Schema for the sylvaworkloadclusters API",
             "properties": {
               "apiVersion": {
+                "description": "APIVersion defines the versioned schema of this representation of an object.\nServers should convert recognized schemas to the latest internal value, and\nmay reject unrecognized values.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#resources",
                 "type": "string"
               },
               "kind": {
+                "description": "Kind is a string value representing the REST resource this object represents.\nServers may infer this from the endpoint the client submits requests to.\nCannot be updated.\nIn CamelCase.\nMore info: https://git.k8s.io/community/contributors/devel/sig-architecture/api-conventions.md#types-kinds",
                 "type": "string"
               },
               "metadata": {
                 "type": "object"
               },
               "spec": {
-                "type": "object",
+                "description": "SylvaWorkloadClusterSpec defines the desired state of SylvaWorkloadCluster",
+                "properties": {
+                  "adoptExistingCluster": {
+                    "description": "Indicates that this SylvaWorkloadCluster is meant to adopt a pre-existing workload cluster.\n\nWhen set, no new cluster creation will be done. If no \"to be adopted\" workload cluster\ncan be found, the resource will remain in error.\n\n(the namespace of that to-be-adopted workload cluster should be labelled with\n\"workload-cluster-operator.sylva-project.org/cluster-name: <swc name>\" and\n\"workload-cluster-operator.sylva-project.org/cluster-namespace: <swc namespace>\")\n\nOnce the adopted namespace appears in Status.ResourcesStatus[Kind=Namespace] this field\ncan be removed and set back to false. This will have no effect.",
+                    "type": "boolean"
+                  },
+                  "clusterSettings": {
+                    "description": "ClusterSettings is a free-form JSON that holds specific settings for the cluster.\nThis field will be mapped to SylvaUnitsRelease.spec.values.cluster.\nNote well that it can't hold sylva-units templated values (strings with '{{ ... }}')",
+                    "x-kubernetes-preserve-unknown-fields": true
+                  },
+                  "controlPlane": {
+                    "properties": {
+                      "provider": {
+                        "description": "Provider specifies how Kubernetes base components are deployed: \"kubeadm\" for\nKubeadm (\"cabpk\" CAPI provider), \"rke2\" for Rancher RKE2.",
+                        "enum": [
+                          "rke2",
+                          "kubeadm",
+                          "ck8s"
+                        ],
+                        "type": "string"
+                      },
+                      "replicas": {
+                        "description": "Number of control plane nodes",
+                        "format": "int32",
+                        "minimum": 1,
+                        "type": "integer"
+                      }
+                    },
+                    "type": "object"
+                  },
+                  "enabledUnits": {
+                    "additionalProperties": {
+                      "type": "boolean"
+                    },
+                    "description": "Defines the units to be enabled in the workload cluster.\nEach unit is represented as a key in this object with a boolean value indicating its enabled status.",
+                    "type": "object"
+                  },
+                  "infrastructure": {
+                    "description": "Infrastructure specifies the underlying infrastructure provider for the cluster.\nSupported values and their corresponding Cluster API Providers:\n\"openstack\" maps to the Cluster API Provider OpenStack (capo),\n\"vsphere\" maps to the Cluster API Provider vSphere (capv),\n\"docker\" maps to the Cluster API Provider Docker (capd),\n\"metal3\" maps to the Cluster API Provider Metal3 (capm3).",
+                    "enum": [
+                      "openstack",
+                      "docker",
+                      "vsphere",
+                      "metal3"
+                    ],
+                    "type": "string"
+                  },
+                  "k8sVersion": {
+                    "description": "Kubernetes version for the cluster, e.g. \"1.27\".\nNote that this is *not* a full version, but only the two first numbers.",
+                    "pattern": "^[1-9]+[0-9]*[.]([1-9]+[0-9]|0)+$",
+                    "type": "string"
+                  },
+                  "machineDeployments": {
+                    "additionalProperties": {
+                      "description": "MachineDeploymentSpec defines sets of cluster nodes (implemented with Cluster API Machine Deployments)",
+                      "properties": {
+                        "replicas": {
+                          "format": "int32",
+                          "type": "integer"
+                        }
+                      },
+                      "required": [
+                        "replicas"
+                      ],
+                      "type": "object"
+                    },
+                    "type": "object"
+                  },
+                  "overridingValues": {
+                    "description": "OverridingValues is a free-form JSON that will be mapped to SylvaUnitsRelease.spec.values.\nIt overrides existing values. Eventually, this field will be removed once the API is stabilized\nNote well that it can't hold sylva-units templated values (strings with '{{ ... }}')\nIn addition, it can not override values passed through the CRD fields or through ClusterSettings.",
+                    "x-kubernetes-preserve-unknown-fields": true
+                  },
+                  "suspend": {
+                    "default": false,
+                    "description": "Suspend tells the controller to suspend reconciliation for this SylvaUnitsRelease,",
+                    "type": "boolean"
+                  },
+                  "sylvaSourceVersion": {
+                    "properties": {
+                      "branch": {
+                        "type": "string"
+                      },
+                      "commit": {
+                        "type": "string"
+                      },
+                      "tag": {
+                        "type": "string"
+                      }
+                    },
+                    "type": "object",
+                    "x-kubernetes-validations": [
+                      {
+                        "message": "At least one of 'commit', 'branch', or 'tag' must be specified",
+                        "rule": "has(self.tag) || has(self.branch) || has(self.commit)"
+                      }
+                    ]
+                  },
+                  "sylvaUnitsReleasePresets": {
+                    "description": "SylvaUnitsReleasePresets is a list of SylvaUnitsReleasePreset resources.\nEach of the SylvaUnitsReleasePreset is a bundle of parameters that will be used to populate the SylvaUnitsRelease. They can be defined by the management cluster admin.\nThe first SylvaUnitsReleasePreset in the list should be annotated with workload-cluster.sylva.org/preset-base=true",
+                    "items": {
+                      "type": "string"
+                    },
+                    "minItems": 1,
+                    "type": "array"
+                  },
+                  "valuesFrom": {
+                    "description": "ValuesFrom is a list where each item is a reference to a ConfigMap, a Secret, an ExternalSecret, an OCIRepository, or a GitRepository\nThese resources are in the same namespace of the SylvaWorkloadCluster resource\nThe SylvaUnitsFile type is not allowed in the context of SylvaWorkloadCluster",
+                    "items": {
+                      "properties": {
+                        "context": {
+                          "description": "Context restricts when these values will be added to the release: when valuesFrom items have a context defined,\nthe values will be included in the sylva-units release only if this context is defined in EnabledContexts\nIf empty, the entry applies in all cases.",
+                          "type": "string"
+                        },
+                        "name": {
+                          "description": "Name of the resource to read values from.\nRequired when type is one of: ConfigMap, Secret, GitRepository, OCIRepository.\nOptional for type SylvaUnitsFile (the controller will generate a Secret name,\nWhen provided, it must match the constraints below.",
+                          "maxLength": 253,
+                          "minLength": 1,
+                          "pattern": "^[a-zA-Z][a-zA-Z0-9-_]*[a-zA-Z0-9]$",
+                          "type": "string"
+                        },
+                        "optional": {
+                          "description": "Optional marks this ValuesReference as optional. When set, a not found error\nfor the values reference is ignored, but any ValuesKey, TargetPath or\ntransient error will still result in a reconciliation failure.",
+                          "type": "boolean"
+                        },
+                        "targetPath": {
+                          "description": "TargetPath is the YAML dot notation path the value should be merged at. When\nset, the ValuesKey is expected to be a single flat value. Defaults to 'None',\nwhich results in the values getting merged at the root.",
+                          "maxLength": 250,
+                          "pattern": "^([a-zA-Z0-9_\\-.\\\\\\/]|\\[[0-9]{1,5}\\])+$",
+                          "type": "string"
+                        },
+                        "type": {
+                          "description": "Type of the resource to read values from.",
+                          "enum": [
+                            "ConfigMap",
+                            "Secret",
+                            "ExternalSecret",
+                            "GitRepository",
+                            "OCIRepository",
+                            "SylvaUnitsFile"
+                          ],
+                          "type": "string"
+                        },
+                        "valuesKey": {
+                          "description": "ValuesKey is the data key where the values.yaml or a specific value can be found at. Defaults to 'values.yaml'.\nThis is only relevant for ConfigMaps, Secrets and ExternalSecrets\nWhen set, must be a valid Data Key, consisting of alphanumeric characters,\n'-', '_' or '.'.",
+                          "maxLength": 253,
+                          "pattern": "^[\\-._a-zA-Z0-9]+$",
+                          "type": "string"
+                        },
+                        "valuesPath": {
+                          "description": "ValuesPath is the path of the values file to use in repository artifact. Defaults to 'values.yaml'.\nThis is only relevant for GitRepositories, OCIRepositories and SylvaUnitsFile",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "type"
+                      ],
+                      "type": "object",
+                      "x-kubernetes-validations": [
+                        {
+                          "message": "name is required for ConfigMap/Secret/ExternalSecret/GitRepository/OCIRepository",
+                          "rule": "!((self.type in ['ConfigMap','Secret','ExternalSecret','GitRepository','OCIRepository']) && !has(self.name))"
+                        },
+                        {
+                          "message": "valuesPath is not supported for ConfigMap/Secret/ExternalSecret",
+                          "rule": "!((self.type in ['ConfigMap','Secret','ExternalSecret']) && has(self.valuesPath))"
+                        },
+                        {
+                          "message": "valuesKey is not supported for GitRepository/OCIRepository/SylvaUnitsFile",
+                          "rule": "!((self.type in ['GitRepository','OCIRepository','SylvaUnitsFile']) && has(self.valuesKey))"
+                        }
+                      ]
+                    },
+                    "type": "array"
+                  }
+                },
                 "required": [
-                  "capi_providers",
-                  "k8s_version",
-                  "os_image_selector",
-                  "units",
-                  "baremetal_hosts",
-                  "machine_deployments"
+                  "sylvaUnitsReleasePresets"
+                ],
+                "type": "object",
+                "x-kubernetes-validations": [
+                  {
+                    "message": "SylvaUnitsFile type is not allowed in valuesFrom",
+                    "rule": "!has(self.valuesFrom) || !self.valuesFrom.exists(vf, vf.type == 'SylvaUnitsFile')"
+                  }
                 ]
               },
               "status": {
-                "type": "object",
+                "default": {
+                  "observedGeneration": -1
+                },
+                "description": "SylvaWorkloadClusterStatus defines the observed state of SylvaWorkloadCluster",
                 "properties": {
-                  "ready": {
-                    "type": "boolean"
-                  },
                   "conditions": {
-                    "type": "array",
                     "items": {
-                      "type": "object",
+                      "description": "Condition contains details for one aspect of the current state of this API Resource.",
                       "properties": {
-                        "type": { "type": "string" },
-                        "status": { "type": "string" },
-                        "reason": { "type": "string" },
-                        "message": { "type": "string" }
-                      }
-                    }
+                        "lastTransitionTime": {
+                          "description": "lastTransitionTime is the last time the condition transitioned from one status to another.\nThis should be when the underlying condition changed.  If that is not known, then using the time when the API field changed is acceptable.",
+                          "format": "date-time",
+                          "type": "string"
+                        },
+                        "message": {
+                          "description": "message is a human readable message indicating details about the transition.\nThis may be an empty string.",
+                          "maxLength": 32768,
+                          "type": "string"
+                        },
+                        "observedGeneration": {
+                          "description": "observedGeneration represents the .metadata.generation that the condition was set based upon.\nFor instance, if .metadata.generation is currently 12, but the .status.conditions[x].observedGeneration is 9, the condition is out of date\nwith respect to the current state of the instance.",
+                          "format": "int64",
+                          "minimum": 0,
+                          "type": "integer"
+                        },
+                        "reason": {
+                          "description": "reason contains a programmatic identifier indicating the reason for the condition's last transition.\nProducers of specific condition types may define expected values and meanings for this field,\nand whether the values are considered a guaranteed API.\nThe value should be a CamelCase string.\nThis field may not be empty.",
+                          "maxLength": 1024,
+                          "minLength": 1,
+                          "pattern": "^[A-Za-z]([A-Za-z0-9_,:]*[A-Za-z0-9_])?$",
+                          "type": "string"
+                        },
+                        "status": {
+                          "description": "status of the condition, one of True, False, Unknown.",
+                          "enum": [
+                            "True",
+                            "False",
+                            "Unknown"
+                          ],
+                          "type": "string"
+                        },
+                        "type": {
+                          "description": "type of condition in CamelCase or in foo.example.com/CamelCase.",
+                          "maxLength": 316,
+                          "pattern": "^([a-z0-9]([-a-z0-9]*[a-z0-9])?(\\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*/)?(([A-Za-z0-9][-A-Za-z0-9_.]*)?[A-Za-z0-9])$",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "lastTransitionTime",
+                        "message",
+                        "reason",
+                        "status",
+                        "type"
+                      ],
+                      "type": "object"
+                    },
+                    "type": "array"
+                  },
+                  "observedGeneration": {
+                    "description": "ObservedGeneration is the last observed generation.",
+                    "format": "int64",
+                    "type": "integer"
+                  },
+                  "resourcesStatus": {
+                    "description": "This is the status of managed resources",
+                    "items": {
+                      "description": "ResourceStatus provides information on managed resources",
+                      "properties": {
+                        "kind": {
+                          "description": "Kind of the resource",
+                          "type": "string"
+                        },
+                        "name": {
+                          "description": "Name of the resource",
+                          "type": "string"
+                        },
+                        "status": {
+                          "description": "Status of the resource",
+                          "type": "string"
+                        }
+                      },
+                      "required": [
+                        "kind",
+                        "name",
+                        "status"
+                      ],
+                      "type": "object"
+                    },
+                    "type": "array"
                   }
-                }
+                },
+                "type": "object"
               }
-            }
+            },
+            "type": "object"
           }
+        },
+        "served": true,
+        "storage": true,
+        "subresources": {
+          "status": {}
         }
       }
     ]

@@ -584,9 +584,9 @@ La conception de la Phase 4 d'Archinex s'appuie sur **4 travaux académiques fon
 
 ### 14.2 Standards Industriels de Référence (Télécom, Cloud-Native & CMDB)
 
-1. **LF Europe Sylva (`sylva-projects/sylva-core` & `sylva-units`)** :
+1. **LF Europe Sylva (`sylva-projects/sylva-core` & `sylva-elements`)** :
    - Cadre de référence européen Telco Cloud (fondé par Orange, Deutsche Telekom, Telefónica, Vodafone, Telecom Italia, SUSE, Red Hat, Nokia, Ericsson).
-   - Fournit le CRD **`SylvaWorkloadCluster` (`workloadcluster.sylva.org/v1alpha1`)** et le chart Helm **`sylva-units`** orchestrant Cluster API (`capm3` Metal3 Bare-Metal + `cabpr` RKE2 sur SLE Micro) et les briques réseau Telco (`cilium`, `multus`, `sriov`, `metallb`, `vault`, `kyverno`, `monitoring`).
+   - Fournit le CRD officiel **`SylvaWorkloadCluster` (`workloadclusteroperator.sylva/v1alpha1`)** via `workload-cluster-operator`, le chart Helm **`sylva-units`** et `sylva-units-operator` orchestrant Cluster API (`capm3` Metal3 Bare-Metal + `cabpr` RKE2 sur SLE Micro) et les briques réseau Telco (`cilium`, `multus`, `sriov`, `metallb`, `vault`, `kyverno`, `monitoring`).
 2. **FluxCD & Kustomize GitOps (`workload-clusters/` & Overlays Multi-DC)** :
    - Compilation directe par Archinex des descripteurs déclaratifs (`values.yaml` Sylva et manifestes Kustomize `base/` + `overlays/dc1`, `overlays/dc2`) soumis au contrôle déterministe OPA/Batfish avant ouverture de PR/MR GitOps, **sans serveur intermédiaire Nephio / Porch**.
 3. **3GPP TS 28.620 (Umbrella NRM) & TS 28.541 (5G NRM)** :
@@ -606,7 +606,7 @@ La conception de la Phase 4 d'Archinex s'appuie sur **4 travaux académiques fon
 > **Règle d'Architecture d'Intégration Sylva & GitOps Direct (Sans Nephio) :**
 > **Sylva** possède déjà son propre opérateur (`workload-cluster-operator`) et son chart maître (`sylva-units`) qui traduisent un descripteur de cluster en ressources Cluster API (`Cluster`, `RKE2ControlPlane`, `MachineDeployment`, `Metal3DataTemplate`, `BareMetalHost` `metal3.io/v1alpha1`) et déploient les unités logicielles (`sriov`, `multus`, `cilium`, `vault`).
 > **Archinex n'intègre pas Nephio / Porch et ne réinvente jamais `sylva-units`** : Archinex agit directement comme **compilateur d'intention déterministe** en amont de FluxCD et Nautobot pour produire :
-> 1. Le descripteur d'entrée natif **`SylvaWorkloadCluster` (`workloadcluster.sylva.org/v1alpha1`)** et ses valeurs `sylva-units` (`capi_providers`, `baremetal_hosts`, `machine_deployments`, `units`).
+> 1. Le descripteur d'entrée natif **`SylvaWorkloadCluster` (`workloadclusteroperator.sylva/v1alpha1`)** et ses valeurs `sylva-units` (`capi_providers`, `baremetal_hosts`, `machine_deployments`, `units`).
 > 2. L'inventaire SSoT **Nautobot 2.x** correspondant (`Tenants`, `Circuits`, `VLAN`, `Prefixes`, `Devices`).
 > 3. La preuve formelle **OPA Rego** que l'inventaire Nautobot et le descripteur Sylva sont mutuellement cohérents et respectent les décisions HLD.
 
@@ -621,7 +621,7 @@ flowchart TB
     end
 
     subgraph SYLVA["2. Couche d'Orchestration Telco Cloud : SUSE Telco Cloud & Sylva (Non réinventée)"]
-        SWC["CRD SylvaWorkloadCluster\n(workloadcluster.sylva.org/v1alpha1)\n• capi_providers: capm3 + cabpr\n• units: cilium, multus, sriov, vault, kyverno\n• machine_deployments: md-cnf-sriov-dpdk + md-standard-nis2\n• baremetal_hosts"]
+        SWC["CRD SylvaWorkloadCluster\n(workloadclusteroperator.sylva/v1alpha1)\n• capi_providers: capm3 + cabpr\n• units: cilium, multus, sriov, vault, kyverno\n• machine_deployments: md-cnf-sriov-dpdk + md-standard-nis2\n• baremetal_hosts"]
         SYLVA_OP["Sylva workload-cluster-operator\n& Helm Chart sylva-units"]
         CAPM3["Cluster API Provider Metal3 (capm3)\n& RKE2 Bootstrap (cabpr)"]
         BMH["metal3.io/v1alpha1 BareMetalHost\n& Nœuds SLE Micro 5.5 RKE2"]
@@ -651,7 +651,7 @@ Lorsqu'un sujet cumule sur l'axe `compute_substrate` la variante **CNF Cœur de 
 
 ```json
 {
-  "apiVersion": "workloadcluster.sylva.org/v1alpha1",
+  "apiVersion": "workloadclusteroperator.sylva/v1alpha1",
   "kind": "SylvaWorkloadCluster",
   "metadata": {
     "name": "wc--proposes-89",
@@ -852,7 +852,7 @@ L'exécution de `npm run seed:demo` ou l'appui sur le bouton **« Hydrater Nauto
 Pour garantir en local sur le poste de développement et en CI que l'hydratation d'Archinex aboutira sans rupture dans un environnement Sylva réel sans nécessiter de cluster bare-metal lourd, Archinex intègre une suite de validation « Smart-Light » en deux barrières étanches :
 
 1. **Validation de Schéma KRM & CRD (`tests/fixtures/sylva/sylva-workload-cluster.schema.json`)** :
-   - Valide formellement l'objet `SylvaWorkloadCluster` (`workloadcluster.sylva.org/v1alpha1`) via Ajv et les spécifications OpenAPI/JSON Schema de la communauté Sylva.
+   - Valide formellement l'objet `SylvaWorkloadCluster` (`workloadclusteroperator.sylva/v1alpha1`) via Ajv et les spécifications OpenAPI/JSON Schema de la communauté Sylva.
    - Contrôle la structure CAPI (`capi_providers: capm3 + cabpr`), les images durcies, les unités `sylva-units` et la conformité des `machine_deployments`.
 
 2. **Évaluation des 15 Règles d'Or d'Enforcement Sylva (`edp/policies/sylva_golden_rules.rego`)** :

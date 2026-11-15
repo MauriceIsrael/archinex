@@ -72,7 +72,7 @@ async function main() {
     }
     process.exit(1);
   }
-  console.log('✅ Schéma JSON SylvaWorkloadCluster validé avec succès (workloadcluster.sylva.org/v1alpha1).');
+  console.log(`✅ Schéma JSON SylvaWorkloadCluster validé avec succès (${manifest.apiVersion}).`);
 
   // 2. Évaluation des 15 règles d'or OPA
   const evalResult = await evaluateSylvaGoldenRules(manifest);

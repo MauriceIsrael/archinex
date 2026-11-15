@@ -212,7 +212,7 @@ describe('Taxonomie TOGAF unifiée, routage commodités, conscientisation & cha�
     ).toBe(true);
   });
 
-  it('détecte les oracles fantômes absents de Rego tout en reconnaissant les règles implémentées', () => {
+  it('détecte zéro oracle fantôme sur le catalogue scellé et identifie une règle synthétique non implémentée', () => {
     const implemented = loadImplementedRegoRuleNames();
     expect(implemented.has('data.archinex.edp.multiaxis.deny_software_root_ca_key')).toBe(true);
     expect(implemented.has('data.archinex.edp.multiaxis.deny_unsealed_vault_without_hsm')).toBe(
@@ -225,12 +225,78 @@ describe('Taxonomie TOGAF unifiée, routage commodités, conscientisation & cha�
       true
     );
     expect(implemented.has('data.archinex.edp.multiaxis.deny_plaintext_interservice_flow')).toBe(
-      false
+      true
     );
-    expect(implemented.has('data.archinex.edp.multiaxis.deny_static_secret_in_git')).toBe(false);
-    expect(implemented.has('data.archinex.edp.multiaxis.deny_unsigned_oci_image')).toBe(false);
+    expect(implemented.has('data.archinex.edp.multiaxis.deny_static_secret_in_git')).toBe(true);
+    expect(implemented.has('data.archinex.edp.multiaxis.deny_unsigned_oci_image')).toBe(true);
 
-    const report = computeRefinementCoverage(
+    // Zéro oracle fantôme sur le catalogue de référence scellé après ratification explicite
+    const fullCleanReport = computeRefinementCoverage(
+      {
+        subjectId: 'subj-all-clean',
+        title: 'Audit complet zéro oracle fantôme',
+        problem: 'Vérification exhaustive de toutes les règles Rego.',
+        selectedConceptUrn: 'ALL',
+        explicitBindings: [],
+        autoBindFromText: true
+      },
+      fixtureCatalog
+    );
+    expect(fullCleanReport.conscientiousMetrics?.phantomOracleCount).toBe(0);
+
+    const ratifiedAllBindings = ratifyDefaultDecisionSlots(fullCleanReport);
+    const fullRatifiedReport = computeRefinementCoverage(
+      {
+        subjectId: 'subj-all-clean',
+        title: 'Audit complet zéro oracle fantôme',
+        problem: 'Vérification exhaustive de toutes les règles Rego.',
+        selectedConceptUrn: 'ALL',
+        explicitBindings: ratifiedAllBindings,
+        autoBindFromText: true
+      },
+      fixtureCatalog
+    );
+    expect(fullRatifiedReport.conscientiousMetrics?.phantomOracleCount).toBe(0);
+    expect(fullRatifiedReport.conscientiousMetrics?.openSlots).toBe(0);
+    expect(fullRatifiedReport.conscientiousMetrics?.defaultProposedSlots).toBe(0);
+    expect(fullRatifiedReport.conscientiousMetrics?.humanRatifiedRatio).toBe(1);
+
+    // Vérification stricte de complétude conscientisée sur le domaine IAM / Chaîne de confiance
+    const iamInitial = computeRefinementCoverage(
+      {
+        subjectId: 'subj-iam-complete',
+        title: 'IAM mTLS et coffre dynamique',
+        problem: 'Sécurisation complète IAM mTLS Vault.',
+        selectedConceptUrn: 'urn:archinex:ontology:concept:iam_security_zerotrust',
+        explicitBindings: [],
+        autoBindFromText: true
+      },
+      fixtureCatalog
+    );
+    const iamRatified = computeRefinementCoverage(
+      {
+        subjectId: 'subj-iam-complete',
+        title: 'IAM mTLS et coffre dynamique',
+        problem: 'Sécurisation complète IAM mTLS Vault.',
+        selectedConceptUrn: 'urn:archinex:ontology:concept:iam_security_zerotrust',
+        explicitBindings: ratifyDefaultDecisionSlots(iamInitial),
+        autoBindFromText: true
+      },
+      fixtureCatalog
+    );
+    expect(iamRatified.conscientiousMetrics?.phantomOracleCount).toBe(0);
+    expect(iamRatified.conscientiousMetrics?.isConscientiouslyComplete).toBe(true);
+
+    // Détection d'une règle fantôme sur catalogue synthétique cloné
+    const syntheticCatalog = structuredClone(fixtureCatalog);
+    syntheticCatalog.entities[
+      'urn:archinex:ontology:security:secrets:vault_dynamic_leases'
+    ].oracle_rules = [
+      'data.archinex.edp.multiaxis.deny_static_secret_in_git',
+      'data.archinex.edp.multiaxis.deny_synthetic_unimplemented_oracle'
+    ];
+
+    const syntheticReport = computeRefinementCoverage(
       {
         subjectId: 'subj-iam-phantom',
         title: 'Gestion secrets Vault et mTLS',
@@ -241,18 +307,18 @@ describe('Taxonomie TOGAF unifiée, routage commodités, conscientisation & cha�
         ],
         autoBindFromText: true
       },
-      fixtureCatalog
+      syntheticCatalog
     );
 
-    const secretsAxis = report.axes.find(
+    const secretsAxis = syntheticReport.axes.find(
       (a) => a.axisUrn === 'urn:archinex:ontology:axis:secrets_vault_management'
     );
     expect(secretsAxis?.hasPhantomOracle).toBe(true);
     expect(secretsAxis?.phantomOracleRules).toContain(
-      'data.archinex.edp.multiaxis.deny_static_secret_in_git'
+      'data.archinex.edp.multiaxis.deny_synthetic_unimplemented_oracle'
     );
-    expect(report.conscientiousMetrics?.phantomOracleCount).toBeGreaterThan(0);
-    expect(report.conscientiousMetrics?.isConscientiouslyComplete).toBe(false);
+    expect(syntheticReport.conscientiousMetrics?.phantomOracleCount).toBeGreaterThan(0);
+    expect(syntheticReport.conscientiousMetrics?.isConscientiouslyComplete).toBe(false);
   });
 
   it('calcule la fermeture transitive des prérequis (IPsec -> PKI -> HSM, OAM -> Bastion -> IAM, LUKS2 -> Vault -> HSM)', () => {

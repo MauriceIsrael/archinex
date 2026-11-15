@@ -187,6 +187,26 @@ export interface LldHydrationOverrides {
   vaultUnsealMode?: string;
   oamSessionRecording?: boolean;
   egressMode?: string;
+  fabricUnderlayProtocol?: string;
+  fabricOverlayProtocol?: string;
+  torUplinksPerRack?: number;
+  userPlaneIsolationLevel?: string;
+  storageReplicationFactor?: number;
+  objectVersioningEnabled?: boolean;
+  storageEncryptionCipher?: string;
+  backupImmutabilityMode?: string;
+  iamAllowClusterAdminGroup?: boolean;
+  iamMfaLevel?: string;
+  workloadMtlsMode?: string;
+  allowStaticK8sSecrets?: boolean;
+  telemetryCollectorStandard?: string;
+  siemTransport?: string;
+  alertRequireRunbookAnnotation?: boolean;
+  drpWitnessSitePresent?: boolean;
+  /** Intervalle simulé (jours écoulés depuis le dernier GameDay) comparé à `max_days_between_drills`. */
+  drpMaxDaysBetweenDrills?: number;
+  drpRpoSeconds?: number;
+  registryCosignVerification?: boolean;
 }
 
 export interface ReconciliationObjectGraph {
@@ -215,6 +235,51 @@ export interface MultiAxisHydratedInventory {
     vault_unseal_mode: string;
     oam_session_recording: boolean;
     egress_mode: string;
+  };
+  extended_domains?: {
+    network_fabric: {
+      underlay_protocol: string;
+      overlay_protocol: string;
+      tor_uplinks_per_rack: number;
+    };
+    user_plane_zone: {
+      isolation_level: string;
+    };
+    storage_csi: {
+      replication_factor: number;
+    };
+    object_storage: {
+      versioning_enabled: boolean;
+    };
+    encryption_at_rest: {
+      cipher: string;
+    };
+    backup_vault: {
+      immutability_mode: string;
+    };
+    iam_rbac: {
+      forbid_cluster_admin_group: boolean;
+      mfa_level: string;
+    };
+    workload_pki: {
+      mtls_enforcement: string;
+    };
+    secrets_management: {
+      allow_static_k8s_secrets: boolean;
+    };
+    observability: {
+      collector_standard: string;
+      siem_transport: string;
+      require_runbook_annotation: boolean;
+    };
+    drp: {
+      witness_site_present: boolean;
+      rpo_seconds: number;
+      days_since_last_drill: number;
+    };
+    oci_registry: {
+      cosign_verification: boolean;
+    };
   };
   resolved_components?: ResolvedComponentInstance[];
   component_lint_issues?: BaseLintIssue[];
@@ -1142,6 +1207,25 @@ export function composeMultiAxisHydration(
   let vaultUnsealMode = 'unspecified';
   let oamSessionRecording = false;
   let egressMode = 'unspecified';
+  let fabricUnderlayProtocol = 'unspecified';
+  let fabricOverlayProtocol = 'unspecified';
+  let torUplinksPerRack = 0;
+  let userPlaneIsolationLevel = 'unspecified';
+  let storageReplicationFactor = 0;
+  let objectVersioningEnabled = false;
+  let storageEncryptionCipher = 'unspecified';
+  let backupImmutabilityMode = 'unspecified';
+  let iamForbidClusterAdminGroup = false;
+  let iamMfaLevel = 'unspecified';
+  let workloadMtlsMode = 'unspecified';
+  let allowStaticK8sSecrets = true;
+  let telemetryCollectorStandard = 'unspecified';
+  let siemTransport = 'unspecified';
+  let alertRequireRunbookAnnotation = false;
+  let drpWitnessSitePresent = false;
+  let drpRpoSeconds = 999999;
+  let drpDaysSinceLastDrill = 999;
+  let registryCosignVerification = false;
 
   for (const b of bindings) {
     const entity = catalog.entities[b.urn];
@@ -1162,6 +1246,66 @@ export function composeMultiAxisHydration(
     }
     if (proj.egress_mode !== undefined) {
       egressMode = String(proj.egress_mode);
+    }
+    if (proj.underlay_protocol !== undefined) {
+      fabricUnderlayProtocol = String(proj.underlay_protocol);
+    }
+    if (proj.overlay_protocol !== undefined) {
+      fabricOverlayProtocol = String(proj.overlay_protocol);
+    }
+    if (proj.min_tor_switches_per_rack !== undefined) {
+      torUplinksPerRack = Number(proj.min_tor_switches_per_rack);
+    }
+    if (
+      entity.urn === 'urn:archinex:ontology:security:zone:user_plane' &&
+      proj.isolation_level !== undefined
+    ) {
+      userPlaneIsolationLevel = String(proj.isolation_level);
+    }
+    if (proj.min_replication_factor !== undefined) {
+      storageReplicationFactor = Number(proj.min_replication_factor);
+    }
+    if (proj.versioning_required !== undefined) {
+      objectVersioningEnabled = Boolean(proj.versioning_required);
+    }
+    if (proj.cipher !== undefined) {
+      storageEncryptionCipher = String(proj.cipher);
+    }
+    if (proj.immutability_mode !== undefined) {
+      backupImmutabilityMode = String(proj.immutability_mode);
+    }
+    if (proj.forbid_cluster_admin_group !== undefined) {
+      iamForbidClusterAdminGroup = Boolean(proj.forbid_cluster_admin_group);
+    }
+    if (proj.mfa_level !== undefined) {
+      iamMfaLevel = String(proj.mfa_level);
+    }
+    if (proj.mtls_enforcement !== undefined) {
+      workloadMtlsMode = String(proj.mtls_enforcement);
+    }
+    if (proj.allow_static_k8s_secrets !== undefined) {
+      allowStaticK8sSecrets = Boolean(proj.allow_static_k8s_secrets);
+    }
+    if (proj.collector_standard !== undefined) {
+      telemetryCollectorStandard = String(proj.collector_standard);
+    }
+    if (proj.transport !== undefined) {
+      siemTransport = String(proj.transport);
+    }
+    if (proj.require_runbook_annotation !== undefined) {
+      alertRequireRunbookAnnotation = Boolean(proj.require_runbook_annotation);
+    }
+    if (proj.witness_site_required !== undefined) {
+      drpWitnessSitePresent = Boolean(proj.witness_site_required);
+    }
+    if (proj.rpo_seconds !== undefined) {
+      drpRpoSeconds = Number(proj.rpo_seconds);
+    }
+    if (proj.max_days_between_drills !== undefined) {
+      drpDaysSinceLastDrill = Number(proj.max_days_between_drills);
+    }
+    if (proj.cosign_verification !== undefined) {
+      registryCosignVerification = Boolean(proj.cosign_verification);
     }
 
     if (tpl.nautobot_device || proj.baremetal_types) {
@@ -1639,6 +1783,55 @@ export function composeMultiAxisHydration(
     oam_session_recording: overrides.oamSessionRecording ?? oamSessionRecording,
     egress_mode: overrides.egressMode ?? egressMode
   };
+  const extendedDomains: NonNullable<MultiAxisHydratedInventory['extended_domains']> = {
+    network_fabric: {
+      underlay_protocol: overrides.fabricUnderlayProtocol ?? fabricUnderlayProtocol,
+      overlay_protocol: overrides.fabricOverlayProtocol ?? fabricOverlayProtocol,
+      tor_uplinks_per_rack: overrides.torUplinksPerRack ?? torUplinksPerRack
+    },
+    user_plane_zone: {
+      isolation_level: overrides.userPlaneIsolationLevel ?? userPlaneIsolationLevel
+    },
+    storage_csi: {
+      replication_factor: overrides.storageReplicationFactor ?? storageReplicationFactor
+    },
+    object_storage: {
+      versioning_enabled: overrides.objectVersioningEnabled ?? objectVersioningEnabled
+    },
+    encryption_at_rest: {
+      cipher: overrides.storageEncryptionCipher ?? storageEncryptionCipher
+    },
+    backup_vault: {
+      immutability_mode: overrides.backupImmutabilityMode ?? backupImmutabilityMode
+    },
+    iam_rbac: {
+      forbid_cluster_admin_group:
+        overrides.iamAllowClusterAdminGroup !== undefined
+          ? !overrides.iamAllowClusterAdminGroup
+          : iamForbidClusterAdminGroup,
+      mfa_level: overrides.iamMfaLevel ?? iamMfaLevel
+    },
+    workload_pki: {
+      mtls_enforcement: overrides.workloadMtlsMode ?? workloadMtlsMode
+    },
+    secrets_management: {
+      allow_static_k8s_secrets: overrides.allowStaticK8sSecrets ?? allowStaticK8sSecrets
+    },
+    observability: {
+      collector_standard: overrides.telemetryCollectorStandard ?? telemetryCollectorStandard,
+      siem_transport: overrides.siemTransport ?? siemTransport,
+      require_runbook_annotation:
+        overrides.alertRequireRunbookAnnotation ?? alertRequireRunbookAnnotation
+    },
+    drp: {
+      witness_site_present: overrides.drpWitnessSitePresent ?? drpWitnessSitePresent,
+      rpo_seconds: overrides.drpRpoSeconds ?? drpRpoSeconds,
+      days_since_last_drill: overrides.drpMaxDaysBetweenDrills ?? drpDaysSinceLastDrill
+    },
+    oci_registry: {
+      cosign_verification: overrides.registryCosignVerification ?? registryCosignVerification
+    }
+  };
 
   return {
     nautobot_planned_devices: nautobotDevices,
@@ -1650,6 +1843,7 @@ export function composeMultiAxisHydration(
     coveredDomains: Array.from(coveredDomains),
     reconciliation_graph: reconciliationGraph,
     trust_chain: trustChain,
+    extended_domains: extendedDomains,
     resolved_components: resolvedComponents,
     component_lint_issues: componentLintIssues,
     reference_graph: referenceGraph,

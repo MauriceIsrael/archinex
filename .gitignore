@@ -75,3 +75,4 @@ tools/bin/
 # Git worktrees & CI preflight marker
 .worktrees/
 .ci-pass-marker
+.archinex-catalogs/

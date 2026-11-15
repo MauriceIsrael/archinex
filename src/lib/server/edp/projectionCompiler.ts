@@ -52,7 +52,9 @@ export function compileOntologyProjections(
 
   for (const b of sortedBindings) {
     const entity = catalog.entities[b.urn];
-    if (!entity) continue;
+    const emergentNewMatch = /^urn:archinex:ontology:application:emergent:new_([a-z0-9_-]+)$/i.exec(b.urn);
+    const emergentAllocMatch = /^urn:archinex:ontology:application:emergent:allocate_([a-z0-9_-]+)$/i.exec(b.urn);
+    if (!entity && !emergentNewMatch && !emergentAllocMatch) continue;
 
     usedUrns.push({ urn: b.urn, revision: b.revision });
 
@@ -62,14 +64,38 @@ export function compileOntologyProjections(
       .replace(/^urn:[^:]+:ontology:/, '')
       .replace(/[^a-zA-Z0-9_]/g, '_');
 
-    ontologyData[cleanKey] = {
-      urn: b.urn,
-      revision: b.revision,
-      title: entity.title,
-      domain: entity.domain,
-      governed_by_clauses: entity.governed_by_clauses || [],
-      ...(entity.projections || {})
-    };
+    if (entity) {
+      ontologyData[cleanKey] = {
+        urn: b.urn,
+        revision: b.revision,
+        title: entity.title,
+        domain: entity.domain,
+        governed_by_clauses: entity.governed_by_clauses || [],
+        ...(entity.projections || {})
+      };
+    } else if (emergentNewMatch) {
+      const compName = emergentNewMatch[1].replace(/_/g, '-').toLowerCase();
+      ontologyData[cleanKey] = {
+        urn: b.urn,
+        revision: b.revision,
+        title: `Instancier un nouveau composant logique dédié (${compName})`,
+        domain: 'application',
+        governed_by_clauses: [],
+        allocation_mode: 'new_dedicated_component',
+        instantiated_component: compName
+      };
+    } else if (emergentAllocMatch) {
+      const compName = emergentAllocMatch[1].replace(/_/g, '-').toLowerCase();
+      ontologyData[cleanKey] = {
+        urn: b.urn,
+        revision: b.revision,
+        title: `Allouer la responsabilité au composant existant (${compName})`,
+        domain: 'application',
+        governed_by_clauses: [],
+        allocation_mode: 'existing_component',
+        instantiated_component: compName
+      };
+    }
   }
 
   // Calcul de l'empreinte SHA-256 canonique

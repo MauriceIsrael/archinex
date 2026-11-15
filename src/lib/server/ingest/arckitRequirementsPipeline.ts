@@ -26,7 +26,9 @@ import type { ChatOptions } from '$lib/server/llm/types';
 import type { RequirementDisposition } from '$lib/domain/requirementAudit';
 import { findAutomationMarker } from '$lib/domain/automationMarkers';
 import {
+	TOGAF_DOMAINS,
 	TOGAF_REFERENCE_BUILDING_BLOCKS,
+	detectEmergentCapabilityNeed,
 	matchReferenceBuildingBlock,
 	resolveTogafDomain,
 	type TogafDomainId
@@ -48,6 +50,8 @@ export interface AuditedRequirement {
 	togafDomain?: TogafDomainId;
 	commoditySlotId?: string;
 	commodityAxisUrn?: string;
+	emergentCapabilityId?: string;
+	suggestedComponentName?: string;
 	criticality: 'bloquant' | 'majeur' | 'info';
 	disposition: RequirementDisposition;
 	/** Motif de l'évacuation proposée (obligatoire pour `evacuated`). */
@@ -74,6 +78,22 @@ export interface CommodityDecisionSlotSummary {
 	status: 'default_proposed';
 }
 
+export interface EmergentCapabilitySlotSummary {
+	slotId: string;
+	title: string;
+	togafDomain: TogafDomainId;
+	documentEngineLayer: string;
+	axisUrn: string;
+	suggestedComponentName: string;
+	suggestedTier: 'application' | 'platform' | 'infrastructure';
+	candidateExistingComponents: string[];
+	rationale: string;
+	coveredClauseIds: string[];
+	coveredRawRefs: string[];
+	linkedSubjectIds: string[];
+	status: 'open';
+}
+
 export interface ArcKitAuditReport {
 	totalCount: number;
 	evacuatedCount: number;
@@ -84,6 +104,7 @@ export interface ArcKitAuditReport {
 	requirements: AuditedRequirement[];
 	clarifications: Array<{ clauseRef: string; title: string; question: string }>;
 	commoditySlots?: CommodityDecisionSlotSummary[];
+	emergentSlots?: EmergentCapabilitySlotSummary[];
 	warnings: string[];
 }
 
@@ -414,13 +435,21 @@ export function applyClassificationInvariants(
 		const question = (item.question || '').trim();
 
 		const matchedBlock = matchReferenceBuildingBlock(`${clause.title}\n${clause.text}`, category);
-		const resolvedTogafDomain = matchedBlock?.togafDomain ?? resolveTogafDomain(category);
+		const emergent = matchedBlock
+			? undefined
+			: detectEmergentCapabilityNeed(`${clause.title}\n${clause.text}`, category, {
+					fallbackTitle: clause.title
+				});
+		const resolvedTogafDomain =
+			matchedBlock?.togafDomain ?? emergent?.togafDomain ?? resolveTogafDomain(category);
 
 		if (disposition === 'deliberate') {
 			return {
 				...base,
 				category,
 				togafDomain: resolvedTogafDomain,
+				emergentCapabilityId: emergent?.capabilityId,
+				suggestedComponentName: emergent?.suggestedComponentName,
 				disposition: 'deliberated',
 				deliberationReason: reason || undefined
 			};
@@ -454,12 +483,21 @@ export function applyClassificationInvariants(
 					togafDomain: resolvedTogafDomain
 				};
 			}
+			const fallbackCommoditySlotId =
+				matchedBlock?.id ?? emergent?.capabilityId ?? `unmapped-commodity-${resolvedTogafDomain}`;
+			const fallbackCommodityAxisUrn =
+				matchedBlock?.axisUrn ??
+				(emergent
+					? 'urn:archinex:ontology:axis:emergent_component_allocation'
+					: `urn:archinex:ontology:axis:unmapped_${resolvedTogafDomain.replace(/-/g, '_')}`);
 			return {
 				...base,
 				category,
 				togafDomain: resolvedTogafDomain,
-				commoditySlotId: matchedBlock?.id,
-				commodityAxisUrn: matchedBlock?.axisUrn,
+				commoditySlotId: fallbackCommoditySlotId,
+				commodityAxisUrn: fallbackCommodityAxisUrn,
+				emergentCapabilityId: emergent?.capabilityId,
+				suggestedComponentName: emergent?.suggestedComponentName,
 				disposition: 'evacuated',
 				evacuationReason: reason
 			};
@@ -952,37 +990,137 @@ function chunkByChars<T>(items: T[], maxChars: number, render: (item: T) => stri
 	return out;
 }
 
-export function buildAuditReport(requirements: AuditedRequirement[], warnings: string[] = []): ArcKitAuditReport {
+export function buildAuditReport(
+	requirements: AuditedRequirement[],
+	warnings: string[] = [],
+	subjects: FactorizedArchitecturalSubject[] = []
+): ArcKitAuditReport {
 	const count = (d: RequirementDisposition) => requirements.filter((r) => r.disposition === d).length;
 	const categoryDistribution = Object.fromEntries(CATEGORIES.map((c) => [c, 0])) as Record<ArcKitRequirementCategory, number>;
 	for (const r of requirements) if (r.category) categoryDistribution[r.category]++;
 
 	const blocksById = new Map(TOGAF_REFERENCE_BUILDING_BLOCKS.map((b) => [b.id, b]));
 	const slotMap = new Map<string, CommodityDecisionSlotSummary>();
-	for (const req of requirements) {
-		if (req.disposition !== 'evacuated' || !req.commoditySlotId) continue;
-		const block = blocksById.get(req.commoditySlotId);
-		if (!block) continue;
-		const existing = slotMap.get(block.id);
+	const emergentMap = new Map<string, EmergentCapabilitySlotSummary>();
+
+	const registerEmergent = (
+		detection: NonNullable<ReturnType<typeof detectEmergentCapabilityNeed>>,
+		clause?: AuditedRequirement,
+		subjectId?: string
+	) => {
+		const existing = emergentMap.get(detection.capabilityId);
 		if (existing) {
-			existing.coveredClauseIds.push(req.id);
-			existing.coveredRawRefs.push(req.clauseRef);
+			if (clause && !existing.coveredClauseIds.includes(clause.id)) {
+				existing.coveredClauseIds.push(clause.id);
+				existing.coveredRawRefs.push(clause.clauseRef);
+			}
+			if (subjectId && !existing.linkedSubjectIds.includes(subjectId)) {
+				existing.linkedSubjectIds.push(subjectId);
+			}
 		} else {
-			slotMap.set(block.id, {
-				slotId: block.id,
-				title: block.title,
-				togafDomain: block.togafDomain,
-				documentEngineLayer: block.documentEngineLayer,
-				axisUrn: block.axisUrn,
-				defaultLeafUrn: block.defaultLeafUrn,
-				logicalComponentName: block.logicalComponentName,
-				coveredClauseIds: [req.id],
-				coveredRawRefs: [req.clauseRef],
-				status: 'default_proposed'
+			emergentMap.set(detection.capabilityId, {
+				slotId: detection.capabilityId,
+				title: detection.title,
+				togafDomain: detection.togafDomain,
+				documentEngineLayer: detection.documentEngineLayer,
+				axisUrn: 'urn:archinex:ontology:axis:emergent_component_allocation',
+				suggestedComponentName: detection.suggestedComponentName,
+				suggestedTier: detection.suggestedTier,
+				candidateExistingComponents: detection.candidateExistingComponents,
+				rationale: detection.rationale,
+				coveredClauseIds: clause ? [clause.id] : [],
+				coveredRawRefs: clause ? [clause.clauseRef] : [],
+				linkedSubjectIds: subjectId ? [subjectId] : clause?.linkedSubjectId ? [clause.linkedSubjectId] : [],
+				status: 'open'
 			});
 		}
+	};
+
+	for (const req of requirements) {
+		const matchedBlock = req.commoditySlotId ? blocksById.get(req.commoditySlotId) : undefined;
+		if (!matchedBlock) {
+			const emergent = detectEmergentCapabilityNeed(
+				`${req.title}\n${req.text}`,
+				req.category || req.togafDomain,
+				{ fallbackTitle: req.title }
+			);
+			if (emergent) {
+				req.emergentCapabilityId = emergent.capabilityId;
+				req.suggestedComponentName = emergent.suggestedComponentName;
+				registerEmergent(emergent, req, req.linkedSubjectId);
+			}
+		}
+
+		if (req.disposition !== 'evacuated') continue;
+
+		if (matchedBlock) {
+			const existing = slotMap.get(matchedBlock.id);
+			if (existing) {
+				existing.coveredClauseIds.push(req.id);
+				existing.coveredRawRefs.push(req.clauseRef);
+			} else {
+				slotMap.set(matchedBlock.id, {
+					slotId: matchedBlock.id,
+					title: matchedBlock.title,
+					togafDomain: matchedBlock.togafDomain,
+					documentEngineLayer: matchedBlock.documentEngineLayer,
+					axisUrn: matchedBlock.axisUrn,
+					defaultLeafUrn: matchedBlock.defaultLeafUrn,
+					logicalComponentName: matchedBlock.logicalComponentName,
+					coveredClauseIds: [req.id],
+					coveredRawRefs: [req.clauseRef],
+					status: 'default_proposed'
+				});
+			}
+		} else {
+			// Zéro perte silencieuse : une clause évacuée sans brique de référence connue génère un emplacement dédié
+			const domain = req.togafDomain ?? resolveTogafDomain(req.category);
+			const domainDef = TOGAF_DOMAINS[domain];
+			const fallbackSlotId = req.commoditySlotId || `unmapped-commodity-${domain}`;
+			const fallbackAxisUrn =
+				req.commodityAxisUrn ||
+				(req.emergentCapabilityId
+					? 'urn:archinex:ontology:axis:emergent_component_allocation'
+					: `urn:archinex:ontology:axis:unmapped_${domain.replace(/-/g, '_')}`);
+			const existing = slotMap.get(fallbackSlotId);
+			if (existing) {
+				existing.coveredClauseIds.push(req.id);
+				existing.coveredRawRefs.push(req.clauseRef);
+			} else {
+				slotMap.set(fallbackSlotId, {
+					slotId: fallbackSlotId,
+					title: req.suggestedComponentName
+						? `Commodité Émergente (${req.suggestedComponentName}) — Allocation Requise`
+						: `Commodités Non Cartographiées (${domainDef.shortLabel}) — À Ratifier`,
+					togafDomain: domain,
+					documentEngineLayer: domainDef.documentEngineLayer,
+					axisUrn: fallbackAxisUrn,
+					defaultLeafUrn: req.suggestedComponentName
+						? `urn:archinex:ontology:application:emergent:new_${req.suggestedComponentName.replace(/[^a-z0-9_]/gi, '_')}`
+						: `urn:archinex:ontology:commodity:unmapped:${domain.replace(/-/g, '_')}`,
+					logicalComponentName: req.suggestedComponentName,
+					coveredClauseIds: [req.id],
+					coveredRawRefs: [req.clauseRef],
+					status: 'default_proposed'
+				});
+			}
+		}
 	}
+
+	for (const subj of subjects) {
+		const isNovel = subj.knowledgeAlignment === 'novel_requirement';
+		const subjText = `${subj.name}\n${subj.seed?.initialQuestion ?? ''}\n${subj.seed?.initialHypothesis ?? ''}`;
+		const emergent = detectEmergentCapabilityNeed(subjText, undefined, {
+			isNovelSubject: isNovel,
+			fallbackTitle: subj.name
+		});
+		if (emergent) {
+			registerEmergent(emergent, undefined, subj.id);
+		}
+	}
+
 	const commoditySlots = Array.from(slotMap.values()).sort((a, b) => a.slotId.localeCompare(b.slotId));
+	const emergentSlots = Array.from(emergentMap.values()).sort((a, b) => a.slotId.localeCompare(b.slotId));
 
 	return {
 		totalCount: requirements.length,
@@ -996,6 +1134,7 @@ export function buildAuditReport(requirements: AuditedRequirement[], warnings: s
 			.filter((r) => r.disposition === 'clarification_needed')
 			.map((r) => ({ clauseRef: r.clauseRef, title: r.title, question: r.clarificationQuestion! })),
 		commoditySlots,
+		emergentSlots,
 		warnings
 	};
 }
@@ -1350,7 +1489,7 @@ export async function runRequirementsAudit(
 	console.log(`✅ [Audit Exigences ArcKit] Terminé en ${totalSec}s (Statut: ${status}, ${subjects.length} sujets générés).`);
 	console.log(`--------------------------------------------------------------------------------\n`);
 
-	return { status, report: buildAuditReport(requirements, warnings), subjects, warnings, modelUsed: model };
+	return { status, report: buildAuditReport(requirements, warnings, subjects), subjects, warnings, modelUsed: model };
 }
 
 /**
@@ -1386,6 +1525,7 @@ export function toFactorizationResponse(result: StagedAuditResult) {
 		toQualifyCount: report.toQualifyCount,
 		clarifications: report.clarifications,
 		commoditySlots: report.commoditySlots ?? [],
+		emergentSlots: report.emergentSlots ?? [],
 		allAuditedRequirements: report.requirements
 	};
 }

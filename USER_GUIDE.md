@@ -558,6 +558,18 @@ Dans l'atelier **Phase 4 : Refinement & Hydratation** (`Phase4RefinementHub`), l
   - En mode **Fixé par le Client**, il vérifie via l'oracle OPA (`edp/policies/twin_resilience.rego`) si la topologie imposée par le client respecte les exigences de résilience ou s'il existe une contradiction formelle à notifier en réserve au CCTP.
 - **Aperçu du Bouchon Redfish `sushy-emulator` (`capm3`)** : le bouton **`Bouchon Redfish sushy`** affiche la configuration `sushy-emulator.conf` générée automatiquement depuis l'inventaire hydraté pour bouchonner les contrôleurs BMC Redfish en CI sans serveurs physiques.
 
+### 13.9 Allocation Explicite des Responsabilités Composants (ex: SIG §9.4/§11), Zéro Défaut Silencieux & Sujets RFP Inédits (Phase 1 → Phase 5)
+Pour garantir qu'aucun choix d'architecture ou d'allocation de responsabilité applicative ne reste implicite ou silencieux :
+- **Détection dès la Phase 1 (Ingestion)** :
+  - Toute clause évacuée en commodité qui ne correspond à aucune brique du catalogue de référence TOGAF est rattachée à un emplacement d'allocation ouvert (`emergentSlots`), évitant toute perte silencieuse.
+  - Les sujets inédits d'un RFP (`novel_requirement` ou thématiques émergentes telles que **IoT / LoRaWAN / MQTT**, **Streaming Vidéo RTSP/WebRTC**, **Inférence IA/LLM**) génèrent dès le rapport d'audit un emplacement de capacité émergente (`EmergentCapabilitySlotSummary`, ex: `iot-gateway`).
+- **Allocation Explicite en Phase 4 (`Phase4RefinementHub`)** :
+  - Les axes applicatifs contextuels (tels que **`6. Fusion de Localisation Multi-Sources & Géofencing SIG`** et **`7. Moteur Cartographique & Tuiles SIG`** sur le sujet DEMOLULU `sub_lulu_64` — *§9.4, §11*) ainsi que l'axe dynamique **`0. Allocation de Composant Logique (Capacité Émergente / Sujet Inédit)`** s'affichent automatiquement dans la matrice KAOS.
+  - Tant qu'un architecte n'a pas statué, toute pré-liaison porte le badge **`🟠 Défaut proposé — À ratifier`** (`bindingOrigin = 'default_proposed'`) et affiche les **`🧩 Composant(s) responsable(s)`** candidats (`gis-server`, `ptt-server`, `iot-gateway`, etc.).
+  - Un clic sur **`✓ Ratifier : <Feuille> → [composants]`** ou sur une variante scelle explicitement la décision (`bindingOrigin = 'explicit'`) et synchronise automatiquement les composants instanciés dans le catalogue projet.
+- **Registre d'Emplacements, Scellement `architecture.lock` & Jumeau Sylva en Phase 5 (`Phase5ConsolidationHub`)** :
+  - L'encart **Registre d'Emplacements de Décision, Allocation des Composants & Scellement `architecture.lock`** dans l'onglet **`Phase 5 · Consolidation`** liste tous les emplacements (`open`, `default_proposed`, `explicit`), permet d'instancier en un clic un nouveau `LogicalComponent` émergent (`instantiate_emergent_component`) conforme au linter `Base × Overlay × DC` (0 IP en dur, 3 NICs `admin`/`business`/`events`), de ratifier les défauts proposés et d'exporter le manifeste scellé `architecture.lock` (bloqué en `409 Conflict` tant qu'un choix reste implicite).
+
 ---
 
 ## 14. Architecture Ergonomique à 2 Niveaux (Projet vs Sujet) & Clarté des Libellés

@@ -17,18 +17,116 @@
 	let selectedViewEnv = $state<'prod' | 'preprod' | 'lab'>('prod');
 	let showCatalogEditor = $state(false);
 	let projectCatalogState = $state<any>(null);
+	let decisionSlotsState = $state<any>(null);
+	let isSlotActionRunning = $state(false);
+	let slotActionMessage = $state<string | null>(null);
+	let slotActionError = $state<string | null>(null);
+	let emergentComponentInput = $state('iot-gateway');
 
 	async function loadProjectCatalogViews() {
 		if (!projectId) return;
 		try {
-			const res = await fetch(
-				`/api/projects/${encodeURIComponent(projectId)}/catalog?env=${encodeURIComponent(selectedViewEnv)}&mode=${encodeURIComponent(twinArbitrationMode)}&mandatedProfile=${encodeURIComponent(selectedTwinProfileId)}`
-			);
-			if (res.ok) {
-				projectCatalogState = await res.json();
+			const [catRes, slotsRes] = await Promise.all([
+				fetch(
+					`/api/projects/${encodeURIComponent(projectId)}/catalog?env=${encodeURIComponent(selectedViewEnv)}&mode=${encodeURIComponent(twinArbitrationMode)}&mandatedProfile=${encodeURIComponent(selectedTwinProfileId)}`
+				),
+				fetch(`/api/projects/${encodeURIComponent(projectId)}/decision-slots`)
+			]);
+			if (catRes.ok) {
+				projectCatalogState = await catRes.json();
+			}
+			if (slotsRes.ok) {
+				decisionSlotsState = await slotsRes.json();
 			}
 		} catch {
 			// non bloquant
+		}
+	}
+
+	async function handleRatifyType2Batch() {
+		if (!projectId || isSlotActionRunning) return;
+		isSlotActionRunning = true;
+		slotActionMessage = null;
+		slotActionError = null;
+		try {
+			const res = await fetch(`/api/projects/${encodeURIComponent(projectId)}/decision-slots`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					action: 'ratify_batch',
+					actorRole: 'lead_architect',
+					rationale:
+						'Ratification explicite des emplacements de commodité Type 2 en Consolidation Phase 5.'
+				})
+			});
+			const data = await res.json();
+			if (!res.ok || data.status === 'error') {
+				slotActionError = data.error || 'Échec de la ratification en lot.';
+			} else {
+				slotActionMessage = `${data.receipt?.ratifiedSlotIds?.length || 0} emplacement(s) Type 2 ratifiés et composants transverses instanciés (${(data.instantiatedComponents || []).join(', ')}).`;
+				await loadProjectCatalogViews();
+			}
+		} catch (e: any) {
+			slotActionError = e.message || 'Erreur réseau.';
+		} finally {
+			isSlotActionRunning = false;
+		}
+	}
+
+	async function handleSealArchitectureLock() {
+		if (!projectId || isSlotActionRunning) return;
+		isSlotActionRunning = true;
+		slotActionMessage = null;
+		slotActionError = null;
+		try {
+			const res = await fetch(`/api/projects/${encodeURIComponent(projectId)}/decision-slots`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					action: 'seal_architecture_lock',
+					actorRole: 'lead_architect'
+				})
+			});
+			const data = await res.json();
+			if (!res.ok || data.status === 'error') {
+				slotActionError = data.error || 'Verrouillage architecture.lock refusé (emplacements non ratifiés ou violation OPA).';
+			} else {
+				slotActionMessage = `Manifeste architecture.lock scellé avec succès (SHA-256 : ${data.architectureLock?.integritySha256?.slice(0, 16)}…).`;
+				await loadProjectCatalogViews();
+			}
+		} catch (e: any) {
+			slotActionError = e.message || 'Erreur réseau.';
+		} finally {
+			isSlotActionRunning = false;
+		}
+	}
+
+	async function handleInstantiateEmergentComponent() {
+		const targetName = emergentComponentInput.trim();
+		if (!projectId || !targetName || isSlotActionRunning) return;
+		isSlotActionRunning = true;
+		slotActionMessage = null;
+		slotActionError = null;
+		try {
+			const res = await fetch(`/api/projects/${encodeURIComponent(projectId)}/catalog`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					action: 'instantiate_emergent_component',
+					name: targetName
+				})
+			});
+			const data = await res.json();
+			if (!res.ok || !data.success) {
+				slotActionError = data.error || 'Échec de l’instanciation du composant émergent.';
+			} else {
+				slotActionMessage = `Composant logique émergent « ${data.component?.metadata?.name || targetName} » instancié dans le catalogue et projeté dans le Jumeau Sylva.`;
+				await loadProjectCatalogViews();
+			}
+		} catch (e: any) {
+			slotActionError = e.message || 'Erreur réseau.';
+		} finally {
+			isSlotActionRunning = false;
 		}
 	}
 
@@ -82,6 +180,129 @@
 				(<code class="font-mono">ref()</code>), simule la survie aux pannes du Jumeau Numérique de Sylva (3 DCs par défaut vs 2 DCs + Témoin vs 2 DCs secs) et génère le bouchon Redfish <code class="font-mono">sushy-emulator</code>.
 			</p>
 		</div>
+	</div>
+
+	<!-- Registre des Emplacements de Décision (Zéro Défaut Silencieux), Composants Émergents & Scellement architecture.lock -->
+	<div
+		class="rounded-xl border bg-card p-4 shadow-xs space-y-3 text-xs"
+		data-testid="phase5-decision-slots-card"
+	>
+		<div class="flex items-center justify-between gap-2 flex-wrap border-b pb-2.5">
+			<div>
+				<span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-amber-500/15 text-amber-800 dark:text-amber-300">
+					Invariant Zéro Défaut Silencieux · TOGAF 7 Domaines · architecture.lock
+				</span>
+				<h3 class="text-sm font-bold text-foreground mt-1">
+					Registre d'Emplacements de Décision, Allocation des Composants & Scellement Cryptographique
+				</h3>
+			</div>
+			<div class="flex items-center gap-2 flex-wrap">
+				<div class="inline-flex items-center gap-1">
+					<input
+						type="text"
+						bind:value={emergentComponentInput}
+						placeholder="ex: iot-gateway"
+						class="rounded border bg-background px-2 py-1 font-mono text-xs w-36"
+						data-testid="phase5-emergent-component-input"
+					/>
+					<button
+						type="button"
+						disabled={isSlotActionRunning}
+						onclick={handleInstantiateEmergentComponent}
+						class="px-2.5 py-1 rounded border border-violet-500/40 bg-violet-500/10 hover:bg-violet-500/20 text-violet-800 dark:text-violet-200 font-semibold text-xs cursor-pointer"
+						title="Instancier un nouveau composant logique pour un besoin fonctionnel inédit (ex: IoT, Vidéo, IA)"
+						data-testid="phase5-instantiate-emergent-btn"
+					>
+						+ Instancier composant émergent
+					</button>
+				</div>
+				<button
+					type="button"
+					disabled={isSlotActionRunning || (decisionSlotsState?.ledger?.type2RatificationQueue?.length ?? 1) === 0}
+					onclick={handleRatifyType2Batch}
+					class="px-2.5 py-1 rounded bg-amber-600 hover:bg-amber-700 disabled:opacity-50 text-white font-semibold text-xs cursor-pointer"
+					data-testid="phase5-ratify-batch-btn"
+				>
+					✓ Ratifier commodités Type 2 en lot ({decisionSlotsState?.ledger?.type2RatificationQueue?.length ?? 0})
+				</button>
+				<button
+					type="button"
+					disabled={isSlotActionRunning}
+					onclick={handleSealArchitectureLock}
+					class="px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white font-semibold text-xs cursor-pointer"
+					data-testid="phase5-seal-lock-btn"
+				>
+					🔒 Sceller architecture.lock (SHA-256)
+				</button>
+			</div>
+		</div>
+
+		{#if slotActionMessage}
+			<div class="p-2 rounded border border-emerald-500/40 bg-emerald-500/10 text-emerald-900 dark:text-emerald-200 font-medium">
+				✓ {slotActionMessage}
+			</div>
+		{/if}
+		{#if slotActionError}
+			<div class="p-2 rounded border border-rose-500/40 bg-rose-500/10 text-rose-900 dark:text-rose-200 font-medium">
+				⚠️ {slotActionError}
+			</div>
+		{/if}
+
+		{#if decisionSlotsState?.ledger}
+			{@const ledger = decisionSlotsState.ledger}
+			<div class="grid grid-cols-2 sm:grid-cols-5 gap-2">
+				<div class="p-2 rounded border bg-muted/20">
+					<div class="text-[10px] text-muted-foreground uppercase">Ratification Humaine</div>
+					<div class="font-mono font-bold text-foreground">
+						{Math.round((ledger.conscientiousMetrics?.humanRatifiedRatio || 0) * 100)}% ({ledger.conscientiousMetrics?.boundVerifiedSlots || 0}/{ledger.conscientiousMetrics?.totalSlots || 0})
+					</div>
+				</div>
+				<div class="p-2 rounded border bg-muted/20">
+					<div class="text-[10px] text-muted-foreground uppercase">Défauts Proposés</div>
+					<div class="font-mono font-bold {ledger.conscientiousMetrics?.defaultProposedSlots > 0 ? 'text-amber-600 dark:text-amber-400' : 'text-emerald-600 dark:text-emerald-400'}">
+						{ledger.conscientiousMetrics?.defaultProposedSlots || 0} à ratifier
+					</div>
+				</div>
+				<div class="p-2 rounded border bg-muted/20">
+					<div class="text-[10px] text-muted-foreground uppercase">File Type 1 / Type 2</div>
+					<div class="font-mono font-bold text-foreground">
+						{ledger.type1DeliberationQueue?.length || 0} T1 · {ledger.type2RatificationQueue?.length || 0} T2
+					</div>
+				</div>
+				<div class="p-2 rounded border bg-muted/20">
+					<div class="text-[10px] text-muted-foreground uppercase">Composants Catalogue</div>
+					<div class="font-mono font-bold text-foreground">
+						{projectCatalogState?.bundle?.components?.length || 0} actifs
+					</div>
+				</div>
+				<div class="p-2 rounded border bg-muted/20">
+					<div class="text-[10px] text-muted-foreground uppercase">État architecture.lock</div>
+					<div class="font-mono font-bold {decisionSlotsState.architectureLock ? 'text-emerald-600 dark:text-emerald-400' : ledger.readyForArchitectureLock ? 'text-indigo-600 dark:text-indigo-400' : 'text-amber-600 dark:text-amber-400'}">
+						{decisionSlotsState.architectureLock
+							? `SCELLÉ (${decisionSlotsState.architectureLock.integritySha256.slice(0, 10)}…)`
+							: ledger.readyForArchitectureLock
+								? 'PRÊT À SCELLER'
+								: 'BLOQUÉ (Choix requis)'}
+					</div>
+				</div>
+			</div>
+		{/if}
+
+		{#if projectCatalogState?.bundle?.components?.length}
+			<div class="flex items-center gap-1.5 flex-wrap pt-1">
+				<span class="text-[11px] font-semibold text-muted-foreground">Composants logiques consolidés :</span>
+				{#each projectCatalogState.bundle.components as comp}
+					<span
+						class="px-2 py-0.5 rounded font-mono text-[10px] border {comp.metadata.labels?.origin === 'emergent-slot'
+							? 'bg-violet-500/15 border-violet-500/40 text-violet-800 dark:text-violet-200 font-bold'
+							: 'bg-background text-foreground'}"
+						data-testid="phase5-consolidated-component-pill"
+					>
+						{comp.metadata.name}
+					</span>
+				{/each}
+			</div>
+		{/if}
 	</div>
 
 	<!-- Vues synchronisées, Jumeau Numérique de Sylva (3 DCs / 2 DCs + Témoin / 2 DCs) & Catalogue Composants -->

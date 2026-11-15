@@ -1576,8 +1576,167 @@ const DEFAULT_URN_TO_COMPONENT: Record<string, string> = {
   'urn:archinex:ontology:network:proxy:squid_explicit_fqdn': 'ingress-waf-proxy',
   'urn:archinex:ontology:network:ingress:envoy_coraza_waf': 'ingress-waf-proxy',
   'urn:archinex:ontology:application:gis:geoserver_postgis_offline': 'gis-server',
-  'urn:archinex:ontology:application:gis:qgis_server_wmts': 'gis-server'
+  'urn:archinex:ontology:application:gis:qgis_server_wmts': 'gis-server',
+  'urn:archinex:ontology:application:gis:central_fusion_hybrid_geofencing': 'gis-server',
+  'urn:archinex:ontology:application:gis:central_fusion_server_only_geofencing': 'gis-server',
+  'urn:archinex:ontology:application:gis:distributed_terminal_geofencing': 'ptt-server'
 };
+
+/**
+ * Construit un composant logique conforme au modèle Base × Overlay × DC (0 IP en dur, Multi-NIC,
+ * VRF alignées, Vault + PKI + SIEM) pour une capacité fonctionnelle émergente (ex: `iot-gateway`).
+ */
+export function createEmergentLogicalComponent(
+  rawName: string,
+  displayName?: string
+): LogicalComponent {
+  const safeName = rawName
+    .toLowerCase()
+    .replace(/[^a-z0-9-]+/g, '-')
+    .replace(/^-+|-+$/g, '') || 'emergent-service';
+  const shortPrefix = safeName.split('-')[0] || 'emergent';
+
+  return {
+    apiVersion: 'archinex.io/v1alpha1',
+    kind: 'LogicalComponent',
+    metadata: {
+      name: safeName,
+      displayName: displayName || `Service Applicatif Émergent (${safeName})`,
+      tenant: `tenant-${safeName}`,
+      external: false,
+      functionalDomain: 'gis-services',
+      editor: 'gis-ops',
+      status: 'active',
+      version: '1.0.0',
+      manifestVersion: 1,
+      labels: { criticality: 'tier-2', layer: 'application-emergent', origin: 'emergent-slot' }
+    },
+    spec: {
+      class: 'business',
+      dependsOn: ['pki-ca', 'vault-cluster', 'siem-soc'],
+      network: {
+        vrfs: [
+          { name: `vrf-${shortPrefix}-app`, domain: `${safeName}.internal`, tenantRef: 'ref(component.metadata.tenant)' },
+          { name: `vrf-${shortPrefix}-events`, domain: 'events.internal' },
+          { name: `vrf-${shortPrefix}-admin`, domain: 'admin.internal' }
+        ],
+        subnets: [
+          {
+            name: `sn-${shortPrefix}-app`,
+            cidr: 'ref(param.gis.subnet.app)',
+            vrf: `vrf-${shortPrefix}-app`,
+            zone: 'data',
+            class: 'business',
+            reserved: { gateway: { offset: 1 }, [`vip-${shortPrefix}`]: { offset: 10 } }
+          },
+          {
+            name: `sn-${shortPrefix}-events`,
+            cidr: 'ref(param.gis.subnet.events)',
+            vrf: `vrf-${shortPrefix}-events`,
+            zone: 'events',
+            class: 'events'
+          },
+          {
+            name: `sn-${shortPrefix}-admin`,
+            cidr: 'ref(param.gis.subnet.admin)',
+            vrf: `vrf-${shortPrefix}-admin`,
+            zone: 'admin',
+            class: 'admin'
+          }
+        ]
+      },
+      compute: {
+        modules: [
+          {
+            name: `${safeName}-engine`,
+            kind: 'container',
+            role: `${safeName}-worker`,
+            status: 'active',
+            instances: 'ref(param.gis.instances.api)',
+            placement: { requiredDataplane: 'standard-nis2', zone: 'data', pool: 'sylva-standard-nis2' },
+            nics: [
+              {
+                class: 'admin',
+                index: 1,
+                vrf: `vrf-${shortPrefix}-admin`,
+                subnetRef: `sn-${shortPrefix}-admin`,
+                ip: { by: 'offset', value: 32, perInstance: true }
+              },
+              {
+                class: 'business',
+                index: 2,
+                vrf: `vrf-${shortPrefix}-app`,
+                subnetRef: `sn-${shortPrefix}-app`,
+                ip: { by: 'offset', value: 40, perInstance: true },
+                defaultRoute: true
+              },
+              {
+                class: 'events',
+                index: 3,
+                vrf: `vrf-${shortPrefix}-events`,
+                subnetRef: `sn-${shortPrefix}-events`,
+                ip: { by: 'dhcp' }
+              }
+            ],
+            helm: {
+              repo: `oci://registry.sylva.internal/${shortPrefix}`,
+              chart: safeName,
+              version: 'ref(param.gis.chartVersion)'
+            },
+            storage: [
+              {
+                name: `${shortPrefix}-data`,
+                size: '100Gi',
+                tier: 'warm',
+                svmRef: `svm-${safeName}`,
+                reclaimPolicy: 'retain'
+              }
+            ]
+          }
+        ]
+      },
+      storage: {
+        svms: [
+          {
+            name: `svm-${safeName}`,
+            tenantRef: 'ref(component.metadata.tenant)',
+            backend: 'longhorn-nvme',
+            tiers: [{ tier: 'warm', quota: 'ref(param.storage.warm.quota)' }]
+          }
+        ],
+        exports: []
+      },
+      security: {
+        vault: {
+          mount: `vault://tenant-${safeName}`,
+          paths: [{ name: `${shortPrefix}-service-secret`, rule: 'default-password', rotationDays: 90 }]
+        },
+        certificates: [
+          {
+            name: `${safeName}-tls`,
+            type: 'server',
+            cn: `${safeName}.internal`,
+            sanDns: [`${safeName}.internal`],
+            sanIps: [`ref(network.subnets[sn-${shortPrefix}-app].reserved[vip-${shortPrefix}])`],
+            validityDays: 90,
+            issuanceMethod: 'internal-ca',
+            autoRenew: true
+          }
+        ]
+      },
+      firewall: {
+        policy: 'deny-by-default',
+        groups: [
+          {
+            name: `${safeName}-endpoints`,
+            membersRef: `ref(compute.modules[${safeName}-engine].instances[*].nics[class=business].ip)`
+          }
+        ],
+        rules: []
+      }
+    }
+  };
+}
 
 /**
  * Instancie un catalogue de composants complet à partir d'un catalogue de base et des liaisons
@@ -1604,6 +1763,29 @@ export function instantiateCatalogFromOntologyBindings(
     if (mapped && byName.has(mapped) && !selectedNames.has(mapped)) {
       selectedNames.add(mapped);
       queue.push(mapped);
+      continue;
+    }
+
+    const emergentNewMatch = /^urn:archinex:ontology:application:emergent:new_([a-z0-9_-]+)$/i.exec(urn);
+    if (emergentNewMatch) {
+      const compName = emergentNewMatch[1].replace(/_/g, '-').toLowerCase();
+      if (!byName.has(compName)) {
+        byName.set(compName, createEmergentLogicalComponent(compName));
+      }
+      if (!selectedNames.has(compName)) {
+        selectedNames.add(compName);
+        queue.push(compName);
+      }
+      continue;
+    }
+
+    const emergentAllocMatch = /^urn:archinex:ontology:application:emergent:allocate_([a-z0-9_-]+)$/i.exec(urn);
+    if (emergentAllocMatch) {
+      const compName = emergentAllocMatch[1].replace(/_/g, '-').toLowerCase();
+      if (byName.has(compName) && !selectedNames.has(compName)) {
+        selectedNames.add(compName);
+        queue.push(compName);
+      }
     }
   }
 

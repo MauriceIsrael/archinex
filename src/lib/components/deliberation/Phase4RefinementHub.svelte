@@ -363,19 +363,56 @@
 						Interrogation du graphe d'ontologie et calcul de la matrice KAOS...
 					</div>
 				{:else if coverage}
+					{#if coverage.conscientiousMetrics}
+						<div
+							class="p-2.5 rounded-lg border flex items-center justify-between gap-2 flex-wrap text-xs {coverage.conscientiousMetrics.defaultProposedSlots > 0
+								? 'bg-amber-500/10 border-amber-500/40 text-amber-900 dark:text-amber-200'
+								: 'bg-emerald-500/10 border-emerald-500/40 text-emerald-900 dark:text-emerald-200'}"
+							data-testid="phase4-conscientious-banner"
+						>
+							<div class="flex items-center gap-2 flex-wrap">
+								<span class="font-bold">
+									{coverage.conscientiousMetrics.defaultProposedSlots > 0
+										? `🟠 ${coverage.conscientiousMetrics.defaultProposedSlots} emplacement(s) en « Défaut proposé » (Zéro Défaut Silencieux : choix explicite requis)`
+										: '🟢 100 % des axes et composants du sujet sont explicitement ratifiés'}
+								</span>
+								<span class="font-mono text-[10px] px-1.5 py-0.5 rounded bg-background/80 border">
+									Ratification humaine : {Math.round((coverage.conscientiousMetrics.humanRatifiedRatio || 0) * 100)}%
+								</span>
+							</div>
+							{#if coverage.conscientiousMetrics.defaultProposedSlots > 0}
+								<button
+									type="button"
+									disabled={isActionRunning}
+									onclick={() =>
+										triggerEdpAction(
+											{ action: 'bind_aspect', ratifyAllDefaults: true, selectedConceptUrn },
+											'Tous les choix proposés du sujet ont été ratifiés et les composants synchronisés !'
+										)}
+									class="px-2.5 py-1 rounded-md text-[11px] font-bold bg-amber-600 hover:bg-amber-700 text-white shadow-2xs transition-colors cursor-pointer"
+									data-testid="phase4-ratify-all-subject-btn"
+								>
+									✓ Ratifier les choix proposés du sujet
+								</button>
+							{/if}
+						</div>
+					{/if}
+
 					<!-- Liste des axes obligatoires -->
 					<div class="space-y-2.5">
 						{#each coverage.axes as axis, idx}
 							<div
-								class="p-3 rounded-lg border text-xs transition-all {axis.status === 'covered_executable'
-									? 'bg-emerald-500/5 border-emerald-500/30'
-									: axis.status === 'covered_no_oracle'
-										? 'bg-amber-500/5 border-amber-500/30'
-										: 'bg-rose-500/5 border-rose-500/30'}"
+								class="p-3 rounded-lg border text-xs transition-all {axis.requiresRatification
+									? 'bg-amber-500/5 border-amber-500/40'
+									: axis.status === 'covered_executable'
+										? 'bg-emerald-500/5 border-emerald-500/30'
+										: axis.status === 'covered_no_oracle'
+											? 'bg-amber-500/5 border-amber-500/30'
+											: 'bg-rose-500/5 border-rose-500/30'}"
 								data-testid="phase4-axis-card"
 							>
 								<div class="flex items-start justify-between gap-2 flex-wrap">
-									<div class="space-y-0.5">
+									<div class="space-y-1">
 										<div class="flex items-center gap-2 flex-wrap">
 											<span class="font-mono text-[10px] font-bold text-muted-foreground">
 												AXE {idx + 1}
@@ -393,13 +430,48 @@
 													🔴 Lacune de Raffinement (Axe Oublié)
 												</span>
 											{/if}
+											{#if axis.requiresRatification}
+												<span
+													class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-amber-500/25 text-amber-900 dark:text-amber-200 border border-amber-500/40"
+													data-testid="phase4-axis-default-proposed-badge"
+												>
+													🟠 Défaut proposé — À ratifier
+												</span>
+											{:else if axis.bindingOrigin === 'explicit' || axis.bindingOrigin === 'strong_link'}
+												<span
+													class="px-1.5 py-0.5 rounded text-[10px] font-bold bg-indigo-500/15 text-indigo-800 dark:text-indigo-200 border border-indigo-500/30"
+													data-testid="phase4-axis-ratified-badge"
+												>
+													✓ Décidé / Ratifié
+												</span>
+											{/if}
+											{#if axis.instantiatedComponents && axis.instantiatedComponents.length > 0}
+												<span
+													class="px-1.5 py-0.5 rounded font-mono text-[10px] font-bold bg-violet-500/15 text-violet-800 dark:text-violet-200 border border-violet-500/30"
+													data-testid="phase4-axis-components"
+												>
+													🧩 Composant(s) responsable(s) : {axis.instantiatedComponents.join(', ')}
+												</span>
+											{/if}
 											<strong class="text-xs font-bold text-foreground">{axis.axisTitle}</strong>
 										</div>
 										<p class="text-[11px] text-muted-foreground">{axis.rationale}</p>
 									</div>
 
-									<!-- Boutons de sélection de feuille (OR-Refinement : cumul inclusif + remplacement exclusif) -->
+									<!-- Boutons de sélection de feuille (OR-Refinement : ratification directe, remplacement exclusif ou cumul inclusif) -->
 									<div class="flex items-center gap-1.5 flex-wrap">
+										{#if axis.requiresRatification && axis.boundLeaves?.[0]}
+											<button
+												type="button"
+												disabled={isActionRunning}
+												onclick={() => handleBindLeaf(axis.boundLeaves[0].urn, axis.axisUrn, 'replace')}
+												class="px-2.5 py-1 rounded-md text-[11px] font-bold bg-amber-600 hover:bg-amber-700 text-white shadow-2xs transition-colors cursor-pointer"
+												title="Ratifier explicitement la variante proposée et instancier le composant associé"
+												data-testid="phase4-ratify-axis-btn"
+											>
+												✓ Ratifier « {axis.boundLeaves[0].title} »
+											</button>
+										{/if}
 										{#each axis.candidateLeaves as cand}
 											{@const isBound = axis.boundLeaves.some((b: any) => b.urn === cand.urn)}
 											{@const isExecutableVariant = (cand.oracleRules?.length || 0) > 0}
@@ -418,21 +490,22 @@
 													<button
 														type="button"
 														disabled={isActionRunning}
-														onclick={() => handleBindLeaf(cand.urn, axis.axisUrn, 'add')}
-														class="px-2.5 py-1 rounded-md text-[11px] font-semibold border border-emerald-500/40 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-800 dark:text-emerald-200 transition-colors cursor-pointer"
-														title="Cumuler cette seconde variante sur le même axe (ex: Cluster Sylva SR-IOV/DPDK CNF + Cluster Sylva Standard NIS2)"
-														data-testid="phase4-bind-leaf-btn"
+														onclick={() => handleBindLeaf(cand.urn, axis.axisUrn, 'replace')}
+														class="px-2.5 py-1 rounded-md text-[11px] font-semibold border border-indigo-500/40 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-800 dark:text-indigo-200 transition-colors cursor-pointer"
+														title="Choisir cette variante d'architecture pour cet axe (remplace la variante actuelle)"
+														data-testid="phase4-replace-leaf-btn"
 													>
-														+ Cumuler « {cand.title} »
+														⇄ Choisir « {cand.title} »
 													</button>
 													<button
 														type="button"
 														disabled={isActionRunning}
-														onclick={() => handleBindLeaf(cand.urn, axis.axisUrn, 'replace')}
-														class="px-2 py-1 rounded-md text-[10px] font-semibold border border-indigo-500/40 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-800 dark:text-indigo-200 transition-colors cursor-pointer"
-														title="Remplacer la variante actuelle de cet axe par celle-ci"
+														onclick={() => handleBindLeaf(cand.urn, axis.axisUrn, 'add')}
+														class="px-2 py-1 rounded-md text-[10px] font-semibold border border-emerald-500/40 bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-800 dark:text-emerald-200 transition-colors cursor-pointer"
+														title="Cumuler cette seconde variante sur le même axe"
+														data-testid="phase4-bind-leaf-btn"
 													>
-														⇄ Remplacer
+														+ Cumuler
 													</button>
 												{/if}
 											{/if}

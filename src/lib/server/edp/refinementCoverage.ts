@@ -27,7 +27,9 @@ import {
   type ResolvedComponentInstance
 } from '../../domain/edp/refResolver.js';
 import {
+  detectEmergentCapabilityNeed,
   resolveTogafDomain,
+  type EmergentCapabilityDetection,
   type TogafDomainId
 } from '../../domain/edp/togafTaxonomy.js';
 import {
@@ -138,6 +140,7 @@ export interface RefinementCoverageReport {
   matchedConcepts: Array<{ urn: string; title: string; score: number }>;
   allConcepts?: HldConceptSummary[];
   selectedConceptUrn?: string;
+  emergentCapability?: EmergentCapabilityDetection;
   axes: AxisCoverageItem[];
   clauses: ClauseCoverageItem[];
   dependencyIssues: CrossAxisDependencyIssue[];
@@ -174,6 +177,8 @@ export interface SubjectRefinementInput {
   explicitBindings?: OntologyBindingItem[];
   autoBindFromText?: boolean;
   selectedConceptUrn?: string;
+  isNovelSubject?: boolean;
+  emergentCapability?: EmergentCapabilityDetection;
 }
 
 export interface LldHydrationOverrides {
@@ -760,6 +765,14 @@ function collectInstantiatedComponents(
     if (entity?.instantiated_component) {
       names.add(String(entity.instantiated_component).replace(/^urn:archinex:component:/, ''));
     }
+    const emergentNew = /^urn:archinex:ontology:application:emergent:new_([a-z0-9_-]+)$/i.exec(urn);
+    if (emergentNew) {
+      names.add(emergentNew[1].replace(/_/g, '-').toLowerCase());
+    }
+    const emergentAlloc = /^urn:archinex:ontology:application:emergent:allocate_([a-z0-9_-]+)$/i.exec(urn);
+    if (emergentAlloc) {
+      names.add(emergentAlloc[1].replace(/_/g, '-').toLowerCase());
+    }
   }
 
   for (const triplet of catalog.triplets || []) {
@@ -782,29 +795,106 @@ export function computeRefinementCoverage(
   const matchedConcepts = resolveSubjectConcepts(input, catalog);
   const implementedRegoRules = loadImplementedRegoRuleNames();
   const factsText = (input.structuredFacts || []).map((f) => f.statement).join(' ');
-  const corpus = normalizeText(
-    [
-      input.title || '',
-      input.problem || '',
-      input.decisionText || '',
-      input.detailedSpec || '',
-      factsText
-    ].join(' ')
-  );
+  const rawCombinedText = [
+    input.title || '',
+    input.problem || '',
+    input.decisionText || '',
+    input.detailedSpec || '',
+    factsText
+  ].join(' ');
+  const corpus = normalizeText(rawCombinedText);
 
   const corpusCandidateIds = extractClauseIdentifiers(
     [
-      input.title || '',
-      input.problem || '',
-      input.decisionText || '',
-      input.detailedSpec || '',
-      factsText,
+      rawCombinedText,
       ...(input.structuredFacts || []).map((f) => `${f.id || ''} ${f.target || ''}`)
     ].join(' ')
   );
 
-  // 1. Collecte des axes de raffinement obligatoires (triplets `requires_aspect` issus des concepts retenus)
+  const explicitBindingSet = new Set<string>(
+    (input.explicitBindings || []).map((b) => b.urn)
+  );
+  const boundLeafUrns = new Set<string>(explicitBindingSet);
+  const shouldAutoBind = input.autoBindFromText ?? explicitBindingSet.size === 0;
+  const isAutoConceptMode = !input.selectedConceptUrn || input.selectedConceptUrn === 'AUTO';
+
+  // 1. Collecte des axes de raffinement obligatoires (axes applicatifs contextuels + triplets `requires_aspect` des concepts retenus)
   const mandatoryAxisMap = new Map<string, OntologyTriplet>();
+
+  if (isAutoConceptMode || Array.from(explicitBindingSet).some((u) => u.includes(':application:'))) {
+    const appAxes = Object.values(catalog.entities).filter(
+      (e) =>
+        e.kind === 'axis' &&
+        (e.domain === 'application' || e.togaf_domain === 'application-business')
+    );
+
+    const paddedCorpus = ` ${corpus.replace(/[^a-z0-9-]+/g, ' ')} `;
+    const matchesEntityKeywords = (entity: OntologyEntity): boolean => {
+      const kws = Array.isArray(entity.keywords) ? entity.keywords : [];
+      for (const kw of kws) {
+        const normKw = normalizeText(String(kw)).replace(/[^a-z0-9-]+/g, ' ').trim();
+        if (!normKw) continue;
+        if (paddedCorpus.includes(` ${normKw} `) || (normKw.length >= 6 && corpus.includes(normKw))) {
+          return true;
+        }
+      }
+      return false;
+    };
+
+    const matchedAppAxisUrns = new Set<string>();
+    for (const appAxis of appAxes) {
+      const implTriplets = queryOntologyTriplets(catalog, {
+        subject: appAxis.urn,
+        predicate: 'implemented_by'
+      });
+      const axisMatched = isAutoConceptMode && matchesEntityKeywords(appAxis);
+      let leafMatched = false;
+      for (const t of implTriplets) {
+        if (explicitBindingSet.has(t.object)) {
+          leafMatched = true;
+          break;
+        }
+        const leaf = catalog.entities[t.object];
+        if (!leaf || !isAutoConceptMode) continue;
+        if (
+          matchesEntityKeywords(leaf) ||
+          (corpusCandidateIds.length > 0 && Boolean(findStrongLinkForLeaf(leaf, corpusCandidateIds, catalog)))
+        ) {
+          leafMatched = true;
+          break;
+        }
+      }
+      if (axisMatched || leafMatched) {
+        matchedAppAxisUrns.add(appAxis.urn);
+      }
+    }
+
+    // Inclure également tout axe applicatif prérequis (ex: gis_location_fusion -> gis_tile_engine)
+    if (matchedAppAxisUrns.size > 0) {
+      const appPrereqs = computeTransitivePrerequisiteAxes(matchedAppAxisUrns, catalog);
+      for (const prereqUrn of appPrereqs.keys()) {
+        const prereqEntity = catalog.entities[prereqUrn];
+        if (
+          prereqEntity?.kind === 'axis' &&
+          (prereqEntity.domain === 'application' || prereqEntity.togaf_domain === 'application-business')
+        ) {
+          matchedAppAxisUrns.add(prereqUrn);
+        }
+      }
+    }
+
+    for (const appAxisUrn of matchedAppAxisUrns) {
+      mandatoryAxisMap.set(appAxisUrn, {
+        id: `tr-ctx-${appAxisUrn}`,
+        subject: matchedConcepts[0]?.urn || 'urn:archinex:ontology:concept:application_allocation',
+        predicate: 'requires_aspect',
+        object: appAxisUrn,
+        rationale:
+          'Axe d’allocation fonctionnelle et de responsabilité de composant logique requis par le périmètre du sujet (Zéro Défaut Silencieux).'
+      });
+    }
+  }
+
   for (const concept of matchedConcepts) {
     const reqTriplets = queryOntologyTriplets(catalog, {
       subject: concept.urn,
@@ -817,18 +907,120 @@ export function computeRefinementCoverage(
     }
   }
 
-  // 2. Liaisons explicites déjà présentes sur le paquet + inférence sémantique optionnelle depuis l'ontologie
-  const explicitBindingSet = new Set<string>(
-    (input.explicitBindings || []).map((b) => b.urn)
-  );
-  const boundLeafUrns = new Set<string>(explicitBindingSet);
-
-  const shouldAutoBind = input.autoBindFromText ?? explicitBindingSet.size === 0;
-
   const axes: AxisCoverageItem[] = [];
+
+  // 1bis. Détection d'un besoin fonctionnel inédit / émergent (ex: IoT / LoRaWAN / MQTT ou sujet `isNovelSubject`)
+  const hasExplicitEmergentBinding = Array.from(explicitBindingSet).some((u) =>
+    u.startsWith('urn:archinex:ontology:application:emergent:')
+  );
+  const detectedEmergent =
+    input.emergentCapability ??
+    (isAutoConceptMode || hasExplicitEmergentBinding
+      ? detectEmergentCapabilityNeed(rawCombinedText, undefined, {
+          isNovelSubject: input.isNovelSubject,
+          fallbackTitle: input.title
+        })
+      : undefined);
+
+  if (detectedEmergent || hasExplicitEmergentBinding) {
+    const emergent = detectedEmergent ?? {
+      isEmergent: true,
+      capabilityId: 'emergent-custom-capability',
+      title: input.title || 'Capacité Fonctionnelle Émergente',
+      togafDomain: 'application-business' as TogafDomainId,
+      documentEngineLayer: 'application' as const,
+      suggestedComponentName: 'custom-domain-service',
+      suggestedTier: 'application' as const,
+      candidateExistingComponents: ['gis-server', 'ptt-server', 'core-network', 'db-ha'],
+      rationale:
+        'Besoin fonctionnel émergent exigeant une allocation explicite de responsabilité de composant logique.'
+    };
+
+    const emergentAxisUrn = 'urn:archinex:ontology:axis:emergent_component_allocation';
+    const newCompSlug = emergent.suggestedComponentName.replace(/[^a-z0-9_]/gi, '_').toLowerCase();
+    const emergentCandidates: CandidateLeafSummary[] = [
+      {
+        urn: `urn:archinex:ontology:application:emergent:new_${newCompSlug}`,
+        title: `Instancier un nouveau composant logique dédié (${emergent.suggestedComponentName})`,
+        domain: 'application',
+        revision: 1,
+        oracleRules: ['data.archinex.edp.multiaxis.deny_component_substrate_mismatch'],
+        projections: {
+          allocation_mode: 'new_dedicated_component',
+          instantiated_component: emergent.suggestedComponentName,
+          tier: emergent.suggestedTier
+        }
+      },
+      ...emergent.candidateExistingComponents.map((compName) => ({
+        urn: `urn:archinex:ontology:application:emergent:allocate_${compName.replace(/[^a-z0-9_]/gi, '_').toLowerCase()}`,
+        title: `Allouer la responsabilité au composant existant (${compName})`,
+        domain: 'application',
+        revision: 1,
+        oracleRules: ['data.archinex.edp.multiaxis.deny_component_substrate_mismatch'],
+        projections: {
+          allocation_mode: 'existing_component',
+          instantiated_component: compName
+        }
+      }))
+    ];
+
+    const emergentBound: CandidateLeafSummary[] = [];
+    let emergentHasExplicit = false;
+    for (const cand of emergentCandidates) {
+      if (explicitBindingSet.has(cand.urn)) {
+        emergentBound.push(cand);
+        boundLeafUrns.add(cand.urn);
+        emergentHasExplicit = true;
+      }
+    }
+
+    if (!emergentHasExplicit && shouldAutoBind && emergentCandidates.length > 0) {
+      emergentBound.push(emergentCandidates[0]);
+      boundLeafUrns.add(emergentCandidates[0].urn);
+    }
+
+    const emergentOrigin: BindingOrigin =
+      emergentBound.length === 0
+        ? 'none'
+        : emergentHasExplicit
+          ? 'explicit'
+          : 'default_proposed';
+    const emergentRequiresRatification = emergentOrigin === 'default_proposed';
+    const emergentRules = Array.from(new Set(emergentBound.flatMap((l) => l.oracleRules)));
+    const emergentExecRules = emergentRules.filter((r) => implementedRegoRules.has(r));
+    const emergentPhantomRules = emergentRules.filter((r) => !implementedRegoRules.has(r));
+
+    axes.push({
+      axisUrn: emergentAxisUrn,
+      axisTitle: `Axe Émergent : ${emergent.title}`,
+      domain: 'application',
+      togafDomain: emergent.togafDomain,
+      rationale: emergent.rationale,
+      status:
+        emergentBound.length === 0
+          ? 'missing_refinement'
+          : emergentRules.length > 0
+            ? 'covered_executable'
+            : 'covered_no_oracle',
+      bindingOrigin: emergentOrigin,
+      requiresRatification: emergentRequiresRatification,
+      boundLeaves: emergentBound,
+      candidateLeaves: emergentCandidates,
+      oracleRulesCount: emergentRules.length,
+      executableOracleRules: emergentExecRules,
+      phantomOracleRules: emergentPhantomRules,
+      hasPhantomOracle: emergentPhantomRules.length > 0,
+      instantiatedComponents: collectInstantiatedComponents(
+        [emergentAxisUrn, ...emergentBound.map((l) => l.urn)],
+        catalog
+      )
+    });
+  }
 
   for (const [axisUrn, reqTriplet] of mandatoryAxisMap.entries()) {
     const axisEntity = catalog.entities[axisUrn];
+    const isApplicationAxis =
+      axisEntity?.domain === 'application' || axisEntity?.togaf_domain === 'application-business';
     const implTriplets = queryOntologyTriplets(catalog, {
       subject: axisUrn,
       predicate: 'implemented_by'
@@ -838,6 +1030,7 @@ export function computeRefinementCoverage(
     const boundLeaves: CandidateLeafSummary[] = [];
     let hasExplicitBinding = false;
     let hasStrongLinkBinding = false;
+    let bestAutoAppCandidate: { summary: CandidateLeafSummary; score: number } | null = null;
 
     for (const implT of implTriplets) {
       const leafEntity = catalog.entities[implT.object];
@@ -854,14 +1047,34 @@ export function computeRefinementCoverage(
       const semanticScore = shouldAutoBind ? scoreEntityAgainstCorpus(leafEntity, corpus) : 0;
       const isDefaultStandard = shouldAutoBind && leafEntity.is_default_standard === true;
 
-      if (isExplicitlyBound || hasStrongLinkInCorpus || semanticScore > 0 || isDefaultStandard) {
+      if (isExplicitlyBound) {
         boundLeafUrns.add(leafEntity.urn);
         boundLeaves.push(summary);
-        if (isExplicitlyBound) {
-          hasExplicitBinding = true;
-        } else if (hasStrongLinkInCorpus) {
+        hasExplicitBinding = true;
+      } else if (isApplicationAxis) {
+        // Pour un axe d'allocation applicative (ex: SIG), on ne pré-sélectionne qu'une seule variante
+        // proposée par défaut (jamais toutes les variantes contradictoires en même temps) et on exige la ratification humaine.
+        const combinedScore = semanticScore + (hasStrongLinkInCorpus ? 5 : 0) + (isDefaultStandard ? 1 : 0);
+        if (combinedScore > 0 && (!bestAutoAppCandidate || combinedScore > bestAutoAppCandidate.score)) {
+          bestAutoAppCandidate = { summary, score: combinedScore };
+        }
+      } else if (hasStrongLinkInCorpus || semanticScore > 0 || isDefaultStandard) {
+        boundLeafUrns.add(leafEntity.urn);
+        boundLeaves.push(summary);
+        if (hasStrongLinkInCorpus) {
           hasStrongLinkBinding = true;
         }
+      }
+    }
+
+    if (isApplicationAxis && !hasExplicitBinding && shouldAutoBind && boundLeaves.length === 0) {
+      const chosen =
+        bestAutoAppCandidate?.summary ||
+        candidateLeaves.find((c) => c.oracleRules.length > 0) ||
+        candidateLeaves[0];
+      if (chosen) {
+        boundLeafUrns.add(chosen.urn);
+        boundLeaves.push(chosen);
       }
     }
 
@@ -884,9 +1097,11 @@ export function computeRefinementCoverage(
         ? 'none'
         : hasExplicitBinding
           ? 'explicit'
-          : hasStrongLinkBinding
-            ? 'strong_link'
-            : 'default_proposed';
+          : isApplicationAxis
+            ? 'default_proposed'
+            : hasStrongLinkBinding
+              ? 'strong_link'
+              : 'default_proposed';
 
     const requiresRatification = bindingOrigin === 'default_proposed';
 
@@ -1144,6 +1359,7 @@ export function computeRefinementCoverage(
     matchedConcepts,
     allConcepts,
     selectedConceptUrn: input.selectedConceptUrn || 'AUTO',
+    emergentCapability: detectedEmergent,
     axes,
     clauses,
     dependencyIssues,

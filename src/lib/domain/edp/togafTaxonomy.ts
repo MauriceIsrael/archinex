@@ -313,6 +313,18 @@ export const TOGAF_REFERENCE_BUILDING_BLOCKS: ReferenceBuildingBlock[] = [
 		rationale: 'Brique applicative transverse de géolocalisation WMS/WMTS/WFS pouvant opérer en mode déconnecté.',
 		keywords: ['cartographie', 'cartographique', 'carte', 'sig', 'gis', 'wms', 'wfs', 'wmts', 'geoserver', 'postgis', 'tuiles', 'qgis']
 	},
+	{
+		id: 'gis-location-fusion',
+		title: 'Fusion de Localisation Multi-Sources, Cloisonnement Identité & Géofencing SIG',
+		togafDomain: 'application-business',
+		documentEngineLayer: 'application',
+		defaultDecisionType: 'type1_deliberate',
+		axisUrn: 'urn:archinex:ontology:axis:gis_location_fusion',
+		defaultLeafUrn: 'urn:archinex:ontology:application:gis:central_fusion_hybrid_geofencing',
+		logicalComponentName: 'gis-server',
+		rationale: 'Détermine quel composant logique (gis-server, ptt-server, core-network) porte le pipeline de fusion de position multi-sources, le cloisonnement des identités radio et l’évaluation du géofencing.',
+		keywords: ['fusion de localisation', 'geofencing', 'géofencing', 'localisation multi-sources', 'pipeline de localisation', 'imsi', 'supi', 'suci', 'geofence', 'positionnement']
+	},
 
 	// --- 4. Platform & Compute ---
 	{
@@ -655,3 +667,211 @@ export function scanProjectArchitecturalBlindSpots(
 		missingBlocks
 	};
 }
+
+export interface EmergentCapabilityDetection {
+	isEmergent: boolean;
+	capabilityId: string;
+	title: string;
+	togafDomain: TogafDomainId;
+	documentEngineLayer: DocumentEngineLayer;
+	suggestedComponentName: string;
+	suggestedTier: 'application' | 'platform' | 'infrastructure';
+	candidateExistingComponents: string[];
+	rationale: string;
+}
+
+interface EmergentArchetype {
+	id: string;
+	title: string;
+	togafDomain: TogafDomainId;
+	documentEngineLayer: DocumentEngineLayer;
+	suggestedComponentName: string;
+	suggestedTier: 'application' | 'platform' | 'infrastructure';
+	candidateExistingComponents: string[];
+	rationale: string;
+	keywords: string[];
+}
+
+const EMERGENT_CAPABILITY_ARCHETYPES: EmergentArchetype[] = [
+	{
+		id: 'emergent-iot-telemetry-gateway',
+		title: 'Collecte, Médiation & Télémétrie IoT / Capteurs Terrain',
+		togafDomain: 'application-business',
+		documentEngineLayer: 'application',
+		suggestedComponentName: 'iot-gateway',
+		suggestedTier: 'application',
+		candidateExistingComponents: ['gis-server', 'ptt-server', 'core-network', 'ingress-waf-proxy'],
+		rationale:
+			'Capacité IoT / capteurs / courtiers MQTT-LoRaWAN absente du catalogue de composants standard : exige une décision explicite d’allocation à un composant existant ou d’instanciation d’un nouveau composant logique (iot-gateway).',
+		keywords: [
+			'iot',
+			'lorawan',
+			'mqtt',
+			'coap',
+			'capteur',
+			'capteurs',
+			'passerelle iot',
+			'edge sensor',
+			'zigbee',
+			'nb-iot',
+			'lwm2m',
+			'telemetrie terrain',
+			'objets connectes'
+		]
+	},
+	{
+		id: 'emergent-video-media-relay',
+		title: 'Relais Flux Vidéo Temps Réel & Médiation Multimédia',
+		togafDomain: 'application-business',
+		documentEngineLayer: 'application',
+		suggestedComponentName: 'media-streaming-relay',
+		suggestedTier: 'application',
+		candidateExistingComponents: ['ptt-server', 'gis-server', 'ingress-waf-proxy'],
+		rationale:
+			'Flux vidéo / streaming temps réel non couvert par une brique standard : exige de décider si ptt-server absorbe le relais média ou si un composant dédié media-streaming-relay est instancié.',
+		keywords: [
+			'flux video',
+			'streaming video',
+			'rtsp',
+			'webrtc',
+			'videoprotection',
+			'encodage video',
+			'camera',
+			'cameras',
+			'drone video'
+		]
+	},
+	{
+		id: 'emergent-ai-inference-engine',
+		title: 'Moteur d’Inférence IA & Traitement Cognitif Souverain',
+		togafDomain: 'application-business',
+		documentEngineLayer: 'application',
+		suggestedComponentName: 'ai-inference-service',
+		suggestedTier: 'application',
+		candidateExistingComponents: ['ptt-server', 'gis-server', 'db-ha'],
+		rationale:
+			'Capacité d’inférence IA / traitement cognitif hors catalogue standard : exige l’allocation explicite d’un composant logique responsable (ai-inference-service ou composant applicatif existant).',
+		keywords: [
+			'inference ia',
+			'modele llm',
+			'gpu inference',
+			'rag',
+			'reconnaissance vocale',
+			'transcription automatique',
+			'agent ia'
+		]
+	}
+];
+
+function slugifyEmergentComponentName(text: string): string {
+	const stopWords = new Set([
+		'le',
+		'la',
+		'les',
+		'de',
+		'du',
+		'des',
+		'et',
+		'ou',
+		'en',
+		'un',
+		'une',
+		'pour',
+		'sur',
+		'avec',
+		'dans',
+		'par',
+		'aux',
+		'systeme',
+		'service',
+		'module',
+		'gestion',
+		'architecture',
+		'sujet',
+		'exigence',
+		'fonction',
+		'traitement'
+	]);
+	const tokens = foldText(text)
+		.split(/[^a-z0-9]+/)
+		.filter((tok) => tok.length >= 3 && !/^\d+$/.test(tok) && !stopWords.has(tok));
+	const base = tokens.slice(0, 2).join('-') || 'custom-domain';
+	return `${base}-service`;
+}
+
+/**
+ * Détecte dès l'ingestion (Phase 1) ou lors du raffinement (Phase 4) si une exigence ou un sujet
+ * introduit une capacité inédite (ex. IoT, capteurs LoRaWAN/MQTT, flux vidéo, ou tout besoin
+ * `novel_requirement` non couvert par les briques TOGAF de référence), afin d'ouvrir un
+ * emplacement d'allocation de composant explicite et d'interdire tout choix silencieux.
+ */
+export function detectEmergentCapabilityNeed(
+	text: string,
+	rawCategoryOrDomain?: string,
+	options?: { isNovelSubject?: boolean; fallbackTitle?: string }
+): EmergentCapabilityDetection | undefined {
+	const folded = ` ${foldText(text)} `;
+	if (folded.trim().length === 0) return undefined;
+
+	// 1. Test des archétypes émergents explicites (IoT, Vidéo, IA...)
+	let bestArchetype: EmergentArchetype | undefined;
+	let bestScore = 0;
+	for (const arch of EMERGENT_CAPABILITY_ARCHETYPES) {
+		let score = 0;
+		for (const kw of arch.keywords) {
+			const foldedKw = foldText(kw);
+			if (!foldedKw) continue;
+			if (folded.includes(` ${foldedKw} `) || (foldedKw.length >= 5 && folded.includes(foldedKw))) {
+				score += foldedKw.includes(' ') ? 3 : 2;
+			}
+		}
+		if (score > bestScore) {
+			bestScore = score;
+			bestArchetype = arch;
+		}
+	}
+
+	if (bestArchetype && bestScore > 0) {
+		return {
+			isEmergent: true,
+			capabilityId: bestArchetype.id,
+			title: bestArchetype.title,
+			togafDomain: bestArchetype.togafDomain,
+			documentEngineLayer: bestArchetype.documentEngineLayer,
+			suggestedComponentName: bestArchetype.suggestedComponentName,
+			suggestedTier: bestArchetype.suggestedTier,
+			candidateExistingComponents: bestArchetype.candidateExistingComponents,
+			rationale: bestArchetype.rationale
+		};
+	}
+
+	// 2. Si une brique de référence TOGAF couvre déjà le besoin, ce n'est pas un angle mort inédit
+	const matchedBlock = matchReferenceBuildingBlock(text, rawCategoryOrDomain);
+	if (matchedBlock) {
+		return undefined;
+	}
+
+	// 3. Sujet explicitement qualifié d'inédit (`novel_requirement`) ou exigence fonctionnelle sans brique connue
+	const togafDomain = resolveTogafDomain(rawCategoryOrDomain);
+	if (options?.isNovelSubject || togafDomain === 'application-business') {
+		const suggestedComponentName = slugifyEmergentComponentName(options?.fallbackTitle || text);
+		const capabilitySlug = suggestedComponentName.replace(/-service$/, '');
+		return {
+			isEmergent: true,
+			capabilityId: `emergent-${capabilitySlug}`,
+			title: options?.fallbackTitle
+				? `Allocation de Composant Émergent : ${options.fallbackTitle}`
+				: `Capacité Fonctionnelle Émergente (${suggestedComponentName})`,
+			togafDomain,
+			documentEngineLayer: TOGAF_DOMAINS[togafDomain].documentEngineLayer,
+			suggestedComponentName,
+			suggestedTier: togafDomain === 'application-business' ? 'application' : 'platform',
+			candidateExistingComponents: ['gis-server', 'ptt-server', 'core-network', 'db-ha'],
+			rationale:
+				'Besoin fonctionnel ou sujet inédit ne correspondant à aucune brique de référence du catalogue : l’architecte doit décider quel composant existant porte la fonction ou instancier un nouveau composant logique.'
+		};
+	}
+
+	return undefined;
+}
+

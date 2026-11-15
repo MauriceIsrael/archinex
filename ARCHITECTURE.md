@@ -883,6 +883,21 @@ Pour garantir en local sur le poste de développement et en CI que l'hydratation
    - **Rétro-traçabilité OPA** : `multi_axis_refinement.rego` et `sylva_golden_rules.rego` retournent `violated_clause_urn` et `violated_requirement_id` sur chaque violation, permettant à l'IHM (`Phase4RefinementHub.svelte`) d'afficher le lien direct cliquable vers la clause violée.
    - **Annotations KRM Sylva & Nautobot 2.x** : `composeMultiAxisHydration()` injecte `archinex.io/satisfied-clauses` et `archinex.io/evaluated-triplets` dans les annotations de `SylvaWorkloadCluster`, et `syncHydratedInventoryToNautobot()` propage ces identifiants dans les Custom Fields et Tags Nautobot.
 
+### 15.6 Jumeau Numérique Pré-Déploiement de Sylva (`sylvaTwin.ts`, `sushy-tools` & `twin_resilience.rego` — Issues #292, #293, #294)
+
+Pour dépasser le simple comptage multiplicatif What-If (« 2 vs 3 DCs »), Archinex branche directement en sortie de `composeMultiAxisHydration` un **Jumeau Numérique pré-déploiement de Sylva** (ciblant **Sylva `LATEST`**) :
+
+1. **Modèle Topologique à 3 Profils (Baseline = 3 DCs par défaut)** :
+   - **`3dc-active` (Gold — Défaut)** : 3 Datacenters (`dc1`, `dc2`, `dc3`), control-plane RKE2 / `etcd` réparti `1+1+1`, stockage Longhorn/Ceph `RF=3` (`1+1+1`), management cluster étiré. Survit sans coupure (`RTO = 0s`) à la perte complète d'un DC.
+   - **`2dc-witness` (Silver — 2 DCs + Site Témoin / Arbiter)** : 2 DCs porteurs de charges (`dc1`, `dc2`) + 1 site témoin léger (`dc3-witness`) hébergeant uniquement le 3e membre de quorum `etcd` et l'arbitre stockage (`sylva-witness-quorum`). Maintient le quorum automatique (`2/3`) en cas de chute de `dc1` ou `dc2`.
+   - **`2dc-split` (Bronze — 2 DCs secs sans témoin)** : répartition asymétrique `2+1` sur `dc1` et `dc2` ; la chute de `dc1` entraîne la perte du quorum `etcd` (`1/3 < 2`) et du quorum d'écriture stockage.
+2. **Double Mode d'Arbitrage (`TwinArbitrationMode`)** :
+   - **Mode Proposition (`proposal`)** : à la main de l'équipe d'architecture ; compare les 3 profils sous 5 scénarios d'injection de pannes (`dc_loss_primary`, `dc_loss_secondary`, `host_loss_sriov`, `power_feed_loss_pdu_a`, `inter_dc_link_partition`) et formule la recommandation argumentée.
+   - **Mode Fixé par le Client (`client-mandated`)** : confronte la topologie imposée par le client aux exigences de survie et détecte formellement les exigences contradictoires via l'oracle OPA `edp/policies/twin_resilience.rego` (`sources.twin_report`).
+3. **Bouchonnage Bare-Metal `sushy-tools` & `KWOK` pour la CI** :
+   - `generateSushyEmulatorConfig()` produit la configuration `sushy-emulator.conf` (*fake driver in-memory*) appariée aux `BareMetalHost` CAPI `capm3` (adresses BMC Redfish, UUID, MAC, CPU/RAM).
+   - `generateKwokNodeManifests()` produit les manifestes `Node` pour `kwok` avec ressources `hugepages-1Gi` et `intel.com/sriov_netdevice`.
+
 ---
 
 ## 16. Feuille de Route (Roadmap) Archinex : De l'Hydratation SSoT à l'Orchestration en Boucle Fermée

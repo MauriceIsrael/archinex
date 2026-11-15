@@ -547,6 +547,17 @@ La commande `npm run seed:demo` configure et ensemence le parcours complet de la
   7. `sla_and_monitoring_contracts` (TM Forum SID GB922) : `sla-lot3-hosting-s6a` (`REQ-Lot1-1343`) & `probe-noc-s6a-lot3` (`REQ-Lot1-1274`).
 
 
+### 13.8 Jumeau Numérique de Sylva (3 DCs Défaut / 2 DCs + Témoin / 2 DCs Secs) & Bouchon Redfish `sushy-tools`
+Dans l'atelier **Phase 4 : Refinement & Hydratation** (`Phase4RefinementHub`), la section **Jumeau Numérique de Sylva (`LATEST`)** remplace le compteur What-If naïf par une simulation de survie aux pannes :
+- **3 Profils Topologiques comparés en temps réel** :
+  - **3 DCs (Défaut Gold — `3dc-active`)** : répartition `1+1+1` du control-plane `etcd` RKE2 et du stockage `RF=3`, garantissant un `RTO = 0s` en cas de perte complète d'un Datacenter.
+  - **2 DCs + Témoin (Silver — `2dc-witness`)** : 2 DCs porteurs des workloads CNF/IT + 1 site témoin léger (`dc3-witness`) hébergeant un nœud arbitre `etcd`/stockage pour conserver le quorum automatique avec 5 serveurs au lieu de 6.
+  - **2 DCs Secs (Bronze — `2dc-split`)** : met en évidence la perte de quorum `etcd` (`1/3`) et le passage du stockage en lecture seule si le DC primaire (`dc1`) tombe.
+- **Sélecteur de Mode (`Mode : Proposition Équipe` vs `Mode : Fixé par le Client`)** :
+  - En mode **Proposition Équipe**, le jumeau recommande l'architecture optimale (Gold ou alternative frugale Silver).
+  - En mode **Fixé par le Client**, il vérifie via l'oracle OPA (`edp/policies/twin_resilience.rego`) si la topologie imposée par le client respecte les exigences de résilience ou s'il existe une contradiction formelle à notifier en réserve au CCTP.
+- **Aperçu du Bouchon Redfish `sushy-emulator` (`capm3`)** : le bouton **`Bouchon Redfish sushy`** affiche la configuration `sushy-emulator.conf` générée automatiquement depuis l'inventaire hydraté pour bouchonner les contrôleurs BMC Redfish en CI sans serveurs physiques.
+
 ---
 
 ## 14. Architecture Ergonomique à 2 Niveaux (Projet vs Sujet) & Clarté des Libellés

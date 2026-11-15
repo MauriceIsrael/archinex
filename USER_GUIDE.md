@@ -569,6 +569,13 @@ Pour garantir qu'aucun choix d'architecture ou d'allocation de responsabilité a
   - Un clic sur **`✓ Ratifier : <Feuille> → [composants]`** ou sur une variante scelle explicitement la décision (`bindingOrigin = 'explicit'`) et synchronise automatiquement les composants instanciés dans le catalogue projet.
 - **Registre d'Emplacements, Scellement `architecture.lock` & Jumeau Sylva en Phase 5 (`Phase5ConsolidationHub`)** :
   - L'encart **Registre d'Emplacements de Décision, Allocation des Composants & Scellement `architecture.lock`** dans l'onglet **`Phase 5 · Consolidation`** liste tous les emplacements (`open`, `default_proposed`, `explicit`), permet d'instancier en un clic un nouveau `LogicalComponent` émergent (`instantiate_emergent_component`) conforme au linter `Base × Overlay × DC` (0 IP en dur, 3 NICs `admin`/`business`/`events`), de ratifier les défauts proposés et d'exporter le manifeste scellé `architecture.lock` (bloqué en `409 Conflict` tant qu'un choix reste implicite).
+- **Vue de l'Architecture Lockée en Direct à tout instant (`LiveArchitectureLockView`)** :
+  - Accessible **à tout instant** depuis le bouton **`🔒 Architecture Lockée`** dans la barre supérieure de niveau Projet (`ProjectEngagementHeader`) — sans quitter une délibération en cours — ainsi qu'en tête de la **`Phase 5 · Consolidation`**.
+  - Plutôt que de reposer uniquement sur un diagramme Mermaid statique, le cockpit propose **4 vues complémentaires** :
+    1. **Cartographie Interactive par Couches TOGAF/Sylva & Inspecteur Multi-Niveaux** *(vue par défaut)* : organise les composants en 4 strates (*Services Métier/SIG/Émergents*, *Cœur Réseau & Médiation*, *Sécurité Transverse*, *Socle Infra Sylva*) avec filtres en un clic (`🔒 Verrouillés uniquement`, `🟠 Défauts proposés`, `🟣 Émergents / Inédits`), ratification directe sur les cartes et inspecteur latéral détaillant les clauses RFP couvertes, VRFs, NICs et flux sortants.
+    2. **Matrice Ligne-à-Ligne des Emplacements (`Axe → Variante → Composant → Statut Lock`)** avec sélecteur de feuille et ratification unitaire.
+    3. **Manifeste `architecture.lock` Temps Réel (JSON & Empreinte SHA-256 progressive)** exportable à tout instant (`PARTIAL_LIVE_LOCK`, `READY_TO_SEAL` ou `SEALED`).
+    4. **Graphe Mermaid d'Export Documentaire Filtré** permettant d'isoler uniquement les composants verrouillés (`mermaidLockedOnly`) ou d'afficher la cible complète avec coloration par statut de verrouillage (`mermaidFullWithStatus`).
 
 ---
 

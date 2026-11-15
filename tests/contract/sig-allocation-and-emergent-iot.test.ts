@@ -25,6 +25,11 @@ import {
 	ratifyDefaultDecisionSlots
 } from '$lib/server/edp/refinementCoverage';
 import {
+	buildLiveArchitectureLockSnapshot,
+	recordExplicitProjectSlotRatification,
+	resetProjectSlotRegistry
+} from '$lib/server/edp/decisionSlotRegistry';
+import {
 	applyClassificationInvariants,
 	buildAuditReport
 } from '$lib/server/ingest/arckitRequirementsPipeline';
@@ -275,5 +280,83 @@ describe('Allocation explicite SIG (§9.4, §11 DEMOLULU) & Sujets RFP inédits 
 		});
 		expect(twinReport.profiles).toHaveLength(3);
 		expect(twinReport.recommendedProfileId).toBe('3dc-active');
+	});
+
+	it('fournit à tout instant une vue en direct de l’architecture lockée (buildLiveArchitectureLockSnapshot) distinguant composants verrouillés, proposés et émergents', async () => {
+		const testProjectId = 'lulu-live-lock-test';
+		resetProjectSlotRegistry(testProjectId);
+
+		try {
+			// 1. À l’instant initial (avant toute ratification humaine) : état partial_live_lock, 0 composant verrouillé
+			const initialSnap = await buildLiveArchitectureLockSnapshot(
+				{
+					projectId: testProjectId,
+					projectTitle: 'DEMOLULU Live Lock',
+					title: '§9.4, §11 · Fusion de localisation multi-sources du SIG : pipeline et géofencing',
+					decisionText: 'Fusion centrale et géofencing hybride.'
+				},
+				fixtureCatalog
+			);
+			expect(initialSnap.lockState).toBe('partial_live_lock');
+			expect(initialSnap.summary.lockedSlotsCount).toBe(0);
+			expect(initialSnap.summary.defaultProposedSlotsCount).toBeGreaterThan(0);
+
+			const gisBefore = initialSnap.components.find((c) => c.name === 'gis-server');
+			expect(gisBefore?.lockStatus).toBe('default_proposed');
+
+			// 2. L’architecte ratifie en Phase 4 le sujet SIG (gis_location_fusion) et un sujet émergent IoT (iot-gateway)
+			await recordExplicitProjectSlotRatification(
+				{
+					projectId: testProjectId,
+					axisUrn: 'urn:archinex:ontology:axis:gis_location_fusion',
+					leafUrn: 'urn:archinex:ontology:application:gis:central_fusion_hybrid_geofencing',
+					actorId: 'lead@archinex.local',
+					actorRole: 'lead_architect',
+					rationale: 'Arbitrage SIG §9.4/§11 : fusion centrale gis-server + géofencing hybride ptt-server'
+				},
+				fixtureCatalog
+			);
+
+			await recordExplicitProjectSlotRatification(
+				{
+					projectId: testProjectId,
+					axisUrn: 'urn:archinex:ontology:axis:emergent_component_allocation',
+					leafUrn: 'urn:archinex:ontology:application:emergent:new_iot_gateway',
+					actorId: 'lead@archinex.local',
+					actorRole: 'lead_architect',
+					rationale: 'Création du composant dédié iot-gateway pour la collecte LoRaWAN/MQTT'
+				},
+				fixtureCatalog
+			);
+
+			const updatedSnap = await buildLiveArchitectureLockSnapshot(
+				{
+					projectId: testProjectId,
+					projectTitle: 'DEMOLULU Live Lock',
+					title: '§9.4, §11 · Fusion de localisation multi-sources du SIG : pipeline et géofencing',
+					decisionText: 'Fusion centrale et géofencing hybride.'
+				},
+				fixtureCatalog
+			);
+
+			expect(updatedSnap.summary.lockedSlotsCount).toBe(2);
+			expect(updatedSnap.liveIntegritySha256).not.toBe(initialSnap.liveIntegritySha256);
+
+			const gisAfter = updatedSnap.components.find((c) => c.name === 'gis-server');
+			const pttAfter = updatedSnap.components.find((c) => c.name === 'ptt-server');
+			const iotAfter = updatedSnap.components.find((c) => c.name === 'iot-gateway');
+
+			expect(gisAfter?.lockStatus).toBe('locked');
+			expect(gisAfter?.coveredRequirementRefs).toContain('REQ-Lot1-786');
+			expect(pttAfter?.lockStatus).toBe('locked');
+			expect(iotAfter?.lockStatus).toBe('emergent_locked');
+			expect(iotAfter?.layer).toBe('application-business');
+
+			expect(updatedSnap.mermaidLockedOnly).toContain('gis-server');
+			expect(updatedSnap.mermaidLockedOnly).toContain('ptt-server');
+			expect(updatedSnap.mermaidLockedOnly).toContain('iot-gateway');
+		} finally {
+			resetProjectSlotRegistry(testProjectId);
+		}
 	});
 });

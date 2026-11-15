@@ -18,6 +18,7 @@ import {
   loadProjectComponentCatalog,
   saveProjectComponentCatalog
 } from '$lib/server/edp/componentCatalogRepository';
+import { recordExplicitProjectSlotRatification } from '$lib/server/edp/decisionSlotRegistry';
 import {
   syncHydratedInventoryToNautobot,
   pullLiveInventoryFromNautobot
@@ -369,8 +370,25 @@ export const POST: RequestHandler = async (event) => {
         catalog
       );
 
-      // Synchroniser automatiquement les composants logiques instanciés dans le catalogue du projet (Phase 5)
+      // Synchroniser automatiquement les composants logiques instanciés et les ratifications dans le registre du projet (Phase 5)
       if (projectId) {
+        const actorId = auth.session?.user?.email || auth.session?.user?.id || 'architect';
+        const actorRole = auth.session?.user?.role || 'lead_architect';
+        for (const slot of newCoverage.decisionSlots || []) {
+          if (slot.bindingOrigin === 'explicit' && slot.boundLeafUrns[0]) {
+            await recordExplicitProjectSlotRatification(
+              {
+                projectId,
+                axisUrn: slot.axisUrn,
+                leafUrn: slot.boundLeafUrns[0],
+                actorId,
+                actorRole,
+                rationale: `Ratification explicite en Phase 4 sur le sujet ${subjectId} (${slot.axisTitle}).`
+              },
+              catalog
+            );
+          }
+        }
         const currentBundle = loadProjectComponentCatalog(projectId);
         const nextComponents = instantiateCatalogFromOntologyBindings(
           explicitBindings.map((b) => b.urn),

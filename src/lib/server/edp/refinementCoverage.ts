@@ -816,7 +816,10 @@ export function computeRefinementCoverage(
   );
   const boundLeafUrns = new Set<string>(explicitBindingSet);
   const shouldAutoBind = input.autoBindFromText ?? explicitBindingSet.size === 0;
-  const isAutoConceptMode = !input.selectedConceptUrn || input.selectedConceptUrn === 'AUTO';
+  const isAutoConceptMode =
+    !input.selectedConceptUrn ||
+    input.selectedConceptUrn === 'AUTO' ||
+    input.selectedConceptUrn === 'ALL';
 
   // 1. Collecte des axes de raffinement obligatoires (axes applicatifs contextuels + triplets `requires_aspect` des concepts retenus)
   const mandatoryAxisMap = new Map<string, OntologyTriplet>();
@@ -910,9 +913,10 @@ export function computeRefinementCoverage(
   const axes: AxisCoverageItem[] = [];
 
   // 1bis. Détection d'un besoin fonctionnel inédit / émergent (ex: IoT / LoRaWAN / MQTT ou sujet `isNovelSubject`)
-  const hasExplicitEmergentBinding = Array.from(explicitBindingSet).some((u) =>
+  const explicitEmergentUrn = Array.from(explicitBindingSet).find((u) =>
     u.startsWith('urn:archinex:ontology:application:emergent:')
   );
+  const hasExplicitEmergentBinding = Boolean(explicitEmergentUrn);
   const detectedEmergent =
     input.emergentCapability ??
     (isAutoConceptMode || hasExplicitEmergentBinding
@@ -923,13 +927,19 @@ export function computeRefinementCoverage(
       : undefined);
 
   if (detectedEmergent || hasExplicitEmergentBinding) {
+    const inferredNewCompMatch = explicitEmergentUrn
+      ? /^urn:archinex:ontology:application:emergent:new_([a-z0-9_-]+)$/i.exec(explicitEmergentUrn)
+      : null;
+    const inferredCompName = inferredNewCompMatch
+      ? inferredNewCompMatch[1].replace(/_/g, '-').toLowerCase()
+      : 'custom-domain-service';
     const emergent = detectedEmergent ?? {
       isEmergent: true,
-      capabilityId: 'emergent-custom-capability',
+      capabilityId: `emergent-${inferredCompName}`,
       title: input.title || 'Capacité Fonctionnelle Émergente',
       togafDomain: 'application-business' as TogafDomainId,
       documentEngineLayer: 'application' as const,
-      suggestedComponentName: 'custom-domain-service',
+      suggestedComponentName: inferredCompName,
       suggestedTier: 'application' as const,
       candidateExistingComponents: ['gis-server', 'ptt-server', 'core-network', 'db-ha'],
       rationale:

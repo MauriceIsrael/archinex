@@ -150,6 +150,89 @@ export interface ArchitectureLockManifest {
   integritySha256: string;
 }
 
+export type ComponentLockStatus =
+  | 'locked'
+  | 'emergent_locked'
+  | 'default_proposed'
+  | 'baseline';
+
+export type ArchitectureComponentLayer =
+  | 'application-business'
+  | 'core-mediation'
+  | 'security-trust'
+  | 'infra-sylva';
+
+export interface LiveLockedComponentEntry {
+  name: string;
+  displayName: string;
+  functionalDomain: string;
+  editor: string;
+  tenant: string;
+  external: boolean;
+  layer: ArchitectureComponentLayer;
+  lockStatus: ComponentLockStatus;
+  isEmergent: boolean;
+  sourceSlotIds: string[];
+  sourceAxisTitles: string[];
+  sourceLeafUrns: string[];
+  coveredRequirementRefs: string[];
+  ratifiedBy?: string;
+  ratifiedAt?: string;
+  dependsOn: string[];
+  outboundTargets: Array<{
+    target: string;
+    label: string;
+    kind: 'firewall' | 'contract' | 'dependency';
+  }>;
+  nicsCount: number;
+  nicClasses: string[];
+  vrfNames: string[];
+  storageSvms: string[];
+}
+
+export interface LiveArchitectureLockSnapshot {
+  version: '1.0-live';
+  projectId: string;
+  projectTitle: string;
+  generatedAt: string;
+  lockState: 'sealed' | 'ready_to_seal' | 'partial_live_lock';
+  liveIntegritySha256: string;
+  sealedManifest: ArchitectureLockManifest | null;
+  summary: {
+    totalSlots: number;
+    lockedSlotsCount: number;
+    defaultProposedSlotsCount: number;
+    openSlotsCount: number;
+    completionPercent: number;
+    totalComponentsCount: number;
+    lockedComponentsCount: number;
+    proposedComponentsCount: number;
+    emergentComponentsCount: number;
+  };
+  lockedBindings: OntologyBindingItem[];
+  proposedBindings: OntologyBindingItem[];
+  components: LiveLockedComponentEntry[];
+  slots: Array<{
+    slotId: string;
+    axisUrn: string;
+    axisTitle: string;
+    togafDomain: TogafDomainId;
+    status: ProjectDecisionSlotEntry['status'];
+    lockBadge: 'locked' | 'default_proposed' | 'open';
+    boundLeafUrn?: string;
+    boundLeafTitle?: string;
+    candidateLeaves: Array<{ urn: string; title: string }>;
+    instantiatedComponents: string[];
+    coveredRequirementRefs: string[];
+    ratifiedBy?: string;
+    ratifiedAt?: string;
+    rationale?: string;
+  }>;
+  lockBlockers: string[];
+  mermaidLockedOnly: string;
+  mermaidFullWithStatus: string;
+}
+
 export interface ProjectCompletenessLedger {
   projectId: string;
   projectTitle: string;
@@ -578,6 +661,89 @@ export async function buildProjectCompletenessLedger(
     });
   }
 
+  // Inclure également les emplacements contextuels ou émergents explicitement ratifiés en Phase 4
+  for (const rat of Object.values(state.ratifications)) {
+    if (seenAxisUrns.has(rat.axisUrn)) continue;
+    const promotion = state.promotions[rat.slotId];
+    if (promotion && rat.ratifiedAt < promotion.promotedAt) continue;
+    seenAxisUrns.add(rat.axisUrn);
+
+    const meta = resolveAxisMetadata(rat.axisUrn, resolvedCatalog);
+    const axisEntity = resolvedCatalog.entities[rat.axisUrn];
+    const candidateLeaves = queryOntologyTriplets(resolvedCatalog, {
+      subject: rat.axisUrn,
+      predicate: 'implemented_by'
+    })
+      .map((t) => resolvedCatalog.entities[t.object])
+      .filter(Boolean);
+    const candidateLeafUrns =
+      candidateLeaves.length > 0
+        ? candidateLeaves.map((l) => l.urn)
+        : [rat.leafUrn];
+
+    const chosenEntity = resolvedCatalog.entities[rat.leafUrn];
+    const oracleRules = Array.isArray(chosenEntity?.oracle_rules)
+      ? (chosenEntity!.oracle_rules as string[])
+      : [];
+    const executableOracleRules = oracleRules.filter((r) => implementedRegoRules.has(r));
+    const phantomOracleRules = oracleRules.filter((r) => !implementedRegoRules.has(r));
+
+    extraBoundLeaves.push({
+      urn: rat.leafUrn,
+      revision: rat.leafRevision
+    });
+
+    const instantiatedSet = new Set<string>();
+    if (typeof chosenEntity?.instantiated_component === 'string' && chosenEntity.instantiated_component) {
+      instantiatedSet.add(chosenEntity.instantiated_component.replace(/^urn:archinex:component:/, ''));
+    }
+    for (const t of queryOntologyTriplets(resolvedCatalog, {
+      subject: rat.leafUrn,
+      predicate: 'instantiates_component'
+    })) {
+      instantiatedSet.add(t.object.replace(/^urn:archinex:component:/, ''));
+    }
+    const emergentNewMatch = /^urn:archinex:ontology:application:emergent:new_([a-z0-9_-]+)$/i.exec(rat.leafUrn);
+    if (emergentNewMatch) {
+      instantiatedSet.add(emergentNewMatch[1].replace(/_/g, '-').toLowerCase());
+    }
+    const emergentAllocMatch = /^urn:archinex:ontology:application:emergent:allocate_([a-z0-9_-]+)$/i.exec(rat.leafUrn);
+    if (emergentAllocMatch) {
+      instantiatedSet.add(emergentAllocMatch[1].replace(/_/g, '-').toLowerCase());
+    }
+
+    const reqRefs = Array.isArray(chosenEntity?.governed_by_clauses)
+      ? (chosenEntity!.governed_by_clauses as string[])
+      : [];
+
+    slots.push({
+      slotId: rat.slotId,
+      axisUrn: rat.axisUrn,
+      axisTitle:
+        axisEntity?.title ||
+        (rat.axisUrn === 'urn:archinex:ontology:axis:emergent_component_allocation'
+          ? '0. Allocation de Composant Logique (Capacité Émergente / Sujet Inédit)'
+          : rat.axisUrn),
+      togafDomain: resolveTogafDomain(axisEntity?.domain || 'application'),
+      status: executableOracleRules.length > 0 ? 'bound_verified' : 'bound_unverified',
+      bindingOrigin: 'explicit',
+      requiresRatification: false,
+      boundLeafUrns: [rat.leafUrn],
+      candidateLeafUrns,
+      executableOracleRules,
+      phantomOracleRules,
+      instantiatedComponents: Array.from(instantiatedSet),
+      isTransitivePrerequisite: false,
+      decisionType: meta.decisionType,
+      documentEngineLayer: meta.documentEngineLayer,
+      ratifiedBy: rat.ratifiedBy,
+      ratifiedRole: rat.ratifiedRole,
+      ratifiedAt: rat.ratifiedAt,
+      rationale: rat.rationale,
+      coveredRequirementRefs: reqRefs
+    });
+  }
+
   // Consolidation des liaisons composées et instanciation du catalogue logique
   const allComposedMap = new Map<string, OntologyBindingItem>();
   for (const b of coverageReport.composedBindings) {
@@ -971,6 +1137,382 @@ export function getProjectArchitectureLock(projectId: string): ArchitectureLockM
   } catch {
     return null;
   }
+}
+
+/**
+ * Enregistre directement dans le registre projet une ratification explicite effectuée en Phase 4 (`bind_aspect`).
+ */
+export async function recordExplicitProjectSlotRatification(
+  options: {
+    projectId: string;
+    axisUrn: string;
+    leafUrn: string;
+    actorId?: string;
+    actorRole?: string;
+    rationale?: string;
+  },
+  catalog?: OntologyCatalog
+): Promise<void> {
+  const resolvedCatalog = catalog ?? (await loadOntologyCatalog());
+  const state = loadProjectSlotState(options.projectId);
+  const slotId = `slot:${options.axisUrn}`;
+  const leafEntity = resolvedCatalog.entities[options.leafUrn];
+  const leafRevision = leafEntity?.revision ?? 1;
+
+  state.ratifications[slotId] = {
+    slotId,
+    axisUrn: options.axisUrn,
+    leafUrn: options.leafUrn,
+    leafRevision,
+    ratifiedBy: options.actorId || 'architect',
+    ratifiedRole: options.actorRole || 'lead_architect',
+    ratifiedAt: new Date().toISOString(),
+    rationale:
+      options.rationale ||
+      `Ratification explicite sur l'axe ${options.axisUrn} (${options.leafUrn}).`
+  };
+  saveProjectSlotState(options.projectId, state);
+}
+
+function classifyComponentLayer(comp: LogicalComponent): ArchitectureComponentLayer {
+  const dom = comp.metadata.functionalDomain;
+  if (
+    dom === 'gis-services' ||
+    dom === 'ptt-services' ||
+    comp.metadata.labels?.layer === 'application-emergent'
+  ) {
+    return 'application-business';
+  }
+  if (dom === 'core-network' || comp.metadata.external) {
+    return 'core-mediation';
+  }
+  if (dom === 'security') {
+    return 'security-trust';
+  }
+  return 'infra-sylva';
+}
+
+function generateStatusAwareMermaid(
+  components: LiveLockedComponentEntry[],
+  onlyLocked: boolean
+): string {
+  const filtered = onlyLocked
+    ? components.filter(
+        (c) => c.lockStatus === 'locked' || c.lockStatus === 'emergent_locked'
+      )
+    : components;
+
+  const lines: string[] = [
+    'flowchart LR',
+    '  classDef locked fill:#065f46,stroke:#10b981,stroke-width:2px,color:#ecfdf5;',
+    '  classDef emergent fill:#4c1d95,stroke:#8b5cf6,stroke-width:2px,color:#f5f3ff;',
+    '  classDef proposed fill:#78350f,stroke:#f59e0b,stroke-width:2px,stroke-dasharray: 5 5,color:#fffbeb;',
+    '  classDef baseline fill:#1e293b,stroke:#64748b,stroke-width:1px,color:#f1f5f9;'
+  ];
+
+  if (filtered.length === 0) {
+    lines.push('  EMPTY["Aucun composant explicitement verrouillé à cet instant — Ratifiez un axe pour le voir apparaître"]:::proposed');
+    return lines.join('\n');
+  }
+
+  const layerLabels: Record<ArchitectureComponentLayer, string> = {
+    'application-business': '1. Services Métier, SIG, MCPTT & Capacités Émergentes',
+    'core-mediation': '2. Cœur de Réseau & Médiation Inter-Opérateurs',
+    'security-trust': '3. Sécurité Transverse & Chaîne de Confiance',
+    'infra-sylva': '4. Socle Infrastructure & Stockage Sylva'
+  };
+
+  const byLayer = new Map<ArchitectureComponentLayer, LiveLockedComponentEntry[]>();
+  for (const c of filtered) {
+    if (!byLayer.has(c.layer)) byLayer.set(c.layer, []);
+    byLayer.get(c.layer)!.push(c);
+  }
+
+  const safeId = (s: string) => s.replace(/[^a-zA-Z0-9_]/g, '_');
+  const esc = (s: string) => s.replace(/"/g, "'");
+  const visibleSet = new Set(filtered.map((c) => c.name));
+
+  for (const layerKey of [
+    'application-business',
+    'core-mediation',
+    'security-trust',
+    'infra-sylva'
+  ] as ArchitectureComponentLayer[]) {
+    const comps = byLayer.get(layerKey);
+    if (!comps || comps.length === 0) continue;
+    lines.push(`  subgraph LAYER_${safeId(layerKey)}["${esc(layerLabels[layerKey])}"]`);
+    for (const c of comps) {
+      const nodeId = `COMP_${safeId(c.name)}`;
+      const badge =
+        c.lockStatus === 'emergent_locked'
+          ? '🟣 ÉMERGENT LOCKÉ'
+          : c.lockStatus === 'locked'
+            ? '🔒 LOCKÉ'
+            : c.lockStatus === 'default_proposed'
+              ? '🟠 PROPOSÉ'
+              : '🛡️ SOCLE';
+      const cssClass =
+        c.lockStatus === 'emergent_locked'
+          ? 'emergent'
+          : c.lockStatus === 'locked'
+            ? 'locked'
+            : c.lockStatus === 'default_proposed'
+              ? 'proposed'
+              : 'baseline';
+      lines.push(`    ${nodeId}["${badge} · ${esc(c.displayName)} (${esc(c.name)})"]:::${cssClass}`);
+    }
+    lines.push('  end');
+  }
+
+  const seenEdges = new Set<string>();
+  for (const c of filtered) {
+    const srcId = `COMP_${safeId(c.name)}`;
+    for (const edge of c.outboundTargets) {
+      if (!visibleSet.has(edge.target)) continue;
+      const dstId = `COMP_${safeId(edge.target)}`;
+      if (srcId === dstId) continue;
+      const key = `${srcId}->${dstId}:${edge.kind}`;
+      if (seenEdges.has(key)) continue;
+      seenEdges.add(key);
+      if (edge.kind === 'dependency') {
+        lines.push(`  ${srcId} -. "dependsOn" .-> ${dstId}`);
+      } else {
+        lines.push(`  ${srcId} -- "${esc(edge.label.slice(0, 32))}" --> ${dstId}`);
+      }
+    }
+  }
+
+  return lines.join('\n');
+}
+
+/**
+ * Construit à tout instant (« Live Architecture Lock View ») la photographie temps réel
+ * de l'architecture verrouillée vs proposée, des composants instanciés par couche TOGAF/Sylva,
+ * de la traçabilité des exigences et de l'empreinte SHA-256 progressive.
+ */
+export async function buildLiveArchitectureLockSnapshot(
+  input: ProjectCompletenessInput,
+  catalog?: OntologyCatalog
+): Promise<LiveArchitectureLockSnapshot> {
+  const resolvedCatalog = catalog ?? (await loadOntologyCatalog());
+  const ledger = await buildProjectCompletenessLedger(input, resolvedCatalog);
+  const sealedManifest = getProjectArchitectureLock(input.projectId);
+
+  const lockedBindings: OntologyBindingItem[] = [];
+  const proposedBindings: OntologyBindingItem[] = [];
+
+  const slotEntries: LiveArchitectureLockSnapshot['slots'] = ledger.slots.map((slot) => {
+    const isLocked =
+      slot.status === 'bound_verified' ||
+      slot.status === 'bound_unverified' ||
+      slot.status === 'waived';
+    const lockBadge: 'locked' | 'default_proposed' | 'open' = isLocked
+      ? 'locked'
+      : slot.status === 'default_proposed'
+        ? 'default_proposed'
+        : 'open';
+
+    const boundLeafUrn = slot.boundLeafUrns[0];
+    const leafEntity = boundLeafUrn ? resolvedCatalog.entities[boundLeafUrn] : undefined;
+    const boundLeafTitle = leafEntity?.title || boundLeafUrn;
+
+    if (boundLeafUrn) {
+      const bindingItem: OntologyBindingItem = {
+        urn: boundLeafUrn,
+        revision: leafEntity?.revision ?? 1
+      };
+      if (isLocked) {
+        lockedBindings.push(bindingItem);
+      } else {
+        proposedBindings.push(bindingItem);
+      }
+    }
+
+    const candidateLeaves = slot.candidateLeafUrns.map((u) => ({
+      urn: u,
+      title: resolvedCatalog.entities[u]?.title || u
+    }));
+
+    const clauseRefs = new Set<string>(slot.coveredRequirementRefs || []);
+    if (Array.isArray(leafEntity?.governed_by_clauses)) {
+      for (const c of leafEntity!.governed_by_clauses as string[]) {
+        clauseRefs.add(c);
+      }
+    }
+
+    return {
+      slotId: slot.slotId,
+      axisUrn: slot.axisUrn,
+      axisTitle: slot.axisTitle,
+      togafDomain: slot.togafDomain,
+      status: slot.status,
+      lockBadge,
+      boundLeafUrn,
+      boundLeafTitle,
+      candidateLeaves,
+      instantiatedComponents: slot.instantiatedComponents || [],
+      coveredRequirementRefs: Array.from(clauseRefs),
+      ratifiedBy: slot.ratifiedBy,
+      ratifiedAt: slot.ratifiedAt,
+      rationale: slot.rationale
+    };
+  });
+
+  const componentMap = new Map<string, LiveLockedComponentEntry>();
+  for (const comp of ledger.activeCatalog) {
+    const isEmergent = comp.metadata.labels?.origin === 'emergent-slot';
+    const nics = (comp.spec.compute?.modules || []).flatMap((m) => m.nics || []);
+    const nicClasses = Array.from(new Set(nics.map((n) => n.class)));
+    const vrfNames = (comp.spec.network?.vrfs || []).map((v) => v.name);
+    const storageSvms = (comp.spec.storage?.svms || []).map((s) => s.name);
+
+    const outboundTargets: LiveLockedComponentEntry['outboundTargets'] = [];
+    for (const dep of comp.spec.dependsOn || []) {
+      outboundTargets.push({ target: dep, label: 'dependsOn', kind: 'dependency' });
+    }
+    for (const contract of comp.spec.crossTenantContracts || []) {
+      outboundTargets.push({
+        target: contract.targetComponent,
+        label: contract.purpose,
+        kind: 'contract'
+      });
+    }
+    for (const rule of comp.spec.firewall?.rules || []) {
+      const m = rule.to.match(/^ref\(component:([^.)]+)/);
+      if (m) {
+        outboundTargets.push({
+          target: m[1],
+          label: rule.functionalFlow || `${rule.proto.toUpperCase()}/${rule.ports.join(',')}`,
+          kind: 'firewall'
+        });
+      }
+    }
+
+    componentMap.set(comp.metadata.name, {
+      name: comp.metadata.name,
+      displayName: comp.metadata.displayName,
+      functionalDomain: comp.metadata.functionalDomain,
+      editor: comp.metadata.editor,
+      tenant: comp.metadata.tenant,
+      external: comp.metadata.external,
+      layer: classifyComponentLayer(comp),
+      lockStatus: isEmergent
+        ? 'emergent_locked'
+        : sealedManifest
+          ? 'locked'
+          : 'baseline',
+      isEmergent,
+      sourceSlotIds: [],
+      sourceAxisTitles: [],
+      sourceLeafUrns: [],
+      coveredRequirementRefs: [],
+      dependsOn: comp.spec.dependsOn || [],
+      outboundTargets,
+      nicsCount: nics.length,
+      nicClasses,
+      vrfNames,
+      storageSvms
+    });
+  }
+
+  for (const slot of slotEntries) {
+    for (const compName of slot.instantiatedComponents) {
+      const entry = componentMap.get(compName);
+      if (!entry) continue;
+      if (!entry.sourceSlotIds.includes(slot.slotId)) {
+        entry.sourceSlotIds.push(slot.slotId);
+      }
+      if (!entry.sourceAxisTitles.includes(slot.axisTitle)) {
+        entry.sourceAxisTitles.push(slot.axisTitle);
+      }
+      if (slot.boundLeafUrn && !entry.sourceLeafUrns.includes(slot.boundLeafUrn)) {
+        entry.sourceLeafUrns.push(slot.boundLeafUrn);
+      }
+      for (const reqRef of slot.coveredRequirementRefs) {
+        if (!entry.coveredRequirementRefs.includes(reqRef)) {
+          entry.coveredRequirementRefs.push(reqRef);
+        }
+      }
+      if (slot.lockBadge === 'locked') {
+        entry.lockStatus = entry.isEmergent ? 'emergent_locked' : 'locked';
+        entry.ratifiedBy = slot.ratifiedBy || entry.ratifiedBy;
+        entry.ratifiedAt = slot.ratifiedAt || entry.ratifiedAt;
+      } else if (
+        slot.lockBadge === 'default_proposed' &&
+        entry.lockStatus !== 'locked' &&
+        entry.lockStatus !== 'emergent_locked'
+      ) {
+        entry.lockStatus = 'default_proposed';
+      }
+    }
+  }
+
+  const components = Array.from(componentMap.values());
+  const lockedSlotsCount = slotEntries.filter((s) => s.lockBadge === 'locked').length;
+  const defaultProposedSlotsCount = slotEntries.filter(
+    (s) => s.lockBadge === 'default_proposed'
+  ).length;
+  const openSlotsCount = slotEntries.filter((s) => s.lockBadge === 'open').length;
+  const totalSlots = slotEntries.length;
+  const completionPercent =
+    totalSlots > 0 ? Math.round((lockedSlotsCount / totalSlots) * 100) : 0;
+
+  const lockedComponentsCount = components.filter(
+    (c) => c.lockStatus === 'locked' || c.lockStatus === 'emergent_locked'
+  ).length;
+  const proposedComponentsCount = components.filter(
+    (c) => c.lockStatus === 'default_proposed'
+  ).length;
+  const emergentComponentsCount = components.filter((c) => c.isEmergent).length;
+
+  const lockState: LiveArchitectureLockSnapshot['lockState'] = sealedManifest
+    ? 'sealed'
+    : ledger.readyForArchitectureLock
+      ? 'ready_to_seal'
+      : 'partial_live_lock';
+
+  const liveIntegritySha256 =
+    sealedManifest?.integritySha256 ||
+    createHash('sha256')
+      .update(
+        JSON.stringify({
+          projectId: input.projectId,
+          lockedBindings,
+          lockedComponents: components
+            .filter((c) => c.lockStatus === 'locked' || c.lockStatus === 'emergent_locked')
+            .map((c) => c.name)
+            .sort()
+        })
+      )
+      .digest('hex');
+
+  return {
+    version: '1.0-live',
+    projectId: input.projectId,
+    projectTitle: ledger.projectTitle,
+    generatedAt: new Date().toISOString(),
+    lockState,
+    liveIntegritySha256,
+    sealedManifest,
+    summary: {
+      totalSlots,
+      lockedSlotsCount,
+      defaultProposedSlotsCount,
+      openSlotsCount,
+      completionPercent,
+      totalComponentsCount: components.length,
+      lockedComponentsCount,
+      proposedComponentsCount,
+      emergentComponentsCount
+    },
+    lockedBindings,
+    proposedBindings,
+    components,
+    slots: slotEntries,
+    lockBlockers: ledger.lockBlockers,
+    mermaidLockedOnly: generateStatusAwareMermaid(components, true),
+    mermaidFullWithStatus: generateStatusAwareMermaid(components, false)
+  };
 }
 
 /**

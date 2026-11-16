@@ -655,6 +655,114 @@ violations contains v if {
 }
 
 # ==============================================================================
+# AXE 9 : TERMINAUX, OS ENDPOINTS & MDM / EMM
+# ==============================================================================
+
+_endpoint_mdm_proj := p if {
+	p := object.get(data.ontology, "endpoint_mdm_emm_zero_touch_enrollment", null)
+	p != null
+} else := p if {
+	p := object.get(data.ontology, "endpoint_mdm_onprem_sovereign_emm", null)
+	p != null
+}
+
+violations contains v if {
+	mdm_proj := _endpoint_mdm_proj
+	ed := object.get(input, "extended_domains", {})
+	ep := object.get(ed, "endpoint_mdm", {})
+	ep.mdm_managed != mdm_proj.mdm_managed_required
+	v := {
+		"rule": "data.archinex.edp.multiaxis.deny_unenrolled_endpoint_mdm",
+		"axis": "urn:archinex:ontology:axis:endpoint_mdm_enrollment",
+		"message": sprintf("Enrôlement MDM/EMM obligatoire non respecté (%v au lieu de %v)", [object.get(ep, "mdm_managed", "absent"), mdm_proj.mdm_managed_required]),
+		"violated_clause_urn": get_clause_urn(mdm_proj, "urn:archinex:kb:clause:endpoint:mdm_enrollment"),
+		"violated_requirement_id": get_req_id(mdm_proj, "REQ-Endpoint-MDM-01"),
+	}
+}
+
+violations contains v if {
+	pki_ep_proj := object.get(data.ontology, "security_pki_endpoint_scep_est_enrollment", null)
+	pki_ep_proj != null
+	ed := object.get(input, "extended_domains", {})
+	ep := object.get(ed, "endpoint_mdm", {})
+	not ep.pki_enrollment_protocol in pki_ep_proj.allowed_protocols
+	v := {
+		"rule": "data.archinex.edp.multiaxis.deny_unapproved_endpoint_pki_protocol",
+		"axis": "urn:archinex:ontology:axis:endpoint_pki_enrollment",
+		"message": sprintf("Protocole d'enrôlement PKI terminal '%v' non homologué (attendu: %v)", [object.get(ep, "pki_enrollment_protocol", "absent"), pki_ep_proj.allowed_protocols]),
+		"violated_clause_urn": get_clause_urn(pki_ep_proj, "urn:archinex:kb:clause:endpoint:pki_scep_est"),
+		"violated_requirement_id": get_req_id(pki_ep_proj, "REQ-Endpoint-PKI-01"),
+	}
+}
+
+violations contains v if {
+	os_proj := object.get(data.ontology, "endpoint_os_hardened_verified_boot", null)
+	os_proj != null
+	ed := object.get(input, "extended_domains", {})
+	ep := object.get(ed, "endpoint_mdm", {})
+	ep.verified_boot_enforced != os_proj.verified_boot_required
+	v := {
+		"rule": "data.archinex.edp.multiaxis.deny_unverified_endpoint_os_boot",
+		"axis": "urn:archinex:ontology:axis:endpoint_os_hardening",
+		"message": sprintf("Durcissement OS terminal non conforme : Verified Boot requis (%v)", [os_proj.verified_boot_required]),
+		"violated_clause_urn": get_clause_urn(os_proj, "urn:archinex:kb:clause:endpoint:os_hardening"),
+		"violated_requirement_id": get_req_id(os_proj, "REQ-Endpoint-OS-01"),
+	}
+}
+
+violations contains v if {
+	crypto_proj := object.get(data.ontology, "endpoint_crypto_fbe_hardware_keystore", null)
+	crypto_proj != null
+	ed := object.get(input, "extended_domains", {})
+	ep := object.get(ed, "endpoint_mdm", {})
+	ep.local_encryption_mode != crypto_proj.encryption_mode
+	v := {
+		"rule": "data.archinex.edp.multiaxis.deny_unencrypted_endpoint_storage",
+		"axis": "urn:archinex:ontology:axis:endpoint_local_encryption",
+		"message": sprintf("Chiffrement local terminal non conforme ('%v' au lieu de '%v')", [object.get(ep, "local_encryption_mode", "absent"), crypto_proj.encryption_mode]),
+		"violated_clause_urn": get_clause_urn(crypto_proj, "urn:archinex:kb:clause:endpoint:local_encryption"),
+		"violated_requirement_id": get_req_id(crypto_proj, "REQ-Endpoint-Crypto-01"),
+	}
+}
+
+_endpoint_sandbox_proj := p if {
+	p := object.get(data.ontology, "endpoint_sandbox_work_profile_strict_isolation", null)
+	p != null
+} else := p if {
+	p := object.get(data.ontology, "endpoint_sandbox_dedicated_kiosk_cobo", null)
+	p != null
+}
+
+violations contains v if {
+	sb_proj := _endpoint_sandbox_proj
+	ed := object.get(input, "extended_domains", {})
+	ep := object.get(ed, "endpoint_mdm", {})
+	ep.app_sandboxing_mode != sb_proj.sandboxing_mode
+	v := {
+		"rule": "data.archinex.edp.multiaxis.deny_missing_endpoint_app_sandbox",
+		"axis": "urn:archinex:ontology:axis:endpoint_app_sandboxing",
+		"message": sprintf("Mode de sandboxing applicatif terminal non conforme ('%v' au lieu de '%v')", [object.get(ep, "app_sandboxing_mode", "absent"), sb_proj.sandboxing_mode]),
+		"violated_clause_urn": get_clause_urn(sb_proj, "urn:archinex:kb:clause:endpoint:app_sandboxing"),
+		"violated_requirement_id": get_req_id(sb_proj, "REQ-Endpoint-Sandbox-01"),
+	}
+}
+
+violations contains v if {
+	ota_proj := object.get(data.ontology, "endpoint_ota_signed_ab_staged_rollout", null)
+	ota_proj != null
+	ed := object.get(input, "extended_domains", {})
+	ep := object.get(ed, "endpoint_mdm", {})
+	ep.ota_signed_ab_required != ota_proj.ota_signed_ab_required
+	v := {
+		"rule": "data.archinex.edp.multiaxis.deny_unsigned_endpoint_ota_update",
+		"axis": "urn:archinex:ontology:axis:endpoint_ota_updates",
+		"message": sprintf("Mises à jour OTA signées avec partitionnement A/B requises (%v)", [ota_proj.ota_signed_ab_required]),
+		"violated_clause_urn": get_clause_urn(ota_proj, "urn:archinex:kb:clause:endpoint:ota_updates"),
+		"violated_requirement_id": get_req_id(ota_proj, "REQ-Endpoint-OTA-01"),
+	}
+}
+
+# ==============================================================================
 # AXE 10 : SERVICES MANAGÉS eSIM SM-DP+, OSS/SMO/CMDB, N3IWF/WLAN, eMBMS & PQC
 # ==============================================================================
 

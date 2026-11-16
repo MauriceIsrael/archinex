@@ -8,6 +8,30 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Extension du socle ontologique et du catalogue composants aux périmètres Terminaux / OS / MDM-EMM (#322)
+- **Taxonomie & Ontologie (`src/lib/domain/edp/togafTaxonomy.ts`, `tests/fixtures/edp/ontology_export.json`)** :
+  - Ajout de 6 axes ontologiques dédiés aux terminaux, OS endpoints et MDM/EMM (`endpoint_mdm_enrollment`, `endpoint_pki_enrollment`, `endpoint_os_hardening`, `endpoint_local_encryption`, `endpoint_app_sandboxing`, `endpoint_ota_updates`) avec leurs feuilles et prérequis transitifs vers `pki_hierarchy`.
+- **Catalogue de composants (`src/lib/domain/edp/componentCatalog.ts`)** :
+  - Ajout des composants logiques `mdm-emm` et `endpoint-os-profile` (multi-NIC, VRF, Vault, certificats, overlays `prod`/`preprod`/`lab`) et rattachement explicite des feuilles URN vers `mdm-emm`, `endpoint-os-profile` et `pki-ca` (SCEP/EST).
+- **Évaluation & Oracle Rego (`src/lib/server/edp/refinementCoverage.ts`, `edp/policies/multi_axis_refinement.rego`)** :
+  - Détection contextuelle des axes `endpoint_*`, hydratation de `extended_domains.endpoint_mdm` et ajout des 6 règles OPA/Rego correspondantes (`deny_unenrolled_endpoint_mdm`, `deny_unapproved_endpoint_pki_protocol`, `deny_unverified_endpoint_os_boot`, `deny_unencrypted_endpoint_storage`, `deny_missing_endpoint_app_sandbox`, `deny_unsigned_endpoint_ota_update`).
+- **Tests** :
+  - Ajout de la suite de tests contractuels `tests/contract/edp-endpoint-os-mdm-emm.test.ts`.
+
+### Phase 4 EDP : Composant cible unifié, motif d'activation et filtrage de pertinence des axes (#321)
+- **Catalogue & Moteur de couverture (`src/lib/domain/edp/componentCatalog.ts`, `src/lib/server/edp/refinementCoverage.ts`, `src/lib/server/edp/decisionSlotRegistry.ts`)** :
+  - Unification de la résolution du composant cible via `resolveTargetComponentsForUrns` et export de `DEFAULT_URN_TO_COMPONENT` (combinés avec les triplets `instantiates_component`, les projections et le catalogue projet), y compris sur chaque feuille (`CandidateLeafSummary.targetComponents`).
+  - Ajout du motif d'activation (`activationReason`) et du score/niveau de pertinence (`relevanceScore`, `relevanceLevel`) sur chaque axe, avec correspondance lexicale sur bornes de mots (`matchEntityAgainstCorpus`) et filtrage automatique des axes hors-périmètre vers `outOfScopeAxes`.
+  - Support de l'exclusion manuelle d'axes (`excludedAxisUrns`) sans polluer `composedBindings`.
+- **API & IHM Phase 4 (`src/routes/api/projects/[projectId]/subjects/[subjectId]/edp/+server.ts`, `src/lib/components/deliberation/Phase4RefinementHub.svelte`)** :
+  - Ajout des actions `dismiss_axis` et `restore_axis` dans l'API EDP du sujet.
+  - Affichage explicite du composant cible sur chaque axe, chaque feuille liée et chaque règle Rego, ainsi que du motif d'activation, du badge de pertinence, du bouton `✕ Hors-périmètre` et du panneau repliable des axes masqués.
+- **Tests** :
+  - Ajout de `tests/contract/edp-issue321-component-target-and-relevance.test.ts`.
+
+### Ajouté
+- **Synchronisation Nautobot enrichie pour IP Flow Manager (`src/lib/server/edp/nautobotSync.ts`)** : `syncHydratedInventoryToNautobot()` pousse désormais les tags de zone `zone-<nom>` (`/api/extras/tags/`), les plateformes (`/api/dcim/platforms/`), les VRF dérivées des zones de sécurité (`/api/ipam/vrfs/`), les interfaces des équipements (`/api/dcim/interfaces/`), les préfixes réseau dérivés (`/api/ipam/prefixes/`), les adresses IP (`/api/ipam/ip-addresses/`), leur liaison `/api/ipam/ip-address-to-interface/` et `primary_ip4`, permettant à `IP-flow-mngt` (`nautobot_adapter.py`) de consommer un instantané complet et fidèle depuis Nautobot.
+
 ### Nouveautés
 - **Diagramme d'architecture cible multi-axes dynamique (Phase 3, Issue #310)** : `generateTargetArchitectureDiagram` dans `src/lib/domain/artifactProjections.ts` assemble désormais dynamiquement un diagramme Mermaid structuré par domaines TOGAF à partir des `decisionSlots` / axes ontologiques actifs et feuilles liées (Phase 4 / EDP), des `statements` actifs groupés par axe/domaine, des exigences couvertes et des composants instanciés du catalogue projet, sans couplage à des mots-clés codés en dur.
 - Enrichissement de `DeliberationStore.getProjectionContext` et `fetchDecisionContext` dans `src/lib/stores/deliberationStore.svelte.ts` avec le contexte EDP et les composants du catalogue projet.

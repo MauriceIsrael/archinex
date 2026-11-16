@@ -35,6 +35,7 @@
 	let isActionRunning = $state(false);
 	let showRawJson = $state(false);
 	let showSylvaValuesYaml = $state(false);
+	let showOutOfScopeAxes = $state(false);
 	let activeDriftScenario = $state<string>('reset_clean');
 	let selectedConceptUrn = $state<string>('AUTO');
 
@@ -135,6 +136,20 @@
 		);
 	}
 
+	async function handleDismissAxis(axisUrn: string, axisTitle: string) {
+		await triggerEdpAction(
+			{ action: 'dismiss_axis', axisUrn, selectedConceptUrn },
+			`Axe « ${axisTitle} » écarté (hors-périmètre).`
+		);
+	}
+
+	async function handleRestoreAxis(axisUrn: string, axisTitle: string) {
+		await triggerEdpAction(
+			{ action: 'restore_axis', axisUrn, selectedConceptUrn },
+			`Axe « ${axisTitle} » réintégré dans le périmètre.`
+		);
+	}
+
 	async function handleBindAllMissingAxes() {
 		if (!coverage?.axes) return;
 		for (const axis of coverage.axes) {
@@ -207,7 +222,7 @@
 					</span>
 				</div>
 				<p class="text-[11px] text-muted-foreground truncate">
-					Concept : <strong>{coverage.matchedConcepts?.[0]?.title || 'Plateforme Cloud'}</strong>
+					Concept : <strong>{coverage.matchedConcepts?.[0]?.title || coverage.emergentCapability?.title || 'Périmètre spécifique (hors-infra)'}</strong>
 				</p>
 			</div>
 
@@ -465,16 +480,60 @@
 													class="px-1.5 py-0.5 rounded font-mono text-[10px] font-bold bg-violet-500/15 text-violet-800 dark:text-violet-200 border border-violet-500/30"
 													data-testid="phase4-axis-components"
 												>
-													🧩 Composant(s) responsable(s) : {axis.instantiatedComponents.join(', ')}
+													🧩 Composant(s) cible(s) : {axis.instantiatedComponents.join(', ')}
+												</span>
+											{:else}
+												<span
+													class="px-1.5 py-0.5 rounded font-mono text-[10px] font-semibold bg-slate-500/10 text-slate-700 dark:text-slate-300 border border-slate-500/25"
+													data-testid="phase4-axis-components"
+												>
+													🧩 Composant cible : Infrastructure / Transverse ({axis.togafDomain || axis.domain})
+												</span>
+											{/if}
+											{#if axis.relevanceLevel && axis.relevanceLevel !== 'out_of_scope'}
+												<span
+													class="px-1.5 py-0.5 rounded text-[10px] font-semibold border {axis.relevanceLevel === 'high'
+														? 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30'
+														: axis.relevanceLevel === 'medium'
+															? 'bg-sky-500/10 text-sky-700 dark:text-sky-300 border-sky-500/30'
+															: 'bg-muted text-muted-foreground border-border'}"
+													data-testid="phase4-axis-relevance-badge"
+												>
+													Pertinence : {axis.relevanceLevel === 'high' ? 'Haute' : axis.relevanceLevel === 'medium' ? 'Moyenne' : 'Faible'}
 												</span>
 											{/if}
 											<strong class="text-xs font-bold text-foreground">{axis.axisTitle}</strong>
 										</div>
 										<p class="text-[11px] text-muted-foreground">{axis.rationale}</p>
+										{#if axis.activationReason}
+											<div
+												class="flex items-center gap-1.5 flex-wrap text-[10px] text-muted-foreground"
+												data-testid="phase4-axis-activation-reason"
+											>
+												<span class="px-1.5 py-0.5 rounded bg-background/80 border border-border/60 text-foreground/90">
+													🎯 Motif : {axis.activationReason.summary}
+												</span>
+												{#each axis.activationReason.matchedRequirementIds || [] as reqId}
+													<span class="px-1.5 py-0.5 rounded font-mono bg-amber-500/10 text-amber-800 dark:text-amber-300 border border-amber-500/30">
+														{reqId}
+													</span>
+												{/each}
+											</div>
+										{/if}
 									</div>
 
 									<!-- Boutons de sélection de feuille (OR-Refinement : ratification directe, remplacement exclusif ou cumul inclusif) -->
 									<div class="flex items-center gap-1.5 flex-wrap">
+										<button
+											type="button"
+											disabled={isActionRunning}
+											onclick={() => handleDismissAxis(axis.axisUrn, axis.axisTitle)}
+											class="px-2 py-1 rounded-md text-[10px] font-semibold border border-border/70 bg-background/80 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
+											title="Écarter cet axe s'il est hors-périmètre pour ce sujet"
+											data-testid="phase4-dismiss-axis-btn"
+										>
+											✕ Hors-périmètre
+										</button>
 										{#if axis.requiresRatification && axis.boundLeaves?.[0]}
 											<button
 												type="button"
@@ -544,6 +603,11 @@
 								{#if axis.boundLeaves.length > 0}
 									<div class="mt-2.5 pt-2 border-t border-border/60 space-y-1.5">
 										{#each axis.boundLeaves as leaf}
+											{@const leafComponents = leaf.targetComponents?.length
+												? leaf.targetComponents
+												: axis.instantiatedComponents?.length
+													? axis.instantiatedComponents
+													: []}
 											<div class="flex items-center justify-between flex-wrap gap-2 text-[11px]">
 												<div class="flex items-center gap-1.5 flex-wrap">
 													<span class="text-muted-foreground">Feuille (<code class="font-mono text-[10px]">implemented_by</code>) :</span>
@@ -551,6 +615,12 @@
 														{leaf.title}
 													</span>
 													<span class="font-mono text-[10px] text-muted-foreground">({leaf.urn} · r{leaf.revision})</span>
+													<span
+														class="font-mono text-[10px] px-1.5 py-0.5 rounded bg-violet-500/15 text-violet-800 dark:text-violet-200 border border-violet-500/30"
+														data-testid="phase4-leaf-components"
+													>
+														🧩 {leafComponents.length > 0 ? leafComponents.join(', ') : `Infrastructure / Transverse (${leaf.domain})`}
+													</span>
 													<button
 														type="button"
 														disabled={isActionRunning}
@@ -572,6 +642,18 @@
 													</span>
 												{/if}
 											</div>
+											{#if leaf.oracleRules?.length > 0}
+												<div
+													class="flex items-center gap-1.5 flex-wrap text-[10px] font-mono text-muted-foreground"
+													data-testid="phase4-leaf-rego-rules"
+												>
+													{#each leaf.oracleRules as rule}
+														<span class="px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-800 dark:text-emerald-300 border border-emerald-500/25">
+															⚖️ {rule.split('.').pop()} → 🧩 {leafComponents.length > 0 ? leafComponents.join(', ') : leaf.domain}
+														</span>
+													{/each}
+												</div>
+											{/if}
 											{#if leaf.projections && Object.keys(leaf.projections).length > 0}
 												<div class="text-[10px] font-mono text-muted-foreground bg-background/80 px-2 py-1 rounded border border-border/50">
 													Projections <strong class="text-foreground">data.ontology</strong> :
@@ -583,6 +665,56 @@
 								{/if}
 							</div>
 						{/each}
+
+						{#if coverage.axes.length === 0}
+							<div
+								class="p-4 rounded-lg border border-dashed text-center text-xs text-muted-foreground"
+								data-testid="phase4-no-relevant-axes"
+							>
+								Aucun axe d'architecture infrastructure/socle pertinent n'a été retenu pour le périmètre de ce sujet.
+							</div>
+						{/if}
+
+						{#if coverage.outOfScopeAxes && coverage.outOfScopeAxes.length > 0}
+							<div class="rounded-lg border border-border/70 bg-muted/20 p-2.5 space-y-2" data-testid="phase4-out-of-scope-panel">
+								<div class="flex items-center justify-between gap-2 flex-wrap text-[11px]">
+									<span class="font-semibold text-muted-foreground">
+										🔍 {coverage.outOfScopeAxes.length} axe(s) hors-périmètre masqué(s) automatiquement ou écarté(s)
+									</span>
+									<button
+										type="button"
+										onclick={() => (showOutOfScopeAxes = !showOutOfScopeAxes)}
+										class="px-2 py-0.5 rounded border bg-background hover:bg-muted text-[10px] font-semibold text-foreground cursor-pointer"
+										data-testid="phase4-toggle-out-of-scope-btn"
+									>
+										{showOutOfScopeAxes ? 'Masquer' : 'Afficher les axes hors-périmètre'}
+									</button>
+								</div>
+								{#if showOutOfScopeAxes}
+									<div class="space-y-1.5 pt-1 border-t border-border/50">
+										{#each coverage.outOfScopeAxes as oosAxis}
+											<div class="flex items-center justify-between gap-2 flex-wrap p-2 rounded border bg-background/70 text-[11px]" data-testid="phase4-out-of-scope-item">
+												<div class="space-y-0.5">
+													<div class="font-semibold text-foreground">{oosAxis.axisTitle}</div>
+													{#if oosAxis.activationReason}
+														<div class="text-[10px] text-muted-foreground">{oosAxis.activationReason.summary}</div>
+													{/if}
+												</div>
+												<button
+													type="button"
+													disabled={isActionRunning}
+													onclick={() => handleRestoreAxis(oosAxis.axisUrn, oosAxis.axisTitle)}
+													class="px-2 py-1 rounded text-[10px] font-semibold bg-indigo-600/15 hover:bg-indigo-600/25 text-indigo-800 dark:text-indigo-200 border border-indigo-500/30 cursor-pointer"
+													data-testid="phase4-restore-axis-btn"
+												>
+													↩ Réintégrer
+												</button>
+											</div>
+										{/each}
+									</div>
+								{/if}
+							</div>
+						{/if}
 					</div>
 
 					<!-- Clauses d'intention extraites de la décision / spécification -->

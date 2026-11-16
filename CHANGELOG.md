@@ -8,6 +8,18 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Projections Structurizr C4 et SysML v2 (BDD) structurées et exploitables en Phase 3 (#312)
+- **Groupement dynamique par axes TOGAF (`src/lib/domain/projectionBlocks.ts`, `src/lib/domain/artifactProjections.ts`)** :
+  - Structuration de `generateStructurizrVisualMermaid` par sous-graphes d'axes fonctionnels (`Axis_*`), relations typées (`structure`, `fonde`, `satisfait`) et traçabilité vers les exigences (`ReqTrace`).
+  - Structuration de `generateSysMLVisualMermaid` en diagramme BDD multi-blocs (`<<system>>` composé par `*--` de blocs `<<block>>` et lié aux blocs `<<requirement>>`).
+  - Modernisation de `generateSysMLv2` avec blocs `Axis_*`, composition `System_*`, dépendances `dependency from ... to ...;` et relations réelles `requirement def` / `requirement` / `satisfy ... by ...;`.
+  - Ajout de liens `structure` entre l'option retenue et les conteneurs racines dans `generateStructurizrDSL`.
+- **Ergonomie Phase 3 (`src/lib/components/deliberation/ArtifactRegenerationHub.svelte`, `src/lib/stores/deliberationStore.svelte.ts`)** :
+  - Navigation par bloc fonctionnel (filtrage visuel + inspecteur de composants et exigences satisfaites).
+  - Actions directes de téléchargement (`.dsl`, `.sysml`), copie de commande `structurizr/lite` et liens vers Structurizr DSL Playground et Eclipse SysON.
+- **Tests** :
+  - Ajout de `tests/contract/projection-blocks.test.ts` (6 tests couvrant le groupement TOGAF, les vues filtrées, la traçabilité et la validation structurelle SysML v2).
+
 ### Ajouté
 - **Phase 2 (Délibération) — Tiroir des exigences RFP rattachées (`SubjectRequirementsDrawer`)** : expose directement dans `SubjectThreadView` les exigences RFP liées au sujet (référence de clause, titre, criticité et texte complet dépliable), alimentées par `GET /api/projects/[projectId]/subjects/[subjectId]/workbench` (`resolveSubjectRequirements`).
 

@@ -179,6 +179,7 @@ export interface SubjectRefinementInput {
   selectedConceptUrn?: string;
   isNovelSubject?: boolean;
   emergentCapability?: EmergentCapabilityDetection;
+  availableComponents?: string[];
 }
 
 export interface LldHydrationOverrides {
@@ -913,6 +914,15 @@ export function computeRefinementCoverage(
   const axes: AxisCoverageItem[] = [];
 
   // 1bis. Détection d'un besoin fonctionnel inédit / émergent (ex: IoT / LoRaWAN / MQTT ou sujet `isNovelSubject`)
+  const catalogComponentNames = Array.from(
+    new Set(
+      (input.availableComponents && input.availableComponents.length > 0
+        ? input.availableComponents
+        : Object.values(catalog.entities || {})
+            .map((e) => (e.instantiated_component ? String(e.instantiated_component).replace(/^urn:archinex:component:/, '') : ''))
+            .filter(Boolean))
+    )
+  );
   const explicitEmergentUrn = Array.from(explicitBindingSet).find((u) =>
     u.startsWith('urn:archinex:ontology:application:emergent:')
   );
@@ -922,7 +932,8 @@ export function computeRefinementCoverage(
     (isAutoConceptMode || hasExplicitEmergentBinding
       ? detectEmergentCapabilityNeed(rawCombinedText, undefined, {
           isNovelSubject: input.isNovelSubject,
-          fallbackTitle: input.title
+          fallbackTitle: input.title,
+          availableComponents: catalogComponentNames
         })
       : undefined);
 
@@ -941,7 +952,7 @@ export function computeRefinementCoverage(
       documentEngineLayer: 'application' as const,
       suggestedComponentName: inferredCompName,
       suggestedTier: 'application' as const,
-      candidateExistingComponents: ['gis-server', 'ptt-server', 'core-network', 'db-ha'],
+      candidateExistingComponents: catalogComponentNames.slice(0, 6),
       rationale:
         'Besoin fonctionnel émergent exigeant une allocation explicite de responsabilité de composant logique.'
     };

@@ -22,7 +22,7 @@
 	let isSlotActionRunning = $state(false);
 	let slotActionMessage = $state<string | null>(null);
 	let slotActionError = $state<string | null>(null);
-	let emergentComponentInput = $state('iot-gateway');
+	let emergentComponentInput = $state('');
 
 	async function loadProjectCatalogViews() {
 		if (!projectId) return;

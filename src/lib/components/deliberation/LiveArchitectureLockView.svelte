@@ -22,7 +22,7 @@
 	let selectedPillarFilter = $state<'security' | 'observability' | 'configuration' | null>(null);
 	let selectedComponentName = $state<string | null>(null);
 	let mermaidLockedOnlyMode = $state<boolean>(false);
-	let emergentComponentInput = $state('iot-gateway');
+	let emergentComponentInput = $state('');
 	let slotLeafOverrides = $state<Record<string, string>>({});
 	let isActionRunning = $state(false);
 	let actionMessage = $state<string | null>(null);
@@ -81,8 +81,8 @@
 	const verticalPlaneDefinitions = [
 		{
 			id: 'workloads-apps',
-			title: 'Plan 1a · Workloads Applicatifs, SIG, MCPTT & Capacités Émergentes',
-			subtitle: 'Applications métier, fusion de localisation (§9.4/§11), capacités RFP inédites (IoT / Vidéo / IA)',
+			title: 'Plan 1a · Workloads Applicatifs & Capacités Émergentes',
+			subtitle: 'Applications métier, services de traitement et capacités RFP inédites',
 			badgeClass: 'bg-violet-500/15 text-violet-800 dark:text-violet-300 border-violet-500/30'
 		},
 		{

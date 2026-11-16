@@ -1604,8 +1604,8 @@ export function createEmergentLogicalComponent(
       displayName: displayName || `Service Applicatif Émergent (${safeName})`,
       tenant: `tenant-${safeName}`,
       external: false,
-      functionalDomain: 'gis-services',
-      editor: 'gis-ops',
+      functionalDomain: 'it',
+      editor: 'itops',
       status: 'active',
       version: '1.0.0',
       manifestVersion: 1,
@@ -1623,7 +1623,7 @@ export function createEmergentLogicalComponent(
         subnets: [
           {
             name: `sn-${shortPrefix}-app`,
-            cidr: 'ref(param.gis.subnet.app)',
+            cidr: 'ref(param.emergent.subnet.app)',
             vrf: `vrf-${shortPrefix}-app`,
             zone: 'data',
             class: 'business',
@@ -1631,14 +1631,14 @@ export function createEmergentLogicalComponent(
           },
           {
             name: `sn-${shortPrefix}-events`,
-            cidr: 'ref(param.gis.subnet.events)',
+            cidr: 'ref(param.emergent.subnet.events)',
             vrf: `vrf-${shortPrefix}-events`,
             zone: 'events',
             class: 'events'
           },
           {
             name: `sn-${shortPrefix}-admin`,
-            cidr: 'ref(param.gis.subnet.admin)',
+            cidr: 'ref(param.emergent.subnet.admin)',
             vrf: `vrf-${shortPrefix}-admin`,
             zone: 'admin',
             class: 'admin'
@@ -1652,7 +1652,7 @@ export function createEmergentLogicalComponent(
             kind: 'container',
             role: `${safeName}-worker`,
             status: 'active',
-            instances: 'ref(param.gis.instances.api)',
+            instances: 'ref(param.emergent.instances.worker)',
             placement: { requiredDataplane: 'standard-nis2', zone: 'data', pool: 'sylva-standard-nis2' },
             nics: [
               {
@@ -1681,7 +1681,7 @@ export function createEmergentLogicalComponent(
             helm: {
               repo: `oci://registry.sylva.internal/${shortPrefix}`,
               chart: safeName,
-              version: 'ref(param.gis.chartVersion)'
+              version: 'ref(param.emergent.chartVersion)'
             },
             storage: [
               {
@@ -1892,6 +1892,11 @@ export const DEFAULT_ENVIRONMENT_OVERLAYS: EnvironmentOverlay[] = [
         'wafproxy.subnet.admin': '10.146.12.0/24',
         'wafproxy.instances.envoy': 2,
         'wafproxy.chartVersion': '1.5.0',
+        'emergent.subnet.app': '10.47.10.0/24',
+        'emergent.subnet.events': '10.47.11.0/24',
+        'emergent.subnet.admin': '10.47.12.0/24',
+        'emergent.instances.worker': 2,
+        'emergent.chartVersion': '1.0.0',
         'storage.hot.quota': '500Gi',
         'storage.warm.quota': '2Ti'
       },
@@ -1961,6 +1966,11 @@ export const DEFAULT_ENVIRONMENT_OVERLAYS: EnvironmentOverlay[] = [
         'wafproxy.subnet.admin': '10.156.12.0/24',
         'wafproxy.instances.envoy': 2,
         'wafproxy.chartVersion': '1.5.0',
+        'emergent.subnet.app': '10.57.10.0/24',
+        'emergent.subnet.events': '10.57.11.0/24',
+        'emergent.subnet.admin': '10.57.12.0/24',
+        'emergent.instances.worker': 2,
+        'emergent.chartVersion': '1.0.0',
         'storage.hot.quota': '200Gi',
         'storage.warm.quota': '1Ti'
       },
@@ -2030,6 +2040,11 @@ export const DEFAULT_ENVIRONMENT_OVERLAYS: EnvironmentOverlay[] = [
         'wafproxy.subnet.admin': '10.166.12.0/24',
         'wafproxy.instances.envoy': 1,
         'wafproxy.chartVersion': '1.5.0',
+        'emergent.subnet.app': '10.67.10.0/24',
+        'emergent.subnet.events': '10.67.11.0/24',
+        'emergent.subnet.admin': '10.67.12.0/24',
+        'emergent.instances.worker': 1,
+        'emergent.chartVersion': '1.0.0-rc1',
         'storage.hot.quota': '50Gi',
         'storage.warm.quota': '200Gi'
       },

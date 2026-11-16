@@ -372,4 +372,31 @@ describe('Allocation explicite SIG (§9.4, §11 DEMOLULU) & Sujets RFP inédits 
 			resetProjectSlotRegistry(testProjectId);
 		}
 	});
+
+	it('Généralisation : un composant émergent ne dépend ni des paramètres gis ni des noms de composants MCX en dur', () => {
+		const broker = createEmergentLogicalComponent('mqtt-broker');
+		expect(broker.metadata.functionalDomain).toBe('it');
+		expect(broker.metadata.editor).toBe('itops');
+		const serialized = JSON.stringify(broker);
+		expect(serialized).not.toContain('param.gis.');
+		expect(serialized).toContain('param.emergent.');
+
+		const customEmergent = detectEmergentCapabilityNeed(
+			'Passerelle de paiement instantané SEPA avec rapprochement temps réel',
+			undefined,
+			{
+				isNovelSubject: true,
+				fallbackTitle: 'Passerelle Paiement SEPA',
+				availableComponents: ['billing-api', 'auth-gateway', 'ledger-db']
+			}
+		);
+		expect(customEmergent).toBeDefined();
+		expect(customEmergent?.candidateExistingComponents).toEqual([
+			'billing-api',
+			'auth-gateway',
+			'ledger-db'
+		]);
+		expect(customEmergent?.candidateExistingComponents).not.toContain('gis-server');
+		expect(customEmergent?.candidateExistingComponents).not.toContain('ptt-server');
+	});
 });

@@ -184,35 +184,6 @@
 				</span>
 			</button>
 
-			{#if isExperimentalEnabled}
-				<!-- Phase 5 : Consolidation Projet (transversale multi-sujets) -->
-				<button
-					type="button"
-					data-testid="phase-tab-consolidation"
-					onclick={openProjectConsolidation}
-					class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-all cursor-pointer {activePosture ===
-					'consolidation'
-						? 'bg-indigo-600 text-white font-bold shadow-xs'
-						: 'bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 font-medium border border-indigo-500/20'}"
-				>
-					<Layers class="h-3.5 w-3.5 shrink-0" />
-					<span>Phase 5 · Consolidation</span>
-				</button>
-
-				{#if onOpenLiveLock}
-					<button
-						type="button"
-						data-testid="live-lock-quick-open-btn"
-						onclick={onOpenLiveLock}
-						title="Inspecter à tout instant l'architecture verrouillée en direct (Cartographie, Matrice des emplacements & architecture.lock)"
-						class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-800 dark:text-emerald-200 font-semibold border border-emerald-500/30 transition-all cursor-pointer"
-					>
-						<Lock class="h-3.5 w-3.5 shrink-0" />
-						<span>Architecture Lockée</span>
-					</button>
-				{/if}
-			{/if}
-
 			{#if onOpenQuickAsk}
 				<button
 					type="button"
@@ -300,6 +271,35 @@
 						<Cpu class="h-3.5 w-3.5 shrink-0" />
 						<span>Phase 4 · Raffinement</span>
 					</button>
+
+					<span class="text-muted-foreground/40 text-xs select-none hidden sm:inline">→</span>
+
+					<!-- Phase 5 : Consolidation Projet (transversale multi-sujets) -->
+					<button
+						type="button"
+						data-testid="phase-tab-consolidation"
+						onclick={openProjectConsolidation}
+						class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-all cursor-pointer {activePosture ===
+						'consolidation'
+							? 'bg-indigo-600 text-white font-bold shadow-xs'
+							: 'bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 font-medium border border-indigo-500/20'}"
+					>
+						<Layers class="h-3.5 w-3.5 shrink-0" />
+						<span>Phase 5 · Consolidation</span>
+					</button>
+
+					{#if onOpenLiveLock}
+						<button
+							type="button"
+							data-testid="live-lock-quick-open-btn"
+							onclick={onOpenLiveLock}
+							title="Inspecter à tout instant l'architecture verrouillée en direct (Cartographie, Matrice des emplacements & architecture.lock)"
+							class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-800 dark:text-emerald-200 font-semibold border border-emerald-500/30 transition-all cursor-pointer"
+						>
+							<Lock class="h-3.5 w-3.5 shrink-0" />
+							<span>Architecture Lockée</span>
+						</button>
+					{/if}
 				{/if}
 			</div>
 		</div>

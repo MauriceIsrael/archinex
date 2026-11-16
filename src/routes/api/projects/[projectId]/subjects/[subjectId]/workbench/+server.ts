@@ -10,6 +10,7 @@ import {
 } from '$lib/server/projects/optionsDb';
 import { parseSubjectDecision } from '$lib/server/projects/arbitrationDb';
 import { computeSubjectMaturityReport } from '$lib/server/projects/maturityCriteriaService';
+import { resolveSubjectRequirements } from '$lib/server/projects/requirementsDb';
 
 /**
  * Endpoint agrégé pour le chargement rapide de l'espace sujet en phase délibération.
@@ -21,13 +22,14 @@ export const GET: RequestHandler = async (event) => {
 	try {
 		const subject = await ensureSubjectExists(projectId, subjectId);
 
-		const [args, options, criteria, evaluations, tradeOffs, maturityData] = await Promise.all([
+		const [args, options, criteria, evaluations, tradeOffs, maturityData, subjectRequirements] = await Promise.all([
 			listArguments(subjectId),
 			listOptions(subjectId),
 			listCriteria(subjectId),
 			listEvaluations(subjectId),
 			listTradeOffs(subjectId),
-			computeSubjectMaturityReport({ event, projectId, subjectId, subject })
+			computeSubjectMaturityReport({ event, projectId, subjectId, subject }),
+			resolveSubjectRequirements(projectId, subject.requirementRefs)
 		]);
 
 		const { parsedDecision } = await parseSubjectDecision(
@@ -51,7 +53,10 @@ export const GET: RequestHandler = async (event) => {
 			tradeOffs,
 			decision: parsedDecision,
 			criteriaReport: maturityData.report,
-			isHubCutover: maturityData.isHubCutover
+			isHubCutover: maturityData.isHubCutover,
+			requirements: subjectRequirements.items,
+			requirementsUnresolvedRefs: subjectRequirements.unresolvedRefs,
+			requirementsDossierPresent: subjectRequirements.dossierPresent
 		});
 	} catch (err: any) {
 		console.error('[API Workbench] Erreur :', err);

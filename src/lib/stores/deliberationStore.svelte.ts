@@ -28,6 +28,7 @@ import {
 	type FreezeGatingResult
 } from '$lib/domain/freezeExport';
 import {
+	extractProjectionBlocks,
 	generateMermaidDiagram,
 	generateTargetArchitectureDiagram,
 	generateDeploymentSequenceDiagram,
@@ -1780,8 +1781,26 @@ class DeliberationStore {
 			sysmlVisual: generateSysMLVisualMermaid(subject, draft, sectionStatements, context),
 			configJSON: generateConfigJSON(subject, draft, sectionStatements, sealedAt, context),
 			petitesBriquesCanvas: generatePetitesBriquesCanvas(subject, draft, sectionStatements, context),
-			petitesBriquesYAML: generatePetitesBriquesYAML(generatePetitesBriquesCanvas(subject, draft, sectionStatements, context))
+			petitesBriquesYAML: generatePetitesBriquesYAML(generatePetitesBriquesCanvas(subject, draft, sectionStatements, context)),
+			projectionBlocks: extractProjectionBlocks(subject, draft, sectionStatements, context)
 		};
+	}
+
+	/**
+	 * Génère la projection visuelle C4 ou SysML v2 filtrée sur un bloc fonctionnel donné.
+	 */
+	getFocusedProjectionMermaid(subjectId: string, kind: 'structurizr' | 'sysml', axisId?: string): string | null {
+		const subject = this.subjects.find((s) => s.id === subjectId);
+		const draft = this.drafts[subjectId];
+		if (!subject || !draft) return null;
+
+		const sectionStatements = this.statements.filter(
+			(s) => s.section === subject.section_ref || s.triplet.subject === subject.id
+		);
+		const context = this.getProjectionContext(subjectId);
+		return kind === 'structurizr'
+			? generateStructurizrVisualMermaid(subject, draft, sectionStatements, context, axisId)
+			: generateSysMLVisualMermaid(subject, draft, sectionStatements, context, axisId);
 	}
 
 	openWhyInspector(statement: Statement) {

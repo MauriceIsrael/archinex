@@ -4,6 +4,15 @@ import type { Statement } from '$lib/types/epistemic';
 import { renderStructurizrWorkspace, type C4Container, type C4Relation } from '$lib/domain/structurizrDsl';
 import { badgeOf, c4Styles, draftOverlay, epistemicCounts, mermaidClassDefs, mmdText, partitionStatements, withdrawnNote } from '$lib/domain/epistemicBadge';
 import { TOGAF_DOMAINS, TOGAF_DOMAIN_ORDER, resolveTogafDomain, type TogafDomainId } from '$lib/domain/edp/togafTaxonomy';
+import {
+	buildProjectionBlockGraph,
+	type ProjectionBlock,
+	type ProjectionBlockGraph,
+	type ProjectionBlockItem,
+	type ProjectionRequirementTrace
+} from '$lib/domain/projectionBlocks';
+
+export type { ProjectionBlock, ProjectionBlockGraph, ProjectionBlockItem, ProjectionRequirementTrace };
 
 export interface ProjectionActor {
 	name: string;
@@ -147,6 +156,20 @@ export function generateMermaidDiagram(
 }
 
 /**
+ * Extrait les blocs fonctionnels / axes TOGAF et la traçabilité des exigences
+ * pour alimenter les projections C4, SysML v2 et la navigation par bloc de l'UI.
+ */
+export function extractProjectionBlocks(
+	subject: MaturitySubject,
+	_draft: TelegraphicDraft,
+	statements: Statement[],
+	context?: ProjectionContext
+): ProjectionBlockGraph {
+	const { shown, conflictIds } = scoped(subject, statements);
+	return buildProjectionBlockGraph(subject, shown, conflictIds, context?.requirements);
+}
+
+/**
  * Génère la spécification C4 au format Structurizr DSL (.dsl), **acceptée par Structurizr** (voir `structurizrDsl.ts`).
  *
  * Chaque container porte, comme « technologie » et comme étiquette de style, la solidité de l'énoncé dont il vient. Les personnes
@@ -188,7 +211,14 @@ export function generateStructurizrDSL(
 
 	const note = withdrawnNote(withdrawn);
 	const systemDescription = [overlay.banner, note].filter(Boolean).join(' — ') || undefined;
-	const relations: C4Relation[] = causalLinks(shown).map(({ from, to }) => ({ from: from.id, to: to.id, label: 'fonde' }));
+	const links = causalLinks(shown);
+	const relations: C4Relation[] = links.map(({ from, to }) => ({ from: from.id, to: to.id, label: 'fonde' }));
+	if (context?.decision?.retainedOptionTitle) {
+		const founded = new Set(links.map((l) => l.to.id));
+		shown.filter((s) => !founded.has(s.id)).forEach((s) => {
+			relations.push({ from: 'retained_option', to: s.id, label: 'structure' });
+		});
+	}
 
 	return renderStructurizrWorkspace({
 		name: subject.name,
@@ -208,9 +238,11 @@ const sysmlDoc = (value: string) => value.replace(/\*\//g, '* /').replace(/[\r\n
 const sysmlString = (value: string) => String(value).replace(/\\/g, '\\\\').replace(/"/g, '\\"').replace(/[\r\n]+/g, ' ');
 
 /**
- * Génère la modélisation système en langage SysML v2 / SysON.
- *
- * Non validé par un outil SysML v2 : les noms sont uniques et échappés, mais aucun analyseur n'a relu ce texte.
+ * Génère la modélisation système structurée en langage SysML v2 (OMG SysML v2 / SysON) :
+ * - Blocs fonctionnels / axes TOGAF (`part def Axis_*`) et composition système (`part def System_*`),
+ * - Définitions de parties par énoncé avec métadonnées épistémiques,
+ * - Dépendances causales typées (`dependency from ... to ...;`),
+ * - Exigences réelles (`requirement def` / `requirement`) et traçabilité formelle (`satisfy ... by ...;`).
  */
 export function generateSysMLv2(
 	subject: MaturitySubject,
@@ -220,6 +252,7 @@ export function generateSysMLv2(
 ): string {
 	const { shown, withdrawn, conflictIds } = scoped(subject, statements);
 	const overlay = draftOverlay(draft);
+	const blockGraph = buildProjectionBlockGraph(subject, shown, conflictIds, context?.requirements);
 	const taken = new Set<string>();
 	const unique = (raw: string) => {
 		const base = raw.replace(/[^a-zA-Z0-9_]/g, '_').replace(/^(\d)/, '_$1') || 'element';
@@ -229,9 +262,16 @@ export function generateSysMLv2(
 		return name;
 	};
 	const parts: string[] = [];
+	const stmtPartDef = new Map<string, string>();
+	const stmtPartPath = new Map<string, string>();
+
+	const sysDefName = unique(`System_${subject.id}`);
+	const sysInstanceName = `system_${subject.id.replace(/[^a-zA-Z0-9_]/g, '_')}`;
+	let optDefName: string | null = null;
 
 	if (context?.decision?.retainedOptionTitle) {
-		parts.push(`    part def ${unique(`Opt_${context.decision.retainedOptionTitle}`)} {`);
+		optDefName = unique(`Opt_${context.decision.retainedOptionTitle}`);
+		parts.push(`    part def ${optDefName} {`);
 		parts.push(`        doc /* Option retenue : ${sysmlDoc(context.decision.retainedOptionTitle)} */`);
 		if (context.decision.reversibility) {
 			parts.push(`        attribute reversibility : String = "${sysmlString(context.decision.reversibility)}";`);
@@ -239,15 +279,36 @@ export function generateSysMLv2(
 		parts.push(`    }`);
 	}
 
-	shown.forEach((s) => {
-		const badge = badgeOf(s, conflictIds.has(s.id));
-		parts.push(`    part def ${unique(s.triplet.predicate)} {`);
-		parts.push(`        attribute specification : String = "${sysmlString(String(s.triplet.value))}";`);
-		parts.push(`        attribute confidence : String = "${sysmlString(String(s.maturity.confidence))}";`);
-		parts.push(`        attribute status : String = "${sysmlString(String(s.status))}";`);
-		parts.push(`        attribute epistemic : String = "${sysmlString(badge.label)}";`);
+	const axisDefNames = new Map<string, { defName: string; usageName: string }>();
+
+	for (const block of blockGraph.blocks) {
+		const axisDefName = unique(`Axis_${block.safeId}`);
+		const axisUsageName = block.safeId;
+		axisDefNames.set(block.axisId, { defName: axisDefName, usageName: axisUsageName });
+		const axisUsages: string[] = [];
+
+		for (const item of block.items) {
+			const s = item.statement;
+			const defName = unique(s.triplet.predicate);
+			const usageName = `${defName}_part`;
+			stmtPartDef.set(s.id, defName);
+			stmtPartPath.set(s.id, `${sysInstanceName}.${axisUsageName}.${usageName}`);
+			axisUsages.push(`        part ${usageName} : ${defName};`);
+
+			parts.push(`    part def ${defName} {`);
+			parts.push(`        attribute component : String = "${sysmlString(item.componentName)}";`);
+			parts.push(`        attribute specification : String = "${sysmlString(String(s.triplet.value))}";`);
+			parts.push(`        attribute confidence : String = "${sysmlString(String(s.maturity.confidence))}";`);
+			parts.push(`        attribute status : String = "${sysmlString(String(s.status))}";`);
+			parts.push(`        attribute epistemic : String = "${sysmlString(item.badge.label)}";`);
+			parts.push(`    }`);
+		}
+
+		parts.push(`    part def ${axisDefName} {`);
+		parts.push(`        doc /* ${sysmlDoc(block.togafRef ? `${block.label} (${block.togafRef})` : block.label)} */`);
+		parts.push(...axisUsages);
 		parts.push(`    }`);
-	});
+	}
 
 	overlay.points.forEach((p) => {
 		parts.push(`    part def ${unique(`Open_${p.kind}`)} {`);
@@ -257,12 +318,40 @@ export function generateSysMLv2(
 		parts.push(`    }`);
 	});
 
-	if (context?.requirements && context.requirements.length > 0) {
-		context.requirements.forEach((r) => {
-			const safeClause = r.clauseRef.replace(/[^a-zA-Z0-9_]/g, '_');
-			parts.push(`    // Exigence couverte : ${r.clauseRef} - ${r.title.replace(/[\r\n]+/g, ' ')}`);
-			parts.push(`    // satisfy requirement req_${safeClause};`);
-		});
+	parts.push(`    part def ${sysDefName} {`);
+	parts.push(`        doc /* Système : ${sysmlDoc(`${subject.name} (${subject.section_ref})`)} */`);
+	if (optDefName) {
+		parts.push(`        part option_retenue : ${optDefName};`);
+	}
+	for (const block of blockGraph.blocks) {
+		const info = axisDefNames.get(block.axisId)!;
+		parts.push(`        part ${info.usageName} : ${info.defName};`);
+	}
+	parts.push(`    }`);
+	parts.push(`    part ${sysInstanceName} : ${sysDefName};`);
+
+	for (const { from, to } of causalLinks(shown)) {
+		const fromPath = stmtPartPath.get(from.id);
+		const toPath = stmtPartPath.get(to.id);
+		if (fromPath && toPath) {
+			parts.push(`    dependency from ${fromPath} to ${toPath};`);
+		}
+	}
+
+	if (blockGraph.requirements.length > 0) {
+		for (const req of blockGraph.requirements) {
+			const reqDefName = unique(`Req_${req.safeId}`);
+			const reqUsageName = `req_${req.safeId}`;
+			const targetAxis = req.targetAxisId ? axisDefNames.get(req.targetAxisId) : undefined;
+			const satisfyTarget = targetAxis ? `${sysInstanceName}.${targetAxis.usageName}` : sysInstanceName;
+
+			parts.push(`    requirement def ${reqDefName} {`);
+			parts.push(`        doc /* ${sysmlDoc(`${req.clauseRef} : ${req.title}`)} */`);
+			parts.push(`        attribute clauseRef : String = "${sysmlString(req.clauseRef)}";`);
+			parts.push(`    }`);
+			parts.push(`    requirement ${reqUsageName} : ${reqDefName};`);
+			parts.push(`    satisfy ${reqUsageName} by ${satisfyTarget};`);
+		}
 	}
 
 	const note = withdrawnNote(withdrawn);
@@ -340,22 +429,28 @@ export function generateConfigJSON(
 }
 
 /**
- * Génère une projection visuelle C4 interprétable par Mermaid pour le modèle Structurizr.
+ * Génère une projection visuelle C4 interprétable par Mermaid pour le modèle Structurizr,
+ * structurée par blocs fonctionnels / axes TOGAF avec relations typées et traçabilité exigences.
  */
 export function generateStructurizrVisualMermaid(
 	subject: MaturitySubject,
 	draft: TelegraphicDraft,
 	statements: Statement[],
-	context?: ProjectionContext
+	context?: ProjectionContext,
+	filterAxisId?: string
 ): string {
 	const { shown, withdrawn, conflictIds } = scoped(subject, statements);
 	const enterpriseName = context?.enterpriseName || context?.projectName || 'Organisation';
 	const actors = context?.actors ?? [];
 	const overlay = draftOverlay(draft);
+	const blockGraph = buildProjectionBlockGraph(subject, shown, conflictIds, context?.requirements);
+	const visibleBlocks = filterAxisId ? blockGraph.blocks.filter((b) => b.axisId === filterAxisId) : blockGraph.blocks;
+	const visibleStmtIds = new Set(visibleBlocks.flatMap((b) => b.items.map((item) => item.statement.id)));
 
 	const lines: string[] = [
 		'flowchart TB',
 		'    classDef person fill:#08427b,stroke:#073b6e,color:#fff,font-weight:bold',
+		'    classDef reqNode fill:#eef2ff,stroke:#4f46e5,color:#1e1b4b,stroke-dasharray:4 2',
 		...mermaidClassDefs(),
 		'',
 		...actors.map(
@@ -373,24 +468,63 @@ export function generateStructurizrVisualMermaid(
 		lines.push(`            c_opt["⭐ ${mmdText(context.decision.retainedOptionTitle)}<br/><small>[Option retenue · arbitrée]</small><br/>${mmdText(safeRat)}"]:::Retained`);
 	}
 
-	if (shown.length === 0 && !context?.decision && overlay.points.length === 0) {
+	if (visibleBlocks.length === 0 && !context?.decision && overlay.points.length === 0) {
 		lines.push(`            c_default["⚙️ Composant Architectural<br/><small>[non spécifié]</small><br/>En cours de délibération"]:::Unqualified`);
 	} else {
-		shown.forEach((s, idx) => {
-			const badge = badgeOf(s, conflictIds.has(s.id));
-			lines.push(`            c_${idx}["⚙️ ${mmdText(s.triplet.predicate)}<br/><small>[Container · ${mmdText(badge.label)}]</small><br/>${mmdText(String(s.triplet.value))}"]:::${badge.tag}`);
-		});
 		const index = new Map(shown.map((s, i) => [s.id, i]));
-		for (const { from, to } of causalLinks(shown)) lines.push(`            c_${index.get(from.id)} -->|"fonde"| c_${index.get(to.id)}`);
+		const links = causalLinks(shown).filter((l) => visibleStmtIds.has(l.from.id) && visibleStmtIds.has(l.to.id));
+
+		for (const block of visibleBlocks) {
+			const compSummary = block.components.slice(0, 2).join(', ');
+			const blockTitle = compSummary && compSummary !== block.label ? `${block.label} · ${compSummary}` : block.label;
+			lines.push(`            subgraph Axis_${block.safeId}["🧩 ${mmdText(blockTitle)}"]`);
+			lines.push(`                direction TB`);
+			for (const item of block.items) {
+				const s = item.statement;
+				lines.push(
+					`                c_${item.index}["⚙️ ${mmdText(s.triplet.predicate)}<br/><small>[Container · ${mmdText(item.badge.label)}]</small><br/>${mmdText(String(s.triplet.value))}"]:::${item.badge.tag}`
+				);
+			}
+			lines.push('            end');
+		}
+
+		for (const { from, to } of links) {
+			lines.push(`            c_${index.get(from.id)} -->|"fonde"| c_${index.get(to.id)}`);
+		}
+		if (context?.decision?.retainedOptionTitle) {
+			for (const block of visibleBlocks) {
+				lines.push(`            c_opt -->|"structure"| Axis_${block.safeId}`);
+			}
+		}
 	}
 
-	overlay.points.forEach((p, i) =>
-		lines.push(`            c_open_${i}["❓ ${mmdText(p.title)}<br/><small>[${mmdText(p.label)}]</small><br/>${mmdText(p.detail)}"]:::${p.tag}`)
-	);
+	if (!filterAxisId || visibleBlocks.length === 0) {
+		overlay.points.forEach((p, i) =>
+			lines.push(`            c_open_${i}["❓ ${mmdText(p.title)}<br/><small>[${mmdText(p.label)}]</small><br/>${mmdText(p.detail)}"]:::${p.tag}`)
+		);
+	}
 
 	const note = withdrawnNote(withdrawn);
 	if (note) lines.push(`            c_withdrawn["${mmdText(note)}"]:::Withdrawn`);
 	lines.push('        end');
+
+	const visibleReqs = filterAxisId
+		? blockGraph.requirements.filter((r) => r.targetAxisId === filterAxisId)
+		: blockGraph.requirements;
+	if (visibleReqs.length > 0) {
+		lines.push(`        subgraph ReqTrace["📋 Traçabilité des Exigences"]`);
+		lines.push(`            direction LR`);
+		visibleReqs.forEach((req, i) => {
+			lines.push(`            req_${i}["📋 ${mmdText(req.clauseRef)}<br/><small>${mmdText(req.title.slice(0, 55))}</small>"]:::reqNode`);
+		});
+		lines.push('        end');
+		visibleReqs.forEach((req, i) => {
+			const targetBlock = req.targetAxisId ? visibleBlocks.find((b) => b.axisId === req.targetAxisId) : undefined;
+			const sourceNode = targetBlock ? `Axis_${targetBlock.safeId}` : 'SysBound';
+			lines.push(`        ${sourceNode} -.->|"satisfait"| req_${i}`);
+		});
+	}
+
 	lines.push('    end');
 	lines.push('');
 	actors.forEach((_, i) => lines.push(`    user_${i} -->|"Utilise"| SysBound`));
@@ -399,22 +533,30 @@ export function generateStructurizrVisualMermaid(
 }
 
 /**
- * Génère une projection visuelle SysML v2 interprétable sous forme de diagramme de blocs (BDD).
+ * Génère une projection visuelle SysML v2 interprétable sous forme de diagramme de définition de blocs (BDD) :
+ * - Bloc système racine (`<<system>>`),
+ * - Blocs fonctionnels par axe TOGAF (`<<block>>`) liés par composition (`*--`),
+ * - Blocs d'exigences (`<<requirement>>`) liés par satisfaction (`..>`).
  */
 export function generateSysMLVisualMermaid(
 	subject: MaturitySubject,
 	draft: TelegraphicDraft,
 	statements: Statement[],
-	context?: ProjectionContext
+	context?: ProjectionContext,
+	filterAxisId?: string
 ): string {
 	const { shown, withdrawn, conflictIds } = scoped(subject, statements);
 	const overlay = draftOverlay(draft);
+	const blockGraph = buildProjectionBlockGraph(subject, shown, conflictIds, context?.requirements);
+	const visibleBlocks = filterAxisId ? blockGraph.blocks.filter((b) => b.axisId === filterAxisId) : blockGraph.blocks;
+	const visibleStmtIds = new Set(visibleBlocks.flatMap((b) => b.items.map((item) => item.statement.id)));
 	// Un membre de classe Mermaid : on garde les accents (avant, chacun devenait « _ »), on retire ce qui casse la syntaxe.
 	const member = (value: string) => value.replace(/[{}"<>`]/g, '').replace(/[()]/g, ' ').replace(/\s*[\r\n]+\s*/g, ' ').replace(/\s{2,}/g, ' ').trim();
+	const sysClass = `Block_${subject.id.replace(/[^a-zA-Z0-9_]/g, '_')}`;
 
 	const lines: string[] = [
 		'classDiagram',
-		`    class Block_${subject.id.replace(/[^a-zA-Z0-9_]/g, '_')} {`,
+		`    class ${sysClass} {`,
 		`        <<system>>`,
 		`        +section: ${member(subject.section_ref)}`,
 		`        +status: ${member(String(subject.level))}`
@@ -423,19 +565,57 @@ export function generateSysMLVisualMermaid(
 	if (context?.decision?.retainedOptionTitle) {
 		lines.push(`        +retainedOption: ${member(context.decision.retainedOptionTitle)}`);
 	}
-
-	shown.forEach((s) => {
-		const badge = badgeOf(s, conflictIds.has(s.id));
-		const name = s.triplet.predicate.replace(/[^\p{L}\p{N}_]/gu, '_');
-		lines.push(`        +${name}: ${member(String(s.triplet.value))} · ${member(badge.label)}`);
-	});
-
 	if (overlay.banner) lines.push(`        +provisoire: ${member(overlay.banner)}`);
-	overlay.points.forEach((p) => lines.push(`        +${p.kind}: ${member(p.title.replace(/^[^:]+ : /, ''))} · ${member(p.label)}`));
-
+	if (!filterAxisId) {
+		overlay.points.forEach((p) => lines.push(`        +${p.kind}: ${member(p.title.replace(/^[^:]+ : /, ''))} · ${member(p.label)}`));
+	}
 	const note = withdrawnNote(withdrawn);
 	if (note) lines.push(`        +écartés: ${member(note)}`);
 	lines.push('    }');
+
+	const blockClassByAxis = new Map<string, string>();
+	for (const block of visibleBlocks) {
+		const blockClass = `Axis_${block.safeId}`;
+		blockClassByAxis.set(block.axisId, blockClass);
+		lines.push(`    class ${blockClass} {`);
+		lines.push(`        <<block>>`);
+		lines.push(`        +axe: ${member(block.label)}`);
+		for (const item of block.items) {
+			const s = item.statement;
+			const name = s.triplet.predicate.replace(/[^\p{L}\p{N}_]/gu, '_');
+			lines.push(`        +${name}: ${member(String(s.triplet.value))} · ${member(item.badge.label)}`);
+		}
+		lines.push('    }');
+		lines.push(`    ${sysClass} *-- ${blockClass} : compose`);
+	}
+
+	const crossAxisSeen = new Set<string>();
+	for (const { from, to } of causalLinks(shown)) {
+		if (!visibleStmtIds.has(from.id) || !visibleStmtIds.has(to.id)) continue;
+		const fromAxis = blockGraph.statementAxis.get(from.id);
+		const toAxis = blockGraph.statementAxis.get(to.id);
+		if (fromAxis && toAxis && fromAxis !== toAxis) {
+			const key = `${fromAxis}->${toAxis}`;
+			if (!crossAxisSeen.has(key)) {
+				crossAxisSeen.add(key);
+				lines.push(`    ${blockClassByAxis.get(fromAxis)} --> ${blockClassByAxis.get(toAxis)} : fonde`);
+			}
+		}
+	}
+
+	const visibleReqs = filterAxisId
+		? blockGraph.requirements.filter((r) => r.targetAxisId === filterAxisId)
+		: blockGraph.requirements;
+	for (const req of visibleReqs) {
+		const reqClass = `Req_${req.safeId}`;
+		lines.push(`    class ${reqClass} {`);
+		lines.push(`        <<requirement>>`);
+		lines.push(`        +clause: ${member(req.clauseRef)}`);
+		lines.push(`        +titre: ${member(req.title.slice(0, 60))}`);
+		lines.push('    }');
+		const sourceClass = (req.targetAxisId && blockClassByAxis.get(req.targetAxisId)) || sysClass;
+		lines.push(`    ${sourceClass} ..> ${reqClass} : satisfait`);
+	}
 
 	return lines.join('\n');
 }

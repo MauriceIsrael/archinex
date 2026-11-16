@@ -7,13 +7,19 @@
 		decisionSlotsState?: any;
 		projectCatalogState?: any;
 		onUpdated?: () => void | Promise<void>;
+		requestedView?: {
+			tab?: 'cartography' | 'slots' | 'manifest' | 'mermaid';
+			pillarFilter?: 'security' | 'observability' | 'configuration' | null;
+			nonce: number;
+		} | null;
 	}
 
 	let {
 		projectId,
 		decisionSlotsState = null,
 		projectCatalogState = null,
-		onUpdated
+		onUpdated,
+		requestedView = null
 	}: Props = $props();
 
 	let localSlotsState = $state<any>(null);
@@ -51,6 +57,19 @@
 	$effect(() => {
 		if (projectId && !decisionSlotsState) {
 			void refreshLocalState();
+		}
+	});
+
+	let lastHandledNonce = -1;
+	$effect(() => {
+		if (requestedView && requestedView.nonce !== lastHandledNonce) {
+			lastHandledNonce = requestedView.nonce;
+			if (requestedView.tab) {
+				activeViewTab = requestedView.tab;
+			}
+			if (requestedView.pillarFilter !== undefined) {
+				selectedPillarFilter = requestedView.pillarFilter;
+			}
 		}
 	});
 

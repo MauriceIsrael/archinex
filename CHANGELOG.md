@@ -8,6 +8,42 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Positionnement de l'onglet Phase 5 à droite de Phase 4 & Consolidation par 4 piliers transverses (#314)
+- **Navigation (`src/lib/components/deliberation/ProjectEngagementHeader.svelte`)** :
+  - Déplacement des boutons `Phase 5 · Consolidation` et `Architecture Lockée` à droite de `Phase 4 · Raffinement` pour rétablir la progression logique `Phase 2 → Phase 3 → Phase 4 → Phase 5`.
+- **Ergonomie Phase 5 (`src/lib/components/deliberation/Phase5ConsolidationHub.svelte`, `LiveArchitectureLockView.svelte`)** :
+  - Ajout d'un plan structuré en 4 piliers transverses (**Socle / Architecture transverse**, **Sécurité**, **Gestion / Gouvernance**, **GitOps / Exploitation**) avec statuts de verrouillage dynamiques et accès directs aux artefacts (`Vue Logique`, `Cartographie`, `Bindings Sécurité`, `architecture.lock`, `Matrice Décisions`, `Catalogue & Overlays`, `Redfish sushy`).
+- **Tests & Documentation** :
+  - Ajout de `tests/contract/phase5-header-and-pillars.test.ts` et mise à jour de `USER_GUIDE.md` et `ARCHITECTURE.md`.
+
+### Projections Structurizr C4 et SysML v2 (BDD) structurées et exploitables en Phase 3 (#312)
+- **Groupement dynamique par axes TOGAF (`src/lib/domain/projectionBlocks.ts`, `src/lib/domain/artifactProjections.ts`)** :
+  - Structuration de `generateStructurizrVisualMermaid` par sous-graphes d'axes fonctionnels (`Axis_*`), relations typées (`structure`, `fonde`, `satisfait`) et traçabilité vers les exigences (`ReqTrace`).
+  - Structuration de `generateSysMLVisualMermaid` en diagramme BDD multi-blocs (`<<system>>` composé par `*--` de blocs `<<block>>` et lié aux blocs `<<requirement>>`).
+  - Modernisation de `generateSysMLv2` avec blocs `Axis_*`, composition `System_*`, dépendances `dependency from ... to ...;` et relations réelles `requirement def` / `requirement` / `satisfy ... by ...;`.
+  - Ajout de liens `structure` entre l'option retenue et les conteneurs racines dans `generateStructurizrDSL`.
+- **Ergonomie Phase 3 (`src/lib/components/deliberation/ArtifactRegenerationHub.svelte`, `src/lib/stores/deliberationStore.svelte.ts`)** :
+  - Navigation par bloc fonctionnel (filtrage visuel + inspecteur de composants et exigences satisfaites).
+  - Actions directes de téléchargement (`.dsl`, `.sysml`), copie de commande `structurizr/lite` et liens vers Structurizr DSL Playground et Eclipse SysON.
+- **Tests** :
+  - Ajout de `tests/contract/projection-blocks.test.ts` (6 tests couvrant le groupement TOGAF, les vues filtrées, la traçabilité et la validation structurelle SysML v2).
+
+### Ajouté
+- **Phase 2 (Délibération) — Tiroir des exigences RFP rattachées (`SubjectRequirementsDrawer`)** : expose directement dans `SubjectThreadView` les exigences RFP liées au sujet (référence de clause, titre, criticité et texte complet dépliable), alimentées par `GET /api/projects/[projectId]/subjects/[subjectId]/workbench` (`resolveSubjectRequirements`).
+
+### Modifié
+- **Phase 3 (Rendu HLD)** : recentrage de `HldFragmentView` sur le rendu et l'homologation avec une section « Traçabilité · Exigences couvertes » compacte et repliée par défaut (incluant le texte complet à la demande et un lien direct vers la Phase 2).
+- **Onglet Doctrines & Brouillon** : libellé clarifié en `{doctrineItems.length} doctrines · {citedKbRefs.length} citées` pour éviter toute confusion avec les exigences RFP.
+
+### IMP V2 Lot 1 — Modèle de données & Catalogues étendus (#302, #303)
+- **Catalogues & Modèle (`src/lib/domain/edp/componentCatalog.ts`)** :
+  - Extension des classes NIC (`storage`, `backup`, `oob`) et ajout des catalogues `qosClasses`, `vlanPools`, `vniPools`, `firewalls` (`interzone`, `external`, `operator-link`), `certificateProfiles` (conformes RGS) et `drivers` (`CapabilityMatrix`).
+  - Ajout de l'entité `OrganizationSpec` (`kind: Organization`), de `deriveOrganizationBubble` et `validateOrganization` (§5.1).
+  - Extension de `LogicalComponent` pour les blocs IMP V2 (`network.fabric`, `routePropagation`/`bgpPropagation`, `loadBalancers`, `tunnels`, `apns`, `compute.namespaces`, `compute.hardware`, `storage.objectStores`, `exposure`, `observability`, `data.databases`, `supplyChain`, `lifecycle`).
+  - Ajout de `validateCertificateProfilesAndRgs` (rejet X.509 inline & RSA < 3072) et `validateDriverCapabilities`.
+- **Tests (`tests/contract/imp-v2-lot1-catalogs-and-model.test.ts`)** :
+  - Ajout de 6 tests de contrat couvrant les catalogues V2, `Organization`, certificats/RGS, blocs V2 et `CapabilityMatrix`.
+
 ### Allocation explicite des responsabilités composants (SIG §9.4/§11 DEMOLULU), Zéro Défaut Silencieux & Sujets RFP inédits / émergents (Phase 1 → Phase 5)
 - **Ontologie & Axes Applicatifs (`tests/fixtures/edp/ontology_export.json`, `src/lib/domain/edp/togafTaxonomy.ts`, `src/lib/server/edp/projectionCompiler.ts`)** :
   - Ajout du sous-axe applicatif `urn:archinex:ontology:axis:gis_location_fusion` (*6. Fusion de Localisation Multi-Sources & Géofencing SIG*) et de ses 3 feuilles d'arbitrage (`central_fusion_hybrid_geofencing` → `gis-server` + `ptt-server`, `central_fusion_server_only_geofencing` → `gis-server`, `distributed_terminal_geofencing` → `ptt-server`), avec son prérequis `gis_tile_engine` et les triplets `instantiates_component`.

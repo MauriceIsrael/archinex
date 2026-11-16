@@ -63,6 +63,8 @@ const KNOWN_PROTOCOLS: Array<{ pattern: RegExp; label: string }> = [
 	{ pattern: /\bSSH\b/i, label: 'SSH' },
 	{ pattern: /\bIPsec\b/i, label: 'IPsec' },
 	{ pattern: /\bIKEv2\b/i, label: 'IKEv2' },
+	{ pattern: /\bDiameter\b/i, label: 'Diameter' },
+	{ pattern: /\bSIP\b/i, label: 'SIP' },
 	{ pattern: /\bWireGuard\b/i, label: 'WireGuard' },
 	{ pattern: /\bBGP\b/i, label: 'BGP' },
 	{ pattern: /\bGitOps\b/i, label: 'GitOps' },
@@ -143,9 +145,22 @@ function extractComponents(
 		}
 	}
 
-	// 4. Toujours ancrer sur le sujet si aucun composant explicite
+	// 4. Toujours ancrer sur le sujet si aucun composant explicite, puis compléter par les identifiants techniques composés
 	if (components.length === 0) {
 		dedupePush(components, subject.name || 'Service Cible', 44);
+	}
+	if (components.length < 3) {
+		const specSource = [
+			context?.decision?.retainedOptionTitle || '',
+			context?.decision?.rationale || '',
+			context?.detailedSpecText || ''
+		].join(' ');
+		const techTokens = specSource.match(/\b[A-Z][A-Za-z0-9]*(?:-[A-Za-z0-9]+)+\b/g) ?? [];
+		for (const token of techTokens) {
+			if (!/^REQ-/i.test(token)) {
+				dedupePush(components, token, 44);
+			}
+		}
 	}
 
 	return components.slice(0, 3);
@@ -242,10 +257,14 @@ export function extractDeploymentSignals(
 	const environments = extractEnvironments(corpus, context);
 	const protocols = extractProtocols(corpus);
 	const securityConstraints = extractSecurityConstraints(corpus, shown, context?.slots);
-	const requirementRefs = (context?.requirements ?? [])
-		.map((r) => seqText(r.clauseRef, 28))
-		.filter(Boolean)
-		.slice(0, 3);
+	const requirementRefs: string[] = [];
+	for (const r of context?.requirements ?? []) {
+		dedupePush(requirementRefs, r.clauseRef, 28);
+	}
+	for (const reqMatch of corpus.match(/\bREQ-[A-Za-z0-9_-]+\b/gi) ?? []) {
+		dedupePush(requirementRefs, reqMatch, 28);
+	}
+	const boundedRequirementRefs = requirementRefs.slice(0, 3);
 
 	const enterpriseName = context?.enterpriseName?.trim() || 'Organisation';
 	const projectName = context?.projectName?.trim() || subject.name || 'Système';
@@ -261,8 +280,8 @@ export function extractDeploymentSignals(
 			decision?.arbiterRole ||
 			shown.find((s) => s.authority.validator?.role)?.authority.validator?.role ||
 			(enterpriseName !== 'Organisation' ? `Responsable Homologation (${enterpriseName})` : 'Responsable Homologation / RSSI');
-		actors.push({ id: 'Ops', label: seqText(`Équipe Déploiement (${projectName})`, 44) });
-		actors.push({ id: 'Valideur', label: seqText(validatorRole, 44) });
+		actors.push({ id: 'Ops', label: seqText(`Équipe Déploiement (${projectName})`, 64) });
+		actors.push({ id: 'Valideur', label: seqText(validatorRole, 64) });
 	}
 
 	const hypotheses = (draft?.suppose ?? []).map((h) => seqText(h.text, 56)).filter(Boolean);
@@ -273,13 +292,15 @@ export function extractDeploymentSignals(
 			.map((s) => seqText(`${s.triplet.predicate} (${s.status === 'contested' ? 'contesté' : 'conflit'})`, 56))
 	];
 
-	const sourceLabel = /\bgitops\b/i.test(corpus)
-		? 'Dépôt GitOps & Manifestes'
-		: /\bci\/cd\b|\bpipeline\b/i.test(corpus)
-			? 'Chaîne CI/CD & Artefacts'
-			: /\bhelm\b|\boci\b|\bdocker\b|\bkubernetes\b/i.test(corpus)
-				? 'Registre OCI & Manifestes'
-				: 'Dépôt de Configuration & Artefacts';
+	const sourceLabel = /\bwapt\b/i.test(corpus)
+		? 'Serveur WAPT (Dépôt officiel)'
+		: /\bgitops\b/i.test(corpus)
+			? 'Dépôt GitOps & Manifestes'
+			: /\bci\/cd\b|\bpipeline\b/i.test(corpus)
+				? 'Chaîne CI/CD & Artefacts'
+				: /\bhelm\b|\boci\b|\bdocker\b|\bkubernetes\b/i.test(corpus)
+					? 'Registre OCI & Manifestes'
+					: 'Dépôt de Configuration & Artefacts';
 
 	const hasContextualSignals =
 		shown.length > 0 ||
@@ -290,7 +311,7 @@ export function extractDeploymentSignals(
 		(context?.slots?.length ?? 0) > 0 ||
 		(context?.actors?.length ?? 0) > 0 ||
 		(context?.environments?.length ?? 0) > 0 ||
-		requirementRefs.length > 0 ||
+		boundedRequirementRefs.length > 0 ||
 		Boolean(context?.detailedSpecText?.trim()) ||
 		Boolean(decision?.retainedOptionTitle?.trim()) ||
 		protocols.length > 0 ||
@@ -301,7 +322,7 @@ export function extractDeploymentSignals(
 		environments,
 		protocols,
 		securityConstraints,
-		requirementRefs,
+		requirementRefs: boundedRequirementRefs,
 		actors,
 		sourceLabel,
 		isProvisional: Boolean(draft?.is_provisional),
@@ -340,9 +361,13 @@ export function buildDynamicDeploymentSequence(
 
 	const hasMultiStageEnv = signals.environments.length > 1;
 	const qualifEnv = signals.environments[0];
+	const midEnv = signals.environments.length > 2 ? signals.environments[1] : null;
 	const prodEnv = signals.environments[signals.environments.length - 1];
 	if (hasMultiStageEnv) {
 		lines.push(`    participant EnvQualif as ${qualifEnv}`);
+	}
+	if (midEnv) {
+		lines.push(`    participant EnvMid as ${midEnv}`);
 	}
 	lines.push(`    participant EnvProd as ${prodEnv}`);
 	lines.push('');
@@ -366,17 +391,21 @@ export function buildDynamicDeploymentSequence(
 
 	// Phase 2 : Déploiement en Environnement de Qualification & Flux Protocolaires
 	const protoLabel = signals.protocols.length > 0 ? signals.protocols.join(' / ') : 'flux applicatifs nominaux';
-	const stageTarget = hasMultiStageEnv ? 'EnvQualif' : 'EnvProd';
-	const stageLabel = hasMultiStageEnv ? qualifEnv : prodEnv;
+	const stageTarget = midEnv ? 'EnvMid' : (hasMultiStageEnv ? 'EnvQualif' : 'EnvProd');
+	const stageLabel = midEnv ?? (hasMultiStageEnv ? qualifEnv : prodEnv);
 
 	lines.push('');
-	lines.push(`    Note over Comp0,${stageTarget}: Phase 2 : Intégration ${stageLabel} & Vérification des Flux`);
+	lines.push(`    Note over Comp0,${stageTarget}: Phase 2 : Intégration ${qualifEnv} & Vérification des Flux`);
 	if (signals.components.length > 1) {
 		for (let i = 1; i < signals.components.length; i++) {
 			lines.push(`    Comp0->>Comp${i}: Raccordement & échange (${protoLabel})`);
 		}
 	}
-	lines.push(`    Comp0->>${stageTarget}: Déploiement et tests de flux (${protoLabel})`);
+	const entryEnv = hasMultiStageEnv ? 'EnvQualif' : 'EnvProd';
+	lines.push(`    Comp0->>${entryEnv}: Déploiement et tests de flux (${protoLabel})`);
+	if (midEnv) {
+		lines.push(`    EnvQualif->>EnvMid: Promotion vers ${midEnv}`);
+	}
 	if (signals.hypotheses.length > 0) {
 		lines.push(`    Note over ${stageTarget}: Vérification hypothèse : ${signals.hypotheses[0]}`);
 	}
@@ -384,7 +413,7 @@ export function buildDynamicDeploymentSequence(
 	// Phase 3 : Porte d'Homologation & Contraintes de Sécurité
 	lines.push('');
 	const reqSuffix = signals.requirementRefs.length > 0 ? ` [${signals.requirementRefs.join(', ')}]` : '';
-	lines.push(`    Note over ${gateActor.id},${stageTarget}: Phase 3 : Porte d'Homologation & Sécurité${reqSuffix}`);
+	lines.push(`    Note over ${gateActor.id},${stageTarget}: Phase 3 : Porte d'Homologation & Sécurité (${stageLabel})${reqSuffix}`);
 	const securitySummary =
 		signals.securityConstraints.length > 0
 			? signals.securityConstraints.slice(0, 2).join(' + ')

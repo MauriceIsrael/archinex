@@ -1008,7 +1008,7 @@ Pour combler l'écart entre la délibération d'architecture et le déploiement 
    - Vue transversale au niveau Projet (`activePosture = 'consolidation'`, accessible depuis l'onglet **Phase 5 · Consolidation** dans `ProjectEngagementHeader.svelte`), distincte de la Phase 4 centrée sur un sujet.
    - `composeProjectLogicalTopology()` consolide les composants de référence (`core-network`, `ptt-server`, `gis-server`, `eir-proxy`, `gsma-eir`) et génère 3 diagrammes Mermaid synchronisés : **Vue Logique**, **Vue Déploiement (DC → Pool Sylva → Tenant)** et **Vue Physique / CMDB**.
 4. **Oracle OPA Étendu (`edp/policies/multi_axis_refinement.rego`) & Export GitOps Sylva Tenant (`src/lib/server/edp/sylvaGitopsExport.ts`)** :
-   - L'Axe 7 vérifie l'alignement placement ↔ dataplane, la continuité des `LogicalInterfaces`, l'absence de `ref()` non résolues et les règles de lint Base.
+   - L'Axe 7 vérifie l'alignement placement ↔ dataplane, la continuité des `LogicalInterfaces`, l'absence de `ref()` non résolues et les règles de lint Base ; l'**Axe 10 (IMP V2 Lot 3, #305)** ajoute les contrôles RGS sur les certificats/TLS, la séparation `Organization`/`Component`, la `CapabilityMatrix` des drivers, la charte d'intégration (`evaluateComponentIntegrationCharter`) et les erreurs de chemin pare-feu / IP Fabric (`buildImpV2OpaInput`).
    - `exportSylvaWorkloadClusterGitops()` émet, en plus de `workload-clusters/<cluster>/values.yaml`, les manifests natifs Sylva/FluxCD par composant dans `workloads/<functionalDomain>/<component>/<env>/` (`Namespace`, `CiliumNetworkPolicy`, `HelmRelease` avec gestion `staged`/`inactive`), assainis par `sanitizeManifests()`.
 
 ---

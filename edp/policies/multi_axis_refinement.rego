@@ -655,6 +655,129 @@ violations contains v if {
 }
 
 # ==============================================================================
+# AXE 10 : ORACLES IMP V2 (RGS/CERTIFICATS, ORGANIZATION, CAPABILITY MATRIX, CHARTE)
+# ==============================================================================
+
+violations contains v if {
+	imp := object.get(input, "imp_v2", {})
+	some cert in object.get(imp, "certificates", [])
+	not object.get(cert, "profile", null)
+	v := {
+		"rule": "data.archinex.edp.multiaxis.deny_certificate_without_profile",
+		"axis": "urn:archinex:ontology:axis:imp_v2_rgs",
+		"message": sprintf("Le certificat '%v' doit référencer un profil partagé (certificateProfiles).", [cert.name]),
+		"violated_clause_urn": "urn:archinex:kb:clause:pki:certificate_profile",
+		"violated_requirement_id": "REQ-IMP-V2-RGS",
+	}
+}
+
+violations contains v if {
+	imp := object.get(input, "imp_v2", {})
+	some cert in object.get(imp, "certificates", [])
+	inline_fields := [f | some f in ["validityDays", "keySize", "algorithm", "extendedKeyUsage", "keyUsage"]; object.get(cert, f, null) != null]
+	count(inline_fields) > 0
+	v := {
+		"rule": "data.archinex.edp.multiaxis.deny_inline_x509_certificate_properties",
+		"axis": "urn:archinex:ontology:axis:imp_v2_rgs",
+		"message": sprintf("Le certificat '%v' contient des propriétés X.509 inline interdites (%v).", [cert.name, concat(", ", inline_fields)]),
+		"violated_clause_urn": "urn:archinex:kb:clause:pki:certificate_profile",
+		"violated_requirement_id": "REQ-IMP-V2-RGS",
+	}
+}
+
+violations contains v if {
+	imp := object.get(input, "imp_v2", {})
+	some prof in object.get(imp, "certificate_profiles", [])
+	lower(object.get(prof, "algorithm", "")) == "rsa"
+	object.get(prof, "keySize", 0) < 3072
+	v := {
+		"rule": "data.archinex.edp.multiaxis.deny_non_rgs_rsa_key_size",
+		"axis": "urn:archinex:ontology:axis:imp_v2_rgs",
+		"message": sprintf("Profil '%v' non conforme RGS : clé RSA %v < 3072 bits.", [prof.name, prof.keySize]),
+		"violated_clause_urn": "urn:archinex:kb:clause:pki:rgs_crypto_floor",
+		"violated_requirement_id": "REQ-IMP-V2-RGS",
+	}
+}
+
+violations contains v if {
+	imp := object.get(input, "imp_v2", {})
+	some tls_ver in object.get(imp, "tls_min_versions", [])
+	lower(tls_ver) in {"tls1.0", "tls1.1"}
+	v := {
+		"rule": "data.archinex.edp.multiaxis.deny_deprecated_tls_version",
+		"axis": "urn:archinex:ontology:axis:imp_v2_rgs",
+		"message": sprintf("Version TLS obsolète '%v' rejetée par la politique crypto RGS (minimum TLS 1.2).", [tls_ver]),
+		"violated_clause_urn": "urn:archinex:kb:clause:pki:rgs_crypto_floor",
+		"violated_requirement_id": "REQ-IMP-V2-RGS",
+	}
+}
+
+violations contains v if {
+	imp := object.get(input, "imp_v2", {})
+	some org in object.get(imp, "organizations", [])
+	forbidden := [k | some k in ["compute", "firewall", "exposure"]; object.get(org.spec, k, null) != null]
+	count(forbidden) > 0
+	v := {
+		"rule": "data.archinex.edp.multiaxis.deny_organization_with_component_sections",
+		"axis": "urn:archinex:ontology:axis:imp_v2_organization",
+		"message": sprintf("L'Organization '%v' ne peut pas déclarer %v (réservé aux Components).", [org.metadata.name, concat(", ", forbidden)]),
+		"violated_clause_urn": "urn:archinex:kb:clause:imp:organization_separation",
+		"violated_requirement_id": "REQ-IMP-V2-ORG",
+	}
+}
+
+violations contains v if {
+	imp := object.get(input, "imp_v2", {})
+	avail := {op | some op in object.get(imp, "available_driver_operations", [])}
+	some req_op in object.get(imp, "required_driver_operations", [])
+	not req_op in avail
+	v := {
+		"rule": "data.archinex.edp.multiaxis.deny_missing_driver_capability",
+		"axis": "urn:archinex:ontology:axis:imp_v2_drivers",
+		"message": sprintf("Capacité driver manquante dans la CapabilityMatrix : '%v'.", [req_op]),
+		"violated_clause_urn": "urn:archinex:kb:clause:imp:driver_capability_matrix",
+		"violated_requirement_id": "REQ-IMP-V2-DRIVER",
+	}
+}
+
+violations contains v if {
+	imp := object.get(input, "imp_v2", {})
+	some chk in object.get(imp, "charter_checks", [])
+	not chk.eligible
+	v := {
+		"rule": "data.archinex.edp.multiaxis.deny_integration_charter_violation",
+		"axis": "urn:archinex:ontology:axis:imp_v2_charter",
+		"message": sprintf("Charte d'intégration non satisfaite pour '%v' : %v", [chk.component, concat("; ", object.get(chk, "missing", []))]),
+		"violated_clause_urn": "urn:archinex:kb:clause:imp:integration_charter",
+		"violated_requirement_id": "REQ-IMP-V2-CHARTER",
+	}
+}
+
+violations contains v if {
+	imp := object.get(input, "imp_v2", {})
+	some err in object.get(imp, "firewall_path_errors", [])
+	v := {
+		"rule": "data.archinex.edp.multiaxis.deny_unprotected_cross_zone_firewall_path",
+		"axis": "urn:archinex:ontology:axis:imp_v2_network",
+		"message": err,
+		"violated_clause_urn": "urn:archinex:kb:clause:imp:firewall_path_deduction",
+		"violated_requirement_id": "REQ-IMP-V2-FWPATH",
+	}
+}
+
+violations contains v if {
+	imp := object.get(input, "imp_v2", {})
+	some err in object.get(imp, "ip_fabric_errors", [])
+	v := {
+		"rule": "data.archinex.edp.multiaxis.deny_ip_fabric_security_violation",
+		"axis": "urn:archinex:ontology:axis:imp_v2_network",
+		"message": err,
+		"violated_clause_urn": "urn:archinex:kb:clause:imp:ip_fabric_whitelist",
+		"violated_requirement_id": "REQ-IMP-V2-FABRIC",
+	}
+}
+
+# ==============================================================================
 # SYNTHÈSE DU VERDICT MULTI-AXES
 # ==============================================================================
 

@@ -2837,3 +2837,55 @@ export function validateDriverCapabilities(
 
   return issues;
 }
+
+export interface IntegrationCharterResult {
+  component: string;
+  eligible: boolean;
+  missing: string[];
+}
+
+/**
+ * Évalue la charte d'éligibilité d'un composant avant onboarding (IMP V2 §2.3).
+ */
+export function evaluateComponentIntegrationCharter(
+  component: LogicalComponent
+): IntegrationCharterResult {
+  const missing: string[] = [];
+  if (component.metadata.external) {
+    return { component: component.metadata.name, eligible: true, missing: [] };
+  }
+
+  const modules = component.spec.compute?.modules || [];
+  if (modules.length === 0) {
+    missing.push('ressources compute/modules absentes');
+  }
+
+  const hasEventsOrObs =
+    modules.some((m) => m.nics.some((n) => n.class === 'events')) ||
+    Boolean(component.spec.observability);
+  if (!hasEventsOrObs) {
+    missing.push('opérabilité/observabilité (NIC events ou bloc observability) absente');
+  }
+
+  const hasSecurity = Boolean(
+    component.spec.security?.vault ||
+      component.spec.security?.certificates?.length ||
+      component.spec.security?.endpoint
+  );
+  if (!hasSecurity) {
+    missing.push('intégration sécurité (vault, certificats ou endpoint) absente');
+  }
+
+  const hasExposureOrFirewall = Boolean(
+    component.spec.firewall?.rules?.length || component.spec.exposure
+  );
+  if (!hasExposureOrFirewall) {
+    missing.push('exposition ou règles firewall absentes');
+  }
+
+  return {
+    component: component.metadata.name,
+    eligible: missing.length === 0,
+    missing
+  };
+}

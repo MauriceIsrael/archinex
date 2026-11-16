@@ -1,12 +1,15 @@
-### IMP V2 Lots 1 & 2 — Modèle étendu, Déduction pare-feu, IP Fabric & Flux implicites (#302, #303, #304)
+### IMP V2 Lots 1, 2 & 3 — Modèle étendu, Déduction pare-feu, IP Fabric, Flux implicites & Oracles OPA V2 (#302, #303, #304, #305)
 - **Catalogues & Modèle (`src/lib/domain/edp/componentCatalog.ts`)** :
   - Extension des classes NIC (`storage`, `backup`, `oob`) et ajout des catalogues `qosClasses`, `vlanPools`, `vniPools`, `firewalls` (`interzone`, `external`, `operator-link`), `certificateProfiles` (conformes RGS) et `drivers` (`CapabilityMatrix`).
-  - Ajout de l'entité `OrganizationSpec` (`kind: Organization`), de `deriveOrganizationBubble` et `validateOrganization` (§5.1).
+  - Ajout de l'entité `OrganizationSpec` (`kind: Organization`), de `deriveOrganizationBubble`, `validateOrganization` (§5.1) et `evaluateComponentIntegrationCharter` (§2.3).
   - Extension de `LogicalComponent` pour les blocs IMP V2 (`network.fabric`, `routePropagation`/`bgpPropagation`, `loadBalancers`, `tunnels`, `apns`, `compute.namespaces`, `compute.hardware`, `storage.objectStores`, `exposure`, `observability`, `data.databases`, `supplyChain`, `lifecycle`).
   - Ajout de `validateCertificateProfilesAndRgs` (rejet X.509 inline & RSA < 3072) et `validateDriverCapabilities`.
 - **Résolveur, Chemins Pare-feu & IP Fabric (`src/lib/domain/edp/refResolver.ts`)** :
   - Déduction ordonnée des pare-feu traversés (`deduceFirewallPath`, `validateComponentFirewallPaths`) avec erreur bloquante sur paire de zones non protégée (§3.5.1).
   - Validation IP Fabric / BGP (`validateIpFabricAndBgp`) : whitelists `routePropagation` / `bgpPropagation`, symétrie RT, `anycastFrom >= 2` pour les VIPs, et présence de `fabric.security` (§3.2.8).
   - Flux implicites étendus (`generateImplicitFlows`) pour VPN, S3, `exposure` (entryPoints, MFT, MTA) et agents AV/EDR avec arêtes `generatedFrom` dans `buildReferenceGraph`.
-- **Tests (`tests/contract/imp-v2-lot1-catalogs-and-model.test.ts`, `tests/contract/imp-v2-lot2-path-fabric-implicit.test.ts`)** :
-  - Ajout de 10 tests de contrat couvrant les Lots 1 & 2.
+  - Constructeur `buildImpV2OpaInput()` pour alimenter l'oracle OPA Axe 10.
+- **Oracles OPA/Rego (`edp/policies/multi_axis_refinement.rego`)** :
+  - Ajout de l'Axe 10 (`imp_v2`) : contrôles RGS (profils certificats, rejet X.509 inline, RSA < 3072, TLS < 1.2), séparation `Organization`/`Component`, `CapabilityMatrix`, charte d'intégration, chemins pare-feu et IP Fabric.
+- **Tests (`tests/contract/imp-v2-lot1-catalogs-and-model.test.ts`, `tests/contract/imp-v2-lot2-path-fabric-implicit.test.ts`, `tests/contract/imp-v2-lot3-opa-oracles.test.ts`)** :
+  - Ajout de 13 tests de contrat couvrant les Lots 1, 2 & 3.

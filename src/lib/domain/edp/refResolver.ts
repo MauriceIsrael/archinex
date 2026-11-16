@@ -15,7 +15,7 @@ import type {
   NicSpec,
   ValueCatalogs
 } from './componentCatalog.js';
-import { DEFAULT_VALUE_CATALOGS } from './componentCatalog.js';
+import { DEFAULT_VALUE_CATALOGS, evaluateComponentIntegrationCharter } from './componentCatalog.js';
 
 export interface ReferenceEdge {
   from: string;
@@ -874,4 +874,50 @@ export function validateIpFabricAndBgp(component: LogicalComponent): IpFabricVal
   }
 
   return { errors, warnings };
+}
+
+/**
+ * Construit le sous-objet `input.imp_v2` destiné à l'oracle OPA/Rego Axe 10 (IMP V2 Lot 3, #305).
+ */
+export function buildImpV2OpaInput(params: {
+  components: LogicalComponent[];
+  organizations?: import('./componentCatalog.js').OrganizationSpec[];
+  requiredDriverOperations?: string[];
+  catalogs?: ValueCatalogs;
+  evaluateCharter?: boolean;
+}) {
+  const catalogs = params.catalogs ?? DEFAULT_VALUE_CATALOGS;
+  const certificates = params.components.flatMap((c) => c.spec.security?.certificates || []);
+  const certificate_profiles = [
+    ...(catalogs.certificateProfiles || []),
+    ...params.components.flatMap((c) => c.spec.security?.certificateProfiles || [])
+  ];
+  const tls_min_versions = params.components.flatMap((c) =>
+    (c.spec.exposure?.entryPoints || []).map((ep) => ep.tls.minVersion)
+  );
+  const available_driver_operations = Array.from(
+    new Set((catalogs.drivers || []).flatMap((d) => d.operations))
+  );
+  const firewall_path_errors = params.components.flatMap(
+    (c) => validateComponentFirewallPaths(c, params.components, catalogs).errors
+  );
+  const ip_fabric_errors = params.components.flatMap(
+    (c) => validateIpFabricAndBgp(c).errors
+  );
+
+  const charter_checks = params.evaluateCharter
+    ? params.components.map((c) => evaluateComponentIntegrationCharter(c))
+    : [];
+
+  return {
+    certificates,
+    certificate_profiles,
+    tls_min_versions,
+    organizations: params.organizations || [],
+    available_driver_operations,
+    required_driver_operations: params.requiredDriverOperations || [],
+    charter_checks,
+    firewall_path_errors,
+    ip_fabric_errors
+  };
 }

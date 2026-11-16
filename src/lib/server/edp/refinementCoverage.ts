@@ -220,6 +220,12 @@ export interface LldHydrationOverrides {
   drpMaxDaysBetweenDrills?: number;
   drpRpoSeconds?: number;
   registryCosignVerification?: boolean;
+  endpointMdmManaged?: boolean;
+  endpointPkiProtocol?: string;
+  endpointVerifiedBoot?: boolean;
+  endpointLocalEncryptionMode?: string;
+  endpointAppSandboxingMode?: string;
+  endpointOtaSignedAb?: boolean;
   twinArbitrationMode?: TwinArbitrationMode;
   twinMandatedProfileId?: SylvaTopologyProfileId;
 }
@@ -294,6 +300,14 @@ export interface MultiAxisHydratedInventory {
     };
     oci_registry: {
       cosign_verification: boolean;
+    };
+    endpoint_mdm: {
+      mdm_managed: boolean;
+      pki_enrollment_protocol: string;
+      verified_boot_enforced: boolean;
+      local_encryption_mode: string;
+      app_sandboxing_mode: string;
+      ota_signed_ab_required: boolean;
     };
   };
   resolved_components?: ResolvedComponentInstance[];
@@ -827,12 +841,17 @@ export function computeRefinementCoverage(
   // 1. Collecte des axes de raffinement obligatoires (axes applicatifs contextuels + triplets `requires_aspect` des concepts retenus)
   const mandatoryAxisMap = new Map<string, OntologyTriplet>();
 
-  if (isAutoConceptMode || Array.from(explicitBindingSet).some((u) => u.includes(':application:'))) {
-    const appAxes = Object.values(catalog.entities).filter(
-      (e) =>
-        e.kind === 'axis' &&
-        (e.domain === 'application' || e.togaf_domain === 'application-business')
-    );
+  if (
+    isAutoConceptMode ||
+    Array.from(explicitBindingSet).some((u) => u.includes(':application:') || u.includes(':endpoint:'))
+  ) {
+    const isContextualDomainAxis = (e: OntologyEntity): boolean =>
+      e.kind === 'axis' &&
+      (e.domain === 'application' ||
+        e.togaf_domain === 'application-business' ||
+        e.urn.startsWith('urn:archinex:ontology:axis:endpoint_'));
+
+    const appAxes = Object.values(catalog.entities).filter(isContextualDomainAxis);
 
     const paddedCorpus = ` ${corpus.replace(/[^a-z0-9-]+/g, ' ')} `;
     const matchesEntityKeywords = (entity: OntologyEntity): boolean => {
@@ -875,14 +894,20 @@ export function computeRefinementCoverage(
       }
     }
 
-    // Inclure également tout axe applicatif prérequis (ex: gis_location_fusion -> gis_tile_engine)
+    // Inclure également tout axe prérequis (ex: gis_location_fusion -> gis_tile_engine, endpoint_mdm_enrollment -> endpoint_pki_enrollment -> pki_hierarchy)
     if (matchedAppAxisUrns.size > 0) {
+      const hasEndpointAxis = Array.from(matchedAppAxisUrns).some((u) =>
+        u.startsWith('urn:archinex:ontology:axis:endpoint_')
+      );
       const appPrereqs = computeTransitivePrerequisiteAxes(matchedAppAxisUrns, catalog);
       for (const prereqUrn of appPrereqs.keys()) {
         const prereqEntity = catalog.entities[prereqUrn];
         if (
           prereqEntity?.kind === 'axis' &&
-          (prereqEntity.domain === 'application' || prereqEntity.togaf_domain === 'application-business')
+          (prereqEntity.domain === 'application' ||
+            prereqEntity.togaf_domain === 'application-business' ||
+            prereqEntity.urn.startsWith('urn:archinex:ontology:axis:endpoint_') ||
+            (hasEndpointAxis && prereqEntity.urn === 'urn:archinex:ontology:axis:pki_hierarchy'))
         ) {
           matchedAppAxisUrns.add(prereqUrn);
         }
@@ -1491,6 +1516,12 @@ export function composeMultiAxisHydration(
   let drpRpoSeconds = 999999;
   let drpDaysSinceLastDrill = 999;
   let registryCosignVerification = false;
+  let endpointMdmManaged = false;
+  let endpointPkiProtocol = 'unspecified';
+  let endpointVerifiedBoot = false;
+  let endpointLocalEncryptionMode = 'unspecified';
+  let endpointAppSandboxingMode = 'unspecified';
+  let endpointOtaSignedAb = false;
 
   for (const b of bindings) {
     const entity = catalog.entities[b.urn];
@@ -1571,6 +1602,24 @@ export function composeMultiAxisHydration(
     }
     if (proj.cosign_verification !== undefined) {
       registryCosignVerification = Boolean(proj.cosign_verification);
+    }
+    if (proj.mdm_managed_required !== undefined) {
+      endpointMdmManaged = Boolean(proj.mdm_managed_required);
+    }
+    if (proj.default_protocol !== undefined && Array.isArray(proj.allowed_protocols)) {
+      endpointPkiProtocol = String(proj.default_protocol);
+    }
+    if (proj.verified_boot_required !== undefined) {
+      endpointVerifiedBoot = Boolean(proj.verified_boot_required);
+    }
+    if (proj.encryption_mode !== undefined) {
+      endpointLocalEncryptionMode = String(proj.encryption_mode);
+    }
+    if (proj.sandboxing_mode !== undefined) {
+      endpointAppSandboxingMode = String(proj.sandboxing_mode);
+    }
+    if (proj.ota_signed_ab_required !== undefined) {
+      endpointOtaSignedAb = Boolean(proj.ota_signed_ab_required);
     }
 
     if (tpl.nautobot_device || proj.baremetal_types) {
@@ -2112,6 +2161,14 @@ export function composeMultiAxisHydration(
     },
     oci_registry: {
       cosign_verification: overrides.registryCosignVerification ?? registryCosignVerification
+    },
+    endpoint_mdm: {
+      mdm_managed: overrides.endpointMdmManaged ?? endpointMdmManaged,
+      pki_enrollment_protocol: overrides.endpointPkiProtocol ?? endpointPkiProtocol,
+      verified_boot_enforced: overrides.endpointVerifiedBoot ?? endpointVerifiedBoot,
+      local_encryption_mode: overrides.endpointLocalEncryptionMode ?? endpointLocalEncryptionMode,
+      app_sandboxing_mode: overrides.endpointAppSandboxingMode ?? endpointAppSandboxingMode,
+      ota_signed_ab_required: overrides.endpointOtaSignedAb ?? endpointOtaSignedAb
     }
   };
   const sylvaTwinReport = runSylvaDigitalTwinMatrix({

@@ -1409,6 +1409,183 @@ export const DEFAULT_COMPONENT_CATALOG: LogicalComponent[] = [
         rules: []
       }
     }
+  },
+  {
+    apiVersion: 'archinex.io/v1alpha1',
+    kind: 'LogicalComponent',
+    metadata: {
+      name: 'mdm-emm',
+      displayName: 'Plateforme MDM / EMM & Gestion de Flotte Terminaux',
+      tenant: 'tenant-mdm-emm',
+      external: false,
+      functionalDomain: 'it',
+      editor: 'itops',
+      status: 'active',
+      version: '1.0.0',
+      manifestVersion: 1,
+      labels: { criticality: 'tier-1', layer: 'endpoint-management' }
+    },
+    spec: {
+      class: 'domain-technical',
+      dependsOn: ['pki-ca', 'iam-keycloak', 'siem-soc', 'vault-cluster'],
+      network: {
+        vrfs: [
+          { name: 'vrf-mdm-app', domain: 'mdm.internal', tenantRef: 'ref(component.metadata.tenant)' },
+          { name: 'vrf-mdm-events', domain: 'events.internal' },
+          { name: 'vrf-mdm-admin', domain: 'admin.internal' }
+        ],
+        subnets: [
+          {
+            name: 'sn-mdm-app',
+            cidr: 'ref(param.mdm.subnet.app)',
+            vrf: 'vrf-mdm-app',
+            zone: 'app',
+            class: 'business',
+            reserved: { gateway: { offset: 1 }, 'vip-mdm': { offset: 10 } }
+          },
+          { name: 'sn-mdm-events', cidr: 'ref(param.mdm.subnet.events)', vrf: 'vrf-mdm-events', zone: 'events', class: 'events' },
+          { name: 'sn-mdm-admin', cidr: 'ref(param.mdm.subnet.admin)', vrf: 'vrf-mdm-admin', zone: 'admin', class: 'admin' }
+        ]
+      },
+      compute: {
+        modules: [
+          {
+            name: 'mdm-controller',
+            kind: 'container',
+            role: 'mdm-api',
+            status: 'active',
+            instances: 'ref(param.mdm.instances.controller)',
+            placement: { requiredDataplane: 'standard-nis2', zone: 'app', pool: 'sylva-standard-nis2' },
+            nics: [
+              { class: 'admin', index: 1, vrf: 'vrf-mdm-admin', subnetRef: 'sn-mdm-admin', ip: { by: 'offset', value: 32, perInstance: true } },
+              { class: 'business', index: 2, vrf: 'vrf-mdm-app', subnetRef: 'sn-mdm-app', ip: { by: 'offset', value: 40, perInstance: true }, defaultRoute: true },
+              { class: 'events', index: 3, vrf: 'vrf-mdm-events', subnetRef: 'sn-mdm-events', ip: { by: 'dhcp' } }
+            ],
+            helm: { repo: 'oci://registry.sylva.internal/endpoint', chart: 'mdm-emm', version: 'ref(param.mdm.chartVersion)' },
+            storage: [{ name: 'mdm-inventory', size: '100Gi', tier: 'warm', svmRef: 'svm-mdm-emm', reclaimPolicy: 'retain' }]
+          }
+        ]
+      },
+      storage: {
+        svms: [
+          {
+            name: 'svm-mdm-emm',
+            tenantRef: 'ref(component.metadata.tenant)',
+            backend: 'longhorn-nvme',
+            tiers: [{ tier: 'warm', quota: 'ref(param.storage.warm.quota)' }]
+          }
+        ]
+      },
+      security: {
+        vault: {
+          mount: 'vault://tenant-mdm-emm',
+          paths: [{ name: 'mdm-api-signing-key', rule: 'default-password', rotationDays: 90 }]
+        },
+        certificates: [
+          {
+            name: 'mdm-api-tls',
+            type: 'server',
+            cn: 'mdm.internal',
+            sanDns: ['mdm.internal', 'emm.internal'],
+            sanIps: ['ref(network.subnets[sn-mdm-app].reserved[vip-mdm])'],
+            validityDays: 90,
+            issuanceMethod: 'internal-ca',
+            autoRenew: true
+          }
+        ]
+      },
+      firewall: {
+        policy: 'deny-by-default',
+        groups: [
+          { name: 'mdm-controller', membersRef: 'ref(compute.modules[mdm-controller].instances[*].nics[class=business].ip)' },
+          { name: 'mdm-events', membersRef: 'ref(compute.modules[mdm-controller].instances[*].nics[class=events].ip)' }
+        ],
+        rules: []
+      }
+    }
+  },
+  {
+    apiVersion: 'archinex.io/v1alpha1',
+    kind: 'LogicalComponent',
+    metadata: {
+      name: 'endpoint-os-profile',
+      displayName: 'Profil OS Terminal Durci & Contrôleur de Posture Endpoint',
+      tenant: 'tenant-endpoint-os-profile',
+      external: false,
+      functionalDomain: 'security',
+      editor: 'secops',
+      status: 'active',
+      version: '1.0.0',
+      manifestVersion: 1,
+      labels: { criticality: 'tier-1', layer: 'endpoint-hardening' }
+    },
+    spec: {
+      class: 'domain-technical',
+      dependsOn: ['mdm-emm', 'pki-ca', 'siem-soc'],
+      network: {
+        vrfs: [
+          { name: 'vrf-endpoint-app', domain: 'endpoint.internal', tenantRef: 'ref(component.metadata.tenant)' },
+          { name: 'vrf-endpoint-events', domain: 'events.internal' },
+          { name: 'vrf-endpoint-admin', domain: 'admin.internal' }
+        ],
+        subnets: [
+          {
+            name: 'sn-endpoint-app',
+            cidr: 'ref(param.endpoint.subnet.app)',
+            vrf: 'vrf-endpoint-app',
+            zone: 'app',
+            class: 'business',
+            reserved: { gateway: { offset: 1 }, 'vip-endpoint': { offset: 10 } }
+          },
+          { name: 'sn-endpoint-events', cidr: 'ref(param.endpoint.subnet.events)', vrf: 'vrf-endpoint-events', zone: 'events', class: 'events' },
+          { name: 'sn-endpoint-admin', cidr: 'ref(param.endpoint.subnet.admin)', vrf: 'vrf-endpoint-admin', zone: 'admin', class: 'admin' }
+        ]
+      },
+      compute: {
+        modules: [
+          {
+            name: 'endpoint-policy-agent',
+            kind: 'container',
+            role: 'endpoint-attestation',
+            status: 'active',
+            instances: 'ref(param.endpoint.instances.policy)',
+            placement: { requiredDataplane: 'standard-nis2', zone: 'app', pool: 'sylva-standard-nis2' },
+            nics: [
+              { class: 'admin', index: 1, vrf: 'vrf-endpoint-admin', subnetRef: 'sn-endpoint-admin', ip: { by: 'offset', value: 32, perInstance: true } },
+              { class: 'business', index: 2, vrf: 'vrf-endpoint-app', subnetRef: 'sn-endpoint-app', ip: { by: 'offset', value: 40, perInstance: true }, defaultRoute: true },
+              { class: 'events', index: 3, vrf: 'vrf-endpoint-events', subnetRef: 'sn-endpoint-events', ip: { by: 'dhcp' } }
+            ],
+            helm: { repo: 'oci://registry.sylva.internal/endpoint', chart: 'endpoint-os-profile', version: 'ref(param.endpoint.chartVersion)' }
+          }
+        ]
+      },
+      security: {
+        vault: {
+          mount: 'vault://tenant-endpoint-os-profile',
+          paths: [{ name: 'attestation-root-key', rule: 'default-password', rotationDays: 90 }]
+        },
+        certificates: [
+          {
+            name: 'endpoint-attestation-tls',
+            type: 'server',
+            cn: 'attestation.endpoint.internal',
+            sanDns: ['attestation.endpoint.internal'],
+            sanIps: ['ref(network.subnets[sn-endpoint-app].reserved[vip-endpoint])'],
+            validityDays: 90,
+            issuanceMethod: 'internal-ca',
+            autoRenew: true
+          }
+        ]
+      },
+      firewall: {
+        policy: 'deny-by-default',
+        groups: [
+          { name: 'endpoint-policy-agent', membersRef: 'ref(compute.modules[endpoint-policy-agent].instances[*].nics[class=business].ip)' },
+          { name: 'endpoint-events', membersRef: 'ref(compute.modules[endpoint-policy-agent].instances[*].nics[class=events].ip)' }
+        ],
+        rules: []
+      }
+    }
   }
 ];
 
@@ -2055,7 +2232,16 @@ const DEFAULT_URN_TO_COMPONENT: Record<string, string> = {
   'urn:archinex:ontology:application:gis:qgis_server_wmts': 'gis-server',
   'urn:archinex:ontology:application:gis:central_fusion_hybrid_geofencing': 'gis-server',
   'urn:archinex:ontology:application:gis:central_fusion_server_only_geofencing': 'gis-server',
-  'urn:archinex:ontology:application:gis:distributed_terminal_geofencing': 'ptt-server'
+  'urn:archinex:ontology:application:gis:distributed_terminal_geofencing': 'ptt-server',
+  'urn:archinex:ontology:endpoint:mdm:emm_zero_touch_enrollment': 'mdm-emm',
+  'urn:archinex:ontology:endpoint:mdm:onprem_sovereign_emm': 'mdm-emm',
+  'urn:archinex:ontology:security:pki:endpoint_scep_est_enrollment': 'pki-ca',
+  'urn:archinex:ontology:endpoint:os:hardened_verified_boot': 'endpoint-os-profile',
+  'urn:archinex:ontology:endpoint:os:standard_managed_profile': 'endpoint-os-profile',
+  'urn:archinex:ontology:endpoint:crypto:fbe_hardware_keystore': 'endpoint-os-profile',
+  'urn:archinex:ontology:endpoint:sandbox:work_profile_strict_isolation': 'endpoint-os-profile',
+  'urn:archinex:ontology:endpoint:sandbox:dedicated_kiosk_cobo': 'endpoint-os-profile',
+  'urn:archinex:ontology:endpoint:ota:signed_ab_staged_rollout': 'mdm-emm'
 };
 
 /**
@@ -2373,6 +2559,16 @@ export const DEFAULT_ENVIRONMENT_OVERLAYS: EnvironmentOverlay[] = [
         'emergent.subnet.admin': '10.47.12.0/24',
         'emergent.instances.worker': 2,
         'emergent.chartVersion': '1.0.0',
+        'mdm.subnet.app': '10.48.10.0/24',
+        'mdm.subnet.events': '10.48.11.0/24',
+        'mdm.subnet.admin': '10.48.12.0/24',
+        'mdm.instances.controller': 2,
+        'mdm.chartVersion': '2.4.0',
+        'endpoint.subnet.app': '10.49.10.0/24',
+        'endpoint.subnet.events': '10.49.11.0/24',
+        'endpoint.subnet.admin': '10.49.12.0/24',
+        'endpoint.instances.policy': 2,
+        'endpoint.chartVersion': '1.2.0',
         'storage.hot.quota': '500Gi',
         'storage.warm.quota': '2Ti'
       },
@@ -2447,6 +2643,16 @@ export const DEFAULT_ENVIRONMENT_OVERLAYS: EnvironmentOverlay[] = [
         'emergent.subnet.admin': '10.57.12.0/24',
         'emergent.instances.worker': 2,
         'emergent.chartVersion': '1.0.0',
+        'mdm.subnet.app': '10.58.10.0/24',
+        'mdm.subnet.events': '10.58.11.0/24',
+        'mdm.subnet.admin': '10.58.12.0/24',
+        'mdm.instances.controller': 2,
+        'mdm.chartVersion': '2.4.0',
+        'endpoint.subnet.app': '10.59.10.0/24',
+        'endpoint.subnet.events': '10.59.11.0/24',
+        'endpoint.subnet.admin': '10.59.12.0/24',
+        'endpoint.instances.policy': 2,
+        'endpoint.chartVersion': '1.2.0',
         'storage.hot.quota': '200Gi',
         'storage.warm.quota': '1Ti'
       },
@@ -2521,6 +2727,16 @@ export const DEFAULT_ENVIRONMENT_OVERLAYS: EnvironmentOverlay[] = [
         'emergent.subnet.admin': '10.67.12.0/24',
         'emergent.instances.worker': 1,
         'emergent.chartVersion': '1.0.0-rc1',
+        'mdm.subnet.app': '10.68.10.0/24',
+        'mdm.subnet.events': '10.68.11.0/24',
+        'mdm.subnet.admin': '10.68.12.0/24',
+        'mdm.instances.controller': 1,
+        'mdm.chartVersion': '2.4.0-rc1',
+        'endpoint.subnet.app': '10.69.10.0/24',
+        'endpoint.subnet.events': '10.69.11.0/24',
+        'endpoint.subnet.admin': '10.69.12.0/24',
+        'endpoint.instances.policy': 1,
+        'endpoint.chartVersion': '1.2.0-rc1',
         'storage.hot.quota': '50Gi',
         'storage.warm.quota': '200Gi'
       },

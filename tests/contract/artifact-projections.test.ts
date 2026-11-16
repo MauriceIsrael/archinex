@@ -694,4 +694,158 @@ describe('Projections dynamiques d\'architecture (No Doc Drift - Issue #64)', ()
 		expect(seq).toContain('Phase 3 : Migration Progressive sans Rupture');
 		expect(seq).toContain('Passerelle d\'Interconnexion IWF (3GPP TS 29.314)');
 	});
+
+	it('21. Issue #311 : Contextualise le diagramme de séquence à partir des énoncés, du brouillon et des protocoles (cas SIG/Carto sans WAPT)', () => {
+		const cartoSubject: MaturitySubject = {
+			id: 'sub-carto',
+			section_ref: '§6.2',
+			name: 'Service Cartographique & Tuiles Vecteur',
+			level: 'L2_decomposed',
+			blocking_count: 0,
+			unlocks_count: 0,
+			waiting_for_role: 'domain_architect',
+			relative_effort: 'M',
+			last_transition_date: '2026-11-12T00:00:00Z',
+			stall_days: 0,
+			is_stalled: false,
+			dependent_subject_ids: []
+		};
+
+		const cartoDraft: TelegraphicDraft = {
+			section_id: 'sub-carto',
+			subject: 'Service Cartographique & Tuiles Vecteur',
+			maturity: 'L2_decomposed',
+			is_provisional: true,
+			retenu: [
+				'Serveur de tuiles : Tegola / Martin',
+				'Stockage géospatial : PostGIS + cache MBTiles'
+			],
+			suppose: [
+				{ text: 'Débit WMS/WMTS < 500 req/s en pointe', consequence: 'Dimensionnement 2 nœuds suffisant' }
+			],
+			conflit: [
+				{ text: 'Format MBTiles embarqué', opposing_reference: 'REQ-SIG-04 (flux OGC temps réel)', requires_arbitration: true }
+			],
+			manque: []
+		};
+
+		const cartoStatements: Statement[] = [
+			{
+				id: 'ENG:sig/S-101',
+				section: '§6.2',
+				triplet: { subject: 'sub-carto', predicate: 'Serveur cartographique', value: 'GeoServer OGC' },
+				justification: { basedOn: [], appliedRule: 'Homologation RGS / HTTPS mTLS' },
+				authority: { author: 'arch-1', role: 'domain_architect', productionMode: 'human-authored' },
+				maturity: { subjectLevel: 'L2_decomposed', confidence: 'designed' },
+				revisability: { antecedents: [] },
+				status: 'active',
+				createdAt: '2026-11-12T00:00:00Z',
+				updatedAt: '2026-11-12T00:00:00Z'
+			},
+			{
+				id: 'ENG:sig/S-102',
+				section: '§6.2',
+				triplet: { subject: 'sub-carto', predicate: 'Base géospatiale', value: 'Cluster PostGIS' },
+				justification: { basedOn: ['ENG:sig/S-101'] },
+				authority: { author: 'arch-1', role: 'data_architect', productionMode: 'human-authored' },
+				maturity: { subjectLevel: 'L2_decomposed', confidence: 'verified' },
+				revisability: { antecedents: ['ENG:sig/S-101'] },
+				status: 'active',
+				createdAt: '2026-11-12T00:00:00Z',
+				updatedAt: '2026-11-12T00:00:00Z'
+			}
+		];
+
+		const cartoContext: ProjectionContext = {
+			projectId: 'proj-sig',
+			projectName: 'Portail Géomatique',
+			enterpriseName: 'Collectivité Territoriale',
+			decision: {
+				retainedOptionId: 'opt-ogc-hybride',
+				retainedOptionTitle: 'Publication OGC WMTS/WMS sur PostGIS avec cache embarqué',
+				reversibility: 'Bascule vers tuiles statiques S3 en < 15 min',
+				arbiterRole: 'RSSI & Lead Architect'
+			},
+			requirements: [{ clauseRef: 'REQ-SIG-04', title: 'Conformité OGC & TLS' }],
+			detailedSpecText: 'Déploiement en Qualification puis Production sur infrastructure dédiée avec chiffrement mTLS.'
+		};
+
+		const seq = generateDeploymentSequenceDiagram(cartoSubject, cartoDraft, cartoStatements, cartoContext);
+
+		expect(seq).toContain('sequenceDiagram');
+		expect(seq).not.toContain('WAPT');
+		expect(seq).not.toContain('Paquet applicatif');
+		expect(seq).toContain('GeoServer OGC');
+		expect(seq).toContain('Cluster PostGIS');
+		expect(seq).toContain('Qualification / Recette');
+		expect(seq).toContain('Production');
+		expect(seq).toContain('WMTS');
+		expect(seq).toContain('WMS');
+		expect(seq).toContain('mTLS');
+		expect(seq).toContain('REQ-SIG-04');
+		expect(seq).toContain('RSSI & Lead Architect');
+		expect(seq).toContain('Section provisoire');
+		expect(seq).toContain('Arbitrage requis');
+		expect(seq).toContain('Vérification hypothèse');
+		expect(seq).toContain('Plan de retour');
+	});
+
+	it('22. Issue #311 : Exploite les slots Phase 4, environnements et acteurs explicites du contexte', () => {
+		const subjectSlot: MaturitySubject = {
+			id: 'sub-iam',
+			section_ref: '§3.4',
+			name: 'Fédération d\'Identité OIDC',
+			level: 'L4_specified',
+			blocking_count: 0,
+			unlocks_count: 0,
+			waiting_for_role: 'security_architect',
+			relative_effort: 'M',
+			last_transition_date: '2026-11-15T00:00:00Z',
+			stall_days: 0,
+			is_stalled: false,
+			dependent_subject_ids: []
+		};
+
+		const slotContext: ProjectionContext = {
+			projectName: 'Socle Identité',
+			actors: [
+				{ name: 'Équipe IAM', role: 'Intégration' },
+				{ name: 'Autorité Homologation', role: 'RSSI' }
+			],
+			environments: ['Staging / INT', 'Production Souveraine'],
+			slots: [
+				{
+					slotId: 'slot-idp',
+					axisTitle: 'Fournisseur OIDC',
+					instantiatedComponents: ['Keycloak Cluster', 'Passerelle API OIDC'],
+					executableOracleRules: ['RBAC strict + PKCE obligatoire']
+				}
+			],
+			sealSha256: 'a1b2c3d4e5f60000'
+		};
+
+		const seq = generateDeploymentSequenceDiagram(subjectSlot, null, [], slotContext);
+
+		expect(seq).toContain('sequenceDiagram');
+		expect(seq).toContain('Équipe IAM (Intégration)');
+		expect(seq).toContain('Autorité Homologation (RSSI)');
+		expect(seq).toContain('Keycloak Cluster');
+		expect(seq).toContain('Passerelle API OIDC');
+		expect(seq).toContain('Staging / INT');
+		expect(seq).toContain('Production Souveraine');
+		expect(seq).toContain('RBAC strict + PKCE obligatoire');
+		expect(seq).toContain('Scellement a1b2c3d4');
+		expect(seq).not.toContain('WAPT');
+	});
+
+	it('23. Issue #311 : Conserve un fallback propre si aucun signal contextuel n\'est fourni', () => {
+		const bareSubject = {
+			id: 'sub-bare',
+			section_ref: '§1.0',
+			name: 'Module Initial'
+		};
+		const seq = generateDeploymentSequenceDiagram(bareSubject, null, [], {});
+		expect(seq).toContain('sequenceDiagram');
+		expect(seq).toContain('Phase 1 : Construction et Signature Cryptographique');
+	});
 });

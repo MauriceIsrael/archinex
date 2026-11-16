@@ -3,6 +3,17 @@ import type { TelegraphicDraft } from '$lib/domain/telegraphic';
 import type { Statement } from '$lib/types/epistemic';
 import { renderStructurizrWorkspace, type C4Container, type C4Relation } from '$lib/domain/structurizrDsl';
 import { badgeOf, c4Styles, draftOverlay, epistemicCounts, mermaidClassDefs, mmdText, partitionStatements, withdrawnNote } from '$lib/domain/epistemicBadge';
+import { buildDynamicDeploymentSequence, extractDeploymentSignals } from '$lib/domain/deploymentSequence';
+
+export interface ProjectionSlotSummary {
+	slotId: string;
+	axisTitle: string;
+	togafDomain?: string;
+	status?: string;
+	instantiatedComponents?: string[];
+	boundLeafUrns?: string[];
+	executableOracleRules?: string[];
+}
 
 export interface ProjectionActor {
 	name: string;
@@ -30,6 +41,8 @@ export interface ProjectionContext {
 	requirements?: Array<{ clauseRef: string; title: string }>;
 	sealSha256?: string;
 	detailedSpecText?: string;
+	slots?: ProjectionSlotSummary[];
+	environments?: string[];
 }
 
 /** Les énoncés d'une section, partagés en « à dessiner » et « écartés » : le même tri pour tous les artefacts. */
@@ -903,12 +916,13 @@ export function generateTargetArchitectureDiagram(
 
 /**
  * Génère le diagramme de séquence de la chaîne de déploiement sécurisée et d'homologation.
- * Modélise les interactions entre Titulaire, Valideur Humain, Dépôt/Serveur WAPT et Hôte cible.
+ * Exploite dynamiquement les énoncés, le brouillon télégraphique, les slots Phase 4,
+ * les protocoles/contraintes de sécurité et les acteurs du sujet.
  */
 export function generateDeploymentSequenceDiagram(
 	subject: MaturitySubject | { id: string; name: string; section_ref?: string; sectionRef?: string },
-	_draft?: TelegraphicDraft | null,
-	_statements?: Statement[],
+	draft?: TelegraphicDraft | null,
+	statements?: Statement[],
 	context?: ProjectionContext
 ): string {
 	const subjectName = subject.name || 'Système';
@@ -1079,6 +1093,13 @@ export function generateDeploymentSequenceDiagram(
 			'    Tech->>IWF: Réduction progressive des ponts LMR au fur et à mesure de l\'extinction PMR',
 			'    Note over Tech,CoreTarget: Migration unifiée réussie sans interruption des secours critiques'
 		].join('\n');
+	}
+
+	if (!isWapt) {
+		const signals = extractDeploymentSignals(subject, draft, statements, context);
+		if (signals.hasContextualSignals) {
+			return buildDynamicDeploymentSequence(subject, signals, context);
+		}
 	}
 
 	const tituActor = `Titulaire (${projectName})`;

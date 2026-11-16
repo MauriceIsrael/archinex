@@ -1,0 +1,3 @@
+### Corrections
+
+- **Contextualisation du diagramme de chaîne de déploiement & homologation (Issue #311)** : `generateDeploymentSequenceDiagram` dans `src/lib/domain/artifactProjections.ts` (déléguant à `src/lib/domain/deploymentSequence.ts`) exploite désormais dynamiquement les énoncés actifs, le brouillon télégraphique (`retenu`, `suppose`, `conflit`, `is_provisional`), les slots Phase 4 (`instantiatedComponents`, `executableOracleRules`), les environnements, protocoles, contraintes de sécurité/homologation et acteurs du sujet au lieu de retomber systématiquement sur le modèle WAPT générique.

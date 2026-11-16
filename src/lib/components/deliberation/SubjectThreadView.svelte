@@ -24,6 +24,7 @@
 	import DecisionSurveyCard from './DecisionSurveyCard.svelte';
 	import CascadeQuestionsCard from './CascadeQuestionsCard.svelte';
 	import SubjectProblemCard from './SubjectProblemCard.svelte';
+	import SubjectRequirementsDrawer, { type SubjectRequirementItem } from './SubjectRequirementsDrawer.svelte';
 	import SplitSubjectDialog from './SplitSubjectDialog.svelte';
 	import OptionsMatrix from './OptionsMatrix.svelte';
 	import TelegraphicDraftView from './TelegraphicDraftView.svelte';
@@ -82,7 +83,8 @@
 		onToggleDossier = () => {},
 		onBackToBoard = () => {},
 		initialActiveWorkspaceTab = 'thread',
-		initialDecision = null
+		initialDecision = null,
+		initialRequirements = []
 	}: {
 		subjectId: string;
 		projectId: string;
@@ -96,6 +98,7 @@
 		onBackToBoard?: () => void;
 		initialActiveWorkspaceTab?: UnifiedWorkspaceTab;
 		initialDecision?: Decision | null;
+		initialRequirements?: SubjectRequirementItem[];
 	} = $props();
 
 	// ─── État de navigation unifié (Onglets pleine largeur + Mode Split optionnel) ───
@@ -114,6 +117,9 @@
 	let matrixEvaluations = $state<OptionEvaluation[]>([]);
 	let matrixTradeOffs = $state<TradeOff[]>([]);
 	let allowedKbRefs = $state<string[]>([]);
+	let subjectRequirements = $state<SubjectRequirementItem[]>(initialRequirements);
+	let requirementsUnresolvedRefs = $state<string[]>([]);
+	let requirementsDossierPresent = $state<boolean>(true);
 	let criteriaReport = $state<MaturityTransitionsReport | null>(null);
 	let subjectDecision = $state<Decision | null>(initialDecision);
 	let singleOptionRationale = $state<string | null | undefined>(undefined);
@@ -418,6 +424,9 @@
 		tradeOffs: TradeOff[];
 		decision: Decision | null;
 		criteriaReport: MaturityTransitionsReport | null;
+		requirements: SubjectRequirementItem[];
+		requirementsUnresolvedRefs: string[];
+		requirementsDossierPresent: boolean;
 	}
 	interface CachedCascade {
 		cascade: CascadeResult | null;
@@ -450,7 +459,10 @@
 			evaluations: matrixEvaluations,
 			tradeOffs: matrixTradeOffs,
 			decision: subjectDecision,
-			criteriaReport
+			criteriaReport,
+			requirements: subjectRequirements,
+			requirementsUnresolvedRefs,
+			requirementsDossierPresent
 		});
 	}
 
@@ -485,6 +497,9 @@
 			subjectDecision = cachedWb.decision;
 			criteriaReport = cachedWb.criteriaReport;
 			singleOptionRationale = cachedWb.singleOptionRationale;
+			subjectRequirements = cachedWb.requirements;
+			requirementsUnresolvedRefs = cachedWb.requirementsUnresolvedRefs;
+			requirementsDossierPresent = cachedWb.requirementsDossierPresent;
 			isLoadingArguments = false;
 		} else if (!force) {
 			// Réinitialise immédiatement les données de l'ancien sujet pour éviter les appels fantômes (ex: /compliance sur anciennes options)
@@ -496,6 +511,9 @@
 			subjectDecision = initialDecision;
 			criteriaReport = null;
 			singleOptionRationale = undefined;
+			subjectRequirements = initialRequirements;
+			requirementsUnresolvedRefs = [];
+			requirementsDossierPresent = true;
 			isLoadingArguments = true;
 		}
 
@@ -587,7 +605,12 @@
 					evaluations: Array.isArray(wb.evaluations) ? wb.evaluations : [],
 					tradeOffs: Array.isArray(wb.tradeOffs) ? wb.tradeOffs : [],
 					decision: wb.decision || null,
-					criteriaReport: wb.criteriaReport || null
+					criteriaReport: wb.criteriaReport || null,
+					requirements: Array.isArray(wb.requirements) ? wb.requirements : [],
+					requirementsUnresolvedRefs: Array.isArray(wb.requirementsUnresolvedRefs)
+						? wb.requirementsUnresolvedRefs
+						: [],
+					requirementsDossierPresent: wb.requirementsDossierPresent !== false
 				};
 
 				argumentsList = nextWb.arguments;
@@ -598,6 +621,9 @@
 				subjectDecision = nextWb.decision;
 				criteriaReport = nextWb.criteriaReport;
 				singleOptionRationale = nextWb.singleOptionRationale;
+				subjectRequirements = nextWb.requirements;
+				requirementsUnresolvedRefs = nextWb.requirementsUnresolvedRefs;
+				requirementsDossierPresent = nextWb.requirementsDossierPresent;
 				workbenchCache.set(cacheKey, nextWb);
 
 				if (wb.subject?.maturityLevel) {
@@ -1234,6 +1260,12 @@
 					onArbitrateOption={handleArbitrateOption}
 					{isForceEditingQuestion}
 				/>
+				<SubjectRequirementsDrawer
+					requirements={subjectRequirements}
+					unresolvedRefs={requirementsUnresolvedRefs}
+					dossierPresent={requirementsDossierPresent}
+					isLoading={isLoadingArguments}
+				/>
 			{/if}
 
 			{#if resumeSummary}
@@ -1584,7 +1616,7 @@
 						Doctrines applicables & Règles (#base)
 					</span>
 					<span class="font-mono text-[10px] px-1.5 py-0.2 rounded bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-500/20">
-						{doctrineItems.length} exigences · {citedKbRefs.length} citées
+						{doctrineItems.length} doctrines · {citedKbRefs.length} citées
 					</span>
 				</div>
 				<div class="flex items-center gap-2 text-[11px] text-muted-foreground">

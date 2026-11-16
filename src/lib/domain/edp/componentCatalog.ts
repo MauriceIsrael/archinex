@@ -10,12 +10,14 @@
 
 export type EntityLifecycleStatus = 'active' | 'staged' | 'inactive';
 export type ComponentClass = 'infrastructure' | 'business' | 'external' | 'domain-functional' | 'domain-technical';
-export type NicClass = 'admin' | 'business' | 'events' | 'internal';
+export type NicClass = 'admin' | 'business' | 'events' | 'internal' | 'storage' | 'backup' | 'oob';
 export type NicSubClass = 'trusted' | 'untrusted' | 'sync';
 export type StorageTierName = 'hot' | 'warm' | 'cold';
 export type ModuleKind = 'vm' | 'container' | 'forward-proxy';
 export type SslTerminationMode = 'origin' | 'destination' | 'none' | 'on-proxy';
 export type CertificateIssuanceMethod = 'acme' | 'scep' | 'internal-ca' | 'manual';
+export type FirewallUsageType = 'interzone' | 'external' | 'operator-link';
+export type CertificateAlgorithm = 'rsa' | 'ecdsa' | 'ed25519';
 
 export interface EnvironmentCatalogEntry {
   name: string;
@@ -53,6 +55,49 @@ export interface StorageTierCatalogEntry {
   defaultReclaimPolicy: 'retain' | 'delete';
 }
 
+export interface QosClassCatalogEntry {
+  name: string;
+  dscp: string;
+  tos?: number;
+  priority: 'highest' | 'high' | 'standard' | 'low';
+  description?: string;
+}
+
+export interface PoolRangeCatalogEntry {
+  zone: string;
+  range: string;
+}
+
+export interface FirewallCatalogEntry {
+  name: string;
+  usage: FirewallUsageType;
+  zones: string[];
+  enforcement: string;
+  operatorRef?: string;
+}
+
+export interface CertificateProfileCatalogEntry {
+  name: string;
+  description?: string;
+  type: 'server' | 'client' | 'email' | 'code-signing' | 'ca';
+  validityDays: number;
+  keySize: number;
+  algorithm: CertificateAlgorithm;
+  extendedKeyUsage: string[];
+  keyUsage: string[];
+  keyType: {
+    private: 'nonExportable';
+    storage: 'hsm' | 'vault';
+  };
+}
+
+export interface DriverCatalogEntry {
+  name: string;
+  targetTechnology: string;
+  operations: string[];
+  supportsPlan: boolean;
+}
+
 export interface ValueCatalogs {
   version: string;
   environments: EnvironmentCatalogEntry[];
@@ -63,6 +108,12 @@ export interface ValueCatalogs {
   storageTiers: StorageTierCatalogEntry[];
   functionalDomains: FunctionalDomainCatalogEntry[];
   forbiddenOffsets: { min: number; max: number };
+  qosClasses?: QosClassCatalogEntry[];
+  vlanPools?: PoolRangeCatalogEntry[];
+  vniPools?: PoolRangeCatalogEntry[];
+  firewalls?: FirewallCatalogEntry[];
+  certificateProfiles?: CertificateProfileCatalogEntry[];
+  drivers?: DriverCatalogEntry[];
 }
 
 export interface IpAllocationSpec {
@@ -81,10 +132,114 @@ export interface NicSpec {
   defaultRoute?: boolean;
 }
 
+export interface RoutePropagationRule {
+  to: string; // target VRF or 'any'
+  prefixes: string[];
+  action: 'allow' | 'deny';
+}
+
+export interface BgpPropagationRule {
+  to: string; // target VRF or 'any'
+  prefixes: string[];
+  announce: 'none' | { via: 'evpn'; anycastFrom: string[] };
+}
+
+export interface VrfFabricSpec {
+  vni?: string | { by: 'allocation' | 'offset'; pool: string; offset?: number };
+  attached?: string[];
+  routePropagation?: RoutePropagationRule[];
+  bgpPropagation?: BgpPropagationRule[];
+}
+
 export interface VrfSpec {
   name: string;
   domain: string;
   tenantRef?: string;
+  fabric?: VrfFabricSpec;
+}
+
+export interface ExplicitRouteSpec {
+  name: string;
+  type: 'static' | 'leaked' | 'default';
+  from: string;
+  to: { vrf: string; prefix: string };
+  nextHop: string;
+  whitelist?: string;
+  reason?: string;
+}
+
+export interface IpFabricSpec {
+  underlay: {
+    protocol: 'evpn-vxlan' | 'vrf-lite';
+    bgpAsn: string | number;
+    peers: Array<{ name: string; model: string; role: 't0' | 't1'; communities?: string[] }>;
+  };
+  vniPool: string;
+  leafs: Array<{ name: string; zone: string }>;
+  security?: {
+    bgpSessions: {
+      authentication: { method: 'tcp-ao' | 'md5'; secret: string };
+      gtsm?: { ttl: number };
+      maxPrefix?: { limit: number; threshold: string; action: 'shutdown' | 'warn' };
+    };
+    vtep?: {
+      allowedPeers: string[];
+      vniLeaking: 'deny' | 'allow';
+    };
+    ingressFiltering?: Array<{ rule: string; action: 'deny' | 'allow' }>;
+  };
+}
+
+export interface LoadBalancerSpec {
+  name: string;
+  class: 'l4' | 'l7';
+  listeners: Array<{
+    name: string;
+    port: number;
+    vip: string;
+    protocol: 'http' | 'https' | 'tcp' | 'udp';
+    certificates?: string[];
+    tlsVersion?: string;
+  }>;
+  backends: string[];
+  healthCheck?: { proto: 'tcp' | 'http' | 'https'; port: number; interval: string; unhealthy: number };
+  sessionPersistence?: 'none' | 'source-ip' | 'cookie';
+}
+
+export interface VpnTunnelSpec {
+  name: string;
+  type: 'site-to-site' | 'remote-access';
+  endpoints: { local: string; remote: string };
+  auth: { method: 'psk' | 'certificate'; certificate?: string };
+  ike?: { version: number; encryption: string; group: number; lifetime: string };
+  routing?: { advertise: string[]; mode: 'policy-based' | 'route-based' };
+  monitoring?: { probe: 'dpd'; interval: string };
+  status?: EntityLifecycleStatus;
+}
+
+export interface ApnSpec {
+  name: string;
+  type: 'dedicated' | 'common';
+  organization?: string;
+  slice?: { class: string; qos: { priority: string; guaranteed: boolean; dscp: string } };
+  ipPools: Array<{
+    name: string;
+    cidr: string;
+    family: 'ipv4' | 'ipv6';
+    assignment: 'dynamic' | 'static';
+    reserved?: Array<{ name: string; offset: number }>;
+  }>;
+  dns?: {
+    resolvers: string[];
+    view: { include: string[]; default: 'deny' };
+    searchDomains?: string[];
+  };
+  sgi?: {
+    gateway: string;
+    logicalInterface: string;
+    targets: string[];
+  };
+  status?: EntityLifecycleStatus;
 }
 
 export interface SubnetSpec {
@@ -174,14 +329,196 @@ export interface VaultPathSpec {
 export interface CertificateSpec {
   name: string;
   type: 'server' | 'client' | 'email' | 'code-signing' | 'ca';
+  /** Référence obligatoire en IMP V2 vers un profil partagé (`certificateProfiles[...]`) */
+  profile?: string;
   cn: string;
   sanDns?: string[];
   sanIps?: string[];
-  validityDays: number;
+  /** Champs X.509 hérités V1 : interdits inline en V2 si `profile` est utilisé */
+  validityDays?: number;
+  keySize?: number;
+  algorithm?: CertificateAlgorithm;
+  extendedKeyUsage?: string[];
+  keyUsage?: string[];
   issuanceMethod: CertificateIssuanceMethod;
   autoRenew?: boolean;
   boundToVip?: string;
   sslTermination?: SslTerminationMode;
+  status?: EntityLifecycleStatus;
+}
+
+export interface ContainerNamespaceSpec {
+  name: string;
+  zone: string;
+  apiKey?: { secret: string; storage: 'vault' };
+  quotas: {
+    cpu: number | string;
+    memory: string;
+    storage?: string;
+    persistentVolumeClaims?: number;
+  };
+  ingress?: { ipPool: string };
+  egress?: { ipPool: string; qos?: { dscp: string } };
+  logs?: { forwarder: string; destination: string; config?: string };
+  networkTelemetry?: {
+    sources: Array<{ type: string; targets?: string; samplers?: string }>;
+  };
+  monitoring?: { agent: string; discover: 'auto' | 'manual' };
+  storage?: Array<{
+    tier: StorageTierName;
+    size: string;
+    accessMode: string;
+    retainPolicy: 'retain' | 'delete';
+  }>;
+  status?: EntityLifecycleStatus;
+}
+
+export interface BareMetalHardwareSpec {
+  name: string;
+  model: string;
+  role: string;
+  cpu: { sockets: number; cores: number };
+  memory: string;
+  nics: Array<{ class: NicClass; model: string; ports: number }>;
+  firmware: {
+    bios: { version: string; baseline: string };
+    bmc: { version: string; protocol: 'redfish' };
+  };
+  oob: { class: 'oob'; address: string };
+  status?: EntityLifecycleStatus;
+}
+
+export interface ObjectStoreSpec {
+  name: string;
+  svm?: string;
+  buckets: Array<{
+    name: string;
+    versioning: boolean;
+    retention?: { mode: 'compliance' | 'governance'; days: number };
+    encryption: { atRest: string; kms: string };
+    quota: string;
+    access: Array<{ grant: string; rights: Array<'get' | 'put' | 'list' | 'delete'> }>;
+  }>;
+  dedup?: { enabled: boolean };
+}
+
+export interface ExposureSpec {
+  entryPoints?: Array<{
+    name: string;
+    type: 'reverse-proxy' | 'api-gateway';
+    hostname: string;
+    vip: string;
+    certificates: string[];
+    tls: { minVersion: string; termination: SslTerminationMode; backendTls?: 'mtls' | 'tls' | 'none' };
+    routes: Array<{ path: string; backend: string }>;
+    rateLimit?: { rps: number; burst: number };
+    status?: EntityLifecycleStatus;
+  }>;
+  fileTransfers?: Array<{
+    name: string;
+    direction: 'inbound' | 'outbound' | 'bidirectional';
+    protocol: 'sftp' | 'ftps' | 'ws';
+    partners: string[];
+    localPath: string;
+    schedule: string;
+    encryption?: { atRest: string; key: string };
+    status?: EntityLifecycleStatus;
+  }>;
+  email?: Array<{
+    name: string;
+    direction: 'outbound' | 'inbound';
+    relay: string;
+    sender: string;
+    security: { transport: 'starttls' | 'tls'; signing?: 'smime'; certificate?: string };
+    status?: EntityLifecycleStatus;
+  }>;
+}
+
+export interface ObservabilitySpec {
+  logs?: {
+    metadata: string;
+    sources: Array<{ module: string; format: 'json' | 'syslog'; transform?: string; destination: string }>;
+  };
+  kpis?: Array<{
+    name: string;
+    type: 'latency' | 'ratio' | 'gauge' | 'counter';
+    target: string;
+    window: string;
+    source?: string;
+  }>;
+  alerting?: Array<{
+    kpi: string;
+    condition: string;
+    severity: 'critical' | 'warning' | 'info';
+    notify: string[];
+  }>;
+}
+
+export interface DatabaseServiceSpec {
+  name: string;
+  engine: string;
+  ha: { mode: string; replicas: number; method: 'synchronous' | 'asynchronous'; failover: 'automatic' | 'manual' };
+  sizing: { storage: { size: string; tier: StorageTierName }; connections: number };
+  backup: { policy: string; pitr: boolean; retentionDays: number };
+  access: Array<{ grant: string; rights: 'ro' | 'rw' }>;
+  endpoints: { service: string; port: number };
+}
+
+export interface SupplyChainSpec {
+  repositories?: Array<{
+    name: string;
+    type: 'generic' | 'maven' | 'helm' | 'oci';
+    replication: { mode: 'active-active' | 'active-passive'; acrossDcs: string[]; backend: string };
+    promotion: Array<{ fromEnv: string; toEnv: string; requires: string[] }>;
+    sas?: { checks: string[]; polling?: string };
+  }>;
+  pipelines?: Array<{
+    name: string;
+    scope: 'component' | 'infra';
+    source: string;
+    trust: { signedPackagesOnly: boolean };
+  }>;
+}
+
+export interface LifecycleSpec {
+  install?: string;
+  upgrade?: string;
+  decommission?: string;
+  bootstrap?: { staticIp: boolean; reclaim: boolean };
+  rollback?: { strategy: 'none' | 'redeploy' | string };
+}
+
+export interface OrganizationSpec {
+  apiVersion: 'archinex.io/v1alpha1' | 'imp.example.io/v1';
+  kind: 'Organization';
+  metadata: {
+    name: string;
+    displayName: string;
+    status: EntityLifecycleStatus;
+    version: string;
+    manifestVersion: number;
+  };
+  spec: {
+    type: 'customer' | 'internal' | 'partner';
+    dnsDomains: string[];
+    apns: string[];
+    consumes: string[];
+    contacts: { owner: string; oncall: string };
+    // Champs interdits sur Organization (présents en type optionnel pour détection de violation)
+    compute?: unknown;
+    firewall?: unknown;
+    exposure?: unknown;
+  };
+}
+
+export interface OrganizationBubble {
+  organization: string;
+  tenant: string;
+  vrf: string;
+  dnsDomain: string;
+  apns: string[];
+  consumes: string[];
+  status: EntityLifecycleStatus;
 }
 
 export interface FirewallGroupSpec {
@@ -260,13 +597,28 @@ export interface LogicalComponent {
       subnets?: SubnetSpec[];
       addresses?: ExternalAddressSpec[];
       vrfBridges?: Array<{ fromVrf: string; toVrf: string; viaModule: string }>;
+      fabric?: IpFabricSpec;
+      routes?: ExplicitRouteSpec[];
+      loadBalancers?: LoadBalancerSpec[];
+      tunnels?: VpnTunnelSpec[];
+      apns?: ApnSpec[];
+      firewalls?: Array<{
+        name: string;
+        ref: string;
+        component: string;
+        attaches: Array<{ from: string; to: string }>;
+        vrfLinks: string[];
+      }>;
     };
     compute?: {
       modules: ModuleSpec[];
+      namespaces?: ContainerNamespaceSpec[];
+      hardware?: BareMetalHardwareSpec[];
     };
     storage?: {
       svms?: SvmSpec[];
       exports?: NfsExportSpec[];
+      objectStores?: ObjectStoreSpec[];
     };
     security?: {
       vault?: {
@@ -274,12 +626,31 @@ export interface LogicalComponent {
         paths: VaultPathSpec[];
       };
       certificates?: CertificateSpec[];
+      certificateProfiles?: CertificateProfileCatalogEntry[];
+      sbom?: Array<{
+        module: string;
+        format: 'cyclonedx' | 'spdx';
+        generated: 'build-time' | 'runtime';
+        vulnerabilities: { scan: string; dailyUpdate: boolean; policy: 'block-critical' | 'warn' };
+      }>;
+      endpoint?: {
+        edr?: { agent: string; dailyUpdate: boolean };
+        av?: { agent: string; dailyUpdate: boolean };
+        integrityCheck?: { mode: 'fim'; paths: string[] };
+      };
     };
     firewall?: {
       policy: 'deny-by-default';
       groups: FirewallGroupSpec[];
       rules: FirewallRuleSpec[];
     };
+    exposure?: ExposureSpec;
+    observability?: ObservabilitySpec;
+    data?: {
+      databases?: DatabaseServiceSpec[];
+    };
+    supplyChain?: SupplyChainSpec;
+    lifecycle?: LifecycleSpec;
     logicalInterfaces?: LogicalInterfaceSpec[];
     useCases?: UseCaseSpec[];
   };
@@ -314,7 +685,13 @@ export interface ComponentCatalogBundle {
 export interface BaseLintIssue {
   component: string;
   path: string;
-  code: 'hardcoded-env-value' | 'invalid-catalog-ref' | 'invalid-nic-config';
+  code:
+    | 'hardcoded-env-value'
+    | 'invalid-catalog-ref'
+    | 'invalid-nic-config'
+    | 'invalid-organization'
+    | 'invalid-certificate-profile'
+    | 'missing-driver-capability';
   message: string;
 }
 
@@ -360,12 +737,111 @@ export const DEFAULT_VALUE_CATALOGS: ValueCatalogs = {
     { name: 'dc3', region: 'eu-west-2', failureDomain: 'az-lyon-est', drRole: 'tertiary' }
   ],
   zones: ['dmz', 'app', 'data', 'admin', 'events'],
-  nicClasses: ['admin', 'business', 'events', 'internal'],
+  nicClasses: ['admin', 'business', 'events', 'internal', 'storage', 'backup', 'oob'],
   nicSubClasses: ['trusted', 'untrusted', 'sync'],
   storageTiers: [
     { tier: 'hot', media: 'ssd', defaultReclaimPolicy: 'delete' },
     { tier: 'warm', media: 'hybrid', defaultReclaimPolicy: 'retain' },
     { tier: 'cold', media: 'hdd', defaultReclaimPolicy: 'retain' }
+  ],
+  qosClasses: [
+    { name: 'ef', dscp: 'ef', tos: 184, priority: 'highest', description: 'Expedited Forwarding (VoIP / Signaling / Slice critique)' },
+    { name: 'af31', dscp: 'af31', tos: 104, priority: 'high', description: 'Assured Forwarding Class 3 (API / Trafic applicatif prioritaire)' },
+    { name: 'best-effort', dscp: 'cs0', tos: 0, priority: 'standard', description: 'Trafic standard' }
+  ],
+  vlanPools: [
+    { zone: 'dmz', range: '1100-1199' },
+    { zone: 'app', range: '1200-1299' },
+    { zone: 'data', range: '1300-1399' },
+    { zone: 'admin', range: '1400-1499' },
+    { zone: 'events', range: '1500-1599' }
+  ],
+  vniPools: [
+    { zone: 'dmz', range: '10100-10199' },
+    { zone: 'app', range: '10200-10299' },
+    { zone: 'data', range: '10300-10399' }
+  ],
+  firewalls: [
+    {
+      name: 'fw-interzone-core',
+      usage: 'interzone',
+      zones: ['admin', 'app', 'data', 'dmz', 'events'],
+      enforcement: 'zone-to-zone deny-by-default'
+    },
+    {
+      name: 'fw-external',
+      usage: 'external',
+      zones: ['dmz', 'untrusted-external'],
+      enforcement: 'deny-by-default'
+    },
+    {
+      name: 'fw-operator-link',
+      usage: 'operator-link',
+      zones: ['core-signaling', 'operators'],
+      enforcement: 'strict-signaling, ips: enabled'
+    }
+  ],
+  certificateProfiles: [
+    {
+      name: 'tls-server-std',
+      description: 'Standard TLS server certificate (RGS-aligned)',
+      type: 'server',
+      validityDays: 90,
+      keySize: 3072,
+      algorithm: 'rsa',
+      extendedKeyUsage: ['serverAuth', 'clientAuth'],
+      keyUsage: ['digitalSignature', 'keyEncipherment'],
+      keyType: { private: 'nonExportable', storage: 'hsm' }
+    },
+    {
+      name: 'tls-client-mtls',
+      description: 'Machine-to-machine mTLS client certificate',
+      type: 'client',
+      validityDays: 365,
+      keySize: 256,
+      algorithm: 'ecdsa',
+      extendedKeyUsage: ['clientAuth'],
+      keyUsage: ['digitalSignature'],
+      keyType: { private: 'nonExportable', storage: 'vault' }
+    }
+  ],
+  drivers: [
+    {
+      name: 'cluster-rancher',
+      targetTechnology: 'Kubernetes / RKE2 Orchestrator',
+      operations: ['createTenant', 'createComponent', 'createModule', 'deployWorkload', 'reconcile'],
+      supportsPlan: true
+    },
+    {
+      name: 'ip-fabric',
+      targetTechnology: 'EVPN/VXLAN Spine-Leaf Fabric',
+      operations: ['createTenant', 'createComponent', 'createModule', 'createVrf', 'createVlan', 'applyRoutes', 'applyBgpPropagation', 'reconcile'],
+      supportsPlan: true
+    },
+    {
+      name: 'firewall-ngfw',
+      targetTechnology: 'NGFW / Firewall Fleet',
+      operations: ['createTenant', 'createComponent', 'createModule', 'applyFirewall', 'reconcile'],
+      supportsPlan: true
+    },
+    {
+      name: 'ipam-dns',
+      targetTechnology: 'Central IPAM + Per-VRF DNS',
+      operations: ['createTenant', 'createComponent', 'createModule', 'manageAddressPlan', 'reconcile'],
+      supportsPlan: true
+    },
+    {
+      name: 'hardware-redfish',
+      targetTechnology: 'BMC / Redfish / Metal3',
+      operations: ['createTenant', 'createComponent', 'createModule', 'manageHardware', 'reconcile'],
+      supportsPlan: true
+    },
+    {
+      name: 'storage-svm',
+      targetTechnology: 'Storage Array / SVMs / S3',
+      operations: ['createTenant', 'createComponent', 'createModule', 'provisionStorage', 'reconcile'],
+      supportsPlan: true
+    }
   ],
   functionalDomains: [
     {
@@ -2213,6 +2689,149 @@ export function validateComponentAgainstCatalogs(
           message: `Offset IP ${nic.ip.value} interdit sur '${mod.name}' (plage réservée domaine .${catalogs.forbiddenOffsets.min}-.${catalogs.forbiddenOffsets.max}).`
         });
       }
+    }
+  }
+
+  return issues;
+}
+
+/**
+ * Dérive la bulle réseau/DNS/APN d'une entité Organization (IMP V2 §5.1).
+ * Les ressources de la bulle appartiennent à la plateforme (`tenant-org-<name>`).
+ */
+export function deriveOrganizationBubble(org: OrganizationSpec): OrganizationBubble {
+  const slug = org.metadata.name.replace(/^org-/, '');
+  return {
+    organization: org.metadata.name,
+    tenant: `tenant-org-${slug}`,
+    vrf: `vrf-org-${slug}`,
+    dnsDomain: org.spec.dnsDomains[0] || `${slug}.internal.example.io`,
+    apns: [...org.spec.apns],
+    consumes: [...org.spec.consumes],
+    status: org.metadata.status
+  };
+}
+
+/**
+ * Valide une entité `kind: Organization` selon les règles IMP V2 §5.1 :
+ * une organisation ne peut porter ni `compute`, ni `firewall`, ni `exposure`.
+ */
+export function validateOrganization(org: OrganizationSpec): BaseLintIssue[] {
+  const issues: BaseLintIssue[] = [];
+  const name = org.metadata.name;
+
+  if (org.kind !== 'Organization') {
+    issues.push({
+      component: name,
+      path: 'kind',
+      code: 'invalid-organization',
+      message: `L'entité '${name}' doit avoir kind='Organization'.`
+    });
+  }
+
+  for (const forbiddenField of ['compute', 'firewall', 'exposure'] as const) {
+    if (org.spec[forbiddenField] !== undefined) {
+      issues.push({
+        component: name,
+        path: `spec.${forbiddenField}`,
+        code: 'invalid-organization',
+        message: `Une Organization ne peut pas déclarer '${forbiddenField}' (réservé aux Components).`
+      });
+    }
+  }
+
+  if (!org.spec.dnsDomains || org.spec.dnsDomains.length === 0) {
+    issues.push({
+      component: name,
+      path: 'spec.dnsDomains',
+      code: 'invalid-organization',
+      message: `L'Organization '${name}' doit déclarer au moins un domaine DNS dans dnsDomains.`
+    });
+  }
+
+  return issues;
+}
+
+/**
+ * Valide les certificats d'un composant selon IMP V2 §3.6.2 :
+ * - les propriétés X.509 techniques vivent dans un profil (`certificateProfiles`), jamais inline ;
+ * - conformité RGS : RSA >= 3072 bits (ou ECDSA >= 256 / Ed25519).
+ */
+export function validateCertificateProfilesAndRgs(
+  component: LogicalComponent,
+  catalogs: ValueCatalogs = DEFAULT_VALUE_CATALOGS
+): BaseLintIssue[] {
+  const issues: BaseLintIssue[] = [];
+  const compName = component.metadata.name;
+  const profiles = [
+    ...(catalogs.certificateProfiles || []),
+    ...(component.spec.security?.certificateProfiles || [])
+  ];
+
+  for (const cert of component.spec.security?.certificates || []) {
+    if (!cert.profile) {
+      issues.push({
+        component: compName,
+        path: `spec.security.certificates[${cert.name}].profile`,
+        code: 'invalid-certificate-profile',
+        message: `Le certificat '${cert.name}' doit référencer un profil (profile: ref(certificateProfiles[...])).`
+      });
+      continue;
+    }
+
+    const inlineFields = (['validityDays', 'keySize', 'algorithm', 'extendedKeyUsage', 'keyUsage'] as const).filter(
+      (f) => cert[f] !== undefined
+    );
+    if (inlineFields.length > 0) {
+      issues.push({
+        component: compName,
+        path: `spec.security.certificates[${cert.name}]`,
+        code: 'invalid-certificate-profile',
+        message: `Le certificat '${cert.name}' déclare des propriétés X.509 inline (${inlineFields.join(', ')}) interdites en IMP V2.`
+      });
+    }
+
+    const match = cert.profile.match(/certificateProfiles\[([^\]]+)\]/);
+    const profileName = match ? match[1] : cert.profile;
+    const resolvedProfile = profiles.find((p) => p.name === profileName);
+    if (!resolvedProfile) {
+      issues.push({
+        component: compName,
+        path: `spec.security.certificates[${cert.name}].profile`,
+        code: 'invalid-catalog-ref',
+        message: `Profil de certificat '${profileName}' introuvable dans le catalogue.`
+      });
+    } else if (resolvedProfile.algorithm === 'rsa' && resolvedProfile.keySize < 3072) {
+      issues.push({
+        component: compName,
+        path: `spec.security.certificateProfiles[${resolvedProfile.name}].keySize`,
+        code: 'invalid-certificate-profile',
+        message: `Profil '${resolvedProfile.name}' non conforme RGS : clé RSA ${resolvedProfile.keySize} < 3072 bits.`
+      });
+    }
+  }
+
+  return issues;
+}
+
+/**
+ * Vérifie que toutes les opérations requises sont couvertes par la CapabilityMatrix des drivers (§7.2 règle 4).
+ */
+export function validateDriverCapabilities(
+  requiredOperations: string[],
+  catalogs: ValueCatalogs = DEFAULT_VALUE_CATALOGS
+): BaseLintIssue[] {
+  const issues: BaseLintIssue[] = [];
+  const availableOps = new Set((catalogs.drivers || []).flatMap((d) => d.operations));
+
+  for (const op of requiredOperations) {
+    if (!availableOps.has(op)) {
+      issues.push({
+        component: 'platform',
+        path: 'catalogs.drivers',
+        code: 'missing-driver-capability',
+        message: `Capacité driver manquante dans catalogs/drivers.yaml : '${op}'.`
+      });
     }
   }
 

@@ -212,6 +212,83 @@ export async function decideRequirement(
 	};
 }
 
+export interface SubjectRequirementDetail {
+	id: string;
+	clauseRef: string;
+	title: string;
+	criticality: string;
+	text: string;
+	sourceTitle?: string;
+}
+
+export interface SubjectRequirementsResolution {
+	items: SubjectRequirementDetail[];
+	unresolvedRefs: string[];
+	dossierPresent: boolean;
+}
+
+/**
+ * Résout les exigences RFP rattachées à un sujet à partir de `subject.requirementRefs`
+ * et des sources d'exigences enregistrées sur le projet.
+ */
+export async function resolveSubjectRequirements(
+	projectId: string,
+	rawRequirementRefs: string | null | undefined
+): Promise<SubjectRequirementsResolution> {
+	const uniqueRefs = Array.from(new Set(safeJsonArray(rawRequirementRefs)));
+	if (uniqueRefs.length === 0) {
+		const sourceCount = await prisma.requirementSource.count({ where: { projectId } });
+		return { items: [], unresolvedRefs: [], dossierPresent: sourceCount > 0 };
+	}
+
+	const sources = await prisma.requirementSource.findMany({
+		where: { projectId },
+		include: { requirements: true }
+	});
+
+	const byCanonicalId = new Map<string, SubjectRequirementDetail>();
+	const byClauseRef = new Map<string, SubjectRequirementDetail>();
+
+	for (const s of sources) {
+		for (const r of s.requirements) {
+			const detail: SubjectRequirementDetail = {
+				id: requirementBundleId(s.sha256, r.clauseRef),
+				clauseRef: r.clauseRef,
+				title: r.title,
+				criticality: r.criticality,
+				text: r.text,
+				sourceTitle: s.title
+			};
+			byCanonicalId.set(detail.id, detail);
+			if (!byClauseRef.has(r.clauseRef)) {
+				byClauseRef.set(r.clauseRef, detail);
+			}
+		}
+	}
+
+	const items: SubjectRequirementDetail[] = [];
+	const unresolvedRefs: string[] = [];
+	const seenIds = new Set<string>();
+
+	for (const ref of uniqueRefs) {
+		const resolved = byCanonicalId.get(ref) ?? byClauseRef.get(ref);
+		if (resolved) {
+			if (!seenIds.has(resolved.id)) {
+				seenIds.add(resolved.id);
+				items.push(resolved);
+			}
+		} else {
+			unresolvedRefs.push(ref);
+		}
+	}
+
+	return {
+		items,
+		unresolvedRefs,
+		dossierPresent: sources.length > 0
+	};
+}
+
 function safeJsonArray(raw: string | null | undefined): string[] {
 	try {
 		const v = JSON.parse(raw || '[]');

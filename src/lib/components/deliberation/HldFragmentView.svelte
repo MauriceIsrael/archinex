@@ -21,6 +21,11 @@
 	const isDocEngineConnected = $derived(deliberationStore.docEngineStatus === 'connected');
 	const docEngineUrl = $derived(deliberationStore.docEngineUrl);
 
+	function openPhase2Requirements() {
+		deliberationStore.setPosture('deliberation');
+		deliberationStore.setDeliberationViewMode('conversation');
+	}
+
 	async function load(pId: string, sId: string) {
 		isLoading = true;
 		loadError = '';
@@ -264,7 +269,17 @@
 		</div>
 
 		<div class="space-y-1.5">
-			<h4 class="font-bold text-foreground">Exigences couvertes ({fragment.requirements.items.length})</h4>
+			<div class="flex flex-wrap items-center justify-between gap-2">
+				<h4 class="font-bold text-foreground">Traçabilité · Exigences couvertes ({fragment.requirements.items.length})</h4>
+				<button
+					type="button"
+					onclick={openPhase2Requirements}
+					data-testid="hld-requirements-phase2-link"
+					class="text-[11px] font-semibold text-primary hover:underline cursor-pointer"
+				>
+					Consulter en Phase 2 (Délibération) →
+				</button>
+			</div>
 			{#if !fragment.requirements.dossierPresent && fragment.requirements.unresolvedRefs.length}
 				<div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 rounded-lg border border-amber-500/40 bg-amber-500/10 p-2">
 					<span class="flex items-center gap-1.5"><AlertTriangle class="h-3.5 w-3.5 text-amber-600 shrink-0" />Le dossier d'exigences du RFP n'est pas enregistré pour ce projet : {fragment.requirements.unresolvedRefs.length} référence(s) sans texte.</span>
@@ -274,11 +289,28 @@
 				</div>
 			{/if}
 			{#if fragment.requirements.items.length}
-				<ul class="space-y-1">
-					{#each fragment.requirements.items as r}
-						<li class="rounded border p-1.5"><span class="font-mono font-bold">{r.clauseRef}</span> · {r.title} <span class="text-[10px] text-muted-foreground">({r.criticality})</span></li>
-					{/each}
-				</ul>
+				<details class="rounded-lg border bg-muted/20 p-2" data-testid="hld-requirements-traceability">
+					<summary class="cursor-pointer flex flex-wrap items-center gap-1.5 text-[11px] font-medium text-foreground">
+						<span>Voir le détail des {fragment.requirements.items.length} exigence(s) :</span>
+						{#each fragment.requirements.items as r (r.id)}
+							<span class="font-mono text-[10px] px-1.5 py-0.2 rounded bg-background border text-muted-foreground">{r.clauseRef}</span>
+						{/each}
+					</summary>
+					<ul class="mt-2 space-y-1.5">
+						{#each fragment.requirements.items as r (r.id)}
+							<li class="rounded border bg-background/80 p-2 space-y-1">
+								<div class="flex flex-wrap items-center gap-1.5">
+									<span class="font-mono font-bold">{r.clauseRef}</span>
+									<span>· {r.title}</span>
+									<span class="text-[10px] text-muted-foreground">({r.criticality})</span>
+								</div>
+								{#if r.text}
+									<p class="text-[11px] text-muted-foreground whitespace-pre-line leading-relaxed">{r.text}</p>
+								{/if}
+							</li>
+						{/each}
+					</ul>
+				</details>
 			{:else if fragment.requirements.dossierPresent}
 				<p class="text-muted-foreground">Aucune exigence rattachée.</p>
 			{/if}

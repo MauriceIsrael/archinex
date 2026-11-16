@@ -6,6 +6,7 @@ import {
   UnauthorizedRoleError
 } from '$lib/server/edp/edpRepository';
 import {
+  buildLiveArchitectureLockSnapshot,
   buildProjectCompletenessLedger,
   batchRatifyProjectType2Slots,
   generateArchitectureLockManifest,
@@ -21,17 +22,20 @@ export const GET: RequestHandler = async (event) => {
   if (auth.error) return auth.error;
 
   const selectedConceptUrn = event.url.searchParams.get('conceptUrn') || undefined;
-  const ledger = await buildProjectCompletenessLedger({
+  const input = {
     projectId,
     projectTitle: auth.project?.title,
     selectedConceptUrn
-  });
+  };
+  const ledger = await buildProjectCompletenessLedger(input);
   const architectureLock = getProjectArchitectureLock(projectId);
+  const liveLockSnapshot = await buildLiveArchitectureLockSnapshot(input);
 
   return json({
     status: 'ok',
     ledger,
-    architectureLock
+    architectureLock,
+    liveLockSnapshot
   });
 };
 
@@ -77,11 +81,18 @@ export const POST: RequestHandler = async (event) => {
         body.coverageInput
       );
 
+      const liveLockSnapshot = await buildLiveArchitectureLockSnapshot({
+        projectId,
+        projectTitle: auth.project?.title,
+        ...(body.coverageInput ?? {})
+      });
+
       return json({
         status: 'ok',
         receipt: result.receipt,
         ledger: result.updatedLedger,
-        instantiatedComponents: result.instantiatedComponents
+        instantiatedComponents: result.instantiatedComponents,
+        liveLockSnapshot
       });
     }
 
@@ -106,11 +117,17 @@ export const POST: RequestHandler = async (event) => {
         projectId,
         ...(body.coverageInput ?? {})
       });
+      const liveLockSnapshot = await buildLiveArchitectureLockSnapshot({
+        projectId,
+        projectTitle: auth.project?.title,
+        ...(body.coverageInput ?? {})
+      });
 
       return json({
         status: 'ok',
         promotedSubject,
-        ledger
+        ledger,
+        liveLockSnapshot
       });
     }
 
@@ -121,10 +138,16 @@ export const POST: RequestHandler = async (event) => {
         sealedByRole: actorRole,
         coverageInput: body.coverageInput
       });
+      const liveLockSnapshot = await buildLiveArchitectureLockSnapshot({
+        projectId,
+        projectTitle: auth.project?.title,
+        ...(body.coverageInput ?? {})
+      });
 
       return json({
         status: 'ok',
-        architectureLock: manifest
+        architectureLock: manifest,
+        liveLockSnapshot
       });
     }
 

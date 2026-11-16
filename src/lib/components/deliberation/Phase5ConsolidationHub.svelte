@@ -1,6 +1,7 @@
 <script lang="ts">
 	import { deliberationStore } from '$lib/stores/deliberationStore.svelte';
 	import MermaidViewer from './MermaidViewer.svelte';
+	import LiveArchitectureLockView from './LiveArchitectureLockView.svelte';
 	import ComponentCatalogEditor from '$lib/components/edp/ComponentCatalogEditor.svelte';
 	import { Layers } from 'lucide-svelte';
 
@@ -17,18 +18,116 @@
 	let selectedViewEnv = $state<'prod' | 'preprod' | 'lab'>('prod');
 	let showCatalogEditor = $state(false);
 	let projectCatalogState = $state<any>(null);
+	let decisionSlotsState = $state<any>(null);
+	let isSlotActionRunning = $state(false);
+	let slotActionMessage = $state<string | null>(null);
+	let slotActionError = $state<string | null>(null);
+	let emergentComponentInput = $state('');
 
 	async function loadProjectCatalogViews() {
 		if (!projectId) return;
 		try {
-			const res = await fetch(
-				`/api/projects/${encodeURIComponent(projectId)}/catalog?env=${encodeURIComponent(selectedViewEnv)}&mode=${encodeURIComponent(twinArbitrationMode)}&mandatedProfile=${encodeURIComponent(selectedTwinProfileId)}`
-			);
-			if (res.ok) {
-				projectCatalogState = await res.json();
+			const [catRes, slotsRes] = await Promise.all([
+				fetch(
+					`/api/projects/${encodeURIComponent(projectId)}/catalog?env=${encodeURIComponent(selectedViewEnv)}&mode=${encodeURIComponent(twinArbitrationMode)}&mandatedProfile=${encodeURIComponent(selectedTwinProfileId)}`
+				),
+				fetch(`/api/projects/${encodeURIComponent(projectId)}/decision-slots`)
+			]);
+			if (catRes.ok) {
+				projectCatalogState = await catRes.json();
+			}
+			if (slotsRes.ok) {
+				decisionSlotsState = await slotsRes.json();
 			}
 		} catch {
 			// non bloquant
+		}
+	}
+
+	async function handleRatifyType2Batch() {
+		if (!projectId || isSlotActionRunning) return;
+		isSlotActionRunning = true;
+		slotActionMessage = null;
+		slotActionError = null;
+		try {
+			const res = await fetch(`/api/projects/${encodeURIComponent(projectId)}/decision-slots`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					action: 'ratify_batch',
+					actorRole: 'lead_architect',
+					rationale:
+						'Ratification explicite des emplacements de commodité Type 2 en Consolidation Phase 5.'
+				})
+			});
+			const data = await res.json();
+			if (!res.ok || data.status === 'error') {
+				slotActionError = data.error || 'Échec de la ratification en lot.';
+			} else {
+				slotActionMessage = `${data.receipt?.ratifiedSlotIds?.length || 0} emplacement(s) Type 2 ratifiés et composants transverses instanciés (${(data.instantiatedComponents || []).join(', ')}).`;
+				await loadProjectCatalogViews();
+			}
+		} catch (e: any) {
+			slotActionError = e.message || 'Erreur réseau.';
+		} finally {
+			isSlotActionRunning = false;
+		}
+	}
+
+	async function handleSealArchitectureLock() {
+		if (!projectId || isSlotActionRunning) return;
+		isSlotActionRunning = true;
+		slotActionMessage = null;
+		slotActionError = null;
+		try {
+			const res = await fetch(`/api/projects/${encodeURIComponent(projectId)}/decision-slots`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					action: 'seal_architecture_lock',
+					actorRole: 'lead_architect'
+				})
+			});
+			const data = await res.json();
+			if (!res.ok || data.status === 'error') {
+				slotActionError = data.error || 'Verrouillage architecture.lock refusé (emplacements non ratifiés ou violation OPA).';
+			} else {
+				slotActionMessage = `Manifeste architecture.lock scellé avec succès (SHA-256 : ${data.architectureLock?.integritySha256?.slice(0, 16)}…).`;
+				await loadProjectCatalogViews();
+			}
+		} catch (e: any) {
+			slotActionError = e.message || 'Erreur réseau.';
+		} finally {
+			isSlotActionRunning = false;
+		}
+	}
+
+	async function handleInstantiateEmergentComponent() {
+		const targetName = emergentComponentInput.trim();
+		if (!projectId || !targetName || isSlotActionRunning) return;
+		isSlotActionRunning = true;
+		slotActionMessage = null;
+		slotActionError = null;
+		try {
+			const res = await fetch(`/api/projects/${encodeURIComponent(projectId)}/catalog`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					action: 'instantiate_emergent_component',
+					name: targetName
+				})
+			});
+			const data = await res.json();
+			if (!res.ok || !data.success) {
+				slotActionError = data.error || 'Échec de l’instanciation du composant émergent.';
+			} else {
+				slotActionMessage = `Composant logique émergent « ${data.component?.metadata?.name || targetName} » instancié dans le catalogue et projeté dans le Jumeau Sylva.`;
+				await loadProjectCatalogViews();
+			}
+		} catch (e: any) {
+			slotActionError = e.message || 'Erreur réseau.';
+		} finally {
+			isSlotActionRunning = false;
 		}
 	}
 
@@ -83,6 +182,14 @@
 			</p>
 		</div>
 	</div>
+
+	<!-- Cockpit Interactif : Vue de l'Architecture Lockée en Direct (Instant t), Allocation des Composants & Scellement architecture.lock -->
+	<LiveArchitectureLockView
+		{projectId}
+		{decisionSlotsState}
+		{projectCatalogState}
+		onUpdated={loadProjectCatalogViews}
+	/>
 
 	<!-- Vues synchronisées, Jumeau Numérique de Sylva (3 DCs / 2 DCs + Témoin / 2 DCs) & Catalogue Composants -->
 	<div class="rounded-xl border bg-card p-5 shadow-xs space-y-4" data-testid="phase5-logical-views-hub">

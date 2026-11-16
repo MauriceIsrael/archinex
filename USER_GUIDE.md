@@ -558,6 +558,25 @@ Dans l'atelier **Phase 4 : Refinement & Hydratation** (`Phase4RefinementHub`), l
   - En mode **Fixé par le Client**, il vérifie via l'oracle OPA (`edp/policies/twin_resilience.rego`) si la topologie imposée par le client respecte les exigences de résilience ou s'il existe une contradiction formelle à notifier en réserve au CCTP.
 - **Aperçu du Bouchon Redfish `sushy-emulator` (`capm3`)** : le bouton **`Bouchon Redfish sushy`** affiche la configuration `sushy-emulator.conf` générée automatiquement depuis l'inventaire hydraté pour bouchonner les contrôleurs BMC Redfish en CI sans serveurs physiques.
 
+### 13.9 Allocation Explicite des Responsabilités Composants (ex: SIG §9.4/§11), Zéro Défaut Silencieux & Sujets RFP Inédits (Phase 1 → Phase 5)
+Pour garantir qu'aucun choix d'architecture ou d'allocation de responsabilité applicative ne reste implicite ou silencieux :
+- **Détection dès la Phase 1 (Ingestion)** :
+  - Toute clause évacuée en commodité qui ne correspond à aucune brique du catalogue de référence TOGAF est rattachée à un emplacement d'allocation ouvert (`emergentSlots`), évitant toute perte silencieuse.
+  - Les sujets inédits d'un RFP (`novel_requirement` ou thématiques émergentes telles que **IoT / LoRaWAN / MQTT**, **Streaming Vidéo RTSP/WebRTC**, **Inférence IA/LLM**) génèrent dès le rapport d'audit un emplacement de capacité émergente (`EmergentCapabilitySlotSummary`, ex: `iot-gateway`).
+- **Allocation Explicite en Phase 4 (`Phase4RefinementHub`)** :
+  - Les axes applicatifs contextuels (tels que **`6. Fusion de Localisation Multi-Sources & Géofencing SIG`** et **`7. Moteur Cartographique & Tuiles SIG`** sur le sujet DEMOLULU `sub_lulu_64` — *§9.4, §11*) ainsi que l'axe dynamique **`0. Allocation de Composant Logique (Capacité Émergente / Sujet Inédit)`** s'affichent automatiquement dans la matrice KAOS.
+  - Tant qu'un architecte n'a pas statué, toute pré-liaison porte le badge **`🟠 Défaut proposé — À ratifier`** (`bindingOrigin = 'default_proposed'`) et affiche les **`🧩 Composant(s) responsable(s)`** candidats (`gis-server`, `ptt-server`, `iot-gateway`, etc.).
+  - Un clic sur **`✓ Ratifier : <Feuille> → [composants]`** ou sur une variante scelle explicitement la décision (`bindingOrigin = 'explicit'`) et synchronise automatiquement les composants instanciés dans le catalogue projet.
+- **Registre d'Emplacements, Scellement `architecture.lock` & Jumeau Sylva en Phase 5 (`Phase5ConsolidationHub`)** :
+  - L'encart **Registre d'Emplacements de Décision, Allocation des Composants & Scellement `architecture.lock`** dans l'onglet **`Phase 5 · Consolidation`** liste tous les emplacements (`open`, `default_proposed`, `explicit`), permet d'instancier en un clic un nouveau `LogicalComponent` émergent (`instantiate_emergent_component`) conforme au linter `Base × Overlay × DC` (0 IP en dur, 3 NICs `admin`/`business`/`events`), de ratifier les défauts proposés et d'exporter le manifeste scellé `architecture.lock` (bloqué en `409 Conflict` tant qu'un choix reste implicite).
+- **Vue de l'Architecture Lockée en Direct à tout instant (`LiveArchitectureLockView`)** :
+  - Accessible **à tout instant** depuis le bouton **`🔒 Architecture Lockée`** dans la barre supérieure de niveau Projet (`ProjectEngagementHeader`) — sans quitter une délibération en cours — ainsi qu'en tête de la **`Phase 5 · Consolidation`**.
+  - Plutôt que de reposer uniquement sur un diagramme Mermaid statique, le cockpit propose **4 vues complémentaires** :
+    1. **Cartographie Interactive — Matrice 2D Sylva (3 Plans Verticaux × 3 Piliers Transverses) & Inspecteur Multi-Niveaux** *(vue par défaut)* : organise les workloads en **3 plans d'exécution verticaux** (*Plan 1a · Workloads Applicatifs / SIG / Émergents*, *Plan 1b · Fonctions Réseau 4G/5GC & Médiation*, *Plan 2/3 · CaaS RKE2, Pools Sylva, Stockage & Bare-Metal*) croisés par **3 piliers transverses interactifs** (*🛡️ Sécurité, Identité & Confiance*, *📡 Observabilité, SIEM & SLA (`events`)*, *⚙️ Configuration, GitOps & Cycle de Vie (`admin`)*). Chaque pilier calcule la couverture réelle des workloads (Vault/PKI/Firewall, NIC `events`/SIEM, NIC `admin`/Helm OCI/`ref(param.*)`), permet de filtrer/surligner les composants par pilier et alimente l'inspecteur latéral (clauses RFP, VRFs, NICs, flux sortants et ancrage transverse).
+    2. **Matrice Ligne-à-Ligne des Emplacements (`Axe → Variante → Composant → Statut Lock`)** avec sélecteur de feuille et ratification unitaire.
+    3. **Manifeste `architecture.lock` Temps Réel (JSON & Empreinte SHA-256 progressive)** exportable à tout instant (`PARTIAL_LIVE_LOCK`, `READY_TO_SEAL` ou `SEALED`).
+    4. **Graphe Mermaid d'Export Documentaire Filtré** permettant d'isoler uniquement les composants verrouillés (`mermaidLockedOnly`) ou d'afficher la cible complète avec coloration par statut de verrouillage (`mermaidFullWithStatus`).
+
 ---
 
 ## 14. Architecture Ergonomique à 2 Niveaux (Projet vs Sujet) & Clarté des Libellés

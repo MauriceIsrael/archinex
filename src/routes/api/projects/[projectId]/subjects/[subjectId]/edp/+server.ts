@@ -10,8 +10,15 @@ import {
   computeRefinementCoverage,
   composeMultiAxisHydration,
   evaluateMultiAxisOracle,
+  ratifyDefaultDecisionSlots,
   type LldHydrationOverrides
 } from '$lib/server/edp/refinementCoverage';
+import { instantiateCatalogFromOntologyBindings } from '$lib/domain/edp/componentCatalog';
+import {
+  loadProjectComponentCatalog,
+  saveProjectComponentCatalog
+} from '$lib/server/edp/componentCatalogRepository';
+import { recordExplicitProjectSlotRatification } from '$lib/server/edp/decisionSlotRegistry';
 import {
   syncHydratedInventoryToNautobot,
   pullLiveInventoryFromNautobot
@@ -62,7 +69,8 @@ export const GET: RequestHandler = async ({ params, url }) => {
 
     if (fromDb) {
       const parsedContent = JSON.parse(fromDb.content);
-      const explicitBindings = parsedContent.decision_context?.ontology_bindings || [];
+      const explicitBindings =
+        parsedContent.explicitBindings ?? parsedContent.decision_context?.ontology_bindings ?? [];
       const selectedConceptUrn = requestedConcept || parsedContent.selectedConceptUrn || 'AUTO';
       const coverage = computeRefinementCoverage(
         {
@@ -276,6 +284,8 @@ export const POST: RequestHandler = async (event) => {
           };
 
       const activeConcept = selectedConceptUrn || currentEdp.selectedConceptUrn || 'AUTO';
+      const priorExplicitBindings: Array<{ urn: string; revision: number | string }> =
+        currentEdp.explicitBindings ?? currentEdp.decision_context?.ontology_bindings ?? [];
 
       const initialCoverage = computeRefinementCoverage(
         {
@@ -283,7 +293,7 @@ export const POST: RequestHandler = async (event) => {
           title: currentEdp.metadata?.title || ctx.title,
           problem: currentEdp.decision_context?.problem || ctx.problem,
           decisionText: currentEdp.decision_context?.decision || ctx.decisionText,
-          explicitBindings: currentEdp.decision_context?.ontology_bindings || [],
+          explicitBindings: priorExplicitBindings,
           autoBindFromText: true,
           selectedConceptUrn: activeConcept
         },
@@ -291,40 +301,61 @@ export const POST: RequestHandler = async (event) => {
       );
 
       const updatedBindingMap = new Map<string, number | string>();
-      for (const b of initialCoverage.composedBindings) {
+      for (const b of priorExplicitBindings) {
         updatedBindingMap.set(b.urn, b.revision);
       }
 
       // Gestion du cumul (`add`), du remplacement (`replace`) ou du retrait (`remove`) de variante sur un axe (OR-Refinement inclusif ou exclusif)
       const effectiveMode: 'add' | 'replace' | 'remove' = bindMode || 'add';
-      if (leafUrn && catalog.entities[leafUrn]) {
+      const isEmergentLeaf =
+        typeof leafUrn === 'string' &&
+        leafUrn.startsWith('urn:archinex:ontology:application:emergent:');
+
+      if (leafUrn && (catalog.entities[leafUrn] || isEmergentLeaf)) {
         const targetAxisUrn =
           axisUrn ||
-          (catalog.triplets || []).find(
-            (t) => t.predicate === 'implemented_by' && t.object === leafUrn
-          )?.subject;
+          (isEmergentLeaf
+            ? 'urn:archinex:ontology:axis:emergent_component_allocation'
+            : (catalog.triplets || []).find(
+                (t) => t.predicate === 'implemented_by' && t.object === leafUrn
+              )?.subject);
 
         if (effectiveMode === 'remove') {
           updatedBindingMap.delete(leafUrn);
         } else {
           if (effectiveMode === 'replace' && targetAxisUrn) {
-            const siblingLeaves = (catalog.triplets || [])
-              .filter((t) => t.predicate === 'implemented_by' && t.subject === targetAxisUrn)
-              .map((t) => t.object);
-            for (const sib of siblingLeaves) {
-              if (sib !== leafUrn) {
-                updatedBindingMap.delete(sib);
+            if (isEmergentLeaf) {
+              for (const existingUrn of [...updatedBindingMap.keys()]) {
+                if (
+                  existingUrn !== leafUrn &&
+                  existingUrn.startsWith('urn:archinex:ontology:application:emergent:')
+                ) {
+                  updatedBindingMap.delete(existingUrn);
+                }
+              }
+            } else {
+              const siblingLeaves = (catalog.triplets || [])
+                .filter((t) => t.predicate === 'implemented_by' && t.subject === targetAxisUrn)
+                .map((t) => t.object);
+              for (const sib of siblingLeaves) {
+                if (sib !== leafUrn) {
+                  updatedBindingMap.delete(sib);
+                }
               }
             }
           }
-          updatedBindingMap.set(leafUrn, catalog.entities[leafUrn].revision ?? 1);
+          updatedBindingMap.set(leafUrn, catalog.entities[leafUrn]?.revision ?? 1);
         }
       }
 
-      const explicitBindings = Array.from(updatedBindingMap.entries()).map(([urn, revision]) => ({
+      let explicitBindings = Array.from(updatedBindingMap.entries()).map(([urn, revision]) => ({
         urn,
         revision
       }));
+
+      if (body.ratifyAllDefaults === true) {
+        explicitBindings = ratifyDefaultDecisionSlots(initialCoverage);
+      }
 
       const newCoverage = computeRefinementCoverage(
         {
@@ -338,6 +369,38 @@ export const POST: RequestHandler = async (event) => {
         },
         catalog
       );
+
+      // Synchroniser automatiquement les composants logiques instanciés et les ratifications dans le registre du projet (Phase 5)
+      if (projectId) {
+        const actorId = auth.session?.user?.email || auth.session?.user?.id || 'architect';
+        const actorRole = auth.session?.user?.role || 'lead_architect';
+        for (const slot of newCoverage.decisionSlots || []) {
+          if (slot.bindingOrigin === 'explicit' && slot.boundLeafUrns[0]) {
+            await recordExplicitProjectSlotRatification(
+              {
+                projectId,
+                axisUrn: slot.axisUrn,
+                leafUrn: slot.boundLeafUrns[0],
+                actorId,
+                actorRole,
+                rationale: `Ratification explicite en Phase 4 sur le sujet ${subjectId} (${slot.axisTitle}).`
+              },
+              catalog
+            );
+          }
+        }
+        const currentBundle = loadProjectComponentCatalog(projectId);
+        const nextComponents = instantiateCatalogFromOntologyBindings(
+          explicitBindings.map((b) => b.urn),
+          currentBundle.components
+        );
+        if (nextComponents.length !== currentBundle.components.length) {
+          saveProjectComponentCatalog(projectId, {
+            ...currentBundle,
+            components: nextComponents
+          });
+        }
+      }
 
       const currentOverrides: LldHydrationOverrides = currentEdp.lldOverrides || {};
       const hydratedInventory = composeMultiAxisHydration(
@@ -354,6 +417,7 @@ export const POST: RequestHandler = async (event) => {
           id: ctx.edpPrimaryKey
         },
         selectedConceptUrn: activeConcept,
+        explicitBindings,
         decision_context: {
           ...currentEdp.decision_context,
           ontology_bindings: newCoverage.composedBindings

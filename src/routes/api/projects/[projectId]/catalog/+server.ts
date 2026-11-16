@@ -1,6 +1,7 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import {
+  createEmergentLogicalComponent,
   lintBaseComponentNoHardcodedEnv,
   validateComponentAgainstCatalogs,
   type EnvironmentOverlay,
@@ -110,6 +111,16 @@ export const POST: RequestHandler = async (event) => {
     }
     const updated = upsertCatalogComponent(projectId, component);
     return json({ success: true, bundle: updated });
+  }
+
+  if (action === 'instantiate_emergent_component') {
+    const rawName = String(body.name || '').trim();
+    if (!rawName) {
+      return json({ success: false, error: 'Nom du composant émergent requis.' }, { status: 400 });
+    }
+    const comp = createEmergentLogicalComponent(rawName, body.displayName ? String(body.displayName) : undefined);
+    const updated = upsertCatalogComponent(projectId, comp);
+    return json({ success: true, component: comp, bundle: updated });
   }
 
   if (action === 'upsert_overlay') {

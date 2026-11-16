@@ -11,6 +11,7 @@
 	import Phase3SubjectSelector from '$lib/components/deliberation/Phase3SubjectSelector.svelte';
 	import Phase4RefinementHub from '$lib/components/deliberation/Phase4RefinementHub.svelte';
 	import Phase5ConsolidationHub from '$lib/components/deliberation/Phase5ConsolidationHub.svelte';
+	import LiveArchitectureLockView from '$lib/components/deliberation/LiveArchitectureLockView.svelte';
 	import WhyInspector from '$lib/components/deliberation/WhyInspector.svelte';
 	import FreezeSectionDialog from '$lib/components/deliberation/FreezeSectionDialog.svelte';
 	import ImpactGraphExplorer from '$lib/components/deliberation/ImpactGraphExplorer.svelte';
@@ -21,6 +22,7 @@
 
 	let { data } = $props();
 	let isQuickAskOpen = $state(false);
+	let isLiveLockModalOpen = $state(false);
 
 	function handleGlobalKeydown(e: KeyboardEvent) {
 		const isCmdOrCtrlK = (e.ctrlKey || e.metaKey) && !e.altKey && e.key.toLowerCase() === 'k';
@@ -80,6 +82,7 @@
 	<ProjectEngagementHeader
 		isExperimentalEnabled={data?.isExperimentalEnabled}
 		onOpenQuickAsk={() => (isQuickAskOpen = true)}
+		onOpenLiveLock={() => (isLiveLockModalOpen = true)}
 	/>
 
 	<!-- ═════════════════════════════════════════════════════════════════════════ -->
@@ -155,4 +158,30 @@
 	<WhyInspector />
 	<FreezeSectionDialog />
 	<RequirementsQuickAskModal open={isQuickAskOpen} onClose={() => (isQuickAskOpen = false)} />
+
+	{#if isLiveLockModalOpen}
+		<div
+			class="fixed inset-0 z-50 bg-black/60 backdrop-blur-xs flex items-center justify-center p-4"
+			data-testid="live-lock-modal-overlay"
+		>
+			<div class="w-full max-w-6xl max-h-[90vh] overflow-y-auto rounded-2xl border bg-background p-4 shadow-2xl space-y-3">
+				<div class="flex items-center justify-between border-b pb-2">
+					<span class="font-bold text-sm text-foreground">
+						🔒 Inspection en Direct de l'Architecture Verrouillée — {deliberationStore.activeEngagement?.title || 'Projet'}
+					</span>
+					<button
+						type="button"
+						onclick={() => (isLiveLockModalOpen = false)}
+						class="px-2.5 py-1 rounded border bg-muted/40 hover:bg-muted text-xs font-semibold cursor-pointer"
+						data-testid="live-lock-modal-close-btn"
+					>
+						✕ Fermer
+					</button>
+				</div>
+				<LiveArchitectureLockView
+					projectId={deliberationStore.activeEngagement?.id || deliberationStore.activeEngagementId || 'default'}
+				/>
+			</div>
+		</div>
+	{/if}
 </div>

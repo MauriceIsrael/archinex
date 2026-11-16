@@ -1099,6 +1099,68 @@
         "cosign_verification": true,
         "block_critical_cve": true
       }
+    },
+    "urn:archinex:ontology:axis:gis_location_fusion": {
+      "urn": "urn:archinex:ontology:axis:gis_location_fusion",
+      "revision": 1,
+      "kind": "axis",
+      "title": "Axe de Raffinement : Fusion de Localisation Multi-Sources, Cloisonnement & Géofencing SIG",
+      "domain": "application",
+      "togaf_domain": "application-business",
+      "document_engine_layer": "application",
+      "default_decision_type": "type1_deliberate",
+      "keywords": ["fusion de localisation", "geofencing", "géofencing", "localisation multi-sources", "imsi", "supi", "suci", "sig", "gis"]
+    },
+    "urn:archinex:ontology:application:gis:central_fusion_hybrid_geofencing": {
+      "urn": "urn:archinex:ontology:application:gis:central_fusion_hybrid_geofencing",
+      "revision": 1,
+      "kind": "leaf",
+      "title": "Fusion Centrale sur Serveur SIG (gis-server) & Géofencing Hybride (Relais Terminal ptt-server)",
+      "domain": "application",
+      "togaf_domain": "application-business",
+      "instantiated_component": "gis-server",
+      "governed_by_clauses": ["REQ-Lot1-786", "REQ-Lot1-795", "REQ-Lot1-819", "REQ-Lot1-830"],
+      "keywords": ["fusion centrale", "geofencing hybride", "géofencing hybride", "gis-server", "ptt-server", "postgis", "pseudonymisation"],
+      "oracle_rules": ["data.archinex.edp.multiaxis.deny_component_substrate_mismatch"],
+      "projections": {
+        "fusion_authority_component": "gis-server",
+        "geofencing_mode": "hybrid_server_terminal",
+        "radio_identity_cloisonnement": "pseudonymized_gateway"
+      }
+    },
+    "urn:archinex:ontology:application:gis:central_fusion_server_only_geofencing": {
+      "urn": "urn:archinex:ontology:application:gis:central_fusion_server_only_geofencing",
+      "revision": 1,
+      "kind": "leaf",
+      "title": "Fusion & Géofencing 100 % Centralisés sur Serveur SIG (gis-server seul)",
+      "domain": "application",
+      "togaf_domain": "application-business",
+      "instantiated_component": "gis-server",
+      "governed_by_clauses": ["REQ-Lot1-786", "REQ-Lot1-795"],
+      "keywords": ["fusion 100% serveur", "geofencing centralise", "gis-server seul", "postgis spatial"],
+      "oracle_rules": ["data.archinex.edp.multiaxis.deny_component_substrate_mismatch"],
+      "projections": {
+        "fusion_authority_component": "gis-server",
+        "geofencing_mode": "central_server_only",
+        "radio_identity_cloisonnement": "strict_network_strip"
+      }
+    },
+    "urn:archinex:ontology:application:gis:distributed_terminal_geofencing": {
+      "urn": "urn:archinex:ontology:application:gis:distributed_terminal_geofencing",
+      "revision": 1,
+      "kind": "leaf",
+      "title": "Fusion & Géofencing Distribués côté Serveur Temps Réel / Terminal (ptt-server principal, gis-server passif)",
+      "domain": "application",
+      "togaf_domain": "application-business",
+      "instantiated_component": "ptt-server",
+      "governed_by_clauses": ["REQ-Lot1-819", "REQ-Lot1-830"],
+      "keywords": ["geofencing distribue", "terminal", "ptt-server", "temps reel"],
+      "oracle_rules": ["data.archinex.edp.multiaxis.deny_component_substrate_mismatch"],
+      "projections": {
+        "fusion_authority_component": "ptt-server",
+        "geofencing_mode": "distributed_edge_terminal",
+        "radio_identity_cloisonnement": "session_scoped"
+      }
     }
   },
   "triplets": [
@@ -1783,6 +1845,69 @@
       "predicate": "instantiates_component",
       "object": "urn:archinex:component:gis-server",
       "rationale": "Relie l'axe cartographique SIG au composant logique gis-server."
+    },
+    {
+      "id": "tr-092",
+      "subject": "urn:archinex:ontology:axis:gis_location_fusion",
+      "predicate": "implemented_by",
+      "object": "urn:archinex:ontology:application:gis:central_fusion_hybrid_geofencing",
+      "rationale": "Implémentation hybride : fusion centrale sur gis-server et géofencing distribué avec relais ptt-server."
+    },
+    {
+      "id": "tr-093",
+      "subject": "urn:archinex:ontology:axis:gis_location_fusion",
+      "predicate": "implemented_by",
+      "object": "urn:archinex:ontology:application:gis:central_fusion_server_only_geofencing",
+      "rationale": "Implémentation 100 % centralisée sur gis-server (PostGIS spatial)."
+    },
+    {
+      "id": "tr-094",
+      "subject": "urn:archinex:ontology:axis:gis_location_fusion",
+      "predicate": "implemented_by",
+      "object": "urn:archinex:ontology:application:gis:distributed_terminal_geofencing",
+      "rationale": "Implémentation distribuée : ptt-server et terminaux portent l'évaluation temps réel."
+    },
+    {
+      "id": "tr-pre-13",
+      "subject": "urn:archinex:ontology:axis:gis_location_fusion",
+      "predicate": "requires_prerequisite_axis",
+      "object": "urn:archinex:ontology:axis:gis_tile_engine",
+      "rationale": "Toute décision de fusion de localisation et de géofencing SIG requiert le choix du moteur cartographique et de persistance spatiale (gis_tile_engine)."
+    },
+    {
+      "id": "tr-comp-16",
+      "subject": "urn:archinex:ontology:application:gis:qgis_server_wmts",
+      "predicate": "instantiates_component",
+      "object": "urn:archinex:component:gis-server",
+      "rationale": "Relie la variante QGIS Server au composant logique gis-server."
+    },
+    {
+      "id": "tr-comp-17",
+      "subject": "urn:archinex:ontology:application:gis:central_fusion_hybrid_geofencing",
+      "predicate": "instantiates_component",
+      "object": "urn:archinex:component:gis-server",
+      "rationale": "Alloue l'autorité de fusion de localisation et l'indexation spatiale PostGIS au composant gis-server."
+    },
+    {
+      "id": "tr-comp-18",
+      "subject": "urn:archinex:ontology:application:gis:central_fusion_hybrid_geofencing",
+      "predicate": "instantiates_component",
+      "object": "urn:archinex:component:ptt-server",
+      "rationale": "Alloue le relais de notification temps réel et de pré-filtrage terminal au composant ptt-server."
+    },
+    {
+      "id": "tr-comp-19",
+      "subject": "urn:archinex:ontology:application:gis:central_fusion_server_only_geofencing",
+      "predicate": "instantiates_component",
+      "object": "urn:archinex:component:gis-server",
+      "rationale": "Alloue l'intégralité de la fusion et du géofencing au composant logique gis-server."
+    },
+    {
+      "id": "tr-comp-20",
+      "subject": "urn:archinex:ontology:application:gis:distributed_terminal_geofencing",
+      "predicate": "instantiates_component",
+      "object": "urn:archinex:component:ptt-server",
+      "rationale": "Alloue le pipeline temps réel de géofencing au composant logique ptt-server."
     }
   ]
 }

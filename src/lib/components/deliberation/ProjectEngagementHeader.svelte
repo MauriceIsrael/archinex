@@ -10,15 +10,17 @@
 		RotateCcw,
 		Target,
 		Network,
-		FileSearch
+		FileSearch,
+		Lock
 	} from 'lucide-svelte';
 
 	interface Props {
 		isExperimentalEnabled?: boolean;
 		onOpenQuickAsk?: () => void;
+		onOpenLiveLock?: () => void;
 	}
 
-	let { isExperimentalEnabled = true, onOpenQuickAsk }: Props = $props();
+	let { isExperimentalEnabled = true, onOpenQuickAsk, onOpenLiveLock }: Props = $props();
 
 	const activeEngagement = $derived(deliberationStore.activeEngagement);
 	const activePosture = $derived(deliberationStore.activePosture);
@@ -196,6 +198,19 @@
 					<Layers class="h-3.5 w-3.5 shrink-0" />
 					<span>Phase 5 · Consolidation</span>
 				</button>
+
+				{#if onOpenLiveLock}
+					<button
+						type="button"
+						data-testid="live-lock-quick-open-btn"
+						onclick={onOpenLiveLock}
+						title="Inspecter à tout instant l'architecture verrouillée en direct (Cartographie, Matrice des emplacements & architecture.lock)"
+						class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-800 dark:text-emerald-200 font-semibold border border-emerald-500/30 transition-all cursor-pointer"
+					>
+						<Lock class="h-3.5 w-3.5 shrink-0" />
+						<span>Architecture Lockée</span>
+					</button>
+				{/if}
 			{/if}
 
 			{#if onOpenQuickAsk}

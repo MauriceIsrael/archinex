@@ -1,0 +1,3 @@
+### Corrections
+
+- **Contextualisation du diagramme de chaîne de déploiement & homologation (Issue #311)** : suppression des 5 archétypes télécom statiques de `generateDeploymentSequenceDiagram` dans `src/lib/domain/artifactProjections.ts` au profit du générateur dynamique `src/lib/domain/deploymentSequence.ts`, qui exploite les énoncés actifs, le brouillon télégraphique (`retenu`, `suppose`, `conflit`, `is_provisional`), les slots Phase 4 (`instantiatedComponents`, `executableOracleRules`), les environnements (jusqu'à 3 paliers), les protocoles, les contraintes de sécurité/homologation et les acteurs du sujet.

@@ -590,7 +590,7 @@ export function buildSylvaTwinModel(options: {
       pool: isSriovHw ? 'sylva-cnf-sriov-dpdk' : 'sylva-general-compute',
       deviceType: hw.model,
       role: hw.role.includes('control') ? 'control-plane' : 'worker',
-      dataplaneProfile: isSriovHw ? 'sriov-dpdk-numa' : 'standard-nis2',
+      dataplaneProfile: isSriovHw ? 'sriov-dpdk-numa' : 'cilium-nis2',
       bmcAddress: `redfish+http://${oobIp}:8000/redfish/v1/Systems/${uuid}`,
       oobIp: `${oobIp}/24`,
       bootMACAddress: `52:54:00:dd:${(idx + 1).toString(16).padStart(2, '0')}:01`,

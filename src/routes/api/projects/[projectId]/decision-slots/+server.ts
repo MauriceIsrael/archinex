@@ -11,7 +11,9 @@ import {
   batchRatifyProjectType2Slots,
   generateArchitectureLockManifest,
   getProjectArchitectureLock,
+  getProjectRatificationAuditLog,
   promoteSlotToDeliberationSubject,
+  revokeProjectSlotRatification,
   type ProjectCompletenessInput
 } from '$lib/server/edp/decisionSlotRegistry';
 import type { TogafDomainId } from '$lib/domain/edp/togafTaxonomy';
@@ -30,12 +32,14 @@ export const GET: RequestHandler = async (event) => {
   const ledger = await buildProjectCompletenessLedger(input);
   const architectureLock = getProjectArchitectureLock(projectId);
   const liveLockSnapshot = await buildLiveArchitectureLockSnapshot(input);
+  const auditLog = getProjectRatificationAuditLog(projectId);
 
   return json({
     status: 'ok',
     ledger,
     architectureLock,
-    liveLockSnapshot
+    liveLockSnapshot,
+    auditLog
   });
 };
 
@@ -45,11 +49,12 @@ export const POST: RequestHandler = async (event) => {
   if (auth.error) return auth.error;
 
   let body: {
-    action?: 'ratify_batch' | 'promote_to_subject' | 'seal_architecture_lock';
+    action?: 'ratify_batch' | 'unratify_slot' | 'promote_to_subject' | 'seal_architecture_lock';
     actorRole?: string;
     rationale?: string;
     reason?: string;
     slotId?: string;
+    axisUrn?: string;
     slotIds?: string[];
     togafDomains?: TogafDomainId[];
     leafOverrides?: Record<string, string>;
@@ -93,6 +98,43 @@ export const POST: RequestHandler = async (event) => {
         ledger: result.updatedLedger,
         instantiatedComponents: result.instantiatedComponents,
         liveLockSnapshot
+      });
+    }
+
+    if (body.action === 'unratify_slot') {
+      if (!body.slotId && !body.axisUrn) {
+        return json(
+          { status: 'error', error: 'Paramètre slotId ou axisUrn requis pour la révocation.' },
+          { status: 400 }
+        );
+      }
+
+      const revocation = await revokeProjectSlotRatification({
+        projectId,
+        slotId: body.slotId,
+        axisUrn: body.axisUrn,
+        actorId,
+        actorRole,
+        reason: body.reason || body.rationale || '',
+        source: 'phase5'
+      });
+
+      const ledger = await buildProjectCompletenessLedger({
+        projectId,
+        ...(body.coverageInput ?? {})
+      });
+      const liveLockSnapshot = await buildLiveArchitectureLockSnapshot({
+        projectId,
+        projectTitle: auth.project?.title,
+        ...(body.coverageInput ?? {})
+      });
+
+      return json({
+        status: 'ok',
+        revocation,
+        ledger,
+        liveLockSnapshot,
+        auditLog: getProjectRatificationAuditLog(projectId)
       });
     }
 
@@ -155,7 +197,7 @@ export const POST: RequestHandler = async (event) => {
       {
         status: 'error',
         error:
-          'Action non reconnue (attendu : ratify_batch, promote_to_subject ou seal_architecture_lock).'
+          'Action non reconnue (attendu : ratify_batch, unratify_slot, promote_to_subject ou seal_architecture_lock).'
       },
       { status: 400 }
     );

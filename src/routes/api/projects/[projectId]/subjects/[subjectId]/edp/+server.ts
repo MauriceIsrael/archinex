@@ -18,7 +18,10 @@ import {
   loadProjectComponentCatalog,
   saveProjectComponentCatalog
 } from '$lib/server/edp/componentCatalogRepository';
-import { recordExplicitProjectSlotRatification } from '$lib/server/edp/decisionSlotRegistry';
+import {
+  recordExplicitProjectSlotRatification,
+  revokeProjectSlotRatification
+} from '$lib/server/edp/decisionSlotRegistry';
 import {
   syncHydratedInventoryToNautobot,
   pullLiveInventoryFromNautobot
@@ -71,6 +74,9 @@ export const GET: RequestHandler = async ({ params, url }) => {
       const parsedContent = JSON.parse(fromDb.content);
       const explicitBindings =
         parsedContent.explicitBindings ?? parsedContent.decision_context?.ontology_bindings ?? [];
+      const excludedLeafUrns: string[] = Array.isArray(parsedContent.excludedLeafUrns)
+        ? parsedContent.excludedLeafUrns
+        : [];
       const selectedConceptUrn = requestedConcept || parsedContent.selectedConceptUrn || 'AUTO';
       const coverage = computeRefinementCoverage(
         {
@@ -79,6 +85,7 @@ export const GET: RequestHandler = async ({ params, url }) => {
           problem: parsedContent.decision_context?.problem || ctx.problem,
           decisionText: parsedContent.decision_context?.decision || ctx.decisionText,
           explicitBindings,
+          excludedLeafUrns,
           autoBindFromText: true,
           selectedConceptUrn
         },
@@ -286,6 +293,9 @@ export const POST: RequestHandler = async (event) => {
       const activeConcept = selectedConceptUrn || currentEdp.selectedConceptUrn || 'AUTO';
       const priorExplicitBindings: Array<{ urn: string; revision: number | string }> =
         currentEdp.explicitBindings ?? currentEdp.decision_context?.ontology_bindings ?? [];
+      const excludedLeafSet = new Set<string>(
+        Array.isArray(currentEdp.excludedLeafUrns) ? currentEdp.excludedLeafUrns : []
+      );
 
       const initialCoverage = computeRefinementCoverage(
         {
@@ -294,6 +304,7 @@ export const POST: RequestHandler = async (event) => {
           problem: currentEdp.decision_context?.problem || ctx.problem,
           decisionText: currentEdp.decision_context?.decision || ctx.decisionText,
           explicitBindings: priorExplicitBindings,
+          excludedLeafUrns: Array.from(excludedLeafSet),
           autoBindFromText: true,
           selectedConceptUrn: activeConcept
         },
@@ -310,6 +321,7 @@ export const POST: RequestHandler = async (event) => {
       const isEmergentLeaf =
         typeof leafUrn === 'string' &&
         leafUrn.startsWith('urn:archinex:ontology:application:emergent:');
+      let resolvedTargetAxisUrn: string | undefined = axisUrn;
 
       if (leafUrn && (catalog.entities[leafUrn] || isEmergentLeaf)) {
         const targetAxisUrn =
@@ -319,10 +331,13 @@ export const POST: RequestHandler = async (event) => {
             : (catalog.triplets || []).find(
                 (t) => t.predicate === 'implemented_by' && t.object === leafUrn
               )?.subject);
+        resolvedTargetAxisUrn = targetAxisUrn;
 
         if (effectiveMode === 'remove') {
           updatedBindingMap.delete(leafUrn);
+          excludedLeafSet.add(leafUrn);
         } else {
+          excludedLeafSet.delete(leafUrn);
           if (effectiveMode === 'replace' && targetAxisUrn) {
             if (isEmergentLeaf) {
               for (const existingUrn of [...updatedBindingMap.keys()]) {
@@ -357,6 +372,7 @@ export const POST: RequestHandler = async (event) => {
         explicitBindings = ratifyDefaultDecisionSlots(initialCoverage);
       }
 
+      const excludedLeafUrns = Array.from(excludedLeafSet);
       const newCoverage = computeRefinementCoverage(
         {
           subjectId,
@@ -364,6 +380,7 @@ export const POST: RequestHandler = async (event) => {
           problem: currentEdp.decision_context?.problem || ctx.problem,
           decisionText: currentEdp.decision_context?.decision || ctx.decisionText,
           explicitBindings,
+          excludedLeafUrns,
           autoBindFromText: true,
           selectedConceptUrn: activeConcept
         },
@@ -374,6 +391,23 @@ export const POST: RequestHandler = async (event) => {
       if (projectId) {
         const actorId = auth.session?.user?.email || auth.session?.user?.id || 'architect';
         const actorRole = auth.session?.user?.role || 'lead_architect';
+        if (effectiveMode === 'remove' && resolvedTargetAxisUrn) {
+          const updatedSlot = (newCoverage.decisionSlots || []).find(
+            (s) => s.axisUrn === resolvedTargetAxisUrn
+          );
+          if (!updatedSlot || updatedSlot.bindingOrigin !== 'explicit') {
+            await revokeProjectSlotRatification({
+              projectId,
+              axisUrn: resolvedTargetAxisUrn,
+              previousLeafUrn: leafUrn,
+              actorId,
+              actorRole,
+              reason: `Retrait explicite de la feuille ${leafUrn} sur le sujet ${subjectId}.`,
+              source: 'phase4',
+              requireAuthorizedRole: false
+            });
+          }
+        }
         for (const slot of newCoverage.decisionSlots || []) {
           if (slot.bindingOrigin === 'explicit' && slot.boundLeafUrns[0]) {
             await recordExplicitProjectSlotRatification(
@@ -418,6 +452,7 @@ export const POST: RequestHandler = async (event) => {
         },
         selectedConceptUrn: activeConcept,
         explicitBindings,
+        excludedLeafUrns,
         decision_context: {
           ...currentEdp.decision_context,
           ontology_bindings: newCoverage.composedBindings
@@ -451,12 +486,177 @@ export const POST: RequestHandler = async (event) => {
           }
         });
 
+      const responseMessage =
+        effectiveMode === 'remove'
+          ? `Feuille ontologique ${leafUrn} retirée de l'axe (${newCoverage.metrics.axisCoveragePercent}% de couverture).`
+          : body.ratifyAllDefaults === true
+            ? `Choix proposés du sujet ratifiés (${newCoverage.metrics.axisCoveragePercent}% de couverture).`
+            : `Axe raffiné avec la feuille ontologique ${leafUrn} (${newCoverage.metrics.axisCoveragePercent}% de couverture).`;
+
       return json({
         success: true,
         edp: updatedEdp,
         refinementCoverage: newCoverage,
         hydratedInventory,
-        message: `Axe raffiné avec la feuille ontologique ${leafUrn} (${newCoverage.metrics.axisCoveragePercent}% de couverture).`
+        message: responseMessage
+      });
+    } catch (err: any) {
+      return json({ success: false, error: err.message }, { status: 500 });
+    }
+  }
+
+  // 3bis. Révocation d'un choix ratifié (`unratify`) avec journalisation d'audit
+  if (action === 'unratify') {
+    try {
+      const catalog = await loadOntologyCatalog({ includeRuntimeOverlay: true });
+      const ctx = await loadSubjectContext(subjectId);
+
+      const fromDb = await (prisma as any).executableDecisionPackage?.findFirst({
+        where: { subjectId },
+        orderBy: { revision: 'desc' }
+      });
+
+      const currentEdp = fromDb
+        ? JSON.parse(fromDb.content)
+        : {
+            metadata: {
+              id: ctx.edpPrimaryKey,
+              title: `${ctx.title} (${ctx.sectionRef.toUpperCase()})`,
+              status: 'proposed',
+              revision: 1
+            },
+            decision_context: {
+              problem: ctx.problem,
+              decision: ctx.decisionText,
+              ontology_bindings: []
+            },
+            provenance: {
+              production_mode: 'llm-proposed-human-approved',
+              created_at: new Date().toISOString()
+            }
+          };
+
+      const activeConcept = selectedConceptUrn || currentEdp.selectedConceptUrn || 'AUTO';
+      const priorExplicitBindings: Array<{ urn: string; revision: number | string }> =
+        currentEdp.explicitBindings ?? currentEdp.decision_context?.ontology_bindings ?? [];
+      const excludedLeafUrns: string[] = Array.isArray(currentEdp.excludedLeafUrns)
+        ? currentEdp.excludedLeafUrns
+        : [];
+
+      const axisLeaves = new Set<string>(
+        axisUrn
+          ? (catalog.triplets || [])
+              .filter((t) => t.predicate === 'implemented_by' && t.subject === axisUrn)
+              .map((t) => t.object)
+          : []
+      );
+      if (axisUrn === 'urn:archinex:ontology:axis:emergent_component_allocation') {
+        for (const b of priorExplicitBindings) {
+          if (b.urn.startsWith('urn:archinex:ontology:application:emergent:')) {
+            axisLeaves.add(b.urn);
+          }
+        }
+      }
+      if (leafUrn) {
+        axisLeaves.add(leafUrn);
+      }
+
+      const removedUrns = priorExplicitBindings
+        .filter((b) => axisLeaves.has(b.urn))
+        .map((b) => b.urn);
+      const explicitBindings = priorExplicitBindings.filter((b) => !axisLeaves.has(b.urn));
+
+      const newCoverage = computeRefinementCoverage(
+        {
+          subjectId,
+          title: currentEdp.metadata?.title || ctx.title,
+          problem: currentEdp.decision_context?.problem || ctx.problem,
+          decisionText: currentEdp.decision_context?.decision || ctx.decisionText,
+          explicitBindings,
+          excludedLeafUrns,
+          autoBindFromText: true,
+          selectedConceptUrn: activeConcept
+        },
+        catalog
+      );
+
+      let revocation = null;
+      if (projectId) {
+        const actorId = auth.session?.user?.email || auth.session?.user?.id || 'architect';
+        const actorRole = auth.session?.user?.role || 'lead_architect';
+        revocation = await revokeProjectSlotRatification({
+          projectId,
+          axisUrn,
+          previousLeafUrn: leafUrn || removedUrns[0],
+          actorId,
+          actorRole,
+          reason:
+            reason ||
+            `Révocation explicite en Phase 4 sur le sujet ${subjectId} (${axisUrn || leafUrn || 'axe'}).`,
+          source: 'phase4',
+          requireAuthorizedRole: false
+        });
+      }
+
+      const currentOverrides: LldHydrationOverrides = currentEdp.lldOverrides || {};
+      const hydratedInventory = composeMultiAxisHydration(
+        subjectId,
+        newCoverage.composedBindings,
+        catalog,
+        currentOverrides
+      );
+
+      const auditLog = Array.isArray(currentEdp.ratificationAuditLog)
+        ? [...currentEdp.ratificationAuditLog]
+        : [];
+      if (revocation) {
+        auditLog.push(revocation);
+      }
+
+      const updatedEdp = {
+        ...currentEdp,
+        metadata: {
+          ...currentEdp.metadata,
+          id: ctx.edpPrimaryKey
+        },
+        selectedConceptUrn: activeConcept,
+        explicitBindings,
+        excludedLeafUrns,
+        decision_context: {
+          ...currentEdp.decision_context,
+          ontology_bindings: newCoverage.composedBindings
+        },
+        refinementCoverage: newCoverage,
+        hydratedInventory,
+        lldOverrides: currentOverrides,
+        ratificationAuditLog: auditLog
+      };
+
+      await (prisma as any).executableDecisionPackage?.upsert({
+        where: { id: ctx.edpPrimaryKey },
+        create: {
+          id: ctx.edpPrimaryKey,
+          subjectId,
+          decisionId: ctx.subject?.decision?.id || `DEC-${subjectId}`,
+          status: updatedEdp.metadata.status || 'proposed',
+          revision: updatedEdp.metadata.revision || 1,
+          productionMode: 'llm-proposed-human-approved',
+          policyHash: 'multi-axis-ontology',
+          content: JSON.stringify(updatedEdp)
+        },
+        update: {
+          subjectId,
+          content: JSON.stringify(updatedEdp)
+        }
+      });
+
+      return json({
+        success: true,
+        edp: updatedEdp,
+        refinementCoverage: newCoverage,
+        hydratedInventory,
+        revocation,
+        message: `Ratification révoquée sur l'axe (${newCoverage.metrics.axisCoveragePercent}% de couverture).`
       });
     } catch (err: any) {
       return json({ success: false, error: err.message }, { status: 500 });
@@ -475,7 +675,11 @@ export const POST: RequestHandler = async (event) => {
       });
 
       const parsedDb = fromDb ? JSON.parse(fromDb.content) : null;
-      const explicitBindings = parsedDb?.decision_context?.ontology_bindings || [];
+      const explicitBindings =
+        parsedDb?.explicitBindings ?? parsedDb?.decision_context?.ontology_bindings ?? [];
+      const excludedLeafUrns: string[] = Array.isArray(parsedDb?.excludedLeafUrns)
+        ? parsedDb.excludedLeafUrns
+        : [];
       const currentOverrides: LldHydrationOverrides = overrides || parsedDb?.lldOverrides || {};
 
       const activeConcept = selectedConceptUrn || parsedDb?.selectedConceptUrn || 'AUTO';
@@ -487,6 +691,7 @@ export const POST: RequestHandler = async (event) => {
           problem: ctx.problem,
           decisionText: ctx.decisionText,
           explicitBindings,
+          excludedLeafUrns,
           autoBindFromText: true,
           selectedConceptUrn: activeConcept
         },
@@ -643,7 +848,11 @@ export const POST: RequestHandler = async (event) => {
       });
 
       const parsedDb = fromDb ? JSON.parse(fromDb.content) : null;
-      const explicitBindings = parsedDb?.decision_context?.ontology_bindings || [];
+      const explicitBindings =
+        parsedDb?.explicitBindings ?? parsedDb?.decision_context?.ontology_bindings ?? [];
+      const excludedLeafUrns: string[] = Array.isArray(parsedDb?.excludedLeafUrns)
+        ? parsedDb.excludedLeafUrns
+        : [];
 
       const activeConcept = selectedConceptUrn || parsedDb?.selectedConceptUrn || 'AUTO';
 
@@ -654,6 +863,7 @@ export const POST: RequestHandler = async (event) => {
           problem: ctx.problem,
           decisionText: ctx.decisionText,
           explicitBindings,
+          excludedLeafUrns,
           autoBindFromText: true,
           selectedConceptUrn: activeConcept
         },
@@ -815,7 +1025,11 @@ export const POST: RequestHandler = async (event) => {
       });
 
       const parsedDb = fromDb ? JSON.parse(fromDb.content) : null;
-      const explicitBindings = parsedDb?.decision_context?.ontology_bindings || [];
+      const explicitBindings =
+        parsedDb?.explicitBindings ?? parsedDb?.decision_context?.ontology_bindings ?? [];
+      const excludedLeafUrns: string[] = Array.isArray(parsedDb?.excludedLeafUrns)
+        ? parsedDb.excludedLeafUrns
+        : [];
       const activeConcept = selectedConceptUrn || parsedDb?.selectedConceptUrn || 'AUTO';
       const activeOverrides: LldHydrationOverrides = parsedDb?.lldOverrides || {};
 
@@ -826,6 +1040,7 @@ export const POST: RequestHandler = async (event) => {
           problem: ctx.problem,
           decisionText: ctx.decisionText,
           explicitBindings,
+          excludedLeafUrns,
           autoBindFromText: true,
           selectedConceptUrn: activeConcept
         },

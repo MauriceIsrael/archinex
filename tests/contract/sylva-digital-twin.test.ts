@@ -1,8 +1,12 @@
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 import { describe, expect, it } from 'vitest';
 import {
   buildSylvaTwinModel,
+  calibrateT1WithKwokResults,
   evaluateSylvaTopologyProfile,
   generateKwokNodeManifests,
+  generateKwokWorkloadManifests,
   generateSushyEmulatorConfig,
   runSylvaDigitalTwinMatrix,
   simulateTwinFault,
@@ -171,5 +175,97 @@ describe('Jumeau Numérique de Sylva (Issues #292, #293, #294)', () => {
         (v) => v.rule === 'twin_rule_04_dual_power_feed_survival'
       )
     ).toBe(true);
+  });
+
+  it('6. Génère les manifestes KWOK (nœuds Ready, taint witness, Deployments SR-IOV/Hugepages) pour le Palier 2', () => {
+    const model3Dc = buildSylvaTwinModel({ profileId: '3dc-active' });
+    const workloads = generateKwokWorkloadManifests(model3Dc);
+
+    expect(workloads[0].kind).toBe('Namespace');
+    const deployments = workloads.filter((w) => w.kind === 'Deployment') as Array<Record<string, any>>;
+    expect(deployments.length).toBeGreaterThanOrEqual(5);
+
+    const upf = deployments.find((d) => d.metadata.name === 'twin-upf-cnf')!;
+    expect(upf).toBeDefined();
+    expect(upf.spec.replicas).toBe(6);
+    expect(upf.spec.template.spec.nodeSelector['sylva.org/pool']).toBe('sylva-cnf-sriov-dpdk');
+    expect(upf.spec.template.spec.containers[0].resources.limits['intel.com/sriov_netdevice']).toBe('1');
+    expect(upf.spec.template.spec.containers[0].resources.limits['hugepages-1Gi']).toBe('16Gi');
+
+    // Vérifie que le nœud témoin du profil 2dc-witness porte bien le taint NoSchedule
+    const modelWitness = buildSylvaTwinModel({ profileId: '2dc-witness' });
+    const witnessNodes = generateKwokNodeManifests(modelWitness) as Array<Record<string, any>>;
+    const arbiter = witnessNodes.find(
+      (n) => n.metadata.labels['sylva.org/pool'] === 'sylva-witness-quorum'
+    )!;
+    expect(arbiter).toBeDefined();
+    expect(arbiter.spec.taints[0].key).toBe('sylva.org/witness-only');
+    expect(arbiter.spec.taints[0].effect).toBe('NoSchedule');
+  });
+
+  it('7. Calibre les prédictions T1 face aux observations kube-scheduler KWOK (T2) et détecte les dérives', () => {
+    const t1Eval = evaluateSylvaTopologyProfile({ profileId: '3dc-active' });
+
+    const alignedReport = calibrateT1WithKwokResults(t1Eval, {
+      clusterName: 'sylva-twin-ci',
+      baseline: {
+        totalPods: 33,
+        scheduledPods: 33,
+        pendingPods: 0,
+        unschedulablePodNames: [],
+        podsByZone: { dc1: 11, dc2: 11, dc3: 11 }
+      },
+      dcLossPrimary: {
+        drainedZone: 'dc1',
+        totalPods: 33,
+        scheduledPods: 33,
+        pendingPods: 0,
+        unschedulablePodNames: [],
+        podsByZone: { dc2: 17, dc3: 16 }
+      }
+    });
+    expect(alignedReport.calibrated).toBe(true);
+    expect(alignedReport.fidelityReached).toBe(2);
+    expect(alignedReport.discrepancies).toHaveLength(0);
+
+    const driftedReport = calibrateT1WithKwokResults(t1Eval, {
+      clusterName: 'sylva-twin-ci',
+      baseline: {
+        totalPods: 33,
+        scheduledPods: 33,
+        pendingPods: 0,
+        unschedulablePodNames: [],
+        podsByZone: { dc1: 11, dc2: 11, dc3: 11 }
+      },
+      dcLossPrimary: {
+        drainedZone: 'dc1',
+        totalPods: 33,
+        scheduledPods: 31,
+        pendingPods: 2,
+        unschedulablePodNames: ['twin-upf-cnf-01', 'twin-upf-cnf-02'],
+        podsByZone: { dc2: 16, dc3: 15 }
+      }
+    });
+    expect(driftedReport.calibrated).toBe(false);
+    expect(driftedReport.discrepancies).toHaveLength(1);
+    expect(driftedReport.discrepancies[0]).toContain('dc_loss_primary mismatch');
+  });
+
+  it('8. Maintient la cohérence entre sushy-emulator.conf, compose.yml et le générateur du Jumeau', () => {
+    const model3Dc = buildSylvaTwinModel({ profileId: '3dc-active' });
+    const expectedConf = `${generateSushyEmulatorConfig(model3Dc).configText}\n`;
+    const actualConf = fs.readFileSync(
+      path.resolve('deploy/integrator-tools/sushy-emulator.conf'),
+      'utf8'
+    );
+    expect(actualConf).toBe(expectedConf);
+
+    const composeContent = fs.readFileSync(
+      path.resolve('deploy/integrator-tools/compose.yml'),
+      'utf8'
+    );
+    expect(composeContent).toContain('sushy-emulator:');
+    expect(composeContent).toContain('quay.io/metal3-io/sushy-tools:latest');
+    expect(composeContent).toContain('./sushy-emulator.conf:/etc/sushy/sushy-emulator.conf:ro');
   });
 });

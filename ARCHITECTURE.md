@@ -894,9 +894,10 @@ Pour dépasser le simple comptage multiplicatif What-If (« 2 vs 3 DCs »), Arch
 2. **Double Mode d'Arbitrage (`TwinArbitrationMode`)** :
    - **Mode Proposition (`proposal`)** : à la main de l'équipe d'architecture ; compare les 3 profils sous 5 scénarios d'injection de pannes (`dc_loss_primary`, `dc_loss_secondary`, `host_loss_sriov`, `power_feed_loss_pdu_a`, `inter_dc_link_partition`) et formule la recommandation argumentée.
    - **Mode Fixé par le Client (`client-mandated`)** : confronte la topologie imposée par le client aux exigences de survie et détecte formellement les exigences contradictoires via l'oracle OPA `edp/policies/twin_resilience.rego` (`sources.twin_report`).
-3. **Bouchonnage Bare-Metal `sushy-tools` & `KWOK` pour la CI** :
-   - `generateSushyEmulatorConfig()` produit la configuration `sushy-emulator.conf` (*fake driver in-memory*) appariée aux `BareMetalHost` CAPI `capm3` (adresses BMC Redfish, UUID, MAC, CPU/RAM).
-   - `generateKwokNodeManifests()` produit les manifestes `Node` pour `kwok` avec ressources `hugepages-1Gi` et `intel.com/sriov_netdevice`.
+3. **Bouchonnage Bare-Metal `sushy-tools` & `KWOK` pour la CI (Palier 1 & Palier 2)** :
+   - `generateSushyEmulatorConfig()` produit la configuration `sushy-emulator.conf` (*fake driver in-memory*) appariée aux `BareMetalHost` CAPI `capm3` (adresses BMC Redfish, UUID, MAC, CPU/RAM) et montée dans le service `sushy-emulator` de `deploy/integrator-tools/compose.yml`.
+   - `generateKwokNodeManifests()` et `generateKwokWorkloadManifests()` produisent les manifestes `Node` (`hugepages-1Gi`, `intel.com/sriov_netdevice`, taint témoin `NoSchedule`) et `Deployment` pour exécuter le vrai `kube-scheduler` sous `kwokctl` en CI (`.github/workflows/twin-ci.yml`).
+   - `calibrateT1WithKwokResults()` (`scripts/calibrate-twin-t1-t2.ts`) confronte les prédictions analytiques T1 aux placements réels du `kube-scheduler` KWOK (T2) à l'état nominal et après injection de panne `dc_loss_primary`, tandis que `helm lint` / `helm template` valident le chart `edp/charts/sylva-workload-twin/` (Sylva `LATEST`).
 
 ---
 

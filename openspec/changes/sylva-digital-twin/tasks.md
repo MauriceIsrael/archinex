@@ -12,8 +12,8 @@
 - [x] 9. Tests de contrat exhaustifs (`tests/contract/sylva-digital-twin.test.ts`) + documentation (`ARCHITECTURE.md`, `USER_GUIDE.md`, `changelog.d/`)
 
 ## Palier 2 : Exécution CI conteneurisée KWOK & `sushy-emulator` (#294)
-- [ ] 10. Ajout du conteneur `sushy-emulator` dans `deploy/integrator-tools/docker-compose.yml`
-- [ ] 11. Job CI d'exécution `helm template` (Sylva `LATEST`) + `kwok` et test de calibration T1 ↔ T2
+- [x] 10. Ajout du conteneur `sushy-emulator` dans `deploy/integrator-tools/compose.yml` (monté avec `deploy/integrator-tools/sushy-emulator.conf`)
+- [x] 11. Job CI d'exécution `helm template` (Sylva `LATEST`) + `kwok` (`.github/workflows/twin-ci.yml`) et test de calibration T1 ↔ T2 (`calibrateT1WithKwokResults` / `scripts/calibrate-twin-t1-t2.ts`)
 
 ## Palier 3 : Boucle jumeau sur l'état observé (#292)
 - [ ] 12. Réconciliation continue avec l'état observé Nautobot / FluxCD (`nautobotSync` + `transformSylvaManifestsToRefinedInput`)

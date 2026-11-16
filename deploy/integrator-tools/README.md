@@ -6,6 +6,7 @@ Cet environnement fournit aux intégrateurs et aux oracles de conformité Archin
 2. **PostgreSQL 15 & Redis 7** : Persistance et file de tâches Celery pour Nautobot.
 3. **Batfish (All-in-One)** : Simulateur de configuration et vérificateur de matrice de flux réseau.
 4. **Open Policy Agent (OPA Server)** : Serveur d'évaluation Rego pour les oracles EDP (en complément du binaire CLI local `tools/bin/opa.exe`).
+5. **sushy-emulator (`quay.io/metal3-io/sushy-tools`)** : Bouchon Redfish BMC *in-memory* monté avec `sushy-emulator.conf` généré par le Jumeau Numérique Sylva (`capm3`).
 
 ---
 
@@ -59,3 +60,4 @@ Le script `seed-nautobot.py` injecte automatiquement les données requises pour 
   - En-tête : `Authorization: Token 0123456789abcdef0123456789abcdef01234567`
 - **Batfish API** : `http://localhost:9997`
 - **OPA Server REST** : `http://localhost:8181/v1/data`
+- **sushy-emulator Redfish API** : `http://localhost:8000/redfish/v1/Systems`

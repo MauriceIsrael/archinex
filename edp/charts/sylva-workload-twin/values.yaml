@@ -1,0 +1,28 @@
+cluster:
+  name: archinex-sylva-twin
+  namespace: sylva-system
+  sylva_release: "1.5.0-latest"
+  capi_providers:
+    infra_provider: capm3
+    bootstrap_provider: cabpr
+  k8s_version: "v1.28.11+rke2r1"
+  os_image_selector:
+    os: sle-micro
+    release: "5.5"
+    hardened: true
+
+units:
+  cilium:
+    enabled: true
+  kyverno:
+    enabled: true
+  metallb:
+    enabled: true
+  vault:
+    enabled: true
+  multus:
+    enabled: true
+  sriov:
+    enabled: true
+
+baremetal_hosts: []

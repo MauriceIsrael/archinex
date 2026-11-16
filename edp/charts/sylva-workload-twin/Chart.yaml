@@ -1,0 +1,6 @@
+apiVersion: v2
+name: sylva-workload-twin
+description: Helm chart T0/T2 pour le rendu et la validation des manifestes SylvaWorkloadCluster (Sylva LATEST) générés par le Jumeau Numérique Archinex
+type: application
+version: 1.5.0
+appVersion: "1.5.0-latest"

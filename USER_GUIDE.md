@@ -587,7 +587,8 @@ L'expérience utilisateur d'Archinex distingue explicitement deux échelles cogn
   - L'engagement actif est rappelé en permanence dans l'en-tête global sous forme de pastille cliquable (`Projet · Rôle`) renvoyant vers `/workspaces`, sans encombrer l'espace de délibération d'un sélecteur de projets redondant.
 - **Niveau Sujet (Micro)** :
   - Dès qu'un sujet est ouvert, la partie droite de la barre supérieure (`Sujet §X.Y : Phase 2 · Délibération → Phase 3 · Rendu HLD → Phase 4 · Raffinement`) permet de basculer entre la délibération, le rendu documentaire HLD et le raffinement exécutable tout en conservant le sujet courant.
-  - En Phase 3, la **Barre de Contexte Sujet** compacte (1 ligne) offre un bouton `← Tableau`, une navigation rapide `◀ / ▶` entre sujets, des filtres rapides (`Spécifiés L4`, `Arbitrés L3+`, `Tous`) et un sélecteur dépliable à la demande.
+  - En Phase 2 (`SubjectThreadView`), un tiroir synthétique **Exigences RFP rattachées** (`SubjectRequirementsDrawer`) expose directement sous le cadrage les clauses liées au sujet (référence, intitulé, criticité et texte complet dépliable) afin que l'architecte sache précisément à quoi il répond pendant la délibération.
+  - En Phase 3, la **Barre de Contexte Sujet** compacte (1 ligne) offre un bouton `← Tableau`, une navigation rapide `◀ / ▶` entre sujets, des filtres rapides (`Spécifiés L4`, `Arbitrés L3+`, `Tous`) et un sélecteur dépliable à la demande. La section **Traçabilité · Exigences couvertes** de `HldFragmentView` reste compacte et repliée par défaut pour recentrer la lecture sur le rendu HLD et l'homologation, avec un lien direct vers la Phase 2.
 - **Langage Métier Épuré** :
   - Tous les codes internes de spécification (`Porte G3` à `Porte G7`, `K13` à `K22`, `Contrat 1.9`/`1.11`, identifiants techniques `L3_decided`, `supports`/`violates`) sont remplacés dans l'interface par des intitulés métier directement compréhensibles par les architectes et décideurs.
 

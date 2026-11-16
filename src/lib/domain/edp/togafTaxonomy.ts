@@ -808,10 +808,25 @@ function slugifyEmergentComponentName(text: string): string {
 export function detectEmergentCapabilityNeed(
 	text: string,
 	rawCategoryOrDomain?: string,
-	options?: { isNovelSubject?: boolean; fallbackTitle?: string }
+	options?: {
+		isNovelSubject?: boolean;
+		fallbackTitle?: string;
+		availableComponents?: string[];
+	}
 ): EmergentCapabilityDetection | undefined {
 	const folded = ` ${foldText(text)} `;
 	if (folded.trim().length === 0) return undefined;
+
+	const resolveCandidateComponents = (archetypeDefaults: string[]): string[] => {
+		const provided = (options?.availableComponents || [])
+			.map((c) => c.trim())
+			.filter(Boolean);
+		if (provided.length === 0) return archetypeDefaults;
+		// Prioriser les composants du catalogue projet qui correspondent aux archétypes, puis compléter avec le reste du catalogue actif
+		const preferred = archetypeDefaults.filter((c) => provided.includes(c));
+		const others = provided.filter((c) => !preferred.includes(c));
+		return [...preferred, ...others].slice(0, 6);
+	};
 
 	// 1. Test des archétypes émergents explicites (IoT, Vidéo, IA...)
 	let bestArchetype: EmergentArchetype | undefined;
@@ -840,7 +855,7 @@ export function detectEmergentCapabilityNeed(
 			documentEngineLayer: bestArchetype.documentEngineLayer,
 			suggestedComponentName: bestArchetype.suggestedComponentName,
 			suggestedTier: bestArchetype.suggestedTier,
-			candidateExistingComponents: bestArchetype.candidateExistingComponents,
+			candidateExistingComponents: resolveCandidateComponents(bestArchetype.candidateExistingComponents),
 			rationale: bestArchetype.rationale
 		};
 	}
@@ -866,7 +881,7 @@ export function detectEmergentCapabilityNeed(
 			documentEngineLayer: TOGAF_DOMAINS[togafDomain].documentEngineLayer,
 			suggestedComponentName,
 			suggestedTier: togafDomain === 'application-business' ? 'application' : 'platform',
-			candidateExistingComponents: ['gis-server', 'ptt-server', 'core-network', 'db-ha'],
+			candidateExistingComponents: resolveCandidateComponents(['gis-server', 'ptt-server', 'core-network', 'db-ha']),
 			rationale:
 				'Besoin fonctionnel ou sujet inédit ne correspondant à aucune brique de référence du catalogue : l’architecte doit décider quel composant existant porte la fonction ou instancier un nouveau composant logique.'
 		};

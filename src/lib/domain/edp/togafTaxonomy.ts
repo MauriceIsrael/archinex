@@ -476,6 +476,80 @@ export const TOGAF_REFERENCE_BUILDING_BLOCKS: ReferenceBuildingBlock[] = [
 		defaultLeafUrn: 'urn:archinex:ontology:facilities:timing:gnss_ieee1588_stratum1',
 		rationale: 'Conditionne la corrélation des journaux SIEM, la validité cryptographique et la synchronisation radio/cœur.',
 		keywords: ['synchronisation temporelle', 'horloge', 'ntp', 'chrony', 'stratum', 'gnss', 'gps', 'ieee 1588', 'synce']
+	},
+
+	// --- 8. Terminaux, OS Endpoints & MDM / EMM ---
+	{
+		id: 'endpoint-mdm-enrollment',
+		title: 'Gestion de Flotte MDM / EMM & Enrôlement Zero-Touch des Terminaux',
+		togafDomain: 'operations-observability',
+		documentEngineLayer: 'component',
+		defaultDecisionType: 'type1_deliberate',
+		axisUrn: 'urn:archinex:ontology:axis:endpoint_mdm_enrollment',
+		defaultLeafUrn: 'urn:archinex:ontology:endpoint:mdm:emm_zero_touch_enrollment',
+		logicalComponentName: 'mdm-emm',
+		rationale: 'Encadre l’enrôlement supervisé, l’inventaire de flotte, la conformité de posture et la révocation à distance des terminaux.',
+		keywords: ['mdm', 'emm', 'uem', 'enrolement', 'enrollment', 'zero-touch', 'gestion de flotte', 'flotte terminaux', 'terminal', 'terminaux', 'endpoint', 'android enterprise', 'supervised']
+	},
+	{
+		id: 'endpoint-pki-enrollment',
+		title: 'Enrôlement PKI des Terminaux (SCEP / EST / ACME)',
+		togafDomain: 'security-trust',
+		documentEngineLayer: 'component',
+		defaultDecisionType: 'type2_default_ratify',
+		axisUrn: 'urn:archinex:ontology:axis:endpoint_pki_enrollment',
+		defaultLeafUrn: 'urn:archinex:ontology:security:pki:endpoint_scep_est_enrollment',
+		logicalComponentName: 'pki-ca',
+		rationale: 'Intègre la PKI centrale avec la plateforme MDM/EMM pour délivrer et renouveler automatiquement les certificats X.509 des terminaux.',
+		keywords: ['scep', 'est', 'enrolement certificat', 'certificat terminal', 'eap-tls', 'pki terminal', 'mdp certificat']
+	},
+	{
+		id: 'endpoint-os-hardening',
+		title: 'Durcissement OS Terminal, Verified Boot & Attestation Matérielle',
+		togafDomain: 'security-trust',
+		documentEngineLayer: 'component',
+		defaultDecisionType: 'type1_deliberate',
+		axisUrn: 'urn:archinex:ontology:axis:endpoint_os_hardening',
+		defaultLeafUrn: 'urn:archinex:ontology:endpoint:os:hardened_verified_boot',
+		logicalComponentName: 'endpoint-os-profile',
+		rationale: 'Impose le démarrage vérifié, le confinement SELinux/AppArmor et l’ancrage matériel TPM/Keystore sur les OS terminaux.',
+		keywords: ['os terminal', 'os terminaux', 'durcissement os', 'verified boot', 'secure boot', 'selinux', 'apparmor', 'keystore', 'tpm', 'strongbox', 'attestation materielle', 'bootloader']
+	},
+	{
+		id: 'endpoint-local-encryption',
+		title: 'Chiffrement Local des Données Terminal (FBE / BitLocker / LUKS2)',
+		togafDomain: 'data-persistence',
+		documentEngineLayer: 'component',
+		defaultDecisionType: 'type2_default_ratify',
+		axisUrn: 'urn:archinex:ontology:axis:endpoint_local_encryption',
+		defaultLeafUrn: 'urn:archinex:ontology:endpoint:crypto:fbe_hardware_keystore',
+		logicalComponentName: 'endpoint-os-profile',
+		rationale: 'Protège les données stockées localement sur le terminal contre le vol physique ou l’extraction hors ligne.',
+		keywords: ['chiffrement local', 'file-based encryption', 'fbe', 'full disk encryption', 'fde', 'bitlocker', 'stockage local chiffre', 'effacement distance', 'remote wipe']
+	},
+	{
+		id: 'endpoint-app-sandboxing',
+		title: 'Cloisonnement Applicatif, Profil Professionnel & Sandboxing Terminal',
+		togafDomain: 'security-trust',
+		documentEngineLayer: 'component',
+		defaultDecisionType: 'type2_default_ratify',
+		axisUrn: 'urn:archinex:ontology:axis:endpoint_app_sandboxing',
+		defaultLeafUrn: 'urn:archinex:ontology:endpoint:sandbox:work_profile_strict_isolation',
+		logicalComponentName: 'endpoint-os-profile',
+		rationale: 'Isole les applications métier, le presse-papier et les données sensibles via un profil professionnel ou un mode kiosque durci.',
+		keywords: ['sandboxing', 'sandbox', 'work profile', 'profil professionnel', 'kiosque', 'kiosk', 'cope', 'cobo', 'cloisonnement applicatif', 'liste blanche applicative']
+	},
+	{
+		id: 'endpoint-ota-updates',
+		title: 'Mises à Jour OTA Signées, Partitionnement A/B & Rollback Automatique',
+		togafDomain: 'operations-observability',
+		documentEngineLayer: 'component',
+		defaultDecisionType: 'type2_default_ratify',
+		axisUrn: 'urn:archinex:ontology:axis:endpoint_ota_updates',
+		defaultLeafUrn: 'urn:archinex:ontology:endpoint:ota:signed_ab_staged_rollout',
+		logicalComponentName: 'mdm-emm',
+		rationale: 'Garantit le déploiement contrôlé par vagues des correctifs OS/applicatifs avec signature cryptographique et retour arrière A/B.',
+		keywords: ['ota', 'mise a jour ota', 'fota', 'patch management', 'rollback', 'a/b partition', 'fenetre de maintenance', 'conformite terminal', 'posture terminal']
 	}
 ];
 
@@ -498,6 +572,8 @@ const LEGACY_TO_TOGAF_MAP: Record<string, TogafDomainId> = {
 	'pki': 'security-trust',
 	'trust': 'security-trust',
 	'diffusion-restreinte': 'security-trust',
+	'endpoint': 'security-trust',
+	'terminal': 'security-trust',
 
 	// Network & Connectivity
 	'network': 'network-connectivity',
@@ -527,6 +603,8 @@ const LEGACY_TO_TOGAF_MAP: Record<string, TogafDomainId> = {
 	'observability': 'operations-observability',
 	'resilience': 'operations-observability',
 	'operations': 'operations-observability',
+	'mdm': 'operations-observability',
+	'emm': 'operations-observability',
 	'general': 'operations-observability',
 	'cost': 'operations-observability',
 	'BR': 'operations-observability',

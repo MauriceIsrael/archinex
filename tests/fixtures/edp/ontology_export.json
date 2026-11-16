@@ -1161,6 +1161,215 @@
         "geofencing_mode": "distributed_edge_terminal",
         "radio_identity_cloisonnement": "session_scoped"
       }
+    },
+    "urn:archinex:ontology:axis:endpoint_mdm_enrollment": {
+      "urn": "urn:archinex:ontology:axis:endpoint_mdm_enrollment",
+      "revision": 1,
+      "kind": "axis",
+      "title": "Axe de Raffinement : Gestion de Flotte MDM / EMM & Enrôlement des Terminaux",
+      "domain": "operations",
+      "togaf_domain": "operations-observability",
+      "document_engine_layer": "component",
+      "default_decision_type": "type1_deliberate",
+      "keywords": ["mdm", "emm", "uem", "enrolement", "enrollment", "zero-touch", "gestion de flotte", "flotte terminaux", "terminal", "terminaux", "endpoint", "android enterprise", "supervised"]
+    },
+    "urn:archinex:ontology:endpoint:mdm:emm_zero_touch_enrollment": {
+      "urn": "urn:archinex:ontology:endpoint:mdm:emm_zero_touch_enrollment",
+      "revision": 1,
+      "kind": "leaf",
+      "is_default_standard": true,
+      "title": "Enrôlement Zero-Touch Supervisé via Plateforme MDM / EMM (mdm-emm)",
+      "domain": "operations",
+      "togaf_domain": "operations-observability",
+      "document_engine_layer": "component",
+      "instantiated_component": "mdm-emm",
+      "governed_by_clauses": ["urn:archinex:kb:clause:endpoint:mdm_enrollment", "REQ-Endpoint-MDM-01"],
+      "keywords": ["mdm", "emm", "zero-touch", "enrolement", "supervised", "flotte", "terminaux"],
+      "oracle_rules": ["data.archinex.edp.multiaxis.deny_unenrolled_endpoint_mdm"],
+      "projections": {
+        "mdm_managed_required": true,
+        "enrollment_mode": "zero_touch_supervised"
+      }
+    },
+    "urn:archinex:ontology:endpoint:mdm:onprem_sovereign_emm": {
+      "urn": "urn:archinex:ontology:endpoint:mdm:onprem_sovereign_emm",
+      "revision": 1,
+      "kind": "leaf",
+      "is_default_standard": false,
+      "title": "Enrôlement EMM Souverain On-Premises Déconnecté (mdm-emm)",
+      "domain": "operations",
+      "togaf_domain": "operations-observability",
+      "document_engine_layer": "component",
+      "instantiated_component": "mdm-emm",
+      "governed_by_clauses": ["urn:archinex:kb:clause:endpoint:mdm_sovereign", "REQ-Endpoint-MDM-02"],
+      "keywords": ["emm souverain", "on-prem", "air-gap", "mdm", "qr-code", "usb provisioning"],
+      "oracle_rules": ["data.archinex.edp.multiaxis.deny_unenrolled_endpoint_mdm"],
+      "projections": {
+        "mdm_managed_required": true,
+        "enrollment_mode": "onprem_qr_provisioning"
+      }
+    },
+    "urn:archinex:ontology:axis:endpoint_pki_enrollment": {
+      "urn": "urn:archinex:ontology:axis:endpoint_pki_enrollment",
+      "revision": 1,
+      "kind": "axis",
+      "title": "Axe de Raffinement : Enrôlement PKI des Terminaux (SCEP / EST / ACME)",
+      "domain": "security",
+      "togaf_domain": "security-trust",
+      "document_engine_layer": "component",
+      "default_decision_type": "type2_default_ratify",
+      "keywords": ["scep", "est", "enrolement certificat", "certificat terminal", "eap-tls", "pki terminal"]
+    },
+    "urn:archinex:ontology:security:pki:endpoint_scep_est_enrollment": {
+      "urn": "urn:archinex:ontology:security:pki:endpoint_scep_est_enrollment",
+      "revision": 1,
+      "kind": "leaf",
+      "is_default_standard": true,
+      "title": "Enrôlement Automatique de Certificats Terminaux via SCEP / EST (pki-ca)",
+      "domain": "security",
+      "togaf_domain": "security-trust",
+      "document_engine_layer": "component",
+      "instantiated_component": "pki-ca",
+      "governed_by_clauses": ["urn:archinex:kb:clause:endpoint:pki_scep_est", "REQ-Endpoint-PKI-01"],
+      "keywords": ["scep", "est", "acme", "eap-tls", "certificat terminal", "pki-ca"],
+      "oracle_rules": ["data.archinex.edp.multiaxis.deny_unapproved_endpoint_pki_protocol"],
+      "projections": {
+        "allowed_protocols": ["SCEP", "EST", "ACME"],
+        "default_protocol": "EST"
+      }
+    },
+    "urn:archinex:ontology:axis:endpoint_os_hardening": {
+      "urn": "urn:archinex:ontology:axis:endpoint_os_hardening",
+      "revision": 1,
+      "kind": "axis",
+      "title": "Axe de Raffinement : Durcissement OS Terminal, Verified Boot & Attestation Matérielle",
+      "domain": "security",
+      "togaf_domain": "security-trust",
+      "document_engine_layer": "component",
+      "default_decision_type": "type1_deliberate",
+      "keywords": ["os terminal", "os terminaux", "durcissement os", "verified boot", "secure boot", "selinux", "apparmor", "keystore", "tpm", "strongbox", "attestation materielle"]
+    },
+    "urn:archinex:ontology:endpoint:os:hardened_verified_boot": {
+      "urn": "urn:archinex:ontology:endpoint:os:hardened_verified_boot",
+      "revision": 1,
+      "kind": "leaf",
+      "is_default_standard": true,
+      "title": "OS Terminal Durci avec Verified Boot, SELinux Enforcing & Attestation Matérielle (endpoint-os-profile)",
+      "domain": "security",
+      "togaf_domain": "security-trust",
+      "document_engine_layer": "component",
+      "instantiated_component": "endpoint-os-profile",
+      "governed_by_clauses": ["urn:archinex:kb:clause:endpoint:os_hardening", "REQ-Endpoint-OS-01"],
+      "keywords": ["verified boot", "secure boot", "selinux", "tpm", "strongbox", "durcissement os", "os terminal"],
+      "oracle_rules": ["data.archinex.edp.multiaxis.deny_unverified_endpoint_os_boot"],
+      "projections": {
+        "verified_boot_required": true,
+        "mac_enforcement": "selinux_enforcing",
+        "hardware_attestation": "tpm_or_strongbox"
+      }
+    },
+    "urn:archinex:ontology:axis:endpoint_local_encryption": {
+      "urn": "urn:archinex:ontology:axis:endpoint_local_encryption",
+      "revision": 1,
+      "kind": "axis",
+      "title": "Axe de Raffinement : Chiffrement Local des Données Terminal (FBE / BitLocker / LUKS2)",
+      "domain": "storage",
+      "togaf_domain": "data-persistence",
+      "document_engine_layer": "component",
+      "default_decision_type": "type2_default_ratify",
+      "keywords": ["chiffrement local", "file-based encryption", "fbe", "full disk encryption", "fde", "bitlocker", "stockage local chiffre", "remote wipe"]
+    },
+    "urn:archinex:ontology:endpoint:crypto:fbe_hardware_keystore": {
+      "urn": "urn:archinex:ontology:endpoint:crypto:fbe_hardware_keystore",
+      "revision": 1,
+      "kind": "leaf",
+      "is_default_standard": true,
+      "title": "Chiffrement Local File-Based Encryption (FBE) Ancré sur Keystore Matériel (endpoint-os-profile)",
+      "domain": "storage",
+      "togaf_domain": "data-persistence",
+      "document_engine_layer": "component",
+      "instantiated_component": "endpoint-os-profile",
+      "governed_by_clauses": ["urn:archinex:kb:clause:endpoint:local_encryption", "REQ-Endpoint-Crypto-01"],
+      "keywords": ["fbe", "file-based encryption", "chiffrement local", "keystore", "aes-256-xts"],
+      "oracle_rules": ["data.archinex.edp.multiaxis.deny_unencrypted_endpoint_storage"],
+      "projections": {
+        "encryption_mode": "FBE-Hardware-Keystore",
+        "cipher": "AES-256-XTS"
+      }
+    },
+    "urn:archinex:ontology:axis:endpoint_app_sandboxing": {
+      "urn": "urn:archinex:ontology:axis:endpoint_app_sandboxing",
+      "revision": 1,
+      "kind": "axis",
+      "title": "Axe de Raffinement : Cloisonnement Applicatif, Profil Professionnel & Sandboxing Terminal",
+      "domain": "security",
+      "togaf_domain": "security-trust",
+      "document_engine_layer": "component",
+      "default_decision_type": "type2_default_ratify",
+      "keywords": ["sandboxing", "sandbox", "work profile", "profil professionnel", "kiosque", "kiosk", "cope", "cobo", "cloisonnement applicatif"]
+    },
+    "urn:archinex:ontology:endpoint:sandbox:work_profile_strict_isolation": {
+      "urn": "urn:archinex:ontology:endpoint:sandbox:work_profile_strict_isolation",
+      "revision": 1,
+      "kind": "leaf",
+      "is_default_standard": true,
+      "title": "Conteneurisation Profil Professionnel COPE & Cloisonnement Inter-Applications (endpoint-os-profile)",
+      "domain": "security",
+      "togaf_domain": "security-trust",
+      "document_engine_layer": "component",
+      "instantiated_component": "endpoint-os-profile",
+      "governed_by_clauses": ["urn:archinex:kb:clause:endpoint:app_sandboxing", "REQ-Endpoint-Sandbox-01"],
+      "keywords": ["work profile", "cope", "sandboxing", "cloisonnement applicatif", "dlp"],
+      "oracle_rules": ["data.archinex.edp.multiaxis.deny_missing_endpoint_app_sandbox"],
+      "projections": {
+        "sandboxing_mode": "work_profile_strict"
+      }
+    },
+    "urn:archinex:ontology:endpoint:sandbox:dedicated_kiosk_cobo": {
+      "urn": "urn:archinex:ontology:endpoint:sandbox:dedicated_kiosk_cobo",
+      "revision": 1,
+      "kind": "leaf",
+      "is_default_standard": false,
+      "title": "Mode Kiosque Dédié COBO & Liste Blanche Applicative Stricte (endpoint-os-profile)",
+      "domain": "security",
+      "togaf_domain": "security-trust",
+      "document_engine_layer": "component",
+      "instantiated_component": "endpoint-os-profile",
+      "governed_by_clauses": ["urn:archinex:kb:clause:endpoint:kiosk_cobo", "REQ-Endpoint-Sandbox-02"],
+      "keywords": ["kiosque", "kiosk", "cobo", "liste blanche", "allowlist", "terminal dedie"],
+      "oracle_rules": ["data.archinex.edp.multiaxis.deny_missing_endpoint_app_sandbox"],
+      "projections": {
+        "sandboxing_mode": "dedicated_kiosk_allowlist"
+      }
+    },
+    "urn:archinex:ontology:axis:endpoint_ota_updates": {
+      "urn": "urn:archinex:ontology:axis:endpoint_ota_updates",
+      "revision": 1,
+      "kind": "axis",
+      "title": "Axe de Raffinement : Mises à Jour OTA Signées, Partitionnement A/B & Rollback Automatique",
+      "domain": "operations",
+      "togaf_domain": "operations-observability",
+      "document_engine_layer": "component",
+      "default_decision_type": "type2_default_ratify",
+      "keywords": ["ota", "mise a jour ota", "fota", "patch management", "rollback", "a/b partition", "conformite terminal"]
+    },
+    "urn:archinex:ontology:endpoint:ota:signed_ab_staged_rollout": {
+      "urn": "urn:archinex:ontology:endpoint:ota:signed_ab_staged_rollout",
+      "revision": 1,
+      "kind": "leaf",
+      "is_default_standard": true,
+      "title": "Déploiement OTA Signé par Vagues avec Partitionnement A/B & Rollback Automatique (mdm-emm)",
+      "domain": "operations",
+      "togaf_domain": "operations-observability",
+      "document_engine_layer": "component",
+      "instantiated_component": "mdm-emm",
+      "governed_by_clauses": ["urn:archinex:kb:clause:endpoint:ota_updates", "REQ-Endpoint-OTA-01"],
+      "keywords": ["ota", "fota", "a/b partition", "rollback", "staged rollout", "signature ota"],
+      "oracle_rules": ["data.archinex.edp.multiaxis.deny_unsigned_endpoint_ota_update"],
+      "projections": {
+        "ota_signed_ab_required": true,
+        "rollout_strategy": "staged_canary_ab"
+      }
     }
   },
   "triplets": [
@@ -1908,6 +2117,146 @@
       "predicate": "instantiates_component",
       "object": "urn:archinex:component:ptt-server",
       "rationale": "Alloue le pipeline temps réel de géofencing au composant logique ptt-server."
+    },
+    {
+      "id": "tr-ep-01",
+      "subject": "urn:archinex:ontology:axis:endpoint_mdm_enrollment",
+      "predicate": "implemented_by",
+      "object": "urn:archinex:ontology:endpoint:mdm:emm_zero_touch_enrollment",
+      "rationale": "Implémentation standard de l'enrôlement supervisé zero-touch via mdm-emm."
+    },
+    {
+      "id": "tr-ep-02",
+      "subject": "urn:archinex:ontology:axis:endpoint_mdm_enrollment",
+      "predicate": "implemented_by",
+      "object": "urn:archinex:ontology:endpoint:mdm:onprem_sovereign_emm",
+      "rationale": "Variante souveraine on-premises déconnectée pour l'enrôlement de flotte."
+    },
+    {
+      "id": "tr-ep-03",
+      "subject": "urn:archinex:ontology:axis:endpoint_pki_enrollment",
+      "predicate": "implemented_by",
+      "object": "urn:archinex:ontology:security:pki:endpoint_scep_est_enrollment",
+      "rationale": "Rattache l'enrôlement des certificats terminaux (SCEP/EST/ACME) à la PKI centrale."
+    },
+    {
+      "id": "tr-ep-04",
+      "subject": "urn:archinex:ontology:axis:endpoint_os_hardening",
+      "predicate": "implemented_by",
+      "object": "urn:archinex:ontology:endpoint:os:hardened_verified_boot",
+      "rationale": "Impose Verified Boot, SELinux Enforcing et attestation matérielle sur les terminaux."
+    },
+    {
+      "id": "tr-ep-05",
+      "subject": "urn:archinex:ontology:axis:endpoint_local_encryption",
+      "predicate": "implemented_by",
+      "object": "urn:archinex:ontology:endpoint:crypto:fbe_hardware_keystore",
+      "rationale": "Impose le chiffrement local FBE ancré sur le keystore matériel."
+    },
+    {
+      "id": "tr-ep-06",
+      "subject": "urn:archinex:ontology:axis:endpoint_app_sandboxing",
+      "predicate": "implemented_by",
+      "object": "urn:archinex:ontology:endpoint:sandbox:work_profile_strict_isolation",
+      "rationale": "Cloisonnement applicatif par profil professionnel strict."
+    },
+    {
+      "id": "tr-ep-07",
+      "subject": "urn:archinex:ontology:axis:endpoint_app_sandboxing",
+      "predicate": "implemented_by",
+      "object": "urn:archinex:ontology:endpoint:sandbox:dedicated_kiosk_cobo",
+      "rationale": "Variante mode kiosque dédié COBO avec liste blanche applicative."
+    },
+    {
+      "id": "tr-ep-08",
+      "subject": "urn:archinex:ontology:axis:endpoint_ota_updates",
+      "predicate": "implemented_by",
+      "object": "urn:archinex:ontology:endpoint:ota:signed_ab_staged_rollout",
+      "rationale": "Mises à jour OTA signées avec partitionnement A/B et rollback automatique."
+    },
+    {
+      "id": "tr-pre-ep-01",
+      "subject": "urn:archinex:ontology:axis:endpoint_ota_updates",
+      "predicate": "requires_prerequisite_axis",
+      "object": "urn:archinex:ontology:axis:endpoint_mdm_enrollment",
+      "rationale": "La gouvernance des mises à jour OTA suppose un enrôlement MDM/EMM actif des terminaux."
+    },
+    {
+      "id": "tr-pre-ep-02",
+      "subject": "urn:archinex:ontology:axis:endpoint_mdm_enrollment",
+      "predicate": "requires_prerequisite_axis",
+      "object": "urn:archinex:ontology:axis:endpoint_pki_enrollment",
+      "rationale": "L'enrôlement sécurisé des terminaux requiert le profil d'enrôlement PKI SCEP/EST."
+    },
+    {
+      "id": "tr-pre-ep-03",
+      "subject": "urn:archinex:ontology:axis:endpoint_pki_enrollment",
+      "predicate": "requires_prerequisite_axis",
+      "object": "urn:archinex:ontology:axis:pki_hierarchy",
+      "rationale": "L'enrôlement SCEP/EST des terminaux s'appuie sur la hiérarchie PKI centrale (pki-ca)."
+    },
+    {
+      "id": "tr-pre-ep-04",
+      "subject": "urn:archinex:ontology:axis:endpoint_local_encryption",
+      "predicate": "requires_prerequisite_axis",
+      "object": "urn:archinex:ontology:axis:endpoint_os_hardening",
+      "rationale": "Le chiffrement local FBE ancré matériellement repose sur le durcissement OS et le Verified Boot."
+    },
+    {
+      "id": "tr-comp-ep-01",
+      "subject": "urn:archinex:ontology:endpoint:mdm:emm_zero_touch_enrollment",
+      "predicate": "instantiates_component",
+      "object": "urn:archinex:component:mdm-emm",
+      "rationale": "Alloue l'enrôlement zero-touch au composant logique mdm-emm."
+    },
+    {
+      "id": "tr-comp-ep-02",
+      "subject": "urn:archinex:ontology:endpoint:mdm:onprem_sovereign_emm",
+      "predicate": "instantiates_component",
+      "object": "urn:archinex:component:mdm-emm",
+      "rationale": "Alloue l'enrôlement EMM souverain au composant logique mdm-emm."
+    },
+    {
+      "id": "tr-comp-ep-03",
+      "subject": "urn:archinex:ontology:security:pki:endpoint_scep_est_enrollment",
+      "predicate": "instantiates_component",
+      "object": "urn:archinex:component:pki-ca",
+      "rationale": "Rattache l'enrôlement SCEP/EST des terminaux au composant central pki-ca."
+    },
+    {
+      "id": "tr-comp-ep-04",
+      "subject": "urn:archinex:ontology:endpoint:os:hardened_verified_boot",
+      "predicate": "instantiates_component",
+      "object": "urn:archinex:component:endpoint-os-profile",
+      "rationale": "Alloue le profil de durcissement OS au composant endpoint-os-profile."
+    },
+    {
+      "id": "tr-comp-ep-05",
+      "subject": "urn:archinex:ontology:endpoint:crypto:fbe_hardware_keystore",
+      "predicate": "instantiates_component",
+      "object": "urn:archinex:component:endpoint-os-profile",
+      "rationale": "Alloue la politique de chiffrement local FBE au composant endpoint-os-profile."
+    },
+    {
+      "id": "tr-comp-ep-06",
+      "subject": "urn:archinex:ontology:endpoint:sandbox:work_profile_strict_isolation",
+      "predicate": "instantiates_component",
+      "object": "urn:archinex:component:endpoint-os-profile",
+      "rationale": "Alloue le cloisonnement applicatif par profil professionnel à endpoint-os-profile."
+    },
+    {
+      "id": "tr-comp-ep-07",
+      "subject": "urn:archinex:ontology:endpoint:sandbox:dedicated_kiosk_cobo",
+      "predicate": "instantiates_component",
+      "object": "urn:archinex:component:endpoint-os-profile",
+      "rationale": "Alloue le mode kiosque COBO à endpoint-os-profile."
+    },
+    {
+      "id": "tr-comp-ep-08",
+      "subject": "urn:archinex:ontology:endpoint:ota:signed_ab_staged_rollout",
+      "predicate": "instantiates_component",
+      "object": "urn:archinex:component:mdm-emm",
+      "rationale": "Alloue l'orchestration des mises à jour OTA signées au composant mdm-emm."
     }
   ]
 }

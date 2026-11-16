@@ -1,13 +1,14 @@
 <script lang="ts">
 	import { deliberationStore } from '$lib/stores/deliberationStore.svelte';
 	import MermaidViewer from './MermaidViewer.svelte';
-	import { RefreshCw, Download, Copy, Check, Terminal, FileCode, Layers, Cpu, ShieldCheck, Scale, FileSpreadsheet, Boxes } from 'lucide-svelte';
+	import { RefreshCw, Download, Copy, Check, Terminal, FileCode, Layers, Cpu, ShieldCheck, Scale, FileSpreadsheet, Boxes, ExternalLink } from 'lucide-svelte';
 
 	type TabType = 'mermaid' | 'structurizr' | 'sysml' | 'config' | 'compliance' | 'petites-briques';
 
 	let activeTab = $state<TabType>('mermaid');
 	let mermaidSubView = $state<'target' | 'sequence' | 'causal'>('target');
 	let petitesBriquesSubView = $state<'visual' | 'yaml' | 'json'>('visual');
+	let selectedBlockAxisId = $state<string | null>(null);
 	let copied = $state(false);
 	let isRegenerating = $state(false);
 	let lastSyncTime = $state<string>(new Date().toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' }));
@@ -30,7 +31,10 @@
 
 	// L'option retenue et les options écartées viennent de la décision enregistrée : les charger à chaque changement de sujet.
 	$effect(() => {
-		if (activeSubject?.id) void deliberationStore.fetchDecisionContext(activeSubject.id);
+		if (activeSubject?.id) {
+			selectedBlockAxisId = null;
+			void deliberationStore.fetchDecisionContext(activeSubject.id);
+		}
 	});
 
 	async function loadComplianceMatrix() {
@@ -363,55 +367,183 @@
 						defaultView="visual"
 					/>
 				{/if}
-			{:else if activeTab === 'structurizr'}
+			{:else if activeTab === 'structurizr' || activeTab === 'sysml'}
+				{@const blockGraph = projections.projectionBlocks}
+				{@const activeBlock = selectedBlockAxisId ? blockGraph?.blocks.find((b) => b.axisId === selectedBlockAxisId) : null}
+				{@const focusedMermaid = activeSubject?.id && selectedBlockAxisId
+					? deliberationStore.getFocusedProjectionMermaid(activeSubject.id, activeTab, selectedBlockAxisId)
+					: null}
 				<div class="space-y-3">
-					<MermaidViewer
-						code={projections.structurizrVisual}
-						title="Architecture C4 (Interprétation Graphique du Modèle Structurizr)"
-						defaultView="visual"
-					/>
-					<div class="rounded-lg border bg-muted/20 p-3 space-y-1.5">
-						<div class="flex items-center justify-between text-xs font-bold text-muted-foreground">
-							<span>Code Source Structurizr DSL (.dsl) :</span>
-							<button
-								type="button"
-								onclick={() => {
-									navigator.clipboard.writeText(projections.structurizrDSL);
-									copied = true;
-									setTimeout(() => (copied = false), 2000);
-								}}
-								class="text-[11px] text-primary hover:underline"
-							>
-								Copier DSL
-							</button>
+					{#if blockGraph && blockGraph.blocks.length > 0}
+						<div class="flex flex-wrap items-center justify-between gap-2 rounded-lg border bg-muted/30 p-2" data-testid="projection-block-nav">
+							<div class="flex flex-wrap items-center gap-1.5 text-xs">
+								<span class="font-semibold text-muted-foreground mr-1">Navigation par bloc :</span>
+								<button
+									type="button"
+									onclick={() => (selectedBlockAxisId = null)}
+									class="px-2.5 py-1 rounded-md font-medium transition-colors {selectedBlockAxisId === null
+										? 'bg-primary text-primary-foreground shadow-2xs'
+										: 'bg-background border text-muted-foreground hover:text-foreground'}"
+									data-testid="block-filter-all"
+								>
+									Tous les blocs ({blockGraph.blocks.length})
+								</button>
+								{#each blockGraph.blocks as block}
+									<button
+										type="button"
+										onclick={() => (selectedBlockAxisId = selectedBlockAxisId === block.axisId ? null : block.axisId)}
+										class="px-2.5 py-1 rounded-md font-medium transition-colors inline-flex items-center gap-1.5 {selectedBlockAxisId === block.axisId
+											? 'bg-primary text-primary-foreground shadow-2xs'
+											: 'bg-background border text-muted-foreground hover:text-foreground'}"
+										data-testid="block-filter-{block.safeId}"
+									>
+										<span>{block.label}</span>
+										<span class="rounded px-1 py-0.2 text-[10px] font-mono bg-black/10 dark:bg-white/10">{block.items.length}</span>
+										{#if block.requirementRefs.length > 0}
+											<span class="rounded px-1 py-0.2 text-[10px] font-mono bg-indigo-500/15 text-indigo-700 dark:text-indigo-300">
+												{block.requirementRefs.length} req
+											</span>
+										{/if}
+									</button>
+								{/each}
+							</div>
+							<div class="text-[11px] text-muted-foreground font-mono">
+								{blockGraph.requirements.length} exigence(s) tracée(s)
+							</div>
 						</div>
-						<pre class="rounded bg-muted/80 p-3 font-mono text-[11px] text-foreground overflow-x-auto max-h-48 border">{projections.structurizrDSL}</pre>
-					</div>
-				</div>
-			{:else if activeTab === 'sysml'}
-				<div class="space-y-3">
-					<MermaidViewer
-						code={projections.sysmlVisual}
-						title="Diagramme de Définition de Blocs SysML v2 (BDD Interprété)"
-						defaultView="visual"
-					/>
-					<div class="rounded-lg border bg-muted/20 p-3 space-y-1.5">
-						<div class="flex items-center justify-between text-xs font-bold text-muted-foreground">
-							<span>Spécification SysML v2 (.sysml) :</span>
-							<button
-								type="button"
-								onclick={() => {
-									navigator.clipboard.writeText(projections.sysmlV2);
-									copied = true;
-									setTimeout(() => (copied = false), 2000);
-								}}
-								class="text-[11px] text-primary hover:underline"
-							>
-								Copier SysML
-							</button>
+					{/if}
+
+					{#if activeBlock}
+						<div class="rounded-lg border bg-muted/20 p-3 space-y-2 text-xs" data-testid="selected-block-inspector">
+							<div class="flex flex-wrap items-center justify-between gap-2">
+								<div>
+									<span class="font-bold text-foreground">{activeBlock.label}</span>
+									{#if activeBlock.togafRef}
+										<span class="ml-2 text-[11px] text-muted-foreground">({activeBlock.togafRef})</span>
+									{/if}
+								</div>
+								<div class="flex items-center gap-2 text-[11px] font-mono">
+									<span class="text-emerald-700 dark:text-emerald-300">{activeBlock.settledCount} vérifié(s)</span>
+									<span class="text-amber-700 dark:text-amber-300">{activeBlock.unsettledCount} non vérifié(s)</span>
+								</div>
+							</div>
+							{#if activeBlock.components.length > 0}
+								<div class="flex flex-wrap items-center gap-1.5">
+									<span class="text-[11px] text-muted-foreground">Composants :</span>
+									{#each activeBlock.components as comp}
+										<span class="px-2 py-0.5 rounded bg-background border text-[11px] font-medium">{comp}</span>
+									{/each}
+								</div>
+							{/if}
+							{#if activeBlock.requirementRefs.length > 0}
+								<div class="flex flex-wrap items-center gap-1.5">
+									<span class="text-[11px] text-muted-foreground">Exigences satisfaites :</span>
+									{#each activeBlock.requirementRefs as ref}
+										<span class="px-2 py-0.5 rounded bg-indigo-500/10 border border-indigo-500/30 text-indigo-700 dark:text-indigo-300 text-[11px] font-mono">{ref}</span>
+									{/each}
+								</div>
+							{/if}
 						</div>
-						<pre class="rounded bg-muted/80 p-3 font-mono text-[11px] text-foreground overflow-x-auto max-h-48 border">{projections.sysmlV2}</pre>
-					</div>
+					{/if}
+
+					{#if activeTab === 'structurizr'}
+						<MermaidViewer
+							code={focusedMermaid || projections.structurizrVisual}
+							title="Architecture C4 (Interprétation Graphique du Modèle Structurizr){activeBlock ? ` · ${activeBlock.label}` : ''}"
+							defaultView="visual"
+						/>
+						<div class="rounded-lg border bg-muted/20 p-3 space-y-2">
+							<div class="flex flex-wrap items-center justify-between gap-2 text-xs">
+								<span class="font-bold text-muted-foreground">Code Source Structurizr DSL (.dsl) :</span>
+								<div class="flex flex-wrap items-center gap-2">
+									<a
+										href="https://structurizr.com/dsl"
+										target="_blank"
+										rel="noopener noreferrer"
+										class="inline-flex items-center gap-1 rounded border border-indigo-500/30 bg-indigo-500/10 px-2 py-1 text-[11px] font-medium text-indigo-700 dark:text-indigo-300 hover:bg-indigo-500/20 transition-colors"
+										data-testid="structurizr-playground-link"
+									>
+										<ExternalLink class="h-3 w-3" />
+										<span>Structurizr DSL Playground</span>
+									</a>
+									<button
+										type="button"
+										onclick={() => {
+											navigator.clipboard.writeText('docker run -it --rm -p 8080:8080 -v "$PWD:/usr/local/structurizr" structurizr/lite');
+											copied = true;
+											setTimeout(() => (copied = false), 2000);
+										}}
+										class="inline-flex items-center gap-1 rounded border border-input bg-background px-2 py-1 text-[11px] font-medium hover:bg-muted transition-colors"
+									>
+										<span>Commande Structurizr Lite</span>
+									</button>
+									<button
+										type="button"
+										onclick={downloadArtifact}
+										class="inline-flex items-center gap-1 rounded border border-input bg-background px-2 py-1 text-[11px] font-medium hover:bg-muted transition-colors"
+									>
+										<Download class="h-3 w-3" />
+										<span>Télécharger .dsl</span>
+									</button>
+									<button
+										type="button"
+										onclick={() => {
+											navigator.clipboard.writeText(projections.structurizrDSL);
+											copied = true;
+											setTimeout(() => (copied = false), 2000);
+										}}
+										class="text-[11px] font-semibold text-primary hover:underline"
+									>
+										Copier DSL
+									</button>
+								</div>
+							</div>
+							<pre class="rounded bg-muted/80 p-3 font-mono text-[11px] text-foreground overflow-x-auto max-h-48 border">{projections.structurizrDSL}</pre>
+						</div>
+					{:else}
+						<MermaidViewer
+							code={focusedMermaid || projections.sysmlVisual}
+							title="Diagramme de Définition de Blocs SysML v2 (BDD Interprété){activeBlock ? ` · ${activeBlock.label}` : ''}"
+							defaultView="visual"
+						/>
+						<div class="rounded-lg border bg-muted/20 p-3 space-y-2">
+							<div class="flex flex-wrap items-center justify-between gap-2 text-xs">
+								<span class="font-bold text-muted-foreground">Spécification SysML v2 (.sysml) :</span>
+								<div class="flex flex-wrap items-center gap-2">
+									<a
+										href="https://mbse-syson.org/"
+										target="_blank"
+										rel="noopener noreferrer"
+										class="inline-flex items-center gap-1 rounded border border-indigo-500/30 bg-indigo-500/10 px-2 py-1 text-[11px] font-medium text-indigo-700 dark:text-indigo-300 hover:bg-indigo-500/20 transition-colors"
+										data-testid="sysml-syson-link"
+									>
+										<ExternalLink class="h-3 w-3" />
+										<span>Eclipse SysON (SysML v2)</span>
+									</a>
+									<button
+										type="button"
+										onclick={downloadArtifact}
+										class="inline-flex items-center gap-1 rounded border border-input bg-background px-2 py-1 text-[11px] font-medium hover:bg-muted transition-colors"
+									>
+										<Download class="h-3 w-3" />
+										<span>Télécharger .sysml</span>
+									</button>
+									<button
+										type="button"
+										onclick={() => {
+											navigator.clipboard.writeText(projections.sysmlV2);
+											copied = true;
+											setTimeout(() => (copied = false), 2000);
+										}}
+										class="text-[11px] font-semibold text-primary hover:underline"
+									>
+										Copier SysML
+									</button>
+								</div>
+							</div>
+							<pre class="rounded bg-muted/80 p-3 font-mono text-[11px] text-foreground overflow-x-auto max-h-48 border">{projections.sysmlV2}</pre>
+						</div>
+					{/if}
 				</div>
 			{:else if activeTab === 'config'}
 				<div class="space-y-2">

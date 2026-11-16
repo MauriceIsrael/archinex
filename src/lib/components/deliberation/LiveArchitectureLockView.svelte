@@ -166,6 +166,40 @@
 		}
 	}
 
+	async function handleUnratifySingleSlot(slotId: string, axisTitle?: string) {
+		if (!projectId || !slotId || isActionRunning) return;
+		if (!confirm(`Révoquer la ratification de l'emplacement « ${axisTitle || slotId} » ? Cette action sera journalisée.`)) {
+			return;
+		}
+		isActionRunning = true;
+		actionMessage = null;
+		actionError = null;
+		try {
+			const res = await fetch(`/api/projects/${encodeURIComponent(projectId)}/decision-slots`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					action: 'unratify_slot',
+					actorRole: 'lead_architect',
+					slotId,
+					reason: `Révocation explicite de l'emplacement ${slotId} depuis la Vue Architecture Lockée.`
+				})
+			});
+			const data = await res.json();
+			if (!res.ok || data.status === 'error') {
+				actionError = data.error || 'Échec de la révocation de cet emplacement.';
+			} else {
+				localSlotsState = data;
+				actionMessage = `Ratification révoquée pour « ${axisTitle || slotId} ».`;
+				await refreshLocalState();
+			}
+		} catch (e: any) {
+			actionError = e.message || 'Erreur réseau.';
+		} finally {
+			isActionRunning = false;
+		}
+	}
+
 	async function handleSealArchitectureLock() {
 		if (!projectId || isActionRunning) return;
 		isActionRunning = true;
@@ -963,9 +997,21 @@
 										✓ Ratifier cet axe
 									</button>
 								{:else}
-									<span class="text-[11px] font-mono text-emerald-700 dark:text-emerald-300">
-										Ratifié {slot.ratifiedBy ? `(${slot.ratifiedBy})` : ''}
-									</span>
+									<div class="flex items-center gap-2 flex-wrap">
+										<span class="text-[11px] font-mono text-emerald-700 dark:text-emerald-300">
+											Ratifié {slot.ratifiedBy ? `(${slot.ratifiedBy})` : ''}
+										</span>
+										<button
+											type="button"
+											disabled={isActionRunning}
+											onclick={() => handleUnratifySingleSlot(slot.slotId, slot.axisTitle)}
+											class="px-2 py-0.5 rounded border border-rose-500/40 bg-rose-500/10 hover:bg-rose-500/20 text-rose-800 dark:text-rose-200 font-semibold text-[10px] cursor-pointer"
+											title="Révoquer la ratification de cet emplacement"
+											data-testid="live-lock-unratify-slot-btn-{slot.slotId}"
+										>
+											↺ Révoquer
+										</button>
+									</div>
 								{/if}
 							</td>
 						</tr>

@@ -313,11 +313,25 @@ interface PersistedRatificationRecord {
   rationale: string;
 }
 
+export interface RatificationRevocationRecord {
+  revocationId: string;
+  slotId: string;
+  axisUrn: string;
+  previousLeafUrn: string;
+  previousLeafRevision: number | string;
+  revokedBy: string;
+  revokedRole: string;
+  revokedAt: string;
+  reason: string;
+  source: 'phase4' | 'phase5';
+}
+
 interface PersistedProjectSlotState {
   projectId: string;
   ratifications: Record<string, PersistedRatificationRecord>;
   promotions: Record<string, PromotedSubjectDescriptor>;
   receipts: BatchRatificationReceipt[];
+  revocations: RatificationRevocationRecord[];
   lastCoverageInput?: Omit<ProjectCompletenessInput, 'projectId'>;
   updatedAt: string;
 }
@@ -354,6 +368,7 @@ function createEmptyState(projectId: string): PersistedProjectSlotState {
     ratifications: {},
     promotions: {},
     receipts: [],
+    revocations: [],
     updatedAt: new Date().toISOString()
   };
 }
@@ -371,6 +386,7 @@ function loadProjectSlotState(projectId: string): PersistedProjectSlotState {
         ratifications: parsed.ratifications || {},
         promotions: parsed.promotions || {},
         receipts: Array.isArray(parsed.receipts) ? parsed.receipts : [],
+        revocations: Array.isArray(parsed.revocations) ? parsed.revocations : [],
         lastCoverageInput: parsed.lastCoverageInput,
         updatedAt: parsed.updatedAt || new Date().toISOString()
       };
@@ -1220,6 +1236,90 @@ export async function recordExplicitProjectSlotRatification(
       `Ratification explicite sur l'axe ${options.axisUrn} (${options.leafUrn}).`
   };
   saveProjectSlotState(options.projectId, state);
+}
+
+/**
+ * Révoque (dé-ratifie) un choix ratifié sur un emplacement/axe et enregistre une trace d'audit.
+ */
+export async function revokeProjectSlotRatification(options: {
+  projectId: string;
+  slotId?: string;
+  axisUrn?: string;
+  previousLeafUrn?: string;
+  actorId?: string;
+  actorRole?: string;
+  reason?: string;
+  source?: 'phase4' | 'phase5';
+  requireAuthorizedRole?: boolean;
+}): Promise<RatificationRevocationRecord | null> {
+  const actorId = options.actorId || 'architect';
+  const actorRole = options.actorRole || '';
+  if (options.requireAuthorizedRole !== false) {
+    assertAuthorizedSlotActor(actorId, actorRole);
+  }
+
+  const state = loadProjectSlotState(options.projectId);
+  const resolvedSlotId =
+    options.slotId || (options.axisUrn ? `slot:${options.axisUrn}` : '');
+  const existing =
+    (resolvedSlotId ? state.ratifications[resolvedSlotId] : undefined) ||
+    (options.axisUrn
+      ? Object.values(state.ratifications).find((r) => r.axisUrn === options.axisUrn)
+      : undefined);
+
+  if (!existing && !options.previousLeafUrn) {
+    return null;
+  }
+
+  const targetSlotId = existing?.slotId || resolvedSlotId;
+  const targetAxisUrn =
+    existing?.axisUrn || options.axisUrn || targetSlotId.replace(/^slot:/, '');
+  const previousLeafUrn = existing?.leafUrn || options.previousLeafUrn || '';
+  const previousLeafRevision = existing?.leafRevision ?? 1;
+
+  if (existing) {
+    delete state.ratifications[existing.slotId];
+  }
+  if (targetSlotId) {
+    delete state.ratifications[targetSlotId];
+  }
+
+  if (state.lastCoverageInput?.explicitBindings && previousLeafUrn) {
+    state.lastCoverageInput = {
+      ...state.lastCoverageInput,
+      explicitBindings: state.lastCoverageInput.explicitBindings.filter(
+        (b) => b.urn !== previousLeafUrn
+      )
+    };
+  }
+
+  const revokedAt = new Date().toISOString();
+  const revocation: RatificationRevocationRecord = {
+    revocationId: `revok-${createHash('sha256')
+      .update(`${options.projectId}:${targetSlotId}:${revokedAt}:${actorId}`)
+      .digest('hex')
+      .slice(0, 12)}`,
+    slotId: targetSlotId,
+    axisUrn: targetAxisUrn,
+    previousLeafUrn,
+    previousLeafRevision,
+    revokedBy: actorId,
+    revokedRole: actorRole || 'lead_architect',
+    revokedAt,
+    reason:
+      options.reason?.trim() ||
+      `Révocation explicite du choix ratifié sur l'axe ${targetAxisUrn}.`,
+    source: options.source || 'phase4'
+  };
+
+  state.revocations.push(revocation);
+  saveProjectSlotState(options.projectId, state);
+  return revocation;
+}
+
+export function getProjectRatificationAuditLog(projectId: string): RatificationRevocationRecord[] {
+  const state = loadProjectSlotState(projectId);
+  return [...state.revocations];
 }
 
 const SECURITY_COMPONENT_NAMES = new Set([

@@ -2035,7 +2035,7 @@ export const COMPLETE_COMPONENT_CATALOG: LogicalComponent[] = [
   ...TRANSVERSE_COMPONENT_CATALOG
 ];
 
-const DEFAULT_URN_TO_COMPONENT: Record<string, string> = {
+export const DEFAULT_URN_TO_COMPONENT: Record<string, string> = {
   'urn:archinex:ontology:security:hsm:eviden_proteccio': 'hsm-appliance',
   'urn:archinex:ontology:security:hsm:thales_luna': 'hsm-appliance',
   'urn:archinex:ontology:security:hsm:utimaco_secserver': 'hsm-appliance',
@@ -2057,6 +2057,62 @@ const DEFAULT_URN_TO_COMPONENT: Record<string, string> = {
   'urn:archinex:ontology:application:gis:central_fusion_server_only_geofencing': 'gis-server',
   'urn:archinex:ontology:application:gis:distributed_terminal_geofencing': 'ptt-server'
 };
+
+/**
+ * Résout de manière unifiée les noms de composants cibles associés à un ensemble d'URNs ontologiques
+ * (entités, triplets `instantiates_component`, mapping `DEFAULT_URN_TO_COMPONENT`, catalogue projet et slots émergents).
+ */
+export function resolveTargetComponentsForUrns(
+  urns: string[],
+  options?: {
+    customMap?: Record<string, string>;
+    entities?: Record<string, { instantiated_component?: unknown; projections?: Record<string, unknown> }>;
+    triplets?: Array<{ subject: string; predicate: string; object: string }>;
+  }
+): string[] {
+  const names = new Set<string>();
+  const urnSet = new Set(urns);
+
+  const normalizeComp = (raw: string): string => raw.replace(/^urn:archinex:component:/, '').trim();
+
+  for (const urn of urns) {
+    const customMapped = options?.customMap?.[urn];
+    if (customMapped) {
+      names.add(normalizeComp(customMapped));
+    }
+
+    const defaultMapped = DEFAULT_URN_TO_COMPONENT[urn];
+    if (defaultMapped) {
+      names.add(normalizeComp(defaultMapped));
+    }
+
+    const entity = options?.entities?.[urn];
+    if (typeof entity?.instantiated_component === 'string' && entity.instantiated_component) {
+      names.add(normalizeComp(entity.instantiated_component));
+    }
+    const projComp = entity?.projections?.instantiated_component;
+    if (typeof projComp === 'string' && projComp) {
+      names.add(normalizeComp(projComp));
+    }
+
+    const emergentNew = /^urn:archinex:ontology:application:emergent:new_([a-z0-9_-]+)$/i.exec(urn);
+    if (emergentNew) {
+      names.add(emergentNew[1].replace(/_/g, '-').toLowerCase());
+    }
+    const emergentAlloc = /^urn:archinex:ontology:application:emergent:allocate_([a-z0-9_-]+)$/i.exec(urn);
+    if (emergentAlloc) {
+      names.add(emergentAlloc[1].replace(/_/g, '-').toLowerCase());
+    }
+  }
+
+  for (const triplet of options?.triplets || []) {
+    if (triplet.predicate === 'instantiates_component' && urnSet.has(triplet.subject)) {
+      names.add(normalizeComp(triplet.object));
+    }
+  }
+
+  return Array.from(names).filter(Boolean).sort();
+}
 
 /**
  * Construit un composant logique conforme au modèle Base × Overlay × DC (0 IP en dur, Multi-NIC,

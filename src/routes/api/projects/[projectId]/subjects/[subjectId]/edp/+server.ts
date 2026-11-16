@@ -77,6 +77,9 @@ export const GET: RequestHandler = async ({ params, url }) => {
       const excludedLeafUrns: string[] = Array.isArray(parsedContent.excludedLeafUrns)
         ? parsedContent.excludedLeafUrns
         : [];
+      const excludedAxisUrns: string[] = Array.isArray(parsedContent.excludedAxisUrns)
+        ? parsedContent.excludedAxisUrns
+        : [];
       const selectedConceptUrn = requestedConcept || parsedContent.selectedConceptUrn || 'AUTO';
       const coverage = computeRefinementCoverage(
         {
@@ -86,6 +89,7 @@ export const GET: RequestHandler = async ({ params, url }) => {
           decisionText: parsedContent.decision_context?.decision || ctx.decisionText,
           explicitBindings,
           excludedLeafUrns,
+          excludedAxisUrns,
           autoBindFromText: true,
           selectedConceptUrn
         },
@@ -296,6 +300,9 @@ export const POST: RequestHandler = async (event) => {
       const excludedLeafSet = new Set<string>(
         Array.isArray(currentEdp.excludedLeafUrns) ? currentEdp.excludedLeafUrns : []
       );
+      const excludedAxisUrns: string[] = Array.isArray(currentEdp.excludedAxisUrns)
+        ? currentEdp.excludedAxisUrns
+        : [];
 
       const initialCoverage = computeRefinementCoverage(
         {
@@ -305,6 +312,7 @@ export const POST: RequestHandler = async (event) => {
           decisionText: currentEdp.decision_context?.decision || ctx.decisionText,
           explicitBindings: priorExplicitBindings,
           excludedLeafUrns: Array.from(excludedLeafSet),
+          excludedAxisUrns,
           autoBindFromText: true,
           selectedConceptUrn: activeConcept
         },
@@ -381,6 +389,7 @@ export const POST: RequestHandler = async (event) => {
           decisionText: currentEdp.decision_context?.decision || ctx.decisionText,
           explicitBindings,
           excludedLeafUrns,
+          excludedAxisUrns,
           autoBindFromText: true,
           selectedConceptUrn: activeConcept
         },
@@ -453,6 +462,7 @@ export const POST: RequestHandler = async (event) => {
         selectedConceptUrn: activeConcept,
         explicitBindings,
         excludedLeafUrns,
+        excludedAxisUrns,
         decision_context: {
           ...currentEdp.decision_context,
           ontology_bindings: newCoverage.composedBindings
@@ -542,6 +552,9 @@ export const POST: RequestHandler = async (event) => {
       const excludedLeafUrns: string[] = Array.isArray(currentEdp.excludedLeafUrns)
         ? currentEdp.excludedLeafUrns
         : [];
+      const excludedAxisUrns: string[] = Array.isArray(currentEdp.excludedAxisUrns)
+        ? currentEdp.excludedAxisUrns
+        : [];
 
       const axisLeaves = new Set<string>(
         axisUrn
@@ -574,6 +587,7 @@ export const POST: RequestHandler = async (event) => {
           decisionText: currentEdp.decision_context?.decision || ctx.decisionText,
           explicitBindings,
           excludedLeafUrns,
+          excludedAxisUrns,
           autoBindFromText: true,
           selectedConceptUrn: activeConcept
         },
@@ -622,6 +636,7 @@ export const POST: RequestHandler = async (event) => {
         selectedConceptUrn: activeConcept,
         explicitBindings,
         excludedLeafUrns,
+        excludedAxisUrns,
         decision_context: {
           ...currentEdp.decision_context,
           ontology_bindings: newCoverage.composedBindings
@@ -663,6 +678,138 @@ export const POST: RequestHandler = async (event) => {
     }
   }
 
+  // 3ter. Masquer / écarter ou réintégrer un axe hors-périmètre
+  if (action === 'dismiss_axis' || action === 'restore_axis') {
+    if (!axisUrn || typeof axisUrn !== 'string') {
+      return json({ success: false, error: 'axisUrn est requis.' }, { status: 400 });
+    }
+    try {
+      const catalog = await loadOntologyCatalog({ includeRuntimeOverlay: true });
+      const ctx = await loadSubjectContext(subjectId);
+
+      const fromDb = await (prisma as any).executableDecisionPackage?.findFirst({
+        where: { subjectId },
+        orderBy: { revision: 'desc' }
+      });
+
+      const currentEdp = fromDb
+        ? JSON.parse(fromDb.content)
+        : {
+            schema_version: '1.0',
+            metadata: {
+              id: ctx.edpPrimaryKey,
+              subject_id: subjectId,
+              title: ctx.title,
+              status: 'draft',
+              revision: 1
+            },
+            decision_context: {
+              problem: ctx.problem,
+              decision: ctx.decisionText,
+              ontology_bindings: []
+            },
+            provenance: {
+              production_mode: 'llm-proposed-human-approved',
+              created_at: new Date().toISOString()
+            }
+          };
+
+      const activeConcept = selectedConceptUrn || currentEdp.selectedConceptUrn || 'AUTO';
+      const priorExplicitBindings: Array<{ urn: string; revision: number | string }> =
+        currentEdp.explicitBindings ?? currentEdp.decision_context?.ontology_bindings ?? [];
+      const excludedLeafUrns: string[] = Array.isArray(currentEdp.excludedLeafUrns)
+        ? currentEdp.excludedLeafUrns
+        : [];
+      const excludedAxisSet = new Set<string>(
+        Array.isArray(currentEdp.excludedAxisUrns) ? currentEdp.excludedAxisUrns : []
+      );
+
+      let explicitBindings = priorExplicitBindings;
+      if (action === 'dismiss_axis') {
+        excludedAxisSet.add(axisUrn);
+        const axisLeaves = new Set<string>(
+          (catalog.triplets || [])
+            .filter((t) => t.predicate === 'implemented_by' && t.subject === axisUrn)
+            .map((t) => t.object)
+        );
+        explicitBindings = priorExplicitBindings.filter((b) => !axisLeaves.has(b.urn));
+      } else {
+        excludedAxisSet.delete(axisUrn);
+      }
+
+      const excludedAxisUrns = Array.from(excludedAxisSet);
+      const newCoverage = computeRefinementCoverage(
+        {
+          subjectId,
+          title: currentEdp.metadata?.title || ctx.title,
+          problem: currentEdp.decision_context?.problem || ctx.problem,
+          decisionText: currentEdp.decision_context?.decision || ctx.decisionText,
+          explicitBindings,
+          excludedLeafUrns,
+          excludedAxisUrns,
+          autoBindFromText: true,
+          selectedConceptUrn: activeConcept
+        },
+        catalog
+      );
+
+      const currentOverrides: LldHydrationOverrides = currentEdp.lldOverrides || {};
+      const hydratedInventory = composeMultiAxisHydration(
+        subjectId,
+        newCoverage.composedBindings,
+        catalog,
+        currentOverrides
+      );
+
+      const updatedEdp = {
+        ...currentEdp,
+        metadata: {
+          ...currentEdp.metadata,
+          id: ctx.edpPrimaryKey
+        },
+        selectedConceptUrn: activeConcept,
+        explicitBindings,
+        excludedLeafUrns,
+        excludedAxisUrns,
+        decision_context: {
+          ...currentEdp.decision_context,
+          ontology_bindings: newCoverage.composedBindings
+        },
+        refinementCoverage: newCoverage,
+        hydratedInventory,
+        lldOverrides: currentOverrides
+      };
+
+      await (prisma as any).executableDecisionPackage?.upsert({
+        where: { id: ctx.edpPrimaryKey },
+        create: {
+          id: ctx.edpPrimaryKey,
+          subjectId,
+          status: fromDb?.status || 'draft',
+          revision: fromDb?.revision || 1,
+          content: JSON.stringify(updatedEdp)
+        },
+        update: {
+          subjectId,
+          content: JSON.stringify(updatedEdp)
+        }
+      });
+
+      return json({
+        success: true,
+        edp: updatedEdp,
+        refinementCoverage: newCoverage,
+        hydratedInventory,
+        message:
+          action === 'dismiss_axis'
+            ? 'Axe écarté du périmètre du sujet.'
+            : 'Axe réintégré dans le périmètre du sujet.'
+      });
+    } catch (err: any) {
+      return json({ success: false, error: err.message }, { status: 500 });
+    }
+  }
+
   // 4. Hydratation multi-axes de l'inventaire Planned (Nautobot DCIM + Sylva CAPI + Zones Sécurité + Environnements + Énergie 2N)
   if (action === 'hydrate') {
     try {
@@ -680,6 +827,9 @@ export const POST: RequestHandler = async (event) => {
       const excludedLeafUrns: string[] = Array.isArray(parsedDb?.excludedLeafUrns)
         ? parsedDb.excludedLeafUrns
         : [];
+      const excludedAxisUrns: string[] = Array.isArray(parsedDb?.excludedAxisUrns)
+        ? parsedDb.excludedAxisUrns
+        : [];
       const currentOverrides: LldHydrationOverrides = overrides || parsedDb?.lldOverrides || {};
 
       const activeConcept = selectedConceptUrn || parsedDb?.selectedConceptUrn || 'AUTO';
@@ -692,6 +842,7 @@ export const POST: RequestHandler = async (event) => {
           decisionText: ctx.decisionText,
           explicitBindings,
           excludedLeafUrns,
+          excludedAxisUrns,
           autoBindFromText: true,
           selectedConceptUrn: activeConcept
         },
@@ -853,6 +1004,9 @@ export const POST: RequestHandler = async (event) => {
       const excludedLeafUrns: string[] = Array.isArray(parsedDb?.excludedLeafUrns)
         ? parsedDb.excludedLeafUrns
         : [];
+      const excludedAxisUrns: string[] = Array.isArray(parsedDb?.excludedAxisUrns)
+        ? parsedDb.excludedAxisUrns
+        : [];
 
       const activeConcept = selectedConceptUrn || parsedDb?.selectedConceptUrn || 'AUTO';
 
@@ -864,6 +1018,7 @@ export const POST: RequestHandler = async (event) => {
           decisionText: ctx.decisionText,
           explicitBindings,
           excludedLeafUrns,
+          excludedAxisUrns,
           autoBindFromText: true,
           selectedConceptUrn: activeConcept
         },
@@ -1030,6 +1185,9 @@ export const POST: RequestHandler = async (event) => {
       const excludedLeafUrns: string[] = Array.isArray(parsedDb?.excludedLeafUrns)
         ? parsedDb.excludedLeafUrns
         : [];
+      const excludedAxisUrns: string[] = Array.isArray(parsedDb?.excludedAxisUrns)
+        ? parsedDb.excludedAxisUrns
+        : [];
       const activeConcept = selectedConceptUrn || parsedDb?.selectedConceptUrn || 'AUTO';
       const activeOverrides: LldHydrationOverrides = parsedDb?.lldOverrides || {};
 
@@ -1041,6 +1199,7 @@ export const POST: RequestHandler = async (event) => {
           decisionText: ctx.decisionText,
           explicitBindings,
           excludedLeafUrns,
+          excludedAxisUrns,
           autoBindFromText: true,
           selectedConceptUrn: activeConcept
         },

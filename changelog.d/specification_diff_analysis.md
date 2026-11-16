@@ -1,18 +1,14 @@
-### IMP V2 Lots 1 à 4 — Modèle étendu, Déduction pare-feu, IP Fabric, Oracles OPA V2 & Convergence Sylva (#302, #303, #304, #305, #306)
+### IMP V2 Lots 1 à 5 — Alignement complet sur la spécification IMP V2 (#302, #303, #304, #305, #306, #307)
 - **Catalogues & Modèle (`src/lib/domain/edp/componentCatalog.ts`)** :
-  - Extension des classes NIC (`storage`, `backup`, `oob`) et ajout des catalogues `qosClasses`, `vlanPools`, `vniPools`, `firewalls` (`interzone`, `external`, `operator-link`), `certificateProfiles` (conformes RGS) et `drivers` (`CapabilityMatrix`).
-  - Ajout de l'entité `OrganizationSpec` (`kind: Organization`), de `deriveOrganizationBubble`, `validateOrganization` (§5.1) et `evaluateComponentIntegrationCharter` (§2.3).
-  - Extension de `LogicalComponent` pour les blocs IMP V2 (`network.fabric`, `routePropagation`/`bgpPropagation`, `loadBalancers`, `tunnels`, `apns`, `compute.namespaces`, `compute.hardware`, `storage.objectStores`, `exposure`, `observability`, `data.databases`, `supplyChain`, `lifecycle`).
-  - Ajout de `validateCertificateProfilesAndRgs` (rejet X.509 inline & RSA < 3072) et `validateDriverCapabilities`.
+  - Extension des classes NIC (`storage`, `backup`, `oob`), catalogues `qosClasses`, `vlanPools`, `vniPools`, `firewalls`, `certificateProfiles` (RGS) et `drivers` (`CapabilityMatrix`).
+  - Entité `OrganizationSpec` (`deriveOrganizationBubble`, `validateOrganization`), charte d'intégration (`evaluateComponentIntegrationCharter`), validation certificats/RGS et capacités drivers.
 - **Résolveur, Chemins Pare-feu & IP Fabric (`src/lib/domain/edp/refResolver.ts`)** :
-  - Déduction ordonnée des pare-feu traversés (`deduceFirewallPath`, `validateComponentFirewallPaths`) avec erreur bloquante sur paire de zones non protégée (§3.5.1).
-  - Validation IP Fabric / BGP (`validateIpFabricAndBgp`) : whitelists `routePropagation` / `bgpPropagation`, symétrie RT, `anycastFrom >= 2` pour les VIPs, et présence de `fabric.security` (§3.2.8).
-  - Flux implicites étendus (`generateImplicitFlows`) pour VPN, S3, `exposure` (entryPoints, MFT, MTA) et agents AV/EDR avec arêtes `generatedFrom` dans `buildReferenceGraph`.
-  - Constructeur `buildImpV2OpaInput()` pour alimenter l'oracle OPA Axe 10.
+  - `deduceFirewallPath()`, `validateComponentFirewallPaths()`, `validateIpFabricAndBgp()`, flux implicites étendus (`generateImplicitFlows`), arêtes `generatedFrom` et `buildImpV2OpaInput()`.
 - **Oracles OPA/Rego (`edp/policies/multi_axis_refinement.rego`)** :
-  - Ajout de l'Axe 10 (`imp_v2`) : contrôles RGS (profils certificats, rejet X.509 inline, RSA < 3072, TLS < 1.2), séparation `Organization`/`Component`, `CapabilityMatrix`, charte d'intégration, chemins pare-feu et IP Fabric.
+  - Axe 10 (`imp_v2`) : RGS/certificats, TLS >= 1.2, séparation `Organization`/`Component`, `CapabilityMatrix`, charte d'intégration, chemins pare-feu et IP Fabric.
 - **Convergence Sylva (`src/lib/domain/edp/sylvaTwin.ts`, `src/lib/server/edp/sylvaGitopsExport.ts`)** :
-  - Alimentation du jumeau numérique (`buildSylvaTwinModel`) depuis `compute.hardware` (BMC Redfish, capacité) et `compute.namespaces` (quotas).
-  - Ajout de `planSylvaClusterDriver()` implémentant le contrat `ClusterDriver` (§7.1–§7.3).
-- **Tests (`tests/contract/imp-v2-lot1..4*.test.ts`)** :
-  - Ajout de 15 tests de contrat couvrant les Lots 1 à 4.
+  - Alimentation du jumeau (`buildSylvaTwinModel`) depuis `compute.hardware` et `compute.namespaces` ; ajout de `planSylvaClusterDriver()`.
+- **State Registry & Matrices V2 (`src/lib/domain/edp/stateRegistry.ts`)** :
+  - `recordRegistryOperation()`, `diffResolvedAgainstSnapshot()`, `placeEntityInQuarantine()`, `listGcEligibleEntities()`, `exportCmdbRecords()` et générateurs de matrices (`buildCertificateMatrixV2`, `buildFirewallMatrixV2`, `buildBgpRoutingAnnexV2`, `buildExposureMatrixV2`).
+- **Tests (`tests/contract/imp-v2-lot1..5*.test.ts`)** :
+  - Ajout de 18 tests de contrat couvrant les Lots 1 à 5.

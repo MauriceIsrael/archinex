@@ -1,0 +1,39 @@
+apiVersion: workload.sylva.org/v1alpha1
+kind: SylvaWorkloadCluster
+metadata:
+  name: {{ .Values.cluster.name }}
+  namespace: {{ .Values.cluster.namespace | default "sylva-system" }}
+  labels:
+    sylva.org/release: {{ .Values.cluster.sylva_release | quote }}
+    app.kubernetes.io/managed-by: {{ .Release.Service }}
+spec:
+  capi_providers:
+    infra_provider: {{ .Values.cluster.capi_providers.infra_provider | default "capm3" }}
+    bootstrap_provider: {{ .Values.cluster.capi_providers.bootstrap_provider | default "cabpr" }}
+  k8s_version: {{ .Values.cluster.k8s_version | default "v1.28.11+rke2r1" }}
+  os_image_selector:
+    os: {{ .Values.cluster.os_image_selector.os | default "sle-micro" }}
+    release: {{ .Values.cluster.os_image_selector.release | default "5.5" | quote }}
+    hardened: {{ .Values.cluster.os_image_selector.hardened | default true }}
+  units:
+    {{- range $unit, $cfg := .Values.units }}
+    {{ $unit }}:
+      enabled: {{ $cfg.enabled }}
+    {{- end }}
+{{- range $host := .Values.baremetal_hosts }}
+---
+apiVersion: metal3.io/v1alpha1
+kind: BareMetalHost
+metadata:
+  name: {{ $host.name }}
+  namespace: {{ $.Values.cluster.namespace | default "sylva-system" }}
+  labels:
+    topology.kubernetes.io/zone: {{ $host.datacenter }}
+    sylva.org/pool: {{ $host.pool }}
+spec:
+  online: true
+  bootMACAddress: {{ $host.bootMACAddress | quote }}
+  bmc:
+    address: {{ $host.bmcAddress | quote }}
+    disableCertificateVerification: true
+{{- end }}

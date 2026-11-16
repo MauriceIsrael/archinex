@@ -1,4 +1,4 @@
-# tools.ps1 - Gestion de la stack d'outillage intégrateur (Nautobot, Batfish, OPA)
+﻿# tools.ps1 - Gestion de la stack d'outillage intégrateur (Nautobot, Batfish, OPA)
 param (
     [Parameter(Position=0)]
     [ValidateSet("up", "down", "status", "seed", "test", "reset")]
@@ -110,6 +110,7 @@ switch ($Command) {
         Write-Host " - Nautobot GraphQL      : http://127.0.0.1:8080/api/graphql/"
         Write-Host " - Batfish Service API   : http://127.0.0.1:9997"
         Write-Host " - OPA Server HTTP       : http://127.0.0.1:8181/v1/data"
+        Write-Host " - sushy-emulator Redfish: http://127.0.0.1:8000/redfish/v1/Systems"
     }
 
     "test" {
@@ -133,6 +134,14 @@ switch ($Command) {
             Write-Host "[OK] OPA Server REST : Réponse reçue" -ForegroundColor Green
         } catch {
             Write-Host "[FAIL] OPA Server REST non joignable : $_" -ForegroundColor Red
+        }
+
+        # Test sushy-emulator Redfish
+        try {
+            $redfishRes = Invoke-RestMethod -Uri "http://127.0.0.1:8000/redfish/v1/Systems" -Method Get
+            Write-Host "[OK] sushy-emulator Redfish : $($redfishRes.Members.Count) système(s) exposé(s)" -ForegroundColor Green
+        } catch {
+            Write-Host "[FAIL] sushy-emulator Redfish non joignable : $_" -ForegroundColor Red
         }
     }
 }

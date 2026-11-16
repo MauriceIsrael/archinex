@@ -837,6 +837,7 @@ export function generateSushyEmulatorConfig(model: SylvaTwinModel): SushyEmulato
     `# Cible Sylva : ${model.sylvaRelease} · Provider CAPI : capm3 (Metal3 Redfish)`,
     'SUSHY_EMULATOR_LISTEN_IP = "0.0.0.0"',
     'SUSHY_EMULATOR_LISTEN_PORT = 8000',
+    'SUSHY_EMULATOR_FAKE_DRIVER = True',
     'SUSHY_EMULATOR_OS_CLOUD = None',
     'SUSHY_EMULATOR_LIBVIRT_URI = None',
     'SUSHY_EMULATOR_FAKE_SYSTEMS = [',
@@ -858,41 +859,333 @@ export function generateSushyEmulatorConfig(model: SylvaTwinModel): SushyEmulato
  * afin d'exécuter le vrai kube-scheduler en CI (Palier T2) sur la topologie du jumeau.
  */
 export function generateKwokNodeManifests(model: SylvaTwinModel): Array<Record<string, unknown>> {
-  return model.bareMetalHosts.map((h) => ({
-    apiVersion: 'v1',
-    kind: 'Node',
-    metadata: {
-      name: h.name,
-      annotations: {
-        'kwok.x-k8s.io/node': 'fake',
-        'metal3.io/BareMetalHost': `sylva-system/${h.name}`,
-        'archinex.io/bmc-redfish': h.bmcAddress
+  return model.bareMetalHosts.map((h) => {
+    const labels: Record<string, string> = {
+      'kubernetes.io/hostname': h.name,
+      'topology.kubernetes.io/zone': h.datacenter,
+      'sylva.org/pool': h.pool,
+      'sylva.org/dataplane': h.dataplaneProfile
+    };
+    if (h.role === 'control-plane' || h.role === 'witness') {
+      labels['node-role.kubernetes.io/control-plane'] = 'true';
+    }
+
+    const node: Record<string, unknown> = {
+      apiVersion: 'v1',
+      kind: 'Node',
+      metadata: {
+        name: h.name,
+        annotations: {
+          'kwok.x-k8s.io/node': 'fake',
+          'metal3.io/BareMetalHost': `sylva-system/${h.name}`,
+          'archinex.io/bmc-redfish': h.bmcAddress
+        },
+        labels
       },
-      labels: {
-        'kubernetes.io/hostname': h.name,
-        'topology.kubernetes.io/zone': h.datacenter,
-        'sylva.org/pool': h.pool,
-        'sylva.org/dataplane': h.dataplaneProfile,
-        'node-role.kubernetes.io/control-plane': h.role === 'control-plane' || h.role === 'witness' ? 'true' : undefined
+      status: {
+        phase: 'Running',
+        conditions: [
+          {
+            type: 'Ready',
+            status: 'True',
+            reason: 'KubeletReady',
+            message: 'kwok fake node ready'
+          }
+        ],
+        allocatable: {
+          cpu: String(h.capacity.cpuCores),
+          memory: `${h.capacity.memoryGiB}Gi`,
+          'hugepages-1Gi': `${h.capacity.hugepages1Gi}Gi`,
+          'intel.com/sriov_netdevice': String(h.capacity.sriovVfs),
+          pods: '110'
+        },
+        capacity: {
+          cpu: String(h.capacity.cpuCores),
+          memory: `${h.capacity.memoryGiB}Gi`,
+          'hugepages-1Gi': `${h.capacity.hugepages1Gi}Gi`,
+          'intel.com/sriov_netdevice': String(h.capacity.sriovVfs),
+          pods: '110'
+        }
       }
-    },
-    status: {
-      allocatable: {
-        cpu: String(h.capacity.cpuCores),
-        memory: `${h.capacity.memoryGiB}Gi`,
-        'hugepages-1Gi': `${h.capacity.hugepages1Gi}Gi`,
-        'intel.com/sriov_netdevice': String(h.capacity.sriovVfs),
-        pods: '110'
-      },
-      capacity: {
-        cpu: String(h.capacity.cpuCores),
-        memory: `${h.capacity.memoryGiB}Gi`,
-        'hugepages-1Gi': `${h.capacity.hugepages1Gi}Gi`,
-        'intel.com/sriov_netdevice': String(h.capacity.sriovVfs),
-        pods: '110'
+    };
+
+    if (h.role === 'witness') {
+      node.spec = {
+        taints: [
+          {
+            key: 'sylva.org/witness-only',
+            value: 'true',
+            effect: 'NoSchedule'
+          }
+        ]
+      };
+    }
+
+    return node;
+  });
+}
+
+/**
+ * Génère les manifestes `Namespace` et `Deployment` Kubernetes pour le runner KWOK (Palier T2)
+ * à partir des demandes de charge `workloadDemands` du modèle T1.
+ */
+export function generateKwokWorkloadManifests(
+  model: SylvaTwinModel,
+  namespace = 'sylva-twin-sim'
+): Array<Record<string, unknown>> {
+  const nsManifest: Record<string, unknown> = {
+    apiVersion: 'v1',
+    kind: 'Namespace',
+    metadata: {
+      name: namespace,
+      labels: {
+        'sylva.org/twin-profile': model.profileId
       }
     }
-  }));
+  };
+
+  // Agrège les demandes par module pour permettre au kube-scheduler de répartir via topologySpreadConstraints
+  const byModule = new Map<
+    string,
+    {
+      moduleName: string;
+      componentName: string;
+      pool: string;
+      requiredDataplane: string;
+      replicas: number;
+      cpuCoresTotal: number;
+      memoryGiBTotal: number;
+      hugepages1GiTotal: number;
+      sriovVfsTotal: number;
+    }
+  >();
+
+  for (const d of model.workloadDemands) {
+    const existing = byModule.get(d.moduleName);
+    if (existing) {
+      existing.replicas += d.replicas;
+      existing.cpuCoresTotal += d.cpuCoresTotal;
+      existing.memoryGiBTotal += d.memoryGiBTotal;
+      existing.hugepages1GiTotal += d.hugepages1GiTotal;
+      existing.sriovVfsTotal += d.sriovVfsTotal;
+    } else {
+      byModule.set(d.moduleName, {
+        moduleName: d.moduleName,
+        componentName: d.componentName,
+        pool: d.pool,
+        requiredDataplane: d.requiredDataplane,
+        replicas: d.replicas,
+        cpuCoresTotal: d.cpuCoresTotal,
+        memoryGiBTotal: d.memoryGiBTotal,
+        hugepages1GiTotal: d.hugepages1GiTotal,
+        sriovVfsTotal: d.sriovVfsTotal
+      });
+    }
+  }
+
+  const deployments: Array<Record<string, unknown>> = [];
+  for (const mod of byModule.values()) {
+    const safeReplicas = Math.max(1, mod.replicas);
+    const cpuPerPod = Math.max(1, Math.round(mod.cpuCoresTotal / safeReplicas));
+    const memPerPod = Math.max(1, Math.round(mod.memoryGiBTotal / safeReplicas));
+    const hpPerPod = mod.hugepages1GiTotal > 0 ? Math.max(1, Math.round(mod.hugepages1GiTotal / safeReplicas)) : 0;
+    const vfPerPod = mod.sriovVfsTotal > 0 ? Math.max(1, Math.round(mod.sriovVfsTotal / safeReplicas)) : 0;
+
+    const requests: Record<string, string> = {
+      cpu: String(cpuPerPod),
+      memory: `${memPerPod}Gi`
+    };
+    const limits: Record<string, string> = {
+      cpu: String(cpuPerPod),
+      memory: `${memPerPod}Gi`
+    };
+    if (hpPerPod > 0) {
+      requests['hugepages-1Gi'] = `${hpPerPod}Gi`;
+      limits['hugepages-1Gi'] = `${hpPerPod}Gi`;
+    }
+    if (vfPerPod > 0) {
+      requests['intel.com/sriov_netdevice'] = String(vfPerPod);
+      limits['intel.com/sriov_netdevice'] = String(vfPerPod);
+    }
+
+    const isSriov = mod.pool === 'sylva-cnf-sriov-dpdk' || vfPerPod > 0 || hpPerPod > 0;
+    const podSpec: Record<string, unknown> = {
+      terminationGracePeriodSeconds: 0,
+      topologySpreadConstraints: [
+        {
+          maxSkew: 1,
+          topologyKey: 'topology.kubernetes.io/zone',
+          whenUnsatisfiable: 'ScheduleAnyway',
+          labelSelector: {
+            matchLabels: {
+              'sylva.org/module': mod.moduleName
+            }
+          }
+        }
+      ],
+      containers: [
+        {
+          name: mod.moduleName,
+          image: 'registry.k8s.io/pause:3.9',
+          resources: {
+            requests,
+            limits
+          }
+        }
+      ]
+    };
+
+    if (isSriov) {
+      podSpec.nodeSelector = {
+        'sylva.org/pool': 'sylva-cnf-sriov-dpdk'
+      };
+    } else {
+      podSpec.affinity = {
+        nodeAffinity: {
+          preferredDuringSchedulingIgnoredDuringExecution: [
+            {
+              weight: 80,
+              preference: {
+                matchExpressions: [
+                  {
+                    key: 'sylva.org/pool',
+                    operator: 'In',
+                    values: ['sylva-general-compute']
+                  }
+                ]
+              }
+            }
+          ]
+        }
+      };
+    }
+
+    deployments.push({
+      apiVersion: 'apps/v1',
+      kind: 'Deployment',
+      metadata: {
+        name: `twin-${mod.moduleName}`,
+        namespace,
+        labels: {
+          'app.kubernetes.io/name': mod.moduleName,
+          'sylva.org/component': mod.componentName,
+          'sylva.org/module': mod.moduleName,
+          'sylva.org/pool': mod.pool
+        }
+      },
+      spec: {
+        replicas: safeReplicas,
+        selector: {
+          matchLabels: {
+            'sylva.org/module': mod.moduleName
+          }
+        },
+        template: {
+          metadata: {
+            labels: {
+              'app.kubernetes.io/name': mod.moduleName,
+              'sylva.org/module': mod.moduleName,
+              'sylva.org/pool': mod.pool
+            }
+          },
+          spec: podSpec
+        }
+      }
+    });
+  }
+
+  return [nsManifest, ...deployments];
+}
+
+export interface KwokClusterPlacementObservation {
+  clusterName: string;
+  k8sVersion?: string;
+  baseline: {
+    totalPods: number;
+    scheduledPods: number;
+    pendingPods: number;
+    unschedulablePodNames: string[];
+    podsByZone: Record<string, number>;
+  };
+  dcLossPrimary: {
+    drainedZone: string;
+    totalPods: number;
+    scheduledPods: number;
+    pendingPods: number;
+    unschedulablePodNames: string[];
+    podsByZone: Record<string, number>;
+  };
+}
+
+export interface T1T2CalibrationReport {
+  profileId: SylvaTopologyProfileId;
+  sylvaRelease: string;
+  fidelityReached: 2;
+  calibrated: boolean;
+  t1BaselineFit: boolean;
+  t2BaselineFit: boolean;
+  t1DcLossFit: boolean;
+  t2DcLossFit: boolean;
+  discrepancies: string[];
+  summary: string;
+}
+
+/**
+ * Confronte les prédictions analytiques T1 aux placements réels observés sur le
+ * kube-scheduler via KWOK (Palier T2) avant et après injection de panne `dc_loss_primary`.
+ */
+export function calibrateT1WithKwokResults(
+  t1Eval: SylvaTwinProfileEvaluation,
+  observation: KwokClusterPlacementObservation
+): T1T2CalibrationReport {
+  const totalCpuCap = t1Eval.model.bareMetalHosts
+    .filter((h) => h.role !== 'witness')
+    .reduce((acc, h) => acc + h.capacity.cpuCores, 0);
+  const totalCpuReq = t1Eval.model.workloadDemands.reduce((acc, d) => acc + d.cpuCoresTotal, 0);
+  const t1BaselineFit = totalCpuReq <= totalCpuCap;
+
+  const dc1Loss = t1Eval.faultResults.find((f) => f.faultId === 'dc_loss_primary');
+  const t1DcLossFit = dc1Loss ? dc1Loss.rescheduledWorkloadsFit : false;
+
+  const t2BaselineFit =
+    observation.baseline.totalPods > 0 &&
+    observation.baseline.pendingPods === 0 &&
+    observation.baseline.scheduledPods === observation.baseline.totalPods;
+
+  const t2DcLossFit =
+    observation.dcLossPrimary.totalPods > 0 &&
+    observation.dcLossPrimary.pendingPods === 0 &&
+    observation.dcLossPrimary.scheduledPods === observation.dcLossPrimary.totalPods;
+
+  const discrepancies: string[] = [];
+  if (t1BaselineFit !== t2BaselineFit) {
+    discrepancies.push(
+      `Baseline mismatch: T1 predicted fit=${t1BaselineFit}, KWOK kube-scheduler observed fit=${t2BaselineFit} (pending=${observation.baseline.pendingPods}: ${observation.baseline.unschedulablePodNames.join(', ')})`
+    );
+  }
+  if (t1DcLossFit !== t2DcLossFit) {
+    discrepancies.push(
+      `dc_loss_primary mismatch: T1 predicted fit=${t1DcLossFit}, KWOK kube-scheduler observed fit=${t2DcLossFit} (pending=${observation.dcLossPrimary.pendingPods}: ${observation.dcLossPrimary.unschedulablePodNames.join(', ')})`
+    );
+  }
+
+  const calibrated = discrepancies.length === 0;
+  const summary = calibrated
+    ? `Calibration T1 ↔ T2 réussie pour '${t1Eval.profileId}' : ${observation.baseline.scheduledPods}/${observation.baseline.totalPods} pods planifiés à l'état nominal et ${observation.dcLossPrimary.scheduledPods}/${observation.dcLossPrimary.totalPods} re-planifiés après perte de ${observation.dcLossPrimary.drainedZone}.`
+    : `Dérive T1 ↔ T2 détectée pour '${t1Eval.profileId}' : ${discrepancies.join(' | ')}`;
+
+  return {
+    profileId: t1Eval.profileId,
+    sylvaRelease: t1Eval.model.sylvaRelease,
+    fidelityReached: 2,
+    calibrated,
+    t1BaselineFit,
+    t2BaselineFit,
+    t1DcLossFit,
+    t2DcLossFit,
+    discrepancies,
+    summary
+  };
 }
 
 const DEFAULT_FAULT_SUITE: FaultKind[] = [

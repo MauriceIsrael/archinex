@@ -77,6 +77,7 @@ case "$COMMAND" in
       echo " - Nautobot GraphQL      : http://127.0.0.1:8080/api/graphql/"
       echo " - Batfish Service API   : http://127.0.0.1:9997"
       echo " - OPA Server HTTP       : http://127.0.0.1:8181/v1/data"
+      echo " - sushy-emulator Redfish: http://127.0.0.1:8000/redfish/v1/Systems"
     fi
     ;;
 

@@ -1,0 +1,190 @@
+name: Sylva Digital Twin CI (Palier 2 — KWOK & sushy-emulator)
+
+# Exécute en CI les moteurs Palier 2 (#294) :
+# 1. Bouchon Redfish BMC sushy-emulator (quay.io/metal3-io/sushy-tools) via deploy/integrator-tools/compose.yml
+# 2. Rendu Helm (Sylva LATEST) + cluster KWOK (kube-scheduler réel) + calibration T1 <-> T2
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'src/lib/domain/edp/sylvaTwin.ts'
+      - 'src/lib/server/edp/sylvaTwinEvaluation.ts'
+      - 'edp/policies/twin_resilience.rego'
+      - 'edp/charts/**'
+      - 'deploy/integrator-tools/**'
+      - 'scripts/generate-twin-ci-bundle.ts'
+      - 'scripts/calibrate-twin-t1-t2.ts'
+      - '.github/workflows/twin-ci.yml'
+  pull_request:
+    paths:
+      - 'src/lib/domain/edp/sylvaTwin.ts'
+      - 'src/lib/server/edp/sylvaTwinEvaluation.ts'
+      - 'edp/policies/twin_resilience.rego'
+      - 'edp/charts/**'
+      - 'deploy/integrator-tools/**'
+      - 'scripts/generate-twin-ci-bundle.ts'
+      - 'scripts/calibrate-twin-t1-t2.ts'
+      - '.github/workflows/twin-ci.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: twin-ci-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  sushy-redfish-mock:
+    name: sushy-emulator Redfish BMC Mock
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Installer les dépendances
+        run: npm ci
+
+      - name: Générer et vérifier la config sushy-emulator.conf
+        run: |
+          npx tsx scripts/generate-twin-ci-bundle.ts --out /tmp/twin-bundle --profile 3dc-active
+          diff -u deploy/integrator-tools/sushy-emulator.conf /tmp/twin-bundle/sushy-emulator.conf
+
+      - name: Démarrer sushy-emulator via Docker Compose
+        run: docker compose -f deploy/integrator-tools/compose.yml up -d sushy-emulator
+
+      - name: Vérifier l'API Redfish /redfish/v1/Systems
+        run: |
+          for i in $(seq 1 30); do
+            if curl -fsS http://127.0.0.1:8000/redfish/v1/Systems > /tmp/redfish-systems.json 2>/dev/null; then
+              cat /tmp/redfish-systems.json
+              node -e "const d=require('fs').readFileSync('/tmp/redfish-systems.json','utf8'); const j=JSON.parse(d); if(!j['@odata.id']) process.exit(1);"
+              exit 0
+            fi
+            sleep 2
+          done
+          docker compose -f deploy/integrator-tools/compose.yml logs sushy-emulator
+          exit 1
+
+      - name: Nettoyer sushy-emulator
+        if: always()
+        run: docker compose -f deploy/integrator-tools/compose.yml down
+
+  kwok-scheduler-and-helm:
+    name: Helm Template (Sylva LATEST) & KWOK Calibration T1 <-> T2
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+
+      - uses: azure/setup-helm@v4
+      - uses: azure/setup-kubectl@v4
+
+      - name: Installer kwokctl (v0.6.1)
+        run: |
+          KWOK_VERSION="v0.6.1"
+          curl -fsSL -o /usr/local/bin/kwokctl "https://github.com/kubernetes-sigs/kwok/releases/download/${KWOK_VERSION}/kwokctl-linux-amd64"
+          chmod +x /usr/local/bin/kwokctl
+          kwokctl --version
+
+      - name: Installer les dépendances
+        run: npm ci
+
+      - name: Générer le bundle T2 (KWOK + Helm values + T1)
+        run: npx tsx scripts/generate-twin-ci-bundle.ts --out /tmp/twin-bundle --profile 3dc-active
+
+      - name: Exécuter helm lint & helm template (Sylva LATEST)
+        run: |
+          helm lint edp/charts/sylva-workload-twin -f /tmp/twin-bundle/helm-values.json
+          helm template sylva-twin edp/charts/sylva-workload-twin -f /tmp/twin-bundle/helm-values.json > /tmp/twin-bundle/rendered-sylva.yaml
+          grep -q "kind: SylvaWorkloadCluster" /tmp/twin-bundle/rendered-sylva.yaml
+          grep -q "kind: BareMetalHost" /tmp/twin-bundle/rendered-sylva.yaml
+
+      - name: Créer le cluster KWOK et appliquer les nœuds + charges
+        run: |
+          kwokctl create cluster --name sylva-twin-ci
+          kubectl apply -f /tmp/twin-bundle/kwok-nodes.json
+          kubectl wait --for=condition=Ready node --all --timeout=60s
+          kubectl apply -f /tmp/twin-bundle/kwok-workloads.json
+
+          # Attendre que kube-scheduler planifie tous les pods nominaux
+          for i in $(seq 1 30); do
+            PENDING=$(kubectl get pods -n sylva-twin-sim --no-headers 2>/dev/null | grep -cv "Running" || true)
+            TOTAL=$(kubectl get pods -n sylva-twin-sim --no-headers 2>/dev/null | wc -l)
+            if [ "$TOTAL" -gt 0 ] && [ "$PENDING" -eq 0 ]; then
+              break
+            fi
+            sleep 2
+          done
+          kubectl get pods -n sylva-twin-sim -o wide
+          kubectl get nodes -o json > /tmp/twin-bundle/nodes-baseline.json
+          kubectl get pods -n sylva-twin-sim -o json > /tmp/twin-bundle/pods-baseline.json
+
+      - name: Injecter la panne dc_loss_primary (suppression des nœuds dc1) et observer la re-planification
+        run: |
+          kubectl delete nodes -l topology.kubernetes.io/zone=dc1
+          sleep 5
+          for i in $(seq 1 30); do
+            PENDING=$(kubectl get pods -n sylva-twin-sim --no-headers 2>/dev/null | grep -cv "Running" || true)
+            TOTAL=$(kubectl get pods -n sylva-twin-sim --no-headers 2>/dev/null | wc -l)
+            if [ "$TOTAL" -gt 0 ] && [ "$PENDING" -eq 0 ]; then
+              break
+            fi
+            sleep 2
+          done
+          kubectl get pods -n sylva-twin-sim -o wide
+          kubectl get nodes -o json > /tmp/twin-bundle/nodes-postfault.json
+          kubectl get pods -n sylva-twin-sim -o json > /tmp/twin-bundle/pods-postfault.json
+
+      - name: Construire l'observation KWOK et calibrer T1 <-> T2
+        run: |
+          node -e '
+            const fs = require("fs");
+            function summarize(nodesPath, podsPath) {
+              const nodes = JSON.parse(fs.readFileSync(nodesPath, "utf8")).items;
+              const pods = JSON.parse(fs.readFileSync(podsPath, "utf8")).items;
+              const zoneByNode = Object.fromEntries(nodes.map(n => [n.metadata.name, n.metadata.labels?.["topology.kubernetes.io/zone"] || "unknown"]));
+              const podsByZone = {};
+              const unschedulablePodNames = [];
+              let scheduledPods = 0;
+              let pendingPods = 0;
+              for (const p of pods) {
+                if (p.spec?.nodeName) {
+                  scheduledPods++;
+                  const z = zoneByNode[p.spec.nodeName] || "unknown";
+                  podsByZone[z] = (podsByZone[z] || 0) + 1;
+                } else {
+                  pendingPods++;
+                  unschedulablePodNames.push(p.metadata.name);
+                }
+              }
+              return { totalPods: pods.length, scheduledPods, pendingPods, unschedulablePodNames, podsByZone };
+            }
+            const obs = {
+              clusterName: "sylva-twin-ci",
+              baseline: summarize("/tmp/twin-bundle/nodes-baseline.json", "/tmp/twin-bundle/pods-baseline.json"),
+              dcLossPrimary: {
+                drainedZone: "dc1",
+                ...summarize("/tmp/twin-bundle/nodes-postfault.json", "/tmp/twin-bundle/pods-postfault.json")
+              }
+            };
+            fs.writeFileSync("/tmp/twin-bundle/kwok-observation.json", JSON.stringify(obs, null, 2));
+          '
+          npx tsx scripts/calibrate-twin-t1-t2.ts \
+            --t1 /tmp/twin-bundle/t1-evaluation.json \
+            --t2 /tmp/twin-bundle/kwok-observation.json
+
+      - name: Supprimer le cluster KWOK
+        if: always()
+        run: kwokctl delete cluster --name sylva-twin-ci || true

@@ -115,5 +115,21 @@ services:
       - "127.0.0.1:8181:8181"
     restart: unless-stopped
 
+  sushy-emulator:
+    image: quay.io/metal3-io/sushy-tools:latest
+    container_name: archinex-sushy-emulator
+    command: ["sushy-emulator", "--config", "/etc/sushy/sushy-emulator.conf"]
+    volumes:
+      - ./sushy-emulator.conf:/etc/sushy/sushy-emulator.conf:ro
+    ports:
+      - "127.0.0.1:8000:8000"
+    healthcheck:
+      test: ["CMD-SHELL", "python3 -c 'import urllib.request; urllib.request.urlopen(\"http://127.0.0.1:8000/redfish/v1/Systems\")' || exit 1"]
+      interval: 10s
+      timeout: 5s
+      start_period: 10s
+      retries: 10
+    restart: unless-stopped
+
 volumes:
   nautobot-db-data:

@@ -207,6 +207,17 @@ class DeliberationStore {
 	 * projections (Mermaid, C4, SysML, JSON) et le gel en ont besoin ici — sans quoi l'option retenue n'apparaît dans aucun schéma.
 	 */
 	decisionContexts = $state<Record<string, { decision: Decision | null; options: Option[] }>>({});
+	edpContexts = $state<
+		Record<
+			string,
+			{
+				decisionSlots: any[];
+				ontologyAxes: any[];
+				clauses: any[];
+				catalogComponents: any[];
+			}
+		>
+	>({});
 	detailedSpecs = $state<Record<string, string>>({});
 	selectedStatementForWhy = $state<Statement | null>(null);
 	isFreezeDialogOpen = $state<boolean>(false);
@@ -340,6 +351,7 @@ class DeliberationStore {
 				this.activePosture = restoredPosture;
 			}
 			this.decisionContexts = {};
+			this.edpContexts = {};
 			this.detailedSpecs = {};
 			this.frozenSnapshots = {};
 		}
@@ -1618,6 +1630,19 @@ class DeliberationStore {
 		const eng = this.activeEngagement;
 		const subject = this.subjects.find((s) => s.id === subjectId);
 		const { decision, options = [] } = this.decisionContexts[subjectId] ?? {};
+		const edpCtx = this.edpContexts[subjectId];
+		const baseRequirements = (subject?.requirement_ids || []).map((id) => ({
+			clauseRef: id.split(':').pop() || id,
+			title: id
+		}));
+		const clauseRequirements = (edpCtx?.clauses || []).map((c: any) => ({
+			clauseRef: c.matchedRequirementId || c.clauseId || c.text,
+			title: c.text || c.clauseId,
+			axisUrn: c.matchedAxisUrn,
+			status: c.status,
+			matchedLeafTitle: c.matchedLeafTitle
+		}));
+
 		return {
 			projectId: eng?.id || this.activeEngagementId || 'default-project',
 			projectName: eng?.title || 'Engagement Archinex',
@@ -1638,31 +1663,75 @@ class DeliberationStore {
 					}
 				: null,
 			options: options.map((o) => ({ id: o.id, title: o.title, summary: o.summary, status: o.status })),
-			requirements: (subject?.requirement_ids || []).map((id) => ({
-				clauseRef: id.split(':').pop() || id,
-				title: id
-			})),
+			requirements: clauseRequirements.length > 0 ? clauseRequirements : baseRequirements,
+			decisionSlots: edpCtx?.decisionSlots,
+			ontologyAxes: edpCtx?.ontologyAxes,
+			catalogComponents: edpCtx?.catalogComponents,
 			sealSha256: this.frozenSnapshots[subjectId]?.sealSha256,
 			detailedSpecText: this.getDetailedSpec(subjectId)
 		};
 	}
 
 	/**
-	 * Charge la décision et les options d'un sujet pour les projections. Une API muette laisse l'état précédent : on ne remplace
-	 * pas une décision connue par « aucune » sur une erreur réseau.
+	 * Charge la décision, les options et le contexte multi-axes EDP/catalogue d'un sujet pour les projections.
+	 * Une API muette laisse l'état précédent : on ne remplace pas une décision connue par « aucune » sur une erreur réseau.
 	 */
 	async fetchDecisionContext(subjectId: string, projectId = this.activeEngagement?.id || this.activeEngagementId) {
 		if (!projectId || !subjectId || typeof window === 'undefined') return;
 		const base = `/api/projects/${encodeURIComponent(projectId)}/subjects/${encodeURIComponent(subjectId)}`;
+		const slotsUrl = `/api/projects/${encodeURIComponent(projectId)}/decision-slots`;
 		try {
-			const [dRes, oRes] = await Promise.all([fetch(`${base}/decision`), fetch(`${base}/options`)]);
-			if (!dRes.ok || !oRes.ok) return;
-			const dData = await dRes.json();
-			const oData = await oRes.json();
-			this.decisionContexts[subjectId] = {
-				decision: dData?.decision ?? null,
-				options: Array.isArray(oData) ? oData : (oData?.options ?? [])
-			};
+			const [dRes, oRes, edpRes, slotsRes] = await Promise.allSettled([
+				fetch(`${base}/decision`),
+				fetch(`${base}/options`),
+				fetch(`${base}/edp`),
+				fetch(slotsUrl)
+			]);
+
+			if (dRes.status === 'fulfilled' && dRes.value.ok && oRes.status === 'fulfilled' && oRes.value.ok) {
+				const dData = await dRes.value.json();
+				const oData = await oRes.value.json();
+				this.decisionContexts[subjectId] = {
+					decision: dData?.decision ?? null,
+					options: Array.isArray(oData) ? oData : (oData?.options ?? [])
+				};
+			}
+
+			const prevEdp = this.edpContexts[subjectId];
+			let decisionSlots = prevEdp?.decisionSlots ?? [];
+			let ontologyAxes = prevEdp?.ontologyAxes ?? [];
+			let clauses = prevEdp?.clauses ?? [];
+			let catalogComponents = prevEdp?.catalogComponents ?? [];
+
+			if (edpRes.status === 'fulfilled' && edpRes.value.ok) {
+				const edpData = await edpRes.value.json();
+				const cov = edpData?.edp?.refinementCoverage;
+				if (cov) {
+					if (Array.isArray(cov.decisionSlots)) decisionSlots = cov.decisionSlots;
+					if (Array.isArray(cov.axes)) ontologyAxes = cov.axes;
+					if (Array.isArray(cov.clauses)) clauses = cov.clauses;
+				}
+			}
+
+			if (slotsRes.status === 'fulfilled' && slotsRes.value.ok) {
+				const slotsData = await slotsRes.value.json();
+				const liveComps = slotsData?.liveLockSnapshot?.components;
+				if (Array.isArray(liveComps)) {
+					catalogComponents = liveComps;
+				}
+				if (decisionSlots.length === 0 && Array.isArray(slotsData?.ledger?.slots)) {
+					decisionSlots = slotsData.ledger.slots;
+				}
+			}
+
+			if (decisionSlots.length > 0 || ontologyAxes.length > 0 || clauses.length > 0 || catalogComponents.length > 0) {
+				this.edpContexts[subjectId] = {
+					decisionSlots,
+					ontologyAxes,
+					clauses,
+					catalogComponents
+				};
+			}
 		} catch {
 			// mode hors-ligne / test
 		}

@@ -8,6 +8,9 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Ajouté
+- **Synchronisation Nautobot enrichie pour IP Flow Manager (`src/lib/server/edp/nautobotSync.ts`)** : `syncHydratedInventoryToNautobot()` pousse désormais les tags de zone `zone-<nom>` (`/api/extras/tags/`), les plateformes (`/api/dcim/platforms/`), les VRF dérivées des zones de sécurité (`/api/ipam/vrfs/`), les interfaces des équipements (`/api/dcim/interfaces/`), les préfixes réseau dérivés (`/api/ipam/prefixes/`), les adresses IP (`/api/ipam/ip-addresses/`), leur liaison `/api/ipam/ip-address-to-interface/` et `primary_ip4`, permettant à `IP-flow-mngt` (`nautobot_adapter.py`) de consommer un instantané complet et fidèle depuis Nautobot.
+
 ### Nouveautés
 - **Diagramme d'architecture cible multi-axes dynamique (Phase 3, Issue #310)** : `generateTargetArchitectureDiagram` dans `src/lib/domain/artifactProjections.ts` assemble désormais dynamiquement un diagramme Mermaid structuré par domaines TOGAF à partir des `decisionSlots` / axes ontologiques actifs et feuilles liées (Phase 4 / EDP), des `statements` actifs groupés par axe/domaine, des exigences couvertes et des composants instanciés du catalogue projet, sans couplage à des mots-clés codés en dur.
 - Enrichissement de `DeliberationStore.getProjectionContext` et `fetchDecisionContext` dans `src/lib/stores/deliberationStore.svelte.ts` avec le contexte EDP et les composants du catalogue projet.

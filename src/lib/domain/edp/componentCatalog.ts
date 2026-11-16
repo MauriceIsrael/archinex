@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Catalogue de Composants Logiques & Modèle Terrain (Lot 1 — Issue #283).
  *
  * Sépare strictement :

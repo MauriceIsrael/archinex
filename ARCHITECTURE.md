@@ -1,4 +1,4 @@
-﻿# Archinex · Software Architecture Documentation
+# Archinex · Software Architecture Documentation
 
 > **Document d'Architecture Système du Moteur de Co-Conception et Délibération Archinex.**
 > Conforme aux standards de modélisation système, à la constitution épistémique et aux spécifications *LLMOps*.
@@ -1002,7 +1002,8 @@ Pour combler l'écart entre la délibération d'architecture et le déploiement 
    - Supporte les extensions **IMP V2 (Lot 1, #303)** : entité `OrganizationSpec` (`kind: Organization` + dérivation de bulle `deriveOrganizationBubble`), catalogues `qosClasses`, `vlanPools`, `vniPools`, `firewalls` (`interzone`/`external`/`operator-link`), `certificateProfiles` (validation RGS via `validateCertificateProfilesAndRgs`), `drivers` (`CapabilityMatrix` via `validateDriverCapabilities`), ainsi que les blocs `network.fabric`/`apns`/`tunnels`/`loadBalancers`, `compute.namespaces`/`hardware`, `exposure`, `observability`, `data.databases`, `supplyChain` et `lifecycle`.
    - Sépare strictement la **Base** (agnostique de l'environnement, vérifiée par `lintBaseComponentNoHardcodedEnv`) des **`EnvironmentOverlay`** (substitutions `param.*` et liste de `datacenters`), éditables dans `ComponentCatalogEditor.svelte`.
 2. **Résolveur `ref()`, Graphe d'Impact & Flux Implicites (`src/lib/domain/edp/refResolver.ts`)** :
-   - Projette `Base × EnvironmentOverlay × Datacenter` en instances résolues avec IPs calculées par `offset`, vérifie la continuité des segments de `LogicalInterfaces` (`S6a`, `Rx-N5`, `WMS-WFS`), génère les flux implicites (`auto-generated` : NFS, SIEM, PKI) avec priorité aux règles explicites, et permet la **simulation What-If (2 vs 3 DCs)**.
+   - Projette `Base × EnvironmentOverlay × Datacenter` en instances résolues avec IPs calculées par `offset`, vérifie la continuité des segments de `LogicalInterfaces` (`S6a`, `Rx-N5`, `WMS-WFS`), génère les flux implicites (`auto-generated` : NFS, SIEM, PKI, VPN, S3, `exposure` entryPoints/MFT/MTA, AV/EDR) avec priorité aux règles explicites, et permet la **simulation What-If (2 vs 3 DCs)**.
+   - Intègre les contrôles **IMP V2 (Lot 2, #304)** : déduction ordonnée du chemin pare-feu inter-zones (`deduceFirewallPath`, `validateComponentFirewallPaths`), validation IP Fabric / BGP (`validateIpFabricAndBgp` : whitelists `routePropagation` / `bgpPropagation`, symétrie RT, `anycastFrom ≥ 2`, `fabric.security`) et traçabilité `generatedFrom` dans `buildReferenceGraph()`.
 3. **Phase 5 · Consolidation Projet & 3 Vues Synchronisées (`src/lib/domain/edp/logicalViews.ts`, `Phase5ConsolidationHub.svelte`)** :
    - Vue transversale au niveau Projet (`activePosture = 'consolidation'`, accessible depuis l'onglet **Phase 5 · Consolidation** dans `ProjectEngagementHeader.svelte`), distincte de la Phase 4 centrée sur un sujet.
    - `composeProjectLogicalTopology()` consolide les composants de référence (`core-network`, `ptt-server`, `gis-server`, `eir-proxy`, `gsma-eir`) et génère 3 diagrammes Mermaid synchronisés : **Vue Logique**, **Vue Déploiement (DC → Pool Sylva → Tenant)** et **Vue Physique / CMDB**.

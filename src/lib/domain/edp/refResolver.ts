@@ -7,6 +7,7 @@ import type {
   DatacenterCatalogEntry,
   EntityLifecycleStatus,
   EnvironmentOverlay,
+  FirewallCatalogEntry,
   FirewallRuleSpec,
   LogicalComponent,
   LogicalInterfaceSpec,
@@ -19,7 +20,7 @@ import { DEFAULT_VALUE_CATALOGS } from './componentCatalog.js';
 export interface ReferenceEdge {
   from: string;
   to: string;
-  kind: 'param' | 'catalog' | 'internal' | 'crossTenant';
+  kind: 'param' | 'catalog' | 'internal' | 'crossTenant' | 'generatedFrom';
   field: string;
 }
 
@@ -258,6 +259,112 @@ export function generateImplicitFlows(
     }
   }
 
+  // 4. Flux VPN implicites (IKE/ESP UDP 500, 4500 + DPD) depuis network.tunnels (§3.2.6, §3.5.4)
+  for (const tunnel of component.spec.network?.tunnels || []) {
+    if (tunnel.status === 'inactive') continue;
+    pushIfNew({
+      id: `auto-vpn-${compName}-${tunnel.name}`,
+      from: `endpoint:${tunnel.endpoints.local}`,
+      to: `endpoint:${tunnel.endpoints.remote}`,
+      proto: 'udp',
+      ports: [500, 4500],
+      action: 'allow',
+      category: 'auto-generated',
+      generatedBy: 'archinex-implicit-flow-engine',
+      generatedFrom: `${compName}.network.tunnels[${tunnel.name}]`
+    });
+  }
+
+  // 5. Flux Object Storage S3 implicites (TCP 443) depuis storage.objectStores (§3.4.4, §3.5.4)
+  for (const store of component.spec.storage?.objectStores || []) {
+    for (const bucket of store.buckets) {
+      for (const grant of bucket.access) {
+        pushIfNew({
+          id: `auto-s3-${compName}-${store.name}-${bucket.name}-${grant.grant.replace(/[^a-zA-Z0-9-]/g, '-')}`,
+          from: grant.grant,
+          to: `s3:${store.name}/${bucket.name}`,
+          proto: 'tcp',
+          ports: [443],
+          action: 'allow',
+          tlsVersion: 'tls1.3',
+          category: 'auto-generated',
+          generatedBy: 'archinex-implicit-flow-engine',
+          generatedFrom: `${compName}.storage.objectStores[${store.name}].buckets[${bucket.name}]`
+        });
+      }
+    }
+  }
+
+  // 6. Flux d'exposition implicites : entryPoints (proxy->backend), MFT, email (§3.11, §3.5.4)
+  for (const ep of component.spec.exposure?.entryPoints || []) {
+    if (ep.status === 'inactive') continue;
+    for (const route of ep.routes) {
+      pushIfNew({
+        id: `auto-exp-${compName}-${ep.name}-${route.path.replace(/[^a-zA-Z0-9-]/g, '-')}`,
+        from: `entryPoint:${ep.name}`,
+        to: route.backend,
+        proto: 'tcp',
+        ports: [443],
+        action: 'allow',
+        tlsVersion: ep.tls.minVersion,
+        category: 'auto-generated',
+        generatedBy: 'archinex-implicit-flow-engine',
+        generatedFrom: `${compName}.exposure.entryPoints[${ep.name}]`
+      });
+    }
+  }
+
+  for (const ft of component.spec.exposure?.fileTransfers || []) {
+    if (ft.status === 'inactive') continue;
+    const port = ft.protocol === 'sftp' ? 22 : ft.protocol === 'ftps' ? 990 : 443;
+    for (const partner of ft.partners) {
+      pushIfNew({
+        id: `auto-mft-${compName}-${ft.name}-${partner.replace(/[^a-zA-Z0-9-]/g, '-')}`,
+        from: `tenant:${component.metadata.tenant}`,
+        to: partner,
+        proto: 'tcp',
+        ports: [port],
+        action: 'allow',
+        category: 'auto-generated',
+        generatedBy: 'archinex-implicit-flow-engine',
+        generatedFrom: `${compName}.exposure.fileTransfers[${ft.name}]`
+      });
+    }
+  }
+
+  for (const mail of component.spec.exposure?.email || []) {
+    if (mail.status === 'inactive') continue;
+    pushIfNew({
+      id: `auto-mta-${compName}-${mail.name}`,
+      from: `tenant:${component.metadata.tenant}`,
+      to: mail.relay,
+      proto: 'tcp',
+      ports: [587],
+      action: 'allow',
+      tlsVersion: 'tls1.3',
+      category: 'auto-generated',
+      generatedBy: 'archinex-implicit-flow-engine',
+      generatedFrom: `${compName}.exposure.email[${mail.name}]`
+    });
+  }
+
+  // 7. Flux agents endpoint AV / EDR (§3.6, §3.5.4)
+  const epSec = component.spec.security?.endpoint;
+  if (epSec?.av || epSec?.edr) {
+    pushIfNew({
+      id: `auto-endpoint-sec-${compName}`,
+      from: `tenant:${component.metadata.tenant}:events`,
+      to: 'group:security-agents-managers',
+      proto: 'tcp',
+      ports: [443],
+      action: 'allow',
+      tlsVersion: 'tls1.3',
+      category: 'auto-generated',
+      generatedBy: 'archinex-implicit-flow-engine',
+      generatedFrom: `${compName}.security.endpoint`
+    });
+  }
+
   return implicit;
 }
 
@@ -414,6 +521,16 @@ export function buildReferenceGraph(components: LogicalComponent[]): ReferenceGr
 
   for (const comp of components) {
     scanValue(comp.metadata.name, 'spec', comp.spec);
+    for (const rule of comp.spec.firewall?.rules || []) {
+      if (rule.generatedFrom) {
+        edges.push({
+          from: `${comp.metadata.name}.firewall.rules[${rule.id}]`,
+          to: rule.generatedFrom,
+          kind: 'generatedFrom',
+          field: 'generatedFrom'
+        });
+      }
+    }
   }
 
   return { edges };
@@ -566,4 +683,195 @@ export function verifyCatalogDanglingReferences(
     missingDependencies,
     missingVaultComponent
   };
+}
+
+export interface FirewallPathDeductionResult {
+  fromZone: string;
+  toZone: string;
+  firewalls: FirewallCatalogEntry[];
+  error?: string;
+}
+
+/**
+ * Déduit la liste ordonnée des pare-feu traversés entre deux zones (IMP V2 §3.5.1).
+ * Un flux inter-zone sans pare-feu sur le chemin retourne une erreur bloquante.
+ */
+export function deduceFirewallPath(
+  fromZone: string,
+  toZone: string,
+  catalogs: ValueCatalogs = DEFAULT_VALUE_CATALOGS
+): FirewallPathDeductionResult {
+  if (fromZone === toZone) {
+    return { fromZone, toZone, firewalls: [] };
+  }
+
+  const catalogFirewalls = catalogs.firewalls || [];
+  // Recherche directe si un pare-feu couvre les deux zones
+  const direct = catalogFirewalls.find(
+    (fw) => fw.zones.includes(fromZone) && fw.zones.includes(toZone)
+  );
+  if (direct) {
+    return { fromZone, toZone, firewalls: [direct] };
+  }
+
+  // Recherche BFS multi-sauts (ex. app -> dmz via fw-interzone-core -> untrusted-external via fw-external)
+  const queue: Array<{ zone: string; path: FirewallCatalogEntry[] }> = [
+    { zone: fromZone, path: [] }
+  ];
+  const visitedZones = new Set<string>([fromZone]);
+
+  while (queue.length > 0) {
+    const current = queue.shift()!;
+    for (const fw of catalogFirewalls) {
+      if (!fw.zones.includes(current.zone)) continue;
+      if (fw.zones.includes(toZone)) {
+        return { fromZone, toZone, firewalls: [...current.path, fw] };
+      }
+      for (const nextZone of fw.zones) {
+        if (!visitedZones.has(nextZone)) {
+          visitedZones.add(nextZone);
+          queue.push({ zone: nextZone, path: [...current.path, fw] });
+        }
+      }
+    }
+  }
+
+  return {
+    fromZone,
+    toZone,
+    firewalls: [],
+    error: `Flux inter-zones non protégé (${fromZone} -> ${toZone}) : aucun pare-feu déclaré ne couvre cette paire de zones.`
+  };
+}
+
+/**
+ * Résout la zone d'un opérande de règle pare-feu (`zone:<z>` ou `group:<g>`) à partir des composants connus.
+ */
+function resolveEndpointZone(endpoint: string, allComponents: LogicalComponent[]): string | null {
+  if (endpoint.startsWith('zone:')) {
+    return endpoint.slice('zone:'.length).trim();
+  }
+  if (!endpoint.startsWith('group:')) {
+    return null;
+  }
+  const groupName = endpoint.slice('group:'.length).trim();
+  for (const comp of allComponents) {
+    const grp = comp.spec.firewall?.groups.find((g) => g.name === groupName);
+    if (!grp) continue;
+    // Résolution depuis le sélecteur de module -> NIC -> subnet -> zone
+    const modMatch = grp.membersRef.match(/modules\[([^\]]+)\]/);
+    const classMatch = grp.membersRef.match(/class=([a-zA-Z0-9_-]+)/);
+    if (modMatch) {
+      const mod = comp.spec.compute?.modules.find((m) => m.name === modMatch[1]);
+      const nic = mod?.nics.find((n) => !classMatch || n.class === classMatch[1]);
+      const subnet = comp.spec.network?.subnets?.find((s) => s.name === nic?.subnetRef);
+      if (subnet) return subnet.zone;
+    }
+    if (comp.metadata.external) {
+      return 'untrusted-external';
+    }
+  }
+  return null;
+}
+
+/**
+ * Valide les chemins pare-feu pour toutes les règles d'un composant (§3.5.1).
+ */
+export function validateComponentFirewallPaths(
+  component: LogicalComponent,
+  allComponents: LogicalComponent[],
+  catalogs: ValueCatalogs = DEFAULT_VALUE_CATALOGS
+): { deductions: Array<{ ruleId: string } & FirewallPathDeductionResult>; errors: string[] } {
+  const deductions: Array<{ ruleId: string } & FirewallPathDeductionResult> = [];
+  const errors: string[] = [];
+
+  for (const rule of component.spec.firewall?.rules || []) {
+    const fromZone = resolveEndpointZone(rule.from, allComponents);
+    const toZone = resolveEndpointZone(rule.to, allComponents);
+    if (!fromZone || !toZone) continue;
+
+    const result = deduceFirewallPath(fromZone, toZone, catalogs);
+    deductions.push({ ruleId: rule.id, ...result });
+    if (result.error) {
+      errors.push(`Règle '${rule.id}': ${result.error}`);
+    }
+  }
+
+  return { deductions, errors };
+}
+
+export interface IpFabricValidationResult {
+  errors: string[];
+  warnings: string[];
+}
+
+/**
+ * Valide le modèle IP Fabric, les whitelists routePropagation / bgpPropagation et la sécurité plan de contrôle (§3.2.8).
+ */
+export function validateIpFabricAndBgp(component: LogicalComponent): IpFabricValidationResult {
+  const errors: string[] = [];
+  const warnings: string[] = [];
+  const fabric = component.spec.network?.fabric;
+  const vrfs = component.spec.network?.vrfs || [];
+  const routes = component.spec.network?.routes || [];
+
+  if (fabric && fabric.underlay.peers.length > 0 && !fabric.security) {
+    errors.push(
+      `Composant '${component.metadata.name}': fabric.security est obligatoire lorsque des peers underlay sont déclarés (§3.2.8 règle 9).`
+    );
+  }
+
+  const vrfByName = new Map(vrfs.map((v) => [v.name, v]));
+
+  const isWhitelisted = (originVrfName: string, targetVrf: string, prefix: string): boolean => {
+    const originVrf = vrfByName.get(originVrfName);
+    const whitelist = originVrf?.fabric?.routePropagation || [];
+    return whitelist.some(
+      (entry) =>
+        entry.action === 'allow' &&
+        entry.to === targetVrf &&
+        (entry.prefixes.includes(prefix) || entry.prefixes.includes('any'))
+    );
+  };
+
+  for (const route of routes) {
+    if (route.type === 'leaked' || route.type === 'static') {
+      if (!isWhitelisted(route.from, route.to.vrf, route.to.prefix)) {
+        errors.push(
+          `Route '${route.name}' (${route.from} -> ${route.to.vrf}, ${route.to.prefix}) rejetée : aucune entrée 'allow' correspondante dans routePropagation (§3.2.8 règle 1).`
+        );
+      }
+      if (route.type === 'static' && vrfByName.get(route.from)?.fabric?.bgpPropagation) {
+        warnings.push(
+          `Route statique '${route.name}' : privilégier bgpPropagation sur un VRF raccordé à la fabric (§3.2.8 règle 7).`
+        );
+      }
+      // Vérification symétrie RT (§3.2.8 règle 3)
+      if (!isWhitelisted(route.to.vrf, route.from, route.to.prefix)) {
+        warnings.push(
+          `Route '${route.name}' asymétrique : aucune politique d'import retour déclarée sur '${route.to.vrf}' vers '${route.from}' (§3.2.8 règle 3).`
+        );
+      }
+    }
+  }
+
+  for (const vrf of vrfs) {
+    for (const bgpRule of vrf.fabric?.bgpPropagation || []) {
+      if (bgpRule.announce === 'none') continue;
+      for (const prefix of bgpRule.prefixes) {
+        if (!isWhitelisted(vrf.name, bgpRule.to, prefix)) {
+          errors.push(
+            `Annonce BGP sur '${vrf.name}' -> '${bgpRule.to}' (${prefix}) rejetée : absente de routePropagation (§3.2.8 règle 5).`
+          );
+        }
+        if ((prefix.includes('vip') || prefix.includes('reserved')) && bgpRule.announce.anycastFrom.length < 2) {
+          errors.push(
+            `Annonce BGP VIP '${prefix}' sur '${vrf.name}' rejetée : anycastFrom doit déclarer au moins 2 leafs (§3.2.8 règle 8).`
+          );
+        }
+      }
+    }
+  }
+
+  return { errors, warnings };
 }

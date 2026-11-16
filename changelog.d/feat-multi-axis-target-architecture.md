@@ -1,0 +1,3 @@
+### Nouveautés
+- **Diagramme d'architecture cible multi-axes dynamique (Phase 3, Issue #310)** : `generateTargetArchitectureDiagram` dans `src/lib/domain/artifactProjections.ts` assemble désormais dynamiquement un diagramme Mermaid structuré par domaines TOGAF à partir des `decisionSlots` / axes ontologiques actifs et feuilles liées (Phase 4 / EDP), des `statements` actifs groupés par axe/domaine, des exigences couvertes et des composants instanciés du catalogue projet, sans couplage à des mots-clés codés en dur.
+- Enrichissement de `DeliberationStore.getProjectionContext` et `fetchDecisionContext` dans `src/lib/stores/deliberationStore.svelte.ts` avec le contexte EDP et les composants du catalogue projet.

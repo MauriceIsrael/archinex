@@ -694,4 +694,251 @@ describe('Projections dynamiques d\'architecture (No Doc Drift - Issue #64)', ()
 		expect(seq).toContain('Phase 3 : Migration Progressive sans Rupture');
 		expect(seq).toContain('Passerelle d\'Interconnexion IWF (3GPP TS 29.314)');
 	});
+
+	it('21. Détermination multi-axes dynamique (Issue #310) : assemble decisionSlots, axes ontologiques, composants catalogue et exigences par domaine TOGAF', () => {
+		const subject: MaturitySubject = {
+			id: 'sub-multi-axis',
+			section_ref: '§5.2',
+			name: 'Socle Plateforme Multi-Axes',
+			level: 'L4_specified',
+			blocking_count: 0,
+			unlocks_count: 0,
+			waiting_for_role: 'lead_architect',
+			relative_effort: 'L',
+			last_transition_date: '2026-11-16T00:00:00Z',
+			stall_days: 0,
+			is_stalled: false,
+			dependent_subject_ids: []
+		};
+
+		const context: ProjectionContext = {
+			projectId: 'proj-multi-310',
+			projectName: 'Plateforme Critique',
+			actors: [{ name: 'Opérateur SOC', role: 'Exploitation' }],
+			decision: {
+				retainedOptionId: 'opt-sovereign',
+				retainedOptionTitle: 'Architecture modulaire cloisonnée'
+			},
+			decisionSlots: [
+				{
+					slotId: 'slot-iam',
+					axisUrn: 'urn:axis:iam',
+					axisTitle: 'Gestion Identité & Secrets',
+					togafDomain: 'security-trust',
+					status: 'bound_verified',
+					boundLeaves: [{ urn: 'urn:leaf:vault-hsm', title: 'Vault + HSM FIPS 140-3' }],
+					instantiatedComponents: ['vault-core'],
+					coveredRequirementRefs: ['REQ-SEC-01']
+				},
+				{
+					slotId: 'slot-net',
+					axisUrn: 'urn:axis:evpn',
+					axisTitle: 'Cloisonnement Fabric EVPN',
+					togafDomain: 'network-connectivity',
+					status: 'bound_unverified',
+					boundLeafTitles: ['BGP EVPN VXLAN'],
+					instantiatedComponents: ['evpn-fabric'],
+					isTransitivePrerequisite: true,
+					triggeredByAxisUrn: 'urn:axis:iam'
+				},
+				{
+					slotId: 'slot-waived',
+					axisUrn: 'urn:axis:legacy',
+					axisTitle: 'Axe Dérogé Sans Composant',
+					togafDomain: 'facilities-sovereignty',
+					status: 'waived'
+				}
+			],
+			ontologyAxes: [
+				{
+					axisUrn: 'urn:axis:storage',
+					axisTitle: 'Persistance Chiffrée',
+					togafDomain: 'data-persistence',
+					status: 'covered_executable',
+					boundLeaves: [{ urn: 'urn:leaf:ceph-luks', title: 'Ceph LUKS2' }],
+					instantiatedComponents: ['ceph-cluster']
+				}
+			],
+			catalogComponents: [
+				{
+					name: 'vault-core',
+					title: 'Coffre Secrets Vault',
+					togafDomain: 'security-trust',
+					lockStatus: 'locked',
+					dependsOn: ['ceph-cluster']
+				},
+				{
+					name: 'evpn-fabric',
+					title: 'Fabric Réseau EVPN',
+					togafDomain: 'network-connectivity',
+					lockStatus: 'default_proposed'
+				},
+				{
+					name: 'ceph-cluster',
+					title: 'Cluster Stockage Ceph',
+					togafDomain: 'data-persistence',
+					lockStatus: 'emergent_locked'
+				}
+			],
+			requirements: [
+				{
+					clauseRef: 'REQ-DATA-09',
+					title: 'Chiffrement au repos obligatoire',
+					togafDomain: 'data-persistence',
+					status: 'covered'
+				}
+			]
+		};
+
+		const diagram = generateTargetArchitectureDiagram(subject, null, [], context);
+
+		expect(diagram).toContain('flowchart TB');
+		expect(diagram).toContain('ACTOR_0_');
+		expect(diagram).toContain('DECISION["⭐ Option retenue : Architecture modulaire cloisonnée"]:::human');
+		// Domaines TOGAF présents et axe dérogé vide exclu
+		expect(diagram).toContain('DOM_security_trust');
+		expect(diagram).toContain('DOM_network_connectivity');
+		expect(diagram).toContain('DOM_data_persistence');
+		expect(diagram).not.toContain('Axe Dérogé Sans Composant');
+		// Axes et feuilles liées
+		expect(diagram).toContain('Gestion Identité & Secrets');
+		expect(diagram).toContain('Vault + HSM FIPS 140-3');
+		expect(diagram).toContain('REQ-SEC-01');
+		expect(diagram).toContain('Cloisonnement Fabric EVPN');
+		expect(diagram).toContain('BGP EVPN VXLAN');
+		expect(diagram).toContain('Persistance Chiffrée');
+		expect(diagram).toContain('Ceph LUKS2');
+		// Composants catalogue et exigences domaine
+		expect(diagram).toContain('Coffre Secrets Vault');
+		expect(diagram).toContain('Fabric Réseau EVPN');
+		expect(diagram).toContain('Cluster Stockage Ceph');
+		expect(diagram).toContain('REQ-DATA-09');
+		// Liaisons structurelles : prérequis transitif, instanciation, dépendance inter-composants
+		expect(diagram).toContain('-.->|"prérequis"|');
+		expect(diagram).toContain('-->|"instancie"|');
+		expect(diagram).toContain('-->|"dépend de"|');
+	});
+
+	it('22. Détermination multi-axes dynamique : groupe tous les statements actifs par axe/domaine sans troncature à 3', () => {
+		const subject: MaturitySubject = {
+			id: 'sub-stmts',
+			section_ref: '§6.1',
+			name: 'Paramètres Multi-Domaines',
+			level: 'L3_decided',
+			blocking_count: 0,
+			unlocks_count: 0,
+			waiting_for_role: 'lead_architect',
+			relative_effort: 'M',
+			last_transition_date: '2026-11-16T00:00:00Z',
+			stall_days: 0,
+			is_stalled: false,
+			dependent_subject_ids: []
+		};
+
+		const makeStmt = (
+			id: string,
+			subj: string,
+			predicate: string,
+			value: string,
+			status: Statement['status'] = 'active',
+			basedOn: string[] = []
+		): Statement => ({
+			id,
+			section: '§6.1',
+			triplet: { subject: subj, predicate, value },
+			justification: { basedOn },
+			authority: { author: 'arch1', role: 'lead_architect', productionMode: 'human-authored' },
+			maturity: { subjectLevel: 'L3_decided', confidence: 'designed' },
+			revisability: { antecedents: [] },
+			status,
+			createdAt: '2026-11-16T00:00:00Z',
+			updatedAt: '2026-11-16T00:00:00Z'
+		});
+
+		const statements: Statement[] = [
+			makeStmt('S-1', 'urn:axis:compute', 'Orchestrateur', 'Kubernetes 1.31', 'active', ['urn:axis:compute']),
+			makeStmt('S-2', 'security', 'TLS Minimum', 'TLS 1.3', 'active'),
+			makeStmt('S-3', 'network', 'MTU Fabric', '9000', 'active'),
+			makeStmt('S-4', 'storage', 'Réplication', '3x synchrone', 'active', ['S-1']),
+			makeStmt('S-5', 'observability', 'Rétention logs', '365 jours', 'superseded')
+		];
+
+		const context: ProjectionContext = {
+			projectId: 'proj-stmts',
+			projectName: 'Cluster Souverain',
+			decisionSlots: [
+				{
+					slotId: 'slot-compute',
+					axisUrn: 'urn:axis:compute',
+					axisTitle: 'Plan de Calcul',
+					togafDomain: 'platform-compute',
+					status: 'bound_verified'
+				}
+			]
+		};
+
+		const diagram = generateTargetArchitectureDiagram(subject, null, statements, context);
+
+		expect(diagram).toContain('Orchestrateur : Kubernetes 1.31');
+		expect(diagram).toContain('TLS Minimum : TLS 1.3');
+		expect(diagram).toContain('MTU Fabric : 9000');
+		expect(diagram).toContain('Réplication : 3x synchrone');
+		expect(diagram).not.toContain('Rétention logs : 365 jours');
+		// Lien causal S-1 -> S-4 et rattachement à l'axe urn:axis:compute
+		expect(diagram).toContain('AXIS_0_urn_axis_compute --> STMT_2_S_1');
+		expect(diagram).toContain('STMT_2_S_1 --> STMT_3_S_4');
+	});
+
+	it('23. Coexistence option retenue et données structurées : ne court-circuite plus les axes par des regex de mots-clés', () => {
+		const subject: MaturitySubject = {
+			id: 'sub-no-hijack',
+			section_ref: '§4.3',
+			name: 'Architecture Résiliente',
+			level: 'L4_specified',
+			blocking_count: 0,
+			unlocks_count: 0,
+			waiting_for_role: 'lead_architect',
+			relative_effort: 'L',
+			last_transition_date: '2026-11-16T00:00:00Z',
+			stall_days: 0,
+			is_stalled: false,
+			dependent_subject_ids: []
+		};
+
+		const context: ProjectionContext = {
+			projectId: 'proj-no-hijack',
+			projectName: 'Système Résilient',
+			decision: {
+				retainedOptionId: 'opt-geo',
+				retainedOptionTitle: 'Déploiement actif-actif multi-sites avec supervision Prometheus'
+			},
+			decisionSlots: [
+				{
+					slotId: 'slot-sec',
+					axisUrn: 'urn:axis:kms',
+					axisTitle: 'Chiffrement KMS',
+					togafDomain: 'security-trust',
+					status: 'bound_verified',
+					boundLeafTitles: ['KMS Distribué']
+				},
+				{
+					slotId: 'slot-ops',
+					axisUrn: 'urn:axis:obs',
+					axisTitle: 'Télémétrie OTLP',
+					togafDomain: 'operations-observability',
+					status: 'default_proposed',
+					boundLeafTitles: ['OpenTelemetry Collector']
+				}
+			]
+		};
+
+		const diagram = generateTargetArchitectureDiagram(subject, null, [], context);
+
+		expect(diagram).toContain('Chiffrement KMS');
+		expect(diagram).toContain('KMS Distribué');
+		expect(diagram).toContain('Télémétrie OTLP');
+		expect(diagram).toContain('OpenTelemetry Collector');
+		// Ne doit pas tomber dans l'archétype statique Dual-DC codé en dur
+		expect(diagram).not.toContain('Anycast BGP & GSLB / Geo-DNS');
+	});
 });

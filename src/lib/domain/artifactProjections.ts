@@ -3,6 +3,7 @@ import type { TelegraphicDraft } from '$lib/domain/telegraphic';
 import type { Statement } from '$lib/types/epistemic';
 import { renderStructurizrWorkspace, type C4Container, type C4Relation } from '$lib/domain/structurizrDsl';
 import { badgeOf, c4Styles, draftOverlay, epistemicCounts, mermaidClassDefs, mmdText, partitionStatements, withdrawnNote } from '$lib/domain/epistemicBadge';
+import { TOGAF_DOMAINS, TOGAF_DOMAIN_ORDER, resolveTogafDomain, type TogafDomainId } from '$lib/domain/edp/togafTaxonomy';
 
 export interface ProjectionActor {
 	name: string;
@@ -20,6 +21,60 @@ export interface ProjectionDecision {
 	arbiterRole?: string;
 }
 
+export interface ProjectionBoundLeaf {
+	urn: string;
+	title: string;
+	domain?: string;
+}
+
+export interface ProjectionDecisionSlot {
+	slotId: string;
+	axisUrn: string;
+	axisTitle: string;
+	togafDomain?: TogafDomainId | string;
+	status?: string;
+	boundLeafUrns?: string[];
+	boundLeafTitles?: string[];
+	boundLeaves?: ProjectionBoundLeaf[];
+	instantiatedComponents?: string[];
+	coveredRequirementRefs?: string[];
+	isTransitivePrerequisite?: boolean;
+	triggeredByAxisUrn?: string;
+}
+
+export interface ProjectionOntologyAxis {
+	axisUrn: string;
+	axisTitle: string;
+	domain?: string;
+	togafDomain?: TogafDomainId | string;
+	status?: string;
+	boundLeaves?: ProjectionBoundLeaf[];
+	instantiatedComponents?: string[];
+}
+
+export interface ProjectionCatalogComponent {
+	name: string;
+	title?: string;
+	domain?: string;
+	togafDomain?: TogafDomainId | string;
+	kind?: string;
+	lockStatus?: string;
+	axisUrns?: string[];
+	dependsOn?: string[];
+	outboundTargets?: Array<{ target: string; label?: string; kind?: string }>;
+	coveredRequirementRefs?: string[];
+}
+
+export interface ProjectionRequirementItem {
+	clauseRef: string;
+	title: string;
+	axisUrn?: string;
+	domain?: string;
+	togafDomain?: TogafDomainId | string;
+	status?: string;
+	matchedLeafTitle?: string;
+}
+
 export interface ProjectionContext {
 	projectId?: string;
 	projectName?: string;
@@ -27,7 +82,10 @@ export interface ProjectionContext {
 	actors?: ProjectionActor[];
 	decision?: ProjectionDecision | null;
 	options?: Array<{ id: string; title: string; summary?: string; status?: string }>;
-	requirements?: Array<{ clauseRef: string; title: string }>;
+	requirements?: ProjectionRequirementItem[];
+	decisionSlots?: ProjectionDecisionSlot[];
+	ontologyAxes?: ProjectionOntologyAxis[];
+	catalogComponents?: ProjectionCatalogComponent[];
 	sealSha256?: string;
 	detailedSpecText?: string;
 }
@@ -405,9 +463,385 @@ export function targetArchitectureClassDefs(indent = '    '): string[] {
 	];
 }
 
+function safeMmdId(prefix: string, raw: string, index: number): string {
+	const cleaned = raw.replace(/[^a-zA-Z0-9_]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '');
+	const suffix = cleaned ? cleaned.slice(-24) : String(index);
+	return `${prefix}_${index}_${suffix}`;
+}
+
+function resolveAxisTogafDomain(
+	togafDomain?: string,
+	domain?: string,
+	fallbackText?: string
+): TogafDomainId {
+	if (togafDomain && togafDomain in TOGAF_DOMAINS) {
+		return togafDomain as TogafDomainId;
+	}
+	return resolveTogafDomain(domain || fallbackText);
+}
+
+function slotStatusMeta(status?: string): { label: string; style: string } {
+	switch (status) {
+		case 'bound_verified':
+		case 'covered_executable':
+			return { label: 'Vérifié', style: 'core' };
+		case 'bound_unverified':
+		case 'covered_no_oracle':
+			return { label: 'Lié (à vérifier)', style: 'agent' };
+		case 'default_proposed':
+			return { label: 'Proposé par défaut', style: 'agent' };
+		case 'waived':
+			return { label: 'Dérogé', style: 'draft' };
+		default:
+			return { label: 'Ouvert', style: 'draft' };
+	}
+}
+
+function componentStyleClass(lockStatus?: string): string {
+	if (lockStatus === 'locked' || lockStatus === 'emergent_locked') return 'deploy';
+	if (lockStatus === 'default_proposed') return 'agent';
+	return 'core';
+}
+
+interface NormalizedAxis {
+	axisUrn: string;
+	slotId?: string;
+	axisTitle: string;
+	domainId: TogafDomainId;
+	status: string;
+	boundLeafLabels: string[];
+	instantiatedComponents: string[];
+	coveredRequirementRefs: string[];
+	isTransitivePrerequisite: boolean;
+	triggeredByAxisUrn?: string;
+}
+
+interface NormalizedComponent {
+	name: string;
+	title: string;
+	domainId: TogafDomainId;
+	lockStatus?: string;
+	axisUrns: Set<string>;
+	outboundTargets: Array<{ target: string; label: string }>;
+}
+
+/**
+ * Assemble dynamiquement un diagramme Mermaid multi-axes à partir des données structurées
+ * du sujet : decisionSlots / axes ontologiques, statements actifs, exigences couvertes
+ * et composants instanciés du catalogue projet, groupés par domaine TOGAF canonique.
+ */
+function buildMultiAxisTargetArchitectureDiagram(
+	sectionRef: string,
+	projectId: string,
+	projectName: string,
+	activeStatements: Statement[],
+	context: ProjectionContext
+): string {
+	const axisMap = new Map<string, NormalizedAxis>();
+
+	for (const axis of context.ontologyAxes ?? []) {
+		const domainId = resolveAxisTogafDomain(axis.togafDomain, axis.domain, axis.axisTitle);
+		const boundLeafLabels = (axis.boundLeaves ?? []).map((l) => l.title || l.urn).filter(Boolean);
+		axisMap.set(axis.axisUrn, {
+			axisUrn: axis.axisUrn,
+			axisTitle: axis.axisTitle,
+			domainId,
+			status: axis.status || 'open',
+			boundLeafLabels: Array.from(new Set(boundLeafLabels)),
+			instantiatedComponents: Array.from(new Set(axis.instantiatedComponents ?? [])),
+			coveredRequirementRefs: [],
+			isTransitivePrerequisite: false
+		});
+	}
+
+	for (const slot of context.decisionSlots ?? []) {
+		const existing = axisMap.get(slot.axisUrn);
+		const domainId = resolveAxisTogafDomain(slot.togafDomain, existing?.domainId, slot.axisTitle);
+		const leafLabels = [
+			...(existing?.boundLeafLabels ?? []),
+			...(slot.boundLeaves ?? []).map((l) => l.title || l.urn),
+			...(slot.boundLeafTitles ?? []),
+			...(slot.boundLeafUrns && !slot.boundLeafTitles?.length && !slot.boundLeaves?.length ? slot.boundLeafUrns : [])
+		].filter(Boolean);
+		const comps = [
+			...(existing?.instantiatedComponents ?? []),
+			...(slot.instantiatedComponents ?? [])
+		].filter(Boolean);
+		const reqs = [
+			...(existing?.coveredRequirementRefs ?? []),
+			...(slot.coveredRequirementRefs ?? [])
+		].filter(Boolean);
+
+		axisMap.set(slot.axisUrn, {
+			axisUrn: slot.axisUrn,
+			slotId: slot.slotId,
+			axisTitle: slot.axisTitle || existing?.axisTitle || slot.axisUrn,
+			domainId,
+			status: slot.status || existing?.status || 'open',
+			boundLeafLabels: Array.from(new Set(leafLabels)),
+			instantiatedComponents: Array.from(new Set(comps)),
+			coveredRequirementRefs: Array.from(new Set(reqs)),
+			isTransitivePrerequisite: Boolean(slot.isTransitivePrerequisite),
+			triggeredByAxisUrn: slot.triggeredByAxisUrn
+		});
+	}
+
+	// Exigences couvertes rattachées aux axes ou aux domaines TOGAF
+	const domainRequirements = new Map<TogafDomainId, string[]>();
+	for (const req of context.requirements ?? []) {
+		const label = req.clauseRef || req.title;
+		if (!label) continue;
+		if (req.axisUrn && axisMap.has(req.axisUrn)) {
+			const axis = axisMap.get(req.axisUrn)!;
+			if (!axis.coveredRequirementRefs.includes(label)) {
+				axis.coveredRequirementRefs.push(label);
+			}
+			continue;
+		}
+		if (req.togafDomain || req.domain || req.status === 'covered') {
+			const domainId = resolveAxisTogafDomain(req.togafDomain, req.domain, req.title);
+			const list = domainRequirements.get(domainId) ?? [];
+			if (!list.includes(label)) list.push(label);
+			domainRequirements.set(domainId, list);
+		}
+	}
+
+	// Filtrer les axes dérogés sans aucune matière active
+	const activeAxes = Array.from(axisMap.values()).filter(
+		(a) =>
+			a.status !== 'waived' ||
+			a.boundLeafLabels.length > 0 ||
+			a.instantiatedComponents.length > 0 ||
+			a.coveredRequirementRefs.length > 0
+	);
+
+	// Composants instanciés du catalogue projet + composants référencés par les axes
+	const componentMap = new Map<string, NormalizedComponent>();
+	for (const comp of context.catalogComponents ?? []) {
+		const domainId = resolveAxisTogafDomain(comp.togafDomain, comp.domain || comp.kind, comp.title || comp.name);
+		const outbound: Array<{ target: string; label: string }> = [
+			...(comp.dependsOn ?? []).map((t) => ({ target: t, label: 'dépend de' })),
+			...(comp.outboundTargets ?? []).map((o) => ({ target: o.target, label: o.label || 'interface' }))
+		];
+		componentMap.set(comp.name, {
+			name: comp.name,
+			title: comp.title || comp.name,
+			domainId,
+			lockStatus: comp.lockStatus,
+			axisUrns: new Set(comp.axisUrns ?? []),
+			outboundTargets: outbound
+		});
+	}
+	for (const axis of activeAxes) {
+		for (const compName of axis.instantiatedComponents) {
+			const existing = componentMap.get(compName);
+			if (existing) {
+				existing.axisUrns.add(axis.axisUrn);
+			} else {
+				componentMap.set(compName, {
+					name: compName,
+					title: compName,
+					domainId: axis.domainId,
+					axisUrns: new Set([axis.axisUrn]),
+					outboundTargets: []
+				});
+			}
+		}
+	}
+
+	// Grouper les statements actifs par axe (si lié) ou par domaine TOGAF
+	const statementDomain = new Map<string, TogafDomainId>();
+	const statementAxisUrn = new Map<string, string>();
+	for (const stmt of activeStatements) {
+		const basedOn = stmt.justification.basedOn || [];
+		const matchedAxis = activeAxes.find(
+			(a) =>
+				basedOn.includes(a.axisUrn) ||
+				(a.slotId && basedOn.includes(a.slotId)) ||
+				stmt.triplet.subject === a.axisUrn ||
+				stmt.triplet.subject.toLowerCase() === a.axisTitle.toLowerCase()
+		);
+		if (matchedAxis) {
+			statementDomain.set(stmt.id, matchedAxis.domainId);
+			statementAxisUrn.set(stmt.id, matchedAxis.axisUrn);
+		} else {
+			statementDomain.set(
+				stmt.id,
+				resolveTogafDomain(`${stmt.triplet.subject} ${stmt.triplet.predicate} ${String(stmt.triplet.value)}`)
+			);
+		}
+	}
+
+	const lines: string[] = ['flowchart TB', ...targetArchitectureClassDefs(), ''];
+
+	// Acteurs déclarés
+	(context.actors ?? []).forEach((actor, idx) => {
+		const id = safeMmdId('ACTOR', actor.name, idx);
+		const roleSuffix = actor.role ? `<br/><small>${mmdText(actor.role)}</small>` : '';
+		lines.push(`    ${id}["👤 ${mmdText(actor.name)}${roleSuffix}"]:::person`);
+	});
+
+	// Ancre décisionnelle L3 si présente
+	const retainedOptionTitle = context.decision?.retainedOptionTitle;
+	if (retainedOptionTitle) {
+		lines.push(`    DECISION["⭐ Option retenue : ${mmdText(retainedOptionTitle)}"]:::human`);
+	}
+	if ((context.actors?.length ?? 0) > 0 || retainedOptionTitle) {
+		lines.push('');
+	}
+
+	const axisNodeIds = new Map<string, string>();
+	const compNodeIds = new Map<string, string>();
+	const stmtNodeIds = new Map<string, string>();
+	const domainPrimaryNodes = new Map<TogafDomainId, string[]>();
+
+	const systemLabel = `Système : ${projectName} (${sectionRef}) [Projet: ${projectId}]`;
+	lines.push(`    subgraph SYSTEM["${mmdText(systemLabel)}"]`);
+	lines.push('        direction TB');
+
+	let axisCounter = 0;
+	let compCounter = 0;
+	let stmtCounter = 0;
+
+	for (const domainId of TOGAF_DOMAIN_ORDER) {
+		const domAxes = activeAxes.filter((a) => a.domainId === domainId);
+		const domComps = Array.from(componentMap.values()).filter((c) => c.domainId === domainId);
+		const domStmts = activeStatements.filter((s) => statementDomain.get(s.id) === domainId);
+		const domReqs = domainRequirements.get(domainId) ?? [];
+
+		if (domAxes.length === 0 && domComps.length === 0 && domStmts.length === 0 && domReqs.length === 0) {
+			continue;
+		}
+
+		const safeDom = domainId.replace(/-/g, '_');
+		lines.push(`        subgraph DOM_${safeDom}["${mmdText(TOGAF_DOMAINS[domainId].label)}"]`);
+		lines.push('            direction TB');
+
+		const primaryIds: string[] = [];
+
+		for (const axis of domAxes) {
+			const nodeId = safeMmdId('AXIS', axis.axisUrn, axisCounter++);
+			axisNodeIds.set(axis.axisUrn, nodeId);
+			if (!axis.isTransitivePrerequisite) primaryIds.push(nodeId);
+
+			const meta = slotStatusMeta(axis.status);
+			const subParts: string[] = [meta.label];
+			if (axis.boundLeafLabels.length > 0) {
+				subParts.push(axis.boundLeafLabels.slice(0, 3).join(', '));
+			}
+			if (axis.coveredRequirementRefs.length > 0) {
+				subParts.push(`Exigences: ${axis.coveredRequirementRefs.slice(0, 3).join(', ')}`);
+			}
+			lines.push(
+				`            ${nodeId}["🧭 ${mmdText(axis.axisTitle)}<br/><small>${mmdText(subParts.join(' · '))}</small>"]:::${meta.style}`
+			);
+		}
+
+		for (const comp of domComps) {
+			const nodeId = safeMmdId('COMP', comp.name, compCounter++);
+			compNodeIds.set(comp.name, nodeId);
+			if (domAxes.length === 0) primaryIds.push(nodeId);
+
+			const style = componentStyleClass(comp.lockStatus);
+			const lockInfo = comp.lockStatus ? `<br/><small>${mmdText(comp.lockStatus)}</small>` : '';
+			lines.push(`            ${nodeId}["🧩 ${mmdText(comp.title)}${lockInfo}"]:::${style}`);
+		}
+
+		for (const stmt of domStmts) {
+			const nodeId = safeMmdId('STMT', stmt.id, stmtCounter++);
+			stmtNodeIds.set(stmt.id, nodeId);
+			if (domAxes.length === 0 && domComps.length === 0) primaryIds.push(nodeId);
+
+			const badge = badgeOf(stmt, false);
+			lines.push(
+				`            ${nodeId}["⚙️ ${mmdText(stmt.triplet.predicate)} : ${mmdText(String(stmt.triplet.value))}<br/><small>${mmdText(badge.label)}</small>"]:::core`
+			);
+		}
+
+		if (domReqs.length > 0) {
+			const reqNodeId = `REQ_${safeDom}`;
+			lines.push(
+				`            ${reqNodeId}["📋 Exigences couvertes : ${mmdText(domReqs.slice(0, 5).join(', '))}"]:::ossApp`
+			);
+		}
+
+		if (primaryIds.length > 0) {
+			domainPrimaryNodes.set(domainId, primaryIds);
+		}
+		lines.push('        end');
+	}
+
+	lines.push('    end');
+	lines.push('    class SYSTEM boundary');
+	lines.push('');
+
+	// Liaisons décision -> axes primaires par domaine
+	if (retainedOptionTitle) {
+		for (const ids of domainPrimaryNodes.values()) {
+			if (ids[0]) lines.push(`    DECISION -->|"cadre"| ${ids[0]}`);
+		}
+	}
+
+	// Prérequis transitifs entre axes
+	for (const axis of activeAxes) {
+		if (axis.triggeredByAxisUrn) {
+			const srcId = axisNodeIds.get(axis.triggeredByAxisUrn);
+			const dstId = axisNodeIds.get(axis.axisUrn);
+			if (srcId && dstId && srcId !== dstId) {
+				lines.push(`    ${srcId} -.->|"prérequis"| ${dstId}`);
+			}
+		}
+	}
+
+	// Liaisons axes -> composants instanciés
+	for (const comp of componentMap.values()) {
+		const compId = compNodeIds.get(comp.name);
+		if (!compId) continue;
+		for (const axisUrn of comp.axisUrns) {
+			const axisId = axisNodeIds.get(axisUrn);
+			if (axisId) {
+				lines.push(`    ${axisId} -->|"instancie"| ${compId}`);
+			}
+		}
+	}
+
+	// Liaisons axes -> énoncés rattachés
+	for (const [stmtId, axisUrn] of statementAxisUrn.entries()) {
+		const axisId = axisNodeIds.get(axisUrn);
+		const sNodeId = stmtNodeIds.get(stmtId);
+		if (axisId && sNodeId) {
+			lines.push(`    ${axisId} --> ${sNodeId}`);
+		}
+	}
+
+	// Liens causaux entre énoncés actifs
+	for (const { from, to } of causalLinks(activeStatements)) {
+		const fromId = stmtNodeIds.get(from.id);
+		const toId = stmtNodeIds.get(to.id);
+		if (fromId && toId) {
+			lines.push(`    ${fromId} --> ${toId}`);
+		}
+	}
+
+	// Dépendances entre composants du catalogue
+	for (const comp of componentMap.values()) {
+		const fromId = compNodeIds.get(comp.name);
+		if (!fromId) continue;
+		for (const out of comp.outboundTargets) {
+			const toId = compNodeIds.get(out.target);
+			if (toId && fromId !== toId) {
+				lines.push(`    ${fromId} -->|"${mmdText(out.label)}"| ${toId}`);
+			}
+		}
+	}
+
+	return lines.join('\n');
+}
+
 /**
  * Génère le schéma d'architecture technique spécifiée (Topologie, Conteneurs, Interfaces et Déploiement)
- * dérivé de l'option retenue et des énoncés techniques d'ingénierie (C4 Container / Flowchart).
+ * dérivé des axes structurés (decisionSlots, axes ontologiques, énoncés actifs, exigences et composants),
+ * ou à défaut de l'option retenue et de la spécification détaillée (C4 Container / Flowchart).
  *
  * Contrairement au diagramme causal/épistémique (qui trace l'arbre de justification et les débats),
  * ce diagramme représente littéralement la solution technique retenue pour le dossier d'homologation et de rendu HLD :
@@ -437,8 +871,17 @@ export function generateTargetArchitectureDiagram(
 	const detailedSpec = context?.detailedSpecText || '';
 	const fullSpec = `${projectName} ${detailedSpec} ${retainedOptionTitle || ''} ${summary} ${rationale} ${(context?.options || []).map((o) => `${o.title} ${o.summary || ''}`).join(' ')}`.trim();
 
-	// Si aucune décision n'est encore actée, aucun énoncé présent et aucune spécification détaillée
-	if (!retainedOptionTitle && (!statements || statements.length === 0) && !detailedSpec) {
+	const activeStatements = (statements || []).filter((s) => s.status === 'active');
+	const hasStructuredMultiAxisData = Boolean(
+		(context?.decisionSlots && context.decisionSlots.length > 0) ||
+		(context?.ontologyAxes && context.ontologyAxes.length > 0) ||
+		(context?.catalogComponents && context.catalogComponents.length > 0) ||
+		activeStatements.length > 0 ||
+		context?.requirements?.some((r) => Boolean(r.axisUrn || r.togafDomain || r.domain || r.matchedLeafTitle))
+	);
+
+	// Si aucune décision n'est encore actée, aucun énoncé présent, aucune spécification détaillée et aucune donnée multi-axes
+	if (!retainedOptionTitle && (!statements || statements.length === 0) && !detailedSpec && !hasStructuredMultiAxisData) {
 		return [
 			'flowchart TB',
 			...targetArchitectureClassDefs(),
@@ -447,6 +890,17 @@ export function generateTargetArchitectureDiagram(
 			`        PENDING["⏳ Architecture Cible en Attente d'Arbitrage L3<br/><small>Veuillez acter une option retenue dans la Matrice pour générer le schéma d'architecture spécifiée</small>"]:::draft`,
 			'    end'
 		].join('\n');
+	}
+
+	// Détermination dynamique multi-axes (Phase 3/4) sans couplage à des mots-clés codés en dur
+	if (hasStructuredMultiAxisData) {
+		return buildMultiAxisTargetArchitectureDiagram(
+			sectionRef,
+			projectId,
+			projectName,
+			activeStatements,
+			context ?? {}
+		);
 	}
 
 	const lower = fullSpec.toLowerCase();

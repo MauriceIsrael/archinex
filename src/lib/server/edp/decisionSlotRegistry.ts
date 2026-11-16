@@ -3,6 +3,7 @@ import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from 'node
 import { resolve } from 'node:path';
 import {
   DEFAULT_COMPONENT_CATALOG,
+  DEFAULT_URN_TO_COMPONENT,
   instantiateCatalogFromOntologyBindings,
   type LogicalComponent
 } from '../../domain/edp/componentCatalog.js';
@@ -450,7 +451,7 @@ function resolveAxisMetadata(
 }
 
 function buildComponentUrnMap(catalog: OntologyCatalog): Record<string, string> {
-  const map: Record<string, string> = {};
+  const map: Record<string, string> = { ...DEFAULT_URN_TO_COMPONENT };
   for (const entity of Object.values(catalog.entities)) {
     if (typeof entity.instantiated_component === 'string' && entity.instantiated_component) {
       map[entity.urn] = entity.instantiated_component.replace(/^urn:archinex:component:/, '');

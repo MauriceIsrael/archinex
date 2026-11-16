@@ -275,7 +275,7 @@ export function buildSylvaTenantWorkloadManifests(
     (ns) => ns.status !== 'inactive' && ns.egress?.ipPool
   );
   const hasForwardProxy = resolved.modules.some((m) => m.kind === 'forward-proxy');
-  const egressManifests: Array<Record<string, unknown>> = [];
+  const egressManifests: unknown[] = [];
 
   for (const ns of egressNamespaces) {
     egressManifests.push(
@@ -367,7 +367,7 @@ export function buildSylvaTenantWorkloadManifests(
   );
 
   if (bgpVrfs.length > 0 || vipEntries.length > 0) {
-    const bgpDocs: Array<Record<string, unknown>> = [
+    const bgpDocs: unknown[] = [
       sanitizeManifests({
         apiVersion: 'cilium.io/v2alpha1',
         kind: 'CiliumBGPAdvertisement',

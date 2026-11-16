@@ -472,3 +472,86 @@ export async function exportSylvaWorkloadClusterGitops(
     }
   };
 }
+
+export interface ClusterDriverPlanOperation {
+  operation: 'createTenant' | 'createComponent' | 'createModule' | 'deployWorkload' | 'applyFirewall';
+  targetKind: 'Project' | 'RoleBinding' | 'Namespace' | 'HelmRelease' | 'CiliumNetworkPolicy';
+  targetName: string;
+  labels: {
+    tenant: string;
+    component: string;
+    module?: string;
+    environment: string;
+  };
+}
+
+export interface ClusterDriverPlan {
+  driver: 'cluster-rancher';
+  supportsPlan: true;
+  instanceKey: string;
+  operations: ClusterDriverPlanOperation[];
+}
+
+/**
+ * Mode `plan(operation)` du ClusterDriver Sylva/Rancher conforme au contrat IMP V2 (§7.1-§7.3).
+ * Produit la séquence ordonnée createTenant -> createComponent -> createModule -> deployWorkload -> applyFirewall
+ * sans modifier l'état cible.
+ */
+export function planSylvaClusterDriver(resolved: ResolvedComponentInstance): ClusterDriverPlan {
+  const operations: ClusterDriverPlanOperation[] = [];
+  const baseLabels = {
+    tenant: resolved.tenant,
+    component: resolved.name,
+    environment: resolved.environment
+  };
+
+  operations.push({
+    operation: 'createTenant',
+    targetKind: 'Project',
+    targetName: resolved.tenant,
+    labels: baseLabels
+  });
+
+  operations.push({
+    operation: 'createComponent',
+    targetKind: 'RoleBinding',
+    targetName: `${resolved.tenant}-${resolved.name}-binding`,
+    labels: baseLabels
+  });
+
+  for (const mod of resolved.modules) {
+    if (mod.status === 'inactive') continue;
+    const modLabels = { ...baseLabels, module: mod.name };
+    operations.push({
+      operation: 'createModule',
+      targetKind: 'Namespace',
+      targetName: `${resolved.tenant}-${mod.name}`,
+      labels: modLabels
+    });
+
+    if (mod.kind === 'container' || mod.kind === 'forward-proxy') {
+      operations.push({
+        operation: 'deployWorkload',
+        targetKind: 'HelmRelease',
+        targetName: `${resolved.name}-${mod.name}`,
+        labels: modLabels
+      });
+    }
+  }
+
+  for (const rule of resolved.effectiveRules) {
+    operations.push({
+      operation: 'applyFirewall',
+      targetKind: 'CiliumNetworkPolicy',
+      targetName: rule.id.toLowerCase().replace(/[^a-z0-9-]/g, '-'),
+      labels: baseLabels
+    });
+  }
+
+  return {
+    driver: 'cluster-rancher',
+    supportsPlan: true,
+    instanceKey: resolved.instanceKey,
+    operations
+  };
+}

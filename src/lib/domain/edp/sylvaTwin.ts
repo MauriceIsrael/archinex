@@ -118,6 +118,12 @@ export interface SylvaTwinModel {
   };
   bareMetalHosts: TwinBareMetalHost[];
   workloadDemands: TwinWorkloadDemand[];
+  declaredNamespaces?: Array<{
+    component: string;
+    name: string;
+    zone: string;
+    quotas: { cpu: number | string; memory: string; persistentVolumeClaims?: number };
+  }>;
   resolvedPerDc: Array<{
     datacenter: string;
     drRole: FailureDomainSpec['drRole'];
@@ -550,6 +556,55 @@ export function buildSylvaTwinModel(options: {
     }
   }
 
+  const declaredNamespaces = activeComponents.flatMap((c) =>
+    (c.spec.compute?.namespaces || [])
+      .filter((ns) => ns.status !== 'inactive')
+      .map((ns) => ({
+        component: c.metadata.name,
+        name: ns.name,
+        zone: ns.zone,
+        quotas: ns.quotas
+      }))
+  );
+
+  // Injection des hôtes bare-metal déclarés explicitement via compute.hardware (IMP V2 §3.3.2)
+  const declaredHardware = activeComponents.flatMap((c) =>
+    (c.spec.compute?.hardware || [])
+      .filter((hw) => hw.status !== 'inactive')
+      .map((hw) => ({ component: c.metadata.name, hw }))
+  );
+
+  for (const [idx, item] of declaredHardware.entries()) {
+    const { hw } = item;
+    const dom = failureDomains.find((d) => d.workloadBearing) || failureDomains[0];
+    if (!dom) continue;
+    const memMatch = hw.memory.match(/^(\d+)/);
+    const memGiB = memMatch ? Number(memMatch[1]) : 128;
+    const isSriovHw = hw.role.includes('sriov') || hw.role.includes('cnf');
+    const uuid = deterministicUuidFromKey(`${profileId}:declared:${hw.name}`);
+    const oobIp = `192.0.2.${100 + idx}`;
+    bareMetalHosts.push({
+      name: hw.name,
+      uuid,
+      datacenter: dom.id,
+      pool: isSriovHw ? 'sylva-cnf-sriov-dpdk' : 'sylva-general-compute',
+      deviceType: hw.model,
+      role: hw.role.includes('control') ? 'control-plane' : 'worker',
+      dataplaneProfile: isSriovHw ? 'sriov-dpdk-numa' : 'standard-nis2',
+      bmcAddress: `redfish+http://${oobIp}:8000/redfish/v1/Systems/${uuid}`,
+      oobIp: `${oobIp}/24`,
+      bootMACAddress: `52:54:00:dd:${(idx + 1).toString(16).padStart(2, '0')}:01`,
+      powerFeeds: [...dom.powerFeeds],
+      powerState: 'On',
+      capacity: {
+        cpuCores: hw.cpu.sockets * hw.cpu.cores,
+        memoryGiB: memGiB,
+        hugepages1Gi: isSriovHw ? 64 : 0,
+        sriovVfs: isSriovHw ? 16 : 0
+      }
+    });
+  }
+
   const hasSriov = workloadDemands.some((w) => w.sriovVfsTotal > 0);
   const { unitDag, valid: unitDagValid } = buildSylvaUnitDag(options.sylvaValues, hasSriov);
 
@@ -575,6 +630,7 @@ export function buildSylvaTwinModel(options: {
     },
     bareMetalHosts,
     workloadDemands,
+    ...(declaredNamespaces.length > 0 ? { declaredNamespaces } : {}),
     resolvedPerDc,
     unitDag,
     unitDagValid,

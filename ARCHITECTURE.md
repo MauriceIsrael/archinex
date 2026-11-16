@@ -1010,6 +1010,7 @@ Pour combler l'écart entre la délibération d'architecture et le déploiement 
 4. **Oracle OPA Étendu (`edp/policies/multi_axis_refinement.rego`) & Export GitOps Sylva Tenant (`src/lib/server/edp/sylvaGitopsExport.ts`)** :
    - L'Axe 7 vérifie l'alignement placement ↔ dataplane, la continuité des `LogicalInterfaces`, l'absence de `ref()` non résolues et les règles de lint Base ; l'**Axe 10 (IMP V2 Lot 3, #305)** ajoute les contrôles RGS sur les certificats/TLS, la séparation `Organization`/`Component`, la `CapabilityMatrix` des drivers, la charte d'intégration (`evaluateComponentIntegrationCharter`) et les erreurs de chemin pare-feu / IP Fabric (`buildImpV2OpaInput`).
    - `exportSylvaWorkloadClusterGitops()` émet, en plus de `workload-clusters/<cluster>/values.yaml`, les manifests natifs Sylva/FluxCD par composant dans `workloads/<functionalDomain>/<component>/<env>/` (`Namespace`, `CiliumNetworkPolicy`, `HelmRelease` avec gestion `staged`/`inactive`), assainis par `sanitizeManifests()`.
+   - **Convergence IMP V2 (Lot 4, #306)** : `buildSylvaTwinModel()` (`src/lib/domain/edp/sylvaTwin.ts`) consomme directement `compute.hardware` (BMC Redfish, capacité CPU/RAM) et `compute.namespaces` (quotas) ; `planSylvaClusterDriver()` (`src/lib/server/edp/sylvaGitopsExport.ts`) expose le mode `plan()` du `ClusterDriver` (§7.1–§7.3) avec la séquence `createTenant → createComponent → createModule → deployWorkload → applyFirewall` et propagation des labels.
 
 ---
 

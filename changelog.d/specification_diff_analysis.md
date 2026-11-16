@@ -1,4 +1,4 @@
-### IMP V2 Lots 1, 2 & 3 — Modèle étendu, Déduction pare-feu, IP Fabric, Flux implicites & Oracles OPA V2 (#302, #303, #304, #305)
+### IMP V2 Lots 1 à 4 — Modèle étendu, Déduction pare-feu, IP Fabric, Oracles OPA V2 & Convergence Sylva (#302, #303, #304, #305, #306)
 - **Catalogues & Modèle (`src/lib/domain/edp/componentCatalog.ts`)** :
   - Extension des classes NIC (`storage`, `backup`, `oob`) et ajout des catalogues `qosClasses`, `vlanPools`, `vniPools`, `firewalls` (`interzone`, `external`, `operator-link`), `certificateProfiles` (conformes RGS) et `drivers` (`CapabilityMatrix`).
   - Ajout de l'entité `OrganizationSpec` (`kind: Organization`), de `deriveOrganizationBubble`, `validateOrganization` (§5.1) et `evaluateComponentIntegrationCharter` (§2.3).
@@ -11,5 +11,8 @@
   - Constructeur `buildImpV2OpaInput()` pour alimenter l'oracle OPA Axe 10.
 - **Oracles OPA/Rego (`edp/policies/multi_axis_refinement.rego`)** :
   - Ajout de l'Axe 10 (`imp_v2`) : contrôles RGS (profils certificats, rejet X.509 inline, RSA < 3072, TLS < 1.2), séparation `Organization`/`Component`, `CapabilityMatrix`, charte d'intégration, chemins pare-feu et IP Fabric.
-- **Tests (`tests/contract/imp-v2-lot1-catalogs-and-model.test.ts`, `tests/contract/imp-v2-lot2-path-fabric-implicit.test.ts`, `tests/contract/imp-v2-lot3-opa-oracles.test.ts`)** :
-  - Ajout de 13 tests de contrat couvrant les Lots 1, 2 & 3.
+- **Convergence Sylva (`src/lib/domain/edp/sylvaTwin.ts`, `src/lib/server/edp/sylvaGitopsExport.ts`)** :
+  - Alimentation du jumeau numérique (`buildSylvaTwinModel`) depuis `compute.hardware` (BMC Redfish, capacité) et `compute.namespaces` (quotas).
+  - Ajout de `planSylvaClusterDriver()` implémentant le contrat `ClusterDriver` (§7.1–§7.3).
+- **Tests (`tests/contract/imp-v2-lot1..4*.test.ts`)** :
+  - Ajout de 15 tests de contrat couvrant les Lots 1 à 4.

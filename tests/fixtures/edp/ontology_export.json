@@ -1161,6 +1161,313 @@
         "geofencing_mode": "distributed_edge_terminal",
         "radio_identity_cloisonnement": "session_scoped"
       }
+    },
+    "urn:archinex:ontology:axis:esim_smdp_provisioning": {
+      "urn": "urn:archinex:ontology:axis:esim_smdp_provisioning",
+      "revision": 1,
+      "kind": "axis",
+      "title": "Axe de Raffinement : Provisioning eSIM SM-DP+ (GSMA SGP.22), SAS-SM & 4-Yeux",
+      "domain": "security",
+      "togaf_domain": "security-trust",
+      "document_engine_layer": "component",
+      "default_decision_type": "type1_deliberate",
+      "keywords": ["smdp+", "sm-dp+", "esim", "euicc", "sgp.22", "sas-sm", "profil sim", "4-yeux", "four-eyes", "provisioning sim"]
+    },
+    "urn:archinex:ontology:security:esim:smdp_sas_sm_eu_hsm": {
+      "urn": "urn:archinex:ontology:security:esim:smdp_sas_sm_eu_hsm",
+      "revision": 1,
+      "kind": "leaf",
+      "is_default_standard": true,
+      "title": "Service Managé SM-DP+ Certifié GSMA SAS-SM en UE avec HSM FIPS 140-3 L3 & 4-Yeux (esim-smdp)",
+      "domain": "security",
+      "togaf_domain": "security-trust",
+      "document_engine_layer": "component",
+      "instantiated_component": "esim-smdp",
+      "governed_by_clauses": ["urn:archinex:kb:clause:telecom:esim_smdp_sas_sm", "REQ-Telecom-eSIM-01"],
+      "keywords": ["smdp+", "sm-dp+", "sas-sm", "esim", "fips 140-3", "4-yeux", "ue"],
+      "oracle_rules": ["data.archinex.edp.multiaxis.deny_unaccredited_esim_smdp"],
+      "projections": {
+        "sas_sm_certified_required": true,
+        "four_eyes_approval_required": true,
+        "sovereignty_zone": "EU"
+      }
+    },
+    "urn:archinex:ontology:security:esim:smdp_onprem_sovereign_hsm": {
+      "urn": "urn:archinex:ontology:security:esim:smdp_onprem_sovereign_hsm",
+      "revision": 1,
+      "kind": "leaf",
+      "is_default_standard": false,
+      "title": "SM-DP+ Souverain On-Premises Déconnecté Adossé au HSM Racine (esim-smdp)",
+      "domain": "security",
+      "togaf_domain": "security-trust",
+      "document_engine_layer": "component",
+      "instantiated_component": "esim-smdp",
+      "governed_by_clauses": ["urn:archinex:kb:clause:telecom:esim_smdp_onprem", "REQ-Telecom-eSIM-02"],
+      "keywords": ["smdp+ on-prem", "esim souverain", "hsm", "air-gap"],
+      "oracle_rules": ["data.archinex.edp.multiaxis.deny_unaccredited_esim_smdp"],
+      "projections": {
+        "sas_sm_certified_required": true,
+        "four_eyes_approval_required": true,
+        "sovereignty_zone": "ONPREM"
+      }
+    },
+    "urn:archinex:ontology:axis:oss_smo_mediation": {
+      "urn": "urn:archinex:ontology:axis:oss_smo_mediation",
+      "revision": 1,
+      "kind": "axis",
+      "title": "Axe de Raffinement : Médiation OSS / EMS & Modèle NRM Unifié (3GPP TS 28.532)",
+      "domain": "operations",
+      "togaf_domain": "operations-observability",
+      "document_engine_layer": "component",
+      "default_decision_type": "type1_deliberate",
+      "keywords": ["oss", "smo", "ems", "nrm", "ts 28.532", "fcaps", "mediation oss", "restconf", "netconf", "mocn", "ran tiers"]
+    },
+    "urn:archinex:ontology:operations:oss:unified_nrm_ts28532_mediation": {
+      "urn": "urn:archinex:ontology:operations:oss:unified_nrm_ts28532_mediation",
+      "revision": 1,
+      "kind": "leaf",
+      "is_default_standard": true,
+      "title": "Couche de Médiation OSS avec NRM Unifié 3GPP TS 28.532 (oss-smo-mediation)",
+      "domain": "operations",
+      "togaf_domain": "operations-observability",
+      "document_engine_layer": "component",
+      "instantiated_component": "oss-smo-mediation",
+      "governed_by_clauses": ["urn:archinex:kb:clause:oss:unified_nrm_mediation", "REQ-OSS-NRM-01"],
+      "keywords": ["nrm unifie", "ts 28.532", "oss", "ems", "mediation", "fcaps"],
+      "oracle_rules": ["data.archinex.edp.multiaxis.deny_unstandardized_oss_nrm_mediation"],
+      "projections": {
+        "nrm_standard": "3GPP-TS-28.532"
+      }
+    },
+    "urn:archinex:ontology:operations:oss:mno_mocn_adapter_mediation": {
+      "urn": "urn:archinex:ontology:operations:oss:mno_mocn_adapter_mediation",
+      "revision": 1,
+      "kind": "leaf",
+      "is_default_standard": false,
+      "title": "Médiation OSS MOCN Multi-Connecteurs MNO (RESTCONF / NETCONF / Kafka / SNMP)",
+      "domain": "operations",
+      "togaf_domain": "operations-observability",
+      "document_engine_layer": "component",
+      "instantiated_component": "oss-smo-mediation",
+      "governed_by_clauses": ["urn:archinex:kb:clause:oss:mno_mocn_adaptation", "REQ-OSS-MOCN-01"],
+      "keywords": ["mocn", "mno", "restconf", "netconf", "kafka", "snmp", "ran partagée"],
+      "oracle_rules": ["data.archinex.edp.multiaxis.deny_unstandardized_oss_nrm_mediation"],
+      "projections": {
+        "nrm_standard": "3GPP-TS-28.532-MOCN"
+      }
+    },
+    "urn:archinex:ontology:axis:oss_automation_hitl": {
+      "urn": "urn:archinex:ontology:axis:oss_automation_hitl",
+      "revision": 1,
+      "kind": "axis",
+      "title": "Axe de Raffinement : Automatisation SMO/OSS, Corrélation RCA & Human-in-the-Loop",
+      "domain": "operations",
+      "togaf_domain": "operations-observability",
+      "document_engine_layer": "component",
+      "default_decision_type": "type1_deliberate",
+      "keywords": ["boucle fermee", "closed loop", "human-in-the-loop", "approbation humaine", "remediation", "rca", "correlation alarmes", "aiops"]
+    },
+    "urn:archinex:ontology:operations:smo:graduated_hitl_remediation": {
+      "urn": "urn:archinex:ontology:operations:smo:graduated_hitl_remediation",
+      "revision": 1,
+      "kind": "leaf",
+      "is_default_standard": true,
+      "title": "Remédiation SMO Graduée avec Approbation Humaine Obligatoire sur Actions Critiques (oss-smo-mediation)",
+      "domain": "operations",
+      "togaf_domain": "operations-observability",
+      "document_engine_layer": "component",
+      "instantiated_component": "oss-smo-mediation",
+      "governed_by_clauses": ["urn:archinex:kb:clause:smo:hitl_remediation", "REQ-SMO-HITL-01"],
+      "keywords": ["human-in-the-loop", "boucle fermee", "rca", "remediation", "smo"],
+      "oracle_rules": ["data.archinex.edp.multiaxis.deny_unapproved_closed_loop_automation"],
+      "projections": {
+        "hitl_approval_required": true
+      }
+    },
+    "urn:archinex:ontology:axis:cmdb_asset_inventory": {
+      "urn": "urn:archinex:ontology:axis:cmdb_asset_inventory",
+      "revision": 1,
+      "kind": "axis",
+      "title": "Axe de Raffinement : Inventaire Réseau, CMDB & Réconciliation ITSM",
+      "domain": "operations",
+      "togaf_domain": "operations-observability",
+      "document_engine_layer": "component",
+      "default_decision_type": "type2_default_ratify",
+      "keywords": ["cmdb", "itsm", "inventaire", "decouverte automatique", "referentiel actifs", "reconciliation inventaire"]
+    },
+    "urn:archinex:ontology:operations:cmdb:nautobot_itsm_reconciliation": {
+      "urn": "urn:archinex:ontology:operations:cmdb:nautobot_itsm_reconciliation",
+      "revision": 1,
+      "kind": "leaf",
+      "is_default_standard": true,
+      "title": "Référentiel Source-of-Truth OSS/Nautobot Synchronisé avec la CMDB ITSM (cmdb-inventory)",
+      "domain": "operations",
+      "togaf_domain": "operations-observability",
+      "document_engine_layer": "component",
+      "instantiated_component": "cmdb-inventory",
+      "governed_by_clauses": ["urn:archinex:kb:clause:oss:cmdb_consistency", "REQ-OSS-CMDB-01"],
+      "keywords": ["cmdb", "itsm", "nautobot", "inventaire", "reconciliation"],
+      "oracle_rules": ["data.archinex.edp.multiaxis.deny_desynchronized_cmdb_inventory"],
+      "projections": {
+        "cmdb_sync_enabled": true
+      }
+    },
+    "urn:archinex:ontology:axis:service_assurance_probes": {
+      "urn": "urn:archinex:ontology:axis:service_assurance_probes",
+      "revision": 1,
+      "kind": "axis",
+      "title": "Axe de Raffinement : Assurance de Service, Sondes Actives & Gouvernance QoS 5QI",
+      "domain": "operations",
+      "togaf_domain": "operations-observability",
+      "document_engine_layer": "component",
+      "default_decision_type": "type1_deliberate",
+      "keywords": ["sonde active", "sondes actives", "assurance de service", "service assurance", "5qi", "qos", "kpi mcx", "latence voix", "mcptt"]
+    },
+    "urn:archinex:ontology:operations:assurance:e2e_probes_5qi_qos": {
+      "urn": "urn:archinex:ontology:operations:assurance:e2e_probes_5qi_qos",
+      "revision": 1,
+      "kind": "leaf",
+      "is_default_standard": true,
+      "title": "Sondes Actives Bout-en-Bout Non-Invasives & Référentiel QoS 5QI (oss-smo-mediation)",
+      "domain": "operations",
+      "togaf_domain": "operations-observability",
+      "document_engine_layer": "component",
+      "instantiated_component": "oss-smo-mediation",
+      "governed_by_clauses": ["urn:archinex:kb:clause:oss:service_assurance_probes", "REQ-OSS-Assurance-01"],
+      "keywords": ["sondes actives", "5qi", "qos", "assurance de service", "mcptt"],
+      "oracle_rules": ["data.archinex.edp.multiaxis.deny_missing_service_assurance_probes"],
+      "projections": {
+        "non_invasive_probes_required": true
+      }
+    },
+    "urn:archinex:ontology:axis:non3gpp_wlan_interworking": {
+      "urn": "urn:archinex:ontology:axis:non3gpp_wlan_interworking",
+      "revision": 1,
+      "kind": "axis",
+      "title": "Axe de Raffinement : Interworking Wi-Fi / WLAN Offload Non-3GPP (N3IWF / ePDG / ATSSS)",
+      "domain": "telecom",
+      "togaf_domain": "network-connectivity",
+      "document_engine_layer": "infrastructure",
+      "default_decision_type": "type1_deliberate",
+      "keywords": ["n3iwf", "epdg", "atsss", "wlan offload", "wifi offload", "wi-fi", "non-3gpp", "interworking"]
+    },
+    "urn:archinex:ontology:network:interworking:n3iwf_epdg_ipsec": {
+      "urn": "urn:archinex:ontology:network:interworking:n3iwf_epdg_ipsec",
+      "revision": 1,
+      "kind": "leaf",
+      "is_default_standard": true,
+      "title": "Passerelle N3IWF / ePDG avec Tunnel IPsec IKEv2 EAP-AKA' (n3iwf-epdg-gateway)",
+      "domain": "telecom",
+      "togaf_domain": "network-connectivity",
+      "document_engine_layer": "infrastructure",
+      "instantiated_component": "n3iwf-epdg-gateway",
+      "governed_by_clauses": ["urn:archinex:kb:clause:telecom:n3iwf_ipsec", "REQ-Telecom-WLAN-01"],
+      "keywords": ["n3iwf", "epdg", "ipsec", "wlan", "wi-fi", "non-3gpp"],
+      "oracle_rules": ["data.archinex.edp.multiaxis.deny_unencrypted_non3gpp_interworking"],
+      "projections": {
+        "non3gpp_ipsec_enforced": true
+      }
+    },
+    "urn:archinex:ontology:network:interworking:atsss_multipath_steering": {
+      "urn": "urn:archinex:ontology:network:interworking:atsss_multipath_steering",
+      "revision": 1,
+      "kind": "leaf",
+      "is_default_standard": false,
+      "title": "Pilotage Multi-Accès ATSSS 5G + WLAN avec N3IWF Chiffré (n3iwf-epdg-gateway)",
+      "domain": "telecom",
+      "togaf_domain": "network-connectivity",
+      "document_engine_layer": "infrastructure",
+      "instantiated_component": "n3iwf-epdg-gateway",
+      "governed_by_clauses": ["urn:archinex:kb:clause:telecom:atsss", "REQ-Telecom-WLAN-02"],
+      "keywords": ["atsss", "n3iwf", "multipath", "wlan offload"],
+      "oracle_rules": ["data.archinex.edp.multiaxis.deny_unencrypted_non3gpp_interworking"],
+      "projections": {
+        "non3gpp_ipsec_enforced": true
+      }
+    },
+    "urn:archinex:ontology:axis:core_5g_network_slicing": {
+      "urn": "urn:archinex:ontology:axis:core_5g_network_slicing",
+      "revision": 1,
+      "kind": "axis",
+      "title": "Axe de Raffinement : Tranchage Réseau 5G (Network Slicing SST / S-NSSAI / 5QI)",
+      "domain": "telecom",
+      "togaf_domain": "network-connectivity",
+      "document_engine_layer": "component",
+      "default_decision_type": "type1_deliberate",
+      "keywords": ["slicing", "network slicing", "tranche 5g", "tranches 5g", "sst", "sd", "nssai", "s-nssai", "dnn"]
+    },
+    "urn:archinex:ontology:telecom:core:slicing_5qi_sst_isolation": {
+      "urn": "urn:archinex:ontology:telecom:core:slicing_5qi_sst_isolation",
+      "revision": 1,
+      "kind": "leaf",
+      "is_default_standard": true,
+      "title": "Isolement Strict des Tranches 5G par S-NSSAI, DNN & Profils QoS 5QI (core-network)",
+      "domain": "telecom",
+      "togaf_domain": "network-connectivity",
+      "document_engine_layer": "component",
+      "instantiated_component": "core-network",
+      "governed_by_clauses": ["urn:archinex:kb:clause:telecom:5g_slicing_isolation", "REQ-Core-Slicing-01"],
+      "keywords": ["slicing", "s-nssai", "sst", "5qi", "dnn", "tranche 5g"],
+      "oracle_rules": ["data.archinex.edp.multiaxis.deny_unisolated_5g_network_slice"],
+      "projections": {
+        "slice_isolation_enforced": true
+      }
+    },
+    "urn:archinex:ontology:axis:embms_multicast_broadcast": {
+      "urn": "urn:archinex:ontology:axis:embms_multicast_broadcast",
+      "revision": 1,
+      "kind": "axis",
+      "title": "Axe de Raffinement : Diffusion Multicast / Broadcast Groupe MCX (eMBMS / 5MBS)",
+      "domain": "application",
+      "togaf_domain": "application-business",
+      "document_engine_layer": "application",
+      "default_decision_type": "type1_deliberate",
+      "keywords": ["embms", "5mbs", "mbs", "multicast", "broadcast", "diffusion groupe", "bm-sc", "mbms"]
+    },
+    "urn:archinex:ontology:application:broadcast:embms_5mbs_group_broadcast": {
+      "urn": "urn:archinex:ontology:application:broadcast:embms_5mbs_group_broadcast",
+      "revision": 1,
+      "kind": "leaf",
+      "is_default_standard": true,
+      "title": "Diffusion Multicast/Broadcast eMBMS / 5MBS Authentifiée avec Repli Unicast (ptt-server)",
+      "domain": "application",
+      "togaf_domain": "application-business",
+      "document_engine_layer": "application",
+      "instantiated_component": "ptt-server",
+      "governed_by_clauses": ["urn:archinex:kb:clause:mcx:embms_5mbs", "REQ-MCX-eMBMS-01"],
+      "keywords": ["embms", "5mbs", "mbs", "multicast", "broadcast", "bm-sc"],
+      "oracle_rules": ["data.archinex.edp.multiaxis.deny_unauthenticated_embms_broadcast"],
+      "projections": {
+        "embms_authenticated_required": true
+      }
+    },
+    "urn:archinex:ontology:axis:pqc_crypto_agility": {
+      "urn": "urn:archinex:ontology:axis:pqc_crypto_agility",
+      "revision": 1,
+      "kind": "axis",
+      "title": "Axe de Raffinement : Cryptographie Post-Quantique (PQC) & Crypto-Agilité",
+      "domain": "security",
+      "togaf_domain": "security-trust",
+      "document_engine_layer": "component",
+      "default_decision_type": "type1_deliberate",
+      "keywords": ["pqc", "post-quantique", "post quantum", "ml-kem", "ml-dsa", "kyber", "dilithium", "crypto-agilite", "crypto agilite"]
+    },
+    "urn:archinex:ontology:security:pqc:hybrid_mlkem_mldsa_agility": {
+      "urn": "urn:archinex:ontology:security:pqc:hybrid_mlkem_mldsa_agility",
+      "revision": 1,
+      "kind": "leaf",
+      "is_default_standard": true,
+      "title": "Profil Crypto-Agile Hybride Classique + PQC ML-KEM / ML-DSA (pki-ca)",
+      "domain": "security",
+      "togaf_domain": "security-trust",
+      "document_engine_layer": "component",
+      "instantiated_component": "pki-ca",
+      "governed_by_clauses": ["urn:archinex:kb:clause:security:pqc_agility", "REQ-Sec-PQC-01"],
+      "keywords": ["pqc", "post-quantique", "ml-kem", "ml-dsa", "crypto-agilite"],
+      "oracle_rules": ["data.archinex.edp.multiaxis.deny_non_pqc_crypto_agility"],
+      "projections": {
+        "pqc_hybrid_agility_required": true
+      }
     }
   },
   "triplets": [
@@ -1908,6 +2215,209 @@
       "predicate": "instantiates_component",
       "object": "urn:archinex:component:ptt-server",
       "rationale": "Alloue le pipeline temps réel de géofencing au composant logique ptt-server."
+    },
+    {
+      "id": "tr-telco-01",
+      "subject": "urn:archinex:ontology:axis:esim_smdp_provisioning",
+      "predicate": "implemented_by",
+      "object": "urn:archinex:ontology:security:esim:smdp_sas_sm_eu_hsm",
+      "rationale": "Implémentation standard du provisioning eSIM SM-DP+ certifié SAS-SM en UE."
+    },
+    {
+      "id": "tr-telco-02",
+      "subject": "urn:archinex:ontology:axis:esim_smdp_provisioning",
+      "predicate": "implemented_by",
+      "object": "urn:archinex:ontology:security:esim:smdp_onprem_sovereign_hsm",
+      "rationale": "Variante souveraine on-premises du SM-DP+ adossée au HSM racine."
+    },
+    {
+      "id": "tr-telco-03",
+      "subject": "urn:archinex:ontology:axis:oss_smo_mediation",
+      "predicate": "implemented_by",
+      "object": "urn:archinex:ontology:operations:oss:unified_nrm_ts28532_mediation",
+      "rationale": "Normalisation des KPI et alarmes multi-fournisseurs vers NRM 3GPP TS 28.532."
+    },
+    {
+      "id": "tr-telco-04",
+      "subject": "urn:archinex:ontology:axis:oss_smo_mediation",
+      "predicate": "implemented_by",
+      "object": "urn:archinex:ontology:operations:oss:mno_mocn_adapter_mediation",
+      "rationale": "Variante d'adaptation aux interfaces OSS/ENM imposées par un MNO en MOCN."
+    },
+    {
+      "id": "tr-telco-05",
+      "subject": "urn:archinex:ontology:axis:oss_automation_hitl",
+      "predicate": "implemented_by",
+      "object": "urn:archinex:ontology:operations:smo:graduated_hitl_remediation",
+      "rationale": "Remédiation SMO graduée avec approbation humaine sur actions critiques."
+    },
+    {
+      "id": "tr-telco-06",
+      "subject": "urn:archinex:ontology:axis:cmdb_asset_inventory",
+      "predicate": "implemented_by",
+      "object": "urn:archinex:ontology:operations:cmdb:nautobot_itsm_reconciliation",
+      "rationale": "Cohérence stricte entre inventaire OSS/Nautobot et CMDB ITSM."
+    },
+    {
+      "id": "tr-telco-07",
+      "subject": "urn:archinex:ontology:axis:service_assurance_probes",
+      "predicate": "implemented_by",
+      "object": "urn:archinex:ontology:operations:assurance:e2e_probes_5qi_qos",
+      "rationale": "Sondes actives bout-en-bout non-invasives et gouvernance QoS 5QI."
+    },
+    {
+      "id": "tr-telco-08",
+      "subject": "urn:archinex:ontology:axis:non3gpp_wlan_interworking",
+      "predicate": "implemented_by",
+      "object": "urn:archinex:ontology:network:interworking:n3iwf_epdg_ipsec",
+      "rationale": "Interworking WLAN non-3GPP sécurisé par N3IWF/ePDG IPsec."
+    },
+    {
+      "id": "tr-telco-09",
+      "subject": "urn:archinex:ontology:axis:non3gpp_wlan_interworking",
+      "predicate": "implemented_by",
+      "object": "urn:archinex:ontology:network:interworking:atsss_multipath_steering",
+      "rationale": "Variante pilotage multi-accès ATSSS 5G + WLAN."
+    },
+    {
+      "id": "tr-telco-10",
+      "subject": "urn:archinex:ontology:axis:core_5g_network_slicing",
+      "predicate": "implemented_by",
+      "object": "urn:archinex:ontology:telecom:core:slicing_5qi_sst_isolation",
+      "rationale": "Isolement des tranches 5G par S-NSSAI, DNN et 5QI."
+    },
+    {
+      "id": "tr-telco-11",
+      "subject": "urn:archinex:ontology:axis:embms_multicast_broadcast",
+      "predicate": "implemented_by",
+      "object": "urn:archinex:ontology:application:broadcast:embms_5mbs_group_broadcast",
+      "rationale": "Diffusion de groupe eMBMS/5MBS authentifiée avec repli unicast."
+    },
+    {
+      "id": "tr-telco-12",
+      "subject": "urn:archinex:ontology:axis:pqc_crypto_agility",
+      "predicate": "implemented_by",
+      "object": "urn:archinex:ontology:security:pqc:hybrid_mlkem_mldsa_agility",
+      "rationale": "Profil crypto-agile hybride classique + PQC ML-KEM / ML-DSA."
+    },
+    {
+      "id": "tr-pre-telco-01",
+      "subject": "urn:archinex:ontology:axis:esim_smdp_provisioning",
+      "predicate": "requires_prerequisite_axis",
+      "object": "urn:archinex:ontology:axis:hsm_key_custody",
+      "rationale": "Le provisioning eSIM SM-DP+ requiert une racine matérielle HSM FIPS 140-3."
+    },
+    {
+      "id": "tr-pre-telco-02",
+      "subject": "urn:archinex:ontology:axis:oss_automation_hitl",
+      "predicate": "requires_prerequisite_axis",
+      "object": "urn:archinex:ontology:axis:oss_smo_mediation",
+      "rationale": "L'automatisation SMO/RCA s'appuie sur la couche de médiation OSS NRM unifiée."
+    },
+    {
+      "id": "tr-pre-telco-03",
+      "subject": "urn:archinex:ontology:axis:service_assurance_probes",
+      "predicate": "requires_prerequisite_axis",
+      "object": "urn:archinex:ontology:axis:oss_smo_mediation",
+      "rationale": "Les sondes d'assurance de service remontent leurs KPI dans la médiation OSS/SMO."
+    },
+    {
+      "id": "tr-pre-telco-04",
+      "subject": "urn:archinex:ontology:axis:non3gpp_wlan_interworking",
+      "predicate": "requires_prerequisite_axis",
+      "object": "urn:archinex:ontology:axis:wan_interco_encryption",
+      "rationale": "L'interworking N3IWF/ePDG repose sur le profil cryptographique IPsec IKEv2."
+    },
+    {
+      "id": "tr-pre-telco-05",
+      "subject": "urn:archinex:ontology:axis:pqc_crypto_agility",
+      "predicate": "requires_prerequisite_axis",
+      "object": "urn:archinex:ontology:axis:pki_hierarchy",
+      "rationale": "La crypto-agilité PQC s'appuie sur la hiérarchie PKI (pki-ca)."
+    },
+    {
+      "id": "tr-comp-telco-01",
+      "subject": "urn:archinex:ontology:security:esim:smdp_sas_sm_eu_hsm",
+      "predicate": "instantiates_component",
+      "object": "urn:archinex:component:esim-smdp",
+      "rationale": "Alloue le provisioning eSIM au composant logique esim-smdp."
+    },
+    {
+      "id": "tr-comp-telco-02",
+      "subject": "urn:archinex:ontology:security:esim:smdp_onprem_sovereign_hsm",
+      "predicate": "instantiates_component",
+      "object": "urn:archinex:component:esim-smdp",
+      "rationale": "Alloue le SM-DP+ souverain au composant logique esim-smdp."
+    },
+    {
+      "id": "tr-comp-telco-03",
+      "subject": "urn:archinex:ontology:operations:oss:unified_nrm_ts28532_mediation",
+      "predicate": "instantiates_component",
+      "object": "urn:archinex:component:oss-smo-mediation",
+      "rationale": "Alloue la médiation NRM unifiée au composant oss-smo-mediation."
+    },
+    {
+      "id": "tr-comp-telco-04",
+      "subject": "urn:archinex:ontology:operations:oss:mno_mocn_adapter_mediation",
+      "predicate": "instantiates_component",
+      "object": "urn:archinex:component:oss-smo-mediation",
+      "rationale": "Alloue les adaptateurs MOCN MNO au composant oss-smo-mediation."
+    },
+    {
+      "id": "tr-comp-telco-05",
+      "subject": "urn:archinex:ontology:operations:smo:graduated_hitl_remediation",
+      "predicate": "instantiates_component",
+      "object": "urn:archinex:component:oss-smo-mediation",
+      "rationale": "Alloue l'orchestration SMO HITL au composant oss-smo-mediation."
+    },
+    {
+      "id": "tr-comp-telco-06",
+      "subject": "urn:archinex:ontology:operations:cmdb:nautobot_itsm_reconciliation",
+      "predicate": "instantiates_component",
+      "object": "urn:archinex:component:cmdb-inventory",
+      "rationale": "Alloue la réconciliation CMDB/ITSM au composant cmdb-inventory."
+    },
+    {
+      "id": "tr-comp-telco-07",
+      "subject": "urn:archinex:ontology:operations:assurance:e2e_probes_5qi_qos",
+      "predicate": "instantiates_component",
+      "object": "urn:archinex:component:oss-smo-mediation",
+      "rationale": "Alloue l'assurance de service par sondes actives au composant oss-smo-mediation."
+    },
+    {
+      "id": "tr-comp-telco-08",
+      "subject": "urn:archinex:ontology:network:interworking:n3iwf_epdg_ipsec",
+      "predicate": "instantiates_component",
+      "object": "urn:archinex:component:n3iwf-epdg-gateway",
+      "rationale": "Alloue l'interworking WLAN au composant n3iwf-epdg-gateway."
+    },
+    {
+      "id": "tr-comp-telco-09",
+      "subject": "urn:archinex:ontology:network:interworking:atsss_multipath_steering",
+      "predicate": "instantiates_component",
+      "object": "urn:archinex:component:n3iwf-epdg-gateway",
+      "rationale": "Alloue le pilotage ATSSS au composant n3iwf-epdg-gateway."
+    },
+    {
+      "id": "tr-comp-telco-10",
+      "subject": "urn:archinex:ontology:telecom:core:slicing_5qi_sst_isolation",
+      "predicate": "instantiates_component",
+      "object": "urn:archinex:component:core-network",
+      "rationale": "Alloue le tranchage 5G au composant core-network."
+    },
+    {
+      "id": "tr-comp-telco-11",
+      "subject": "urn:archinex:ontology:application:broadcast:embms_5mbs_group_broadcast",
+      "predicate": "instantiates_component",
+      "object": "urn:archinex:component:ptt-server",
+      "rationale": "Alloue la diffusion multicast/broadcast eMBMS/5MBS au composant ptt-server."
+    },
+    {
+      "id": "tr-comp-telco-12",
+      "subject": "urn:archinex:ontology:security:pqc:hybrid_mlkem_mldsa_agility",
+      "predicate": "instantiates_component",
+      "object": "urn:archinex:component:pki-ca",
+      "rationale": "Alloue la crypto-agilité PQC au composant pki-ca."
     }
   ]
 }

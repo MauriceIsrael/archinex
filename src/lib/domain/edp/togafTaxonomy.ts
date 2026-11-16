@@ -476,6 +476,116 @@ export const TOGAF_REFERENCE_BUILDING_BLOCKS: ReferenceBuildingBlock[] = [
 		defaultLeafUrn: 'urn:archinex:ontology:facilities:timing:gnss_ieee1588_stratum1',
 		rationale: 'Conditionne la corrélation des journaux SIEM, la validité cryptographique et la synchronisation radio/cœur.',
 		keywords: ['synchronisation temporelle', 'horloge', 'ntp', 'chrony', 'stratum', 'gnss', 'gps', 'ieee 1588', 'synce']
+	},
+
+	// --- 8. Services Managés eSIM SM-DP+, OSS/SMO/CMDB, Interworking WLAN, eMBMS/Slicing & PQC ---
+	{
+		id: 'esim-smdp-provisioning',
+		title: 'Provisioning eSIM SM-DP+ (GSMA SGP.22), Certification SAS-SM & Gouvernance 4-Yeux',
+		togafDomain: 'security-trust',
+		documentEngineLayer: 'component',
+		defaultDecisionType: 'type1_deliberate',
+		axisUrn: 'urn:archinex:ontology:axis:esim_smdp_provisioning',
+		defaultLeafUrn: 'urn:archinex:ontology:security:esim:smdp_sas_sm_eu_hsm',
+		logicalComponentName: 'esim-smdp',
+		rationale: 'Encadre l’hébergement souverain SAS-SM, le HSM FIPS 140-3 L3 et la double approbation 4-yeux des profils eSIM.',
+		keywords: ['smdp+', 'sm-dp+', 'esim', 'euicc', 'sgp.22', 'sas-sm', 'profil sim', '4-yeux', 'four-eyes', 'provisioning sim']
+	},
+	{
+		id: 'oss-smo-mediation',
+		title: 'Médiation OSS / EMS & Modèle NRM Unifié (3GPP TS 28.532 / MOCN)',
+		togafDomain: 'operations-observability',
+		documentEngineLayer: 'component',
+		defaultDecisionType: 'type1_deliberate',
+		axisUrn: 'urn:archinex:ontology:axis:oss_smo_mediation',
+		defaultLeafUrn: 'urn:archinex:ontology:operations:oss:unified_nrm_ts28532_mediation',
+		logicalComponentName: 'oss-smo-mediation',
+		rationale: 'Normalise les compteurs et alarmes multi-fournisseurs vers un NRM unifié et encadre les interfaces EMS/MNO.',
+		keywords: ['oss', 'smo', 'ems', 'nrm', 'ts 28.532', 'fcaps', 'mediation oss', 'restconf', 'netconf', 'mocn', 'ran tiers']
+	},
+	{
+		id: 'oss-automation-hitl',
+		title: 'Automatisation SMO/OSS, Corrélation RCA & Human-in-the-Loop',
+		togafDomain: 'operations-observability',
+		documentEngineLayer: 'component',
+		defaultDecisionType: 'type1_deliberate',
+		axisUrn: 'urn:archinex:ontology:axis:oss_automation_hitl',
+		defaultLeafUrn: 'urn:archinex:ontology:operations:smo:graduated_hitl_remediation',
+		logicalComponentName: 'oss-smo-mediation',
+		rationale: 'Arbitre le degré d’automatisation en boucle fermée vs approbation humaine et la corrélation RCA.',
+		keywords: ['boucle fermee', 'closed loop', 'human-in-the-loop', 'approbation humaine', 'remediation', 'rca', 'correlation alarmes', 'aiops']
+	},
+	{
+		id: 'cmdb-asset-inventory',
+		title: 'Inventaire Réseau, CMDB & Réconciliation ITSM Encadrée',
+		togafDomain: 'operations-observability',
+		documentEngineLayer: 'component',
+		defaultDecisionType: 'type2_default_ratify',
+		axisUrn: 'urn:archinex:ontology:axis:cmdb_asset_inventory',
+		defaultLeafUrn: 'urn:archinex:ontology:operations:cmdb:nautobot_itsm_reconciliation',
+		logicalComponentName: 'cmdb-inventory',
+		rationale: 'Garantit la cohérence entre l’inventaire OSS/Nautobot, la découverte automatique et la CMDB ITSM.',
+		keywords: ['cmdb', 'itsm', 'inventaire', 'decouverte automatique', 'referentiel actifs', 'reconciliation inventaire']
+	},
+	{
+		id: 'service-assurance-probes',
+		title: 'Assurance de Service, Sondes Actives Bout-en-Bout & Gouvernance QoS 5QI',
+		togafDomain: 'operations-observability',
+		documentEngineLayer: 'component',
+		defaultDecisionType: 'type1_deliberate',
+		axisUrn: 'urn:archinex:ontology:axis:service_assurance_probes',
+		defaultLeafUrn: 'urn:archinex:ontology:operations:assurance:e2e_probes_5qi_qos',
+		logicalComponentName: 'oss-smo-mediation',
+		rationale: 'Mesure les KPI bout-en-bout (latence, gigue, 5QI) sans sondes invasives dans les équipements tiers.',
+		keywords: ['sonde active', 'sondes actives', 'assurance de service', 'service assurance', '5qi', 'qos', 'kpi ptt', 'latence voix', 'mcptt']
+	},
+	{
+		id: 'non3gpp-wlan-interworking',
+		title: 'Interworking Wi-Fi / WLAN Offload Non-3GPP (N3IWF / ePDG / ATSSS)',
+		togafDomain: 'network-connectivity',
+		documentEngineLayer: 'infrastructure',
+		defaultDecisionType: 'type1_deliberate',
+		axisUrn: 'urn:archinex:ontology:axis:non3gpp_wlan_interworking',
+		defaultLeafUrn: 'urn:archinex:ontology:network:interworking:n3iwf_epdg_ipsec',
+		logicalComponentName: 'n3iwf-epdg-gateway',
+		rationale: 'Sécurise l’accès au cœur 5G/4G depuis des réseaux WLAN/Wi-Fi non approuvés via N3IWF/ePDG.',
+		keywords: ['n3iwf', 'epdg', 'atsss', 'wlan offload', 'wifi offload', 'wi-fi', 'non-3gpp', 'interworking']
+	},
+	{
+		id: 'core-5g-network-slicing',
+		title: 'Tranchage Réseau 5G (Network Slicing SST / S-NSSAI / 5QI)',
+		togafDomain: 'network-connectivity',
+		documentEngineLayer: 'component',
+		defaultDecisionType: 'type1_deliberate',
+		axisUrn: 'urn:archinex:ontology:axis:core_5g_network_slicing',
+		defaultLeafUrn: 'urn:archinex:ontology:telecom:core:slicing_5qi_sst_isolation',
+		logicalComponentName: 'core-network',
+		rationale: 'Isole les tranches de service critiques (PPDR, télémétrie, gestion) par S-NSSAI, DNN et priorité 5QI.',
+		keywords: ['slicing', 'network slicing', 'tranche 5g', 'tranches 5g', 'sst', 'sd', 'nssai', 's-nssai', 'dnn']
+	},
+	{
+		id: 'embms-multicast-broadcast',
+		title: 'Diffusion Multicast / Broadcast Groupe Mission-Critical (eMBMS / 5MBS)',
+		togafDomain: 'application-business',
+		documentEngineLayer: 'application',
+		defaultDecisionType: 'type1_deliberate',
+		axisUrn: 'urn:archinex:ontology:axis:embms_multicast_broadcast',
+		defaultLeafUrn: 'urn:archinex:ontology:application:broadcast:embms_5mbs_group_broadcast',
+		logicalComponentName: 'ptt-server',
+		rationale: 'Optimise la diffusion de groupe PPDR/PTT sur cellule radio via BM-SC / eMBMS / 5MBS avec repli unicast.',
+		keywords: ['embms', '5mbs', 'mbs', 'multicast', 'broadcast', 'diffusion groupe', 'bm-sc', 'mbms']
+	},
+	{
+		id: 'pqc-crypto-agility',
+		title: 'Cryptographie Post-Quantique (PQC ML-KEM / ML-DSA) & Crypto-Agilité',
+		togafDomain: 'security-trust',
+		documentEngineLayer: 'component',
+		defaultDecisionType: 'type1_deliberate',
+		axisUrn: 'urn:archinex:ontology:axis:pqc_crypto_agility',
+		defaultLeafUrn: 'urn:archinex:ontology:security:pqc:hybrid_mlkem_mldsa_agility',
+		logicalComponentName: 'pki-ca',
+		rationale: 'Prépare la transition cryptographique par hybridation classique/PQC et rotation automatisée des certificats.',
+		keywords: ['pqc', 'post-quantique', 'post quantum', 'ml-kem', 'ml-dsa', 'kyber', 'dilithium', 'crypto-agilite', 'crypto agilite']
 	}
 ];
 

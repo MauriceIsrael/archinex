@@ -175,6 +175,7 @@ export interface SubjectRefinementInput {
   detailedSpec?: string;
   structuredFacts?: StructuredFactInput[];
   explicitBindings?: OntologyBindingItem[];
+  excludedLeafUrns?: string[];
   autoBindFromText?: boolean;
   selectedConceptUrn?: string;
   isNovelSubject?: boolean;
@@ -815,6 +816,7 @@ export function computeRefinementCoverage(
   const explicitBindingSet = new Set<string>(
     (input.explicitBindings || []).map((b) => b.urn)
   );
+  const excludedLeafSet = new Set<string>(input.excludedLeafUrns || []);
   const boundLeafUrns = new Set<string>(explicitBindingSet);
   const shouldAutoBind = input.autoBindFromText ?? explicitBindingSet.size === 0;
   const isAutoConceptMode =
@@ -859,7 +861,7 @@ export function computeRefinementCoverage(
           break;
         }
         const leaf = catalog.entities[t.object];
-        if (!leaf || !isAutoConceptMode) continue;
+        if (!leaf || !isAutoConceptMode || excludedLeafSet.has(leaf.urn)) continue;
         if (
           matchesEntityKeywords(leaf) ||
           (corpusCandidateIds.length > 0 && Boolean(findStrongLinkForLeaf(leaf, corpusCandidateIds, catalog)))
@@ -987,7 +989,11 @@ export function computeRefinementCoverage(
 
     const emergentBound: CandidateLeafSummary[] = [];
     let emergentHasExplicit = false;
+    let emergentHasExcluded = false;
     for (const cand of emergentCandidates) {
+      if (excludedLeafSet.has(cand.urn)) {
+        emergentHasExcluded = true;
+      }
       if (explicitBindingSet.has(cand.urn)) {
         emergentBound.push(cand);
         boundLeafUrns.add(cand.urn);
@@ -995,7 +1001,7 @@ export function computeRefinementCoverage(
       }
     }
 
-    if (!emergentHasExplicit && shouldAutoBind && emergentCandidates.length > 0) {
+    if (!emergentHasExplicit && !emergentHasExcluded && shouldAutoBind && emergentCandidates.length > 0) {
       emergentBound.push(emergentCandidates[0]);
       boundLeafUrns.add(emergentCandidates[0].urn);
     }
@@ -1061,12 +1067,15 @@ export function computeRefinementCoverage(
       candidateLeaves.push(summary);
 
       const isExplicitlyBound = explicitBindingSet.has(leafEntity.urn);
+      const isExcluded = excludedLeafSet.has(leafEntity.urn);
       const hasStrongLinkInCorpus =
-        shouldAutoBind && corpusCandidateIds.length > 0
+        shouldAutoBind && !isExcluded && corpusCandidateIds.length > 0
           ? Boolean(findStrongLinkForLeaf(leafEntity, corpusCandidateIds, catalog))
           : false;
-      const semanticScore = shouldAutoBind ? scoreEntityAgainstCorpus(leafEntity, corpus) : 0;
-      const isDefaultStandard = shouldAutoBind && leafEntity.is_default_standard === true;
+      const semanticScore =
+        shouldAutoBind && !isExcluded ? scoreEntityAgainstCorpus(leafEntity, corpus) : 0;
+      const isDefaultStandard =
+        shouldAutoBind && !isExcluded && leafEntity.is_default_standard === true;
 
       if (isExplicitlyBound) {
         boundLeafUrns.add(leafEntity.urn);
@@ -1088,7 +1097,15 @@ export function computeRefinementCoverage(
       }
     }
 
-    if (isApplicationAxis && !hasExplicitBinding && shouldAutoBind && boundLeaves.length === 0) {
+    const axisHasExcludedLeaf = candidateLeaves.some((c) => excludedLeafSet.has(c.urn));
+
+    if (
+      isApplicationAxis &&
+      !hasExplicitBinding &&
+      !axisHasExcludedLeaf &&
+      shouldAutoBind &&
+      boundLeaves.length === 0
+    ) {
       const chosen =
         bestAutoAppCandidate?.summary ||
         candidateLeaves.find((c) => c.oracleRules.length > 0) ||
@@ -1101,7 +1118,7 @@ export function computeRefinementCoverage(
 
     // Auto-raffinement par défaut (KAOS OR-Refinement) : tant qu'une feuille standard homologuée existe
     // dans l'ontologie pour cet axe obligatoire, on la propose comme défaut (à ratifier).
-    if (shouldAutoBind && boundLeaves.length === 0 && candidateLeaves.length > 0) {
+    if (!axisHasExcludedLeaf && shouldAutoBind && boundLeaves.length === 0 && candidateLeaves.length > 0) {
       const defaultCandidate =
         candidateLeaves.find((c) => c.oracleRules.length > 0) || candidateLeaves[0];
       boundLeafUrns.add(defaultCandidate.urn);
@@ -1207,8 +1224,9 @@ export function computeRefinementCoverage(
       candidateLeaves.push(summary);
 
       const isExplicitlyBound = explicitBindingSet.has(leafEntity.urn);
+      const isExcluded = excludedLeafSet.has(leafEntity.urn);
       const hasStrongLinkInCorpus =
-        shouldAutoBind && corpusCandidateIds.length > 0
+        shouldAutoBind && !isExcluded && corpusCandidateIds.length > 0
           ? Boolean(findStrongLinkForLeaf(leafEntity, corpusCandidateIds, catalog))
           : false;
 
@@ -1222,10 +1240,11 @@ export function computeRefinementCoverage(
       }
     }
 
+    const slotHasExcludedLeaf = candidateLeaves.some((c) => excludedLeafSet.has(c.urn));
     let slotOrigin: BindingOrigin = 'none';
     if (slotBoundLeaves.length > 0) {
       slotOrigin = hasExplicit ? 'explicit' : hasStrongLink ? 'strong_link' : 'default_proposed';
-    } else if (shouldAutoBind && candidateLeaves.length > 0) {
+    } else if (!slotHasExcludedLeaf && shouldAutoBind && candidateLeaves.length > 0) {
       const proposed =
         candidateLeaves.find((c) => Boolean(catalog.entities[c.urn]?.is_default_standard)) ||
         candidateLeaves.find((c) => c.oracleRules.length > 0) ||

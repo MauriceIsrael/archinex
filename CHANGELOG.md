@@ -8,6 +8,10 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Corrections
+
+- **Contextualisation du diagramme de chaîne de déploiement & homologation (Issue #311)** : suppression des 5 archétypes télécom statiques de `generateDeploymentSequenceDiagram` dans `src/lib/domain/artifactProjections.ts` au profit du générateur dynamique `src/lib/domain/deploymentSequence.ts`, qui exploite les énoncés actifs, le brouillon télégraphique (`retenu`, `suppose`, `conflit`, `is_provisional`), les slots Phase 4 (`instantiatedComponents`, `executableOracleRules`), les environnements (jusqu'à 3 paliers), les protocoles, les contraintes de sécurité/homologation et les acteurs du sujet.
+
 ### Positionnement de l'onglet Phase 5 à droite de Phase 4 & Consolidation par 4 piliers transverses (#314)
 - **Navigation (`src/lib/components/deliberation/ProjectEngagementHeader.svelte`)** :
   - Déplacement des boutons `Phase 5 · Consolidation` et `Architecture Lockée` à droite de `Phase 4 · Raffinement` pour rétablir la progression logique `Phase 2 → Phase 3 → Phase 4 → Phase 5`.

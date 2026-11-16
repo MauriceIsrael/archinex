@@ -120,6 +120,21 @@
 		await triggerEdpAction({ action: 'bind_aspect', leafUrn, axisUrn, bindMode });
 	}
 
+	async function handleUnratifyAxis(axisUrn: string, axisTitle: string, leafUrn?: string) {
+		if (!confirm(`Révoquer la ratification sur l'axe « ${axisTitle} » ? Cette action sera journalisée.`)) {
+			return;
+		}
+		await triggerEdpAction(
+			{
+				action: 'unratify',
+				axisUrn,
+				leafUrn,
+				reason: `Révocation manuelle en Phase 4 sur l'axe ${axisTitle}.`
+			},
+			`Ratification révoquée sur l'axe « ${axisTitle} ».`
+		);
+	}
+
 	async function handleBindAllMissingAxes() {
 		if (!coverage?.axes) return;
 		for (const axis of coverage.axes) {
@@ -471,6 +486,18 @@
 											>
 												✓ Ratifier « {axis.boundLeaves[0].title} »
 											</button>
+										{:else if axis.boundLeaves?.length > 0 && (axis.bindingOrigin === 'explicit' || axis.bindingOrigin === 'strong_link')}
+											<button
+												type="button"
+												disabled={isActionRunning}
+												onclick={() =>
+													handleUnratifyAxis(axis.axisUrn, axis.axisTitle, axis.boundLeaves[0]?.urn)}
+												class="px-2.5 py-1 rounded-md text-[11px] font-semibold border border-rose-500/40 bg-rose-500/10 hover:bg-rose-500/20 text-rose-800 dark:text-rose-200 transition-colors cursor-pointer"
+												title="Révoquer la ratification de cet axe et revenir sur le choix acté"
+												data-testid="phase4-unratify-axis-btn"
+											>
+												↺ Révoquer
+											</button>
 										{/if}
 										{#each axis.candidateLeaves as cand}
 											{@const isBound = axis.boundLeaves.some((b: any) => b.urn === cand.urn)}
@@ -524,17 +551,16 @@
 														{leaf.title}
 													</span>
 													<span class="font-mono text-[10px] text-muted-foreground">({leaf.urn} · r{leaf.revision})</span>
-													{#if axis.boundLeaves.length > 1}
-														<button
-															type="button"
-															disabled={isActionRunning}
-															onclick={() => handleBindLeaf(leaf.urn, axis.axisUrn, 'remove')}
-															class="px-1.5 py-0.5 rounded text-[10px] font-semibold text-rose-600 hover:bg-rose-500/15 transition-colors cursor-pointer"
-															title="Retirer cette variante cumulée de l'axe"
-														>
-															✕ Retirer
-														</button>
-													{/if}
+													<button
+														type="button"
+														disabled={isActionRunning}
+														onclick={() => handleBindLeaf(leaf.urn, axis.axisUrn, 'remove')}
+														class="px-1.5 py-0.5 rounded text-[10px] font-semibold text-rose-600 hover:bg-rose-500/15 transition-colors cursor-pointer"
+														title="Retirer cette feuille ontologique de l'axe"
+														data-testid="phase4-remove-leaf-btn"
+													>
+														✕ Retirer
+													</button>
 												</div>
 												{#if leaf.oracleRules?.length > 0}
 													<span class="font-mono text-[10px] px-1.5 py-0.5 rounded bg-emerald-500/15 text-emerald-800 dark:text-emerald-300">

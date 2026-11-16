@@ -11,7 +11,10 @@ import {
   generateKwokNodeManifests,
   generateSushyEmulatorConfig
 } from '../../src/lib/domain/edp/sylvaTwin.js';
-import { planSylvaClusterDriver } from '../../src/lib/server/edp/sylvaGitopsExport.js';
+import {
+  buildSylvaTenantWorkloadManifests,
+  planSylvaClusterDriver
+} from '../../src/lib/server/edp/sylvaGitopsExport.js';
 
 describe('IMP V2 Lot 4 (#306) : Convergence Sylva (Twin depuis compute.hardware/namespaces & ClusterDriver)', () => {
   it('alimente le Jumeau Sylva depuis compute.hardware (§3.3.2) et compute.namespaces (§3.3.1)', () => {
@@ -93,5 +96,57 @@ describe('IMP V2 Lot 4 (#306) : Convergence Sylva (Twin depuis compute.hardware/
       expect(op.labels.component).toBe(resolved.name);
       expect(op.labels.environment).toBe(resolved.environment);
     }
+  });
+
+  it('génère les manifests Multus NAD, CiliumEgressGatewayPolicy et CiliumBGP dans buildSylvaTenantWorkloadManifests', () => {
+    const prodOverlay = DEFAULT_ENVIRONMENT_OVERLAYS[0];
+    const base = structuredClone(DEFAULT_COMPONENT_CATALOG.find((c) => c.metadata.name === 'gis-server')!);
+    base.spec.network = {
+      ...base.spec.network,
+      vrfs: [
+        {
+          name: 'vrf-gis',
+          domain: 'gis.example.io',
+          fabric: {
+            bgpPropagation: [
+              {
+                to: 'vrf-core',
+                prefixes: ['10.42.10.0/24'],
+                announce: { via: 'evpn', anycastFrom: ['leaf-1', 'leaf-2'] }
+              }
+            ]
+          }
+        }
+      ]
+    };
+    base.spec.compute = {
+      ...base.spec.compute!,
+      namespaces: [
+        {
+          name: 'ns-gis-egress',
+          zone: 'app',
+          quotas: { cpu: 4, memory: '8Gi' },
+          egress: { ipPool: '10.42.10.240/28' }
+        }
+      ]
+    };
+
+    const resolved = resolveComponentInstance(base, prodOverlay, 'dc1', DEFAULT_VALUE_CATALOGS);
+    const files = buildSylvaTenantWorkloadManifests(resolved, base);
+
+    const nadFile = files.find((f) => f.path.endsWith('/multus-nads.yaml'));
+    expect(nadFile).toBeDefined();
+    expect(nadFile!.yaml).toContain('NetworkAttachmentDefinition');
+    expect(nadFile!.yaml).toContain('whereabouts');
+
+    const egressFile = files.find((f) => f.path.endsWith('/cilium-egress-gateway.yaml'));
+    expect(egressFile).toBeDefined();
+    expect(egressFile!.yaml).toContain('CiliumEgressGatewayPolicy');
+    expect(egressFile!.yaml).toContain('10.42.10.240/28');
+
+    const bgpFile = files.find((f) => f.path.endsWith('/cilium-bgp.yaml'));
+    expect(bgpFile).toBeDefined();
+    expect(bgpFile!.yaml).toContain('CiliumBGPAdvertisement');
+    expect(bgpFile!.yaml).toContain('CiliumBGPClusterConfig');
   });
 });

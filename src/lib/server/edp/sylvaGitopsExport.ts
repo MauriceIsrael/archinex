@@ -1,6 +1,7 @@
 import { createHash } from 'node:crypto';
 import { sanitizeManifests } from './adapters/sylvaAdapter.js';
 import type { MultiAxisHydratedInventory } from './refinementCoverage.js';
+import type { LogicalComponent } from '../../domain/edp/componentCatalog.js';
 import type { ResolvedComponentInstance } from '../../domain/edp/refResolver.js';
 
 export interface SylvaGitopsExportInput {
@@ -107,11 +108,12 @@ export function serializeToDeterministicYaml(value: unknown, indent = 0): string
 }
 
 /**
- * Projette un composant logique résolu en manifests Kubernetes/FluxCD Sylva-compliant légers :
- * Namespace + CiliumNetworkPolicy + HelmRelease (Lot 5 — Issue #287).
+ * Projette un composant logique résolu en manifests Kubernetes/FluxCD Sylva-compliant :
+ * Namespace + CiliumNetworkPolicy + HelmRelease + Multus NAD + CiliumEgressGatewayPolicy + CiliumBGP (Lots 4-5).
  */
 export function buildSylvaTenantWorkloadManifests(
-  resolved: ResolvedComponentInstance
+  resolved: ResolvedComponentInstance,
+  baseComponent?: LogicalComponent
 ): SylvaTenantWorkloadFile[] {
   const baseDir = `workloads/${resolved.functionalDomain}/${resolved.name}/${resolved.environment}`;
   const commonLabels = {
@@ -228,6 +230,196 @@ export function buildSylvaTenantWorkloadManifests(
     files.push({
       path: `${baseDir}/helm-releases.yaml`,
       yaml: helmManifests.map((m) => serializeToDeterministicYaml(m)).join('\n---\n') + '\n'
+    });
+  }
+
+  // 4. Multus NetworkAttachmentDefinition par subnet/VRF résolu (§3.2.1, §3.2.3)
+  const usesSriov = resolved.modules.some((m) => m.placement.requiredDataplane === 'sriov-dpdk');
+  const nadManifests = resolved.subnets.map((sub) =>
+    sanitizeManifests({
+      apiVersion: 'k8s.cni.cncf.io/v1',
+      kind: 'NetworkAttachmentDefinition',
+      metadata: {
+        name: `nad-${sub.name}`,
+        namespace: resolved.tenant,
+        labels: {
+          ...commonLabels,
+          'archinex.io/vrf': sub.vrf,
+          'archinex.io/zone': sub.zone,
+          'archinex.io/nic-class': sub.class
+        }
+      },
+      spec: {
+        config: JSON.stringify({
+          cniVersion: '0.3.1',
+          name: sub.name,
+          type: usesSriov && (sub.class === 'business' || sub.class === 'internal') ? 'sriov' : 'macvlan',
+          ipam: {
+            type: 'whereabouts',
+            range: sub.cidr
+          }
+        })
+      }
+    })
+  );
+
+  if (nadManifests.length > 0) {
+    files.push({
+      path: `${baseDir}/multus-nads.yaml`,
+      yaml: nadManifests.map((m) => serializeToDeterministicYaml(m)).join('\n---\n') + '\n'
+    });
+  }
+
+  // 5. CiliumEgressGatewayPolicy pour namespaces avec egress.ipPool ou forward-proxy (§3.2.2, §3.3.1, §3.5.2)
+  const egressNamespaces = (baseComponent?.spec.compute?.namespaces || []).filter(
+    (ns) => ns.status !== 'inactive' && ns.egress?.ipPool
+  );
+  const hasForwardProxy = resolved.modules.some((m) => m.kind === 'forward-proxy');
+  const egressManifests: Array<Record<string, unknown>> = [];
+
+  for (const ns of egressNamespaces) {
+    egressManifests.push(
+      sanitizeManifests({
+        apiVersion: 'cilium.io/v2',
+        kind: 'CiliumEgressGatewayPolicy',
+        metadata: {
+          name: `egress-${ns.name}`,
+          labels: {
+            ...commonLabels,
+            'archinex.io/namespace': ns.name
+          }
+        },
+        spec: {
+          selectors: [
+            {
+              podSelector: {
+                matchLabels: {
+                  'io.kubernetes.pod.namespace': resolved.tenant
+                }
+              }
+            }
+          ],
+          destinationCIDRs: ['0.0.0.0/0'],
+          egressGateway: {
+            nodeSelector: {
+              matchLabels: {
+                'sylva.org/egress-zone': ns.zone
+              }
+            },
+            egressIP: ns.egress?.ipPool
+          }
+        }
+      })
+    );
+  }
+
+  if (egressManifests.length === 0 && hasForwardProxy) {
+    const bizSub = resolved.subnets.find((s) => s.class === 'business') || resolved.subnets[0];
+    if (bizSub) {
+      egressManifests.push(
+        sanitizeManifests({
+          apiVersion: 'cilium.io/v2',
+          kind: 'CiliumEgressGatewayPolicy',
+          metadata: {
+            name: `egress-${resolved.name}-proxy`,
+            labels: commonLabels
+          },
+          spec: {
+            selectors: [
+              {
+                podSelector: {
+                  matchLabels: {
+                    'archinex.io/component': resolved.name
+                  }
+                }
+              }
+            ],
+            destinationCIDRs: ['0.0.0.0/0'],
+            egressGateway: {
+              nodeSelector: {
+                matchLabels: {
+                  'archinex.io/zone': bizSub.zone
+                }
+              },
+              egressIP: bizSub.cidr
+            }
+          }
+        })
+      );
+    }
+  }
+
+  if (egressManifests.length > 0) {
+    files.push({
+      path: `${baseDir}/cilium-egress-gateway.yaml`,
+      yaml: egressManifests.map((m) => serializeToDeterministicYaml(m)).join('\n---\n') + '\n'
+    });
+  }
+
+  // 6. CiliumBGPAdvertisement / CiliumBGPClusterConfig pour annonces BGP / VIPs Anycast (§3.2.5, §3.2.8)
+  const bgpVrfs = (baseComponent?.spec.network?.vrfs || []).filter((v) =>
+    (v.fabric?.bgpPropagation || []).some((b) => b.announce !== 'none')
+  );
+  const vipEntries = resolved.subnets.flatMap((s) =>
+    Object.entries(s.reservedIps)
+      .filter(([k]) => k.startsWith('vip'))
+      .map(([k, ip]) => ({ vrf: s.vrf, name: k, ip }))
+  );
+
+  if (bgpVrfs.length > 0 || vipEntries.length > 0) {
+    const bgpDocs: Array<Record<string, unknown>> = [
+      sanitizeManifests({
+        apiVersion: 'cilium.io/v2alpha1',
+        kind: 'CiliumBGPAdvertisement',
+        metadata: {
+          name: `bgp-adv-${resolved.name}`,
+          labels: {
+            ...commonLabels,
+            'archinex.io/bgp-advertisement': resolved.name
+          }
+        },
+        spec: {
+          advertisements: [
+            {
+              advertisementType: 'Service',
+              service: {
+                addresses: ['LoadBalancerIP']
+              },
+              selector: {
+                matchLabels: {
+                  'archinex.io/component': resolved.name
+                }
+              }
+            }
+          ]
+        }
+      }),
+      sanitizeManifests({
+        apiVersion: 'cilium.io/v2alpha1',
+        kind: 'CiliumBGPClusterConfig',
+        metadata: {
+          name: `bgp-cluster-${resolved.name}`,
+          labels: commonLabels
+        },
+        spec: {
+          bgpInstances: [
+            {
+              name: `instance-${resolved.name}`,
+              localASN: 65000,
+              peers: bgpVrfs.map((v) => ({
+                name: `peer-${v.name}`,
+                peerASN: 65001,
+                peerAddress: '0.0.0.0'
+              }))
+            }
+          ]
+        }
+      })
+    ];
+
+    files.push({
+      path: `${baseDir}/cilium-bgp.yaml`,
+      yaml: bgpDocs.map((m) => serializeToDeterministicYaml(m)).join('\n---\n') + '\n'
     });
   }
 

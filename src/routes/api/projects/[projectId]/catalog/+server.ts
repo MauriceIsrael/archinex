@@ -28,6 +28,7 @@ import {
   upsertCatalogComponent,
   upsertEnvironmentOverlay
 } from '$lib/server/edp/componentCatalogRepository';
+import { buildSylvaTenantWorkloadManifests } from '$lib/server/edp/sylvaGitopsExport';
 import { authorizeProjectAccess } from '$lib/server/projects/projectAccess';
 
 export const GET: RequestHandler = async (event) => {
@@ -77,6 +78,13 @@ export const GET: RequestHandler = async (event) => {
 
   const referenceGraph = buildReferenceGraph(bundle.components);
 
+  const generatedManifests = resolvedInstances.flatMap((inst) =>
+    buildSylvaTenantWorkloadManifests(
+      inst,
+      bundle.components.find((c) => c.metadata.name === inst.name)
+    )
+  );
+
   return json({
     success: true,
     bundle,
@@ -84,7 +92,8 @@ export const GET: RequestHandler = async (event) => {
     whatIfScenarios,
     sylvaTwinReport,
     sylvaTwinProfiles,
-    referenceGraph
+    referenceGraph,
+    generatedManifests
   });
 };
 

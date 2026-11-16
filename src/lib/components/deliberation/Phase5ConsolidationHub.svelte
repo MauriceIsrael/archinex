@@ -15,6 +15,8 @@
 	let selectedTwinProfileId = $state<'3dc-active' | '2dc-witness' | '2dc-split'>('3dc-active');
 	let twinArbitrationMode = $state<'proposal' | 'client-mandated'>('proposal');
 	let showSushyEmulatorPreview = $state(false);
+	let showGeneratedManifests = $state(false);
+	let selectedManifestPath = $state<string | null>(null);
 	let selectedViewEnv = $state<'prod' | 'preprod' | 'lab'>('prod');
 	let showCatalogEditor = $state(false);
 	let projectCatalogState = $state<any>(null);
@@ -271,6 +273,21 @@
 				</button>
 				<button
 					type="button"
+					onclick={() => {
+						showGeneratedManifests = !showGeneratedManifests;
+						if (showGeneratedManifests && !selectedManifestPath && projectCatalogState?.generatedManifests?.length) {
+							selectedManifestPath = projectCatalogState.generatedManifests[0].path;
+						}
+					}}
+					class="px-2.5 py-1 rounded border bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 font-semibold text-xs hover:bg-emerald-500/20 cursor-pointer"
+					data-testid="toggle-generated-manifests-btn"
+				>
+					{showGeneratedManifests
+						? 'Masquer Manifestes Sylva'
+						: `Manifestes Sylva (${projectCatalogState?.generatedManifests?.length ?? 0})`}
+				</button>
+				<button
+					type="button"
 					onclick={() => (showCatalogEditor = !showCatalogEditor)}
 					class="px-2.5 py-1 rounded border bg-violet-500/10 text-violet-700 dark:text-violet-300 font-semibold text-xs hover:bg-violet-500/20 cursor-pointer"
 					data-testid="toggle-catalog-editor-btn"
@@ -379,6 +396,31 @@
 						<span class="text-[10px] font-mono text-slate-400">Driver: {activeWhatIfScenario.sushyEmulator.driver}</span>
 					</div>
 					<pre class="overflow-x-auto text-[11px] font-mono leading-relaxed max-h-56">{activeWhatIfScenario.sushyEmulator.configText}</pre>
+				</div>
+			{/if}
+
+			{#if showGeneratedManifests && projectCatalogState?.generatedManifests?.length}
+				{@const activeManifest =
+					projectCatalogState.generatedManifests.find((m: any) => m.path === selectedManifestPath) ||
+					projectCatalogState.generatedManifests[0]}
+				<div class="rounded-lg border bg-slate-950 text-slate-100 p-3 space-y-2 text-xs" data-testid="generated-manifests-preview">
+					<div class="flex items-center justify-between gap-2 flex-wrap">
+						<span class="font-mono font-bold text-emerald-300">
+							Manifestes Kubernetes / Cilium / Multus générés ({projectCatalogState.generatedManifests.length} fichiers)
+						</span>
+						<select
+							bind:value={selectedManifestPath}
+							class="bg-slate-900 text-slate-100 border border-slate-700 rounded px-2 py-1 text-[11px] font-mono max-w-full"
+							data-testid="generated-manifest-selector"
+						>
+							{#each projectCatalogState.generatedManifests as mf (mf.path)}
+								<option value={mf.path}>{mf.path}</option>
+							{/each}
+						</select>
+					</div>
+					{#if activeManifest}
+						<pre class="overflow-x-auto text-[11px] font-mono leading-relaxed max-h-72">{activeManifest.yaml}</pre>
+					{/if}
 				</div>
 			{/if}
 		{/if}

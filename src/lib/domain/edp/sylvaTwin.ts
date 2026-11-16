@@ -837,6 +837,7 @@ export function generateSushyEmulatorConfig(model: SylvaTwinModel): SushyEmulato
     `# Cible Sylva : ${model.sylvaRelease} · Provider CAPI : capm3 (Metal3 Redfish)`,
     'SUSHY_EMULATOR_LISTEN_IP = "0.0.0.0"',
     'SUSHY_EMULATOR_LISTEN_PORT = 8000',
+    'SUSHY_EMULATOR_FAKE_DRIVER = True',
     'SUSHY_EMULATOR_OS_CLOUD = None',
     'SUSHY_EMULATOR_LIBVIRT_URI = None',
     'SUSHY_EMULATOR_FAKE_SYSTEMS = [',

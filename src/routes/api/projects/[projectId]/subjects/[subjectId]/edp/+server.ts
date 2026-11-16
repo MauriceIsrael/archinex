@@ -725,7 +725,7 @@ export const POST: RequestHandler = async (event) => {
         powerFeeds: composedHydration.power_feeds,
         coveredDomains: composedHydration.coveredDomains,
         message: nautobotSynced
-          ? `Hydratation SSoT poussée dans Nautobot (${syncSummary.circuitsSynced} circuit(s), ${syncSummary.vpnTunnelsSynced} tunnel(s) VPN, ${syncSummary.tenantsSynced} tenant(s), ${syncSummary.devicesSynced} équipement(s), ${syncSummary.prefixesSynced} préfixe(s)) !`
+          ? `Hydratation SSoT poussée dans Nautobot (${syncSummary.circuitsSynced} circuit(s), ${syncSummary.vpnTunnelsSynced} tunnel(s) VPN, ${syncSummary.tenantsSynced} tenant(s), ${syncSummary.devicesSynced} équipement(s), ${syncSummary.interfacesSynced} interface(s), ${syncSummary.vrfsSynced} VRF(s), ${syncSummary.prefixesSynced} préfixe(s), ${syncSummary.ipAddressesSynced} IP(s), ${syncSummary.tagsSynced} tag(s) zone) !`
           : `Objets planned multi-axes (${composedHydration.coveredDomains.join(' + ')}) générés avec succès !`
       });
     } catch (err: any) {

@@ -8,6 +8,19 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Socle sémantique par comparateur cosinus & Vague 1 de remplacement des matchs syntaxiques (#328, #329, #330, #331)
+- **Module unifié (`src/lib/server/similarity/semanticClassifier.ts`)** :
+  - Ajout de `SemanticAnchorClassifier`, `matchEntitiesSemantically()` et `cosineSimilarity()` avec cache de vecteurs d'ancres et repli lexical borné explicite (`lexical-fallback`) lorsque `toy-bow` ou aucun serveur d'embeddings n'est actif.
+- **Vague 1 — Règles de maturité (`src/lib/domain/maturityRules.ts`, `src/lib/server/similarity/maturitySemanticClassifier.ts`, `src/lib/server/projects/arbitrationDb.ts`)** :
+  - Priorisation des champs structurés (`blocking`, `violationDetected`) et classification sémantique asynchrone des questions bloquantes et violations doctrinales, avec repli lexical sensible aux négations.
+- **Vague 1 — Ontologie & Taxonomie TOGAF (`src/lib/domain/edp/togafTaxonomy.ts`, `src/lib/server/similarity/togafSemanticResolver.ts`, `src/lib/server/edp/refinementCoverage.ts`)** :
+  - Suppression des sous-chaînes courtes non bornées (`'sec'`, `'net'`, `'app'`) au profit de frontières de mots et de `resolveTogafDomainSemantically()` / `matchBuildingBlockSemantically()`.
+  - Ajout de `decomposeIntentionClausesAsync()` et `computeRefinementCoverageAsync()` basés sur `matchEntitiesSemantically()`.
+- **Vague 1 — Projections d'architecture (`src/lib/domain/artifactProjections.ts`, `src/lib/server/similarity/projectionSemanticClassifier.ts`)** :
+  - Suppression des références projet-spécifiques codées en dur (`req-lot1-22`, `req-lot1-1387`) remplacées par l'extraction dynamique des `REQ-*` et le support de `context.resolvedPattern`.
+- **Tests** :
+  - Ajout de `tests/unit/semantic-classifier.test.ts` et `tests/contract/wave1-semantic-matching.test.ts`.
+
 ### Extension du socle ontologique et du catalogue composants aux périmètres OSS/SMO/CMDB, eSIM SM-DP+, N3IWF/WLAN, eMBMS/Slicing & PQC (#326)
 - **Taxonomie & Ontologie (`src/lib/domain/edp/togafTaxonomy.ts`, `tests/fixtures/edp/ontology_export.json`)** :
   - Ajout de 9 axes ontologiques (`esim_smdp_provisioning`, `oss_smo_mediation`, `oss_automation_hitl`, `cmdb_asset_inventory`, `service_assurance_probes`, `non3gpp_wlan_interworking`, `core_5g_network_slicing`, `embms_multicast_broadcast`, `pqc_crypto_agility`) avec leurs feuilles, variantes et prérequis transitifs.

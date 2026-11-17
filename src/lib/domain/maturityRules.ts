@@ -46,6 +46,11 @@ export interface MaturityComputationInput {
 	decision?: Decision | null;
 	/** Autorise la ré-évaluation d'un sujet déjà arbitré (L3/L4) en vue d'une révision de décision. */
 	allowRevision?: boolean;
+	/**
+	 * Classification sémantique pré-calculée côté serveur par `SemanticAnchorClassifier`
+	 * (clé = `argument.id`), évitant de dépendre de sous-chaînes naïves sur le texte libre.
+	 */
+	semanticClassification?: Record<string, 'blocking' | 'non_blocking' | 'violation' | 'compliant'>;
 }
 
 /** Alertes « vérification réglementaire incomplète » pour les référentiels applicables non couverts. */
@@ -208,7 +213,7 @@ export function computeMaturity(input: MaturityComputationInput): MaturityComput
 		(a) =>
 			a.stance === 'question' &&
 			a.resolution === 'open' &&
-			(a.claim.toLowerCase().includes('bloqu') || a.grounds.toLowerCase().includes('bloqu'))
+			isBlockingQuestionArgument(a, input.semanticClassification?.[a.id])
 	);
 	for (const q of openBlockingQuestions) {
 		blockers.push({
@@ -230,8 +235,7 @@ export function computeMaturity(input: MaturityComputationInput): MaturityComput
 		if (a.resolution === 'answered' || a.resolution === 'accepted_risk' || a.resolution === 'withdrawn') {
 			return false;
 		}
-		const text = `${a.claim} ${a.grounds}`.toLowerCase();
-		return text.includes('violat') || text.includes('non conforme') || text.includes('non-conforme');
+		return isViolationVerificationArgument(a, input.semanticClassification?.[a.id]);
 	});
 
 	for (const vArg of violationArguments) {
@@ -259,4 +263,40 @@ export function computeMaturity(input: MaturityComputationInput): MaturityComput
 		blockers,
 		warnings
 	};
+}
+
+const NEGATED_BLOCKING_RX =
+	/\b(?:non|pas|sans(?:\s+caract[èe]re)?|aucun(?:e)?)\s+bloqu\w*\b/gi;
+const POSITIVE_BLOCKING_RX =
+	/\b(?:bloqu\w*|incompatibilit[ée]\s+majeure|suspend\w*|emp[êe]ch\w*\s+(?:la\s+)?validation)\b/i;
+
+const NEGATED_VIOLATION_RX =
+	/\b(?:aucun(?:e)?|sans|pas\s+de)\s+(?:violat\w*|non[- ]conform\w*)\b/gi;
+const POSITIVE_VIOLATION_RX =
+	/\b(?:violat\w*|non[- ]conform\w*|infraction|d[ée]rogation\s+requise)\b/i;
+
+function isBlockingQuestionArgument(
+	arg: Argument,
+	semanticHint?: 'blocking' | 'non_blocking' | 'violation' | 'compliant'
+): boolean {
+	const structured = (arg as Argument & { blocking?: boolean }).blocking;
+	if (typeof structured === 'boolean') return structured;
+	if (semanticHint === 'blocking') return true;
+	if (semanticHint === 'non_blocking') return false;
+
+	const stripped = `${arg.claim} ${arg.grounds}`.replace(NEGATED_BLOCKING_RX, ' ');
+	return POSITIVE_BLOCKING_RX.test(stripped);
+}
+
+function isViolationVerificationArgument(
+	arg: Argument,
+	semanticHint?: 'blocking' | 'non_blocking' | 'violation' | 'compliant'
+): boolean {
+	const structured = (arg as Argument & { violationDetected?: boolean }).violationDetected;
+	if (typeof structured === 'boolean') return structured;
+	if (semanticHint === 'violation') return true;
+	if (semanticHint === 'compliant') return false;
+
+	const stripped = `${arg.claim} ${arg.grounds}`.replace(NEGATED_VIOLATION_RX, ' ');
+	return POSITIVE_VIOLATION_RX.test(stripped);
 }

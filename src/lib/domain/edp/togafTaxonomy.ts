@@ -750,22 +750,23 @@ export function resolveTogafDomain(rawDomainOrCategory?: string | null): TogafDo
 	if (lower in LEGACY_TO_TOGAF_MAP) {
 		return LEGACY_TO_TOGAF_MAP[lower];
 	}
-	if (lower.includes('sec') || lower.includes('pki') || lower.includes('hsm') || lower.includes('iam')) {
+	// Repli lexical borné (\b...\b) : évite les collisions de sous-chaînes courtes (ex. 'sec' dans 'secteur').
+	if (/\b(sec|security|securite|sécurité|pki|hsm|iam|cyber|crypto|secops)\b/i.test(lower)) {
 		return 'security-trust';
 	}
-	if (lower.includes('net') || lower.includes('telco') || lower.includes('proxy') || lower.includes('wan')) {
+	if (/\b(net|network|reseau|réseau|telco|proxy|wan|lan|sdwan|vlan)\b/i.test(lower)) {
 		return 'network-connectivity';
 	}
-	if (lower.includes('stor') || lower.includes('data') || lower.includes('backup')) {
+	if (/\b(stor|storage|stockage|data|donnees|données|backup|sauvegarde|db|database)\b/i.test(lower)) {
 		return 'data-persistence';
 	}
-	if (lower.includes('facil') || lower.includes('power') || lower.includes('sovereign') || lower.includes('time')) {
+	if (/\b(facil|facilities|power|energie|énergie|sovereign|souverain|time|timing|sync|gnss)\b/i.test(lower)) {
 		return 'facilities-sovereignty';
 	}
-	if (lower.includes('app') || lower.includes('gis') || lower.includes('carto') || lower.includes('ptt')) {
+	if (/\b(app|application|gis|carto|sig|ptt)\b/i.test(lower)) {
 		return 'application-business';
 	}
-	if (lower.includes('infra') || lower.includes('plat') || lower.includes('compute')) {
+	if (/\b(infra|infrastructure|plat|platform|plateforme|compute|k8s|kubernetes|cloud|baremetal)\b/i.test(lower)) {
 		return 'platform-compute';
 	}
 	return 'operations-observability';

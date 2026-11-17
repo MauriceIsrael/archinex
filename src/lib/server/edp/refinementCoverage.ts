@@ -40,6 +40,8 @@ import {
   type SylvaTwinArbitrationReport,
   type TwinArbitrationMode
 } from '../../domain/edp/sylvaTwin.js';
+import type { Encoder } from '../similarity/encoder.js';
+import { matchEntitiesSemantically, tryResolveSemanticEncoder } from '../similarity/semanticClassifier.js';
 
 export type AxisCoverageStatus = 'covered_executable' | 'covered_no_oracle' | 'missing_refinement';
 export type BindingOrigin = 'explicit' | 'strong_link' | 'default_proposed' | 'none';
@@ -654,7 +656,8 @@ export function resolveSubjectConcepts(
 export function decomposeIntentionClauses(
   input: SubjectRefinementInput,
   catalog: OntologyCatalog,
-  boundLeafUrns: Set<string>
+  boundLeafUrns: Set<string>,
+  semanticLeafBySegment?: Map<string, OntologyEntity>
 ): ClauseCoverageItem[] {
   const rawEntries: Array<{ text: string; source: 'k18_fact' | 'spec_clause' }> = [];
 
@@ -738,7 +741,14 @@ export function decomposeIntentionClauses(
       }
     }
 
-    // 2. Repli heuristique par mots-clés si aucun lien fort formel n'a été trouvé
+    // 2. Repli sémantique (embeddings cosinus si pré-calculés) ou heuristique lexicale bornée
+    if (!bestLeaf) {
+      const semanticHit = semanticLeafBySegment?.get(entry.text);
+      if (semanticHit) {
+        bestLeaf = semanticHit;
+      }
+    }
+
     if (!bestLeaf) {
       let bestScore = 0;
       for (const leaf of leafEntities) {
@@ -2636,4 +2646,115 @@ export async function evaluateMultiAxisOracle(
     ontologyFingerprint: compiled.fingerprint,
     durationMs: opaRes.durationMs
   };
+}
+
+/**
+ * Variante asynchrone de `decomposeIntentionClauses` exploitant le comparateur cosinus
+ * sur embeddings lorsque un encodeur réel est configuré.
+ */
+export async function decomposeIntentionClausesAsync(
+  input: SubjectRefinementInput,
+  catalog: OntologyCatalog,
+  boundLeafUrns: Set<string>,
+  encoderOverride?: Encoder
+): Promise<ClauseCoverageItem[]> {
+  const encoder = tryResolveSemanticEncoder(encoderOverride);
+  if (!encoder) {
+    return decomposeIntentionClauses(input, catalog, boundLeafUrns);
+  }
+
+  const leafCandidates = Object.values(catalog.entities)
+    .filter((e) => e.kind === 'leaf')
+    .map((leaf) => ({
+      item: leaf,
+      text: `${leaf.title || leaf.urn}. ${leaf.description || ''} ${(leaf.keywords || []).join(', ')}`
+    }));
+
+  const rawText = [
+    ...(input.structuredFacts || []).map((f) => f.statement || ''),
+    input.decisionText || '',
+    input.detailedSpec || '',
+    input.problem || ''
+  ]
+    .filter(Boolean)
+    .join('. ');
+
+  const segments = rawText
+    .split(/(?:[.;•\n]|\bavec\b|\bet\b|\bainsi que\b)/i)
+    .map((s) => s.trim())
+    .filter((s) => s.length >= 6);
+
+  const semanticLeafBySegment = new Map<string, OntologyEntity>();
+  for (const seg of segments) {
+    const matches = await matchEntitiesSemantically(seg, leafCandidates, {
+      encoder,
+      threshold: 0.70,
+      topK: 1
+    });
+    if (matches.length > 0) {
+      semanticLeafBySegment.set(seg, matches[0].item);
+    }
+  }
+
+  return decomposeIntentionClauses(input, catalog, boundLeafUrns, semanticLeafBySegment);
+}
+
+/**
+ * Variante asynchrone de `computeRefinementCoverage` enrichissant l'auto-liaison ontologique
+ * par similarité cosinus sur embeddings lorsque un encodeur réel est configuré.
+ */
+export async function computeRefinementCoverageAsync(
+  input: SubjectRefinementInput,
+  catalog: OntologyCatalog,
+  encoderOverride?: Encoder
+): Promise<RefinementCoverageReport> {
+  const encoder = tryResolveSemanticEncoder(encoderOverride);
+  if (!encoder) {
+    return computeRefinementCoverage(input, catalog);
+  }
+
+  const excluded = new Set(input.excludedLeafUrns || []);
+  const combinedText = [
+    input.title || '',
+    input.problem || '',
+    input.decisionText || '',
+    input.detailedSpec || '',
+    (input.structuredFacts || []).map((f) => f.statement).join(' ')
+  ]
+    .filter(Boolean)
+    .join(' ');
+
+  const leafCandidates = Object.values(catalog.entities)
+    .filter((e) => e.kind === 'leaf' && !excluded.has(e.urn))
+    .map((leaf) => ({
+      item: leaf,
+      text: `${leaf.title || leaf.urn}. ${leaf.description || ''} ${(leaf.keywords || []).join(', ')}`
+    }));
+
+  const semanticMatches = await matchEntitiesSemantically(combinedText, leafCandidates, {
+    encoder,
+    threshold: 0.75,
+    topK: 8
+  });
+
+  const existingBindings = input.explicitBindings || [];
+  const existingUrns = new Set<string>(existingBindings.map((b) => b.urn));
+  const mergedBindings: OntologyBindingItem[] = [...existingBindings];
+  for (const m of semanticMatches) {
+    if (!existingUrns.has(m.item.urn)) {
+      existingUrns.add(m.item.urn);
+      mergedBindings.push({
+        urn: m.item.urn,
+        revision: m.item.revision ?? 1
+      });
+    }
+  }
+
+  return computeRefinementCoverage(
+    {
+      ...input,
+      explicitBindings: mergedBindings
+    },
+    catalog
+  );
 }

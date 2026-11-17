@@ -95,6 +95,14 @@ export interface ProjectionRequirementItem {
 	matchedLeafTitle?: string;
 }
 
+export type ArchitectureProjectionPattern =
+	| 'telecom_crypto'
+	| 'active_active_geo'
+	| 'edge_survivability'
+	| 'lmr_interworking'
+	| 'mcx_decoupling'
+	| 'generic';
+
 export interface ProjectionContext {
 	projectId?: string;
 	projectName?: string;
@@ -110,6 +118,8 @@ export interface ProjectionContext {
 	detailedSpecText?: string;
 	slots?: ProjectionSlotSummary[];
 	environments?: string[];
+	/** Patron architectural résolu sémantiquement côté serveur (évite les regex ad hoc). */
+	resolvedPattern?: ArchitectureProjectionPattern;
 }
 
 /** Les énoncés d'une section, partagés en « à dessiner » et « écartés » : le même tri pour tous les artefacts. */
@@ -1113,7 +1123,7 @@ export function generateTargetArchitectureDiagram(
 		: 'Écosystème Existant (SI Client / Partenaire)';
 
 	// Cas Spécial Télécom / Sécurité : Chiffrement IPsec ESP & Médiation DEA pour S6a (Lot 3 <-> Lot 1)
-	if (hasTelecomCrypto) {
+	if (context?.resolvedPattern === 'telecom_crypto' || (!context?.resolvedPattern && hasTelecomCrypto)) {
 		return [
 			'flowchart TB',
 			...targetArchitectureClassDefs(),
@@ -1155,9 +1165,9 @@ export function generateTargetArchitectureDiagram(
 
 	// Cas Pattern 1 : Actif / Actif Géoredondant Bi-Site (Dual-DC + GSLB + Arbitrage Split-Brain)
 	const hasActiveActiveGeo = /actif[\s/-]*actif|g[eé]oredondan|bi-site|deux zones|multi-sites|dual[\s/-]*site|split[\s/-]*brain|2 zones/i.test(lower);
-	if (hasActiveActiveGeo) {
-		const req22 = lower.includes('req-lot1-22') ? ' (REQ-Lot1-22)' : '';
-		const req1387 = lower.includes('req-lot1-1387') ? ' (REQ-Lot1-1387)' : '';
+	if (context?.resolvedPattern === 'active_active_geo' || (!context?.resolvedPattern && hasActiveActiveGeo)) {
+		const detectedReqs = Array.from(new Set(fullSpec.match(/\bREQ-[A-Za-z0-9_-]+\b/gi) ?? []));
+		const reqTag = detectedReqs.length > 0 ? ` (${detectedReqs.slice(0, 3).join(', ')})` : '';
 		return [
 			'flowchart TB',
 			...targetArchitectureClassDefs(),
@@ -1170,9 +1180,9 @@ export function generateTargetArchitectureDiagram(
 			'        Clients["Opérateurs & Terminaux Tactiques<br/><i>(Double attachement)</i>"]:::radio',
 			'    end',
 			'',
-			`    %% Répartition géoredondante${req22}`,
-			`    subgraph GSLB_LAYER["🌐 Répartition Géoredondante & Routage Multiple${req22}"]`,
-			`        GSLB["<b>Anycast BGP & GSLB / Geo-DNS</b><br/>Distribution de charge active/active & Bascule sans interruption${req1387}"]:::routing`,
+			`    %% Répartition géoredondante${reqTag}`,
+			`    subgraph GSLB_LAYER["🌐 Répartition Géoredondante & Routage Multiple${reqTag}"]`,
+			`        GSLB["<b>Anycast BGP & GSLB / Geo-DNS</b><br/>Distribution de charge active/active & Bascule sans interruption${reqTag}"]:::routing`,
 			'    end',
 			'',
 			'    %% Témoin de Quorum',
@@ -1225,7 +1235,7 @@ export function generateTargetArchitectureDiagram(
 
 	// Cas Pattern 2 : Survie Edge Tactique (Mode Îlotage / Isolated Island / Bulle Tactique)
 	const hasEdgeSurvie = /survie|edge.*tactique|bulle tactique|isolated island|[iî]lotage|autonome.*local|mode d[eé]grad[eé]/i.test(lower);
-	if (hasEdgeSurvie) {
+	if (context?.resolvedPattern === 'edge_survivability' || (!context?.resolvedPattern && hasEdgeSurvie)) {
 		return [
 			'flowchart TB',
 			...targetArchitectureClassDefs(),
@@ -1267,7 +1277,7 @@ export function generateTargetArchitectureDiagram(
 
 	// Cas Pattern 3 : Passerelle d'Interconnexion Hybride (LMR / TETRA / P25 <-> IWF 3GPP)
 	const hasLmrInterworking = /(?:passerelle|interworking|iwf|interconnexion).*(?:lmr|tetra|pmr|p25)|(?:lmr|tetra|tetrapol|p25).*(?:vers.*(?:m[c]x|mcptt|haut-d[eé]bit)|interconnexion|passerelle.*(?:iwf|audio|radio|voix)|interworking)/i.test(lower);
-	if (hasLmrInterworking) {
+	if (context?.resolvedPattern === 'lmr_interworking' || (!context?.resolvedPattern && hasLmrInterworking)) {
 		return [
 			'flowchart TB',
 			...targetArchitectureClassDefs(),
@@ -1309,7 +1319,7 @@ export function generateTargetArchitectureDiagram(
 
 	// Cas Pattern 4 : Découplage Canonique 3GPP (Inspiration openMCX: SIP Core vs App Servers vs Common Services)
 	const hasMcxDecoupling = /(?:^|[^\w])(openm[c]x|m[c]x|mcptt|mcvideo|mcdata|kamailio)(?:$|[^\w])/i.test(lower);
-	if (hasMcxDecoupling) {
+	if (context?.resolvedPattern === 'mcx_decoupling' || (!context?.resolvedPattern && hasMcxDecoupling)) {
 		return [
 			'flowchart TB',
 			...targetArchitectureClassDefs(),

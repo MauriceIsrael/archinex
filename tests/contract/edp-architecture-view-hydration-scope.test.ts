@@ -9,6 +9,8 @@ import {
   recordExplicitProjectSlotRatification,
   resetProjectSlotRegistry
 } from '../../src/lib/server/edp/decisionSlotRegistry';
+import { deriveProjectHydrationContextFromEntries } from '../../src/lib/server/edp/projectHydrationContext';
+import type { Encoder } from '../../src/lib/server/similarity/encoder';
 
 describe('Portée et hydratation des vues d’architecture Phase 5 & Architecture Lockée', () => {
   it('démarre un nouveau projet avec un catalogue de composants vide par défaut (opt-in)', () => {
@@ -89,6 +91,71 @@ describe('Portée et hydratation des vues d’architecture Phase 5 & Architectur
       const spatial = snap.components.find((c) => c.name === 'spatial-server');
       expect(spatial?.isHydratedInProject).toBe(true);
       expect(spatial?.lockStatus).toBe('emergent_locked');
+    } finally {
+      resetProjectSlotRegistry(projectId);
+    }
+  });
+
+  it('hydrate le composant applicatif correspondant depuis des exigences projet par matching sémantique et repli lexical', async () => {
+    const projectId = 'unit-semantic-hydration-test';
+    resetProjectSlotRegistry(projectId);
+
+    // Encodeur sémantique de test : projette les textes liés aux tuiles/SIG sur l'axe [1, 0]
+    const mockEncoder: Encoder = {
+      model: 'mock-semantic-encoder',
+      async version() {
+        return '1';
+      },
+      async encode(text: string) {
+        const lower = text.toLowerCase();
+        if (/tuile|wms|wfs|geoserver|postgis|carto|sig|gis|map/.test(lower)) {
+          return [1, 0];
+        }
+        return [0, 1];
+      }
+    };
+
+    try {
+      // 1. Avec encodeur sémantique actif (même sans mot-clé exact)
+      const semanticCtx = await deriveProjectHydrationContextFromEntries(
+        [
+          {
+            ref: 'REQ-MAP-01',
+            text: 'Fournir un service de tuiles vectorielles et raster pour l’affichage carto hors-ligne.'
+          }
+        ],
+        { projectTitle: 'Projet Carto', encoderOverride: mockEncoder }
+      );
+
+      expect(semanticCtx.commoditySlots?.some((s) => s.logicalComponentName === 'gis-server')).toBe(
+        true
+      );
+
+      // 2. Avec repli lexical (sans encodeur actif)
+      const lexicalCtx = await deriveProjectHydrationContextFromEntries(
+        [
+          {
+            ref: 'REQ-CARTO-01',
+            text: 'Déployer un serveur carto autonome avec tuiles hors-ligne.'
+          }
+        ],
+        { projectTitle: 'Projet Carto' }
+      );
+
+      const snap = await buildLiveArchitectureLockSnapshot({
+        ...lexicalCtx,
+        projectId
+      });
+
+      const names = snap.components.map((c) => c.name);
+      expect(names).toContain('gis-server');
+      expect(names).not.toContain('core-network');
+      expect(names).not.toContain('ptt-server');
+      expect(names).not.toContain('mdm-emm');
+
+      const gis = snap.components.find((c) => c.name === 'gis-server');
+      expect(gis?.isHydratedInProject).toBe(true);
+      expect(gis?.coveredRequirementRefs).toContain('REQ-CARTO-01');
     } finally {
       resetProjectSlotRegistry(projectId);
     }

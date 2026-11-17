@@ -29,6 +29,7 @@ import {
   upsertEnvironmentOverlay
 } from '$lib/server/edp/componentCatalogRepository';
 import { buildProjectCompletenessLedger } from '$lib/server/edp/decisionSlotRegistry';
+import { loadProjectHydrationContextFromDb } from '$lib/server/edp/projectHydrationContext';
 import { authorizeProjectAccess } from '$lib/server/projects/projectAccess';
 
 export const GET: RequestHandler = async (event) => {
@@ -49,7 +50,9 @@ export const GET: RequestHandler = async (event) => {
   let effectiveComponents = bundle.components;
   if (!includeReferenceCatalog) {
     try {
+      const dbContext = await loadProjectHydrationContextFromDb(projectId, auth.project?.title);
       const ledger = await buildProjectCompletenessLedger({
+        ...dbContext,
         projectId,
         projectTitle: auth.project?.title
       });

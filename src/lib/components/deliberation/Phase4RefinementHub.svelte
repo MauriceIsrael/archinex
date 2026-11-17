@@ -43,6 +43,21 @@
 	const hydrated = $derived(currentEdp?.hydratedInventory || null);
 	const lastVerdict = $derived(currentEdp?.lastVerdict || null);
 	const sylvaGitopsExport = $derived(currentEdp?.sylvaGitopsExport || null);
+	let showAllResolvedComponents = $state(false);
+
+	const subjectBoundComponentNames = $derived(
+		new Set<string>(
+			(coverage?.axes || []).flatMap((a: any) =>
+				Array.isArray(a.instantiatedComponents) ? a.instantiatedComponents : []
+			)
+		)
+	);
+	const allResolvedComponents = $derived<any[]>(hydrated?.resolved_components || []);
+	const displayedResolvedComponents = $derived(
+		showAllResolvedComponents || subjectBoundComponentNames.size === 0
+			? allResolvedComponents
+			: allResolvedComponents.filter((c: any) => subjectBoundComponentNames.has(c.name))
+	);
 
 	async function loadEdpData(subjId: string, projId: string, conceptFilter = selectedConceptUrn) {
 		if (!subjId || !projId) return;
@@ -885,6 +900,55 @@
 							</div>
 						{/if}
 					</div>
+
+					<!-- Composants Applicatifs & Logiques Hydratés -->
+					{#if allResolvedComponents.length > 0}
+						<div class="p-3 rounded-lg border border-emerald-500/30 bg-emerald-500/5 space-y-2 text-xs" data-testid="phase4-resolved-components">
+							<div class="flex items-center justify-between gap-2 flex-wrap">
+								<div class="flex items-center gap-2">
+									<span class="font-bold text-foreground">🧩 Composants Applicatifs & Logiques Hydratés ({displayedResolvedComponents.length})</span>
+									{#if subjectBoundComponentNames.size > 0 && allResolvedComponents.length > displayedResolvedComponents.length}
+										<span class="text-[10px] text-muted-foreground">
+											sur {allResolvedComponents.length} au catalogue de référence
+										</span>
+									{/if}
+								</div>
+								{#if subjectBoundComponentNames.size > 0 && allResolvedComponents.length > subjectBoundComponentNames.size}
+									<button
+										type="button"
+										onclick={() => (showAllResolvedComponents = !showAllResolvedComponents)}
+										class="px-2 py-0.5 rounded border text-[10px] font-semibold cursor-pointer bg-background hover:bg-muted text-foreground"
+										data-testid="phase4-toggle-all-components-btn"
+									>
+										{showAllResolvedComponents
+											? 'Ciblés par ce sujet uniquement'
+											: `Voir tout le catalogue (${allResolvedComponents.length})`}
+									</button>
+								{/if}
+							</div>
+							<div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
+								{#each displayedResolvedComponents as comp}
+									{@const isSubjectTarget = subjectBoundComponentNames.has(comp.name)}
+									<div class="p-2.5 rounded-lg border bg-background/90 space-y-1" data-testid="phase4-resolved-component-card">
+										<div class="flex items-center justify-between gap-1.5">
+											<span class="font-mono font-bold text-foreground">{comp.name}</span>
+											<span class="text-[10px] font-mono px-1.5 py-0.5 rounded {isSubjectTarget
+												? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 font-semibold'
+												: 'bg-muted text-muted-foreground'}">
+												{isSubjectTarget ? 'Ciblé par ce sujet' : comp.functionalDomain}
+											</span>
+										</div>
+										<div class="text-[11px] text-muted-foreground">
+											Domaine : <strong class="text-foreground">{comp.functionalDomain}</strong> · Tenant : <code class="font-mono text-foreground">{comp.tenant}</code>
+										</div>
+										<div class="text-[10px] font-mono text-muted-foreground">
+											{comp.environment}/{comp.datacenter} · {comp.modules?.length || 0} module(s) · {comp.subnets?.length || 0} sous-réseau(x) · {comp.effectiveRules?.length || 0} règle(s) FW
+										</div>
+									</div>
+								{/each}
+							</div>
+						</div>
+					{/if}
 
 					<!-- Graphe d'Objets Exhaustif & Réconciliation Multi-Domaine (3GPP NRM / TM Forum SID / Nautobot SSoT) -->
 					{#if hydrated.reconciliation_graph}

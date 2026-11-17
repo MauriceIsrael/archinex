@@ -40,10 +40,11 @@ describe('Issue #314 — Positionnement Phase 5 à droite de Phase 4 & Piliers t
 
 		expect(idxPhase1).toBeGreaterThan(-1);
 		expect(idxBoard).toBeGreaterThan(idxPhase1);
-		expect(idxGraph).toBeGreaterThan(idxBoard);
-		expect(idxQuickAsk).toBeGreaterThan(idxGraph);
+		expect(idxGraph).toBe(-1);
+		expect(idxQuickAsk).toBeGreaterThan(idxBoard);
+		expect(html).toContain('Assistant Exigences');
 
-		// Flux sujet/consolidation : Phase 2 -> Phase 3 -> Phase 4 -> Phase 5 -> Architecture Lockée
+		// Flux sujet/consolidation : Assistant Exigences (centre) -> Phase 2 -> Phase 3 -> Phase 4 -> Phase 5 -> Architecture Lockée
 		expect(idxPhase2).toBeGreaterThan(idxQuickAsk);
 		expect(idxPhase3).toBeGreaterThan(idxPhase2);
 		expect(idxPhase4).toBeGreaterThan(idxPhase3);
@@ -73,5 +74,7 @@ describe('Issue #314 — Positionnement Phase 5 à droite de Phase 4 & Piliers t
 		expect(html).toContain('data-testid="pillar-governance-slots-btn"');
 		expect(html).toContain('data-testid="pillar-gitops-catalog-btn"');
 		expect(html).toContain('data-testid="pillar-gitops-sushy-btn"');
+		expect(html).toContain('data-testid="phase5-jump-impact-graph-btn"');
+		expect(html).toContain('data-testid="phase5-impact-graph-section"');
 	});
 });

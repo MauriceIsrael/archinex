@@ -16,7 +16,7 @@
 		Ban,
 		ArrowUpRight,
 		Loader2,
-		FileSearch
+		Bot
 	} from 'lucide-svelte';
 
 	interface Props {
@@ -206,7 +206,7 @@
 		data-testid="requirements-quick-ask-panel"
 		role="dialog"
 		aria-modal="false"
-		aria-label="Assistant rapide sur les exigences du projet"
+		aria-label="Chatbot Assistant Exigences sur le dossier RFP/CCTP du projet"
 		class="fixed bottom-4 right-4 z-50 flex flex-col rounded-2xl border bg-card/95 backdrop-blur-md shadow-2xl transition-all duration-150 {isExpanded
 			? 'w-[min(94vw,680px)] h-[min(82vh,640px)]'
 			: 'w-[min(92vw,460px)] max-h-[min(76vh,540px)]'}"
@@ -215,17 +215,17 @@
 		<header class="flex items-center justify-between gap-2 border-b px-3.5 py-2.5">
 			<div class="flex items-center gap-2 min-w-0">
 				<div class="rounded-lg bg-primary/10 p-1.5 text-primary shrink-0">
-					<FileSearch class="h-4 w-4" />
+					<Bot class="h-4 w-4" />
 				</div>
 				<div class="min-w-0">
 					<div class="flex items-center gap-1.5">
-						<h2 class="text-xs font-bold text-foreground truncate">Quick-Ask Exigences</h2>
+						<h2 class="text-xs font-bold text-foreground truncate">Assistant Exigences</h2>
 						<kbd class="hidden sm:inline-block rounded border bg-muted px-1 py-0.5 font-mono text-[10px] text-muted-foreground">
 							Alt+/
 						</kbd>
 					</div>
 					<p class="text-[11px] text-muted-foreground truncate">
-						{deliberationStore.activeEngagement.shortName} · réponses sourcées par clauseRef
+						{deliberationStore.activeEngagement.shortName} · chatbot sourcé sur les clauses RFP/CCTP ([clauseRef])
 					</p>
 				</div>
 			</div>

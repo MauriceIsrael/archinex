@@ -311,7 +311,7 @@ export const TOGAF_REFERENCE_BUILDING_BLOCKS: ReferenceBuildingBlock[] = [
 		defaultLeafUrn: 'urn:archinex:ontology:application:gis:geoserver_postgis_offline',
 		logicalComponentName: 'gis-server',
 		rationale: 'Brique applicative transverse de géolocalisation WMS/WMTS/WFS pouvant opérer en mode déconnecté.',
-		keywords: ['cartographie', 'cartographique', 'carte', 'sig', 'gis', 'wms', 'wfs', 'wmts', 'geoserver', 'postgis', 'tuiles', 'qgis']
+		keywords: ['carto', 'cartographie', 'cartographique', 'carte', 'sig', 'gis', 'wms', 'wfs', 'wmts', 'geoserver', 'postgis', 'tuiles', 'qgis']
 	},
 	{
 		id: 'gis-location-fusion',

@@ -125,3 +125,65 @@ export async function matchBuildingBlockSemantically(
     score: fallback ? 0.7 : 0
   };
 }
+
+/**
+ * Rapproche un texte d'exigence ou de sujet avec l'ensemble des blocs de référence TOGAF
+ * pertinents par similarité sémantique (embeddings + cosinus), avec repli lexical si aucun
+ * encodeur sémantique n'est configuré.
+ */
+export async function matchAllBuildingBlocksSemantically(
+  text: string,
+  rawCategoryOrDomain?: string,
+  encoderOverride?: Encoder,
+  options?: { threshold?: number; topK?: number }
+): Promise<Array<{ block: ReferenceBuildingBlock; matchMode: MatchMode; score: number }>> {
+  const trimmed = text.trim();
+  if (!trimmed) return [];
+
+  const encoder = tryResolveSemanticEncoder(encoderOverride);
+  if (encoder) {
+    const candidates = TOGAF_REFERENCE_BUILDING_BLOCKS.map((b) => ({
+      item: b,
+      text: `${b.title}. ${b.rationale} ${b.keywords.join(', ')}`
+    }));
+    const matches = await matchEntitiesSemantically(trimmed, candidates, {
+      encoder,
+      threshold: options?.threshold ?? 0.62,
+      topK: options?.topK ?? 5
+    });
+    if (matches.length > 0) {
+      return matches.map((m) => ({
+        block: m.item,
+        matchMode: 'semantic' as const,
+        score: m.score
+      }));
+    }
+  }
+
+  // Repli lexical : combiner le meilleur bloc + tout bloc dont au moins un mot-clé correspond
+  const normalized = trimmed.toLowerCase();
+  const seenIds = new Set<string>();
+  const results: Array<{ block: ReferenceBuildingBlock; matchMode: MatchMode; score: number }> = [];
+
+  const primary = matchReferenceBuildingBlock(trimmed, rawCategoryOrDomain);
+  if (primary) {
+    seenIds.add(primary.id);
+    results.push({ block: primary, matchMode: 'lexical-fallback', score: 0.7 });
+  }
+
+  for (const block of TOGAF_REFERENCE_BUILDING_BLOCKS) {
+    if (seenIds.has(block.id)) continue;
+    const hit = block.keywords.some((kw) => {
+      const escaped = kw.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+      return new RegExp(`(?:^|[^\\p{L}\\p{N}])${escaped}(?:$|[^\\p{L}\\p{N}])`, 'iu').test(
+        normalized
+      );
+    });
+    if (hit) {
+      seenIds.add(block.id);
+      results.push({ block, matchMode: 'lexical-fallback', score: 0.65 });
+    }
+  }
+
+  return results;
+}

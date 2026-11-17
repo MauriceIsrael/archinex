@@ -51,15 +51,15 @@ export function getActorFromEvent(event: RequestEvent): ActorInfo {
 
 /**
  * Acteur d'une requête dans le contexte d'un projet : le rôle d'architecte d'une personne connectée vient de sa
- * fiche participant dans l'espace (retrouvée par son e-mail), pas de son rôle applicatif (`user`).
- * Un administrateur garde ses droits ; un rôle fourni explicitement par en-tête (scripts, tests) prime.
+ * fiche participant dans l'espace (retrouvée par son e-mail) ou de `project_members`, pas de son rôle applicatif (`admin` / `user`).
+ * Un rôle fourni explicitement par en-tête (scripts, tests) prime.
  */
 export async function resolveProjectActor(event: RequestEvent, projectId: string): Promise<ActorInfo> {
 	const actor = getActorFromEvent(event);
 	const sessionUser = event.locals?.session?.user;
 	const email = sessionUser?.email?.toLowerCase();
 	const userId = sessionUser?.id;
-	if (event.request.headers.get('x-user-role') || actor.role === 'admin') return actor;
+	if (event.request.headers.get('x-user-role')) return actor;
 	try {
 		const engagement = await prisma.engagement.findUnique({ where: { id: projectId }, select: { participants: true } });
 		const participants = JSON.parse(engagement?.participants || '[]') as Array<{ id?: string; email?: string; role?: string }>;

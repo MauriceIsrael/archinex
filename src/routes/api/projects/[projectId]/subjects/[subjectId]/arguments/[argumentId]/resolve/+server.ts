@@ -2,7 +2,7 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { resolveArgument } from '$lib/server/projects/debateDb';
 import { ResolveArgumentSchema } from '$lib/schemas/debateApiSchemas';
-import { getActorInfo } from '$lib/server/projects/actorHelper';
+import { resolveProjectActor } from '$lib/server/projects/actorHelper';
 import { authorizeProjectAccess } from '$lib/server/projects/projectAccess';
 import { ConcurrencyConflictError } from '$lib/server/projects/projectsDb';
 
@@ -18,7 +18,7 @@ export const PATCH: RequestHandler = async (event) => {
 		return json({ message: 'Validation invalide', errors: parsed.error.format() }, { status: 400 });
 	}
 
-	const actor = getActorInfo(event);
+	const actor = await resolveProjectActor(event, projectId);
 
 	try {
 		const updated = await resolveArgument(

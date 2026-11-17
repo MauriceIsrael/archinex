@@ -97,7 +97,7 @@
 				<SubjectThreadView
 					subjectId={activeSubjectId}
 					{projectId}
-					userRole={sessionRole || deliberationStore.currentRole}
+					userRole={deliberationStore.currentRole || sessionRole}
 					{sessionUser}
 					isHumanUser={deliberationStore.isHuman}
 					{onBackToBoard}
@@ -126,7 +126,7 @@
 				<SubjectThreadView
 					subjectId={activeSubjectId}
 					{projectId}
-					userRole={sessionRole || deliberationStore.currentRole}
+					userRole={deliberationStore.currentRole || sessionRole}
 					{sessionUser}
 					isHumanUser={deliberationStore.isHuman}
 					{isSidebarCollapsed}

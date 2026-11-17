@@ -1311,6 +1311,8 @@
 					objections={openObjections}
 					{userRole}
 					{isHumanUser}
+					currentUserId={sessionUser?.id}
+					currentUserName={sessionUser?.name || sessionUser?.email}
 					onResolve={handleResolveArgument}
 				/>
 			{/if}

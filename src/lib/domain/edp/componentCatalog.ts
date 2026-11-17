@@ -1586,6 +1586,338 @@ export const DEFAULT_COMPONENT_CATALOG: LogicalComponent[] = [
         rules: []
       }
     }
+  },
+  {
+    apiVersion: 'archinex.io/v1alpha1',
+    kind: 'LogicalComponent',
+    metadata: {
+      name: 'esim-smdp',
+      displayName: 'Serveur de Provisioning eSIM SM-DP+ (GSMA SGP.22 / SAS-SM)',
+      tenant: 'tenant-esim-smdp',
+      external: false,
+      functionalDomain: 'security',
+      editor: 'secops',
+      status: 'active',
+      version: '1.0.0',
+      manifestVersion: 1,
+      labels: { criticality: 'tier-1', layer: 'sim-provisioning' }
+    },
+    spec: {
+      class: 'domain-technical',
+      dependsOn: ['hsm-appliance', 'pki-ca', 'siem-soc', 'vault-cluster'],
+      network: {
+        vrfs: [
+          { name: 'vrf-smdp-app', domain: 'smdp.internal', tenantRef: 'ref(component.metadata.tenant)' },
+          { name: 'vrf-smdp-events', domain: 'events.internal' },
+          { name: 'vrf-smdp-admin', domain: 'admin.internal' }
+        ],
+        subnets: [
+          {
+            name: 'sn-smdp-app',
+            cidr: 'ref(param.smdp.subnet.app)',
+            vrf: 'vrf-smdp-app',
+            zone: 'data',
+            class: 'business',
+            reserved: { gateway: { offset: 1 }, 'vip-smdp': { offset: 10 } }
+          },
+          { name: 'sn-smdp-events', cidr: 'ref(param.smdp.subnet.events)', vrf: 'vrf-smdp-events', zone: 'events', class: 'events' },
+          { name: 'sn-smdp-admin', cidr: 'ref(param.smdp.subnet.admin)', vrf: 'vrf-smdp-admin', zone: 'admin', class: 'admin' }
+        ]
+      },
+      compute: {
+        modules: [
+          {
+            name: 'smdp-core',
+            kind: 'container',
+            role: 'smdp-api',
+            status: 'active',
+            instances: 'ref(param.smdp.instances.core)',
+            placement: { requiredDataplane: 'standard-nis2', zone: 'data', pool: 'sylva-standard-nis2' },
+            nics: [
+              { class: 'admin', index: 1, vrf: 'vrf-smdp-admin', subnetRef: 'sn-smdp-admin', ip: { by: 'offset', value: 32, perInstance: true } },
+              { class: 'business', index: 2, vrf: 'vrf-smdp-app', subnetRef: 'sn-smdp-app', ip: { by: 'offset', value: 40, perInstance: true }, defaultRoute: true },
+              { class: 'events', index: 3, vrf: 'vrf-smdp-events', subnetRef: 'sn-smdp-events', ip: { by: 'dhcp' } }
+            ],
+            helm: { repo: 'oci://registry.sylva.internal/telecom', chart: 'esim-smdp', version: 'ref(param.smdp.chartVersion)' }
+          }
+        ]
+      },
+      security: {
+        vault: {
+          mount: 'vault://tenant-esim-smdp',
+          paths: [{ name: 'smdp-rsp-signing-key', rule: 'default-password', rotationDays: 90 }]
+        },
+        certificates: [
+          {
+            name: 'smdp-es9-tls',
+            type: 'server',
+            cn: 'rsp.smdp.internal',
+            sanDns: ['rsp.smdp.internal'],
+            sanIps: ['ref(network.subnets[sn-smdp-app].reserved[vip-smdp])'],
+            validityDays: 90,
+            issuanceMethod: 'internal-ca',
+            autoRenew: true
+          }
+        ]
+      },
+      firewall: {
+        policy: 'deny-by-default',
+        groups: [
+          { name: 'smdp-core', membersRef: 'ref(compute.modules[smdp-core].instances[*].nics[class=business].ip)' },
+          { name: 'smdp-events', membersRef: 'ref(compute.modules[smdp-core].instances[*].nics[class=events].ip)' }
+        ],
+        rules: []
+      }
+    }
+  },
+  {
+    apiVersion: 'archinex.io/v1alpha1',
+    kind: 'LogicalComponent',
+    metadata: {
+      name: 'oss-smo-mediation',
+      displayName: 'Médiation OSS / SMO / EMS & Assurance de Service (NRM TS 28.532)',
+      tenant: 'tenant-oss-smo',
+      external: false,
+      functionalDomain: 'it',
+      editor: 'itops',
+      status: 'active',
+      version: '1.0.0',
+      manifestVersion: 1,
+      labels: { criticality: 'tier-1', layer: 'oss-smo' }
+    },
+    spec: {
+      class: 'domain-technical',
+      dependsOn: ['iam-keycloak', 'siem-soc', 'vault-cluster'],
+      network: {
+        vrfs: [
+          { name: 'vrf-oss-app', domain: 'oss.internal', tenantRef: 'ref(component.metadata.tenant)' },
+          { name: 'vrf-oss-events', domain: 'events.internal' },
+          { name: 'vrf-oss-admin', domain: 'admin.internal' }
+        ],
+        subnets: [
+          {
+            name: 'sn-oss-app',
+            cidr: 'ref(param.oss.subnet.app)',
+            vrf: 'vrf-oss-app',
+            zone: 'app',
+            class: 'business',
+            reserved: { gateway: { offset: 1 }, 'vip-oss': { offset: 10 } }
+          },
+          { name: 'sn-oss-events', cidr: 'ref(param.oss.subnet.events)', vrf: 'vrf-oss-events', zone: 'events', class: 'events' },
+          { name: 'sn-oss-admin', cidr: 'ref(param.oss.subnet.admin)', vrf: 'vrf-oss-admin', zone: 'admin', class: 'admin' }
+        ]
+      },
+      compute: {
+        modules: [
+          {
+            name: 'oss-mediator',
+            kind: 'container',
+            role: 'oss-smo-api',
+            status: 'active',
+            instances: 'ref(param.oss.instances.mediator)',
+            placement: { requiredDataplane: 'standard-nis2', zone: 'app', pool: 'sylva-standard-nis2' },
+            nics: [
+              { class: 'admin', index: 1, vrf: 'vrf-oss-admin', subnetRef: 'sn-oss-admin', ip: { by: 'offset', value: 32, perInstance: true } },
+              { class: 'business', index: 2, vrf: 'vrf-oss-app', subnetRef: 'sn-oss-app', ip: { by: 'offset', value: 40, perInstance: true }, defaultRoute: true },
+              { class: 'events', index: 3, vrf: 'vrf-oss-events', subnetRef: 'sn-oss-events', ip: { by: 'dhcp' } }
+            ],
+            helm: { repo: 'oci://registry.sylva.internal/oss', chart: 'oss-smo-mediation', version: 'ref(param.oss.chartVersion)' }
+          }
+        ]
+      },
+      security: {
+        vault: {
+          mount: 'vault://tenant-oss-smo',
+          paths: [{ name: 'oss-mno-connector-token', rule: 'default-password', rotationDays: 90 }]
+        },
+        certificates: [
+          {
+            name: 'oss-smo-tls',
+            type: 'server',
+            cn: 'smo.oss.internal',
+            sanDns: ['smo.oss.internal'],
+            sanIps: ['ref(network.subnets[sn-oss-app].reserved[vip-oss])'],
+            validityDays: 90,
+            issuanceMethod: 'internal-ca',
+            autoRenew: true
+          }
+        ]
+      },
+      firewall: {
+        policy: 'deny-by-default',
+        groups: [
+          { name: 'oss-mediator', membersRef: 'ref(compute.modules[oss-mediator].instances[*].nics[class=business].ip)' },
+          { name: 'oss-events', membersRef: 'ref(compute.modules[oss-mediator].instances[*].nics[class=events].ip)' }
+        ],
+        rules: []
+      }
+    }
+  },
+  {
+    apiVersion: 'archinex.io/v1alpha1',
+    kind: 'LogicalComponent',
+    metadata: {
+      name: 'cmdb-inventory',
+      displayName: 'Inventaire Réseau, CMDB & Réconciliation ITSM',
+      tenant: 'tenant-cmdb-inventory',
+      external: false,
+      functionalDomain: 'it',
+      editor: 'itops',
+      status: 'active',
+      version: '1.0.0',
+      manifestVersion: 1,
+      labels: { criticality: 'tier-1', layer: 'cmdb-itsm' }
+    },
+    spec: {
+      class: 'domain-technical',
+      dependsOn: ['oss-smo-mediation', 'iam-keycloak', 'siem-soc'],
+      network: {
+        vrfs: [
+          { name: 'vrf-cmdb-app', domain: 'cmdb.internal', tenantRef: 'ref(component.metadata.tenant)' },
+          { name: 'vrf-cmdb-events', domain: 'events.internal' },
+          { name: 'vrf-cmdb-admin', domain: 'admin.internal' }
+        ],
+        subnets: [
+          {
+            name: 'sn-cmdb-app',
+            cidr: 'ref(param.cmdb.subnet.app)',
+            vrf: 'vrf-cmdb-app',
+            zone: 'data',
+            class: 'business',
+            reserved: { gateway: { offset: 1 }, 'vip-cmdb': { offset: 10 } }
+          },
+          { name: 'sn-cmdb-events', cidr: 'ref(param.cmdb.subnet.events)', vrf: 'vrf-cmdb-events', zone: 'events', class: 'events' },
+          { name: 'sn-cmdb-admin', cidr: 'ref(param.cmdb.subnet.admin)', vrf: 'vrf-cmdb-admin', zone: 'admin', class: 'admin' }
+        ]
+      },
+      compute: {
+        modules: [
+          {
+            name: 'cmdb-core',
+            kind: 'container',
+            role: 'cmdb-api',
+            status: 'active',
+            instances: 'ref(param.cmdb.instances.core)',
+            placement: { requiredDataplane: 'standard-nis2', zone: 'data', pool: 'sylva-standard-nis2' },
+            nics: [
+              { class: 'admin', index: 1, vrf: 'vrf-cmdb-admin', subnetRef: 'sn-cmdb-admin', ip: { by: 'offset', value: 32, perInstance: true } },
+              { class: 'business', index: 2, vrf: 'vrf-cmdb-app', subnetRef: 'sn-cmdb-app', ip: { by: 'offset', value: 40, perInstance: true }, defaultRoute: true },
+              { class: 'events', index: 3, vrf: 'vrf-cmdb-events', subnetRef: 'sn-cmdb-events', ip: { by: 'dhcp' } }
+            ],
+            helm: { repo: 'oci://registry.sylva.internal/oss', chart: 'cmdb-inventory', version: 'ref(param.cmdb.chartVersion)' }
+          }
+        ]
+      },
+      security: {
+        vault: {
+          mount: 'vault://tenant-cmdb-inventory',
+          paths: [{ name: 'cmdb-sync-secret', rule: 'default-password', rotationDays: 90 }]
+        },
+        certificates: [
+          {
+            name: 'cmdb-api-tls',
+            type: 'server',
+            cn: 'cmdb.internal',
+            sanDns: ['cmdb.internal'],
+            sanIps: ['ref(network.subnets[sn-cmdb-app].reserved[vip-cmdb])'],
+            validityDays: 90,
+            issuanceMethod: 'internal-ca',
+            autoRenew: true
+          }
+        ]
+      },
+      firewall: {
+        policy: 'deny-by-default',
+        groups: [
+          { name: 'cmdb-core', membersRef: 'ref(compute.modules[cmdb-core].instances[*].nics[class=business].ip)' },
+          { name: 'cmdb-events', membersRef: 'ref(compute.modules[cmdb-core].instances[*].nics[class=events].ip)' }
+        ],
+        rules: []
+      }
+    }
+  },
+  {
+    apiVersion: 'archinex.io/v1alpha1',
+    kind: 'LogicalComponent',
+    metadata: {
+      name: 'n3iwf-epdg-gateway',
+      displayName: 'Passerelle Interworking Non-3GPP / WLAN (N3IWF / ePDG / ATSSS)',
+      tenant: 'tenant-n3iwf-epdg',
+      external: false,
+      functionalDomain: 'core-network',
+      editor: 'netops-core',
+      status: 'active',
+      version: '1.0.0',
+      manifestVersion: 1,
+      labels: { criticality: 'tier-1', layer: 'non3gpp-interworking' }
+    },
+    spec: {
+      class: 'domain-technical',
+      dependsOn: ['core-network', 'pki-ca', 'siem-soc'],
+      network: {
+        vrfs: [
+          { name: 'vrf-n3iwf-sig', domain: 'n3iwf.internal', tenantRef: 'ref(component.metadata.tenant)' },
+          { name: 'vrf-n3iwf-events', domain: 'events.internal' },
+          { name: 'vrf-n3iwf-admin', domain: 'admin.internal' }
+        ],
+        subnets: [
+          {
+            name: 'sn-n3iwf-sig',
+            cidr: 'ref(param.n3iwf.subnet.sig)',
+            vrf: 'vrf-n3iwf-sig',
+            zone: 'dmz',
+            class: 'business',
+            reserved: { gateway: { offset: 1 }, 'vip-n3iwf': { offset: 10 } }
+          },
+          { name: 'sn-n3iwf-events', cidr: 'ref(param.n3iwf.subnet.events)', vrf: 'vrf-n3iwf-events', zone: 'events', class: 'events' },
+          { name: 'sn-n3iwf-admin', cidr: 'ref(param.n3iwf.subnet.admin)', vrf: 'vrf-n3iwf-admin', zone: 'admin', class: 'admin' }
+        ]
+      },
+      compute: {
+        modules: [
+          {
+            name: 'n3iwf-gateway',
+            kind: 'container',
+            role: 'n3iwf-ipsec',
+            status: 'active',
+            instances: 'ref(param.n3iwf.instances.gateway)',
+            placement: { requiredDataplane: 'standard-nis2', zone: 'dmz', pool: 'sylva-standard-nis2' },
+            nics: [
+              { class: 'admin', index: 1, vrf: 'vrf-n3iwf-admin', subnetRef: 'sn-n3iwf-admin', ip: { by: 'offset', value: 32, perInstance: true } },
+              { class: 'business', index: 2, vrf: 'vrf-n3iwf-sig', subnetRef: 'sn-n3iwf-sig', ip: { by: 'offset', value: 40, perInstance: true }, defaultRoute: true },
+              { class: 'events', index: 3, vrf: 'vrf-n3iwf-events', subnetRef: 'sn-n3iwf-events', ip: { by: 'dhcp' } }
+            ],
+            helm: { repo: 'oci://registry.sylva.internal/core', chart: 'n3iwf-epdg', version: 'ref(param.n3iwf.chartVersion)' }
+          }
+        ]
+      },
+      security: {
+        vault: {
+          mount: 'vault://tenant-n3iwf-epdg',
+          paths: [{ name: 'n3iwf-ike-psk-or-cert', rule: 'default-password', rotationDays: 90 }]
+        },
+        certificates: [
+          {
+            name: 'n3iwf-ikev2-tls',
+            type: 'server',
+            cn: 'n3iwf.core.internal',
+            sanDns: ['n3iwf.core.internal'],
+            sanIps: ['ref(network.subnets[sn-n3iwf-sig].reserved[vip-n3iwf])'],
+            validityDays: 90,
+            issuanceMethod: 'internal-ca',
+            autoRenew: true
+          }
+        ]
+      },
+      firewall: {
+        policy: 'deny-by-default',
+        groups: [
+          { name: 'n3iwf-gateway', membersRef: 'ref(compute.modules[n3iwf-gateway].instances[*].nics[class=business].ip)' },
+          { name: 'n3iwf-events', membersRef: 'ref(compute.modules[n3iwf-gateway].instances[*].nics[class=events].ip)' }
+        ],
+        rules: []
+      }
+    }
   }
 ];
 
@@ -2241,7 +2573,19 @@ export const DEFAULT_URN_TO_COMPONENT: Record<string, string> = {
   'urn:archinex:ontology:endpoint:crypto:fbe_hardware_keystore': 'endpoint-os-profile',
   'urn:archinex:ontology:endpoint:sandbox:work_profile_strict_isolation': 'endpoint-os-profile',
   'urn:archinex:ontology:endpoint:sandbox:dedicated_kiosk_cobo': 'endpoint-os-profile',
-  'urn:archinex:ontology:endpoint:ota:signed_ab_staged_rollout': 'mdm-emm'
+  'urn:archinex:ontology:endpoint:ota:signed_ab_staged_rollout': 'mdm-emm',
+  'urn:archinex:ontology:security:esim:smdp_sas_sm_eu_hsm': 'esim-smdp',
+  'urn:archinex:ontology:security:esim:smdp_onprem_sovereign_hsm': 'esim-smdp',
+  'urn:archinex:ontology:operations:oss:unified_nrm_ts28532_mediation': 'oss-smo-mediation',
+  'urn:archinex:ontology:operations:oss:mno_mocn_adapter_mediation': 'oss-smo-mediation',
+  'urn:archinex:ontology:operations:smo:graduated_hitl_remediation': 'oss-smo-mediation',
+  'urn:archinex:ontology:operations:cmdb:nautobot_itsm_reconciliation': 'cmdb-inventory',
+  'urn:archinex:ontology:operations:assurance:e2e_probes_5qi_qos': 'oss-smo-mediation',
+  'urn:archinex:ontology:network:interworking:n3iwf_epdg_ipsec': 'n3iwf-epdg-gateway',
+  'urn:archinex:ontology:network:interworking:atsss_multipath_steering': 'n3iwf-epdg-gateway',
+  'urn:archinex:ontology:telecom:core:slicing_5qi_sst_isolation': 'core-network',
+  'urn:archinex:ontology:application:broadcast:embms_5mbs_group_broadcast': 'ptt-server',
+  'urn:archinex:ontology:security:pqc:hybrid_mlkem_mldsa_agility': 'pki-ca'
 };
 
 /**
@@ -2625,6 +2969,26 @@ export const DEFAULT_ENVIRONMENT_OVERLAYS: EnvironmentOverlay[] = [
         'endpoint.subnet.admin': '10.49.12.0/24',
         'endpoint.instances.policy': 2,
         'endpoint.chartVersion': '1.2.0',
+        'smdp.subnet.app': '10.50.10.0/24',
+        'smdp.subnet.events': '10.50.11.0/24',
+        'smdp.subnet.admin': '10.50.12.0/24',
+        'smdp.instances.core': 2,
+        'smdp.chartVersion': '1.4.0',
+        'oss.subnet.app': '10.51.10.0/24',
+        'oss.subnet.events': '10.51.11.0/24',
+        'oss.subnet.admin': '10.51.12.0/24',
+        'oss.instances.mediator': 2,
+        'oss.chartVersion': '2.2.0',
+        'cmdb.subnet.app': '10.52.10.0/24',
+        'cmdb.subnet.events': '10.52.11.0/24',
+        'cmdb.subnet.admin': '10.52.12.0/24',
+        'cmdb.instances.core': 2,
+        'cmdb.chartVersion': '1.3.0',
+        'n3iwf.subnet.sig': '10.53.10.0/24',
+        'n3iwf.subnet.events': '10.53.11.0/24',
+        'n3iwf.subnet.admin': '10.53.12.0/24',
+        'n3iwf.instances.gateway': 2,
+        'n3iwf.chartVersion': '1.1.0',
         'storage.hot.quota': '500Gi',
         'storage.warm.quota': '2Ti'
       },
@@ -2709,6 +3073,26 @@ export const DEFAULT_ENVIRONMENT_OVERLAYS: EnvironmentOverlay[] = [
         'endpoint.subnet.admin': '10.59.12.0/24',
         'endpoint.instances.policy': 2,
         'endpoint.chartVersion': '1.2.0',
+        'smdp.subnet.app': '10.70.10.0/24',
+        'smdp.subnet.events': '10.70.11.0/24',
+        'smdp.subnet.admin': '10.70.12.0/24',
+        'smdp.instances.core': 2,
+        'smdp.chartVersion': '1.4.0',
+        'oss.subnet.app': '10.71.10.0/24',
+        'oss.subnet.events': '10.71.11.0/24',
+        'oss.subnet.admin': '10.71.12.0/24',
+        'oss.instances.mediator': 2,
+        'oss.chartVersion': '2.2.0',
+        'cmdb.subnet.app': '10.72.10.0/24',
+        'cmdb.subnet.events': '10.72.11.0/24',
+        'cmdb.subnet.admin': '10.72.12.0/24',
+        'cmdb.instances.core': 2,
+        'cmdb.chartVersion': '1.3.0',
+        'n3iwf.subnet.sig': '10.73.10.0/24',
+        'n3iwf.subnet.events': '10.73.11.0/24',
+        'n3iwf.subnet.admin': '10.73.12.0/24',
+        'n3iwf.instances.gateway': 2,
+        'n3iwf.chartVersion': '1.1.0',
         'storage.hot.quota': '200Gi',
         'storage.warm.quota': '1Ti'
       },
@@ -2793,6 +3177,26 @@ export const DEFAULT_ENVIRONMENT_OVERLAYS: EnvironmentOverlay[] = [
         'endpoint.subnet.admin': '10.69.12.0/24',
         'endpoint.instances.policy': 1,
         'endpoint.chartVersion': '1.2.0-rc1',
+        'smdp.subnet.app': '10.80.10.0/24',
+        'smdp.subnet.events': '10.80.11.0/24',
+        'smdp.subnet.admin': '10.80.12.0/24',
+        'smdp.instances.core': 1,
+        'smdp.chartVersion': '1.4.0-rc1',
+        'oss.subnet.app': '10.81.10.0/24',
+        'oss.subnet.events': '10.81.11.0/24',
+        'oss.subnet.admin': '10.81.12.0/24',
+        'oss.instances.mediator': 1,
+        'oss.chartVersion': '2.2.0-rc1',
+        'cmdb.subnet.app': '10.82.10.0/24',
+        'cmdb.subnet.events': '10.82.11.0/24',
+        'cmdb.subnet.admin': '10.82.12.0/24',
+        'cmdb.instances.core': 1,
+        'cmdb.chartVersion': '1.3.0-rc1',
+        'n3iwf.subnet.sig': '10.83.10.0/24',
+        'n3iwf.subnet.events': '10.83.11.0/24',
+        'n3iwf.subnet.admin': '10.83.12.0/24',
+        'n3iwf.instances.gateway': 1,
+        'n3iwf.chartVersion': '1.1.0-rc1',
         'storage.hot.quota': '50Gi',
         'storage.warm.quota': '200Gi'
       },

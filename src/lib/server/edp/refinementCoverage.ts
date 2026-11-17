@@ -261,6 +261,16 @@ export interface LldHydrationOverrides {
   endpointLocalEncryptionMode?: string;
   endpointAppSandboxingMode?: string;
   endpointOtaSignedAb?: boolean;
+  esimSasSmCertified?: boolean;
+  esimFourEyesApproval?: boolean;
+  ossNrmStandard?: string;
+  smoHitlApproval?: boolean;
+  cmdbSyncEnabled?: boolean;
+  serviceAssuranceProbesNonInvasive?: boolean;
+  non3gppIpsecEnforced?: boolean;
+  core5gSliceIsolation?: boolean;
+  embmsAuthenticated?: boolean;
+  pqcHybridAgility?: boolean;
   twinArbitrationMode?: TwinArbitrationMode;
   twinMandatedProfileId?: SylvaTopologyProfileId;
 }
@@ -343,6 +353,18 @@ export interface MultiAxisHydratedInventory {
       local_encryption_mode: string;
       app_sandboxing_mode: string;
       ota_signed_ab_required: boolean;
+    };
+    telecom_oss_smdp: {
+      esim_sas_sm_certified: boolean;
+      esim_four_eyes_approval: boolean;
+      oss_nrm_standard: string;
+      smo_hitl_approval: boolean;
+      cmdb_sync_enabled: boolean;
+      non_invasive_probes: boolean;
+      non3gpp_ipsec_enforced: boolean;
+      slice_isolation_enforced: boolean;
+      embms_authenticated: boolean;
+      pqc_hybrid_agility: boolean;
     };
   };
   resolved_components?: ResolvedComponentInstance[];
@@ -925,15 +947,40 @@ export function computeRefinementCoverage(
   // 1. Collecte des axes de raffinement obligatoires (axes applicatifs contextuels + triplets `requires_aspect` des concepts retenus)
   const mandatoryAxisMap = new Map<string, OntologyTriplet>();
 
+  const CONTEXTUAL_EXTENDED_AXIS_PREFIXES = [
+    'urn:archinex:ontology:axis:endpoint_',
+    'urn:archinex:ontology:axis:esim_',
+    'urn:archinex:ontology:axis:oss_',
+    'urn:archinex:ontology:axis:cmdb_',
+    'urn:archinex:ontology:axis:service_assurance_',
+    'urn:archinex:ontology:axis:non3gpp_',
+    'urn:archinex:ontology:axis:core_5g_',
+    'urn:archinex:ontology:axis:embms_',
+    'urn:archinex:ontology:axis:pqc_'
+  ];
+  const isContextualExtendedAxis = (urn: string): boolean =>
+    CONTEXTUAL_EXTENDED_AXIS_PREFIXES.some((p) => urn.startsWith(p));
+
   if (
     isAutoConceptMode ||
-    Array.from(explicitBindingSet).some((u) => u.includes(':application:') || u.includes(':endpoint:'))
+    Array.from(explicitBindingSet).some(
+      (u) =>
+        u.includes(':application:') ||
+        u.includes(':endpoint:') ||
+        u.includes(':esim:') ||
+        u.includes(':oss:') ||
+        u.includes(':smo:') ||
+        u.includes(':cmdb:') ||
+        u.includes(':assurance:') ||
+        u.includes(':interworking:') ||
+        u.includes(':pqc:')
+    )
   ) {
     const isContextualDomainAxis = (e: OntologyEntity): boolean =>
       e.kind === 'axis' &&
       (e.domain === 'application' ||
         e.togaf_domain === 'application-business' ||
-        e.urn.startsWith('urn:archinex:ontology:axis:endpoint_'));
+        isContextualExtendedAxis(e.urn));
 
     const appAxes = Object.values(catalog.entities).filter(isContextualDomainAxis);
 
@@ -978,11 +1025,15 @@ export function computeRefinementCoverage(
       }
     }
 
-    // Inclure également tout axe prérequis (ex: gis_location_fusion -> gis_tile_engine, endpoint_mdm_enrollment -> endpoint_pki_enrollment -> pki_hierarchy)
+    // Inclure également tout axe prérequis des axes contextuels détectés
     if (matchedAppAxisUrns.size > 0) {
-      const hasEndpointAxis = Array.from(matchedAppAxisUrns).some((u) =>
-        u.startsWith('urn:archinex:ontology:axis:endpoint_')
-      );
+      const hasExtendedContextAxis = Array.from(matchedAppAxisUrns).some(isContextualExtendedAxis);
+      const allowedPrereqTransverseAxes = new Set([
+        'urn:archinex:ontology:axis:hsm_key_custody',
+        'urn:archinex:ontology:axis:pki_hierarchy',
+        'urn:archinex:ontology:axis:wan_interco_encryption',
+        'urn:archinex:ontology:axis:oss_smo_mediation'
+      ]);
       const appPrereqs = computeTransitivePrerequisiteAxes(matchedAppAxisUrns, catalog);
       for (const prereqUrn of appPrereqs.keys()) {
         const prereqEntity = catalog.entities[prereqUrn];
@@ -990,8 +1041,8 @@ export function computeRefinementCoverage(
           prereqEntity?.kind === 'axis' &&
           (prereqEntity.domain === 'application' ||
             prereqEntity.togaf_domain === 'application-business' ||
-            prereqEntity.urn.startsWith('urn:archinex:ontology:axis:endpoint_') ||
-            (hasEndpointAxis && prereqEntity.urn === 'urn:archinex:ontology:axis:pki_hierarchy'))
+            isContextualExtendedAxis(prereqEntity.urn) ||
+            (hasExtendedContextAxis && allowedPrereqTransverseAxes.has(prereqEntity.urn)))
         ) {
           matchedAppAxisUrns.add(prereqUrn);
         }
@@ -1299,6 +1350,7 @@ export function computeRefinementCoverage(
       matchedRequirementIdsSet.size > 0 ||
       matchedClauseUrnsSet.size > 0 ||
       isApplicationAxis ||
+      reqTriplet.id.startsWith('tr-ctx-') ||
       axisDirectScore >= 2 ||
       conceptMatchDetails.directKeywordScore >= 4;
     const isOutOfScope = isManuallyExcluded || !isScopeRelevant;
@@ -1796,6 +1848,16 @@ export function composeMultiAxisHydration(
   let endpointLocalEncryptionMode = 'unspecified';
   let endpointAppSandboxingMode = 'unspecified';
   let endpointOtaSignedAb = false;
+  let esimSasSmCertified = false;
+  let esimFourEyesApproval = false;
+  let ossNrmStandard = 'unspecified';
+  let smoHitlApproval = false;
+  let cmdbSyncEnabled = false;
+  let nonInvasiveProbes = false;
+  let non3gppIpsecEnforced = false;
+  let sliceIsolationEnforced = false;
+  let embmsAuthenticated = false;
+  let pqcHybridAgility = false;
 
   for (const b of bindings) {
     const entity = catalog.entities[b.urn];
@@ -1894,6 +1956,36 @@ export function composeMultiAxisHydration(
     }
     if (proj.ota_signed_ab_required !== undefined) {
       endpointOtaSignedAb = Boolean(proj.ota_signed_ab_required);
+    }
+    if (proj.sas_sm_certified_required !== undefined) {
+      esimSasSmCertified = Boolean(proj.sas_sm_certified_required);
+    }
+    if (proj.four_eyes_approval_required !== undefined) {
+      esimFourEyesApproval = Boolean(proj.four_eyes_approval_required);
+    }
+    if (proj.nrm_standard !== undefined) {
+      ossNrmStandard = String(proj.nrm_standard);
+    }
+    if (proj.hitl_approval_required !== undefined) {
+      smoHitlApproval = Boolean(proj.hitl_approval_required);
+    }
+    if (proj.cmdb_sync_enabled !== undefined) {
+      cmdbSyncEnabled = Boolean(proj.cmdb_sync_enabled);
+    }
+    if (proj.non_invasive_probes_required !== undefined) {
+      nonInvasiveProbes = Boolean(proj.non_invasive_probes_required);
+    }
+    if (proj.non3gpp_ipsec_enforced !== undefined) {
+      non3gppIpsecEnforced = Boolean(proj.non3gpp_ipsec_enforced);
+    }
+    if (proj.slice_isolation_enforced !== undefined) {
+      sliceIsolationEnforced = Boolean(proj.slice_isolation_enforced);
+    }
+    if (proj.embms_authenticated_required !== undefined) {
+      embmsAuthenticated = Boolean(proj.embms_authenticated_required);
+    }
+    if (proj.pqc_hybrid_agility_required !== undefined) {
+      pqcHybridAgility = Boolean(proj.pqc_hybrid_agility_required);
     }
 
     if (tpl.nautobot_device || proj.baremetal_types) {
@@ -2443,6 +2535,18 @@ export function composeMultiAxisHydration(
       local_encryption_mode: overrides.endpointLocalEncryptionMode ?? endpointLocalEncryptionMode,
       app_sandboxing_mode: overrides.endpointAppSandboxingMode ?? endpointAppSandboxingMode,
       ota_signed_ab_required: overrides.endpointOtaSignedAb ?? endpointOtaSignedAb
+    },
+    telecom_oss_smdp: {
+      esim_sas_sm_certified: overrides.esimSasSmCertified ?? esimSasSmCertified,
+      esim_four_eyes_approval: overrides.esimFourEyesApproval ?? esimFourEyesApproval,
+      oss_nrm_standard: overrides.ossNrmStandard ?? ossNrmStandard,
+      smo_hitl_approval: overrides.smoHitlApproval ?? smoHitlApproval,
+      cmdb_sync_enabled: overrides.cmdbSyncEnabled ?? cmdbSyncEnabled,
+      non_invasive_probes: overrides.serviceAssuranceProbesNonInvasive ?? nonInvasiveProbes,
+      non3gpp_ipsec_enforced: overrides.non3gppIpsecEnforced ?? non3gppIpsecEnforced,
+      slice_isolation_enforced: overrides.core5gSliceIsolation ?? sliceIsolationEnforced,
+      embms_authenticated: overrides.embmsAuthenticated ?? embmsAuthenticated,
+      pqc_hybrid_agility: overrides.pqcHybridAgility ?? pqcHybridAgility
     }
   };
   const sylvaTwinReport = runSylvaDigitalTwinMatrix({

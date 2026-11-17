@@ -2,6 +2,7 @@
 	import { deliberationStore } from '$lib/stores/deliberationStore.svelte';
 	import MermaidViewer from './MermaidViewer.svelte';
 	import LiveArchitectureLockView from './LiveArchitectureLockView.svelte';
+	import ImpactGraphExplorer from './ImpactGraphExplorer.svelte';
 	import ComponentCatalogEditor from '$lib/components/edp/ComponentCatalogEditor.svelte';
 	import { Layers, ShieldCheck, Lock, GitBranch, Network, FileCode2, Table2 } from 'lucide-svelte';
 
@@ -53,6 +54,14 @@
 		if (typeof document !== 'undefined') {
 			document
 				.getElementById('phase5-logical-views')
+				?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+		}
+	}
+
+	function focusImpactGraph() {
+		if (typeof document !== 'undefined') {
+			document
+				.getElementById('phase5-impact-graph')
 				?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 		}
 	}
@@ -277,6 +286,20 @@
 				Agrège les composants logiques du catalogue projet, résout les références inter-composants
 				(<code class="font-mono">ref()</code>), simule la survie aux pannes du Jumeau Numérique de Sylva (3 DCs par défaut vs 2 DCs + Témoin vs 2 DCs secs) et génère le bouchon Redfish <code class="font-mono">sushy-emulator</code>.
 			</p>
+		</div>
+		<div class="flex items-center gap-2 shrink-0">
+			<button
+				type="button"
+				onclick={focusImpactGraph}
+				data-testid="phase5-jump-impact-graph-btn"
+				class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20 text-amber-800 dark:text-amber-200 text-xs font-semibold transition-colors cursor-pointer"
+			>
+				<Network class="h-3.5 w-3.5 shrink-0" />
+				<span>Graphe d'Impact & Décisions</span>
+				<span class="font-mono text-[10px] px-1.5 py-0.2 rounded bg-background/70 text-amber-700 dark:text-amber-300">
+					What-If
+				</span>
+			</button>
 		</div>
 	</div>
 
@@ -746,4 +769,9 @@
 			<p class="text-xs text-muted-foreground">Aucune topologie logique disponible pour ce projet.</p>
 		{/if}
 	</div>
+
+	<!-- Graphe d'Impact & Décisions (Simulateur What-If) -->
+	<section id="phase5-impact-graph" class="space-y-3" data-testid="phase5-impact-graph-section">
+		<ImpactGraphExplorer />
+	</section>
 </div>

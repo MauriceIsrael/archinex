@@ -59,7 +59,7 @@ L'assistant de création d'espace (`/workspaces/new` ou modale du bandeau de pro
     - La synchronisation avec LLMOps en arrière-plan opère en mode silencieux (`silent: true`) : elle ne déclenche pas de toasts intempestifs lors du chargement de page et préserve scrupuleusement la vue courante. Les notifications visuelles restent réservées aux clics manuels de resynchronisation.
 
 - **Graphe Causal d'Impact & Simulateur de Compromis Coût (What-If Simulator)** :
-  - Accessible via l'onglet **« Graphe d'Impact & Décisions »** dans l'en-tête de projet.
+  - Accessible directement dans **Phase 5 · Consolidation** (section dédiée `#phase5-impact-graph`, avec bouton d'accès rapide dans l'en-tête de Phase 5 ; également accessible via le paramètre d'URL `?mode=graph`).
   - **Contextualisation par sujet** : sélectionnez n'importe quel sujet du projet via le menu déroulant pour générer automatiquement un graphe colorisé (nœuds, sous-graphes et arêtes d'impact) à partir de ses critères, options, évaluations pondérées, exigences RFP et référentiels applicables.
   - **Enrichissement IA (LLM)** : cliquez sur **« Contextualiser / Enrichir par IA (LLM) »** pour demander au modèle d'analyser les compromis spécifiques du sujet, estimer les économies OPEX/CAPEX, qualifier les dégradations et proposer des clauses de révision `Vx → Vy` (avec repli automatique sur l'analyse déterministe si le LLM est hors-ligne).
   - **Simulateur What-If en direct** : basculez d'un clic entre l'*Optimum Nominal* et le *Compromis Coût* indépendamment de l'ordre des versions du projet.
@@ -242,9 +242,9 @@ Pour traiter les appels d'offres volumineux (plusieurs centaines ou milliers de 
 - **Partitionnement sécurisé (`PARTITION_MAX_CHARS: 250 000`)** :
   - Les exigences à délibérer sont découpées en tranches indépendantes de 250k caractères au plus lors de la cartographie (étape 3a), garantissant une consommation de jetons maîtrisée et une mise en cache par tranche.
 
-### 4.11 Interrogation Rapide des Exigences au Clavier (`Quick-Ask`)
-À tout moment depuis le Workbench de Délibération (quelle que soit la posture active, conformément à l'Invariant VIII), l'architecte peut ouvrir une fenêtre flottante non bloquante pour poser une question factuelle sur le dossier d'exigences du projet :
-- **Raccourci clavier** : `Alt+/` (ou `Ctrl+K` / `Cmd+K`), ou clic sur le bouton **« Exigences · Alt+/ »** dans le bandeau de projet (`ProjectEngagementHeader`). La touche `Échap` masque la fenêtre sans perdre le fil de la session.
+### 4.11 Chatbot Assistant Exigences au Clavier (`Quick-Ask`)
+À tout moment depuis le Workbench de Délibération (quelle que soit la posture active, conformément à l'Invariant VIII), l'architecte peut ouvrir une fenêtre flottante non bloquante pour poser une question factuelle sur le dossier d'exigences (RFP/CCTP) du projet :
+- **Raccourci clavier** : `Alt+/` (ou `Ctrl+K` / `Cmd+K`), ou clic sur le bouton central **« Assistant Exigences · Alt+/ »** dans le bandeau de projet (`ProjectEngagementHeader`). La touche `Échap` masque la fenêtre sans perdre le fil de la session.
 - **Réponses sourcées & anti-hallucination** : chaque réponse indique un verdict (`Exigé`, `Partiel / Implicite`, `Non mentionné`, `Contradictoire`), signale les clauses en attente de clarification (`caveats`) et affiche les `clauseRef` citées avec un lien direct vers le sujet de délibération associé.
 - **Portée épistémique** : cette vue est strictement en lecture assistée et ne modifie aucune décision ni statut d'énoncé (Invariants II et III).
 

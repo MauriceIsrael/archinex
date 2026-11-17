@@ -9,8 +9,7 @@
 		Archive,
 		RotateCcw,
 		Target,
-		Network,
-		FileSearch,
+		Bot,
 		Lock
 	} from 'lucide-svelte';
 
@@ -41,11 +40,6 @@
 	function openProjectBoard() {
 		deliberationStore.setPosture('deliberation');
 		deliberationStore.setDeliberationViewMode('board');
-	}
-
-	function openProjectGraph() {
-		deliberationStore.setPosture('deliberation');
-		deliberationStore.setDeliberationViewMode('graph');
 	}
 
 	function openSubjectDeliberation() {
@@ -107,7 +101,7 @@
 	<!-- ═════════════════════════════════════════════════════════════════════════ -->
 	<div class="rounded-xl border bg-card p-2 shadow-2xs flex flex-col xl:flex-row xl:items-center justify-between gap-2">
 		<!-- NIVEAU 1 : ÉCHELLE PROJET (CADRAGE & PILOTAGE GLOBAL) -->
-		<div class="flex items-center gap-1.5 flex-wrap">
+		<div class="flex items-center gap-1.5 flex-wrap xl:flex-1">
 			<span
 				class="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground font-mono flex items-center gap-1 shrink-0"
 				title={activeEngagement.title}
@@ -161,50 +155,31 @@
 					{deliberationStore.subjects.length}
 				</span>
 			</button>
+		</div>
 
-			<!-- Vue d'ensemble : Graphe Causal & Analyse d'Impact (What-If Simulator) -->
-			<button
-				type="button"
-				data-testid="project-graph-tab"
-				onclick={openProjectGraph}
-				class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs transition-all cursor-pointer {activePosture ===
-					'deliberation' && viewMode === 'graph'
-					? 'bg-primary text-primary-foreground font-bold shadow-xs'
-					: 'bg-muted/40 hover:bg-muted text-foreground/80 hover:text-foreground font-medium'}"
-			>
-				<Network class="h-3.5 w-3.5 shrink-0" />
-				<span>Graphe d'Impact & Décisions</span>
-				<span
-					class="font-mono text-[10px] px-1.5 py-0.2 rounded {activePosture === 'deliberation' &&
-					viewMode === 'graph'
-						? 'bg-primary-foreground/20 text-primary-foreground'
-						: 'bg-amber-500/10 text-amber-600 dark:text-amber-400 font-semibold'}"
-				>
-					What-If
-				</span>
-			</button>
-
-			{#if onOpenQuickAsk}
+		<!-- CENTRE : CHATBOT ASSISTANT EXIGENCES (PÉRIMÈTRE CLAUSES RFP / CCTP) -->
+		{#if onOpenQuickAsk}
+			<div class="flex items-center justify-center shrink-0 xl:px-2 xl:border-x xl:border-border">
 				<button
 					type="button"
 					data-testid="quick-ask-trigger"
 					onclick={onOpenQuickAsk}
-					title="Interroger les exigences du projet (Alt+/ ou Ctrl+K)"
-					class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs bg-muted/40 hover:bg-muted text-foreground/80 hover:text-foreground font-medium border border-border/60 transition-all cursor-pointer"
+					title="Ouvrir l'Assistant Exigences : chatbot sourcé sur les clauses RFP/CCTP du projet (Alt+/ ou Ctrl+K)"
+					class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs bg-primary/10 hover:bg-primary/20 text-primary font-semibold border border-primary/30 shadow-2xs transition-all cursor-pointer"
 				>
-					<FileSearch class="h-3.5 w-3.5 text-primary shrink-0" />
-					<span>Exigences</span>
-					<kbd class="hidden sm:inline-block rounded border bg-background px-1 py-0.2 font-mono text-[10px] text-muted-foreground">
+					<Bot class="h-3.5 w-3.5 shrink-0" />
+					<span>Assistant Exigences</span>
+					<kbd class="hidden sm:inline-block rounded border border-primary/25 bg-background/80 px-1 py-0.2 font-mono text-[10px] text-primary/80">
 						Alt+/
 					</kbd>
 				</button>
-			{/if}
-		</div>
-
-		<div class="hidden xl:block h-6 w-px bg-border"></div>
+			</div>
+		{:else}
+			<div class="hidden xl:block h-6 w-px bg-border"></div>
+		{/if}
 
 		<!-- NIVEAU 2 : ÉCHELLE SUJET (INGÉNIERIE D'UNE SECTION : DÉLIBÉRATION -> RENDU -> RAFFINEMENT) -->
-		<div class="flex items-center justify-between xl:justify-end gap-1.5 flex-wrap flex-1">
+		<div class="flex items-center justify-between xl:justify-end gap-1.5 flex-wrap xl:flex-1">
 			<div class="flex items-center gap-1.5 flex-wrap">
 				<span
 					class="px-2 py-1 text-[10px] font-bold uppercase tracking-wider font-mono flex items-center gap-1 shrink-0 {isInSubjectScope

@@ -2803,11 +2803,16 @@ export function createEmergentLogicalComponent(
 /**
  * Instancie un catalogue de composants complet à partir d'un catalogue de base et des liaisons
  * ontologiques sélectionnées, en résolvant transitivement leurs dépendances `dependsOn`.
+ *
+ * Par défaut, seuls les composants liés aux `boundUrns`, leurs dépendances transitives et les
+ * composants explicitement marqués comme propres au projet (`emergent-slot` / `projectScoped`)
+ * sont retenus afin d'éviter de polluer la vue avec des composants tiers non hydratés.
  */
 export function instantiateCatalogFromOntologyBindings(
   boundUrns: string[],
   baseCatalog: LogicalComponent[] = DEFAULT_COMPONENT_CATALOG,
-  componentUrnMap: Record<string, string> = DEFAULT_URN_TO_COMPONENT
+  componentUrnMap: Record<string, string> = DEFAULT_URN_TO_COMPONENT,
+  options?: { preserveBaseCatalog?: boolean }
 ): LogicalComponent[] {
   const byName = new Map<string, LogicalComponent>();
   for (const c of COMPLETE_COMPONENT_CATALOG) {
@@ -2817,7 +2822,21 @@ export function instantiateCatalogFromOntologyBindings(
     byName.set(c.metadata.name, c);
   }
 
-  const selectedNames = new Set<string>(baseCatalog.map((c) => c.metadata.name));
+  const selectedNames = new Set<string>();
+  if (options?.preserveBaseCatalog) {
+    for (const c of baseCatalog) {
+      selectedNames.add(c.metadata.name);
+    }
+  } else {
+    for (const c of baseCatalog) {
+      if (
+        c.metadata.labels?.origin === 'emergent-slot' ||
+        c.metadata.labels?.projectScoped === 'true'
+      ) {
+        selectedNames.add(c.metadata.name);
+      }
+    }
+  }
   const queue: string[] = [];
 
   for (const urn of boundUrns) {

@@ -435,7 +435,9 @@ export const POST: RequestHandler = async (event) => {
         const currentBundle = loadProjectComponentCatalog(projectId);
         const nextComponents = instantiateCatalogFromOntologyBindings(
           explicitBindings.map((b) => b.urn),
-          currentBundle.components
+          currentBundle.components,
+          undefined,
+          { preserveBaseCatalog: currentBundle.components.length > 0 }
         );
         if (nextComponents.length !== currentBundle.components.length) {
           saveProjectComponentCatalog(projectId, {

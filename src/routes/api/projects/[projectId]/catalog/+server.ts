@@ -28,6 +28,7 @@ import {
   upsertCatalogComponent,
   upsertEnvironmentOverlay
 } from '$lib/server/edp/componentCatalogRepository';
+import { buildProjectCompletenessLedger } from '$lib/server/edp/decisionSlotRegistry';
 import { authorizeProjectAccess } from '$lib/server/projects/projectAccess';
 
 export const GET: RequestHandler = async (event) => {
@@ -39,34 +40,65 @@ export const GET: RequestHandler = async (event) => {
   const modeParam = (url.searchParams.get('mode') || 'proposal') as TwinArbitrationMode;
   const mandatedProfileParam = (url.searchParams.get('mandatedProfile') ||
     '2dc-split') as SylvaTopologyProfileId;
-  const bundle = loadProjectComponentCatalog(projectId);
+  const includeReferenceCatalog = url.searchParams.get('includeReferenceCatalog') === 'true';
+  const bundle = loadProjectComponentCatalog(projectId, {
+    includeDefaultComponents: includeReferenceCatalog
+  });
+
+  // Hydrater la vue topologique à partir du catalogue projet + des composants actifs issus du ledger
+  let effectiveComponents = bundle.components;
+  if (!includeReferenceCatalog) {
+    try {
+      const ledger = await buildProjectCompletenessLedger({
+        projectId,
+        projectTitle: auth.project?.title
+      });
+      const byName = new Map<string, LogicalComponent>();
+      for (const comp of bundle.components) {
+        byName.set(comp.metadata.name, comp);
+      }
+      for (const comp of ledger.activeCatalog) {
+        if (!byName.has(comp.metadata.name)) {
+          byName.set(comp.metadata.name, comp);
+        }
+      }
+      effectiveComponents = Array.from(byName.values());
+    } catch {
+      // Non bloquant : repli sur bundle.components uniquement
+    }
+  }
+
+  const effectiveBundle = {
+    ...bundle,
+    components: effectiveComponents
+  };
 
   const overlay =
-    bundle.overlays.find((o) => o.metadata.environment === env) || bundle.overlays[0];
+    effectiveBundle.overlays.find((o) => o.metadata.environment === env) || effectiveBundle.overlays[0];
 
   const dcs = overlay?.spec.datacenters || ['dc1', 'dc2', 'dc3'];
   const resolvedInstances = dcs.flatMap((dc) =>
-    bundle.components
+    effectiveComponents
       .filter((c) => !c.metadata.external && c.metadata.status !== 'inactive')
-      .map((c) => resolveComponentInstance(c, overlay, dc, bundle.catalogs))
+      .map((c) => resolveComponentInstance(c, overlay, dc, effectiveBundle.catalogs))
   );
 
   const topology = composeProjectLogicalTopology(
     projectId,
     env,
     dcs,
-    bundle.components,
+    effectiveComponents,
     resolvedInstances
   );
 
   const whatIfScenarios = summarizeWhatIfComparison(
-    simulateWhatIfDatacenters(bundle.components, overlay, [2, 3], bundle.catalogs)
+    simulateWhatIfDatacenters(effectiveComponents, overlay, [2, 3], effectiveBundle.catalogs)
   );
 
   const sylvaTwinReport = runSylvaDigitalTwinMatrix({
-    components: bundle.components,
+    components: effectiveComponents,
     overlay,
-    catalogs: bundle.catalogs,
+    catalogs: effectiveBundle.catalogs,
     governance: {
       mode: modeParam === 'client-mandated' ? 'client-mandated' : 'proposal',
       mandatedProfileId: mandatedProfileParam
@@ -75,11 +107,12 @@ export const GET: RequestHandler = async (event) => {
 
   const sylvaTwinProfiles = summarizeSylvaTwinProfiles(sylvaTwinReport);
 
-  const referenceGraph = buildReferenceGraph(bundle.components);
+  const referenceGraph = buildReferenceGraph(effectiveComponents);
 
   return json({
     success: true,
-    bundle,
+    hydrationScope: includeReferenceCatalog ? 'reference' : 'hydrated',
+    bundle: effectiveBundle,
     topology,
     whatIfScenarios,
     sylvaTwinReport,

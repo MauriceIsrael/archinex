@@ -28,6 +28,7 @@
 	let selectedPillarFilter = $state<'security' | 'observability' | 'configuration' | null>(null);
 	let selectedComponentName = $state<string | null>(null);
 	let mermaidLockedOnlyMode = $state<boolean>(false);
+	let showUnhydratedBaseline = $state<boolean>(false);
 	let emergentComponentInput = $state('');
 	let slotLeafOverrides = $state<Record<string, string>>({});
 	let isActionRunning = $state(false);
@@ -74,9 +75,17 @@
 	});
 
 	const allComponents = $derived<any[]>(liveSnapshot?.components || []);
+	const unhydratedCount = $derived(
+		allComponents.filter((c) => c.isHydratedInProject === false).length
+	);
+	const scopedComponents = $derived(
+		showUnhydratedBaseline
+			? allComponents
+			: allComponents.filter((c) => c.isHydratedInProject !== false)
+	);
 
 	const filteredComponents = $derived(
-		allComponents.filter((c) => {
+		scopedComponents.filter((c) => {
 			if (componentFilter === 'locked') {
 				return c.lockStatus === 'locked' || c.lockStatus === 'emergent_locked';
 			}
@@ -91,9 +100,9 @@
 	);
 
 	const selectedComponent = $derived(
-		allComponents.find((c) => c.name === selectedComponentName) ||
+		scopedComponents.find((c) => c.name === selectedComponentName) ||
 			filteredComponents[0] ||
-			allComponents[0] ||
+			scopedComponents[0] ||
 			null
 	);
 
@@ -534,7 +543,7 @@
 							: 'bg-background border text-foreground hover:bg-muted'}"
 						data-testid="live-lock-filter-all"
 					>
-						Tous ({allComponents.length})
+						Tous ({scopedComponents.length})
 					</button>
 					<button
 						type="button"
@@ -566,6 +575,20 @@
 					>
 						🟣 Émergents / Inédits ({liveSnapshot?.summary?.emergentComponentsCount || 0})
 					</button>
+					{#if unhydratedCount > 0}
+						<button
+							type="button"
+							onclick={() => (showUnhydratedBaseline = !showUnhydratedBaseline)}
+							class="px-2.5 py-1 rounded text-[11px] font-semibold cursor-pointer border {showUnhydratedBaseline
+								? 'bg-slate-700 text-white border-slate-700'
+								: 'bg-background text-muted-foreground hover:bg-muted'}"
+							data-testid="live-lock-toggle-unhydrated"
+						>
+							{showUnhydratedBaseline
+								? `Masquer non hydratés (${unhydratedCount})`
+								: `+ Afficher non hydratés (${unhydratedCount})`}
+						</button>
+					{/if}
 				</div>
 				<span class="text-[11px] text-muted-foreground">
 					Cliquez sur un composant pour inspecter ses NICs, VRFs, clauses RFP et décisions sources.

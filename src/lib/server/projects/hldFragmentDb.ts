@@ -4,6 +4,7 @@ import { buildHldFragment, renderHldFragmentMarkdown, type HldFragment } from '$
 import { requirementBundleId } from '$lib/domain/requirementAudit';
 import { coverageWarnings } from '$lib/domain/maturityRules';
 import { getProjectFrameworks } from './frameworksDb';
+import { resolveProjectionPatternSemantically } from '../similarity/projectionSemanticClassifier';
 
 const parseIds = (raw: string | null | undefined): string[] => {
 	try {
@@ -53,6 +54,20 @@ export async function loadHldFragment(projectId: string, subjectId: string): Pro
 		}
 	}
 
+	const retainedOption = ctx.options.find((o) => o.id === ctx.decision?.retainedOptionId || o.status === 'retained');
+	const patternCorpus = [
+		subject.name,
+		subject.problemStatement || '',
+		retainedOption?.title || '',
+		retainedOption?.summary || '',
+		ctx.decision?.rationale || ''
+	]
+		.filter(Boolean)
+		.join(' ');
+	const resolvedPattern = retainedOption
+		? await resolveProjectionPatternSemantically(patternCorpus)
+		: undefined;
+
 	const fragment = buildHldFragment({
 		subject: {
 			id: subject.id,
@@ -75,6 +90,7 @@ export async function loadHldFragment(projectId: string, subjectId: string): Pro
 		decision: ctx.decision,
 		affirmedBy,
 		coverageWarnings: coverageWarnings((await getProjectFrameworks(projectId).catch(() => ({ frameworks: [] }))).frameworks).map((w) => w.message),
+		resolvedPattern,
 		generatedAt: new Date().toISOString()
 	});
 	return { fragment, markdown: renderHldFragmentMarkdown(fragment) };

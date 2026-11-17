@@ -37,6 +37,7 @@ import {
 	generateSysMLv2,
 	generateSysMLVisualMermaid,
 	generateConfigJSON,
+	type ArchitectureProjectionPattern,
 	type ProjectionContext
 } from '$lib/domain/artifactProjections';
 import {
@@ -219,6 +220,7 @@ class DeliberationStore {
 		>
 	>({});
 	detailedSpecs = $state<Record<string, string>>({});
+	resolvedPatterns = $state<Record<string, ArchitectureProjectionPattern>>({});
 	selectedStatementForWhy = $state<Statement | null>(null);
 	isFreezeDialogOpen = $state<boolean>(false);
 	isWhyInspectorOpen = $state<boolean>(false);
@@ -1668,7 +1670,8 @@ class DeliberationStore {
 			ontologyAxes: edpCtx?.ontologyAxes,
 			catalogComponents: edpCtx?.catalogComponents,
 			sealSha256: this.frozenSnapshots[subjectId]?.sealSha256,
-			detailedSpecText: this.getDetailedSpec(subjectId)
+			detailedSpecText: this.getDetailedSpec(subjectId),
+			resolvedPattern: this.resolvedPatterns[subjectId]
 		};
 	}
 
@@ -1681,12 +1684,20 @@ class DeliberationStore {
 		const base = `/api/projects/${encodeURIComponent(projectId)}/subjects/${encodeURIComponent(subjectId)}`;
 		const slotsUrl = `/api/projects/${encodeURIComponent(projectId)}/decision-slots`;
 		try {
-			const [dRes, oRes, edpRes, slotsRes] = await Promise.allSettled([
+			const [dRes, oRes, edpRes, slotsRes, patRes] = await Promise.allSettled([
 				fetch(`${base}/decision`),
 				fetch(`${base}/options`),
 				fetch(`${base}/edp`),
-				fetch(slotsUrl)
+				fetch(slotsUrl),
+				fetch(`${base}/projection-pattern`)
 			]);
+
+			if (patRes.status === 'fulfilled' && patRes.value.ok) {
+				const patData = await patRes.value.json();
+				if (patData?.resolvedPattern) {
+					this.resolvedPatterns[subjectId] = patData.resolvedPattern;
+				}
+			}
 
 			if (dRes.status === 'fulfilled' && dRes.value.ok && oRes.status === 'fulfilled' && oRes.value.ok) {
 				const dData = await dRes.value.json();

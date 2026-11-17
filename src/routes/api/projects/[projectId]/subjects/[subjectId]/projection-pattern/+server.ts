@@ -1,13 +1,17 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { getSubjectArbitrationContext } from '$lib/server/projects/arbitrationDb';
+import { authorizeProjectAccess } from '$lib/server/projects/projectAccess';
 import { resolveProjectionPatternSemantically } from '$lib/server/similarity/projectionSemanticClassifier';
 
 /**
  * Résout sémantiquement le patron d'architecture cible d'un sujet via le comparateur cosinus
  * sur embeddings (`resolveProjectionPatternSemantically`), afin d'alimenter `ProjectionContext.resolvedPattern`.
  */
-export const GET: RequestHandler = async ({ params }) => {
+export const GET: RequestHandler = async (event) => {
+	const { params } = event;
+	const auth = await authorizeProjectAccess(event, params.projectId);
+	if (auth.error) return auth.error;
 	try {
 		const ctx = await getSubjectArbitrationContext(params.subjectId!);
 		const subject = ctx.subject;
@@ -33,7 +37,10 @@ export const GET: RequestHandler = async ({ params }) => {
 	}
 };
 
-export const POST: RequestHandler = async ({ request }) => {
+export const POST: RequestHandler = async (event) => {
+	const { params, request } = event;
+	const auth = await authorizeProjectAccess(event, params.projectId);
+	if (auth.error) return auth.error;
 	try {
 		const body = await request.json().catch(() => ({}));
 		const text = typeof body?.text === 'string' ? body.text : '';

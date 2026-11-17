@@ -175,8 +175,7 @@ export function computeMaturityCriteria(input: MaturityCriteriaInput): MaturityT
 	const isDeciderRole =
 		input.actor?.role === 'decider' ||
 		input.actor?.role === 'domain_expert' ||
-		input.actor?.role === 'lead_architect' ||
-		input.actor?.role === 'admin';
+		input.actor?.role === 'lead_architect';
 
 	const affirmedByDistinct = Boolean(
 		dec &&
@@ -202,7 +201,6 @@ export function computeMaturityCriteria(input: MaturityCriteriaInput): MaturityT
 	const isLeadRole =
 		input.actor?.isHuman === true &&
 		(input.actor?.role === 'lead_architect' ||
-			input.actor?.role === 'admin' ||
 			input.actor?.role === 'Lead Architect');
 	const isLead = alreadyHomologatedL4 || isLeadRole;
 

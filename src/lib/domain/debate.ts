@@ -14,6 +14,7 @@ export interface Argument {
 	kbRefs: string[];
 	confidence: EpistemicConfidence;
 	author: string;
+	authorId?: string;
 	authorKind: string; // 'agent:proposer' | 'agent:challenger' | 'agent:verifier' | 'agent:synthesizer' | 'human'
 	productionMode: ProductionMode;
 	round: number;
@@ -118,6 +119,47 @@ export function countOpenObjections(args: Argument[]): number {
 export function canCloseObjection(actorRole: string, isHuman: boolean): boolean {
 	if (!isHuman) return false;
 	return actorRole === 'lead_architect' || actorRole === 'domain_expert';
+}
+
+/**
+ * Séparation auteur / arbitre sur les objections :
+ * - L'auteur d'une objection peut la retirer (`withdrawn`).
+ * - Il ne peut pas la déclarer traitée (`answered`) ni accepter le risque (`accepted_risk`) lui-même :
+ *   un autre `lead_architect` ou `domain_expert` du projet doit statuer.
+ */
+export function canResolveSpecificObjection(
+	actor: { userId?: string; userName?: string; userEmail?: string; aliases?: string[]; role: string; isHuman: boolean },
+	objection: { authorId?: string | null; authorName?: string | null },
+	resolution?: ArgumentResolution
+): { allowed: boolean; reason?: string } {
+	if (!canCloseObjection(actor.role, actor.isHuman)) {
+		return {
+			allowed: false,
+			reason: `Rôle '${actor.role}' non habilité à clore ou lever une objection. Action réservée à un lead_architect ou domain_expert humain.`
+		};
+	}
+
+	const actorIdentifiers = new Set(
+		[actor.userId, actor.userName, actor.userEmail, ...(actor.aliases ?? [])]
+			.filter((v): v is string => Boolean(v && v.trim()))
+			.map((v) => v.trim().toLowerCase())
+	);
+	const objectionIdentifiers = [objection.authorId, objection.authorName]
+		.filter((v): v is string => Boolean(v && v.trim()))
+		.map((v) => v.trim().toLowerCase());
+
+	if (objectionIdentifiers.some((id) => actorIdentifiers.has(id))) {
+		if (resolution === 'withdrawn') {
+			return { allowed: true };
+		}
+		return {
+			allowed: false,
+			reason:
+				'Vous ne pouvez pas arbitrer votre propre objection : un autre lead_architect ou domain_expert du projet doit statuer (vous pouvez toutefois la retirer).'
+		};
+	}
+
+	return { allowed: true };
 }
 
 export interface ArgumentVisualAttributes {

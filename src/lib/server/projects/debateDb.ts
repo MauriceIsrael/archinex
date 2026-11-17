@@ -3,6 +3,7 @@ import { ConcurrencyConflictError, type ActorInfo } from './projectsDb';
 import {
 	validateArgument,
 	canCloseObjection,
+	canResolveSpecificObjection,
 	type Stance,
 	type ArgumentResolution,
 	type Argument,
@@ -64,6 +65,7 @@ export async function listArguments(
 	return args.map((a) => ({
 		...a,
 		author: authorMap.get(a.author) || a.author,
+		authorId: a.author,
 		stance: a.stance as Stance,
 		confidence: a.confidence as EpistemicConfidence,
 		productionMode: a.productionMode as ProductionMode,
@@ -261,6 +263,24 @@ export async function resolveArgument(
 		});
 		if (!current) throw new Error(`Argument ${argumentId} introuvable`);
 
+		const actingUser = actor.userId
+			? await tx.user.findUnique({ where: { id: actor.userId }, select: { name: true, email: true } })
+			: null;
+		const resolutionCheck = canResolveSpecificObjection(
+			{
+				userId: actor.userId,
+				userName: actor.userName,
+				aliases: [actingUser?.name, actingUser?.email].filter((v): v is string => Boolean(v)),
+				role: actor.role,
+				isHuman
+			},
+			{ authorId: current.author, authorName: current.author },
+			data.resolution
+		);
+		if (!resolutionCheck.allowed) {
+			throw new Error(resolutionCheck.reason);
+		}
+
 		if (current.version !== data.expectedVersion) {
 			throw new ConcurrencyConflictError(
 				'argument',
@@ -301,6 +321,7 @@ export async function resolveArgument(
 
 		return {
 			...updated,
+			authorId: updated.author,
 			stance: updated.stance as Stance,
 			confidence: updated.confidence as EpistemicConfidence,
 			productionMode: updated.productionMode as ProductionMode,

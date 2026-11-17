@@ -1,17 +1,21 @@
 <script lang="ts">
 	import type { Argument, ArgumentResolution } from '$lib/domain/debate';
-	import { canCloseObjection, formatAgentRole } from '$lib/domain/debate';
+	import { canCloseObjection, canResolveSpecificObjection, formatAgentRole } from '$lib/domain/debate';
 	import { ShieldAlert, AlertTriangle, Check, ShieldCheck, Undo2, Bot, UserCheck } from 'lucide-svelte';
 
 	let {
 		objections = [],
 		userRole = 'lead_architect',
 		isHumanUser = true,
+		currentUserId = undefined,
+		currentUserName = undefined,
 		onResolve = (arg: Argument, resolution: ArgumentResolution) => {}
 	}: {
 		objections: Argument[];
 		userRole?: string;
 		isHumanUser?: boolean;
+		currentUserId?: string;
+		currentUserName?: string;
 		onResolve?: (arg: Argument, resolution: ArgumentResolution) => void;
 	} = $props();
 
@@ -48,6 +52,16 @@
 		<div class="space-y-2.5">
 			{#each objections as obj (obj.id)}
 				{@const isAgent = obj.authorKind.startsWith('agent:')}
+				{@const closeCheck = canResolveSpecificObjection(
+					{ userId: currentUserId, userName: currentUserName, role: userRole, isHuman: isHumanUser },
+					{ authorId: obj.authorId, authorName: obj.author },
+					'answered'
+				)}
+				{@const withdrawCheck = canResolveSpecificObjection(
+					{ userId: currentUserId, userName: currentUserName, role: userRole, isHuman: isHumanUser },
+					{ authorId: obj.authorId, authorName: obj.author },
+					'withdrawn'
+				)}
 				<div class="rounded-lg border bg-card/90 p-3 space-y-2 text-xs shadow-2xs">
 					<div class="flex items-center justify-between gap-2 flex-wrap text-[11px]">
 						<div class="flex items-center gap-1.5">
@@ -84,10 +98,10 @@
 						<div class="flex items-center gap-1.5">
 							<button
 								type="button"
-								disabled={!userCanClose}
+								disabled={!closeCheck.allowed}
 								onclick={() => onResolve(obj, 'answered')}
 								class="inline-flex items-center gap-1 px-2.5 py-1 rounded-md bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-[11px] font-semibold shadow-2xs transition-colors cursor-pointer"
-								title="Répondre et lever formellement l'objection"
+								title={closeCheck.allowed ? "Répondre et lever formellement l'objection" : closeCheck.reason}
 							>
 								<Check class="h-3 w-3" />
 								<span>Répondre</span>
@@ -95,10 +109,10 @@
 
 							<button
 								type="button"
-								disabled={!userCanClose}
+								disabled={!closeCheck.allowed}
 								onclick={() => onResolve(obj, 'accepted_risk')}
 								class="inline-flex items-center gap-1 px-2.5 py-1 rounded-md border border-amber-500/30 bg-amber-500/10 hover:bg-amber-500/20 disabled:opacity-50 disabled:cursor-not-allowed text-amber-800 dark:text-amber-300 text-[11px] font-semibold transition-colors cursor-pointer"
-								title="Accepter souverainement le risque opérationnel documenté"
+								title={closeCheck.allowed ? 'Accepter souverainement le risque opérationnel documenté' : closeCheck.reason}
 							>
 								<ShieldCheck class="h-3 w-3" />
 								<span>Accepter le risque</span>
@@ -106,7 +120,7 @@
 
 							<button
 								type="button"
-								disabled={!userCanClose}
+								disabled={!withdrawCheck.allowed}
 								onclick={() => onResolve(obj, 'withdrawn')}
 								class="inline-flex items-center gap-1 px-2.5 py-1 rounded-md border border-border bg-background hover:bg-muted disabled:opacity-50 disabled:cursor-not-allowed text-muted-foreground hover:text-foreground text-[11px] font-medium transition-colors cursor-pointer"
 								title="Retirer l'objection si elle est devenue caduque"

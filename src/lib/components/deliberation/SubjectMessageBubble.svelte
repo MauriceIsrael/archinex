@@ -5,7 +5,8 @@
 		formatAgentRole,
 		formatStanceLabel,
 		getStanceBadgeClass,
-		canCloseObjection
+		canCloseObjection,
+		canResolveSpecificObjection
 	} from '$lib/domain/debate';
 	import {
 		Bot,
@@ -74,6 +75,30 @@
 	const attrs = $derived(getArgumentVisualAttributes(argument));
 	const isObjectionOpen = $derived(argument.stance === 'objection' && argument.resolution === 'open');
 	const userCanClose = $derived(canCloseObjection(userRole, isHumanUser));
+	const closeCheck = $derived(
+		canResolveSpecificObjection(
+			{
+				userId: sessionUser?.id,
+				userName: sessionUser?.name || sessionUser?.email,
+				role: userRole,
+				isHuman: isHumanUser
+			},
+			{ authorId: argument.authorId, authorName: argument.author },
+			'answered'
+		)
+	);
+	const withdrawCheck = $derived(
+		canResolveSpecificObjection(
+			{
+				userId: sessionUser?.id,
+				userName: sessionUser?.name || sessionUser?.email,
+				role: userRole,
+				isHuman: isHumanUser
+			},
+			{ authorId: argument.authorId, authorName: argument.author },
+			'withdrawn'
+		)
+	);
 	const mentionsSplit = $derived(
 		argument.claim.toLowerCase().includes('scind') ||
 		argument.claim.toLowerCase().includes('décompos') ||
@@ -469,28 +494,34 @@
 						</div>
 
 						{#if userCanClose}
-							<div class="flex items-center gap-1">
+							<div class="flex items-center gap-1 flex-wrap">
 								<button
 									type="button"
+									disabled={!closeCheck.allowed}
+									title={closeCheck.allowed ? 'Marquer cette objection comme traitée' : closeCheck.reason}
 									onclick={() => onResolve(argument, 'answered')}
-									class="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer"
+									class="px-2 py-0.5 rounded text-[10px] font-semibold bg-emerald-600 hover:bg-emerald-700 text-white cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
 								>
 									Répondre
 								</button>
 								<button
 									type="button"
+									disabled={!closeCheck.allowed}
+									title={closeCheck.allowed ? 'Accepter le risque résiduel' : closeCheck.reason}
 									onclick={() => onResolve(argument, 'accepted_risk')}
-									class="px-2 py-0.5 rounded text-[10px] font-semibold border border-amber-500/30 bg-amber-500/10 text-amber-800 dark:text-amber-300 hover:bg-amber-500/20 cursor-pointer"
+									class="px-2 py-0.5 rounded text-[10px] font-semibold border border-amber-500/30 bg-amber-500/10 text-amber-800 dark:text-amber-300 hover:bg-amber-500/20 cursor-pointer disabled:opacity-40 disabled:cursor-not-allowed"
 								>
 									Accepter risque
 								</button>
-								<button
-									type="button"
-									onclick={() => onResolve(argument, 'withdrawn')}
-									class="px-2 py-0.5 rounded text-[10px] font-semibold border border-muted bg-muted/60 text-muted-foreground hover:text-foreground cursor-pointer"
-								>
-									Retirer
-								</button>
+								{#if withdrawCheck.allowed}
+									<button
+										type="button"
+										onclick={() => onResolve(argument, 'withdrawn')}
+										class="px-2 py-0.5 rounded text-[10px] font-semibold border border-muted bg-muted/60 text-muted-foreground hover:text-foreground cursor-pointer"
+									>
+										Retirer
+									</button>
+								{/if}
 							</div>
 						{/if}
 					{:else}

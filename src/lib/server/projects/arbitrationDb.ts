@@ -52,7 +52,7 @@ export interface CreateDecisionInput {
  */
 export function canArbitrateSubject(actor: ActorInfo, subjectDomain?: string | null): boolean {
 	const normalizedRole = (actor.role || '').toLowerCase().replace(/\s+/g, '_');
-	if (normalizedRole === 'lead_architect' || normalizedRole === 'admin') {
+	if (normalizedRole === 'lead_architect') {
 		return true;
 	}
 

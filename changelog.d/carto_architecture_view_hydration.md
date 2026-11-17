@@ -5,5 +5,7 @@
 - **Vues Phase 5 & Architecture Lockée (`src/lib/server/edp/decisionSlotRegistry.ts`, `src/routes/api/projects/[projectId]/catalog/+server.ts`, `src/lib/components/deliberation/Phase5ConsolidationHub.svelte`, `src/lib/components/deliberation/LiveArchitectureLockView.svelte`)** :
   - `GET /api/projects/[projectId]/catalog` hydrate la topologie, les scénarios What-If et le Jumeau Sylva à partir des composants actifs du projet et expose un paramètre `includeReferenceCatalog=true` (désactivé par défaut).
   - `buildLiveArchitectureLockSnapshot` marque chaque composant avec `isHydratedInProject` et l'UI Phase 5 / Architecture Lockée masque par défaut les composants tiers non hydratés avec un bouton de bascule explicite.
+- **Pont Prisma → Phase 5 par matching sémantique (`src/lib/server/edp/projectHydrationContext.ts`, `src/lib/server/similarity/togafSemanticResolver.ts`, `src/routes/api/projects/[projectId]/decision-slots/+server.ts`)** :
+  - Ajout de `matchAllBuildingBlocksSemantically` et `loadProjectHydrationContextFromDb` pour agréger automatiquement les exigences, sujets et énoncés du projet et hydrater les blocs TOGAF pertinents dès la Phase 5.
 - **Tests** :
   - Ajout de `tests/contract/edp-architecture-view-hydration-scope.test.ts`.

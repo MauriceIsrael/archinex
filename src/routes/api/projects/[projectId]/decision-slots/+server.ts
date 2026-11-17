@@ -16,6 +16,7 @@ import {
   revokeProjectSlotRatification,
   type ProjectCompletenessInput
 } from '$lib/server/edp/decisionSlotRegistry';
+import { loadProjectHydrationContextFromDb } from '$lib/server/edp/projectHydrationContext';
 import type { TogafDomainId } from '$lib/domain/edp/togafTaxonomy';
 
 export const GET: RequestHandler = async (event) => {
@@ -24,7 +25,9 @@ export const GET: RequestHandler = async (event) => {
   if (auth.error) return auth.error;
 
   const selectedConceptUrn = event.url.searchParams.get('conceptUrn') || undefined;
+  const dbContext = await loadProjectHydrationContextFromDb(projectId, auth.project?.title);
   const input = {
+    ...dbContext,
     projectId,
     projectTitle: auth.project?.title,
     selectedConceptUrn

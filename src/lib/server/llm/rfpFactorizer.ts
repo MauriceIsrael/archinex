@@ -5,6 +5,7 @@
  */
 
 import type { ExtractedClause } from '$lib/domain/corpus';
+import { inferLotFromText } from '$lib/domain/rfpConfrontation';
 import { normalizeProposal } from '$lib/domain/factorization';
 import type { ArchitectRole } from '$lib/types/epistemic';
 import { localLlmClient } from './localLlmClient';
@@ -403,7 +404,7 @@ export function partitionMicroSubjectsForReduce(
 	// Regroupement par lotId pour préserver l'affinité architecturale
 	const byLot = new Map<string, MicroArchitecturalSubject[]>();
 	for (const m of microSubjects) {
-		const lot = m.lotId || inferLotFromRef(m.title);
+		const lot = m.lotId || inferLotFromText(m.title);
 		if (!byLot.has(lot)) {
 			byLot.set(lot, []);
 		}
@@ -668,7 +669,7 @@ export async function factorizeRfpMapReduce(
 					allMicroSubjects.push({
 						id: m.id || `MICRO-${allMicroSubjects.length + 1}`,
 						title: m.title || `Micro-sujet ${allMicroSubjects.length + 1}`,
-						lotId: m.lotId || inferLotFromRef(m.title),
+						lotId: m.lotId || inferLotFromText(m.title),
 						coveredClauseRefs: Array.isArray(m.coveredClauseRefs) && m.coveredClauseRefs.length > 0
 							? m.coveredClauseRefs
 							: chunk.map((c) => c.clauseRef),
@@ -681,7 +682,7 @@ export async function factorizeRfpMapReduce(
 				allMicroSubjects.push({
 					id: `MICRO-${allMicroSubjects.length + 1}`,
 					title: `Bloc ${i + 1} : ${chunk[0]?.title || 'Exigences'}`,
-					lotId: inferLotFromRef(chunk[0]?.clauseRef || ''),
+					lotId: inferLotFromText(chunk[0]?.clauseRef || ''),
 					coveredClauseRefs: chunk.map((c) => c.clauseRef),
 					criticalPoints: chunk.filter((c) => c.criticality === 'bloquant').map((c) => c.title),
 					keyDilemmaOrHypothesis: 'Analyse préliminaire du lot'
@@ -694,7 +695,7 @@ export async function factorizeRfpMapReduce(
 			allMicroSubjects.push({
 				id: `MICRO-${allMicroSubjects.length + 1}`,
 				title: `Bloc ${i + 1} (${chunk.length} exigences : ${chunk[0]?.title || 'Architecture'})`,
-				lotId: inferLotFromRef(chunk[0]?.clauseRef || chunk[0]?.title || ''),
+				lotId: inferLotFromText(chunk[0]?.clauseRef || chunk[0]?.title || ''),
 				coveredClauseRefs: chunk.map((c) => c.clauseRef),
 				criticalPoints: chunk.filter((c) => c.criticality === 'bloquant').map((c) => c.title),
 				keyDilemmaOrHypothesis: `Instruction spécifique du bloc : ${errMsg.slice(0, 100)}`
@@ -752,7 +753,7 @@ export async function factorizeRfpMapReduce(
 
 			return {
 				id: s.id || `SUBJ-${String(idx + 1).padStart(2, '0')}`,
-				lotId: s.lotId || inferLotFromRef(s.sectionRef || s.name),
+				lotId: s.lotId || inferLotFromText(s.sectionRef || s.name),
 				name: s.name || `Sujet d'Architecture ${idx + 1}`,
 				sectionRef: s.sectionRef || `§${idx + 1}.0`,
 				coveredClauseRefs: coveredRefs,
@@ -938,7 +939,7 @@ export async function factorizeRfpMapReduce(
 	const unassignedClauses = clauses.filter((c) => !coveredSet.has(c.clauseRef));
 	if (unassignedClauses.length > 0 && subjects.length > 0) {
 		for (const orphan of unassignedClauses) {
-			const orphanLot = inferLotFromRef(orphan.clauseRef || orphan.title);
+			const orphanLot = inferLotFromText(orphan.clauseRef || orphan.title);
 			const matchingSubject = subjects.find((s) => s.lotId === orphanLot) || subjects[0];
 			matchingSubject.coveredClauseRefs.push(orphan.clauseRef);
 			coveredSet.add(orphan.clauseRef);
@@ -1002,7 +1003,7 @@ export function reconcileOrphanClausesToSubjects(
 
 		// 3. Fallback : premier sujet du lot technique le plus proche ou premier sujet
 		if (!targetSubject) {
-			const lot = inferLotFromRef(clause.title || clause.clauseRef);
+			const lot = inferLotFromText(clause.title || clause.clauseRef);
 			targetSubject = subjects.find((s) => s.lotId === lot) || subjects[0];
 		}
 
@@ -1125,7 +1126,7 @@ export async function factorizeRfpWithLocalLlm(
 				const proposal = normalizeProposal(s.proposal);
 				return {
 					id: s.id || `SUBJ-${String(idx + 1).padStart(2, '0')}`,
-					lotId: s.lotId || inferLotFromRef(s.sectionRef || s.name),
+					lotId: s.lotId || inferLotFromText(s.sectionRef || s.name),
 					name: s.name || `Sujet d'Architecture ${idx + 1}`,
 					sectionRef: s.sectionRef || `§${idx + 1}.0`,
 					coveredClauseRefs: Array.isArray(s.coveredClauseRefs) ? s.coveredClauseRefs : [],
@@ -1378,7 +1379,7 @@ export function promoteClauseToSubject(
 	const nextIdx = existingSubjectsCount + 1;
 	return {
 		id: `SUBJ-PROMOTED-${clause.id.replace(/[^a-zA-Z0-9_-]/g, '')}`,
-		lotId: inferLotFromRef(clause.clauseRef),
+		lotId: inferLotFromText(clause.clauseRef),
 		name: `Sujet Dédié : ${clause.title}`,
 		sectionRef: clause.clauseRef,
 		coveredClauseRefs: [clause.clauseRef],
@@ -1629,7 +1630,7 @@ export function safeParseJson(raw: string): any {
 						subjects: idNameMatches.map((m) => ({
 							id: m[1],
 							name: m[2],
-							lotId: inferLotFromRef(m[2]),
+							lotId: inferLotFromText(m[2]),
 							coveredClauseRefs: [],
 							matchedKbItemIds: [],
 							knowledgeAlignment: 'standard_established',
@@ -1648,7 +1649,7 @@ export function safeParseJson(raw: string): any {
 						microSubjects: idNameMatches.map((m) => ({
 							id: m[1],
 							title: m[2],
-							lotId: inferLotFromRef(m[2]),
+							lotId: inferLotFromText(m[2]),
 							coveredClauseRefs: [],
 							criticalPoints: [],
 							keyDilemmaOrHypothesis: 'Extraction réparée suite à troncature'
@@ -1660,15 +1661,6 @@ export function safeParseJson(raw: string): any {
 			throw new Error(`Réponse JSON invalide du modèle local : ${raw.slice(0, 160)}`);
 		}
 	}
-}
-
-function inferLotFromRef(str: string): string {
-	const s = (str || '').toLowerCase();
-	if (s.includes('souv') || s.includes('secnum') || s.includes('juridique')) return 'LOT-01-SOUV';
-	if (s.includes('infra') || s.includes('bare') || s.includes('k8s')) return 'LOT-02-INFRA';
-	if (s.includes('telco') || s.includes('synchro') || s.includes('upf') || s.includes('radio')) return 'LOT-03-TELCO';
-	if (s.includes('sec') || s.includes('chiffr') || s.includes('nis2')) return 'LOT-04-SECOPS';
-	return 'LOT-02-INFRA';
 }
 
 function normalizeAlignment(val: any): KnowledgeAlignment {

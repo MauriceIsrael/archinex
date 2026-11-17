@@ -4,6 +4,7 @@
 	import type { InitialSubjectInput } from '$lib/domain/engagements';
 	import type { ArchitectRole } from '$lib/types/epistemic';
 	import { buildAuditReportMarkdown } from '$lib/domain/requirementsAuditReport';
+	import { inferLotFromText } from '$lib/domain/rfpConfrontation';
 	import {
 		BrainCircuit,
 		CheckCircle2,
@@ -189,19 +190,6 @@
 			}
 			return subj;
 		});
-	}
-
-	function inferLotFromText(text: string): string {
-		const lower = text.toLowerCase();
-		if (lower.includes('secnum') || lower.includes('souverain') || lower.includes('juridique'))
-			return 'LOT-01-SOUV';
-		if (lower.includes('bare') || lower.includes('k8s') || lower.includes('serveur'))
-			return 'LOT-02-INFRA';
-		if (lower.includes('synchro') || lower.includes('upf') || lower.includes('radio') || lower.includes('5g'))
-			return 'LOT-03-TELCO';
-		if (lower.includes('chiffr') || lower.includes('tls') || lower.includes('nis2') || lower.includes('cert'))
-			return 'LOT-04-SECOPS';
-		return 'LOT-02-INFRA';
 	}
 
 	// Le rapport conserve la trace des décisions sur les clauses qui ne deviennent pas des sujets

@@ -3,6 +3,7 @@
 	import type { MaturitySubject } from '$lib/domain/maturityBoard';
 	import { calculateMaturityPercent, formatMaturityLevel, getMaturityBadgeClass } from '$lib/domain/debate';
 import { partitionSubjectsByParts, type SubjectPart } from '$lib/domain/subjectPartitioning';
+import { matchClausesToSubject } from '$lib/domain/clauseMatching';
 	import {
 		MessagesSquare,
 		Search,
@@ -73,15 +74,10 @@ import { partitionSubjectsByParts, type SubjectPart } from '$lib/domain/subjectP
 			seedCovered.forEach((ref: string) => matchedRefs.add(ref));
 		}
 
-		// 3. Fallback : correspondance par section_ref ou mots-clés
+		// 3. Fallback : correspondance partagée via matchClausesToSubject (section exacte ou termes discriminants bornés)
 		if (matchedRefs.size === 0 && allClauses.length > 0) {
-			for (const c of allClauses) {
-				if (
-					c.clauseRef.toLowerCase().includes(sub.section_ref.toLowerCase()) ||
-					sub.name.toLowerCase().includes(c.title.toLowerCase())
-				) {
-					matchedRefs.add(c.clauseRef);
-				}
+			for (const c of matchClausesToSubject(sub, allClauses, 10)) {
+				matchedRefs.add(c.clauseRef);
 			}
 		}
 

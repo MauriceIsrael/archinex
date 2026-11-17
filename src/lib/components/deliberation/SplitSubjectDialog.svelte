@@ -54,11 +54,9 @@
 	// Initialisation réactive lors de l'ouverture
 	$effect(() => {
 		if (isOpen && parentSubject) {
-			const lowerName = parentSubject.name.toLowerCase();
-
-			if (lowerName.includes('noc') || lowerName.includes('soc')) {
+			if (/\b(noc|soc)\b/i.test(parentSubject.name)) {
 				applyNocSocPreset();
-			} else if (lowerName.includes('résilience') || lowerName.includes('infra')) {
+			} else if (/\b(r[ée]silience|infra\w*)\b/i.test(parentSubject.name)) {
 				applyResiliencePreset();
 			} else {
 				applyGenericPreset();

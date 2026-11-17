@@ -1,5 +1,6 @@
 import { prisma } from '../prisma';
 import { computeMaturity, type MaturityComputationResult, type MaturityBlocker } from '$lib/domain/maturityRules';
+import { classifyArgumentsForMaturity, type MaturityArgumentSemanticClass } from '../similarity/maturitySemanticClassifier';
 import { getProjectFrameworks } from './frameworksDb';
 import { checkSubjectCompliance } from '../compliance/complianceService';
 import type { ActorInfo } from './projectsDb';
@@ -172,6 +173,7 @@ export async function getSubjectArbitrationContext(subjectId: string): Promise<{
 	arguments: Argument[];
 	maturityResult: MaturityComputationResult;
 	decision: Decision | null;
+	semanticClassification?: Record<string, MaturityArgumentSemanticClass>;
 }> {
 	const subject = await prisma.subject.findUnique({
 		where: { id: subjectId },
@@ -264,6 +266,8 @@ export async function getSubjectArbitrationContext(subjectId: string): Promise<{
 		subject.decision
 	);
 
+	const semanticClassification = await classifyArgumentsForMaturity(args);
+
 	const maturityResult = computeMaturity({
 		subject: {
 			id: subject.id,
@@ -278,7 +282,8 @@ export async function getSubjectArbitrationContext(subjectId: string): Promise<{
 		arguments: args,
 		requiredFrameworks: frameworksData.frameworks,
 		acceptedViolations: acceptedViolationsFromDecision,
-		decision: parsedDecision
+		decision: parsedDecision,
+		semanticClassification
 	});
 
 	return {
@@ -288,7 +293,8 @@ export async function getSubjectArbitrationContext(subjectId: string): Promise<{
 		evaluations: allEvaluations,
 		arguments: args,
 		maturityResult,
-		decision: parsedDecision
+		decision: parsedDecision,
+		semanticClassification
 	};
 }
 
@@ -332,7 +338,8 @@ export async function recordArbitrationDecision(
 		arguments: ctx.arguments,
 		acceptedViolations: data.acceptedViolations || [],
 		requiredFrameworks: (await getProjectFrameworks(subject.projectId)).frameworks,
-		allowRevision: true
+		allowRevision: true,
+		semanticClassification: ctx.semanticClassification
 	});
 
 	if (!readinessWithViolations.readyForArbitration) {

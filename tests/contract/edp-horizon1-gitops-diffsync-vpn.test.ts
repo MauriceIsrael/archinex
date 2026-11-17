@@ -304,4 +304,122 @@ describe('EDP Horizon 1 (#241) : GitOps Sylva Natif (#238), Collecte Live Nautob
       ])
     );
   });
+
+  it('pousse les tags zone-<nom>, plateformes, VRF par zone, interfaces, préfixes et IP (exploitables par IP Flow Manager) dans Nautobot', async () => {
+    const catalog = await loadOntologyCatalog({ includeRuntimeOverlay: true });
+    const hydrated = composeMultiAxisHydration('sub_ifm_sync', fullBindings, catalog);
+
+    const calledEndpoints: Array<{ path: string; method: string; body: any }> = [];
+
+    const mockNautobotFetch: typeof fetch = async (input, init) => {
+      const url = new URL(String(input));
+      const method = init?.method || 'GET';
+      const body = init?.body ? JSON.parse(String(init.body)) : undefined;
+      calledEndpoints.push({ path: url.pathname, method, body });
+
+      if (url.pathname === '/api/status/') {
+        return new Response(JSON.stringify({ 'nautobot-version': '2.2.4' }), { status: 200 });
+      }
+      if (url.pathname === '/api/extras/statuses/') {
+        return new Response(
+          JSON.stringify({
+            results: [
+              { id: 'uuid-status-planned', name: 'Planned' },
+              { id: 'uuid-status-active', name: 'Active' }
+            ]
+          }),
+          { status: 200 }
+        );
+      }
+      if (url.pathname === '/api/dcim/locations/') {
+        return new Response(
+          JSON.stringify({
+            results: [
+              {
+                id: 'uuid-loc-valmondois',
+                name: 'pop-valmondois',
+                location_type: { id: 'uuid-loctype-site' }
+              }
+            ]
+          }),
+          { status: 200 }
+        );
+      }
+      if (url.pathname === '/api/ipam/namespaces/') {
+        return new Response(JSON.stringify({ results: [{ id: 'uuid-ns-global' }] }), {
+          status: 200
+        });
+      }
+      if (method === 'GET') {
+        return new Response(JSON.stringify({ results: [] }), { status: 200 });
+      }
+      if (method === 'POST' || method === 'PATCH') {
+        return new Response(
+          JSON.stringify({
+            id: `uuid-${url.pathname.replace(/\W+/g, '-')}-${calledEndpoints.length}`,
+            ...(body || {})
+          }),
+          { status: method === 'POST' ? 201 : 200 }
+        );
+      }
+      return new Response('{}', { status: 200 });
+    };
+
+    const summary = await syncHydratedInventoryToNautobot(hydrated, {
+      baseUrl: 'http://localhost:8080',
+      token: 'mock-token',
+      fetchImpl: mockNautobotFetch
+    });
+
+    expect(summary.reachable).toBe(true);
+    expect(summary.errors).toEqual([]);
+    expect(summary.tagsSynced).toBeGreaterThanOrEqual(1);
+    expect(summary.vrfsSynced).toBeGreaterThanOrEqual(1);
+    expect(summary.interfacesSynced).toBeGreaterThanOrEqual(2);
+    expect(summary.ipAddressesSynced).toBeGreaterThanOrEqual(2);
+    expect(summary.prefixesSynced).toBeGreaterThanOrEqual(2);
+
+    const tagPosts = calledEndpoints.filter(
+      (c) => c.path === '/api/extras/tags/' && c.method === 'POST'
+    );
+    expect(tagPosts.some((t) => String(t.body.name).startsWith('zone-'))).toBe(true);
+
+    const vrfPosts = calledEndpoints.filter(
+      (c) => c.path === '/api/ipam/vrfs/' && c.method === 'POST'
+    );
+    expect(vrfPosts.some((v) => String(v.body.name).startsWith('vrf-'))).toBe(true);
+
+    const platformPosts = calledEndpoints.filter(
+      (c) => c.path === '/api/dcim/platforms/' && c.method === 'POST'
+    );
+    expect(platformPosts.some((p) => p.body.name === 'sylva-capm3-rke2')).toBe(true);
+
+    const ifacePosts = calledEndpoints.filter(
+      (c) => c.path === '/api/dcim/interfaces/' && c.method === 'POST'
+    );
+    expect(ifacePosts.some((i) => i.body.name === 'oob0' && i.body.mgmt_only === true)).toBe(true);
+    expect(ifacePosts.some((i) => i.body.name === 'eth0')).toBe(true);
+
+    const ipPosts = calledEndpoints.filter(
+      (c) => c.path === '/api/ipam/ip-addresses/' && c.method === 'POST'
+    );
+    expect(ipPosts.some((ip) => ip.body.address === '192.0.2.10/24')).toBe(true);
+    expect(ipPosts.some((ip) => ip.body.address === '10.20.0.10/24')).toBe(true);
+
+    const prefixPosts = calledEndpoints.filter(
+      (c) => c.path === '/api/ipam/prefixes/' && c.method === 'POST'
+    );
+    expect(prefixPosts.some((p) => p.body.prefix === '192.0.2.0/24')).toBe(true);
+    expect(prefixPosts.some((p) => p.body.prefix === '10.20.0.0/24')).toBe(true);
+
+    const ipToIfacePosts = calledEndpoints.filter(
+      (c) => c.path === '/api/ipam/ip-address-to-interface/' && c.method === 'POST'
+    );
+    expect(ipToIfacePosts.length).toBeGreaterThanOrEqual(2);
+
+    const primaryIpPatch = calledEndpoints.find(
+      (c) => c.path.startsWith('/api/dcim/devices/') && c.method === 'PATCH' && c.body?.primary_ip4
+    );
+    expect(primaryIpPatch).toBeDefined();
+  });
 });

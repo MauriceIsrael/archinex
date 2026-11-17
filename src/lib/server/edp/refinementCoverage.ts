@@ -12,9 +12,11 @@ import { runOpaEval } from './opaRunner.js';
 import {
   DEFAULT_COMPONENT_CATALOG,
   DEFAULT_ENVIRONMENT_OVERLAYS,
+  DEFAULT_URN_TO_COMPONENT,
   DEFAULT_VALUE_CATALOGS,
   instantiateCatalogFromOntologyBindings,
   lintBaseComponentNoHardcodedEnv,
+  resolveTargetComponentsForUrns,
   validateComponentAgainstCatalogs,
   type BaseLintIssue
 } from '../../domain/edp/componentCatalog.js';
@@ -50,6 +52,28 @@ export type DecisionSlotStatus =
   | 'bound_verified'
   | 'waived';
 
+export type AxisActivationSource =
+  | 'explicit_binding'
+  | 'strong_link'
+  | 'concept_match'
+  | 'axis_keyword_match'
+  | 'emergent_capability'
+  | 'manual_concept_selection'
+  | 'prerequisite';
+
+export type AxisRelevanceLevel = 'high' | 'medium' | 'low' | 'out_of_scope';
+
+export interface AxisActivationReason {
+  source: AxisActivationSource;
+  summary: string;
+  matchedConceptUrn?: string;
+  matchedConceptTitle?: string;
+  matchedKeywords: string[];
+  matchedRequirementIds: string[];
+  matchedClauseUrns: string[];
+  matchedComponents: string[];
+}
+
 export interface CandidateLeafSummary {
   urn: string;
   title: string;
@@ -57,6 +81,7 @@ export interface CandidateLeafSummary {
   revision: number | string;
   oracleRules: string[];
   projections: Record<string, unknown>;
+  targetComponents?: string[];
 }
 
 export interface AxisCoverageItem {
@@ -75,6 +100,11 @@ export interface AxisCoverageItem {
   phantomOracleRules?: string[];
   hasPhantomOracle?: boolean;
   instantiatedComponents?: string[];
+  activationReason?: AxisActivationReason;
+  relevanceScore?: number;
+  relevanceLevel?: AxisRelevanceLevel;
+  isOutOfScope?: boolean;
+  isManuallyExcluded?: boolean;
 }
 
 export interface ClauseCoverageItem {
@@ -144,6 +174,8 @@ export interface RefinementCoverageReport {
   selectedConceptUrn?: string;
   emergentCapability?: EmergentCapabilityDetection;
   axes: AxisCoverageItem[];
+  outOfScopeAxes?: AxisCoverageItem[];
+  filteredOutAxesCount?: number;
   clauses: ClauseCoverageItem[];
   dependencyIssues: CrossAxisDependencyIssue[];
   composedBindings: OntologyBindingItem[];
@@ -178,6 +210,9 @@ export interface SubjectRefinementInput {
   structuredFacts?: StructuredFactInput[];
   explicitBindings?: OntologyBindingItem[];
   excludedLeafUrns?: string[];
+  excludedAxisUrns?: string[];
+  includeOutOfScopeAxes?: boolean;
+  componentUrnMap?: Record<string, string>;
   autoBindFromText?: boolean;
   selectedConceptUrn?: string;
   isNovelSubject?: boolean;
@@ -222,6 +257,22 @@ export interface LldHydrationOverrides {
   drpMaxDaysBetweenDrills?: number;
   drpRpoSeconds?: number;
   registryCosignVerification?: boolean;
+  endpointMdmManaged?: boolean;
+  endpointPkiProtocol?: string;
+  endpointVerifiedBoot?: boolean;
+  endpointLocalEncryptionMode?: string;
+  endpointAppSandboxingMode?: string;
+  endpointOtaSignedAb?: boolean;
+  esimSasSmCertified?: boolean;
+  esimFourEyesApproval?: boolean;
+  ossNrmStandard?: string;
+  smoHitlApproval?: boolean;
+  cmdbSyncEnabled?: boolean;
+  serviceAssuranceProbesNonInvasive?: boolean;
+  non3gppIpsecEnforced?: boolean;
+  core5gSliceIsolation?: boolean;
+  embmsAuthenticated?: boolean;
+  pqcHybridAgility?: boolean;
   twinArbitrationMode?: TwinArbitrationMode;
   twinMandatedProfileId?: SylvaTopologyProfileId;
 }
@@ -296,6 +347,26 @@ export interface MultiAxisHydratedInventory {
     };
     oci_registry: {
       cosign_verification: boolean;
+    };
+    endpoint_mdm: {
+      mdm_managed: boolean;
+      pki_enrollment_protocol: string;
+      verified_boot_enforced: boolean;
+      local_encryption_mode: string;
+      app_sandboxing_mode: string;
+      ota_signed_ab_required: boolean;
+    };
+    telecom_oss_smdp: {
+      esim_sas_sm_certified: boolean;
+      esim_four_eyes_approval: boolean;
+      oss_nrm_standard: string;
+      smo_hitl_approval: boolean;
+      cmdb_sync_enabled: boolean;
+      non_invasive_probes: boolean;
+      non3gpp_ipsec_enforced: boolean;
+      slice_isolation_enforced: boolean;
+      embms_authenticated: boolean;
+      pqc_hybrid_agility: boolean;
     };
   };
   resolved_components?: ResolvedComponentInstance[];
@@ -392,36 +463,98 @@ function normalizeText(str: string): string {
     .replace(/[\u0300-\u036f]/g, '');
 }
 
-function scoreEntityAgainstCorpus(entity: OntologyEntity, normalizedCorpus: string): number {
-  const paddedCorpus = ` ${normalizedCorpus.replace(/[^a-z0-9-]+/g, ' ')} `;
+interface EntityMatchDetails {
+  score: number;
+  directKeywordScore: number;
+  matchedKeywords: string[];
+}
+
+const CORPUS_STOP_WORDS = new Set([
+  'avec',
+  'pour',
+  'dans',
+  'sans',
+  'sous',
+  'vers',
+  'entre',
+  'tout',
+  'tous',
+  'toute',
+  'toutes',
+  'plus',
+  'cette',
+  'sont',
+  'être',
+  'etre',
+  'avoir',
+  'faire',
+  'comme',
+  'aussi',
+  'afin',
+  'selon',
+  'ainsi',
+  'dont',
+  'leur',
+  'leurs',
+  'mode',
+  'with',
+  'from',
+  'that',
+  'this',
+  'into',
+  'only'
+]);
+
+function matchEntityAgainstCorpus(entity: OntologyEntity, normalizedCorpus: string): EntityMatchDetails {
   const keywords = Array.isArray(entity.keywords) ? entity.keywords : [];
+  const paddedCorpus = ` ${normalizedCorpus.replace(/[^a-z0-9-]+/g, ' ')} `;
+  let directKeywordScore = 0;
   let score = 0;
+  const matchedKeywords: string[] = [];
   for (const kw of keywords) {
-    const normKw = normalizeText(String(kw)).replace(/[^a-z0-9-]+/g, ' ').trim();
+    const rawKw = String(kw);
+    const normKw = normalizeText(rawKw).replace(/[^a-z0-9-]+/g, ' ').trim();
     if (!normKw) continue;
-    if (paddedCorpus.includes(` ${normKw} `) || (normKw.length >= 6 && normalizedCorpus.includes(normKw))) {
+    if (paddedCorpus.includes(` ${normKw} `)) {
+      directKeywordScore += 2;
       score += 2;
+      matchedKeywords.push(rawKw);
     }
   }
   const titleWords = normalizeText(entity.title || '')
     .split(/[^a-z0-9]+/)
-    .filter((w) => w.length > 3);
+    .filter((w) => w.length > 3 && !CORPUS_STOP_WORDS.has(w));
   for (const w of titleWords) {
     if (paddedCorpus.includes(` ${w} `)) {
       score += 1;
     }
   }
-  return score;
+  return { score, directKeywordScore, matchedKeywords };
 }
 
-function toCandidateSummary(entity: OntologyEntity): CandidateLeafSummary {
+function scoreEntityAgainstCorpus(entity: OntologyEntity, normalizedCorpus: string): number {
+  return matchEntityAgainstCorpus(entity, normalizedCorpus).score;
+}
+
+function toCandidateSummary(
+  entity: OntologyEntity,
+  catalog?: OntologyCatalog,
+  customComponentMap?: Record<string, string>
+): CandidateLeafSummary {
+  const targetComponents = catalog
+    ? collectInstantiatedComponents([entity.urn], catalog, customComponentMap)
+    : resolveTargetComponentsForUrns([entity.urn], {
+        customMap: customComponentMap,
+        entities: { [entity.urn]: entity }
+      });
   return {
     urn: entity.urn,
     title: entity.title || entity.urn,
     domain: entity.domain || 'general',
     revision: entity.revision ?? 1,
     oracleRules: Array.isArray(entity.oracle_rules) ? (entity.oracle_rules as string[]) : [],
-    projections: (entity.projections as Record<string, unknown>) || {}
+    projections: (entity.projections as Record<string, unknown>) || {},
+    targetComponents
   };
 }
 
@@ -513,7 +646,7 @@ export function resolveSubjectConcepts(
     );
   }
 
-  return scored.slice(0, 1);
+  return [];
 }
 
 /**
@@ -767,35 +900,16 @@ export function ratifyDefaultDecisionSlots(
   return Array.from(bindingMap.values()).sort((a, b) => a.urn.localeCompare(b.urn));
 }
 
-function collectInstantiatedComponents(
+export function collectInstantiatedComponents(
   subjectUrns: string[],
-  catalog: OntologyCatalog
+  catalog: OntologyCatalog,
+  customComponentMap?: Record<string, string>
 ): string[] {
-  const names = new Set<string>();
-  const subjectSet = new Set(subjectUrns);
-
-  for (const urn of subjectUrns) {
-    const entity = catalog.entities[urn];
-    if (entity?.instantiated_component) {
-      names.add(String(entity.instantiated_component).replace(/^urn:archinex:component:/, ''));
-    }
-    const emergentNew = /^urn:archinex:ontology:application:emergent:new_([a-z0-9_-]+)$/i.exec(urn);
-    if (emergentNew) {
-      names.add(emergentNew[1].replace(/_/g, '-').toLowerCase());
-    }
-    const emergentAlloc = /^urn:archinex:ontology:application:emergent:allocate_([a-z0-9_-]+)$/i.exec(urn);
-    if (emergentAlloc) {
-      names.add(emergentAlloc[1].replace(/_/g, '-').toLowerCase());
-    }
-  }
-
-  for (const triplet of catalog.triplets || []) {
-    if (triplet.predicate === 'instantiates_component' && subjectSet.has(triplet.subject)) {
-      names.add(triplet.object.replace(/^urn:archinex:component:/, ''));
-    }
-  }
-
-  return Array.from(names).sort();
+  return resolveTargetComponentsForUrns(subjectUrns, {
+    customMap: customComponentMap,
+    entities: catalog.entities,
+    triplets: catalog.triplets
+  });
 }
 
 /**
@@ -829,22 +943,56 @@ export function computeRefinementCoverage(
     (input.explicitBindings || []).map((b) => b.urn)
   );
   const excludedLeafSet = new Set<string>(input.excludedLeafUrns || []);
+  const excludedAxisSet = new Set<string>(input.excludedAxisUrns || []);
+  const customComponentMap = input.componentUrnMap;
   const boundLeafUrns = new Set<string>(explicitBindingSet);
   const shouldAutoBind = input.autoBindFromText ?? explicitBindingSet.size === 0;
   const isAutoConceptMode =
     !input.selectedConceptUrn ||
     input.selectedConceptUrn === 'AUTO' ||
     input.selectedConceptUrn === 'ALL';
+  const isManualConceptSelection =
+    Boolean(input.selectedConceptUrn && input.selectedConceptUrn !== 'AUTO');
 
   // 1. Collecte des axes de raffinement obligatoires (axes applicatifs contextuels + triplets `requires_aspect` des concepts retenus)
   const mandatoryAxisMap = new Map<string, OntologyTriplet>();
 
-  if (isAutoConceptMode || Array.from(explicitBindingSet).some((u) => u.includes(':application:'))) {
-    const appAxes = Object.values(catalog.entities).filter(
-      (e) =>
-        e.kind === 'axis' &&
-        (e.domain === 'application' || e.togaf_domain === 'application-business')
-    );
+  const CONTEXTUAL_EXTENDED_AXIS_PREFIXES = [
+    'urn:archinex:ontology:axis:endpoint_',
+    'urn:archinex:ontology:axis:esim_',
+    'urn:archinex:ontology:axis:oss_',
+    'urn:archinex:ontology:axis:cmdb_',
+    'urn:archinex:ontology:axis:service_assurance_',
+    'urn:archinex:ontology:axis:non3gpp_',
+    'urn:archinex:ontology:axis:core_5g_',
+    'urn:archinex:ontology:axis:embms_',
+    'urn:archinex:ontology:axis:pqc_'
+  ];
+  const isContextualExtendedAxis = (urn: string): boolean =>
+    CONTEXTUAL_EXTENDED_AXIS_PREFIXES.some((p) => urn.startsWith(p));
+
+  if (
+    isAutoConceptMode ||
+    Array.from(explicitBindingSet).some(
+      (u) =>
+        u.includes(':application:') ||
+        u.includes(':endpoint:') ||
+        u.includes(':esim:') ||
+        u.includes(':oss:') ||
+        u.includes(':smo:') ||
+        u.includes(':cmdb:') ||
+        u.includes(':assurance:') ||
+        u.includes(':interworking:') ||
+        u.includes(':pqc:')
+    )
+  ) {
+    const isContextualDomainAxis = (e: OntologyEntity): boolean =>
+      e.kind === 'axis' &&
+      (e.domain === 'application' ||
+        e.togaf_domain === 'application-business' ||
+        isContextualExtendedAxis(e.urn));
+
+    const appAxes = Object.values(catalog.entities).filter(isContextualDomainAxis);
 
     const paddedCorpus = ` ${corpus.replace(/[^a-z0-9-]+/g, ' ')} `;
     const matchesEntityKeywords = (entity: OntologyEntity): boolean => {
@@ -887,14 +1035,24 @@ export function computeRefinementCoverage(
       }
     }
 
-    // Inclure également tout axe applicatif prérequis (ex: gis_location_fusion -> gis_tile_engine)
+    // Inclure également tout axe prérequis des axes contextuels détectés
     if (matchedAppAxisUrns.size > 0) {
+      const hasExtendedContextAxis = Array.from(matchedAppAxisUrns).some(isContextualExtendedAxis);
+      const allowedPrereqTransverseAxes = new Set([
+        'urn:archinex:ontology:axis:hsm_key_custody',
+        'urn:archinex:ontology:axis:pki_hierarchy',
+        'urn:archinex:ontology:axis:wan_interco_encryption',
+        'urn:archinex:ontology:axis:oss_smo_mediation'
+      ]);
       const appPrereqs = computeTransitivePrerequisiteAxes(matchedAppAxisUrns, catalog);
       for (const prereqUrn of appPrereqs.keys()) {
         const prereqEntity = catalog.entities[prereqUrn];
         if (
           prereqEntity?.kind === 'axis' &&
-          (prereqEntity.domain === 'application' || prereqEntity.togaf_domain === 'application-business')
+          (prereqEntity.domain === 'application' ||
+            prereqEntity.togaf_domain === 'application-business' ||
+            isContextualExtendedAxis(prereqEntity.urn) ||
+            (hasExtendedContextAxis && allowedPrereqTransverseAxes.has(prereqEntity.urn)))
         ) {
           matchedAppAxisUrns.add(prereqUrn);
         }
@@ -925,7 +1083,24 @@ export function computeRefinementCoverage(
     }
   }
 
+  // Inclure tout axe contenant une feuille explicitement liée (même si aucun concept parent n'a scoré)
+  for (const explicitUrn of explicitBindingSet) {
+    const implTriplet = (catalog.triplets || []).find(
+      (t) => t.predicate === 'implemented_by' && t.object === explicitUrn
+    );
+    if (implTriplet && !mandatoryAxisMap.has(implTriplet.subject)) {
+      mandatoryAxisMap.set(implTriplet.subject, {
+        id: `tr-explicit-${implTriplet.subject}`,
+        subject: matchedConcepts[0]?.urn || 'urn:archinex:ontology:concept:explicit_binding',
+        predicate: 'requires_aspect',
+        object: implTriplet.subject,
+        rationale: 'Axe activé par liaison explicite d’une feuille ontologique.'
+      });
+    }
+  }
+
   const axes: AxisCoverageItem[] = [];
+  const outOfScopeAxes: AxisCoverageItem[] = [];
 
   // 1bis. Détection d'un besoin fonctionnel inédit / émergent (ex: IoT / LoRaWAN / MQTT ou sujet `isNovelSubject`)
   const catalogComponentNames = Array.from(
@@ -984,7 +1159,8 @@ export function computeRefinementCoverage(
           allocation_mode: 'new_dedicated_component',
           instantiated_component: emergent.suggestedComponentName,
           tier: emergent.suggestedTier
-        }
+        },
+        targetComponents: [emergent.suggestedComponentName]
       },
       ...emergent.candidateExistingComponents.map((compName) => ({
         urn: `urn:archinex:ontology:application:emergent:allocate_${compName.replace(/[^a-z0-9_]/gi, '_').toLowerCase()}`,
@@ -995,7 +1171,8 @@ export function computeRefinementCoverage(
         projections: {
           allocation_mode: 'existing_component',
           instantiated_component: compName
-        }
+        },
+        targetComponents: [compName]
       }))
     ];
 
@@ -1029,7 +1206,13 @@ export function computeRefinementCoverage(
     const emergentExecRules = emergentRules.filter((r) => implementedRegoRules.has(r));
     const emergentPhantomRules = emergentRules.filter((r) => !implementedRegoRules.has(r));
 
-    axes.push({
+    const emergentComponents = collectInstantiatedComponents(
+      [emergentAxisUrn, ...emergentBound.map((l) => l.urn)],
+      catalog,
+      customComponentMap
+    );
+    const isEmergentExcluded = excludedAxisSet.has(emergentAxisUrn);
+    const emergentAxisItem: AxisCoverageItem = {
       axisUrn: emergentAxisUrn,
       axisTitle: `Axe Émergent : ${emergent.title}`,
       domain: 'application',
@@ -1049,11 +1232,32 @@ export function computeRefinementCoverage(
       executableOracleRules: emergentExecRules,
       phantomOracleRules: emergentPhantomRules,
       hasPhantomOracle: emergentPhantomRules.length > 0,
-      instantiatedComponents: collectInstantiatedComponents(
-        [emergentAxisUrn, ...emergentBound.map((l) => l.urn)],
-        catalog
-      )
-    });
+      instantiatedComponents: emergentComponents,
+      activationReason: {
+        source: 'emergent_capability',
+        summary: `Besoin fonctionnel émergent détecté (${emergent.suggestedComponentName})`,
+        matchedKeywords: [],
+        matchedRequirementIds: [],
+        matchedClauseUrns: [],
+        matchedComponents: emergentComponents
+      },
+      relevanceScore: 10,
+      relevanceLevel: isEmergentExcluded ? 'out_of_scope' : 'high',
+      isOutOfScope: isEmergentExcluded,
+      isManuallyExcluded: isEmergentExcluded
+    };
+
+    if (isEmergentExcluded) {
+      for (const l of emergentBound) {
+        boundLeafUrns.delete(l.urn);
+      }
+      outOfScopeAxes.push(emergentAxisItem);
+      if (input.includeOutOfScopeAxes) {
+        axes.push(emergentAxisItem);
+      }
+    } else {
+      axes.push(emergentAxisItem);
+    }
   }
 
   for (const [axisUrn, reqTriplet] of mandatoryAxisMap.entries()) {
@@ -1070,22 +1274,53 @@ export function computeRefinementCoverage(
     let hasExplicitBinding = false;
     let hasStrongLinkBinding = false;
     let bestAutoAppCandidate: { summary: CandidateLeafSummary; score: number } | null = null;
+    const axisMatchDetails = axisEntity
+      ? matchEntityAgainstCorpus(axisEntity, corpus)
+      : { score: 0, directKeywordScore: 0, matchedKeywords: [] };
+    const matchedKeywordsSet = new Set<string>(axisMatchDetails.matchedKeywords);
+    const matchedRequirementIdsSet = new Set<string>();
+    const matchedClauseUrnsSet = new Set<string>();
+    let bestLeafCorpusScore = 0;
+    let componentMentionedInCorpus = false;
 
     for (const implT of implTriplets) {
       const leafEntity = catalog.entities[implT.object];
       if (!leafEntity) continue;
 
-      const summary = toCandidateSummary(leafEntity);
+      const summary = toCandidateSummary(leafEntity, catalog, customComponentMap);
       candidateLeaves.push(summary);
 
       const isExplicitlyBound = explicitBindingSet.has(leafEntity.urn);
       const isExcluded = excludedLeafSet.has(leafEntity.urn);
-      const hasStrongLinkInCorpus =
-        shouldAutoBind && !isExcluded && corpusCandidateIds.length > 0
-          ? Boolean(findStrongLinkForLeaf(leafEntity, corpusCandidateIds, catalog))
-          : false;
-      const semanticScore =
-        shouldAutoBind && !isExcluded ? scoreEntityAgainstCorpus(leafEntity, corpus) : 0;
+      const strongLinkMatch =
+        !isExcluded && corpusCandidateIds.length > 0
+          ? findStrongLinkForLeaf(leafEntity, corpusCandidateIds, catalog)
+          : null;
+      const hasStrongLinkInCorpus = shouldAutoBind && Boolean(strongLinkMatch);
+      if (strongLinkMatch) {
+        if (strongLinkMatch.isUrn) {
+          matchedClauseUrnsSet.add(strongLinkMatch.matchedIdentifier);
+        } else {
+          matchedRequirementIdsSet.add(strongLinkMatch.matchedIdentifier);
+        }
+      }
+
+      const leafMatchDetails = !isExcluded
+        ? matchEntityAgainstCorpus(leafEntity, corpus)
+        : { score: 0, directKeywordScore: 0, matchedKeywords: [] };
+      for (const kw of leafMatchDetails.matchedKeywords) {
+        matchedKeywordsSet.add(kw);
+      }
+      if (leafMatchDetails.score > bestLeafCorpusScore) {
+        bestLeafCorpusScore = leafMatchDetails.score;
+      }
+      for (const comp of summary.targetComponents || []) {
+        if (corpus.includes(normalizeText(comp))) {
+          componentMentionedInCorpus = true;
+        }
+      }
+
+      const semanticScore = shouldAutoBind ? leafMatchDetails.score : 0;
       const isDefaultStandard =
         shouldAutoBind && !isExcluded && leafEntity.is_default_standard === true;
 
@@ -1111,39 +1346,69 @@ export function computeRefinementCoverage(
 
     const axisHasExcludedLeaf = candidateLeaves.some((c) => excludedLeafSet.has(c.urn));
 
-    if (
-      isApplicationAxis &&
-      !hasExplicitBinding &&
-      !axisHasExcludedLeaf &&
-      shouldAutoBind &&
-      boundLeaves.length === 0
-    ) {
-      const chosen =
-        bestAutoAppCandidate?.summary ||
-        candidateLeaves.find((c) => c.oracleRules.length > 0) ||
-        candidateLeaves[0];
-      if (chosen) {
-        boundLeafUrns.add(chosen.urn);
-        boundLeaves.push(chosen);
+    const parentConceptEntity = catalog.entities[reqTriplet.subject];
+    const conceptMatchDetails = parentConceptEntity
+      ? matchEntityAgainstCorpus(parentConceptEntity, corpus)
+      : { score: 0, directKeywordScore: 0, matchedKeywords: [] };
+    const axisDirectScore =
+      axisMatchDetails.score + bestLeafCorpusScore + (componentMentionedInCorpus ? 4 : 0);
+    const isManuallyExcluded = excludedAxisSet.has(axisUrn);
+    const isScopeRelevant =
+      isManualConceptSelection ||
+      hasExplicitBinding ||
+      hasStrongLinkBinding ||
+      matchedRequirementIdsSet.size > 0 ||
+      matchedClauseUrnsSet.size > 0 ||
+      isApplicationAxis ||
+      reqTriplet.id.startsWith('tr-ctx-') ||
+      axisDirectScore >= 2 ||
+      conceptMatchDetails.directKeywordScore >= 4;
+    const isOutOfScope = isManuallyExcluded || !isScopeRelevant;
+
+    if (isOutOfScope) {
+      for (const l of boundLeaves) {
+        if (!explicitBindingSet.has(l.urn) || isManuallyExcluded) {
+          boundLeafUrns.delete(l.urn);
+        }
+      }
+    } else {
+      if (
+        isApplicationAxis &&
+        !hasExplicitBinding &&
+        !axisHasExcludedLeaf &&
+        shouldAutoBind &&
+        boundLeaves.length === 0
+      ) {
+        const chosen =
+          bestAutoAppCandidate?.summary ||
+          candidateLeaves.find((c) => c.oracleRules.length > 0) ||
+          candidateLeaves[0];
+        if (chosen) {
+          boundLeafUrns.add(chosen.urn);
+          boundLeaves.push(chosen);
+        }
+      }
+
+      // Auto-raffinement par défaut (KAOS OR-Refinement) : tant qu'une feuille standard homologuée existe
+      // dans l'ontologie pour cet axe obligatoire, on la propose comme défaut (à ratifier).
+      if (!axisHasExcludedLeaf && shouldAutoBind && boundLeaves.length === 0 && candidateLeaves.length > 0) {
+        const defaultCandidate =
+          candidateLeaves.find((c) => c.oracleRules.length > 0) || candidateLeaves[0];
+        boundLeafUrns.add(defaultCandidate.urn);
+        boundLeaves.push(defaultCandidate);
       }
     }
 
-    // Auto-raffinement par défaut (KAOS OR-Refinement) : tant qu'une feuille standard homologuée existe
-    // dans l'ontologie pour cet axe obligatoire, on la propose comme défaut (à ratifier).
-    if (!axisHasExcludedLeaf && shouldAutoBind && boundLeaves.length === 0 && candidateLeaves.length > 0) {
-      const defaultCandidate =
-        candidateLeaves.find((c) => c.oracleRules.length > 0) || candidateLeaves[0];
-      boundLeafUrns.add(defaultCandidate.urn);
-      boundLeaves.push(defaultCandidate);
-    }
-
-    const oracleRulesCount = boundLeaves.reduce((acc, l) => acc + l.oracleRules.length, 0);
-    const uniqueAxisOracleRules = Array.from(new Set(boundLeaves.flatMap((l) => l.oracleRules)));
+    const effectiveBoundLeaves = isOutOfScope && isManuallyExcluded ? [] : boundLeaves;
+    const oracleRulesCount = effectiveBoundLeaves.reduce((acc, l) => acc + l.oracleRules.length, 0);
+    const uniqueAxisOracleRules = Array.from(
+      new Set(effectiveBoundLeaves.flatMap((l) => l.oracleRules))
+    );
     const executableOracleRules = uniqueAxisOracleRules.filter((r) => implementedRegoRules.has(r));
     const phantomOracleRules = uniqueAxisOracleRules.filter((r) => !implementedRegoRules.has(r));
 
     const bindingOrigin: BindingOrigin =
-      boundLeaves.length === 0
+      effectiveBoundLeaves.length === 0
         ? 'none'
         : hasExplicitBinding
           ? 'explicit'
@@ -1156,11 +1421,67 @@ export function computeRefinementCoverage(
     const requiresRatification = bindingOrigin === 'default_proposed';
 
     let status: AxisCoverageStatus = 'missing_refinement';
-    if (boundLeaves.length > 0) {
+    if (effectiveBoundLeaves.length > 0) {
       status = oracleRulesCount > 0 ? 'covered_executable' : 'covered_no_oracle';
     }
 
-    axes.push({
+    const instantiatedComponents = collectInstantiatedComponents(
+      [axisUrn, ...effectiveBoundLeaves.map((l) => l.urn)],
+      catalog,
+      customComponentMap
+    );
+    const matchedKeywords = Array.from(matchedKeywordsSet);
+    const matchedRequirementIds = Array.from(matchedRequirementIdsSet);
+    const matchedClauseUrns = Array.from(matchedClauseUrnsSet);
+    const relevanceScore =
+      (hasExplicitBinding ? 10 : 0) +
+      (hasStrongLinkBinding || matchedRequirementIds.length > 0 ? 8 : 0) +
+      axisDirectScore +
+      Math.min(4, conceptMatchDetails.directKeywordScore);
+    const relevanceLevel: AxisRelevanceLevel = isOutOfScope
+      ? 'out_of_scope'
+      : relevanceScore >= 6
+        ? 'high'
+        : relevanceScore >= 2
+          ? 'medium'
+          : 'low';
+
+    const conceptTitle = parentConceptEntity?.title || reqTriplet.subject;
+    let activationSource: AxisActivationSource = 'concept_match';
+    let activationSummary = '';
+    if (hasExplicitBinding) {
+      activationSource = 'explicit_binding';
+      const boundNames = effectiveBoundLeaves
+        .filter((l) => explicitBindingSet.has(l.urn))
+        .map((l) => l.title);
+      activationSummary = `Rattaché explicitement via « ${boundNames.join(', ')} »`;
+    } else if (hasStrongLinkBinding || matchedRequirementIds.length > 0 || matchedClauseUrns.length > 0) {
+      activationSource = 'strong_link';
+      activationSummary = `Déclenché par exigence / clause : ${[...matchedRequirementIds, ...matchedClauseUrns].join(', ')}`;
+    } else if (matchedKeywords.length > 0 || axisDirectScore > 0) {
+      activationSource = 'axis_keyword_match';
+      activationSummary =
+        matchedKeywords.length > 0
+          ? `Activé par les mots-clés du sujet : ${matchedKeywords.slice(0, 6).join(', ')}`
+          : `Activé par correspondance lexicale avec le titre de l’axe ou ses variantes`;
+    } else if (isManualConceptSelection) {
+      activationSource = 'manual_concept_selection';
+      activationSummary = `Rattaché au concept sélectionné « ${conceptTitle} »`;
+    } else {
+      activationSource = 'concept_match';
+      activationSummary =
+        conceptMatchDetails.matchedKeywords.length > 0
+          ? `Hérité du concept « ${conceptTitle} » (${conceptMatchDetails.matchedKeywords.slice(0, 4).join(', ')})`
+          : `Hérité du concept « ${conceptTitle} »`;
+    }
+
+    if (isManuallyExcluded) {
+      activationSummary = `Écarté manuellement du périmètre par l’architecte (${activationSummary})`;
+    } else if (isOutOfScope) {
+      activationSummary = `Hors-périmètre du sujet (aucun mot-clé, exigence ou composant cible direct ; ${activationSummary})`;
+    }
+
+    const axisItem: AxisCoverageItem = {
       axisUrn,
       axisTitle: axisEntity?.title || axisUrn,
       domain: axisEntity?.domain || 'architecture',
@@ -1169,17 +1490,37 @@ export function computeRefinementCoverage(
       status,
       bindingOrigin,
       requiresRatification,
-      boundLeaves,
+      boundLeaves: effectiveBoundLeaves,
       candidateLeaves,
       oracleRulesCount,
       executableOracleRules,
       phantomOracleRules,
       hasPhantomOracle: phantomOracleRules.length > 0,
-      instantiatedComponents: collectInstantiatedComponents(
-        [axisUrn, ...boundLeaves.map((l) => l.urn)],
-        catalog
-      )
-    });
+      instantiatedComponents,
+      activationReason: {
+        source: activationSource,
+        summary: activationSummary,
+        matchedConceptUrn: parentConceptEntity?.urn,
+        matchedConceptTitle: parentConceptEntity?.title,
+        matchedKeywords,
+        matchedRequirementIds,
+        matchedClauseUrns,
+        matchedComponents: instantiatedComponents
+      },
+      relevanceScore,
+      relevanceLevel,
+      isOutOfScope,
+      isManuallyExcluded
+    };
+
+    if (isOutOfScope) {
+      outOfScopeAxes.push(axisItem);
+      if (input.includeOutOfScopeAxes) {
+        axes.push(axisItem);
+      }
+    } else {
+      axes.push(axisItem);
+    }
   }
 
   // 2bis. Emplacements de décision (conscientisation : défaut proposé != décision ratifiée + prérequis transitifs)
@@ -1217,7 +1558,12 @@ export function computeRefinementCoverage(
   );
 
   for (const [targetAxisUrn, prereqMatch] of transitivePrereqs.entries()) {
-    if (mandatoryAxisMap.has(targetAxisUrn)) continue;
+    if (
+      mandatoryAxisMap.has(targetAxisUrn) ||
+      excludedAxisSet.has(targetAxisUrn)
+    ) {
+      continue;
+    }
     const axisEntity = catalog.entities[targetAxisUrn];
     const implTriplets = queryOntologyTriplets(catalog, {
       subject: targetAxisUrn,
@@ -1232,7 +1578,7 @@ export function computeRefinementCoverage(
     for (const implT of implTriplets) {
       const leafEntity = catalog.entities[implT.object];
       if (!leafEntity) continue;
-      const summary = toCandidateSummary(leafEntity);
+      const summary = toCandidateSummary(leafEntity, catalog, customComponentMap);
       candidateLeaves.push(summary);
 
       const isExplicitlyBound = explicitBindingSet.has(leafEntity.urn);
@@ -1293,7 +1639,8 @@ export function computeRefinementCoverage(
       phantomOracleRules,
       instantiatedComponents: collectInstantiatedComponents(
         [targetAxisUrn, ...slotBoundLeaves.map((l) => l.urn)],
-        catalog
+        catalog,
+        customComponentMap
       ),
       isTransitivePrerequisite: true,
       triggeredByAxisUrn: prereqMatch.triggeredByAxisUrn
@@ -1413,6 +1760,8 @@ export function computeRefinementCoverage(
     selectedConceptUrn: input.selectedConceptUrn || 'AUTO',
     emergentCapability: detectedEmergent,
     axes,
+    outOfScopeAxes,
+    filteredOutAxesCount: outOfScopeAxes.length,
     clauses,
     dependencyIssues,
     composedBindings,
@@ -1503,6 +1852,22 @@ export function composeMultiAxisHydration(
   let drpRpoSeconds = 999999;
   let drpDaysSinceLastDrill = 999;
   let registryCosignVerification = false;
+  let endpointMdmManaged = false;
+  let endpointPkiProtocol = 'unspecified';
+  let endpointVerifiedBoot = false;
+  let endpointLocalEncryptionMode = 'unspecified';
+  let endpointAppSandboxingMode = 'unspecified';
+  let endpointOtaSignedAb = false;
+  let esimSasSmCertified = false;
+  let esimFourEyesApproval = false;
+  let ossNrmStandard = 'unspecified';
+  let smoHitlApproval = false;
+  let cmdbSyncEnabled = false;
+  let nonInvasiveProbes = false;
+  let non3gppIpsecEnforced = false;
+  let sliceIsolationEnforced = false;
+  let embmsAuthenticated = false;
+  let pqcHybridAgility = false;
 
   for (const b of bindings) {
     const entity = catalog.entities[b.urn];
@@ -1583,6 +1948,54 @@ export function composeMultiAxisHydration(
     }
     if (proj.cosign_verification !== undefined) {
       registryCosignVerification = Boolean(proj.cosign_verification);
+    }
+    if (proj.mdm_managed_required !== undefined) {
+      endpointMdmManaged = Boolean(proj.mdm_managed_required);
+    }
+    if (proj.default_protocol !== undefined && Array.isArray(proj.allowed_protocols)) {
+      endpointPkiProtocol = String(proj.default_protocol);
+    }
+    if (proj.verified_boot_required !== undefined) {
+      endpointVerifiedBoot = Boolean(proj.verified_boot_required);
+    }
+    if (proj.encryption_mode !== undefined) {
+      endpointLocalEncryptionMode = String(proj.encryption_mode);
+    }
+    if (proj.sandboxing_mode !== undefined) {
+      endpointAppSandboxingMode = String(proj.sandboxing_mode);
+    }
+    if (proj.ota_signed_ab_required !== undefined) {
+      endpointOtaSignedAb = Boolean(proj.ota_signed_ab_required);
+    }
+    if (proj.sas_sm_certified_required !== undefined) {
+      esimSasSmCertified = Boolean(proj.sas_sm_certified_required);
+    }
+    if (proj.four_eyes_approval_required !== undefined) {
+      esimFourEyesApproval = Boolean(proj.four_eyes_approval_required);
+    }
+    if (proj.nrm_standard !== undefined) {
+      ossNrmStandard = String(proj.nrm_standard);
+    }
+    if (proj.hitl_approval_required !== undefined) {
+      smoHitlApproval = Boolean(proj.hitl_approval_required);
+    }
+    if (proj.cmdb_sync_enabled !== undefined) {
+      cmdbSyncEnabled = Boolean(proj.cmdb_sync_enabled);
+    }
+    if (proj.non_invasive_probes_required !== undefined) {
+      nonInvasiveProbes = Boolean(proj.non_invasive_probes_required);
+    }
+    if (proj.non3gpp_ipsec_enforced !== undefined) {
+      non3gppIpsecEnforced = Boolean(proj.non3gpp_ipsec_enforced);
+    }
+    if (proj.slice_isolation_enforced !== undefined) {
+      sliceIsolationEnforced = Boolean(proj.slice_isolation_enforced);
+    }
+    if (proj.embms_authenticated_required !== undefined) {
+      embmsAuthenticated = Boolean(proj.embms_authenticated_required);
+    }
+    if (proj.pqc_hybrid_agility_required !== undefined) {
+      pqcHybridAgility = Boolean(proj.pqc_hybrid_agility_required);
     }
 
     if (tpl.nautobot_device || proj.baremetal_types) {
@@ -2051,7 +2464,7 @@ export function composeMultiAxisHydration(
 
   const prodOverlay = DEFAULT_ENVIRONMENT_OVERLAYS[0];
   const primaryDc = prodOverlay.spec.datacenters[0] || 'dc1';
-  const componentUrnMap: Record<string, string> = {};
+  const componentUrnMap: Record<string, string> = { ...DEFAULT_URN_TO_COMPONENT };
   for (const t of catalog.triplets || []) {
     if (t.predicate === 'instantiates_component') {
       componentUrnMap[t.subject] = t.object.replace(/^urn:archinex:component:/, '');
@@ -2124,6 +2537,26 @@ export function composeMultiAxisHydration(
     },
     oci_registry: {
       cosign_verification: overrides.registryCosignVerification ?? registryCosignVerification
+    },
+    endpoint_mdm: {
+      mdm_managed: overrides.endpointMdmManaged ?? endpointMdmManaged,
+      pki_enrollment_protocol: overrides.endpointPkiProtocol ?? endpointPkiProtocol,
+      verified_boot_enforced: overrides.endpointVerifiedBoot ?? endpointVerifiedBoot,
+      local_encryption_mode: overrides.endpointLocalEncryptionMode ?? endpointLocalEncryptionMode,
+      app_sandboxing_mode: overrides.endpointAppSandboxingMode ?? endpointAppSandboxingMode,
+      ota_signed_ab_required: overrides.endpointOtaSignedAb ?? endpointOtaSignedAb
+    },
+    telecom_oss_smdp: {
+      esim_sas_sm_certified: overrides.esimSasSmCertified ?? esimSasSmCertified,
+      esim_four_eyes_approval: overrides.esimFourEyesApproval ?? esimFourEyesApproval,
+      oss_nrm_standard: overrides.ossNrmStandard ?? ossNrmStandard,
+      smo_hitl_approval: overrides.smoHitlApproval ?? smoHitlApproval,
+      cmdb_sync_enabled: overrides.cmdbSyncEnabled ?? cmdbSyncEnabled,
+      non_invasive_probes: overrides.serviceAssuranceProbesNonInvasive ?? nonInvasiveProbes,
+      non3gpp_ipsec_enforced: overrides.non3gppIpsecEnforced ?? non3gppIpsecEnforced,
+      slice_isolation_enforced: overrides.core5gSliceIsolation ?? sliceIsolationEnforced,
+      embms_authenticated: overrides.embmsAuthenticated ?? embmsAuthenticated,
+      pqc_hybrid_agility: overrides.pqcHybridAgility ?? pqcHybridAgility
     }
   };
   const sylvaTwinReport = runSylvaDigitalTwinMatrix({

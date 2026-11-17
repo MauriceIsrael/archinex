@@ -655,6 +655,288 @@ violations contains v if {
 }
 
 # ==============================================================================
+# AXE 9 : TERMINAUX, OS ENDPOINTS & MDM / EMM
+# ==============================================================================
+
+_endpoint_mdm_proj := p if {
+	p := object.get(data.ontology, "endpoint_mdm_emm_zero_touch_enrollment", null)
+	p != null
+} else := p if {
+	p := object.get(data.ontology, "endpoint_mdm_onprem_sovereign_emm", null)
+	p != null
+}
+
+violations contains v if {
+	mdm_proj := _endpoint_mdm_proj
+	ed := object.get(input, "extended_domains", {})
+	ep := object.get(ed, "endpoint_mdm", {})
+	ep.mdm_managed != mdm_proj.mdm_managed_required
+	v := {
+		"rule": "data.archinex.edp.multiaxis.deny_unenrolled_endpoint_mdm",
+		"axis": "urn:archinex:ontology:axis:endpoint_mdm_enrollment",
+		"message": sprintf("Enrôlement MDM/EMM obligatoire non respecté (%v au lieu de %v)", [object.get(ep, "mdm_managed", "absent"), mdm_proj.mdm_managed_required]),
+		"violated_clause_urn": get_clause_urn(mdm_proj, "urn:archinex:kb:clause:endpoint:mdm_enrollment"),
+		"violated_requirement_id": get_req_id(mdm_proj, "REQ-Endpoint-MDM-01"),
+	}
+}
+
+violations contains v if {
+	pki_ep_proj := object.get(data.ontology, "security_pki_endpoint_scep_est_enrollment", null)
+	pki_ep_proj != null
+	ed := object.get(input, "extended_domains", {})
+	ep := object.get(ed, "endpoint_mdm", {})
+	not ep.pki_enrollment_protocol in pki_ep_proj.allowed_protocols
+	v := {
+		"rule": "data.archinex.edp.multiaxis.deny_unapproved_endpoint_pki_protocol",
+		"axis": "urn:archinex:ontology:axis:endpoint_pki_enrollment",
+		"message": sprintf("Protocole d'enrôlement PKI terminal '%v' non homologué (attendu: %v)", [object.get(ep, "pki_enrollment_protocol", "absent"), pki_ep_proj.allowed_protocols]),
+		"violated_clause_urn": get_clause_urn(pki_ep_proj, "urn:archinex:kb:clause:endpoint:pki_scep_est"),
+		"violated_requirement_id": get_req_id(pki_ep_proj, "REQ-Endpoint-PKI-01"),
+	}
+}
+
+violations contains v if {
+	os_proj := object.get(data.ontology, "endpoint_os_hardened_verified_boot", null)
+	os_proj != null
+	ed := object.get(input, "extended_domains", {})
+	ep := object.get(ed, "endpoint_mdm", {})
+	ep.verified_boot_enforced != os_proj.verified_boot_required
+	v := {
+		"rule": "data.archinex.edp.multiaxis.deny_unverified_endpoint_os_boot",
+		"axis": "urn:archinex:ontology:axis:endpoint_os_hardening",
+		"message": sprintf("Durcissement OS terminal non conforme : Verified Boot requis (%v)", [os_proj.verified_boot_required]),
+		"violated_clause_urn": get_clause_urn(os_proj, "urn:archinex:kb:clause:endpoint:os_hardening"),
+		"violated_requirement_id": get_req_id(os_proj, "REQ-Endpoint-OS-01"),
+	}
+}
+
+violations contains v if {
+	crypto_proj := object.get(data.ontology, "endpoint_crypto_fbe_hardware_keystore", null)
+	crypto_proj != null
+	ed := object.get(input, "extended_domains", {})
+	ep := object.get(ed, "endpoint_mdm", {})
+	ep.local_encryption_mode != crypto_proj.encryption_mode
+	v := {
+		"rule": "data.archinex.edp.multiaxis.deny_unencrypted_endpoint_storage",
+		"axis": "urn:archinex:ontology:axis:endpoint_local_encryption",
+		"message": sprintf("Chiffrement local terminal non conforme ('%v' au lieu de '%v')", [object.get(ep, "local_encryption_mode", "absent"), crypto_proj.encryption_mode]),
+		"violated_clause_urn": get_clause_urn(crypto_proj, "urn:archinex:kb:clause:endpoint:local_encryption"),
+		"violated_requirement_id": get_req_id(crypto_proj, "REQ-Endpoint-Crypto-01"),
+	}
+}
+
+_endpoint_sandbox_proj := p if {
+	p := object.get(data.ontology, "endpoint_sandbox_work_profile_strict_isolation", null)
+	p != null
+} else := p if {
+	p := object.get(data.ontology, "endpoint_sandbox_dedicated_kiosk_cobo", null)
+	p != null
+}
+
+violations contains v if {
+	sb_proj := _endpoint_sandbox_proj
+	ed := object.get(input, "extended_domains", {})
+	ep := object.get(ed, "endpoint_mdm", {})
+	ep.app_sandboxing_mode != sb_proj.sandboxing_mode
+	v := {
+		"rule": "data.archinex.edp.multiaxis.deny_missing_endpoint_app_sandbox",
+		"axis": "urn:archinex:ontology:axis:endpoint_app_sandboxing",
+		"message": sprintf("Mode de sandboxing applicatif terminal non conforme ('%v' au lieu de '%v')", [object.get(ep, "app_sandboxing_mode", "absent"), sb_proj.sandboxing_mode]),
+		"violated_clause_urn": get_clause_urn(sb_proj, "urn:archinex:kb:clause:endpoint:app_sandboxing"),
+		"violated_requirement_id": get_req_id(sb_proj, "REQ-Endpoint-Sandbox-01"),
+	}
+}
+
+violations contains v if {
+	ota_proj := object.get(data.ontology, "endpoint_ota_signed_ab_staged_rollout", null)
+	ota_proj != null
+	ed := object.get(input, "extended_domains", {})
+	ep := object.get(ed, "endpoint_mdm", {})
+	ep.ota_signed_ab_required != ota_proj.ota_signed_ab_required
+	v := {
+		"rule": "data.archinex.edp.multiaxis.deny_unsigned_endpoint_ota_update",
+		"axis": "urn:archinex:ontology:axis:endpoint_ota_updates",
+		"message": sprintf("Mises à jour OTA signées avec partitionnement A/B requises (%v)", [ota_proj.ota_signed_ab_required]),
+		"violated_clause_urn": get_clause_urn(ota_proj, "urn:archinex:kb:clause:endpoint:ota_updates"),
+		"violated_requirement_id": get_req_id(ota_proj, "REQ-Endpoint-OTA-01"),
+	}
+}
+
+# ==============================================================================
+# AXE 10 : SERVICES MANAGÉS eSIM SM-DP+, OSS/SMO/CMDB, N3IWF/WLAN, eMBMS & PQC
+# ==============================================================================
+
+_esim_smdp_proj := p if {
+	p := object.get(data.ontology, "security_esim_smdp_sas_sm_eu_hsm", null)
+	p != null
+} else := p if {
+	p := object.get(data.ontology, "security_esim_smdp_onprem_sovereign_hsm", null)
+	p != null
+}
+
+violations contains v if {
+	smdp_proj := _esim_smdp_proj
+	ed := object.get(input, "extended_domains", {})
+	tp := object.get(ed, "telecom_oss_smdp", {})
+	tp.esim_sas_sm_certified != smdp_proj.sas_sm_certified_required
+	v := {
+		"rule": "data.archinex.edp.multiaxis.deny_unaccredited_esim_smdp",
+		"axis": "urn:archinex:ontology:axis:esim_smdp_provisioning",
+		"message": sprintf("Certification GSMA SAS-SM requise pour le SM-DP+ (%v)", [smdp_proj.sas_sm_certified_required]),
+		"violated_clause_urn": get_clause_urn(smdp_proj, "urn:archinex:kb:clause:telecom:esim_smdp_sas_sm"),
+		"violated_requirement_id": get_req_id(smdp_proj, "REQ-Telecom-eSIM-01"),
+	}
+}
+
+violations contains v if {
+	smdp_proj := _esim_smdp_proj
+	ed := object.get(input, "extended_domains", {})
+	tp := object.get(ed, "telecom_oss_smdp", {})
+	tp.esim_four_eyes_approval != smdp_proj.four_eyes_approval_required
+	v := {
+		"rule": "data.archinex.edp.multiaxis.deny_unaccredited_esim_smdp",
+		"axis": "urn:archinex:ontology:axis:esim_smdp_provisioning",
+		"message": sprintf("Double approbation 4-yeux requise pour la génération de profils eSIM (%v)", [smdp_proj.four_eyes_approval_required]),
+		"violated_clause_urn": get_clause_urn(smdp_proj, "urn:archinex:kb:clause:telecom:esim_smdp_sas_sm"),
+		"violated_requirement_id": get_req_id(smdp_proj, "REQ-Telecom-eSIM-01"),
+	}
+}
+
+_oss_nrm_proj := p if {
+	p := object.get(data.ontology, "operations_oss_unified_nrm_ts28532_mediation", null)
+	p != null
+} else := p if {
+	p := object.get(data.ontology, "operations_oss_mno_mocn_adapter_mediation", null)
+	p != null
+}
+
+violations contains v if {
+	oss_proj := _oss_nrm_proj
+	ed := object.get(input, "extended_domains", {})
+	tp := object.get(ed, "telecom_oss_smdp", {})
+	tp.oss_nrm_standard != oss_proj.nrm_standard
+	v := {
+		"rule": "data.archinex.edp.multiaxis.deny_unstandardized_oss_nrm_mediation",
+		"axis": "urn:archinex:ontology:axis:oss_smo_mediation",
+		"message": sprintf("Standard NRM de médiation OSS non conforme ('%v' au lieu de '%v')", [object.get(tp, "oss_nrm_standard", "absent"), oss_proj.nrm_standard]),
+		"violated_clause_urn": get_clause_urn(oss_proj, "urn:archinex:kb:clause:oss:unified_nrm_mediation"),
+		"violated_requirement_id": get_req_id(oss_proj, "REQ-OSS-NRM-01"),
+	}
+}
+
+violations contains v if {
+	smo_proj := object.get(data.ontology, "operations_smo_graduated_hitl_remediation", null)
+	smo_proj != null
+	ed := object.get(input, "extended_domains", {})
+	tp := object.get(ed, "telecom_oss_smdp", {})
+	tp.smo_hitl_approval != smo_proj.hitl_approval_required
+	v := {
+		"rule": "data.archinex.edp.multiaxis.deny_unapproved_closed_loop_automation",
+		"axis": "urn:archinex:ontology:axis:oss_automation_hitl",
+		"message": sprintf("Approbation humaine (Human-in-the-Loop) requise pour l'automatisation SMO (%v)", [smo_proj.hitl_approval_required]),
+		"violated_clause_urn": get_clause_urn(smo_proj, "urn:archinex:kb:clause:smo:hitl_remediation"),
+		"violated_requirement_id": get_req_id(smo_proj, "REQ-SMO-HITL-01"),
+	}
+}
+
+violations contains v if {
+	cmdb_proj := object.get(data.ontology, "operations_cmdb_nautobot_itsm_reconciliation", null)
+	cmdb_proj != null
+	ed := object.get(input, "extended_domains", {})
+	tp := object.get(ed, "telecom_oss_smdp", {})
+	tp.cmdb_sync_enabled != cmdb_proj.cmdb_sync_enabled
+	v := {
+		"rule": "data.archinex.edp.multiaxis.deny_desynchronized_cmdb_inventory",
+		"axis": "urn:archinex:ontology:axis:cmdb_asset_inventory",
+		"message": sprintf("Synchronisation bidirectionnelle CMDB / Inventaire OSS requise (%v)", [cmdb_proj.cmdb_sync_enabled]),
+		"violated_clause_urn": get_clause_urn(cmdb_proj, "urn:archinex:kb:clause:oss:cmdb_consistency"),
+		"violated_requirement_id": get_req_id(cmdb_proj, "REQ-OSS-CMDB-01"),
+	}
+}
+
+violations contains v if {
+	assur_proj := object.get(data.ontology, "operations_assurance_e2e_probes_5qi_qos", null)
+	assur_proj != null
+	ed := object.get(input, "extended_domains", {})
+	tp := object.get(ed, "telecom_oss_smdp", {})
+	tp.non_invasive_probes != assur_proj.non_invasive_probes_required
+	v := {
+		"rule": "data.archinex.edp.multiaxis.deny_missing_service_assurance_probes",
+		"axis": "urn:archinex:ontology:axis:service_assurance_probes",
+		"message": sprintf("Sondes actives bout-en-bout non-invasives requises (%v)", [assur_proj.non_invasive_probes_required]),
+		"violated_clause_urn": get_clause_urn(assur_proj, "urn:archinex:kb:clause:oss:service_assurance_probes"),
+		"violated_requirement_id": get_req_id(assur_proj, "REQ-OSS-Assurance-01"),
+	}
+}
+
+_non3gpp_proj := p if {
+	p := object.get(data.ontology, "network_interworking_n3iwf_epdg_ipsec", null)
+	p != null
+} else := p if {
+	p := object.get(data.ontology, "network_interworking_atsss_multipath_steering", null)
+	p != null
+}
+
+violations contains v if {
+	wlan_proj := _non3gpp_proj
+	ed := object.get(input, "extended_domains", {})
+	tp := object.get(ed, "telecom_oss_smdp", {})
+	tp.non3gpp_ipsec_enforced != wlan_proj.non3gpp_ipsec_enforced
+	v := {
+		"rule": "data.archinex.edp.multiaxis.deny_unencrypted_non3gpp_interworking",
+		"axis": "urn:archinex:ontology:axis:non3gpp_wlan_interworking",
+		"message": sprintf("Tunnel IPsec IKEv2 obligatoire pour l'interworking WLAN N3IWF/ePDG (%v)", [wlan_proj.non3gpp_ipsec_enforced]),
+		"violated_clause_urn": get_clause_urn(wlan_proj, "urn:archinex:kb:clause:telecom:n3iwf_ipsec"),
+		"violated_requirement_id": get_req_id(wlan_proj, "REQ-Telecom-WLAN-01"),
+	}
+}
+
+violations contains v if {
+	slice_proj := object.get(data.ontology, "telecom_core_slicing_5qi_sst_isolation", null)
+	slice_proj != null
+	ed := object.get(input, "extended_domains", {})
+	tp := object.get(ed, "telecom_oss_smdp", {})
+	tp.slice_isolation_enforced != slice_proj.slice_isolation_enforced
+	v := {
+		"rule": "data.archinex.edp.multiaxis.deny_unisolated_5g_network_slice",
+		"axis": "urn:archinex:ontology:axis:core_5g_network_slicing",
+		"message": sprintf("Isolement strict des tranches 5G S-NSSAI / 5QI requis (%v)", [slice_proj.slice_isolation_enforced]),
+		"violated_clause_urn": get_clause_urn(slice_proj, "urn:archinex:kb:clause:telecom:5g_slicing_isolation"),
+		"violated_requirement_id": get_req_id(slice_proj, "REQ-Core-Slicing-01"),
+	}
+}
+
+violations contains v if {
+	embms_proj := object.get(data.ontology, "application_broadcast_embms_5mbs_group_broadcast", null)
+	embms_proj != null
+	ed := object.get(input, "extended_domains", {})
+	tp := object.get(ed, "telecom_oss_smdp", {})
+	tp.embms_authenticated != embms_proj.embms_authenticated_required
+	v := {
+		"rule": "data.archinex.edp.multiaxis.deny_unauthenticated_embms_broadcast",
+		"axis": "urn:archinex:ontology:axis:embms_multicast_broadcast",
+		"message": sprintf("Authentification des flux multicast/broadcast eMBMS/5MBS requise (%v)", [embms_proj.embms_authenticated_required]),
+		"violated_clause_urn": get_clause_urn(embms_proj, "urn:archinex:kb:clause:mcx:embms_5mbs"),
+		"violated_requirement_id": get_req_id(embms_proj, "REQ-MCX-eMBMS-01"),
+	}
+}
+
+violations contains v if {
+	pqc_proj := object.get(data.ontology, "security_pqc_hybrid_mlkem_mldsa_agility", null)
+	pqc_proj != null
+	ed := object.get(input, "extended_domains", {})
+	tp := object.get(ed, "telecom_oss_smdp", {})
+	tp.pqc_hybrid_agility != pqc_proj.pqc_hybrid_agility_required
+	v := {
+		"rule": "data.archinex.edp.multiaxis.deny_non_pqc_crypto_agility",
+		"axis": "urn:archinex:ontology:axis:pqc_crypto_agility",
+		"message": sprintf("Profil crypto-agile hybride PQC (ML-KEM/ML-DSA) requis (%v)", [pqc_proj.pqc_hybrid_agility_required]),
+		"violated_clause_urn": get_clause_urn(pqc_proj, "urn:archinex:kb:clause:security:pqc_agility"),
+		"violated_requirement_id": get_req_id(pqc_proj, "REQ-Sec-PQC-01"),
+	}
+}
+
+# ==============================================================================
 # SYNTHÈSE DU VERDICT MULTI-AXES
 # ==============================================================================
 

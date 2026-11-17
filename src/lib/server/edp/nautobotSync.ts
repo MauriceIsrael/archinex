@@ -12,12 +12,18 @@ export interface NautobotSyncSummary {
   vlansSynced: number;
   devicesSynced: number;
   vpnTunnelsSynced: number;
+  tagsSynced: number;
+  vrfsSynced: number;
+  interfacesSynced: number;
+  ipAddressesSynced: number;
   urls: {
     circuits: string;
     tenants: string;
     devices: string;
     prefixes: string;
     vpnTunnels: string;
+    vrfs: string;
+    ipAddresses: string;
   };
   errors: string[];
 }
@@ -108,6 +114,47 @@ async function getOrCreateByQuery(
 }
 
 /**
+ * Normalise un identifiant de zone vers la convention `zone-<nom>` attendue par IP Flow Manager (`nautobot_adapter.py`).
+ */
+function toZoneTagName(zoneId: string): string {
+  const slug = zoneId
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9_-]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+  return `zone-${slug || 'default'}`.slice(0, 100);
+}
+
+/**
+ * Calcule le préfixe réseau IPv4 (ex. `10.20.0.10/24` -> `10.20.0.0/24`) pour alimenter IPAM.
+ */
+function cidrToNetworkPrefix(cidr: string): string | null {
+  const match = cidr.trim().match(/^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})\/(\d{1,2})$/);
+  if (!match) return null;
+  const octets = [Number(match[1]), Number(match[2]), Number(match[3]), Number(match[4])];
+  const prefixLen = Number(match[5]);
+  if (octets.some((o) => o < 0 || o > 255) || prefixLen < 0 || prefixLen > 32) return null;
+
+  const ipInt = ((octets[0] << 24) | (octets[1] << 16) | (octets[2] << 8) | octets[3]) >>> 0;
+  const mask = prefixLen === 0 ? 0 : (0xffffffff << (32 - prefixLen)) >>> 0;
+  const netInt = (ipInt & mask) >>> 0;
+
+  return `${(netInt >>> 24) & 255}.${(netInt >>> 16) & 255}.${(netInt >>> 8) & 255}.${netInt & 255}/${prefixLen}`;
+}
+
+function mapNautobotInterfaceType(ifaceType: string): string {
+  const norm = ifaceType.trim().toLowerCase();
+  if (norm === 'management' || norm === 'oob') return '1000base-t';
+  if (norm.includes('sriov') || norm.includes('dpdk') || norm === 'data' || norm.includes('10g')) {
+    return '10gbase-x-sfpp';
+  }
+  if (norm.includes('virtual') || norm.includes('loopback') || norm.includes('tunnel')) {
+    return 'virtual';
+  }
+  return '1000base-t';
+}
+
+/**
  * Synchronise de manière idempotente l'inventaire hydraté multi-axes et son graphe de réconciliation
  * (Tenants Lot 2/3, Provider, CircuitType, Circuit S6a `link-ip-lot3-secgw1`, Terminaisons A/Z,
  * Objets natifs du module VPN Nautobot 2.2+ : `vpn.IKEProposal`, `vpn.IPSecProposal`, `vpn.VPNProfile`, `vpn.VPNTunnel`,
@@ -127,12 +174,18 @@ export async function syncHydratedInventoryToNautobot(
     vlansSynced: 0,
     devicesSynced: 0,
     vpnTunnelsSynced: 0,
+    tagsSynced: 0,
+    vrfsSynced: 0,
+    interfacesSynced: 0,
+    ipAddressesSynced: 0,
     urls: {
       circuits: `${baseUrl}/circuits/circuits/`,
       tenants: `${baseUrl}/tenancy/tenants/`,
       devices: `${baseUrl}/dcim/devices/`,
       prefixes: `${baseUrl}/ipam/prefixes/`,
-      vpnTunnels: `${baseUrl}/vpn/vpn-tunnels/`
+      vpnTunnels: `${baseUrl}/vpn/vpn-tunnels/`,
+      vrfs: `${baseUrl}/ipam/vrfs/`,
+      ipAddresses: `${baseUrl}/ipam/ip-addresses/`
     },
     errors: []
   };
@@ -228,6 +281,91 @@ export async function syncHydratedInventoryToNautobot(
     }
 
     const pivotTenantUuid = tenantIdMap.get(rg?.pivot_tenant_id || 'org-lot3-mno') || null;
+
+    // 1bis. Tags `zone-<nom>` (/api/extras/tags/), Plateformes (/api/dcim/platforms/) et VRFs (/api/ipam/vrfs/)
+    //       pour alimenter le tirage en lecture seule d'IP Flow Manager (`nautobot_adapter.py`).
+    const zoneTagCache = new Map<string, { name: string; id?: string }>();
+    const ensureZoneTag = async (zoneId: string): Promise<{ name: string; id?: string } | null> => {
+      const tagName = toZoneTagName(zoneId);
+      if (zoneTagCache.has(tagName)) return zoneTagCache.get(tagName)!;
+      try {
+        const tagObj = await getOrCreateByQuery(
+          '/api/extras/tags/',
+          `name=${encodeURIComponent(tagName)}`,
+          {
+            name: tagName,
+            color: '009688',
+            content_types: ['dcim.device', 'ipam.prefix', 'ipam.vrf', 'circuits.circuit'],
+            description: `Zone de sécurité Archinex (${zoneId})`
+          },
+          true,
+          clientOpts
+        );
+        const entry = tagObj?.id ? { id: String(tagObj.id), name: tagName } : { name: tagName };
+        zoneTagCache.set(tagName, entry);
+        summary.tagsSynced++;
+        return entry;
+      } catch (e: any) {
+        summary.errors.push(`Tag ${tagName}: ${e.message}`);
+        return null;
+      }
+    };
+
+    const platformCache = new Map<string, string>();
+    const ensurePlatform = async (name: string, description: string): Promise<string | null> => {
+      if (platformCache.has(name)) return platformCache.get(name)!;
+      try {
+        const platObj = await getOrCreateByQuery(
+          '/api/dcim/platforms/',
+          `name=${encodeURIComponent(name)}`,
+          { name, description },
+          true,
+          clientOpts
+        );
+        if (platObj?.id) {
+          platformCache.set(name, String(platObj.id));
+          return String(platObj.id);
+        }
+      } catch (e: any) {
+        summary.errors.push(`Platform ${name}: ${e.message}`);
+      }
+      return null;
+    };
+
+    const vrfIdMap = new Map<string, string>();
+    const syncedPrefixes = new Set<string>();
+    const securityZones = Array.isArray(hydrated.security_zones) ? hydrated.security_zones : [];
+    for (let zIdx = 0; zIdx < securityZones.length; zIdx++) {
+      const zone = securityZones[zIdx];
+      const zoneId = String(zone.zone_id || `zone-${zIdx + 1}`);
+      const zTag = await ensureZoneTag(zoneId);
+      const zoneSlug = zoneId.trim().toLowerCase().replace(/[^a-z0-9_-]+/g, '-');
+      const vrfName = `vrf-${zoneSlug}`.slice(0, 100);
+      try {
+        const vrfPayload: Record<string, unknown> = {
+          name: vrfName,
+          rd: `65001:${100 + zIdx}`,
+          description: `VRF Zone ${zoneId} | Isolation : ${zone.isolation_level || 'strict'} | Proxy : ${zone.proxy_required ? 'requis' : 'direct'}`
+        };
+        if (defaultNamespaceId) vrfPayload.namespace = defaultNamespaceId;
+        if (pivotTenantUuid) vrfPayload.tenant = pivotTenantUuid;
+        if (zTag) vrfPayload.tags = [{ name: zTag.name }];
+
+        const vrfObj = await getOrCreateByQuery(
+          '/api/ipam/vrfs/',
+          `name=${encodeURIComponent(vrfName)}`,
+          vrfPayload,
+          true,
+          clientOpts
+        );
+        if (vrfObj?.id) {
+          vrfIdMap.set(zoneSlug, String(vrfObj.id));
+          summary.vrfsSynced++;
+        }
+      } catch (e: any) {
+        summary.errors.push(`VRF ${vrfName}: ${e.message}`);
+      }
+    }
 
     // 2. Synchronisation du Provider, CircuitType, Circuit (`link-ip-lot3-secgw1`) & CircuitTerminations A/Z
     if (rg?.ip_underlay_links && rg.ip_underlay_links.length > 0) {
@@ -380,7 +518,10 @@ export async function syncHydratedInventoryToNautobot(
                 true,
                 clientOpts
               );
-              if (pfxObj?.id) summary.prefixesSynced++;
+              if (pfxObj?.id) {
+                syncedPrefixes.add(String(link.subnet));
+                summary.prefixesSynced++;
+              }
             } catch (e: any) {
               summary.errors.push(`Prefix ${link.subnet}: ${e.message}`);
             }
@@ -510,10 +651,136 @@ export async function syncHydratedInventoryToNautobot(
         clientOpts
       );
 
+      const platSylva = await ensurePlatform('sylva-capm3-rke2', 'Plateforme Bare-Metal Sylva (CAPM3 / RKE2)');
+      const platShadow = await ensurePlatform('3gpp-external-nrm', 'Équipement Tiers Externe 3GPP TS 28.620');
+      const platMediation = await ensurePlatform('sylva-cnf-mediation', 'Fonction Réseau CNF Médiation & Cœur');
+
+      const syncDeviceInterfacesAndIps = async (
+        deviceId: string,
+        deviceName: string,
+        ifaces: Array<{ name: string; type: string; ip?: string }>,
+        zoneHints: string[],
+        profileLabel: string
+      ): Promise<void> => {
+        let primaryIp4Id: string | null = null;
+        const matchedZoneSlug = zoneHints[0]?.trim().toLowerCase().replace(/[^a-z0-9_-]+/g, '-');
+        const zoneVrfId = matchedZoneSlug ? vrfIdMap.get(matchedZoneSlug) : undefined;
+
+        for (const iface of ifaces) {
+          try {
+            const ifaceName = String(iface.name);
+            const ifaceType = String(iface.type || 'data');
+            const isMgmt = ifaceType.toLowerCase() === 'management' || ifaceType.toLowerCase() === 'oob';
+            const ifaceObj = await getOrCreateByQuery(
+              '/api/dcim/interfaces/',
+              `device_id=${deviceId}&name=${encodeURIComponent(ifaceName)}`,
+              {
+                device: deviceId,
+                name: ifaceName,
+                type: mapNautobotInterfaceType(ifaceType),
+                mgmt_only: isMgmt,
+                enabled: true,
+                status: statusPlanned,
+                description: `Interface ${ifaceType} (${profileLabel})`
+              },
+              true,
+              clientOpts
+            );
+            if (ifaceObj?.id) {
+              summary.interfacesSynced++;
+            }
+
+            if (iface.ip) {
+              const rawIp = String(iface.ip).trim();
+              const ipCidr = rawIp.includes('/') ? rawIp : `${rawIp}/24`;
+              const netPrefix = cidrToNetworkPrefix(ipCidr);
+              if (netPrefix && !syncedPrefixes.has(netPrefix)) {
+                const pfxPayload: Record<string, unknown> = {
+                  prefix: netPrefix,
+                  status: statusActive,
+                  description: `Préfixe ${ifaceType} (${deviceName}:${ifaceName})`
+                };
+                if (defaultNamespaceId) pfxPayload.namespace = defaultNamespaceId;
+                if (pivotTenantUuid) pfxPayload.tenant = pivotTenantUuid;
+                if (!isMgmt && zoneVrfId) pfxPayload.vrf = zoneVrfId;
+
+                const pfxObj = await getOrCreateByQuery(
+                  '/api/ipam/prefixes/',
+                  `prefix=${encodeURIComponent(netPrefix)}`,
+                  pfxPayload,
+                  true,
+                  clientOpts
+                );
+                if (pfxObj?.id) {
+                  syncedPrefixes.add(netPrefix);
+                  summary.prefixesSynced++;
+                }
+              }
+
+              const ipPayload: Record<string, unknown> = {
+                address: ipCidr,
+                status: statusActive,
+                dns_name: `${deviceName}.${ifaceName}.local`.toLowerCase(),
+                description: `Adresse ${ifaceType} sur ${deviceName}:${ifaceName}`
+              };
+              if (defaultNamespaceId) ipPayload.namespace = defaultNamespaceId;
+
+              const ipObj = await getOrCreateByQuery(
+                '/api/ipam/ip-addresses/',
+                `address=${encodeURIComponent(ipCidr)}`,
+                ipPayload,
+                true,
+                clientOpts
+              );
+              if (ipObj?.id) {
+                summary.ipAddressesSynced++;
+                if (ifaceObj?.id) {
+                  try {
+                    await getOrCreateByQuery(
+                      '/api/ipam/ip-address-to-interface/',
+                      `ip_address=${ipObj.id}&interface=${ifaceObj.id}`,
+                      { ip_address: ipObj.id, interface: ifaceObj.id },
+                      false,
+                      clientOpts
+                    );
+                  } catch {
+                    // Ignorer si l'association IP ↔ Interface n'est pas supportée par l'instance cible
+                  }
+                }
+                if (isMgmt && !primaryIp4Id) {
+                  primaryIp4Id = String(ipObj.id);
+                }
+              }
+            }
+          } catch (e: any) {
+            summary.errors.push(`Interface ${deviceName}:${iface.name}: ${e.message}`);
+          }
+        }
+
+        if (primaryIp4Id) {
+          try {
+            await nbFetch(
+              `/api/dcim/devices/${deviceId}/`,
+              { method: 'PATCH', body: JSON.stringify({ primary_ip4: primaryIp4Id }) },
+              clientOpts
+            );
+          } catch {
+            // Ignorer si primary_ip4 ne peut être posé sur cette version/mock
+          }
+        }
+      };
+
       // 4a. Serveurs Bare-Metal Sylva
       for (const dev of hydrated.nautobot_planned_devices || []) {
         try {
           const isHpe = String(dev.device_type).toLowerCase().includes('dl380');
+          const devZoneIds = Array.isArray(dev.security_zones) ? dev.security_zones.map(String) : [];
+          const devZoneTags: Array<{ name: string }> = [];
+          for (const zId of devZoneIds) {
+            const zTag = await ensureZoneTag(zId);
+            if (zTag) devZoneTags.push({ name: zTag.name });
+          }
+
           const devPayload: Record<string, unknown> = {
             name: String(dev.name),
             device_type: isHpe ? dtDl380.id : dtR750.id,
@@ -522,10 +789,15 @@ export async function syncHydratedInventoryToNautobot(
             status: statusPlanned,
             comments: `Pool Sylva : ${dev.cluster_pool || 'sylva-default'} | Profil : ${dev.dataplane_profile || 'Standard'} | OOB : ${dev.oob_ip} | PDU : ${(dev.power_feeds as string[] || []).join(' + ')}`
           };
+          if (platSylva) devPayload.platform = platSylva;
           if (satisfiedClauses.length > 0) {
             devPayload.custom_fields = { satisfied_clauses: satisfiedClausesStr };
-            devPayload.tags = clauseTags;
           }
+          const combinedTags = [...clauseTags, ...devZoneTags];
+          if (combinedTags.length > 0) {
+            devPayload.tags = combinedTags;
+          }
+
           const devObj = await getOrCreateByQuery(
             '/api/dcim/devices/',
             `name=${encodeURIComponent(String(dev.name))}`,
@@ -536,16 +808,43 @@ export async function syncHydratedInventoryToNautobot(
           if (devObj?.id) {
             deviceIdMap.set(String(dev.name), devObj.id);
             summary.devicesSynced++;
+
+            const rawIfaces = Array.isArray(dev.interfaces)
+              ? (dev.interfaces as Array<{ name: string; type: string; ip?: string }>)
+              : [];
+            const ifacesToSync = [...rawIfaces];
+            if (dev.oob_ip && !ifacesToSync.some((i) => i.type === 'management' || i.name === 'oob0')) {
+              ifacesToSync.unshift({ name: 'oob0', type: 'management', ip: `${dev.oob_ip}/24` });
+            }
+            await syncDeviceInterfacesAndIps(
+              String(devObj.id),
+              String(dev.name),
+              ifacesToSync,
+              devZoneIds,
+              String(dev.dataplane_profile || 'Sylva')
+            );
           }
         } catch (e: any) {
           summary.errors.push(`Device ${dev.name}: ${e.message}`);
         }
       }
 
+      const underlayEndpoints = new Set<string>();
+      for (const link of rg?.ip_underlay_links || []) {
+        if (link.endpoint_a) underlayEndpoints.add(String(link.endpoint_a));
+        if (link.endpoint_z) underlayEndpoints.add(String(link.endpoint_z));
+      }
+
       // 4b. Équipements Externes Fictifs 3GPP NRM (ext-mme-lot3-01, ext-ran-cell-mobile-01)
       for (const ext of rg?.external_shadow_nodes || []) {
         try {
           const extTenantUuid = tenantIdMap.get(String(ext.tenant_ref)) || pivotTenantUuid;
+          const extZoneTags: Array<{ name: string }> = [];
+          if (ext.zone) {
+            const zTag = await ensureZoneTag(String(ext.zone));
+            if (zTag) extZoneTags.push({ name: zTag.name });
+          }
+
           const payload: Record<string, unknown> = {
             name: String(ext.id),
             device_type: dt3gppShadow.id,
@@ -554,7 +853,9 @@ export async function syncHydratedInventoryToNautobot(
             status: statusPlanned,
             comments: `3GPP TS 28.620 ${ext.nrm_3gpp_class} (Shadow Object hors contrôle Lot 1) | Zone : ${ext.zone} | Tenant : ${ext.tenant_ref}`
           };
+          if (platShadow) payload.platform = platShadow;
           if (extTenantUuid) payload.tenant = extTenantUuid;
+          if (extZoneTags.length > 0) payload.tags = extZoneTags;
 
           const extObj = await getOrCreateByQuery(
             '/api/dcim/devices/',
@@ -566,6 +867,15 @@ export async function syncHydratedInventoryToNautobot(
           if (extObj?.id) {
             deviceIdMap.set(String(ext.id), extObj.id);
             summary.devicesSynced++;
+            if (underlayEndpoints.has(String(ext.id))) {
+              await syncDeviceInterfacesAndIps(
+                String(extObj.id),
+                String(ext.id),
+                [{ name: 'eth-interco', type: 'data' }],
+                ext.zone ? [String(ext.zone)] : [],
+                '3GPP External Interco'
+              );
+            }
           }
         } catch (e: any) {
           summary.errors.push(`Shadow node ${ext.id}: ${e.message}`);
@@ -575,6 +885,12 @@ export async function syncHydratedInventoryToNautobot(
       // 4c. Nœuds Internes de Médiation & Cœur Lot 1 (secgw-lot1-01, dea-lot1-01, hss-lot1-01)
       for (const node of rg?.internal_mediation_nodes || []) {
         try {
+          const nodeZoneTags: Array<{ name: string }> = [];
+          if (node.zone) {
+            const zTag = await ensureZoneTag(String(node.zone));
+            if (zTag) nodeZoneTags.push({ name: zTag.name });
+          }
+
           const payload: Record<string, unknown> = {
             name: String(node.id),
             device_type: dtMediationCnf.id,
@@ -583,9 +899,11 @@ export async function syncHydratedInventoryToNautobot(
             status: statusPlanned,
             comments: `3GPP ${node.nrm_3gpp_class} — ${node.role} | Zone : ${node.zone}`
           };
+          if (platMediation) payload.platform = platMediation;
           if (pivotTenantUuid && node.id !== 'hss-lot1-01') {
             payload.tenant = pivotTenantUuid;
           }
+          if (nodeZoneTags.length > 0) payload.tags = nodeZoneTags;
 
           const nodeObj = await getOrCreateByQuery(
             '/api/dcim/devices/',
@@ -597,6 +915,15 @@ export async function syncHydratedInventoryToNautobot(
           if (nodeObj?.id) {
             deviceIdMap.set(String(node.id), nodeObj.id);
             summary.devicesSynced++;
+            if (underlayEndpoints.has(String(node.id))) {
+              await syncDeviceInterfacesAndIps(
+                String(nodeObj.id),
+                String(node.id),
+                [{ name: 'eth-interco', type: 'data' }],
+                node.zone ? [String(node.zone)] : [],
+                String(node.role || 'Mediation CNF')
+              );
+            }
           }
         } catch (e: any) {
           summary.errors.push(`Mediation node ${node.id}: ${e.message}`);

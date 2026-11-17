@@ -476,6 +476,188 @@ export const TOGAF_REFERENCE_BUILDING_BLOCKS: ReferenceBuildingBlock[] = [
 		defaultLeafUrn: 'urn:archinex:ontology:facilities:timing:gnss_ieee1588_stratum1',
 		rationale: 'Conditionne la corrélation des journaux SIEM, la validité cryptographique et la synchronisation radio/cœur.',
 		keywords: ['synchronisation temporelle', 'horloge', 'ntp', 'chrony', 'stratum', 'gnss', 'gps', 'ieee 1588', 'synce']
+	},
+
+	// --- 8. Terminaux, OS Endpoints & MDM / EMM + Services Managés eSIM SM-DP+, OSS/SMO/CMDB, Interworking WLAN, eMBMS/Slicing & PQC ---
+	{
+		id: 'esim-smdp-provisioning',
+		title: 'Provisioning eSIM SM-DP+ (GSMA SGP.22), Certification SAS-SM & Gouvernance 4-Yeux',
+		togafDomain: 'security-trust',
+		documentEngineLayer: 'component',
+		defaultDecisionType: 'type1_deliberate',
+		axisUrn: 'urn:archinex:ontology:axis:esim_smdp_provisioning',
+		defaultLeafUrn: 'urn:archinex:ontology:security:esim:smdp_sas_sm_eu_hsm',
+		logicalComponentName: 'esim-smdp',
+		rationale: 'Encadre l’hébergement souverain SAS-SM, le HSM FIPS 140-3 L3 et la double approbation 4-yeux des profils eSIM.',
+		keywords: ['smdp+', 'sm-dp+', 'esim', 'euicc', 'sgp.22', 'sas-sm', 'profil sim', '4-yeux', 'four-eyes', 'provisioning sim']
+	},
+	{
+		id: 'oss-smo-mediation',
+		title: 'Médiation OSS / EMS & Modèle NRM Unifié (3GPP TS 28.532 / MOCN)',
+		togafDomain: 'operations-observability',
+		documentEngineLayer: 'component',
+		defaultDecisionType: 'type1_deliberate',
+		axisUrn: 'urn:archinex:ontology:axis:oss_smo_mediation',
+		defaultLeafUrn: 'urn:archinex:ontology:operations:oss:unified_nrm_ts28532_mediation',
+		logicalComponentName: 'oss-smo-mediation',
+		rationale: 'Normalise les compteurs et alarmes multi-fournisseurs vers un NRM unifié et encadre les interfaces EMS/MNO.',
+		keywords: ['oss', 'smo', 'ems', 'nrm', 'ts 28.532', 'fcaps', 'mediation oss', 'restconf', 'netconf', 'mocn', 'ran tiers']
+	},
+	{
+		id: 'oss-automation-hitl',
+		title: 'Automatisation SMO/OSS, Corrélation RCA & Human-in-the-Loop',
+		togafDomain: 'operations-observability',
+		documentEngineLayer: 'component',
+		defaultDecisionType: 'type1_deliberate',
+		axisUrn: 'urn:archinex:ontology:axis:oss_automation_hitl',
+		defaultLeafUrn: 'urn:archinex:ontology:operations:smo:graduated_hitl_remediation',
+		logicalComponentName: 'oss-smo-mediation',
+		rationale: 'Arbitre le degré d’automatisation en boucle fermée vs approbation humaine et la corrélation RCA.',
+		keywords: ['boucle fermee', 'closed loop', 'human-in-the-loop', 'approbation humaine', 'remediation', 'rca', 'correlation alarmes', 'aiops']
+	},
+	{
+		id: 'cmdb-asset-inventory',
+		title: 'Inventaire Réseau, CMDB & Réconciliation ITSM Encadrée',
+		togafDomain: 'operations-observability',
+		documentEngineLayer: 'component',
+		defaultDecisionType: 'type2_default_ratify',
+		axisUrn: 'urn:archinex:ontology:axis:cmdb_asset_inventory',
+		defaultLeafUrn: 'urn:archinex:ontology:operations:cmdb:nautobot_itsm_reconciliation',
+		logicalComponentName: 'cmdb-inventory',
+		rationale: 'Garantit la cohérence entre l’inventaire OSS/Nautobot, la découverte automatique et la CMDB ITSM.',
+		keywords: ['cmdb', 'itsm', 'inventaire', 'decouverte automatique', 'referentiel actifs', 'reconciliation inventaire']
+	},
+	{
+		id: 'service-assurance-probes',
+		title: 'Assurance de Service, Sondes Actives Bout-en-Bout & Gouvernance QoS 5QI',
+		togafDomain: 'operations-observability',
+		documentEngineLayer: 'component',
+		defaultDecisionType: 'type1_deliberate',
+		axisUrn: 'urn:archinex:ontology:axis:service_assurance_probes',
+		defaultLeafUrn: 'urn:archinex:ontology:operations:assurance:e2e_probes_5qi_qos',
+		logicalComponentName: 'oss-smo-mediation',
+		rationale: 'Mesure les KPI bout-en-bout (latence, gigue, 5QI) sans sondes invasives dans les équipements tiers.',
+		keywords: ['sonde active', 'sondes actives', 'assurance de service', 'service assurance', '5qi', 'qos', 'kpi ptt', 'latence voix', 'mcptt']
+	},
+	{
+		id: 'non3gpp-wlan-interworking',
+		title: 'Interworking Wi-Fi / WLAN Offload Non-3GPP (N3IWF / ePDG / ATSSS)',
+		togafDomain: 'network-connectivity',
+		documentEngineLayer: 'infrastructure',
+		defaultDecisionType: 'type1_deliberate',
+		axisUrn: 'urn:archinex:ontology:axis:non3gpp_wlan_interworking',
+		defaultLeafUrn: 'urn:archinex:ontology:network:interworking:n3iwf_epdg_ipsec',
+		logicalComponentName: 'n3iwf-epdg-gateway',
+		rationale: 'Sécurise l’accès au cœur 5G/4G depuis des réseaux WLAN/Wi-Fi non approuvés via N3IWF/ePDG.',
+		keywords: ['n3iwf', 'epdg', 'atsss', 'wlan offload', 'wifi offload', 'wi-fi', 'non-3gpp', 'interworking']
+	},
+	{
+		id: 'core-5g-network-slicing',
+		title: 'Tranchage Réseau 5G (Network Slicing SST / S-NSSAI / 5QI)',
+		togafDomain: 'network-connectivity',
+		documentEngineLayer: 'component',
+		defaultDecisionType: 'type1_deliberate',
+		axisUrn: 'urn:archinex:ontology:axis:core_5g_network_slicing',
+		defaultLeafUrn: 'urn:archinex:ontology:telecom:core:slicing_5qi_sst_isolation',
+		logicalComponentName: 'core-network',
+		rationale: 'Isole les tranches de service critiques (PPDR, télémétrie, gestion) par S-NSSAI, DNN et priorité 5QI.',
+		keywords: ['slicing', 'network slicing', 'tranche 5g', 'tranches 5g', 'sst', 'sd', 'nssai', 's-nssai', 'dnn']
+	},
+	{
+		id: 'embms-multicast-broadcast',
+		title: 'Diffusion Multicast / Broadcast Groupe Mission-Critical (eMBMS / 5MBS)',
+		togafDomain: 'application-business',
+		documentEngineLayer: 'application',
+		defaultDecisionType: 'type1_deliberate',
+		axisUrn: 'urn:archinex:ontology:axis:embms_multicast_broadcast',
+		defaultLeafUrn: 'urn:archinex:ontology:application:broadcast:embms_5mbs_group_broadcast',
+		logicalComponentName: 'ptt-server',
+		rationale: 'Optimise la diffusion de groupe PPDR/PTT sur cellule radio via BM-SC / eMBMS / 5MBS avec repli unicast.',
+		keywords: ['embms', '5mbs', 'mbs', 'multicast', 'broadcast', 'diffusion groupe', 'bm-sc', 'mbms']
+	},
+	{
+		id: 'pqc-crypto-agility',
+		title: 'Cryptographie Post-Quantique (PQC ML-KEM / ML-DSA) & Crypto-Agilité',
+		togafDomain: 'security-trust',
+		documentEngineLayer: 'component',
+		defaultDecisionType: 'type1_deliberate',
+		axisUrn: 'urn:archinex:ontology:axis:pqc_crypto_agility',
+		defaultLeafUrn: 'urn:archinex:ontology:security:pqc:hybrid_mlkem_mldsa_agility',
+		logicalComponentName: 'pki-ca',
+		rationale: 'Prépare la transition cryptographique par hybridation classique/PQC et rotation automatisée des certificats.',
+		keywords: ['pqc', 'post-quantique', 'post quantum', 'ml-kem', 'ml-dsa', 'kyber', 'dilithium', 'crypto-agilite', 'crypto agilite']
+	},
+	{
+		id: 'endpoint-mdm-enrollment',
+		title: 'Gestion de Flotte MDM / EMM & Enrôlement Zero-Touch des Terminaux',
+		togafDomain: 'operations-observability',
+		documentEngineLayer: 'component',
+		defaultDecisionType: 'type1_deliberate',
+		axisUrn: 'urn:archinex:ontology:axis:endpoint_mdm_enrollment',
+		defaultLeafUrn: 'urn:archinex:ontology:endpoint:mdm:emm_zero_touch_enrollment',
+		logicalComponentName: 'mdm-emm',
+		rationale: 'Encadre l’enrôlement supervisé, l’inventaire de flotte, la conformité de posture et la révocation à distance des terminaux.',
+		keywords: ['mdm', 'emm', 'uem', 'enrolement', 'enrollment', 'zero-touch', 'gestion de flotte', 'flotte terminaux', 'terminal', 'terminaux', 'endpoint', 'android enterprise', 'supervised']
+	},
+	{
+		id: 'endpoint-pki-enrollment',
+		title: 'Enrôlement PKI des Terminaux (SCEP / EST / ACME)',
+		togafDomain: 'security-trust',
+		documentEngineLayer: 'component',
+		defaultDecisionType: 'type2_default_ratify',
+		axisUrn: 'urn:archinex:ontology:axis:endpoint_pki_enrollment',
+		defaultLeafUrn: 'urn:archinex:ontology:security:pki:endpoint_scep_est_enrollment',
+		logicalComponentName: 'pki-ca',
+		rationale: 'Intègre la PKI centrale avec la plateforme MDM/EMM pour délivrer et renouveler automatiquement les certificats X.509 des terminaux.',
+		keywords: ['scep', 'est', 'enrolement certificat', 'certificat terminal', 'eap-tls', 'pki terminal', 'mdp certificat']
+	},
+	{
+		id: 'endpoint-os-hardening',
+		title: 'Durcissement OS Terminal, Verified Boot & Attestation Matérielle',
+		togafDomain: 'security-trust',
+		documentEngineLayer: 'component',
+		defaultDecisionType: 'type1_deliberate',
+		axisUrn: 'urn:archinex:ontology:axis:endpoint_os_hardening',
+		defaultLeafUrn: 'urn:archinex:ontology:endpoint:os:hardened_verified_boot',
+		logicalComponentName: 'endpoint-os-profile',
+		rationale: 'Impose le démarrage vérifié, le confinement SELinux/AppArmor et l’ancrage matériel TPM/Keystore sur les OS terminaux.',
+		keywords: ['os terminal', 'os terminaux', 'durcissement os', 'verified boot', 'secure boot', 'selinux', 'apparmor', 'keystore', 'tpm', 'strongbox', 'attestation materielle', 'bootloader']
+	},
+	{
+		id: 'endpoint-local-encryption',
+		title: 'Chiffrement Local des Données Terminal (FBE / BitLocker / LUKS2)',
+		togafDomain: 'data-persistence',
+		documentEngineLayer: 'component',
+		defaultDecisionType: 'type2_default_ratify',
+		axisUrn: 'urn:archinex:ontology:axis:endpoint_local_encryption',
+		defaultLeafUrn: 'urn:archinex:ontology:endpoint:crypto:fbe_hardware_keystore',
+		logicalComponentName: 'endpoint-os-profile',
+		rationale: 'Protège les données stockées localement sur le terminal contre le vol physique ou l’extraction hors ligne.',
+		keywords: ['chiffrement local', 'file-based encryption', 'fbe', 'full disk encryption', 'fde', 'bitlocker', 'stockage local chiffre', 'effacement distance', 'remote wipe']
+	},
+	{
+		id: 'endpoint-app-sandboxing',
+		title: 'Cloisonnement Applicatif, Profil Professionnel & Sandboxing Terminal',
+		togafDomain: 'security-trust',
+		documentEngineLayer: 'component',
+		defaultDecisionType: 'type2_default_ratify',
+		axisUrn: 'urn:archinex:ontology:axis:endpoint_app_sandboxing',
+		defaultLeafUrn: 'urn:archinex:ontology:endpoint:sandbox:work_profile_strict_isolation',
+		logicalComponentName: 'endpoint-os-profile',
+		rationale: 'Isole les applications métier, le presse-papier et les données sensibles via un profil professionnel ou un mode kiosque durci.',
+		keywords: ['sandboxing', 'sandbox', 'work profile', 'profil professionnel', 'kiosque', 'kiosk', 'cope', 'cobo', 'cloisonnement applicatif', 'liste blanche applicative']
+	},
+	{
+		id: 'endpoint-ota-updates',
+		title: 'Mises à Jour OTA Signées, Partitionnement A/B & Rollback Automatique',
+		togafDomain: 'operations-observability',
+		documentEngineLayer: 'component',
+		defaultDecisionType: 'type2_default_ratify',
+		axisUrn: 'urn:archinex:ontology:axis:endpoint_ota_updates',
+		defaultLeafUrn: 'urn:archinex:ontology:endpoint:ota:signed_ab_staged_rollout',
+		logicalComponentName: 'mdm-emm',
+		rationale: 'Garantit le déploiement contrôlé par vagues des correctifs OS/applicatifs avec signature cryptographique et retour arrière A/B.',
+		keywords: ['ota', 'mise a jour ota', 'fota', 'patch management', 'rollback', 'a/b partition', 'fenetre de maintenance', 'conformite terminal', 'posture terminal']
 	}
 ];
 
@@ -498,6 +680,8 @@ const LEGACY_TO_TOGAF_MAP: Record<string, TogafDomainId> = {
 	'pki': 'security-trust',
 	'trust': 'security-trust',
 	'diffusion-restreinte': 'security-trust',
+	'endpoint': 'security-trust',
+	'terminal': 'security-trust',
 
 	// Network & Connectivity
 	'network': 'network-connectivity',
@@ -527,6 +711,8 @@ const LEGACY_TO_TOGAF_MAP: Record<string, TogafDomainId> = {
 	'observability': 'operations-observability',
 	'resilience': 'operations-observability',
 	'operations': 'operations-observability',
+	'mdm': 'operations-observability',
+	'emm': 'operations-observability',
 	'general': 'operations-observability',
 	'cost': 'operations-observability',
 	'BR': 'operations-observability',

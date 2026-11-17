@@ -5,6 +5,7 @@
  */
 
 import type { ExtractedClause } from '$lib/domain/corpus';
+import { normalizeProposal } from '$lib/domain/factorization';
 import type { ArchitectRole } from '$lib/types/epistemic';
 import { localLlmClient } from './localLlmClient';
 import type {
@@ -128,7 +129,12 @@ RÈGLES D'OR DE FACTORISATION ARCHITECTURALE :
    - "initialRetenu" : 2 à 5 clauses clés du CCTP imposées par le client (avec référence, ex: "[§4.2] Latence critique < 10ms").
    - "expertQuestions" : Exactement 2 questions techniques précises adressées au SACHANT MÉTIER / donneur d'ordre, indispensables pour lever un angle mort et démarrer l'implémentation.
 8. COUVERTURE ET EXHAUSTIVITÉ INTÉGRALE :
-   - Répartis rigoureusement l'ensemble des clauses du CCTP dans "coveredClauseRefs" des différents sujets pour garantir 100% de traçabilité.`;
+   - Répartis rigoureusement l'ensemble des clauses du CCTP dans "coveredClauseRefs" des différents sujets pour garantir 100% de traçabilité.
+9. PROPOSITION INITIALE POUR LA MATRICE DE DÉCISION ("proposal") :
+   - Pour chaque sujet, prépare un point de départ structuré pour la matrice multicritère ("proposal") :
+     * "options" : 1 à 4 options d'architecture crédibles ("title" court, "summary" en 1 à 2 phrases). Si une seule option s'impose techniquement ou contractuellement, renseigne "singleOptionRationale" ; sinon mets null.
+     * "criteria" : 2 à 5 critères discriminants ("name", "kind" parmi "functional" | "nfr" | "cost" | "risk" | "compliance", "weight" entier de 1 à 5, "description").
+     * "evaluations" : une évaluation par paire (option, critère) avec "option" (titre EXACT), "criterion" (nom EXACT), "score" (entier de -2 à 2) et "justification" appuyée sur les exigences.`;
 
 	if (customDirectives && customDirectives.trim()) {
 		prompt += `\n\nDIRECTIVES PARTICULIÈRES DONNÉES PAR L'ARCHITECTE POUR CE DOSSIER :\n${customDirectives.trim()}`;
@@ -158,6 +164,23 @@ RÈGLES D'OR DE FACTORISATION ARCHITECTURALE :
         "expertQuestions": [
           "Quel est le délai maximal admissible pour la synchronisation des alarmes critiques vers le site centralisé ?",
           "Quelles sont les capacités de traitement bordure autorisées par la politique de sécurité locale ?"
+        ]
+      },
+      "proposal": {
+        "options": [
+          { "title": "Traitement en bordure avec remontée agrégée", "summary": "Sondes de corrélation locales dans chaque salle d'opérations et remontée d'alertes synthétiques." },
+          { "title": "Supervision centralisée temps réel", "summary": "Collecte brute vers le SOC/NOC central sous réserve de liens dédiés faible latence." }
+        ],
+        "singleOptionRationale": null,
+        "criteria": [
+          { "name": "Latence de corrélation", "kind": "nfr", "weight": 5, "description": "Respect du seuil < 10ms sur incidents temps réel." },
+          { "name": "Coût d'exploitation multi-sites", "kind": "cost", "weight": 3, "description": "Effort de déploiement et de maintien en conditions opérationnelles." }
+        ],
+        "evaluations": [
+          { "option": "Traitement en bordure avec remontée agrégée", "criterion": "Latence de corrélation", "score": 2, "justification": "Traitement local garantissant une latence inférieure à 10ms (§4.2)." },
+          { "option": "Traitement en bordure avec remontée agrégée", "criterion": "Coût d'exploitation multi-sites", "score": -1, "justification": "Exploitation distribuée sur plusieurs sites." },
+          { "option": "Supervision centralisée temps réel", "criterion": "Latence de corrélation", "score": -1, "justification": "Exposé à la latence réseau WAN pour les alertes critiques." },
+          { "option": "Supervision centralisée temps réel", "criterion": "Coût d'exploitation multi-sites", "score": 2, "justification": "Plateforme unique centralisée." }
         ]
       }
     }
@@ -725,6 +748,8 @@ export async function factorizeRfpMapReduce(
 				if (!matchedKb.includes(adr)) matchedKb.push(adr);
 			}
 
+			const proposal = normalizeProposal(s.proposal);
+
 			return {
 				id: s.id || `SUBJ-${String(idx + 1).padStart(2, '0')}`,
 				lotId: s.lotId || inferLotFromRef(s.sectionRef || s.name),
@@ -742,7 +767,8 @@ export async function factorizeRfpMapReduce(
 					initialHypothesis: s.seed?.initialHypothesis || `Conception architecturale pour ${s.name}`,
 					initialConflict: s.seed?.initialConflict || undefined,
 					initialQuestion: s.seed?.initialQuestion || `Comment concilier les exigences pour ${s.name} ?`
-				}
+				},
+				...(proposal ? { proposal } : {})
 			};
 		});
 	} else {
@@ -1095,25 +1121,29 @@ export async function factorizeRfpWithLocalLlm(
 		console.log(`🎯 [Factorisation RFP] ${parsed.subjects.length} sujets d'architecture bruts reçus.`);
 
 		const subjects: FactorizedArchitecturalSubject[] = parsed.subjects.map(
-			(s: any, idx: number) => ({
-				id: s.id || `SUBJ-${String(idx + 1).padStart(2, '0')}`,
-				lotId: s.lotId || inferLotFromRef(s.sectionRef || s.name),
-				name: s.name || `Sujet d'Architecture ${idx + 1}`,
-				sectionRef: s.sectionRef || `§${idx + 1}.0`,
-				coveredClauseRefs: Array.isArray(s.coveredClauseRefs) ? s.coveredClauseRefs : [],
-				matchedKbItemIds: Array.isArray(s.matchedKbItemIds) ? s.matchedKbItemIds : [],
-				knowledgeAlignment: normalizeAlignment(s.knowledgeAlignment),
-				alignmentRationale: s.alignmentRationale || 'Synthèse issue de la décomposition architecturale',
-				initialLevel: normalizeLevel(s.initialLevel),
-				waitingForRole: normalizeRole(s.waitingForRole),
-				effort: s.effort === 'XL' || s.effort === 'L' || s.effort === 'S' ? s.effort : 'M',
-				seed: {
-					initialRetenu: Array.isArray(s.seed?.initialRetenu) ? s.seed.initialRetenu : [],
-					initialHypothesis: s.seed?.initialHypothesis || `Conception architecturale pour ${s.name}`,
-					initialConflict: s.seed?.initialConflict || undefined,
-					initialQuestion: s.seed?.initialQuestion || `Comment concilier les exigences pour ${s.name} ?`
-				}
-			})
+			(s: any, idx: number) => {
+				const proposal = normalizeProposal(s.proposal);
+				return {
+					id: s.id || `SUBJ-${String(idx + 1).padStart(2, '0')}`,
+					lotId: s.lotId || inferLotFromRef(s.sectionRef || s.name),
+					name: s.name || `Sujet d'Architecture ${idx + 1}`,
+					sectionRef: s.sectionRef || `§${idx + 1}.0`,
+					coveredClauseRefs: Array.isArray(s.coveredClauseRefs) ? s.coveredClauseRefs : [],
+					matchedKbItemIds: Array.isArray(s.matchedKbItemIds) ? s.matchedKbItemIds : [],
+					knowledgeAlignment: normalizeAlignment(s.knowledgeAlignment),
+					alignmentRationale: s.alignmentRationale || 'Synthèse issue de la décomposition architecturale',
+					initialLevel: normalizeLevel(s.initialLevel),
+					waitingForRole: normalizeRole(s.waitingForRole),
+					effort: s.effort === 'XL' || s.effort === 'L' || s.effort === 'S' ? s.effort : 'M',
+					seed: {
+						initialRetenu: Array.isArray(s.seed?.initialRetenu) ? s.seed.initialRetenu : [],
+						initialHypothesis: s.seed?.initialHypothesis || `Conception architecturale pour ${s.name}`,
+						initialConflict: s.seed?.initialConflict || undefined,
+						initialQuestion: s.seed?.initialQuestion || `Comment concilier les exigences pour ${s.name} ?`
+					},
+					...(proposal ? { proposal } : {})
+				};
+			}
 		);
 
 		// Calcul de la couverture et réconciliation des clauses orphelines

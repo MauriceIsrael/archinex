@@ -9,13 +9,29 @@ import {
 	updateDebateRun,
 	type CreateArgumentData
 } from '../projects/debateDb';
-import { runProposerAgent } from './proposer';
+import { runProposerWithProposal } from './proposer';
+import { seedSubjectProposal } from '../projects/proposalSeeder';
+import type { SubjectProposal } from '$lib/domain/factorization';
 import { runChallengerAgent } from './challenger';
 import { runVerifierAgent } from './verifier';
 import { runSynthesizerAgent } from './synthesizer';
 import { doctrineService } from '../doctrine/doctrineService';
 import type { ActorInfo } from '../projects/projectsDb';
 import type { DebateRun, Argument } from '$lib/domain/debate';
+
+const PROPOSER_ACTOR: ActorInfo = { userId: 'agent:proposer', role: 'architect_agent', productionMode: 'llm-derived' };
+
+async function materializeProposerProposal(subjectId: string, proposal: SubjectProposal | undefined) {
+	if (!proposal) return null;
+	const seeded = await seedSubjectProposal(subjectId, proposal, PROPOSER_ACTOR);
+	if (proposal.singleOptionRationale) {
+		await prisma.subject.update({
+			where: { id: subjectId },
+			data: { singleOptionRationale: proposal.singleOptionRationale }
+		});
+	}
+	return seeded;
+}
 
 export interface OrchestrationResult {
 	run: DebateRun;
@@ -89,7 +105,7 @@ export async function orchestrateDebate(
 			const existingArgs = await listArguments(subjectId);
 
 			// 1. Proposer Agent
-			const proposerArgs = await runProposerAgent({
+			const { arguments: proposerArgs } = await runProposerWithProposal({
 				subject: { id: subject.id, name: subject.name, sectionRef: subject.sectionRef },
 				options: opts,
 				criteria: crits,
@@ -309,7 +325,7 @@ export async function invokeSpecificAgent(
 			break;
 		}
 		case 'proposer': {
-			const proposerArgs = await runProposerAgent({
+			const proposerResult = await runProposerWithProposal({
 				subject: { id: subject.id, name: subject.name, sectionRef: subject.sectionRef },
 				options: opts,
 				criteria: crits,
@@ -317,11 +333,14 @@ export async function invokeSpecificAgent(
 				round: currentRound,
 				contextPrompt
 			});
-			for (const arg of proposerArgs) {
+			if (opts.length === 0 && proposerResult.proposal) {
+				await materializeProposerProposal(subjectId, proposerResult.proposal);
+			}
+			for (const arg of proposerResult.arguments) {
 				const created = await createArgument(
 					subjectId,
 					arg,
-					{ userId: 'agent:proposer', role: 'architect_agent', productionMode: 'llm-derived' },
+					PROPOSER_ACTOR,
 					allowedKbRefs
 				);
 				createdArgs.push(created);

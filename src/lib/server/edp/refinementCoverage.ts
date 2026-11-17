@@ -2473,7 +2473,8 @@ export function composeMultiAxisHydration(
   const activeCatalog = instantiateCatalogFromOntologyBindings(
     bindings.map((b) => b.urn),
     DEFAULT_COMPONENT_CATALOG,
-    componentUrnMap
+    componentUrnMap,
+    { preserveBaseCatalog: true }
   );
   const componentLintIssues = activeCatalog.flatMap((comp) => [
     ...lintBaseComponentNoHardcodedEnv(comp),

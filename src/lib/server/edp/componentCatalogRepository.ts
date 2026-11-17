@@ -21,15 +21,20 @@ function getCatalogPath(projectId: string): string {
   return resolve(CATALOG_DIR, `${safeId}.json`);
 }
 
-export function getDefaultCatalogBundle(): ComponentCatalogBundle {
+export function getDefaultCatalogBundle(options?: {
+  includeDefaultComponents?: boolean;
+}): ComponentCatalogBundle {
   return {
     catalogs: structuredClone(DEFAULT_VALUE_CATALOGS),
-    components: structuredClone(DEFAULT_COMPONENT_CATALOG),
+    components: options?.includeDefaultComponents ? structuredClone(DEFAULT_COMPONENT_CATALOG) : [],
     overlays: structuredClone(DEFAULT_ENVIRONMENT_OVERLAYS)
   };
 }
 
-export function loadProjectComponentCatalog(projectId: string): ComponentCatalogBundle {
+export function loadProjectComponentCatalog(
+  projectId: string,
+  options?: { includeDefaultComponents?: boolean }
+): ComponentCatalogBundle {
   const filePath = getCatalogPath(projectId);
   if (existsSync(filePath)) {
     try {
@@ -38,16 +43,18 @@ export function loadProjectComponentCatalog(projectId: string): ComponentCatalog
         catalogs: parsed.catalogs || structuredClone(DEFAULT_VALUE_CATALOGS),
         components: Array.isArray(parsed.components)
           ? parsed.components
-          : structuredClone(DEFAULT_COMPONENT_CATALOG),
+          : options?.includeDefaultComponents
+            ? structuredClone(DEFAULT_COMPONENT_CATALOG)
+            : [],
         overlays: Array.isArray(parsed.overlays)
           ? parsed.overlays
           : structuredClone(DEFAULT_ENVIRONMENT_OVERLAYS)
       };
     } catch {
-      return getDefaultCatalogBundle();
+      return getDefaultCatalogBundle(options);
     }
   }
-  return getDefaultCatalogBundle();
+  return getDefaultCatalogBundle(options);
 }
 
 export function saveProjectComponentCatalog(

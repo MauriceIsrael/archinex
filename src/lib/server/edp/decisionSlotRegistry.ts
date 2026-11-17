@@ -202,6 +202,7 @@ export interface LiveLockedComponentEntry {
   transverseBindings: ComponentTransverseBindings;
   lockStatus: ComponentLockStatus;
   isEmergent: boolean;
+  isHydratedInProject?: boolean;
   sourceSlotIds: string[];
   sourceAxisTitles: string[];
   sourceLeafUrns: string[];
@@ -825,12 +826,15 @@ export async function buildProjectCompletenessLedger(
 
   const componentUrnMap = buildComponentUrnMap(resolvedCatalog);
   const storedBundle = loadProjectComponentCatalog(input.projectId);
-  const baseCatalog =
-    storedBundle.components.length > 0 ? storedBundle.components : DEFAULT_COMPONENT_CATALOG;
+  const hasSavedProjectComponents = storedBundle.components.length > 0;
+  const baseCatalog = hasSavedProjectComponents
+    ? storedBundle.components
+    : DEFAULT_COMPONENT_CATALOG;
   const activeCatalog = instantiateCatalogFromOntologyBindings(
     composedBindings.map((b) => b.urn),
     baseCatalog,
-    componentUrnMap
+    componentUrnMap,
+    { preserveBaseCatalog: hasSavedProjectComponents }
   );
   const instantiatedComponents = activeCatalog.map((c) => c.metadata.name).sort();
   const danglingReferences = verifyCatalogDanglingReferences(activeCatalog);
@@ -1011,11 +1015,13 @@ export async function batchRatifyProjectType2Slots(
 
   // Persistance des composants logiques transverses dans le catalogue projet
   const existingBundle = loadProjectComponentCatalog(input.projectId);
+  const hasSavedProjectComponents = existingBundle.components.length > 0;
   const componentUrnMap = buildComponentUrnMap(resolvedCatalog);
   const enrichedComponents = instantiateCatalogFromOntologyBindings(
     updatedLedger.composedBindings.map((b) => b.urn),
-    existingBundle.components.length > 0 ? existingBundle.components : DEFAULT_COMPONENT_CATALOG,
-    componentUrnMap
+    hasSavedProjectComponents ? existingBundle.components : DEFAULT_COMPONENT_CATALOG,
+    componentUrnMap,
+    { preserveBaseCatalog: hasSavedProjectComponents }
   );
   saveProjectComponentCatalog(input.projectId, {
     catalogs: existingBundle.catalogs,
@@ -1688,6 +1694,50 @@ export async function buildLiveArchitectureLockSnapshot(
         entry.lockStatus = 'default_proposed';
       }
     }
+  }
+
+  // Marquer les composants effectivement hydratés dans le périmètre du projet
+  // (liés à un slot, couverts par une exigence, émergents ou dépendances transitives d'un composant actif)
+  const hydratedNames = new Set<string>();
+  const hydrationQueue: string[] = [];
+  for (const entry of componentMap.values()) {
+    if (
+      entry.sourceSlotIds.length > 0 ||
+      entry.coveredRequirementRefs.length > 0 ||
+      entry.isEmergent ||
+      entry.lockStatus === 'locked' ||
+      entry.lockStatus === 'emergent_locked' ||
+      entry.lockStatus === 'default_proposed'
+    ) {
+      hydratedNames.add(entry.name);
+      hydrationQueue.push(entry.name);
+    }
+  }
+  while (hydrationQueue.length > 0) {
+    const cur = hydrationQueue.shift()!;
+    const entry = componentMap.get(cur);
+    if (!entry) continue;
+    for (const dep of entry.dependsOn) {
+      if (componentMap.has(dep) && !hydratedNames.has(dep)) {
+        hydratedNames.add(dep);
+        hydrationQueue.push(dep);
+      }
+    }
+    if (entry.transverseBindings.security.covered) {
+      for (const secComp of ['vault-cluster', 'pki-ca']) {
+        if (componentMap.has(secComp) && !hydratedNames.has(secComp)) {
+          hydratedNames.add(secComp);
+          hydrationQueue.push(secComp);
+        }
+      }
+    }
+    if (entry.transverseBindings.observability.covered && componentMap.has('siem-soc') && !hydratedNames.has('siem-soc')) {
+      hydratedNames.add('siem-soc');
+      hydrationQueue.push('siem-soc');
+    }
+  }
+  for (const entry of componentMap.values()) {
+    entry.isHydratedInProject = hydratedNames.has(entry.name);
   }
 
   const components = Array.from(componentMap.values());

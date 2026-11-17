@@ -17,6 +17,7 @@
 	let twinArbitrationMode = $state<'proposal' | 'client-mandated'>('proposal');
 	let showSushyEmulatorPreview = $state(false);
 	let selectedViewEnv = $state<'prod' | 'preprod' | 'lab'>('prod');
+	let includeReferenceCatalog = $state(false);
 	let showCatalogEditor = $state(false);
 	let projectCatalogState = $state<any>(null);
 	let decisionSlotsState = $state<any>(null);
@@ -71,7 +72,7 @@
 		try {
 			const [catRes, slotsRes] = await Promise.all([
 				fetch(
-					`/api/projects/${encodeURIComponent(projectId)}/catalog?env=${encodeURIComponent(selectedViewEnv)}&mode=${encodeURIComponent(twinArbitrationMode)}&mandatedProfile=${encodeURIComponent(selectedTwinProfileId)}`
+					`/api/projects/${encodeURIComponent(projectId)}/catalog?env=${encodeURIComponent(selectedViewEnv)}&mode=${encodeURIComponent(twinArbitrationMode)}&mandatedProfile=${encodeURIComponent(selectedTwinProfileId)}&includeReferenceCatalog=${includeReferenceCatalog}`
 				),
 				fetch(`/api/projects/${encodeURIComponent(projectId)}/decision-slots`)
 			]);
@@ -174,7 +175,9 @@
 	}
 
 	$effect(() => {
+		const _scope = includeReferenceCatalog;
 		if (projectId && selectedViewEnv && twinArbitrationMode && selectedTwinProfileId) {
+			void _scope;
 			void loadProjectCatalogViews();
 		}
 	});
@@ -611,6 +614,16 @@
 					data-testid="toggle-sushy-emulator-btn"
 				>
 					{showSushyEmulatorPreview ? 'Masquer sushy Redfish' : 'Bouchon Redfish sushy'}
+				</button>
+				<button
+					type="button"
+					onclick={() => (includeReferenceCatalog = !includeReferenceCatalog)}
+					class="px-2.5 py-1 rounded border font-semibold text-xs cursor-pointer {includeReferenceCatalog
+						? 'bg-slate-700 text-white border-slate-700'
+						: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/20'}"
+					data-testid="toggle-reference-catalog-btn"
+				>
+					{includeReferenceCatalog ? 'Catalogue complet (Réf.)' : 'Périmètre hydraté seul'}
 				</button>
 				<button
 					type="button"

@@ -45,7 +45,9 @@
 		onError = (msg: string) => {},
 		onCriteriaChanged = (_c: Criterion[]) => {},
 		onOptionsChanged = (_o: Option[]) => {},
-		onEvaluationsChanged = (_e: OptionEvaluation[]) => {}
+		onEvaluationsChanged = (_e: OptionEvaluation[]) => {},
+		onInvokeProposer,
+		isProposing = false
 	}: {
 		projectId: string;
 		subjectId: string;
@@ -61,6 +63,8 @@
 		onCriteriaChanged?: (newCriteria: Criterion[]) => void;
 		onOptionsChanged?: (newOptions: Option[]) => void;
 		onEvaluationsChanged?: (newEvaluations: OptionEvaluation[]) => void;
+		onInvokeProposer?: () => void;
+		isProposing?: boolean;
 	} = $props();
 
 	// Modal states
@@ -577,9 +581,22 @@
 
 	<!-- Grille Matrice -->
 	{#if options.length === 0 && criteria.length === 0}
-		<div class="p-8 text-center text-xs text-muted-foreground border rounded-xl bg-card space-y-2">
+		<div class="p-8 text-center text-xs text-muted-foreground border rounded-xl bg-card space-y-3">
 			<p class="font-semibold text-foreground">Matrice non alimentée.</p>
 			<p>Générez les critères et options via l'élicitation LLM ou ajoutez-les manuellement ci-dessus.</p>
+			{#if onInvokeProposer}
+				<div class="pt-1">
+					<button
+						type="button"
+						onclick={() => onInvokeProposer?.()}
+						disabled={isProposing}
+						class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 hover:bg-amber-500/25 transition-colors cursor-pointer disabled:opacity-50"
+					>
+						<Sparkles class="h-3.5 w-3.5 {isProposing ? 'animate-spin' : ''}" />
+						<span>{isProposing ? 'Génération en cours…' : 'Proposer options & critères (@proposer)'}</span>
+					</button>
+				</div>
+			{/if}
 		</div>
 	{:else}
 		<div class="rounded-xl border bg-card overflow-x-auto shadow-2xs">
@@ -591,8 +608,19 @@
 						</th>
 						{#if options.length === 0}
 							<th class="p-2.5 text-center text-muted-foreground font-normal min-w-[240px]">
-								<div class="flex items-center justify-center gap-2 py-1">
+								<div class="flex items-center justify-center gap-2 py-1 flex-wrap">
 									<span class="text-xs italic">Aucune option d'architecture définie</span>
+									{#if onInvokeProposer}
+										<button
+											type="button"
+											onclick={() => onInvokeProposer?.()}
+											disabled={isProposing}
+											class="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[11px] font-semibold bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30 hover:bg-amber-500/25 transition-colors cursor-pointer disabled:opacity-50"
+										>
+											<Sparkles class="h-3 w-3 {isProposing ? 'animate-spin' : ''}" />
+											<span>{isProposing ? 'Génération…' : 'Proposer (@proposer)'}</span>
+										</button>
+									{/if}
 									<button
 										type="button"
 										onclick={() => (isAddingOption = true)}

@@ -18,7 +18,8 @@
 import { createHash } from 'node:crypto';
 import { z } from 'zod';
 import type { ExtractedClause } from '$lib/domain/corpus';
-import type { FactorizedArchitecturalSubject, KnowledgeAlignment, SubjectProposal, SubjectTriage } from '$lib/domain/factorization';
+import { normalizeProposal, type FactorizedArchitecturalSubject, type KnowledgeAlignment, type SubjectProposal, type SubjectTriage } from '$lib/domain/factorization';
+export { normalizeProposal };
 import type { ArchitectRole } from '$lib/types/epistemic';
 import { anthropicCapabilities, localLlmClient } from '$lib/server/llm/localLlmClient';
 import { cleanJsonString, inferTargetSubjectsCount, type KbItemSummary } from '$lib/server/llm/rfpFactorizer';
@@ -601,46 +602,7 @@ const InstructResponseSchema = SubjectItemSchema.omit({ coveredClauseRefs: true,
 	name: z.string().optional().nullable()
 });
 
-const CRITERION_KINDS = ['functional', 'nfr', 'cost', 'risk', 'compliance'] as const;
-const sameLabel = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase();
 
-/**
- * Contrôles déterministes de la proposition d'options et de critères. Fonction pure.
- * Les évaluations ne sont gardées que si elles visent une option et un critère proposés, avec une justification ;
- * la justification « pas d'alternative » n'a de sens qu'avec une option unique. Sans option, pas de proposition.
- */
-export function normalizeProposal(raw: z.infer<typeof ProposalSchema> | null | undefined): SubjectProposal | undefined {
-	const options: SubjectProposal['options'] = [];
-	for (const o of raw?.options ?? []) {
-		const title = (o.title || '').trim();
-		if (title && !options.some((x) => sameLabel(x.title, title)) && options.length < 4) {
-			options.push({ title, summary: (o.summary || '').trim() });
-		}
-	}
-	if (options.length === 0) return undefined;
-
-	const criteria: SubjectProposal['criteria'] = [];
-	for (const c of raw?.criteria ?? []) {
-		const name = (c.name || '').trim();
-		if (!name || criteria.some((x) => sameLabel(x.name, name)) || criteria.length >= 5) continue;
-		const kind = (CRITERION_KINDS as readonly string[]).includes((c.kind || '').trim()) ? (c.kind!.trim() as SubjectProposal['criteria'][number]['kind']) : 'nfr';
-		const weight = Math.max(1, Math.min(5, Math.round(c.weight ?? 3)));
-		criteria.push({ name, kind, weight, description: (c.description || '').trim() });
-	}
-
-	const evaluations: SubjectProposal['evaluations'] = [];
-	for (const e of raw?.evaluations ?? []) {
-		const option = options.find((o) => sameLabel(o.title, e.option || ''));
-		const criterion = criteria.find((c) => sameLabel(c.name, e.criterion || ''));
-		const justification = (e.justification || '').trim();
-		if (!option || !criterion || !justification || !Number.isFinite(e.score)) continue;
-		if (evaluations.some((x) => x.option === option.title && x.criterion === criterion.name)) continue;
-		evaluations.push({ option: option.title, criterion: criterion.name, score: Math.max(-2, Math.min(2, Math.round(e.score))), justification });
-	}
-
-	const singleOptionRationale = options.length === 1 ? (raw?.singleOptionRationale || '').trim() || undefined : undefined;
-	return { options, criteria, evaluations, ...(singleOptionRationale ? { singleOptionRationale } : {}) };
-}
 
 /**
  * Au-delà de cette taille, la cartographie est découpée en parties (dans l'ordre du document).

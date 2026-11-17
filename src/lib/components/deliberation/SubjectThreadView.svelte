@@ -1510,6 +1510,8 @@
 					void loadArgumentsAndContext();
 					deliberationStore.refreshSubjectFromServer(subjectId, projectId);
 				}}
+				onInvokeProposer={() => handleInvokeAgent('proposer')}
+				isProposing={invokingAgentRole === 'proposer'}
 				onError={(msg) => deliberationStore.logNotification(msg, 'warning')}
 			/>
 		</div>

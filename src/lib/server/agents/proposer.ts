@@ -1,5 +1,6 @@
 import { z } from 'zod';
 import { localLlmClient } from '../llm/localLlmClient';
+import { normalizeProposal, type SubjectProposal } from '$lib/domain/factorization';
 import type { Option, Criterion } from '$lib/domain/options';
 import type { CreateArgumentData } from '../projects/debateDb';
 import { AGENT_TIMEOUT_MS, FALLBACK_PREFIX } from './agentConfig';
@@ -17,16 +18,28 @@ const ProposerOutputSchema = z.object({
 	)
 });
 
-export async function runProposerAgent(input: {
+export interface ProposerInput {
 	subject: { id: string; name: string; sectionRef: string };
 	options: Option[];
 	criteria: Criterion[];
 	allowedKbRefs: string[];
 	round: number;
 	contextPrompt?: string;
-}): Promise<CreateArgumentData[]> {
+}
+
+export interface ProposerResult {
+	arguments: CreateArgumentData[];
+	proposal?: SubjectProposal;
+}
+
+export async function runProposerAgent(input: ProposerInput): Promise<CreateArgumentData[]> {
+	const result = await runProposerWithProposal(input);
+	return result.arguments;
+}
+
+export async function runProposerWithProposal(input: ProposerInput): Promise<ProposerResult> {
 	// Cas 1 : Aucune option d'architecture n'a encore été formalisée sur ce sujet
-	// L'agent Proposer aide l'architecte à amorcer la délibération en proposant 2 orientations techniques préliminaires
+	// L'agent Proposer amorce la délibération et fournit une proposition structurée (options, critères, évaluations) pour la matrice
 	if (input.options.length === 0) {
 		const userInstruction = input.contextPrompt && input.contextPrompt.trim()
 			? `\nDirectives et cadrage de l'architecte : "${input.contextPrompt.trim()}"`
@@ -34,25 +47,38 @@ export async function runProposerAgent(input: {
 
 		const systemPrompt = `Tu es l'agent Proposer au sein du comité d'architecture Archinex.
 L'architecte sollicite ton aide pour amorcer la délibération sur le sujet : "${input.subject.sectionRef} ${input.subject.name}".
-Ce sujet n'a pas encore d'options d'architecture formalisées.
-Ta mission : Formuler une proposition concrète adaptée à la demande de l'architecte.${userInstruction}
+Ce sujet n'a pas encore d'options d'architecture formalisées dans sa matrice de décision.
+Ta mission : Formuler une proposition concrète adaptée à la demande de l'architecte ET alimenter la matrice multicritère.${userInstruction}
 
 RÈGLES D'OR :
 - Reste concis, direct et hautement technique (proscris tout bavardage ou formule de politesse).
-- Si l'architecte demande de décomposer, scinder ou séparer le sujet (ex: NOC vs SOC, salles d'opérations distinctes) : détaille précisément la séparation en 2 sous-sujets d'architecture distincts avec leurs périmètres et questions clés.
-- Sinon : propose distinctement l'Option A (socle opérationnel / réactif) et l'Option B (socle sécurisé / distribué ou souverain).
+- Si l'architecte demande de décomposer, scinder ou séparer le sujet : détaille précisément la séparation en 2 sous-sujets d'architecture distincts avec leurs périmètres et questions clés (mets "proposal": null).
+- Sinon : propose 2 à 3 options contrastées dans "proposal" (avec 2 à 5 critères discriminants et une évaluation score -2..2 par paire option/critère), ET résume le cadrage dans "arguments".
 - Réponds STRICTEMENT avec un JSON valide sous la forme :
 {
   "arguments": [
     {
       "optionId": null,
       "stance": "support",
-      "claim": "Proposition de cadrage et décomposition",
-      "grounds": "Détail de la proposition, périmètres recommandés ou options A vs B.",
+      "claim": "Proposition de cadrage et d'options d'architecture",
+      "grounds": "Détail synthétique des options et de leurs compromis principaux.",
       "kbRefs": [],
       "confidence": "designed"
     }
-  ]
+  ],
+  "proposal": {
+    "options": [
+      { "title": "Option A (nom court)", "summary": "En quoi elle consiste (1 à 2 phrases)" },
+      { "title": "Option B (nom court)", "summary": "En quoi elle consiste (1 à 2 phrases)" }
+    ],
+    "singleOptionRationale": null,
+    "criteria": [
+      { "name": "Nom court du critère", "kind": "nfr", "weight": 4, "description": "Ce que mesure ce critère" }
+    ],
+    "evaluations": [
+      { "option": "Option A (nom court)", "criterion": "Nom court du critère", "score": 1, "justification": "Justification technique" }
+    ]
+  }
 }`;
 
 		try {
@@ -60,7 +86,7 @@ RÈGLES D'OR :
 			const response = await localLlmClient.chat({
 				messages: [
 					{ role: 'system', content: systemPrompt },
-					{ role: 'user', content: `Sujet : ${input.subject.sectionRef} ${input.subject.name}\n${userInstruction}\nFormule ta proposition pour amorcer la délibération :` }
+					{ role: 'user', content: `Sujet : ${input.subject.sectionRef} ${input.subject.name}\n${userInstruction}\nFormule ta proposition pour amorcer la délibération et alimenter la matrice :` }
 				],
 				temperature: 0.15,
 				format: 'json',
@@ -70,8 +96,9 @@ RÈGLES D'OR :
 			const jsonMatch = response.match(/\{[\s\S]*\}/);
 			if (jsonMatch) {
 				const parsed = JSON.parse(jsonMatch[0]);
-				if (Array.isArray(parsed.arguments) && parsed.arguments.length > 0) {
-					return parsed.arguments.map((arg: any, idx: number) => ({
+				const proposal = normalizeProposal(parsed.proposal);
+				const mappedArgs: CreateArgumentData[] = Array.isArray(parsed.arguments) && parsed.arguments.length > 0
+					? parsed.arguments.map((arg: any, idx: number) => ({
 						id: `arg-prop-init-${Date.now()}-${idx}`,
 						optionId: null,
 						stance: 'support' as const,
@@ -81,7 +108,25 @@ RÈGLES D'OR :
 						confidence: 'designed' as const,
 						authorKind: 'agent:proposer',
 						round: input.round
-					}));
+					}))
+					: proposal
+						? [
+							{
+								id: `arg-prop-init-${Date.now()}-0`,
+								optionId: null,
+								stance: 'support' as const,
+								claim: `Options proposées pour ${input.subject.name}`,
+								grounds: proposal.options.map((o) => `${o.title} : ${o.summary}`).join(' | '),
+								kbRefs: [],
+								confidence: 'designed' as const,
+								authorKind: 'agent:proposer',
+								round: input.round
+							}
+						]
+						: [];
+
+				if (mappedArgs.length > 0 || proposal) {
+					return { arguments: mappedArgs, ...(proposal ? { proposal } : {}) };
 				}
 			}
 		} catch (err) {
@@ -96,25 +141,27 @@ RÈGLES D'OR :
 		);
 
 		// Repli déterministe d'amorce
-		return [
-			{
-				id: `arg-prop-init-${Date.now()}-0`,
-				optionId: null,
-				stance: 'support' as const,
-				claim: FALLBACK_PREFIX + (isSplitRequested
-					? `Proposition de scission en 2 sous-sujets : NOC et SOC`
-					: `Pistes de cadrage pour ${input.subject.name}`),
-				grounds: isSplitRequested
-					? `Sur la base de votre directive (« ${input.contextPrompt!.slice(0, 120)} »), nous recommandons de scinder ce macro-sujet en deux salles d'opérations distinctes : 1) Volet NOC (Supervision réseau, métriques temps réel et maintien en conditions opérationnelles) et 2) Volet SOC (Détection d'incidents, posture Zéro-Trust, isolation et conformité SecNumCloud). Vous pouvez utiliser le bouton « ✂️ Scinder ce sujet » ci-dessus pour acter ce découpage.`
-					: (input.contextPrompt
-						? `Sur la base de votre cadrage (« ${input.contextPrompt.slice(0, 120)} »), nous recommandons de décomposer ce problème en deux volets distincts et de formaliser les options dans la matrice multicritère.`
-						: `Ce sujet gagne à être articulé autour de 2 options contrastées : une approche intégrée à haute réactivité vs une approche étanche à isolation renforcée. Formalisez ces options pour engager le débat contradictoire.`),
-				kbRefs: input.allowedKbRefs.slice(0, 1),
-				confidence: 'designed' as const,
-				authorKind: 'agent:proposer',
-				round: input.round
-			}
-		];
+		return {
+			arguments: [
+				{
+					id: `arg-prop-init-${Date.now()}-0`,
+					optionId: null,
+					stance: 'support' as const,
+					claim: FALLBACK_PREFIX + (isSplitRequested
+						? `Proposition de scission en 2 sous-sujets : NOC et SOC`
+						: `Pistes de cadrage pour ${input.subject.name}`),
+					grounds: isSplitRequested
+						? `Sur la base de votre directive (« ${input.contextPrompt!.slice(0, 120)} »), nous recommandons de scinder ce macro-sujet en deux salles d'opérations distinctes : 1) Volet NOC (Supervision réseau, métriques temps réel et maintien en conditions opérationnelles) et 2) Volet SOC (Détection d'incidents, posture Zéro-Trust, isolation et conformité SecNumCloud). Vous pouvez utiliser le bouton « ✂️ Scinder ce sujet » ci-dessus pour acter ce découpage.`
+						: (input.contextPrompt
+							? `Sur la base de votre cadrage (« ${input.contextPrompt.slice(0, 120)} »), nous recommandons de décomposer ce problème en deux volets distincts et de formaliser les options dans la matrice multicritère.`
+							: `Ce sujet gagne à être articulé autour de 2 options contrastées : une approche intégrée à haute réactivité vs une approche étanche à isolation renforcée. Formalisez ces options pour engager le débat contradictoire.`),
+					kbRefs: input.allowedKbRefs.slice(0, 1),
+					confidence: 'designed' as const,
+					authorKind: 'agent:proposer',
+					round: input.round
+				}
+			]
+		};
 	}
 
 	const systemPrompt = `Tu es l'agent Proposer au sein du comité d'architecture Archinex.
@@ -152,38 +199,42 @@ Génère les arguments de soutien :`;
 			const validated = ProposerOutputSchema.parse(parsed);
 
 			// Filtrer et normaliser
-			return validated.arguments
-				.filter((arg) => input.options.some((o) => o.id === arg.optionId))
-				.map((arg, idx) => ({
-					id: `arg-prop-${input.round}-${Date.now()}-${idx}`,
-					optionId: arg.optionId,
-					stance: 'support',
-					claim: arg.claim.trim(),
-					grounds: arg.grounds.trim(),
-					kbRefs: arg.kbRefs.filter((ref) => input.allowedKbRefs.includes(ref)),
-					confidence: arg.confidence,
-					authorKind: 'agent:proposer',
-					round: input.round
-				}));
+			return {
+				arguments: validated.arguments
+					.filter((arg) => input.options.some((o) => o.id === arg.optionId))
+					.map((arg, idx) => ({
+						id: `arg-prop-${input.round}-${Date.now()}-${idx}`,
+						optionId: arg.optionId,
+						stance: 'support',
+						claim: arg.claim.trim(),
+						grounds: arg.grounds.trim(),
+						kbRefs: arg.kbRefs.filter((ref) => input.allowedKbRefs.includes(ref)),
+						confidence: arg.confidence,
+						authorKind: 'agent:proposer',
+						round: input.round
+					}))
+			};
 		}
 	} catch (err) {
 		console.warn('[ProposerAgent] Repli déterministe hors ligne :', (err as any).message);
 	}
 
 	// Repli déterministe hors ligne
-	return input.options.map((opt, idx) => {
-		const topCriterion = input.criteria[0]?.name || 'Performance & Stabilité';
-		const validKb = input.allowedKbRefs.length > 0 ? [input.allowedKbRefs[0]] : [];
-		return {
-			id: `arg-prop-${input.round}-${Date.now()}-${idx}`,
-			optionId: opt.id,
-			stance: 'support' as const,
-			claim: `${FALLBACK_PREFIX}Conformité optimale avec ${topCriterion}`,
-			grounds: `L'architecture de l'option '${opt.title}' maximise l'adéquation technique et simplifie l'intégration logicielle.`,
-			kbRefs: validKb,
-			confidence: 'assumed' as const,
-			authorKind: 'agent:proposer',
-			round: input.round
-		};
-	});
+	return {
+		arguments: input.options.map((opt, idx) => {
+			const topCriterion = input.criteria[0]?.name || 'Performance & Stabilité';
+			const validKb = input.allowedKbRefs.length > 0 ? [input.allowedKbRefs[0]] : [];
+			return {
+				id: `arg-prop-${input.round}-${Date.now()}-${idx}`,
+				optionId: opt.id,
+				stance: 'support' as const,
+				claim: `${FALLBACK_PREFIX}Conformité optimale avec ${topCriterion}`,
+				grounds: `L'architecture de l'option '${opt.title}' maximise l'adéquation technique et simplifie l'intégration logicielle.`,
+				kbRefs: validKb,
+				confidence: 'assumed' as const,
+				authorKind: 'agent:proposer',
+				round: input.round
+			};
+		})
+	};
 }

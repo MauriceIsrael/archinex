@@ -1,6 +1,7 @@
 <script lang="ts">
 	import type { MaturitySubject } from '$lib/domain/maturityBoard';
 	import type { TelegraphicDraft } from '$lib/domain/telegraphic';
+	import { matchClausesToSubject } from '$lib/domain/clauseMatching';
 	import {
 		Target,
 		Lightbulb,
@@ -99,29 +100,8 @@
 		const allClientClauses = deliberationStore.clientDocuments.flatMap((d) => d.keyClauses || []);
 		if (allClientClauses.length === 0) return [];
 
-		const bySection = allClientClauses.filter(
-			(c) =>
-				c.clauseRef.toLowerCase().includes(subject.section_ref.toLowerCase()) ||
-				subject.name.toLowerCase().includes(c.title.toLowerCase())
-		);
-		if (bySection.length > 0) {
-			return bySection.slice(0, 4).map((c) => `[${c.clauseRef}] ${c.title} : ${c.text}`);
-		}
-
-		const keywords = subject.name
-			.toLowerCase()
-			.split(/[\s,;:'"()]+/)
-			.filter((w) => w.length > 4 && !['pour', 'avec', 'dans', 'plus', 'tous', 'cette'].includes(w));
-		if (keywords.length > 0) {
-			const byKeyword = allClientClauses.filter((c) =>
-				keywords.some((k) => c.title.toLowerCase().includes(k) || c.text.toLowerCase().includes(k))
-			);
-			if (byKeyword.length > 0) {
-				return byKeyword.slice(0, 3).map((c) => `[${c.clauseRef}] ${c.title} : ${c.text}`);
-			}
-		}
-
-		return [];
+		const matched = matchClausesToSubject(subject, allClientClauses, 4);
+		return matched.map((c) => `[${c.clauseRef}] ${c.title} : ${c.text}`);
 	});
 
 	const expertQuestions = $derived.by(() => {

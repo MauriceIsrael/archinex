@@ -8,7 +8,11 @@
  */
 import type { Criterion, Option, OptionEvaluation, Decision } from './options';
 import type { Argument } from './debate';
-import { generateTargetArchitectureDiagram, generateDeploymentSequenceDiagram } from './artifactProjections';
+import {
+	generateTargetArchitectureDiagram,
+	generateDeploymentSequenceDiagram,
+	type ArchitectureProjectionPattern
+} from './artifactProjections';
 
 export type HldFragmentStatus = 'decided' | 'awaiting_review' | 'undecided';
 
@@ -46,6 +50,7 @@ export interface HldFragmentInput {
 	coverageWarnings?: string[];
 	targetArchitectureMermaid?: string;
 	deploymentSequenceMermaid?: string;
+	resolvedPattern?: ArchitectureProjectionPattern;
 	generatedAt: string;
 }
 
@@ -79,6 +84,7 @@ export interface HldFragment {
 	provenance: { modelProposedOptions: number; humanOptions: number; modelEvaluations: number; humanEvaluations: number };
 	targetArchitectureMermaid?: string;
 	deploymentSequenceMermaid?: string;
+	resolvedPattern?: ArchitectureProjectionPattern;
 	generatedAt: string;
 }
 
@@ -209,7 +215,8 @@ export function buildHldFragment(input: HldFragmentInput): HldFragment {
 			reversibility: input.decision?.reversibility
 		} : null,
 		options: options.map((o) => ({ id: o.id, title: o.title, summary: o.summary, status: o.status })),
-		requirements: items.map((r) => ({ clauseRef: r.clauseRef, title: r.title }))
+		requirements: items.map((r) => ({ clauseRef: r.clauseRef, title: r.title })),
+		resolvedPattern: input.resolvedPattern
 	};
 
 	const targetArchitectureMermaid = input.targetArchitectureMermaid ?? (retainedOption ? generateTargetArchitectureDiagram(

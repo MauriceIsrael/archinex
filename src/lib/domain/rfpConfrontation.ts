@@ -511,9 +511,9 @@ function evaluateClauseCompliance(
 	}
 
 	// 4. Par défaut : Écart / À Délibérer (Nouvelle exigence non encore capitalisée)
-	const role: ArchitectRole = clauseText.includes('sécurité') || clauseText.includes('chiffr') || clauseText.includes('certifi')
+	const role: ArchitectRole = /\b(s[ée]curit[ée]|chiffr\w*|certifi\w*|zero[- ]trust|iam|pki|hsm|anssi|nis2)\b/i.test(clauseText)
 		? 'security_architect'
-		: clauseText.includes('réseau') || clauseText.includes('infra') || clauseText.includes('matériel') || clauseText.includes('latence')
+		: /\b(r[ée]seau|infra\w*|mat[ée]riel|latence|stockage|compute|kubernetes|k8s)\b/i.test(clauseText)
 			? 'infra_expert_architect'
 			: 'lead_architect';
 
@@ -533,45 +533,54 @@ function evaluateClauseCompliance(
 	};
 }
 
+const OVERLAP_STOP_WORDS = new Set([
+	'avec', 'pour', 'dans', 'sans', 'sous', 'vers', 'entre', 'tout', 'tous', 'toute', 'toutes',
+	'plus', 'cette', 'sont', 'etre', 'avoir', 'faire', 'comme', 'aussi', 'afin', 'selon', 'ainsi',
+	'dont', 'leur', 'leurs', 'doit', 'peut', 'sera', 'devra', 'etre', 'the', 'and', 'for', 'with',
+	'that', 'this', 'from', 'must', 'shall', 'should', 'will', 'system', 'systeme', 'solution'
+]);
+
+function extractMeaningfulTokens(text: string): Set<string> {
+	const normalized = text
+		.toLowerCase()
+		.normalize('NFD')
+		.replace(/[\u0300-\u036f]/g, '');
+	const tokens = normalized.match(/[a-z0-9][a-z0-9._-]{2,}/g) ?? [];
+	const result = new Set<string>();
+	for (const tok of tokens) {
+		if (tok.length >= 4 && !OVERLAP_STOP_WORDS.has(tok)) {
+			result.add(tok);
+		}
+	}
+	return result;
+}
+
 /**
- * Calcul de similarité par recouvrement de mots-clés techniques
+ * Calcul de similarité lexicale générique par recouvrement de termes discriminants
+ * (repli déterministe hors-ligne lorsque l'encodeur d'embeddings n'est pas actif).
  */
 function computeKeywordOverlap(textA: string, textB: string): number {
-	const KEYWORDS = [
-		'g.8275.1',
-		'1588v2',
-		'holdover',
-		'atomique',
-		'gnss',
-		'secnumcloud',
-		'souverain',
-		'souveraineté',
-		'tls 1.3',
-		'ipsec',
-		'anssi',
-		'nis2',
-		'multus',
-		'sr-iov',
-		'dpdk',
-		'upf',
-		'cis benchmark',
-		'zero-trust',
-		'mfa',
-		'frmcs',
-		'gsm-r',
-		'etcs',
-		'active-active',
-		'latence',
-		'rke2',
-		'slert',
-		'temps réel'
-	];
+	const tokensA = extractMeaningfulTokens(textA);
+	const tokensB = extractMeaningfulTokens(textB);
+	if (tokensA.size === 0 || tokensB.size === 0) return 0;
 
 	let overlap = 0;
-	for (const kw of KEYWORDS) {
-		if (textA.includes(kw) && textB.includes(kw)) {
+	for (const tok of tokensA) {
+		if (tokensB.has(tok)) {
 			overlap++;
 		}
 	}
 	return overlap;
+}
+
+/**
+ * Infère un lot d'architecture générique à partir d'un texte ou d'une référence de clause.
+ */
+export function inferLotFromText(text: string): string {
+	const s = (text || '').toLowerCase();
+	if (/\b(souv\w*|secnum\w*|juridique|rgpd|h[ée]bergement\s+qualifi[ée])\b/i.test(s)) return 'LOT-01-SOUV';
+	if (/\b(infra\w*|bare[- ]?metal|k8s|kubernetes|serveur\w*|compute|stockage)\b/i.test(s)) return 'LOT-02-INFRA';
+	if (/\b(telco|synchro\w*|upf|radio|5g|r[ée]seau|wan|bgp)\b/i.test(s)) return 'LOT-03-TELCO';
+	if (/\b(sec\w*|chiffr\w*|nis2|cert\w*|iam|pki|zero[- ]trust|siem)\b/i.test(s)) return 'LOT-04-SECOPS';
+	return 'LOT-02-INFRA';
 }

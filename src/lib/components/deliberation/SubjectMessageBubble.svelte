@@ -64,12 +64,13 @@
 		targetArgument ? resolveDisplayAuthor(targetArgument.author, targetArgument.authorKind) : ''
 	);
 	const isSynthesis = $derived(argument.stance === 'synthesis');
+	const semanticTags = $derived((argument as typeof argument & { semanticTags?: string[] }).semanticTags ?? []);
 	const isProposal = $derived(
 		argument.authorKind === 'agent:proposer' ||
+		semanticTags.includes('proposal') ||
 		(isAgent && argument.stance === 'support' && (
 			Boolean(argument.optionId) ||
-			argument.claim.toLowerCase().includes('proposition') ||
-			argument.claim.toLowerCase().includes('option')
+			/\b(proposition|option)\b/i.test(argument.claim)
 		))
 	);
 	const attrs = $derived(getArgumentVisualAttributes(argument));
@@ -100,13 +101,8 @@
 		)
 	);
 	const mentionsSplit = $derived(
-		argument.claim.toLowerCase().includes('scind') ||
-		argument.claim.toLowerCase().includes('décompos') ||
-		argument.claim.toLowerCase().includes('sous-sujet') ||
-		argument.claim.toLowerCase().includes('2 sous-problème') ||
-		argument.grounds.toLowerCase().includes('scind') ||
-		argument.grounds.toLowerCase().includes('décompos') ||
-		argument.grounds.toLowerCase().includes('sous-sujet')
+		semanticTags.includes('split_suggestion') ||
+		/\b(scind\w*|d[ée]compos\w*|sous-sujet\w*|2\s+sous-probl[èe]mes?)\b/i.test(`${argument.claim} ${argument.grounds}`)
 	);
 </script>
 

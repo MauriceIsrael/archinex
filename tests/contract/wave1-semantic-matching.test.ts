@@ -4,6 +4,7 @@ import type { Criterion, Option, OptionEvaluation } from '$lib/domain/options';
 import type { Argument } from '$lib/domain/debate';
 import { resolveTogafDomain } from '$lib/domain/edp/togafTaxonomy';
 import { generateTargetArchitectureDiagram } from '$lib/domain/artifactProjections';
+import { buildHldFragment } from '$lib/domain/hldFragment';
 import type { Encoder } from '$lib/server/similarity/encoder';
 import { classifyArgumentsForMaturity } from '$lib/server/similarity/maturitySemanticClassifier';
 import { resolveTogafDomainSemantically } from '$lib/server/similarity/togafSemanticResolver';
@@ -237,5 +238,44 @@ describe('Vague 1 — Remplacement des matchs syntaxiques critiques', () => {
 
     expect(diagram).toContain('REQ-CUSTOM-42');
     expect(diagram).toContain('REQ-GEN-99');
+  });
+
+  it('hldFragment : propage resolvedPattern=generic pour éviter le faux positif regex hasMcxDecoupling', () => {
+    const fragment = buildHldFragment({
+      subject: {
+        id: 'sub-app',
+        sectionRef: '§3.1',
+        name: 'Portail applicatif connecté à MCX',
+        problemStatement: 'Exposer un portail web standard interfacé avec MCX.',
+        maturityLevel: 'L3_decided'
+      },
+      dependsOn: [],
+      requirementRefs: [],
+      requirements: [],
+      requirementsDossierPresent: false,
+      criteria: baseCriteria,
+      options: [{ ...baseOptions[0], status: 'retained' }, baseOptions[1]],
+      evaluations: baseEvaluations,
+      arguments: [],
+      decision: {
+        id: 'dec-1',
+        subjectId: 'sub-app',
+        retainedOptionId: 'o1',
+        rejected: [],
+        rationale: 'Portail applicatif standard',
+        reversibility: 'reversible',
+        acceptedViolations: [],
+        kbCandidateIds: [],
+        decidedAt: new Date().toISOString(),
+        arbiterId: 'Lead',
+        arbiterRole: 'lead_architect',
+        version: 1
+      },
+      resolvedPattern: 'generic',
+      generatedAt: new Date().toISOString()
+    });
+
+    expect(fragment.targetArchitectureMermaid).toBeDefined();
+    expect(fragment.targetArchitectureMermaid).not.toContain('Pile Serveur Découplée');
   });
 });

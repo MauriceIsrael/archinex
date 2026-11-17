@@ -1,6 +1,8 @@
 import { readFileSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { llmopsClient } from '$lib/server/llmops/client';
+import type { Encoder } from '../similarity/encoder';
+import { matchEntitiesSemantically, tryResolveSemanticEncoder } from '../similarity/semanticClassifier';
 import type {
 	DoctrineContext,
 	DoctrineItem,
@@ -193,14 +195,47 @@ export class DoctrineService {
 
 	/**
 	 * Détecte les règles applicables sur la base d'une liste de règles fournies dynamiquement
+	 * (repli lexical borné avec filtrage des mots vides).
 	 */
 	detectRecallsFromRules(content: string, rules: DoctrineItem[]): DoctrineItem[] {
 		const lower = content.toLowerCase();
+		const padded = ` ${lower.replace(/[^a-z0-9à-ÿ_-]+/g, ' ')} `;
+		const stopWords = new Set(['cette', 'dans', 'pour', 'avec', 'sans', 'sous', 'toutes', 'entre', 'selon', 'ainsi', 'devra']);
 		return rules.filter((item) => {
 			const titleMatch = item.title && lower.includes(item.title.toLowerCase());
-			const contentMatch = item.content && item.content.toLowerCase().split(/\s+/).some((w: string) => w.length > 5 && lower.includes(w));
-			return Boolean(titleMatch || contentMatch);
+			if (titleMatch) return true;
+			if (!item.content) return false;
+			const words = item.content
+				.toLowerCase()
+				.split(/[^a-z0-9à-ÿ_-]+/)
+				.filter((w: string) => w.length > 5 && !stopWords.has(w));
+			return words.some((w: string) => padded.includes(` ${w} `));
 		});
+	}
+
+	/**
+	 * Détecte les règles de doctrine applicables par comparateur cosinus sur embeddings
+	 * lorsque un encodeur réel est actif, avec repli sur `detectRecallsFromRules()`.
+	 */
+	async detectRecallsFromRulesAsync(
+		content: string,
+		rules: DoctrineItem[],
+		encoderOverride?: Encoder
+	): Promise<DoctrineItem[]> {
+		const encoder = tryResolveSemanticEncoder(encoderOverride);
+		if (!encoder || !content.trim() || rules.length === 0) {
+			return this.detectRecallsFromRules(content, rules);
+		}
+		const candidates = rules.map((r) => ({
+			item: r,
+			text: `${r.title || ''}. ${r.content || ''}`
+		}));
+		const matches = await matchEntitiesSemantically(content, candidates, {
+			encoder,
+			threshold: 0.65,
+			topK: 10
+		});
+		return matches.map((m) => m.item);
 	}
 }
 

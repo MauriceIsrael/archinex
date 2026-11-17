@@ -1,0 +1,11 @@
+### Vagues 2 et 3 — Remplacement des matchs syntaxiques RFP, Doctrine, Knowledge Graph & UI (#332, #333) et câblage complet #331
+- **Chaînon manquant #331 (`src/lib/domain/hldFragment.ts`, `src/lib/server/projects/hldFragmentDb.ts`, `src/routes/api/projects/[projectId]/subjects/[subjectId]/projection-pattern/+server.ts`, `src/lib/stores/deliberationStore.svelte.ts`)** :
+  - Appel de `resolveProjectionPatternSemantically()` dans `loadHldFragment()` et via le endpoint `GET/POST .../projection-pattern` consommé par `deliberationStore.fetchDecisionContext()`, afin de propager `context.resolvedPattern` jusqu'à `generateTargetArchitectureDiagram()`.
+- **Vague 2 — RFP, Doctrine & Knowledge Graph (`src/lib/domain/rfpConfrontation.ts`, `src/lib/server/similarity/rfpSemanticClassifier.ts`, `src/lib/server/llm/rfpFactorizer.ts`, `src/lib/server/doctrine/doctrineService.ts`, `src/lib/server/similarity/knowledgeGraphSemanticMatcher.ts`)** :
+  - Généralisation de `computeKeywordOverlap()` par extraction générique de termes discriminants (suppression de la liste statique biaisée télécom) et centralisation de `inferLotFromText()`.
+  - Ajout de `classifyClauseCriticalitySemantically()`, `classifyArchitectRoleSemantically()`, `inferLotSemantically()` et `confrontClausesSemantically()` basés sur `SemanticAnchorClassifier` et `matchEntitiesSemantically()`.
+  - Ajout de `doctrineService.detectRecallsFromRulesAsync()` et `matchKnowledgeAssetsSemantically()` par comparateur cosinus sur embeddings.
+- **Vague 3 — Composants Svelte & Helpers partagés (`src/lib/domain/clauseMatching.ts`, `DomainsPicker.svelte`, `SubjectProblemCard.svelte`, `SubjectConversationList.svelte`, `SubjectMessageBubble.svelte`, `SplitSubjectDialog.svelte`, `RfpFactorizationReview.svelte`)** :
+  - Mutualisation de `matchClausesToSubject()` et `isDomainInPack()` avec motifs bornés (`\b...\b`), suppression de la duplication de `inferLotFromText()`, et support des `semanticTags` sur les bulles de débat.
+- **Tests** :
+  - Ajout de `tests/contract/wave2-3-semantic-matching.test.ts`.

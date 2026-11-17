@@ -1,5 +1,6 @@
 <script lang="ts">
   import type { KbOwnersRegistry } from '$lib/types/llmops';
+  import { isDomainInPack } from '$lib/domain/clauseMatching';
   import Check from 'lucide-svelte/icons/check';
   import X from 'lucide-svelte/icons/x';
   import Search from 'lucide-svelte/icons/search';
@@ -112,60 +113,6 @@
     const combined = new Set([...fromRegistry, ...DEFAULT_SUITE_DOMAINS, ...selectedDomains]);
     return Array.from(combined).sort();
   });
-
-  function isDomainInPack(dom: string, pack: '3gpp' | 'security' | 'architecture'): boolean {
-    const d = dom.toLowerCase();
-    if (pack === '3gpp') {
-      return (
-        d.includes('3gpp') ||
-        d.includes('telecom') ||
-        d.includes('conformance') ||
-        d.includes('interoperability') ||
-        d.includes('core') ||
-        d.includes('5g') ||
-        d.includes('sba') ||
-        d.includes('mission-critical') ||
-        d.includes('critical') ||
-        d.includes('roaming') ||
-        d.includes('ran') ||
-        d.includes('spectrum') ||
-        d.includes('radio') ||
-        d.includes('tactical') ||
-        d.includes('sim') ||
-        d.includes('iot')
-      );
-    }
-    if (pack === 'security') {
-      return (
-        d.includes('security') ||
-        d.includes('compliance') ||
-        d.includes('audit') ||
-        d.includes('crypto') ||
-        d.includes('hygiene') ||
-        d.includes('iam') ||
-        d.includes('identity') ||
-        d.includes('hardening') ||
-        d.includes('vulnerability') ||
-        d.includes('privacy') ||
-        d.includes('protection') ||
-        d.includes('risk') ||
-        d.includes('sovereignty')
-      );
-    }
-    if (pack === 'architecture') {
-      return (
-        d.includes('architecture') ||
-        d.includes('cloud') ||
-        d.includes('infra') ||
-        d.includes('automation') ||
-        d.includes('devops') ||
-        d.includes('resilience') ||
-        d.includes('observability') ||
-        d.includes('api')
-      );
-    }
-    return true;
-  }
 
   const filteredDomains = $derived.by(() => {
     const q = searchQuery.trim().toLowerCase();

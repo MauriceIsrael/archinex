@@ -8,6 +8,12 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Correctif de ratification en Phase 5 sans `coverageInput` explicite
+- **API Decision Slots (`src/routes/api/projects/[projectId]/decision-slots/+server.ts`)** :
+  - Hydratation automatique du contexte projet depuis Prisma (`loadProjectHydrationContextFromDb`) dans `POST` lorsque `body.coverageInput` est absent (parité avec `GET`), évitant l'erreur « Aucun emplacement éligible à la ratification en lot n’a été trouvé. » lors de la ratification unitaire ou en lot depuis la Vue Architecture Lockée.
+- **Tests** :
+  - Ajout de `tests/contract/decision-slots-post-hydration.test.ts` couvrant la ratification unitaire, la ratification en lot et la révocation sans `coverageInput`.
+
 ### Hydratation sémantique Prisma → Phase 5 & affichage des composants résolus en Phase 4
 - **Pont Prisma → Phase 5 par matching sémantique (`src/lib/server/edp/projectHydrationContext.ts`, `src/lib/server/similarity/togafSemanticResolver.ts`, `src/routes/api/projects/[projectId]/decision-slots/+server.ts`, `src/routes/api/projects/[projectId]/catalog/+server.ts`, `src/lib/domain/edp/togafTaxonomy.ts`)** :
   - Ajout de `matchAllBuildingBlocksSemantically` et `loadProjectHydrationContextFromDb` pour agréger automatiquement les exigences, sujets et énoncés du projet et hydrater les blocs TOGAF pertinents dès la Phase 5.

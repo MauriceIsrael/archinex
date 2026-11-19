@@ -73,9 +73,18 @@ export const POST: RequestHandler = async (event) => {
 
   const actorId = auth.session?.user?.email || auth.session?.user?.id || 'architect';
   const actorRole = body.actorRole || auth.session?.user?.role || '';
+  let cachedCoverageInput: Omit<ProjectCompletenessInput, 'projectId'> | undefined;
+  const resolveCoverageInput = async (): Promise<Omit<ProjectCompletenessInput, 'projectId'>> => {
+    if (body.coverageInput) return body.coverageInput;
+    if (!cachedCoverageInput) {
+      cachedCoverageInput = await loadProjectHydrationContextFromDb(projectId, auth.project?.title);
+    }
+    return cachedCoverageInput;
+  };
 
   try {
     if (body.action === 'ratify_batch') {
+      const effectiveCoverageInput = await resolveCoverageInput();
       const result = await batchRatifyProjectType2Slots(
         {
           projectId,
@@ -86,13 +95,13 @@ export const POST: RequestHandler = async (event) => {
           togafDomains: body.togafDomains,
           leafOverrides: body.leafOverrides
         },
-        body.coverageInput
+        effectiveCoverageInput
       );
 
       const liveLockSnapshot = await buildLiveArchitectureLockSnapshot({
         projectId,
         projectTitle: auth.project?.title,
-        ...(body.coverageInput ?? {})
+        ...effectiveCoverageInput
       });
 
       return json({
@@ -112,6 +121,7 @@ export const POST: RequestHandler = async (event) => {
         );
       }
 
+      const effectiveCoverageInput = await resolveCoverageInput();
       const revocation = await revokeProjectSlotRatification({
         projectId,
         slotId: body.slotId,
@@ -124,12 +134,12 @@ export const POST: RequestHandler = async (event) => {
 
       const ledger = await buildProjectCompletenessLedger({
         projectId,
-        ...(body.coverageInput ?? {})
+        ...effectiveCoverageInput
       });
       const liveLockSnapshot = await buildLiveArchitectureLockSnapshot({
         projectId,
         projectTitle: auth.project?.title,
-        ...(body.coverageInput ?? {})
+        ...effectiveCoverageInput
       });
 
       return json({
@@ -149,6 +159,7 @@ export const POST: RequestHandler = async (event) => {
         );
       }
 
+      const effectiveCoverageInput = await resolveCoverageInput();
       const promotedSubject = await promoteSlotToDeliberationSubject({
         projectId,
         slotId: body.slotId,
@@ -160,12 +171,12 @@ export const POST: RequestHandler = async (event) => {
 
       const ledger = await buildProjectCompletenessLedger({
         projectId,
-        ...(body.coverageInput ?? {})
+        ...effectiveCoverageInput
       });
       const liveLockSnapshot = await buildLiveArchitectureLockSnapshot({
         projectId,
         projectTitle: auth.project?.title,
-        ...(body.coverageInput ?? {})
+        ...effectiveCoverageInput
       });
 
       return json({
@@ -177,16 +188,17 @@ export const POST: RequestHandler = async (event) => {
     }
 
     if (body.action === 'seal_architecture_lock') {
+      const effectiveCoverageInput = await resolveCoverageInput();
       const manifest = await generateArchitectureLockManifest({
         projectId,
         sealedBy: actorId,
         sealedByRole: actorRole,
-        coverageInput: body.coverageInput
+        coverageInput: effectiveCoverageInput
       });
       const liveLockSnapshot = await buildLiveArchitectureLockSnapshot({
         projectId,
         projectTitle: auth.project?.title,
-        ...(body.coverageInput ?? {})
+        ...effectiveCoverageInput
       });
 
       return json({

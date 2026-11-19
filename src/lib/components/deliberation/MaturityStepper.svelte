@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { untrack } from 'svelte';
 	import type { MaturityLevel } from '$lib/types/epistemic';
 	import {
 		getMilestoneContextualActions,
@@ -28,6 +29,7 @@
 		report = null,
 		userRole = 'lead_architect',
 		isHumanUser = true,
+		initialExpanded = false,
 		onAction = () => {},
 		onContextualAction = () => {},
 		onTransition = () => {}
@@ -35,6 +37,7 @@
 		report: MaturityTransitionsReport | null;
 		userRole?: string;
 		isHumanUser?: boolean;
+		initialExpanded?: boolean;
 		onAction?: (criterion: MaturityCriterion) => void;
 		onContextualAction?: (action: MilestoneContextualAction) => void;
 		onTransition?: (targetLevel: MaturityLevel) => void;
@@ -49,8 +52,8 @@
 		{ level: 'L5_archived', label: 'Archivé', short: 'L5', locked: true, lockRole: 'Lead Architect' }
 	];
 
-	// Toujours ouvert par défaut sur le prochain jalon à franchir
-	let isDetailsExpanded = $state(true);
+	// Replié par défaut pour préserver l'espace de lecture ; dépliable à la demande
+	let isDetailsExpanded = $state(untrack(() => initialExpanded));
 	let inspectedLevel = $state<MaturityLevel | null>(null);
 
 	const activeLevel = $derived(report?.displayedLevel || 'L0_named');
@@ -208,14 +211,20 @@
 
 			<button
 				type="button"
+				data-testid="maturity-stepper-toggle"
 				onclick={() => (isDetailsExpanded = !isDetailsExpanded)}
-				class="inline-flex items-center gap-1 px-2 py-0.5 rounded text-[11px] font-medium text-muted-foreground hover:text-foreground cursor-pointer"
+				class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md border border-border/60 bg-background/80 hover:bg-muted text-[11px] font-medium text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
 				title="Afficher ou replier les critères et actions du jalon"
 			>
-				<span>{isDetailsExpanded ? 'Masquer' : 'Critères & Actions'}</span>
 				{#if isDetailsExpanded}
+					<span>Masquer</span>
 					<ChevronUp class="h-3 w-3" />
 				{:else}
+					<span>
+						{totalCriteriaCount > 0
+							? `Critères (${satisfiedCriteriaCount}/${totalCriteriaCount})`
+							: 'Critères & Actions'}
+					</span>
 					<ChevronDown class="h-3 w-3" />
 				{/if}
 			</button>

@@ -104,13 +104,10 @@
 		<div class="flex items-center gap-1.5 flex-wrap xl:flex-1">
 			<span
 				class="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground font-mono flex items-center gap-1 shrink-0"
-				title={activeEngagement.title}
+				title={`Périmètre Projet : ${activeEngagement.title}`}
 			>
 				<Layers class="h-3.5 w-3.5 text-primary shrink-0" />
 				<span>Projet :</span>
-				<span class="text-foreground font-semibold normal-case tracking-normal truncate max-w-[180px] sm:max-w-[240px]">
-					{activeEngagement.title}
-				</span>
 			</span>
 
 			<!-- Phase 1 : Corpus & Règles (Appropriation Documentaire) -->

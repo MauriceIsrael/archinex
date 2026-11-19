@@ -134,8 +134,17 @@ export function buildSylvaTenantWorkloadManifests(
     }
   });
 
-  const cnpManifests = resolved.effectiveRules.map((rule) =>
-    sanitizeManifests({
+  const cnpManifests = resolved.effectiveRules.map((rule) => {
+    const toEndpointGroup =
+      typeof rule.to === 'string' && rule.to.startsWith('group:')
+        ? rule.to.slice('group:'.length).trim()
+        : undefined;
+    const fromModuleName =
+      typeof rule.from === 'string' && rule.from.startsWith('module:')
+        ? rule.from.slice('module:'.length).trim()
+        : undefined;
+
+    return sanitizeManifests({
       apiVersion: 'cilium.io/v2',
       kind: 'CiliumNetworkPolicy',
       metadata: {
@@ -146,14 +155,29 @@ export function buildSylvaTenantWorkloadManifests(
           'archinex.io/rule-category': rule.category || 'explicit'
         },
         annotations: {
+          'archinex.io/from': rule.from,
+          'archinex.io/to': rule.to,
           ...(rule.functionalFlow ? { 'archinex.io/logical-interface': rule.functionalFlow } : {}),
           ...(rule.generatedFrom ? { 'archinex.io/generated-from': rule.generatedFrom } : {})
         }
       },
       spec: {
-        endpointSelector: {},
+        endpointSelector: fromModuleName
+          ? { matchLabels: { 'archinex.io/module': fromModuleName } }
+          : {},
         egress: [
           {
+            ...(toEndpointGroup
+              ? {
+                  toEndpoints: [
+                    {
+                      matchLabels: {
+                        'archinex.io/firewall-group': toEndpointGroup
+                      }
+                    }
+                  ]
+                }
+              : {}),
             toPorts: [
               {
                 ports: rule.ports.map((p) => ({
@@ -165,8 +189,8 @@ export function buildSylvaTenantWorkloadManifests(
           }
         ]
       }
-    })
-  );
+    });
+  });
 
   const helmManifests = resolved.modules
     .filter((m) => m.kind === 'container' || m.kind === 'forward-proxy')

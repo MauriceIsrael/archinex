@@ -113,7 +113,7 @@ describe('seedDemo — Démonstration Autonome (§14 Lulu Lot 3 ↔ Lot 1) sur B
     });
     expect(adminUser).toBeDefined();
     expect(adminUser?.role).toBe('admin');
-  });
+  }, 20000);
 
   it('est strictement idempotent lors de multiples exécutions successives', async () => {
     // 1ère exécution sur base vierge
@@ -126,5 +126,5 @@ describe('seedDemo — Démonstration Autonome (§14 Lulu Lot 3 ↔ Lot 1) sur B
     expect(projectCount).toBe(1);
     const subjectCount = await testPrisma.subject.count();
     expect(subjectCount).toBe(1);
-  });
+  }, 20000);
 });

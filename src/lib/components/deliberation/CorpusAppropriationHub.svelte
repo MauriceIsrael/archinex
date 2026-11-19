@@ -68,12 +68,29 @@
 		});
 
 		if (result.initialSubjects && result.initialSubjects.length > 0) {
-			for (const subj of result.initialSubjects) {
+			const generatedIds = result.initialSubjects.map(
+				(subj, idx) => subj.id || `sub_${Date.now()}_${idx + 1}_${Math.random().toString(36).slice(2, 6)}`
+			);
+			const idByFactorization = new Map(
+				result.initialSubjects.flatMap((subj, idx) =>
+					subj.factorizationId ? [[subj.factorizationId, generatedIds[idx]] as const] : []
+				)
+			);
+
+			result.initialSubjects.forEach((subj, idx) => {
+				const assignedId = generatedIds[idx];
+				const deps = (subj.dependsOn || [])
+					.map((d) => idByFactorization.get(d))
+					.filter((d): d is string => Boolean(d) && d !== assignedId);
+
 				deliberationStore.addMaturitySubject({
 					...subj,
-					requirementIds: requirementIdsOf(subj, result.requirementAudit).requirement_ids
+					id: assignedId,
+					dependsOnSubjectIds: deps.length > 0 ? [...new Set(deps)] : undefined,
+					requirementIds: requirementIdsOf(subj, result.requirementAudit).requirement_ids,
+					skipPersist: idx < result.initialSubjects.length - 1
 				});
-			}
+			});
 		}
 
 		// Projet déjà persisté : on enregistre l'audit, puis on synchronise les sujets (qui portent leurs clauses).

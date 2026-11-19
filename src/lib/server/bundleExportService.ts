@@ -1,9 +1,10 @@
 import { prisma } from '$lib/server/prisma';
 import type { EngagementBundle, ConfidentialityLevel } from '$lib/domain/engagementBundle';
 import { verifyEngagementBundle } from '$lib/domain/bundleVerifier';
-import { assembleEngagementBundle, sanitizeHandle, type AssemblyInput } from '$lib/domain/bundleAssembly';
+import { assembleEngagementBundle, sanitizeHandle, type AssemblyInput, type AssemblyStatement } from '$lib/domain/bundleAssembly';
 import type { SnapshotRef } from '$lib/domain/freezeExport';
 import { listRequirementSources, toAssemblySources } from '$lib/server/projects/requirementsDb';
+import { loadProjectComponentCatalog } from '$lib/server/edp/componentCatalogRepository';
 
 export interface ExportBundleResult {
 	bundle: EngagementBundle;
@@ -54,6 +55,53 @@ export async function exportEngagementBundle(
 	const now = options.now ?? new Date();
 	const actorHandle = sanitizeHandle(options.actorHandle);
 
+	const baseStatements: AssemblyStatement[] = (project?.statements ?? []).map((st) => ({
+		id: st.id,
+		subjectId: st.subjectId,
+		subjectRef: st.subjectRef,
+		predicate: st.predicate,
+		value: st.value,
+		unit: st.unit,
+		productionMode: st.productionMode,
+		author: st.author,
+		createdAt: st.createdAt,
+		confidence: st.confidence,
+		status: st.status,
+		basedOn: parseJsonArray<string>(st.basedOn)
+	}));
+
+	// Enrichissement déterministe avec les composants logiques instanciés du projet (Phase 4/5)
+	const firstSubject = project?.subjects?.[0];
+	if (firstSubject) {
+		try {
+			const catalogBundle = loadProjectComponentCatalog(options.projectId);
+			const existingStmtIds = new Set(baseStatements.map((s) => s.id));
+			const anchorDate = firstSubject.decision?.decidedAt ?? project?.createdAt ?? new Date('2026-01-01T00:00:00.000Z');
+			for (const comp of catalogBundle.components) {
+				if (comp.metadata.status === 'inactive') continue;
+				const stmtId = `STMT-CATALOG-${comp.metadata.name.toUpperCase()}`;
+				if (existingStmtIds.has(stmtId)) continue;
+				existingStmtIds.add(stmtId);
+				baseStatements.push({
+					id: stmtId,
+					subjectId: firstSubject.id,
+					subjectRef: comp.metadata.name,
+					predicate: 'instantiates_logical_component',
+					value: `${comp.metadata.displayName || comp.metadata.name} (tenant=${comp.metadata.tenant}, status=planned)`,
+					unit: null,
+					productionMode: 'human-authored',
+					author: actorHandle,
+					createdAt: anchorDate,
+					confidence: 'verified',
+					status: 'active',
+					basedOn: []
+				});
+			}
+		} catch {
+			// Non bloquant si aucun catalogue personnalisé n'est persisté sur disque
+		}
+	}
+
 	// 2. Assemblage déterministe du dossier (même état stocké = même sceau)
 	const input: AssemblyInput = {
 		project: { id: options.projectId, title },
@@ -83,20 +131,7 @@ export async function exportEngagementBundle(
 			options: s.options.map((o) => ({ id: o.id, title: o.title })),
 			questions: s.questions.map((q) => ({ id: q.id, text: q.text, blocking: q.blocking, status: q.status }))
 		})),
-		statements: (project?.statements ?? []).map((st) => ({
-			id: st.id,
-			subjectId: st.subjectId,
-			subjectRef: st.subjectRef,
-			predicate: st.predicate,
-			value: st.value,
-			unit: st.unit,
-			productionMode: st.productionMode,
-			author: st.author,
-			createdAt: st.createdAt,
-			confidence: st.confidence,
-			status: st.status,
-			basedOn: parseJsonArray<string>(st.basedOn)
-		}))
+		statements: baseStatements
 	};
 
 	const bundle = assembleEngagementBundle(input);

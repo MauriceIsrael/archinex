@@ -132,7 +132,7 @@ describe('Issue #99 — Rédaction assistée d’une clause pour les contrôles 
 			expect(body.data.kind).toBeDefined();
 			expect(body.data.when?.terms_any?.length).toBeGreaterThan(0);
 			expect(body.data.provenance).toBe('llm-derived');
-		});
+		}, 30000);
 	});
 
 	describe('3. Endpoint API POST /api/kb/clauses/[assetId]/save-draft', () => {

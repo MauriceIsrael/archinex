@@ -545,6 +545,7 @@ La commande `npm run seed:demo` configure et ensemence le parcours complet de la
   5. `ipsec_tunnels` : `tun-ipsec-esp-lot3-secgw1` (`IPsec-ESP-IKEv2`, `AES-256-GCM`, `DH-20-ECP384`).
   6. `service_mediation_flows` (`EP_S6a`) : `flow-s6a-lot3-to-hss1` (médiation obligatoire par `secgw-lot1-01` et `dea-lot1-01`).
   7. `sla_and_monitoring_contracts` (TM Forum SID GB922) : `sla-lot3-hosting-s6a` (`REQ-Lot1-1343`) & `probe-noc-s6a-lot3` (`REQ-Lot1-1274`).
+- **Isolation Multi-Projets sur Nautobot 2.x (`ProjectStrategy.nautobot`)** : chaque projet peut pointer vers sa propre instance Nautobot (`strategy.nautobot.url` + `token`) ou partager l'instance par défaut (`NAUTOBOT_URL`) avec isolation logique automatique par projet (`projectScope` dérivé du `shortName`/`id` : `Namespace` IPAM `archinex-<scope>`, `VLANGroup` `vg-<scope>`, tag `project-<scope>` et préfixage réversible `<scope>--` des équipements, circuits, tenants, VRF et tunnels VPN).
 
 
 ### 13.8 Jumeau Numérique de Sylva (3 DCs Défaut / 2 DCs + Témoin / 2 DCs Secs) & Bouchon Redfish `sushy-tools`

@@ -8,6 +8,24 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Continuité Bout-en-Bout RFP → HLD → LLD Pré-Hydraté en Statut `"planned"` & Cohérence Inter-Objets (#344, #345, #346, #347, #348)
+- **Continuité Phase 1 → Phase 2 / Phase 5 (#345)** :
+  - `deriveProjectHydrationContextFromEntries()` et `loadProjectHydrationContextFromDb()` préservent désormais les exigences évacuées (`disposition === 'evacuated'`) et détectent les capacités émergentes (`detectEmergentCapabilityNeed`).
+  - `CorpusAppropriationHub.svelte` et `deliberationStore.addMaturitySubject()` conservent l'intégralité des propositions d'options/critères (`proposal`), `problemStatement`, `nature` et le graphe de dépendances `dependsOn` ; la spécification détaillée L4 (`detailedSpec`) est persistée dans `TelegraphicDraft`.
+  - Synchronisation bidirectionnelle entre `Engagement.statements` et la table relationnelle `prisma.statement` (`saveEngagementToDb` et `overlayServerSubjects`).
+  - `promoteSlotToDeliberationSubject()` matérialise le `Subject` et ses `Option`s candidates dans Prisma et `LiveArchitectureLockView.svelte` expose un bouton de promotion Type 1 (`↗ Promouvoir en Sujet`).
+- **Unification du Statut `"planned"` & Contexte Prisma Phase 4 (#346)** :
+  - `EntityLifecycleStatus` supporte `'planned'` ; `nautobotSync.ts` synchronise VLANs, préfixes et adresses IP en statut `Planned`.
+  - `loadSubjectContext` dans `GET/POST /api/projects/[projectId]/subjects/[subjectId]/edp` lit les colonnes Prisma réelles (`sectionRef`, `problemStatement`, option retenue via `retainedOptionId`, `statements` et `requirementRefs`) et injecte `structuredFacts` dans `computeRefinementCoverage`.
+  - `composeMultiAxisHydration()` alloue des adresses IPv4 distinctes par nœud Bare-Metal pré-hydraté, résout les composants sur l'ensemble des datacenters (`resolved_components_by_dc`) et propage les références d'exigences du sujet dans `satisfied_clauses`.
+- **Unicité IPv4 Inter-Composants, Intégrité Référentielle & CiliumNetworkPolicy (#347)** :
+  - `createEmergentLogicalComponent()` dérive un offset IPv4 déterministe par nom de composant et `verifyResolvedIpUniqueness()` vérifie l'absence de collision IPv4 sur l'ensemble du catalogue résolu.
+  - Ajout des groupes `ext-mme-lot3` et `secgw-lot1` et des règles `S6a` (`SCTP/3868`) sur `core-network` ; extension de `verifyCatalogDanglingReferences()` aux références `svmRef`, `ref(component:*)` et segments `LogicalInterfaces`.
+  - `buildSylvaTenantWorkloadManifests()` enrichit les `CiliumNetworkPolicy` avec les annotations `archinex.io/from` et `archinex.io/to` ainsi que les sélecteurs `toEndpoints` et `endpointSelector`.
+- **Convergence HLD Serveur, Document Engine & Dossier Scellé (#348)** :
+  - `loadHldFragment()` et `buildHldFragment()` intègrent les énoncés actifs, les emplacements de décision de l'EDP et les composants logiques du projet dans les diagrammes Mermaid d'architecture cible et de séquence.
+  - `GET /api/projects/[projectId]/hld-document-engine` injecte automatiquement `transverseEnrichment` (`components`, `ratifiedSlots`, `architectureLock`) dans `compileDossierWithDocumentEngine()`, et `exportEngagementBundle()` enrichit le dossier scellé avec les composants logiques actifs du projet.
+
 ### Correctif de ratification en Phase 5 sans `coverageInput` explicite
 - **API Decision Slots (`src/routes/api/projects/[projectId]/decision-slots/+server.ts`)** :
   - Hydratation automatique du contexte projet depuis Prisma (`loadProjectHydrationContextFromDb`) dans `POST` lorsque `body.coverageInput` est absent (parité avec `GET`), évitant l'erreur « Aucun emplacement éligible à la ratification en lot n’a été trouvé. » lors de la ratification unitaire ou en lot depuis la Vue Architecture Lockée.

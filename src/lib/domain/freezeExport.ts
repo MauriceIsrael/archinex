@@ -6,6 +6,7 @@ import { canonicalJson } from '$lib/domain/canonicalJson';
 import {
 	generateMermaidDiagram,
 	generateStructurizrDSL,
+	generateC4xDSL,
 	generateSysMLv2,
 	generateConfigJSON,
 	type ProjectionContext
@@ -43,6 +44,7 @@ export interface SealedSnapshot {
 	projections: {
 		mermaid: string;
 		structurizrDSL: string;
+		c4x?: string;
 		sysmlV2: string;
 		configJSON: string;
 	};
@@ -163,6 +165,7 @@ export function freezeSectionAndGenerateSnapshot(params: {
 	const projections = {
 		mermaid: generateMermaidDiagram(params.subject, params.draft, sectionStatements, params.context),
 		structurizrDSL: generateStructurizrDSL(params.subject, params.draft, sectionStatements, params.context),
+		c4x: generateC4xDSL(params.subject, params.draft, sectionStatements, params.context),
 		sysmlV2: generateSysMLv2(params.subject, params.draft, sectionStatements, params.context),
 		configJSON: generateConfigJSON(params.subject, params.draft, sectionStatements, sealedAt, params.context)
 	};

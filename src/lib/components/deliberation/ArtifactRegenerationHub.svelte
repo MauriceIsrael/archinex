@@ -1,5 +1,6 @@
 <script lang="ts">
 	import { deliberationStore } from '$lib/stores/deliberationStore.svelte';
+	import { wrapC4xMarkdown } from '$lib/domain/c4xDsl';
 	import MermaidViewer from './MermaidViewer.svelte';
 	import { RefreshCw, Download, Copy, Check, Terminal, FileCode, Layers, Cpu, ShieldCheck, Scale, FileSpreadsheet, Boxes, ExternalLink } from 'lucide-svelte';
 
@@ -7,6 +8,7 @@
 
 	let activeTab = $state<TabType>('mermaid');
 	let mermaidSubView = $state<'target' | 'sequence' | 'causal'>('target');
+	let c4SubView = $state<'c4x' | 'structurizr'>('c4x');
 	let petitesBriquesSubView = $state<'visual' | 'yaml' | 'json'>('visual');
 	let selectedBlockAxisId = $state<string | null>(null);
 	let copied = $state(false);
@@ -84,7 +86,7 @@
 				if (mermaidSubView === 'causal') return projections.mermaid;
 				return (projections as any).targetArchitectureMermaid || projections.mermaid;
 			case 'structurizr':
-				return projections.structurizrDSL;
+				return c4SubView === 'c4x' ? (projections.c4xDSL || '') : projections.structurizrDSL;
 			case 'sysml':
 				return projections.sysmlV2;
 			case 'config':
@@ -119,7 +121,9 @@
 				else filename = `${activeSubject?.id || 'arch'}_target_architecture.mmd`;
 				break;
 			case 'structurizr':
-				filename = `${activeSubject?.id || 'arch'}_workspace.dsl`;
+				filename = c4SubView === 'c4x'
+					? `${activeSubject?.id || 'arch'}_architecture.c4x`
+					: `${activeSubject?.id || 'arch'}_workspace.dsl`;
 				break;
 			case 'sysml':
 				filename = `${activeSubject?.id || 'arch'}_model.sysml`;
@@ -447,59 +451,124 @@
 					{/if}
 
 					{#if activeTab === 'structurizr'}
+						<div class="flex flex-wrap items-center gap-1.5 p-1 rounded-lg bg-muted/60 border border-border/40 w-fit text-xs" data-testid="c4-view-switcher">
+							<button
+								type="button"
+								onclick={() => (c4SubView = 'c4x')}
+								class="px-2.5 py-1 rounded-md font-medium transition-colors {c4SubView === 'c4x' ? 'bg-background shadow-xs text-foreground font-bold' : 'text-muted-foreground hover:text-foreground'}"
+								data-testid="tab-c4x-subview"
+							>
+								C4X (.c4x / Markdown)
+							</button>
+							<button
+								type="button"
+								onclick={() => (c4SubView = 'structurizr')}
+								class="px-2.5 py-1 rounded-md font-medium transition-colors {c4SubView === 'structurizr' ? 'bg-background shadow-xs text-foreground font-bold' : 'text-muted-foreground hover:text-foreground'}"
+								data-testid="tab-structurizr-subview"
+							>
+								Structurizr DSL (.dsl)
+							</button>
+						</div>
+
 						<MermaidViewer
 							code={focusedMermaid || projections.structurizrVisual}
-							title="Architecture C4 (Interprétation Graphique du Modèle Structurizr){activeBlock ? ` · ${activeBlock.label}` : ''}"
+							title="Architecture C4 (Interprétation Graphique du Modèle {c4SubView === 'c4x' ? 'C4X' : 'Structurizr'}){activeBlock ? ` · ${activeBlock.label}` : ''}"
 							defaultView="visual"
 						/>
-						<div class="rounded-lg border bg-muted/20 p-3 space-y-2">
-							<div class="flex flex-wrap items-center justify-between gap-2 text-xs">
-								<span class="font-bold text-muted-foreground">Code Source Structurizr DSL (.dsl) :</span>
-								<div class="flex flex-wrap items-center gap-2">
-									<a
-										href="https://structurizr.com/dsl"
-										target="_blank"
-										rel="noopener noreferrer"
-										class="inline-flex items-center gap-1 rounded border border-indigo-500/30 bg-indigo-500/10 px-2 py-1 text-[11px] font-medium text-indigo-700 dark:text-indigo-300 hover:bg-indigo-500/20 transition-colors"
-										data-testid="structurizr-playground-link"
-									>
-										<ExternalLink class="h-3 w-3" />
-										<span>Structurizr DSL Playground</span>
-									</a>
-									<button
-										type="button"
-										onclick={() => {
-											navigator.clipboard.writeText('docker run -it --rm -p 8080:8080 -v "$PWD:/usr/local/structurizr" structurizr/lite');
-											copied = true;
-											setTimeout(() => (copied = false), 2000);
-										}}
-										class="inline-flex items-center gap-1 rounded border border-input bg-background px-2 py-1 text-[11px] font-medium hover:bg-muted transition-colors"
-									>
-										<span>Commande Structurizr Lite</span>
-									</button>
-									<button
-										type="button"
-										onclick={downloadArtifact}
-										class="inline-flex items-center gap-1 rounded border border-input bg-background px-2 py-1 text-[11px] font-medium hover:bg-muted transition-colors"
-									>
-										<Download class="h-3 w-3" />
-										<span>Télécharger .dsl</span>
-									</button>
-									<button
-										type="button"
-										onclick={() => {
-											navigator.clipboard.writeText(projections.structurizrDSL);
-											copied = true;
-											setTimeout(() => (copied = false), 2000);
-										}}
-										class="text-[11px] font-semibold text-primary hover:underline"
-									>
-										Copier DSL
-									</button>
+
+						{#if c4SubView === 'c4x'}
+							<div class="rounded-lg border bg-muted/20 p-3 space-y-2" data-testid="c4x-code-panel">
+								<div class="flex flex-wrap items-center justify-between gap-2 text-xs">
+									<span class="font-bold text-muted-foreground">Code Source C4X (.c4x / bloc Markdown) :</span>
+									<div class="flex flex-wrap items-center gap-2">
+										<button
+											type="button"
+											onclick={() => {
+												navigator.clipboard.writeText(wrapC4xMarkdown(projections.c4xDSL || '', activeSubject?.name));
+												copied = true;
+												setTimeout(() => (copied = false), 2000);
+											}}
+											class="inline-flex items-center gap-1 rounded border border-indigo-500/30 bg-indigo-500/10 px-2 py-1 text-[11px] font-medium text-indigo-700 dark:text-indigo-300 hover:bg-indigo-500/20 transition-colors"
+											data-testid="copy-c4x-markdown-btn"
+										>
+											<Copy class="h-3 w-3" />
+											<span>Copier bloc Markdown ```c4x</span>
+										</button>
+										<button
+											type="button"
+											onclick={downloadArtifact}
+											class="inline-flex items-center gap-1 rounded border border-input bg-background px-2 py-1 text-[11px] font-medium hover:bg-muted transition-colors"
+											data-testid="download-c4x-btn"
+										>
+											<Download class="h-3 w-3" />
+											<span>Télécharger .c4x</span>
+										</button>
+										<button
+											type="button"
+											onclick={() => {
+												navigator.clipboard.writeText(projections.c4xDSL || '');
+												copied = true;
+												setTimeout(() => (copied = false), 2000);
+											}}
+											class="text-[11px] font-semibold text-primary hover:underline"
+											data-testid="copy-c4x-btn"
+										>
+											Copier C4X
+										</button>
+									</div>
 								</div>
+								<pre class="rounded bg-muted/80 p-3 font-mono text-[11px] text-foreground overflow-x-auto max-h-48 border">{projections.c4xDSL}</pre>
 							</div>
-							<pre class="rounded bg-muted/80 p-3 font-mono text-[11px] text-foreground overflow-x-auto max-h-48 border">{projections.structurizrDSL}</pre>
-						</div>
+						{:else}
+							<div class="rounded-lg border bg-muted/20 p-3 space-y-2">
+								<div class="flex flex-wrap items-center justify-between gap-2 text-xs">
+									<span class="font-bold text-muted-foreground">Code Source Structurizr DSL (.dsl) :</span>
+									<div class="flex flex-wrap items-center gap-2">
+										<a
+											href="https://structurizr.com/dsl"
+											target="_blank"
+											rel="noopener noreferrer"
+											class="inline-flex items-center gap-1 rounded border border-indigo-500/30 bg-indigo-500/10 px-2 py-1 text-[11px] font-medium text-indigo-700 dark:text-indigo-300 hover:bg-indigo-500/20 transition-colors"
+											data-testid="structurizr-playground-link"
+										>
+											<ExternalLink class="h-3 w-3" />
+											<span>Structurizr DSL Playground</span>
+										</a>
+										<button
+											type="button"
+											onclick={() => {
+												navigator.clipboard.writeText('docker run -it --rm -p 8080:8080 -v "$PWD:/usr/local/structurizr" structurizr/lite');
+												copied = true;
+												setTimeout(() => (copied = false), 2000);
+											}}
+											class="inline-flex items-center gap-1 rounded border border-input bg-background px-2 py-1 text-[11px] font-medium hover:bg-muted transition-colors"
+										>
+											<span>Commande Structurizr Lite</span>
+										</button>
+										<button
+											type="button"
+											onclick={downloadArtifact}
+											class="inline-flex items-center gap-1 rounded border border-input bg-background px-2 py-1 text-[11px] font-medium hover:bg-muted transition-colors"
+										>
+											<Download class="h-3 w-3" />
+											<span>Télécharger .dsl</span>
+										</button>
+										<button
+											type="button"
+											onclick={() => {
+												navigator.clipboard.writeText(projections.structurizrDSL);
+												copied = true;
+												setTimeout(() => (copied = false), 2000);
+											}}
+											class="text-[11px] font-semibold text-primary hover:underline"
+										>
+											Copier DSL
+										</button>
+									</div>
+								</div>
+								<pre class="rounded bg-muted/80 p-3 font-mono text-[11px] text-foreground overflow-x-auto max-h-48 border">{projections.structurizrDSL}</pre>
+							</div>
+						{/if}
 					{:else}
 						<MermaidViewer
 							code={focusedMermaid || projections.sysmlVisual}

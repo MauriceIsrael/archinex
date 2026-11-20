@@ -29,11 +29,13 @@ import { effectiveRequirementState, requirementBundleId, sourceBundleId } from '
 import {
 	generateMermaidDiagram,
 	generateStructurizrDSL,
+	generateC4xDSL,
 	generateSysMLv2,
 	type ProjectionContext
 } from './artifactProjections';
 import type { Statement } from '$lib/types/epistemic';
-import { renderStructurizrWorkspace, type C4Container, type C4System } from '$lib/domain/structurizrDsl';
+import { renderStructurizrWorkspace, type C4Container, type C4System, type C4WorkspaceInput } from '$lib/domain/structurizrDsl';
+import { renderC4xDiagram } from '$lib/domain/c4xDsl';
 import { c4Styles, elementBadge, isWithdrawn, mermaidClassDefs, mmdText, storedBadge } from '$lib/domain/epistemicBadge';
 import type { MaturitySubject } from '$lib/domain/maturityBoard';
 import type { TelegraphicDraft } from '$lib/domain/telegraphic';
@@ -244,13 +246,25 @@ function generateGlobalMermaid(elements: BundleElement[], relations: BundleRelat
 	return lines.join('\n');
 }
 
-function generateGlobalStructurizr(projectName: string, elements: BundleElement[], relations: BundleRelation[], banner: string | null): string {
+function buildGlobalC4WorkspaceInput(
+	projectName: string,
+	elements: BundleElement[],
+	relations: BundleRelation[],
+	banner: string | null
+): C4WorkspaceInput {
 	const systems = elements.filter((e) => e.kind === 'system' || e.kind === 'boundary');
 	const components = elements.filter((e) => e.kind !== 'system' && e.kind !== 'boundary');
 	const systemIds = new Set(systems.map((s) => s.id));
 	const toContainer = (c: BundleElement): C4Container => {
 		const badge = elementBadge(c);
-		return { id: c.id, name: c.name, description: c.description || c.kind, technology: `${c.kind}, ${badge.label}`, tags: [badge.tag] };
+		return {
+			id: c.id,
+			name: c.name,
+			description: c.description || c.kind,
+			technology: `${c.kind}, ${badge.label}`,
+			tags: [badge.tag],
+			metadata: c.epistemic_status ? { kind: c.kind, epistemic_status: c.epistemic_status } : { kind: c.kind }
+		};
 	};
 	const c4Systems: C4System[] = systems.map((sys) => ({
 		id: sys.id,
@@ -262,7 +276,7 @@ function generateGlobalStructurizr(projectName: string, elements: BundleElement[
 	const orphans = components.filter((c) => !c.boundary_id || !systemIds.has(c.boundary_id));
 	if (orphans.length > 0) c4Systems.push({ id: 'elem-hors-perimetre', name: 'Éléments sans périmètre', containers: orphans.map(toContainer) });
 
-	return renderStructurizrWorkspace({
+	return {
 		name: projectName,
 		description: banner ? `Architecture globale scellée Archinex — ${banner}` : 'Architecture globale scellée Archinex',
 		group: projectName,
@@ -271,7 +285,15 @@ function generateGlobalStructurizr(projectName: string, elements: BundleElement[
 		viewKey: 'Architecture_Globale',
 		styles: c4Styles(),
 		notes: banner ? [banner] : undefined
-	});
+	};
+}
+
+function generateGlobalStructurizr(projectName: string, elements: BundleElement[], relations: BundleRelation[], banner: string | null): string {
+	return renderStructurizrWorkspace(buildGlobalC4WorkspaceInput(projectName, elements, relations, banner));
+}
+
+function generateGlobalC4x(projectName: string, elements: BundleElement[], relations: BundleRelation[], banner: string | null): string {
+	return renderC4xDiagram(buildGlobalC4WorkspaceInput(projectName, elements, relations, banner));
 }
 
 function generateGlobalSysMLv2(projectName: string, elements: BundleElement[], relations: BundleRelation[], banner: string | null): string {
@@ -425,12 +447,14 @@ export function assembleEngagementBundle(input: AssemblyInput): EngagementBundle
 
 		const mermaid = generateMermaidDiagram(matSubject, draft, mappedStatements, projContext);
 		const structurizrDSL = generateStructurizrDSL(matSubject, draft, mappedStatements, projContext);
+		const c4x = generateC4xDSL(matSubject, draft, mappedStatements, projContext);
 		const sysmlV2 = generateSysMLv2(matSubject, draft, mappedStatements, projContext);
 
 		const subjectProjections: SubjectProjections = {
 			mermaid,
 			structurizr_dsl: structurizrDSL,
 			structurizrDSL,
+			c4x,
 			sysml_v2: sysmlV2,
 			sysmlV2
 		};
@@ -687,6 +711,7 @@ export function assembleEngagementBundle(input: AssemblyInput): EngagementBundle
 		const banner = globalBanner(input.subjects);
 		const globalMermaid = generateGlobalMermaid(elements, relations, banner);
 		const globalStructurizr = generateGlobalStructurizr(input.project.title, elements, relations, banner);
+		const globalC4x = generateGlobalC4x(input.project.title, elements, relations, banner);
 		const globalSysML = generateGlobalSysMLv2(input.project.title, elements, relations, banner);
 
 		architecture = {
@@ -696,6 +721,7 @@ export function assembleEngagementBundle(input: AssemblyInput): EngagementBundle
 				mermaid: globalMermaid,
 				structurizr_dsl: globalStructurizr,
 				structurizrDSL: globalStructurizr,
+				c4x: globalC4x,
 				sysml_v2: globalSysML,
 				sysmlV2: globalSysML,
 				by_subject: bySubjectProjections

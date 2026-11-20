@@ -25,6 +25,8 @@ export interface C4Container {
 	technology?: string;
 	/** Étiquettes Structurizr (styles par statut). */
 	tags?: string[];
+	/** Métadonnées structurées optionnelles (ex. domaine, confiance épistémique, risque, SLO). */
+	metadata?: Record<string, string>;
 }
 
 export interface C4System {

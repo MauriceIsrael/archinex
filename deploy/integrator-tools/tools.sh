@@ -50,6 +50,24 @@ case "$COMMAND" in
     docker compose -f compose.yml down -v
     ;;
 
+  reset-nautobot)
+    check_docker
+    echo ">>> Réinitialisation de la base Nautobot (base vierge, prête à hydrater)..."
+    cd "$SCRIPT_DIR"
+    docker compose -f compose.yml rm -s -f nautobot-worker nautobot nautobot-db
+    docker volume rm -f archinex-integrator-tools_nautobot-db-data >/dev/null 2>&1 || true
+    docker compose -f compose.yml up -d nautobot-db nautobot-redis nautobot nautobot-worker
+
+    echo ">>> Attente de la disponibilité de Nautobot (migrations + superuser)..."
+    for i in {1..40}; do
+      if curl -fsS http://127.0.0.1:8080/health/ >/dev/null 2>&1; then
+        echo ">>> Nautobot est prêt et vide ! (Utilisez './tools.sh seed' si vous souhaitez réinjecter le jeu témoin.)"
+        break
+      fi
+      sleep 3
+    done
+    ;;
+
   seed)
     check_docker
     echo ">>> Exécution du script de seed dans Nautobot..."
@@ -82,13 +100,13 @@ case "$COMMAND" in
       echo " - Keycloak (IdP/OIDC)   : http://127.0.0.1:8085 (admin / adminpassword)"
       echo " - Zot OCI Registry      : http://127.0.0.1:5000/v2/"
       echo " - Trivy Server          : http://127.0.0.1:4954"
-      echo " - Technitium DDI/DNS    : http://127.0.0.1:5380 (DNS UDP/TCP: 5353)"
+      echo " - Technitium DDI/DNS    : http://127.0.0.1:5380 (DNS UDP/TCP: 15353)"
       echo " - Forgejo (GitOps)      : http://127.0.0.1:3001 (SSH: 2222)"
     fi
     ;;
 
   *)
-    echo "Usage: $0 {up|down|reset|seed|status}"
+    echo "Usage: $0 {up|down|reset|reset-nautobot|seed|status}"
     exit 1
     ;;
 esac

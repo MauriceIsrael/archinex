@@ -192,8 +192,8 @@ services:
       DNS_SERVER_ADMIN_PASSWORD: adminpassword
     ports:
       - "127.0.0.1:5380:5380"
-      - "127.0.0.1:5353:53/udp"
-      - "127.0.0.1:5353:53/tcp"
+      - "127.0.0.1:15353:53/udp"
+      - "127.0.0.1:15353:53/tcp"
     volumes:
       - dns-data:/etc/dns
     restart: unless-stopped

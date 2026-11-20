@@ -1,7 +1,7 @@
 ﻿# tools.ps1 - Gestion de la stack d'outillage intégrateur (Nautobot, Batfish, OPA)
 param (
     [Parameter(Position=0)]
-    [ValidateSet("up", "down", "status", "seed", "test", "reset")]
+    [ValidateSet("up", "down", "status", "seed", "test", "reset", "reset-nautobot")]
     [string]$Command = "status"
 )
 
@@ -71,6 +71,37 @@ switch ($Command) {
         docker compose -f compose.yml down -v
     }
 
+    "reset-nautobot" {
+        if (-not (Check-Docker)) { exit 1 }
+        Write-Host ">>> Réinitialisation de la base Nautobot (base vierge, prête à hydrater)..." -ForegroundColor Yellow
+        Set-Location $ScriptDir
+        docker compose -f compose.yml rm -s -f nautobot-worker nautobot nautobot-db
+        docker volume rm -f archinex-integrator-tools_nautobot-db-data | Out-Null
+        docker compose -f compose.yml up -d nautobot-db nautobot-redis nautobot nautobot-worker
+
+        Write-Host ">>> Attente de la disponibilité de Nautobot (migrations + superuser)..." -ForegroundColor Cyan
+        $attempts = 0
+        $maxAttempts = 40
+        $ready = $false
+        while ($attempts -lt $maxAttempts -and -not $ready) {
+            Start-Sleep -Seconds 3
+            $attempts++
+            try {
+                $res = Invoke-RestMethod -Uri "http://127.0.0.1:8080/health/" -Method Get -TimeoutSec 3 -ErrorAction SilentlyContinue
+                if ($res) { $ready = $true }
+            } catch {
+                Write-Host "." -NoNewline
+            }
+        }
+        Write-Host ""
+
+        if ($ready) {
+            Write-Host ">>> Nautobot est prêt et vide ! (Utilisez '.\tools.ps1 seed' si vous souhaitez réinjecter le jeu témoin.)" -ForegroundColor Green
+        } else {
+            Write-Host "[AVERTISSEMENT] Nautobot est encore en cours d'initialisation. Vérifiez '.\tools.ps1 status' dans quelques instants." -ForegroundColor Yellow
+        }
+    }
+
     "seed" {
         if (-not (Check-Docker)) { exit 1 }
         Write-Host ">>> Exécution du script de seed dans Nautobot..." -ForegroundColor Cyan
@@ -115,7 +146,7 @@ switch ($Command) {
         Write-Host " - Keycloak (IdP/OIDC)   : http://127.0.0.1:8085 (admin / adminpassword)"
         Write-Host " - Zot OCI Registry      : http://127.0.0.1:5000/v2/"
         Write-Host " - Trivy Server          : http://127.0.0.1:4954"
-        Write-Host " - Technitium DDI/DNS    : http://127.0.0.1:5380 (DNS UDP/TCP: 5353)"
+        Write-Host " - Technitium DDI/DNS    : http://127.0.0.1:5380 (DNS UDP/TCP: 15353)"
         Write-Host " - Forgejo (GitOps)      : http://127.0.0.1:3001 (SSH: 2222)"
     }
 

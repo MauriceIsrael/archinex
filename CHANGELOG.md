@@ -8,6 +8,59 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Correctif du rendu des fragments HLD en phase 3 (`Cannot read properties of undefined (reading 'replace')`)
+- **Chargement du fragment HLD (`src/lib/server/projects/hldFragmentDb.ts`)** :
+  - Propagation de `axisUrn` (avec repli sur `slotId` / `urn` / `axisTitle`) et des métadonnées associées lors du mapping des `decisionSlots` et `ontologyAxes` issus de `refinementCoverage` de l'EDP.
+- **Projections Mermaid & Rendu Markdown (`src/lib/domain/artifactProjections.ts`, `src/lib/domain/hldFragment.ts`)** :
+  - Sécurisation de `safeMmdId`, de la clé d'axe dans `buildMultiAxisTargetArchitectureDiagram`, de `cell()` et de `decision.rationale` contre les valeurs `undefined` ou `null`.
+- **Tests** :
+  - Ajout d'un test de non-régression dans `tests/contract/hld-fragment.test.ts`.
+
+### Ajouts
+- **Connecteurs Port/Adapter de la stack Sylva (`src/lib/server/edp/adapters/`)** (#362) :
+  - `batfishAdapter.ts` (#353) : soumission de snapshots réseau et vérification d'atteignabilité / ACL (`buildBatfishOpaInput`).
+  - `openbaoAdapter.ts` (#354) : validation et provisionnement des montages/chemins KV v2 et des rôles PKI X.509.
+  - `keycloakAdapter.ts` (#357) : validation et provisionnement des realms, clients OIDC, rôles et groupes via l'API Admin.
+  - `ociSupplyChainAdapter.ts` (#355) : vérification d'artefacts OCI / signatures Cosign sur Zot et scan CVE via `trivy server`.
+  - `ddiDnsAdapter.ts` (#352) : vérification et réservation de zones DNS et d'enregistrements FQDN sur Technitium DNS.
+  - `gitopsForgeAdapter.ts` (#356) : création de branche, push du bundle `sylvaGitopsExport.ts` et ouverture de PR sur Forgejo.
+  - Mode dégradé propre (`mode: 'degraded'`, `reachable: false`) lorsque les services Docker sont hors-ligne, avec suite de tests contractuels et d'intégration (`SYLVA_STACK_LIVE=1`).
+
+### Ajouté
+- **Écosystème Docker Sylva dans `deploy/integrator-tools/compose.yml`** : ajout des services conteneurisés légers pour compléter l'environnement local d'intégration EDP :
+  - **OpenBao** (`:8200`, `#354`) pour la validation des secrets et profils PKI X.509 ;
+  - **Keycloak** (`:8085`, `#357`) pour la fédération OIDC / IAM ;
+  - **Zot** (`:5000`) et **Trivy Server** (`:4954`, `#355`) pour le registre OCI compatible Cosign/ORAS et le scan CVE/SBOM ;
+  - **Technitium DNS Server** (`:5380` / DNS `:5353`, `#352`) pour le service DDI/DNS programmable ;
+  - **Forgejo** (`:3001` / SSH `:2222`, `#356`) pour l'automatisation GitOps locale.
+- Mise à jour de `deploy/integrator-tools/tools.ps1`, `deploy/integrator-tools/tools.sh`, `deploy/integrator-tools/README.md` et des tests de contrat `tests/contract/edp-integrator-tools-docker.test.ts`.
+
+### Isolation multi-projets & configuration par projet pour Nautobot 2.x SSoT
+- **Configuration par projet (`src/lib/domain/engagements.ts`)** :
+  - Ajout de `ProjectNautobotConfig` sur `ProjectStrategy.nautobot` (`url`, `token`, `isolationPrefix`, `isolateByProject`).
+- **Isolation logique & résolution de scope (`src/lib/server/edp/nautobotSync.ts`)** :
+  - Ajout de `resolveProjectNautobotOptions`, `normalizeProjectScope`, `scopedNautobotName`, `unscopeNautobotName`, `belongsToProjectScope` et `projectTagName`.
+  - Lorsque `projectScope` est actif (par défaut sur une instance Nautobot partagée), `syncHydratedInventoryToNautobot` isole les objets par projet (`Namespace` IPAM `archinex-<scope>`, `VLANGroup` `vg-<scope>`, tag `project-<scope>`, préfixage `<scope>--` des Tenants, Circuits, VRFs, Devices et objets VPN) et `pullLiveInventoryFromNautobot` filtre et dépréfixe les objets du projet sans fuite entre projets.
+- **Endpoints EDP & Webhook (`src/routes/api/projects/[projectId]/subjects/[subjectId]/edp/+server.ts`, `src/routes/api/webhooks/nautobot/+server.ts`)** :
+  - Résolution automatique des options Nautobot du projet avant les appels push/pull.
+- **Tests & Documentation** :
+  - Ajout de `tests/contract/edp-nautobot-project-isolation.test.ts` et mise à jour de `ARCHITECTURE.md` et `USER_GUIDE.md`.
+
+### Allégement visuel de l'en-tête global et du workbench de délibération
+- **Workbench de délibération (`MaturityStepper.svelte`, `SubjectThreadView.svelte`)** :
+  - Repli par défaut de la timeline de critères `MaturityStepper` (`initialExpanded = false`) avec compteur synthétique `Critères (X/Y)` pour libérer l'espace de lecture.
+  - Passage par défaut de `SubjectThreadView` en mode onglets pleine largeur (`isSplitView = false`), la vue split côte-à-côte restant accessible via le bouton dédié.
+- **En-têtes et services techniques (`+layout.svelte`, `ProjectEngagementHeader.svelte`)** :
+  - Suppression de la répétition du titre d'engagement dans `ProjectEngagementHeader` (déjà affiché dans la pilule globale).
+  - Regroupement des badges techniques `LLMOps` et `DocEngine` sous un indicateur compact « Services » dans l'en-tête global.
+- **Tests** :
+  - Mise à jour des tests de contrat dans `tests/contract/deliberation-conversation.test.ts` et `tests/contract/deliberation-header-refactor.test.ts`.
+
+### Added
+- **Représentation C4X (`.c4x` / blocs Markdown ` ```c4x `)** : ajout du générateur pur TypeScript sans dépendance externe (`src/lib/domain/c4xDsl.ts`, licence MIT) projetant le modèle C4 partagé avec Structurizr DSL, avec support optionnel des métadonnées épistémiques (`%% @meta`) et des indices de positionnement (`$x`, `$y`).
+- **Sous-onglet C4X dans `ArtifactRegenerationHub.svelte`** : intégration d'un sélecteur `C4X (.c4x / Markdown)` / `Structurizr DSL (.dsl)` dans l'onglet C4, avec aperçu graphique via `MermaidViewer`, copie en bloc Markdown ` ```c4x ` et téléchargement `.c4x`.
+- **Export Bundle & Snapshots scellés** : ajout de la projection `c4x` dans `SubjectProjections`, `BundleArchitectureProjections`, `bundleAssembly.ts` et `FrozenSnapshot.projections` (sans modification des empreintes `sealSha256` existantes).
+
 ### Continuité Bout-en-Bout RFP → HLD → LLD Pré-Hydraté en Statut `"planned"` & Cohérence Inter-Objets (#344, #345, #346, #347, #348)
 - **Continuité Phase 1 → Phase 2 / Phase 5 (#345)** :
   - `deriveProjectHydrationContextFromEntries()` et `loadProjectHydrationContextFromDb()` préservent désormais les exigences évacuées (`disposition === 'evacuated'`) et détectent les capacités émergentes (`detectEmergentCapabilityNeed`).

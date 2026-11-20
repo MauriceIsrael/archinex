@@ -6,6 +6,8 @@ const DEFAULT_NAUTOBOT_TOKEN =
 
 export interface NautobotSyncSummary {
   reachable: boolean;
+  baseUrl?: string;
+  projectScope?: string;
   tenantsSynced: number;
   circuitsSynced: number;
   prefixesSynced: number;
@@ -31,6 +33,7 @@ export interface NautobotSyncSummary {
 export interface NautobotLivePullResult {
   reachable: boolean;
   source: 'nautobot_live' | 'local_fallback';
+  projectScope?: string;
   inventory: MultiAxisHydratedInventory;
   observedCounts: {
     devices: number;
@@ -45,7 +48,95 @@ export interface NautobotLivePullResult {
 export interface NautobotClientOptions {
   baseUrl?: string;
   token?: string;
+  /** Scope logique d'isolation par projet (Namespace, Tag, préfixage réversible des noms) sur un Nautobot partagé. */
+  projectScope?: string;
   fetchImpl?: typeof fetch;
+}
+
+export function normalizeProjectScope(raw: string): string {
+  const cleaned = String(raw || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9-]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .slice(0, 24)
+    .replace(/-+$/, '');
+  return cleaned || 'default';
+}
+
+export function projectTagName(scope: string): string {
+  return `project-${normalizeProjectScope(scope)}`;
+}
+
+export function scopedNautobotName(baseName: string, scope?: string, maxLen = 64): string {
+  const raw = String(baseName || '').trim();
+  if (!scope) return raw;
+  const norm = normalizeProjectScope(scope);
+  const prefix = `${norm}--`;
+  if (raw.startsWith(prefix)) return raw.slice(0, maxLen);
+  return `${prefix}${raw}`.slice(0, maxLen);
+}
+
+export function unscopeNautobotName(nautobotName: string, scope?: string): string {
+  const raw = String(nautobotName || '').trim();
+  if (!scope) return raw;
+  const prefix = `${normalizeProjectScope(scope)}--`;
+  return raw.startsWith(prefix) ? raw.slice(prefix.length) : raw;
+}
+
+export function belongsToProjectScope(nautobotName: string, scope?: string): boolean {
+  if (!scope) return true;
+  const prefix = `${normalizeProjectScope(scope)}--`;
+  return String(nautobotName || '').trim().startsWith(prefix);
+}
+
+export function resolveProjectNautobotOptions(
+  project?: {
+    id?: string;
+    shortName?: string | null;
+    strategy?: string | Record<string, any> | null;
+  } | null,
+  overrideOpts: Partial<NautobotClientOptions> = {}
+): NautobotClientOptions {
+  let strategyObj: Record<string, any> = {};
+  if (project?.strategy) {
+    if (typeof project.strategy === 'string') {
+      try {
+        strategyObj = JSON.parse(project.strategy);
+      } catch {
+        strategyObj = {};
+      }
+    } else if (typeof project.strategy === 'object') {
+      strategyObj = project.strategy;
+    }
+  }
+
+  const nbCfg = (strategyObj.nautobot || {}) as {
+    url?: string;
+    token?: string;
+    isolationPrefix?: string;
+    isolateByProject?: boolean;
+  };
+
+  const baseUrl = overrideOpts.baseUrl || nbCfg.url?.trim() || undefined;
+  const token = overrideOpts.token || nbCfg.token?.trim() || undefined;
+  const hasDedicatedInstance = Boolean(baseUrl && baseUrl !== DEFAULT_NAUTOBOT_URL);
+  const shouldIsolate =
+    typeof nbCfg.isolateByProject === 'boolean' ? nbCfg.isolateByProject : !hasDedicatedInstance;
+
+  let projectScope = overrideOpts.projectScope;
+  if (!projectScope && shouldIsolate && (nbCfg.isolationPrefix || project?.shortName || project?.id)) {
+    projectScope = normalizeProjectScope(
+      nbCfg.isolationPrefix?.trim() || project?.shortName?.trim() || project?.id || 'default'
+    );
+  }
+
+  return {
+    ...(baseUrl ? { baseUrl } : {}),
+    ...(token ? { token } : {}),
+    ...(projectScope ? { projectScope } : {}),
+    ...(overrideOpts.fetchImpl ? { fetchImpl: overrideOpts.fetchImpl } : {})
+  };
 }
 
 async function nbFetch(
@@ -166,8 +257,11 @@ export async function syncHydratedInventoryToNautobot(
   clientOpts: NautobotClientOptions = {}
 ): Promise<NautobotSyncSummary> {
   const baseUrl = clientOpts.baseUrl || DEFAULT_NAUTOBOT_URL;
+  const scope = clientOpts.projectScope ? normalizeProjectScope(clientOpts.projectScope) : undefined;
   const summary: NautobotSyncSummary = {
     reachable: false,
+    baseUrl,
+    ...(scope ? { projectScope: scope } : {}),
     tenantsSynced: 0,
     circuitsSynced: 0,
     prefixesSynced: 0,
@@ -281,8 +375,83 @@ export async function syncHydratedInventoryToNautobot(
       }
     }
 
-    const namespacesRes = await nbFetch('/api/ipam/namespaces/?limit=10', {}, clientOpts);
-    const defaultNamespaceId = namespacesRes.results?.[0]?.id;
+    let defaultNamespaceId: string | undefined;
+    if (scope) {
+      const nsName = `archinex-${scope}`;
+      try {
+        const nsObj = await getOrCreateByQuery(
+          '/api/ipam/namespaces/',
+          `name=${encodeURIComponent(nsName)}`,
+          {
+            name: nsName,
+            description: `Namespace IPAM isolé pour le projet ${scope}`
+          },
+          true,
+          clientOpts
+        );
+        if (nsObj?.id) defaultNamespaceId = String(nsObj.id);
+      } catch (e: any) {
+        summary.errors.push(`Namespace ${nsName}: ${e.message}`);
+      }
+    }
+    if (!defaultNamespaceId) {
+      const namespacesRes = await nbFetch('/api/ipam/namespaces/?limit=10', {}, clientOpts);
+      defaultNamespaceId = namespacesRes.results?.[0]?.id;
+    }
+
+    let projectVlanGroupId: string | undefined;
+    if (scope) {
+      const vgName = `vg-${scope}`;
+      try {
+        const vgObj = await getOrCreateByQuery(
+          '/api/ipam/vlan-groups/',
+          `name=${encodeURIComponent(vgName)}`,
+          {
+            name: vgName,
+            ...(defaultLocationId ? { location: defaultLocationId } : {}),
+            description: `VLAN Group isolé pour le projet ${scope}`
+          },
+          true,
+          clientOpts
+        );
+        if (vgObj?.id) projectVlanGroupId = String(vgObj.id);
+      } catch {
+        // Optionnel selon la version/mock Nautobot
+      }
+    }
+
+    let projectTag: { name: string } | null = null;
+    if (scope) {
+      const pTagName = projectTagName(scope);
+      try {
+        await getOrCreateByQuery(
+          '/api/extras/tags/',
+          `name=${encodeURIComponent(pTagName)}`,
+          {
+            name: pTagName,
+            color: '3f51b5',
+            content_types: [
+              'dcim.device',
+              'ipam.prefix',
+              'ipam.vrf',
+              'circuits.circuit',
+              'tenancy.tenant',
+              'vpn.vpntunnel'
+            ],
+            description: `Isolation logique Archinex pour le projet ${scope}`
+          },
+          true,
+          clientOpts
+        );
+        projectTag = { name: pTagName };
+        summary.tagsSynced++;
+      } catch (e: any) {
+        summary.errors.push(`Tag ${pTagName}: ${e.message}`);
+      }
+    }
+
+    const withProjectTags = (tags: Array<{ name: string }> = []): Array<{ name: string }> =>
+      projectTag ? [...tags, projectTag] : tags;
 
     const rg = hydrated.reconciliation_graph;
     const tenantIdMap = new Map<string, string>();
@@ -291,14 +460,18 @@ export async function syncHydratedInventoryToNautobot(
     for (const org of rg?.partner_organizations || []) {
       try {
         const orgSlug = String(org.id);
+        const scopedTenantName = scopedNautobotName(orgSlug, scope, 100);
+        const tenantPayload: Record<string, unknown> = {
+          name: scopedTenantName,
+          description: `${org.name} — Démarcation : ${org.demarcation_point || 'MMR Lot 1'}`,
+          comments: `Modèle TM Forum SID : ${org.tmf_sid_class || 'PartyRole'}\nContact NOC : ${org.noc_contact || 'N/A'}`
+        };
+        if (projectTag) tenantPayload.tags = [projectTag];
+
         const tenantObj = await getOrCreateByQuery(
           '/api/tenancy/tenants/',
-          `name=${encodeURIComponent(orgSlug)}`,
-          {
-            name: orgSlug,
-            description: `${org.name} — Démarcation : ${org.demarcation_point || 'MMR Lot 1'}`,
-            comments: `Modèle TM Forum SID : ${org.tmf_sid_class || 'PartyRole'}\nContact NOC : ${org.noc_contact || 'N/A'}`
-          },
+          `name=${encodeURIComponent(scopedTenantName)}`,
+          tenantPayload,
           true,
           clientOpts
         );
@@ -371,7 +544,7 @@ export async function syncHydratedInventoryToNautobot(
       const zoneId = String(zone.zone_id || `zone-${zIdx + 1}`);
       const zTag = await ensureZoneTag(zoneId);
       const zoneSlug = zoneId.trim().toLowerCase().replace(/[^a-z0-9_-]+/g, '-');
-      const vrfName = `vrf-${zoneSlug}`.slice(0, 100);
+      const vrfName = scopedNautobotName(`vrf-${zoneSlug}`, scope, 100);
       try {
         const vrfPayload: Record<string, unknown> = {
           name: vrfName,
@@ -380,11 +553,16 @@ export async function syncHydratedInventoryToNautobot(
         };
         if (defaultNamespaceId) vrfPayload.namespace = defaultNamespaceId;
         if (pivotTenantUuid) vrfPayload.tenant = pivotTenantUuid;
-        if (zTag) vrfPayload.tags = [{ name: zTag.name }];
+        const vrfTags = withProjectTags(zTag ? [{ name: zTag.name }] : []);
+        if (vrfTags.length > 0) vrfPayload.tags = vrfTags;
 
+        const vrfQuery =
+          scope && defaultNamespaceId
+            ? `name=${encodeURIComponent(vrfName)}&namespace=${encodeURIComponent(defaultNamespaceId)}`
+            : `name=${encodeURIComponent(vrfName)}`;
         const vrfObj = await getOrCreateByQuery(
           '/api/ipam/vrfs/',
-          `name=${encodeURIComponent(vrfName)}`,
+          vrfQuery,
           vrfPayload,
           true,
           clientOpts
@@ -433,7 +611,8 @@ export async function syncHydratedInventoryToNautobot(
         const probeInfo = rg.sla_and_monitoring_contracts?.[1];
 
         for (const link of rg.ip_underlay_links) {
-          const cid = String(link.id);
+          const logicalCid = String(link.id);
+          const cid = scopedNautobotName(logicalCid, scope, 100);
           const circuitPayload: Record<string, unknown> = {
             cid,
             provider: provider.id,
@@ -457,7 +636,10 @@ export async function syncHydratedInventoryToNautobot(
           }
           if (satisfiedClauses.length > 0) {
             circuitPayload.custom_fields = { satisfied_clauses: satisfiedClausesStr };
-            circuitPayload.tags = clauseTags;
+          }
+          const circuitTags = withProjectTags(satisfiedClauses.length > 0 ? clauseTags : []);
+          if (circuitTags.length > 0) {
+            circuitPayload.tags = circuitTags;
           }
 
           const circuitObj = await getOrCreateByQuery(
@@ -506,18 +688,28 @@ export async function syncHydratedInventoryToNautobot(
           let vlanUuid: string | null = null;
           if (link.vlan_id) {
             try {
+              const vlanName = scopedNautobotName(`vlan-${link.vlan_id}-lot3-secgw1`, scope, 64);
               const vlanPayload: Record<string, unknown> = {
                 vid: Number(link.vlan_id),
-                name: `vlan-${link.vlan_id}-lot3-secgw1`,
+                name: vlanName,
                 status: statusPlanned,
                 description: `VLAN d'interconnexion Underlay ${cid} (${link.endpoint_a} <-> ${link.endpoint_z})`
               };
               if (pivotTenantUuid) vlanPayload.tenant = pivotTenantUuid;
-              if (defaultLocationId) vlanPayload.location = defaultLocationId;
+              if (projectVlanGroupId) {
+                vlanPayload.vlan_group = projectVlanGroupId;
+              } else if (defaultLocationId) {
+                vlanPayload.location = defaultLocationId;
+              }
 
+              const vlanQuery = projectVlanGroupId
+                ? `vid=${link.vlan_id}&vlan_group=${encodeURIComponent(projectVlanGroupId)}`
+                : scope
+                  ? `vid=${link.vlan_id}&name=${encodeURIComponent(vlanName)}`
+                  : `vid=${link.vlan_id}`;
               const vlanObj = await getOrCreateByQuery(
                 '/api/ipam/vlans/',
-                `vid=${link.vlan_id}`,
+                vlanQuery,
                 vlanPayload,
                 true,
                 clientOpts
@@ -541,10 +733,15 @@ export async function syncHydratedInventoryToNautobot(
               if (defaultNamespaceId) prefixPayload.namespace = defaultNamespaceId;
               if (pivotTenantUuid) prefixPayload.tenant = pivotTenantUuid;
               if (vlanUuid) prefixPayload.vlan = vlanUuid;
+              if (projectTag) prefixPayload.tags = [projectTag];
 
+              const pfxQuery =
+                scope && defaultNamespaceId
+                  ? `prefix=${encodeURIComponent(String(link.subnet))}&namespace=${encodeURIComponent(defaultNamespaceId)}`
+                  : `prefix=${encodeURIComponent(String(link.subnet))}`;
               const pfxObj = await getOrCreateByQuery(
                 '/api/ipam/prefixes/',
-                `prefix=${encodeURIComponent(String(link.subnet))}`,
+                pfxQuery,
                 prefixPayload,
                 true,
                 clientOpts
@@ -734,10 +931,15 @@ export async function syncHydratedInventoryToNautobot(
                 if (defaultNamespaceId) pfxPayload.namespace = defaultNamespaceId;
                 if (pivotTenantUuid) pfxPayload.tenant = pivotTenantUuid;
                 if (!isMgmt && zoneVrfId) pfxPayload.vrf = zoneVrfId;
+                if (projectTag) pfxPayload.tags = [projectTag];
 
+                const devPfxQuery =
+                  scope && defaultNamespaceId
+                    ? `prefix=${encodeURIComponent(netPrefix)}&namespace=${encodeURIComponent(defaultNamespaceId)}`
+                    : `prefix=${encodeURIComponent(netPrefix)}`;
                 const pfxObj = await getOrCreateByQuery(
                   '/api/ipam/prefixes/',
-                  `prefix=${encodeURIComponent(netPrefix)}`,
+                  devPfxQuery,
                   pfxPayload,
                   true,
                   clientOpts
@@ -756,9 +958,13 @@ export async function syncHydratedInventoryToNautobot(
               };
               if (defaultNamespaceId) ipPayload.namespace = defaultNamespaceId;
 
+              const ipQuery =
+                scope && defaultNamespaceId
+                  ? `address=${encodeURIComponent(ipCidr)}&namespace=${encodeURIComponent(defaultNamespaceId)}`
+                  : `address=${encodeURIComponent(ipCidr)}`;
               const ipObj = await getOrCreateByQuery(
                 '/api/ipam/ip-addresses/',
-                `address=${encodeURIComponent(ipCidr)}`,
+                ipQuery,
                 ipPayload,
                 true,
                 clientOpts
@@ -812,8 +1018,9 @@ export async function syncHydratedInventoryToNautobot(
             if (zTag) devZoneTags.push({ name: zTag.name });
           }
 
+          const scopedDevName = scopedNautobotName(String(dev.name), scope, 64);
           const devPayload: Record<string, unknown> = {
-            name: String(dev.name),
+            name: scopedDevName,
             device_type: isHpe ? dtDl380.id : dtR750.id,
             role: roleWorker.id,
             location: defaultLocationId,
@@ -824,14 +1031,14 @@ export async function syncHydratedInventoryToNautobot(
           if (satisfiedClauses.length > 0) {
             devPayload.custom_fields = { satisfied_clauses: satisfiedClausesStr };
           }
-          const combinedTags = [...clauseTags, ...devZoneTags];
+          const combinedTags = withProjectTags([...clauseTags, ...devZoneTags]);
           if (combinedTags.length > 0) {
             devPayload.tags = combinedTags;
           }
 
           const devObj = await getOrCreateByQuery(
             '/api/dcim/devices/',
-            `name=${encodeURIComponent(String(dev.name))}`,
+            `name=${encodeURIComponent(scopedDevName)}`,
             devPayload,
             true,
             clientOpts
@@ -849,7 +1056,7 @@ export async function syncHydratedInventoryToNautobot(
             }
             await syncDeviceInterfacesAndIps(
               String(devObj.id),
-              String(dev.name),
+              scopedDevName,
               ifacesToSync,
               devZoneIds,
               String(dev.dataplane_profile || 'Sylva')
@@ -876,8 +1083,9 @@ export async function syncHydratedInventoryToNautobot(
             if (zTag) extZoneTags.push({ name: zTag.name });
           }
 
+          const scopedExtName = scopedNautobotName(String(ext.id), scope, 64);
           const payload: Record<string, unknown> = {
-            name: String(ext.id),
+            name: scopedExtName,
             device_type: dt3gppShadow.id,
             role: roleShadow.id,
             location: defaultLocationId,
@@ -886,11 +1094,12 @@ export async function syncHydratedInventoryToNautobot(
           };
           if (platShadow) payload.platform = platShadow;
           if (extTenantUuid) payload.tenant = extTenantUuid;
-          if (extZoneTags.length > 0) payload.tags = extZoneTags;
+          const allExtTags = withProjectTags(extZoneTags);
+          if (allExtTags.length > 0) payload.tags = allExtTags;
 
           const extObj = await getOrCreateByQuery(
             '/api/dcim/devices/',
-            `name=${encodeURIComponent(String(ext.id))}`,
+            `name=${encodeURIComponent(scopedExtName)}`,
             payload,
             true,
             clientOpts
@@ -901,7 +1110,7 @@ export async function syncHydratedInventoryToNautobot(
             if (underlayEndpoints.has(String(ext.id))) {
               await syncDeviceInterfacesAndIps(
                 String(extObj.id),
-                String(ext.id),
+                scopedExtName,
                 [{ name: 'eth-interco', type: 'data' }],
                 ext.zone ? [String(ext.zone)] : [],
                 '3GPP External Interco'
@@ -922,8 +1131,9 @@ export async function syncHydratedInventoryToNautobot(
             if (zTag) nodeZoneTags.push({ name: zTag.name });
           }
 
+          const scopedNodeName = scopedNautobotName(String(node.id), scope, 64);
           const payload: Record<string, unknown> = {
-            name: String(node.id),
+            name: scopedNodeName,
             device_type: dtMediationCnf.id,
             role: roleMediation.id,
             location: defaultLocationId,
@@ -934,11 +1144,12 @@ export async function syncHydratedInventoryToNautobot(
           if (pivotTenantUuid && node.id !== 'hss-lot1-01') {
             payload.tenant = pivotTenantUuid;
           }
-          if (nodeZoneTags.length > 0) payload.tags = nodeZoneTags;
+          const allNodeTags = withProjectTags(nodeZoneTags);
+          if (allNodeTags.length > 0) payload.tags = allNodeTags;
 
           const nodeObj = await getOrCreateByQuery(
             '/api/dcim/devices/',
-            `name=${encodeURIComponent(String(node.id))}`,
+            `name=${encodeURIComponent(scopedNodeName)}`,
             payload,
             true,
             clientOpts
@@ -949,7 +1160,7 @@ export async function syncHydratedInventoryToNautobot(
             if (underlayEndpoints.has(String(node.id))) {
               await syncDeviceInterfacesAndIps(
                 String(nodeObj.id),
-                String(node.id),
+                scopedNodeName,
                 [{ name: 'eth-interco', type: 'data' }],
                 node.zone ? [String(node.zone)] : [],
                 String(node.role || 'Mediation CNF')
@@ -967,16 +1178,19 @@ export async function syncHydratedInventoryToNautobot(
     if (rg?.ipsec_tunnels && rg.ipsec_tunnels.length > 0) {
       for (const tun of rg.ipsec_tunnels) {
         try {
-          const tunId = String(tun.id || 'tun-ipsec-esp-lot3-secgw1');
+          const tunId = scopedNautobotName(String(tun.id || 'tun-ipsec-esp-lot3-secgw1'), scope, 100);
+          const ikePropName = scopedNautobotName('ike-prop-lot3-aes256gcm-dh20', scope, 100);
+          const ipsecPropName = scopedNautobotName('ipsec-prop-lot3-esp-aes256gcm', scope, 100);
+          const vpnProfName = scopedNautobotName('vpn-prof-interco-lot3-s6a', scope, 100);
           const cipherSuite = String(tun.cipher_suite || 'AES-256-GCM');
           const dhGroup = String(tun.pfs_dh_group || 'DH-20-ECP384');
 
           // 5a. vpn.IKEProposal
           const ikeProposal = await getOrCreateByQuery(
             '/api/vpn/ike-proposals/',
-            `name=${encodeURIComponent('ike-prop-lot3-aes256gcm-dh20')}`,
+            `name=${encodeURIComponent(ikePropName)}`,
             {
-              name: 'ike-prop-lot3-aes256gcm-dh20',
+              name: ikePropName,
               authentication_method: 'Certificate',
               encryption_algorithm: cipherSuite,
               authentication_algorithm: 'HMAC-SHA2-384',
@@ -991,9 +1205,9 @@ export async function syncHydratedInventoryToNautobot(
           // 5b. vpn.IPSecProposal
           const ipsecProposal = await getOrCreateByQuery(
             '/api/vpn/ipsec-proposals/',
-            `name=${encodeURIComponent('ipsec-prop-lot3-esp-aes256gcm')}`,
+            `name=${encodeURIComponent(ipsecPropName)}`,
             {
-              name: 'ipsec-prop-lot3-esp-aes256gcm',
+              name: ipsecPropName,
               protocol: 'ESP',
               encryption_algorithm: cipherSuite,
               authentication_algorithm: 'HMAC-SHA2-384',
@@ -1006,7 +1220,7 @@ export async function syncHydratedInventoryToNautobot(
 
           // 5c. vpn.VPNProfile
           const vpnProfilePayload: Record<string, unknown> = {
-            name: 'vpn-prof-interco-lot3-s6a',
+            name: vpnProfName,
             description: `Profil VPN Interconnexion S6a Lot 3 ↔ SecGW-Lot1 (${cipherSuite}, PFS ${dhGroup})`,
             keepalive_enabled: true,
             keepalive_interval: Number(tun.dpd_timeout_sec || 10),
@@ -1024,7 +1238,7 @@ export async function syncHydratedInventoryToNautobot(
 
           const vpnProfile = await getOrCreateByQuery(
             '/api/vpn/vpn-profiles/',
-            `name=${encodeURIComponent('vpn-prof-interco-lot3-s6a')}`,
+            `name=${encodeURIComponent(vpnProfName)}`,
             vpnProfilePayload,
             true,
             clientOpts
@@ -1043,6 +1257,9 @@ export async function syncHydratedInventoryToNautobot(
           }
           if (pivotTenantUuid) {
             tunnelPayload.tenant = pivotTenantUuid;
+          }
+          if (projectTag) {
+            tunnelPayload.tags = [projectTag];
           }
 
           const vpnTunnelObj = await getOrCreateByQuery(
@@ -1079,10 +1296,13 @@ export async function pullLiveInventoryFromNautobot(
   baselineHydrated: MultiAxisHydratedInventory,
   clientOpts: NautobotClientOptions = {}
 ): Promise<NautobotLivePullResult> {
+  const scope = clientOpts.projectScope ? normalizeProjectScope(clientOpts.projectScope) : undefined;
+  const tagFilter = scope ? `&tag=${encodeURIComponent(projectTagName(scope))}` : '';
   const cloned: MultiAxisHydratedInventory = JSON.parse(JSON.stringify(baselineHydrated));
   const result: NautobotLivePullResult = {
     reachable: false,
     source: 'local_fallback',
+    ...(scope ? { projectScope: scope } : {}),
     inventory: cloned,
     observedCounts: {
       devices: 0,
@@ -1104,13 +1324,18 @@ export async function pullLiveInventoryFromNautobot(
 
   try {
     // 1. Lecture en direct des Tenants (/api/tenancy/tenants/)
-    const tenantsRes = await nbFetch('/api/tenancy/tenants/?limit=100', {}, clientOpts);
-    const liveTenants: any[] = Array.isArray(tenantsRes?.results) ? tenantsRes.results : [];
+    const tenantsRes = await nbFetch(`/api/tenancy/tenants/?limit=100${tagFilter}`, {}, clientOpts);
+    const rawTenants: any[] = Array.isArray(tenantsRes?.results) ? tenantsRes.results : [];
+    const liveTenants = scope
+      ? rawTenants.filter((t) => belongsToProjectScope(String(t?.name || ''), scope))
+      : rawTenants;
     result.observedCounts.tenants = liveTenants.length;
 
     const pivotTenantId = cloned.reconciliation_graph?.pivot_tenant_id || 'org-lot3-mno';
     if (liveTenants.length > 0 && cloned.reconciliation_graph) {
-      const liveTenantNames = new Set(liveTenants.map((t) => String(t.name)));
+      const liveTenantNames = new Set(
+        liveTenants.map((t) => unscopeNautobotName(String(t.name), scope))
+      );
       const filteredOrgs = (cloned.reconciliation_graph.partner_organizations || []).filter((org) =>
         liveTenantNames.has(String(org.id))
       );
@@ -1125,14 +1350,17 @@ export async function pullLiveInventoryFromNautobot(
     }
 
     // 2. Lecture en direct des Équipements DCIM (/api/dcim/devices/)
-    const devicesRes = await nbFetch('/api/dcim/devices/?limit=100', {}, clientOpts);
-    const liveDevices: any[] = Array.isArray(devicesRes?.results) ? devicesRes.results : [];
+    const devicesRes = await nbFetch(`/api/dcim/devices/?limit=100${tagFilter}`, {}, clientOpts);
+    const rawDevices: any[] = Array.isArray(devicesRes?.results) ? devicesRes.results : [];
+    const liveDevices = scope
+      ? rawDevices.filter((d) => belongsToProjectScope(String(d?.name || ''), scope))
+      : rawDevices;
     result.observedCounts.devices = liveDevices.length;
 
     const liveDeviceByName = new Map<string, any>();
     for (const d of liveDevices) {
       if (d?.name) {
-        liveDeviceByName.set(String(d.name), d);
+        liveDeviceByName.set(unscopeNautobotName(String(d.name), scope), d);
       }
     }
 
@@ -1234,13 +1462,18 @@ export async function pullLiveInventoryFromNautobot(
     }
 
     // 3. Lecture en direct des Circuits (/api/circuits/circuits/)
-    const circuitsRes = await nbFetch('/api/circuits/circuits/?limit=100', {}, clientOpts);
-    const liveCircuits: any[] = Array.isArray(circuitsRes?.results) ? circuitsRes.results : [];
+    const circuitsRes = await nbFetch(`/api/circuits/circuits/?limit=100${tagFilter}`, {}, clientOpts);
+    const rawCircuits: any[] = Array.isArray(circuitsRes?.results) ? circuitsRes.results : [];
+    const liveCircuits = scope
+      ? rawCircuits.filter((c) => belongsToProjectScope(String(c?.cid || ''), scope))
+      : rawCircuits;
     result.observedCounts.circuits = liveCircuits.length;
 
     if (liveCircuits.length > 0 && cloned.reconciliation_graph?.ip_underlay_links?.[0]) {
       const targetCid = String(cloned.reconciliation_graph.ip_underlay_links[0].id);
-      const liveCircuit = liveCircuits.find((c) => String(c.cid) === targetCid);
+      const liveCircuit = liveCircuits.find(
+        (c) => unscopeNautobotName(String(c.cid), scope) === targetCid
+      );
       if (liveCircuit) {
         // Si un opérateur a détaché le Tenant du circuit S6a dans Nautobot
         const circuitTenantName =
@@ -1278,7 +1511,9 @@ export async function pullLiveInventoryFromNautobot(
         ? ipsecPropsRes.results
         : [];
       const targetProp = liveIpsecProps.find(
-        (p) => String(p.name) === 'ipsec-prop-lot3-esp-aes256gcm'
+        (p) =>
+          belongsToProjectScope(String(p.name || ''), scope) &&
+          unscopeNautobotName(String(p.name), scope) === 'ipsec-prop-lot3-esp-aes256gcm'
       );
       if (targetProp && cloned.reconciliation_graph?.ipsec_tunnels?.[0]) {
         const liveAlgo =
@@ -1293,10 +1528,17 @@ export async function pullLiveInventoryFromNautobot(
         }
       }
 
-      const vpnTunnelsRes = await nbFetch('/api/vpn/vpn-tunnels/?limit=50', {}, clientOpts);
-      const liveVpnTunnels: any[] = Array.isArray(vpnTunnelsRes?.results)
+      const vpnTunnelsRes = await nbFetch(
+        `/api/vpn/vpn-tunnels/?limit=50${tagFilter}`,
+        {},
+        clientOpts
+      );
+      const rawVpnTunnels: any[] = Array.isArray(vpnTunnelsRes?.results)
         ? vpnTunnelsRes.results
         : [];
+      const liveVpnTunnels = scope
+        ? rawVpnTunnels.filter((t) => belongsToProjectScope(String(t?.name || ''), scope))
+        : rawVpnTunnels;
       result.observedCounts.vpnTunnels = liveVpnTunnels.length;
     } catch {
       // Module VPN optionnel si instance < 2.2

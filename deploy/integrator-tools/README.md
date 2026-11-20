@@ -24,10 +24,11 @@ Cet environnement fournit aux intégrateurs et aux oracles de conformité Archin
 ### Sous Windows (PowerShell)
 ```powershell
 cd deploy\integrator-tools
-.\tools.ps1 up      # Démarre la pile, attend Nautobot et injecte l'inventaire témoin (seed)
-.\tools.ps1 status  # Affiche les conteneurs et les URLs de service
-.\tools.ps1 test    # Vérifie la connectivité GraphQL Nautobot et l'API OPA
-.\tools.ps1 down    # Arrête les conteneurs
+.\tools.ps1 up              # Démarre la pile, attend Nautobot et injecte l'inventaire témoin (seed)
+.\tools.ps1 status          # Affiche les conteneurs et les URLs de service
+.\tools.ps1 test            # Vérifie la connectivité des services exposés
+.\tools.ps1 reset-nautobot  # Vide uniquement la base Nautobot (prête à ré-hydrater sans toucher aux autres services)
+.\tools.ps1 down            # Arrête les conteneurs
 ```
 
 ### Sous Linux / macOS / WSL (Bash)

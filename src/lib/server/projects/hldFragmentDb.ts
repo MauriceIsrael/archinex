@@ -85,15 +85,28 @@ export async function loadHldFragment(projectId: string, subjectId: string): Pro
 			if (Array.isArray(cov?.decisionSlots)) {
 				decisionSlots = cov.decisionSlots.map((s: any) => ({
 					slotId: s.slotId,
+					axisUrn: s.axisUrn || s.slotId || s.axisTitle || 'axis',
 					axisTitle: s.axisTitle,
 					togafDomain: s.togafDomain,
 					status: s.status,
 					boundLeafUrns: s.boundLeafUrns || [],
-					instantiatedComponents: s.instantiatedComponents || []
+					boundLeafTitles: s.boundLeafTitles || [],
+					boundLeaves: Array.isArray(s.boundLeaves)
+						? s.boundLeaves.map((l: any) => ({
+								urn: l.urn,
+								title: l.title,
+								domain: l.domain
+							}))
+						: undefined,
+					instantiatedComponents: s.instantiatedComponents || [],
+					coveredRequirementRefs: s.coveredRequirementRefs || [],
+					isTransitivePrerequisite: s.isTransitivePrerequisite,
+					triggeredByAxisUrn: s.triggeredByAxisUrn
 				}));
 			}
 			if (Array.isArray(cov?.axes)) {
 				ontologyAxes = cov.axes.map((a: any) => ({
+					axisUrn: a.axisUrn || a.urn || a.axisTitle || 'axis',
 					axisTitle: a.axisTitle,
 					domain: a.domain,
 					togafDomain: a.togafDomain,
@@ -101,8 +114,7 @@ export async function loadHldFragment(projectId: string, subjectId: string): Pro
 					boundLeaves: (a.boundLeaves || []).map((l: any) => ({
 						urn: l.urn,
 						title: l.title,
-						domain: l.domain,
-						oracleRulesCount: Array.isArray(l.oracleRules) ? l.oracleRules.length : 0
+						domain: l.domain
 					})),
 					instantiatedComponents: a.instantiatedComponents || []
 				}));

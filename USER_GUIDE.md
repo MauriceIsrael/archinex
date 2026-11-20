@@ -517,11 +517,16 @@ Pour tester les décisions et oracles dans un environnement d'intégration réel
   .\tools.ps1 status  # Affiche les URLs d'accès et l'état des conteneurs
   .\tools.ps1 test    # Valide la connectivité GraphQL Nautobot et l'API REST OPA
   ```
-- **Points d'accès fournis** :
-  - **Nautobot Web UI** : `http://localhost:8080` (admin / adminpassword / Token `0123456789abcdef0123456789abcdef01234567`)
-  - **Nautobot GraphQL** : `http://localhost:8080/api/graphql/`
-  - **Batfish API** : `http://localhost:9997`
-  - **OPA Server REST** : `http://localhost:8181/v1/data`
+- **Points d'accès et adaptateurs (`src/lib/server/edp/adapters/`)** :
+  - **Nautobot Web UI / GraphQL** : `http://localhost:8080` (`nautobotAdapter.ts`)
+  - **Batfish API** : `http://127.0.0.1:9997` (`batfishAdapter.ts` — snapshots & assertions reachability/ACL)
+  - **OPA Server REST** : `http://localhost:8181/v1/data` (`opaRunner.ts`)
+  - **OpenBao** : `http://127.0.0.1:8200` (`openbaoAdapter.ts` — validation/provisionnement KV v2 & rôles PKI X.509)
+  - **Keycloak** : `http://127.0.0.1:8085` (`keycloakAdapter.ts` — validation/provisionnement realms, clients OIDC, rôles & groupes)
+  - **Zot + Trivy Server** : `http://127.0.0.1:5000` / `http://127.0.0.1:4954` (`ociSupplyChainAdapter.ts` — artefacts OCI, signatures & scan CVE)
+  - **Technitium DNS** : `http://127.0.0.1:5380` (`ddiDnsAdapter.ts` — zones & enregistrements FQDN)
+  - **Forgejo** : `http://127.0.0.1:3001` (`gitopsForgeAdapter.ts` — création de branche, push `sylvaGitopsExport.ts` & ouverture de PR)
+  - Tous les adaptateurs supportent un mode dégradé propre (`mode: 'degraded'`, `reachable: false`) si le service Docker correspondant est hors-ligne. Les tests d'intégration live peuvent être activés avec `SYLVA_STACK_LIVE=1`.
 
 ### 13.6 Phase 4 Dédiée « Refinement & Hydratation », Matrice KAOS Multi-Axes & Simulateur de Drift
 Pour séparer clairement la délibération HLD (Phase 2) et l'homologation documentaire (Phase 3) de l'ingénierie d'exécution LLD, l'expérience **Oracle EDP & Raffinement** est concentrée exclusivement dans le **4ème grand onglet de phase** en haut du projet (`/deliberation?posture=refinement`) (l'ancien onglet et les encarts `Oracle EDP` de l'espace Délibération ont été retirés) :

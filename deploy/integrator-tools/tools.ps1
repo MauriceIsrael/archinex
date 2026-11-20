@@ -141,7 +141,7 @@ switch ($Command) {
         Write-Host " - Nautobot GraphQL      : http://127.0.0.1:8080/api/graphql/"
         Write-Host " - Batfish Service API   : http://127.0.0.1:9997"
         Write-Host " - OPA Server HTTP       : http://127.0.0.1:8181/v1/data"
-        Write-Host " - sushy-emulator Redfish: http://127.0.0.1:8000/redfish/v1/Systems"
+        Write-Host " - sushy-emulator Redfish: http://127.0.0.1:8001/redfish/v1/Systems"
         Write-Host " - OpenBao (Secrets/PKI) : http://127.0.0.1:8200 (Token: archinex-bao-dev-token)"
         Write-Host " - Keycloak (IdP/OIDC)   : http://127.0.0.1:8085 (admin / adminpassword)"
         Write-Host " - Zot OCI Registry      : http://127.0.0.1:5000/v2/"
@@ -175,7 +175,7 @@ switch ($Command) {
 
         # Test sushy-emulator Redfish
         try {
-            $redfishRes = Invoke-RestMethod -Uri "http://127.0.0.1:8000/redfish/v1/Systems" -Method Get
+            $redfishRes = Invoke-RestMethod -Uri "http://127.0.0.1:8001/redfish/v1/Systems" -Method Get
             Write-Host "[OK] sushy-emulator Redfish : $($redfishRes.Members.Count) système(s) exposé(s)" -ForegroundColor Green
         } catch {
             Write-Host "[FAIL] sushy-emulator Redfish non joignable : $_" -ForegroundColor Red

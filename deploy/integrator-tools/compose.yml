@@ -128,7 +128,8 @@ services:
     volumes:
       - ./sushy-emulator.conf:/etc/sushy/sushy-emulator.conf:ro
     ports:
-      - "127.0.0.1:8000:8000"
+      # Port hôte 8090 pour éviter tout conflit avec le Knowledge Hub LLMOps (port 8000)
+      - "127.0.0.1:8090:8000"
     healthcheck:
       test: ["CMD-SHELL", "python3 -c 'import urllib.request; urllib.request.urlopen(\"http://127.0.0.1:8000/redfish/v1/Systems\")' || exit 1"]
       interval: 10s

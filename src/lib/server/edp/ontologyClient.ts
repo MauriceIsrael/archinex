@@ -210,7 +210,7 @@ export async function loadOntologyCatalog(options: LoadOntologyOptions = {}): Pr
 
       // En mode hors-ligne / test / dev : repli propre sur les fixtures
       console.warn(
-        `[OntologyClient] Knowledge Hub distant injoignable (${url}), bascule propre sur les fixtures hors-ligne scellées.`
+        `[OntologyClient] Knowledge Hub distant injoignable ou en erreur (${url} — ${err.message}), bascule propre sur les fixtures hors-ligne scellées.`
       );
     }
   }

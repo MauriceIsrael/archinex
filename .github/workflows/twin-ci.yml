@@ -62,7 +62,7 @@ jobs:
       - name: Vérifier l'API Redfish /redfish/v1/Systems
         run: |
           for i in $(seq 1 30); do
-            if curl -fsS http://127.0.0.1:8000/redfish/v1/Systems > /tmp/redfish-systems.json 2>/dev/null; then
+            if curl -fsS http://127.0.0.1:8090/redfish/v1/Systems > /tmp/redfish-systems.json 2>/dev/null; then
               cat /tmp/redfish-systems.json
               node -e "const d=require('fs').readFileSync('/tmp/redfish-systems.json','utf8'); const j=JSON.parse(d); if(!j['@odata.id']) process.exit(1);"
               exit 0

@@ -513,20 +513,21 @@ Pour tester les décisions et oracles dans un environnement d'intégration repr�
 - **Démarrage de la stack d'outils** :
   ```powershell
   cd deploy\integrator-tools
-  .\tools.ps1 up      # Démarre la pile complète, attend Nautobot et injecte le seed
-  .\tools.ps1 status  # Affiche les URLs d'accès et l'état des conteneurs
-  .\tools.ps1 test    # Valide la connectivité des services exposés
+  .\tools.ps1 up              # Démarre la pile complète, attend Nautobot et injecte le seed
+  .\tools.ps1 status          # Affiche les URLs d'accès et l'état des conteneurs
+  .\tools.ps1 test            # Valide la connectivité des services exposés
+  .\tools.ps1 reset-nautobot  # Vide uniquement la base Nautobot (prête à ré-hydrater)
   ```
 - **Points d'accès fournis** :
   - **Nautobot Web UI & GraphQL** : `http://localhost:8080` (`admin` / `adminpassword` / Token `0123456789abcdef0123456789abcdef01234567`) — `http://localhost:8080/api/graphql/`
   - **Batfish API** : `http://localhost:9997`
   - **OPA Server REST** : `http://localhost:8181/v1/data`
-  - **sushy-emulator Redfish** : `http://localhost:8090/redfish/v1/Systems`
+  - **sushy-emulator Redfish** : `http://localhost:8001/redfish/v1/Systems`
   - **OpenBao (Secrets & PKI)** : `http://localhost:8200` (Token dev : `archinex-bao-dev-token`)
   - **Keycloak (IdP / OIDC)** : `http://localhost:8085` (`admin` / `adminpassword`)
   - **Zot OCI Registry** : `http://localhost:5000/v2/`
   - **Trivy Server (CVE / SBOM)** : `http://localhost:4954`
-  - **Technitium DDI / DNS** : `http://localhost:5380` (`admin` / `adminpassword`, DNS UDP/TCP : `5353`)
+  - **Technitium DDI / DNS** : `http://localhost:5380` (`admin` / `adminpassword`, DNS UDP/TCP : `15353`)
   - **Forgejo (GitOps PR/CI)** : `http://localhost:3001` (SSH : `2222`)
 - **Persistance des données** :
   - **Persistés** (volumes Docker nommés, conservés entre `down`/`up` et effacés uniquement via `.\tools.ps1 reset`) : `nautobot-db`, `zot`, `trivy` (cache CVE), `dns` (Technitium), `forgejo`.

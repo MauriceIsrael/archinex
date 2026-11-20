@@ -24,10 +24,11 @@ Cet environnement fournit aux intégrateurs et aux oracles de conformité Archin
 ### Sous Windows (PowerShell)
 ```powershell
 cd deploy\integrator-tools
-.\tools.ps1 up      # Démarre la pile, attend Nautobot et injecte l'inventaire témoin (seed)
-.\tools.ps1 status  # Affiche les conteneurs et les URLs de service
-.\tools.ps1 test    # Vérifie la connectivité GraphQL Nautobot et l'API OPA
-.\tools.ps1 down    # Arrête les conteneurs
+.\tools.ps1 up              # Démarre la pile, attend Nautobot et injecte l'inventaire témoin (seed)
+.\tools.ps1 status          # Affiche les conteneurs et les URLs de service
+.\tools.ps1 test            # Vérifie la connectivité des services exposés
+.\tools.ps1 reset-nautobot  # Vide uniquement la base Nautobot (prête à ré-hydrater sans toucher aux autres services)
+.\tools.ps1 down            # Arrête les conteneurs
 ```
 
 ### Sous Linux / macOS / WSL (Bash)
@@ -65,10 +66,10 @@ Le script `seed-nautobot.py` injecte automatiquement les données requises pour 
   - En-tête : `Authorization: Token 0123456789abcdef0123456789abcdef01234567`
 - **Batfish API** : `http://localhost:9997`
 - **OPA Server REST** : `http://localhost:8181/v1/data`
-- **sushy-emulator Redfish API** : `http://localhost:8090/redfish/v1/Systems`
+- **sushy-emulator Redfish API** : `http://localhost:8001/redfish/v1/Systems`
 - **OpenBao (Secrets & PKI)** : `http://localhost:8200` (Root token dev : `archinex-bao-dev-token`)
 - **Keycloak (IdP / OIDC)** : `http://localhost:8085` (`admin` / `adminpassword`)
 - **Zot OCI Registry** : `http://localhost:5000/v2/`
 - **Trivy Server (CVE / SBOM)** : `http://localhost:4954`
-- **Technitium DDI / DNS** : `http://localhost:5380` (`admin` / `adminpassword`, DNS UDP/TCP sur le port `5353`)
+- **Technitium DDI / DNS** : `http://localhost:5380` (`admin` / `adminpassword`, DNS UDP/TCP sur le port `15353`)
 - **Forgejo (GitOps PR/CI)** : `http://localhost:3001` (SSH Git sur le port `2222`)

@@ -508,25 +508,29 @@ Codes de sortie retournés :
 - **3** (`unavailable`) : OPA absent ou anomalie d'exécution.
 
 
-### 13.5 Pile Docker d'Intégration & Outillage (Nautobot, Batfish, OPA Server)
-Pour tester les décisions et oracles dans un environnement d'intégration réel :
+### 13.5 Pile Docker d'Intégration & Outillage Sylva (Nautobot, Batfish, OPA, OpenBao, Keycloak, Zot/Trivy, DDI, Forgejo)
+Pour tester les décisions et oracles dans un environnement d'intégration représentatif d'un système réel basé sur **Project Sylva** :
 - **Démarrage de la stack d'outils** :
   ```powershell
   cd deploy\integrator-tools
-  .\tools.ps1 up      # Démarre Nautobot 2.x, PostgreSQL 15, Redis 7, Batfish et OPA Server
+  .\tools.ps1 up      # Démarre la pile complète, attend Nautobot et injecte le seed
   .\tools.ps1 status  # Affiche les URLs d'accès et l'état des conteneurs
-  .\tools.ps1 test    # Valide la connectivité GraphQL Nautobot et l'API REST OPA
+  .\tools.ps1 test    # Valide la connectivité des services exposés
   ```
-- **Points d'accès et adaptateurs (`src/lib/server/edp/adapters/`)** :
-  - **Nautobot Web UI / GraphQL** : `http://localhost:8080` (`nautobotAdapter.ts`)
-  - **Batfish API** : `http://127.0.0.1:9997` (`batfishAdapter.ts` — snapshots & assertions reachability/ACL)
-  - **OPA Server REST** : `http://localhost:8181/v1/data` (`opaRunner.ts`)
-  - **OpenBao** : `http://127.0.0.1:8200` (`openbaoAdapter.ts` — validation/provisionnement KV v2 & rôles PKI X.509)
-  - **Keycloak** : `http://127.0.0.1:8085` (`keycloakAdapter.ts` — validation/provisionnement realms, clients OIDC, rôles & groupes)
-  - **Zot + Trivy Server** : `http://127.0.0.1:5000` / `http://127.0.0.1:4954` (`ociSupplyChainAdapter.ts` — artefacts OCI, signatures & scan CVE)
-  - **Technitium DNS** : `http://127.0.0.1:5380` (`ddiDnsAdapter.ts` — zones & enregistrements FQDN)
-  - **Forgejo** : `http://127.0.0.1:3001` (`gitopsForgeAdapter.ts` — création de branche, push `sylvaGitopsExport.ts` & ouverture de PR)
-  - Tous les adaptateurs supportent un mode dégradé propre (`mode: 'degraded'`, `reachable: false`) si le service Docker correspondant est hors-ligne. Les tests d'intégration live peuvent être activés avec `SYLVA_STACK_LIVE=1`.
+- **Points d'accès fournis** :
+  - **Nautobot Web UI & GraphQL** : `http://localhost:8080` (`admin` / `adminpassword` / Token `0123456789abcdef0123456789abcdef01234567`) — `http://localhost:8080/api/graphql/`
+  - **Batfish API** : `http://localhost:9997`
+  - **OPA Server REST** : `http://localhost:8181/v1/data`
+  - **sushy-emulator Redfish** : `http://localhost:8000/redfish/v1/Systems`
+  - **OpenBao (Secrets & PKI)** : `http://localhost:8200` (Token dev : `archinex-bao-dev-token`)
+  - **Keycloak (IdP / OIDC)** : `http://localhost:8085` (`admin` / `adminpassword`)
+  - **Zot OCI Registry** : `http://localhost:5000/v2/`
+  - **Trivy Server (CVE / SBOM)** : `http://localhost:4954`
+  - **Technitium DDI / DNS** : `http://localhost:5380` (`admin` / `adminpassword`, DNS UDP/TCP : `5353`)
+  - **Forgejo (GitOps PR/CI)** : `http://localhost:3001` (SSH : `2222`)
+- **Persistance des données** :
+  - **Persistés** (volumes Docker nommés, conservés entre `down`/`up` et effacés uniquement via `.\tools.ps1 reset`) : `nautobot-db`, `zot`, `trivy` (cache CVE), `dns` (Technitium), `forgejo`.
+  - **Éphémères** (en mémoire uniquement, réinitialisés à chaque recréation de conteneur) : `openbao` (`-dev`), `keycloak` (`start-dev`), `batfish`, `opa`, `sushy-emulator`, `nautobot-redis`.
 
 ### 13.6 Phase 4 Dédiée « Refinement & Hydratation », Matrice KAOS Multi-Axes & Simulateur de Drift
 Pour séparer clairement la délibération HLD (Phase 2) et l'homologation documentaire (Phase 3) de l'ingénierie d'exécution LLD, l'expérience **Oracle EDP & Raffinement** est concentrée exclusivement dans le **4ème grand onglet de phase** en haut du projet (`/deliberation?posture=refinement`) (l'ancien onglet et les encarts `Oracle EDP` de l'espace Délibération ont été retirés) :

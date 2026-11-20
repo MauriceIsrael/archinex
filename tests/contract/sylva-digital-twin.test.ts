@@ -254,10 +254,9 @@ describe('Jumeau Numérique de Sylva (Issues #292, #293, #294)', () => {
   it('8. Maintient la cohérence entre sushy-emulator.conf, compose.yml et le générateur du Jumeau', () => {
     const model3Dc = buildSylvaTwinModel({ profileId: '3dc-active' });
     const expectedConf = `${generateSushyEmulatorConfig(model3Dc).configText}\n`;
-    const actualConf = fs.readFileSync(
-      path.resolve('deploy/integrator-tools/sushy-emulator.conf'),
-      'utf8'
-    );
+    const actualConf = fs
+      .readFileSync(path.resolve('deploy/integrator-tools/sushy-emulator.conf'), 'utf8')
+      .replace(/\r\n/g, '\n');
     expect(actualConf).toBe(expectedConf);
 
     const composeContent = fs.readFileSync(

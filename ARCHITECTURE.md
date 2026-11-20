@@ -951,7 +951,7 @@ flowchart TD
     subgraph RepoCode["1. Dépôt Git : archinex (Moteur Logiciel Stateless)"]
         UI["SvelteKit 2 / Svelte 5 SSR & Hydratation"]
         OPA["Compilateur de Projections OPA / Rego"]
-        Connectors["Connecteurs Nautobot, Sylva, Batfish"]
+        Connectors["Connecteurs Port/Adapter (Nautobot, Sylva, Batfish, OpenBao, Keycloak, Zot/Trivy, DNS, Forgejo)"]
         Fixtures["tests/fixtures/ (Mocks figés pour la CI)"]
     end
 

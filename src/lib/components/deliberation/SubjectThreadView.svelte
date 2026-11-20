@@ -333,7 +333,7 @@
 				stall_days: activeSubject.stall_days
 			},
 			criteria: matrixCriteria.map((c) => ({ id: c.id, name: c.name })),
-			options: subjectOptions.map((o) => ({ id: o.id, title: o.title })),
+			options: subjectOptions.map((o) => ({ id: o.id, title: o.title, status: o.status })),
 			arguments: argumentsList,
 			doctrineConstraintsCount: doctrineCount,
 			specificationPresent: Boolean(detailedSpecText && detailedSpecText.trim().length > 0),
@@ -347,6 +347,7 @@
 				.map((s) => ({ id: s.id, level: s.level })),
 			decision: subjectDecision
 				? {
+						retainedOptionId: subjectDecision.retainedOptionId,
 						authorId: subjectDecision.arbiterId,
 						authorRole: subjectDecision.arbiterRole,
 						affirmedBy: subjectDecision.validatedBy,

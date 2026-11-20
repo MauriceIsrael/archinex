@@ -450,4 +450,60 @@ describe('Lot A26 Contract: Maturity Criteria Stepper, Locks, Convergence & Stag
 		// Un constat retiré seul ne suffit pas
 		expect(hasVerifierPassed([{ ...compliantVerification, resolution: 'withdrawn' }])).toBe(false);
 	});
+
+	it('11. Vérificateur multi-options (L2) : une non-conformité sur une option concurrente ne bloque pas le critère tant qu’au moins une option candidate est conforme', () => {
+		const mkVerif = (id: string, optionId: string, claim: string, grounds: string): Argument => ({
+			id,
+			subjectId: 'sub-multi',
+			optionId,
+			stance: 'verification',
+			claim,
+			grounds,
+			kbRefs: ['SEC-01'],
+			confidence: 'verified',
+			author: 'agent:verifier',
+			authorKind: 'agent:verifier',
+			productionMode: 'llm-derived',
+			round: 1,
+			resolution: 'open',
+			version: 1,
+			createdAt: new Date().toISOString()
+		});
+
+		const opt1Ok = mkVerif('v1', 'opt-1', 'Option conforme sous conditions', 'Cloisonnement cryptographique satisfait.');
+		const opt2Ok = mkVerif('v2', 'opt-2', 'Option robuste et conforme', 'Domaines de défaillance indépendants.');
+		const opt3Ko = mkVerif('v3', 'opt-3', 'Option non conforme en l’état', 'Point de défaillance unique non conforme à SEC-01.');
+
+		// L2 avant décision : 2 options conformes + 1 non conforme -> vérificateur passé (vert)
+		expect(hasVerifierPassed([opt1Ok, opt2Ok, opt3Ko])).toBe(true);
+
+		const reportL2 = computeMaturityCriteria({
+			subject: { id: 'sub-multi', name: 'Chaînes de confiance', level: 'L2_decomposed' },
+			options: [
+				{ id: 'opt-1', title: 'Option A', status: 'proposed' },
+				{ id: 'opt-2', title: 'Option B', status: 'proposed' },
+				{ id: 'opt-3', title: 'Option C', status: 'proposed' }
+			],
+			arguments: [opt1Ok, opt2Ok, opt3Ko]
+		});
+		expect(
+			reportL2.transitions.L3_decided.criteria.find((c) => c.id === 'verifier_passed')?.satisfied
+		).toBe(true);
+
+		// Si TOUTES les options vérifiées sont non conformes -> reste bloqué (rouge)
+		const opt1Ko = mkVerif('v1-ko', 'opt-1', 'Option non conforme', 'Violation majeure.');
+		expect(hasVerifierPassed([opt1Ko, opt3Ko])).toBe(false);
+
+		// Si l'option retenue est celle qui a une violation ouverte -> bloqué jusqu'à résolution
+		expect(hasVerifierPassed([opt1Ok, opt3Ko], { retainedOptionId: 'opt-3' })).toBe(false);
+		expect(
+			hasVerifierPassed(
+				[opt1Ok, { ...opt3Ko, resolution: 'accepted_risk' }],
+				{ retainedOptionId: 'opt-3' }
+			)
+		).toBe(true);
+
+		// Si l'option retenue est conforme, la non-conformité d'une option rejetée ne bloque pas
+		expect(hasVerifierPassed([opt1Ok, opt3Ko], { retainedOptionId: 'opt-1' })).toBe(true);
+	});
 });

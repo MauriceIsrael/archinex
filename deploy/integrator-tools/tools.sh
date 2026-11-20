@@ -78,6 +78,12 @@ case "$COMMAND" in
       echo " - Batfish Service API   : http://127.0.0.1:9997"
       echo " - OPA Server HTTP       : http://127.0.0.1:8181/v1/data"
       echo " - sushy-emulator Redfish: http://127.0.0.1:8000/redfish/v1/Systems"
+      echo " - OpenBao (Secrets/PKI) : http://127.0.0.1:8200 (Token: archinex-bao-dev-token)"
+      echo " - Keycloak (IdP/OIDC)   : http://127.0.0.1:8085 (admin / adminpassword)"
+      echo " - Zot OCI Registry      : http://127.0.0.1:5000/v2/"
+      echo " - Trivy Server          : http://127.0.0.1:4954"
+      echo " - Technitium DDI/DNS    : http://127.0.0.1:5380 (DNS UDP/TCP: 5353)"
+      echo " - Forgejo (GitOps)      : http://127.0.0.1:3001 (SSH: 2222)"
     fi
     ;;
 

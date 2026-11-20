@@ -111,6 +111,12 @@ switch ($Command) {
         Write-Host " - Batfish Service API   : http://127.0.0.1:9997"
         Write-Host " - OPA Server HTTP       : http://127.0.0.1:8181/v1/data"
         Write-Host " - sushy-emulator Redfish: http://127.0.0.1:8000/redfish/v1/Systems"
+        Write-Host " - OpenBao (Secrets/PKI) : http://127.0.0.1:8200 (Token: archinex-bao-dev-token)"
+        Write-Host " - Keycloak (IdP/OIDC)   : http://127.0.0.1:8085 (admin / adminpassword)"
+        Write-Host " - Zot OCI Registry      : http://127.0.0.1:5000/v2/"
+        Write-Host " - Trivy Server          : http://127.0.0.1:4954"
+        Write-Host " - Technitium DDI/DNS    : http://127.0.0.1:5380 (DNS UDP/TCP: 5353)"
+        Write-Host " - Forgejo (GitOps)      : http://127.0.0.1:3001 (SSH: 2222)"
     }
 
     "test" {
@@ -142,6 +148,46 @@ switch ($Command) {
             Write-Host "[OK] sushy-emulator Redfish : $($redfishRes.Members.Count) système(s) exposé(s)" -ForegroundColor Green
         } catch {
             Write-Host "[FAIL] sushy-emulator Redfish non joignable : $_" -ForegroundColor Red
+        }
+
+        # Test OpenBao
+        try {
+            $null = Invoke-RestMethod -Uri "http://127.0.0.1:8200/v1/sys/health" -Method Get
+            Write-Host "[OK] OpenBao HTTP API : Opérationnel" -ForegroundColor Green
+        } catch {
+            Write-Host "[FAIL] OpenBao non joignable : $_" -ForegroundColor Red
+        }
+
+        # Test Zot OCI Registry
+        try {
+            $null = Invoke-RestMethod -Uri "http://127.0.0.1:5000/v2/" -Method Get
+            Write-Host "[OK] Zot OCI Registry : API /v2/ joignable" -ForegroundColor Green
+        } catch {
+            Write-Host "[FAIL] Zot OCI Registry non joignable : $_" -ForegroundColor Red
+        }
+
+        # Test Keycloak
+        try {
+            $null = Invoke-RestMethod -Uri "http://127.0.0.1:8085/realms/master/.well-known/openid-configuration" -Method Get
+            Write-Host "[OK] Keycloak OIDC : Discovery endpoint joignable" -ForegroundColor Green
+        } catch {
+            Write-Host "[FAIL] Keycloak non joignable : $_" -ForegroundColor Red
+        }
+
+        # Test Technitium DNS UI/API
+        try {
+            $null = Invoke-WebRequest -Uri "http://127.0.0.1:5380/" -Method Get -UseBasicParsing
+            Write-Host "[OK] Technitium DDI/DNS : Console HTTP joignable" -ForegroundColor Green
+        } catch {
+            Write-Host "[FAIL] Technitium DDI/DNS non joignable : $_" -ForegroundColor Red
+        }
+
+        # Test Forgejo
+        try {
+            $null = Invoke-RestMethod -Uri "http://127.0.0.1:3001/api/v1/version" -Method Get
+            Write-Host "[OK] Forgejo GitOps : API REST joignable" -ForegroundColor Green
+        } catch {
+            Write-Host "[FAIL] Forgejo non joignable : $_" -ForegroundColor Red
         }
     }
 }

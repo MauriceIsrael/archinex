@@ -1,7 +1,8 @@
 import type { MaturitySubject } from '$lib/domain/maturityBoard';
 import type { TelegraphicDraft } from '$lib/domain/telegraphic';
 import type { Statement } from '$lib/types/epistemic';
-import { renderStructurizrWorkspace, type C4Container, type C4Relation } from '$lib/domain/structurizrDsl';
+import { renderStructurizrWorkspace, type C4Container, type C4Relation, type C4WorkspaceInput } from '$lib/domain/structurizrDsl';
+import { renderC4xDiagram, type C4xRenderOptions } from '$lib/domain/c4xDsl';
 import { badgeOf, c4Styles, draftOverlay, epistemicCounts, mermaidClassDefs, mmdText, partitionStatements, withdrawnNote } from '$lib/domain/epistemicBadge';
 import { TOGAF_DOMAINS, TOGAF_DOMAIN_ORDER, resolveTogafDomain, type TogafDomainId } from '$lib/domain/edp/togafTaxonomy';
 import { buildDynamicDeploymentSequence, extractDeploymentSignals } from '$lib/domain/deploymentSequence';
@@ -192,18 +193,12 @@ export function extractProjectionBlocks(
 	return buildProjectionBlockGraph(subject, shown, conflictIds, context?.requirements);
 }
 
-/**
- * Génère la spécification C4 au format Structurizr DSL (.dsl), **acceptée par Structurizr** (voir `structurizrDsl.ts`).
- *
- * Chaque container porte, comme « technologie » et comme étiquette de style, la solidité de l'énoncé dont il vient. Les personnes
- * sont celles que l'appelant déclare comme acteurs du système : aucune n'est inventée.
- */
-export function generateStructurizrDSL(
+function buildSubjectC4WorkspaceInput(
 	subject: MaturitySubject,
 	draft: TelegraphicDraft,
 	statements: Statement[],
 	context?: ProjectionContext
-): string {
+): C4WorkspaceInput {
 	const { shown, withdrawn, conflictIds } = scoped(subject, statements);
 	const enterpriseName = context?.enterpriseName || context?.projectName || 'Organisation';
 	const containers: C4Container[] = [];
@@ -215,13 +210,25 @@ export function generateStructurizrDSL(
 			name: context.decision.retainedOptionTitle,
 			description: context.decision.rationale || 'Option retenue',
 			technology: 'Option retenue',
-			tags: ['Retained']
+			tags: ['Retained'],
+			metadata: context.decision.arbiterRole ? { arbiterRole: context.decision.arbiterRole } : undefined
 		});
 	}
 
 	shown.forEach((s) => {
 		const badge = badgeOf(s, conflictIds.has(s.id));
-		containers.push({ id: s.id, name: s.triplet.predicate, description: String(s.triplet.value), technology: badge.label, tags: [badge.tag] });
+		containers.push({
+			id: s.id,
+			name: s.triplet.predicate,
+			description: String(s.triplet.value),
+			technology: badge.label,
+			tags: [badge.tag],
+			metadata: {
+				confidence: s.maturity.confidence,
+				productionMode: s.authority.productionMode,
+				...(s.section ? { section: s.section } : {})
+			}
+		});
 	});
 
 	overlay.points.forEach((p, i) =>
@@ -243,7 +250,7 @@ export function generateStructurizrDSL(
 		});
 	}
 
-	return renderStructurizrWorkspace({
+	return {
 		name: subject.name,
 		description: overlay.banner ? `Projeté depuis Archinex — ${overlay.banner}` : 'Projeté sans dérive depuis Archinex',
 		group: enterpriseName,
@@ -253,7 +260,35 @@ export function generateStructurizrDSL(
 		viewKey: subject.id,
 		styles: c4Styles(),
 		notes: [overlay.banner, note].filter((n): n is string => Boolean(n))
-	});
+	};
+}
+
+/**
+ * Génère la spécification C4 au format Structurizr DSL (.dsl), **acceptée par Structurizr** (voir `structurizrDsl.ts`).
+ *
+ * Chaque container porte, comme « technologie » et comme étiquette de style, la solidité de l'énoncé dont il vient. Les personnes
+ * sont celles que l'appelant déclare comme acteurs du système : aucune n'est inventée.
+ */
+export function generateStructurizrDSL(
+	subject: MaturitySubject,
+	draft: TelegraphicDraft,
+	statements: Statement[],
+	context?: ProjectionContext
+): string {
+	return renderStructurizrWorkspace(buildSubjectC4WorkspaceInput(subject, draft, statements, context));
+}
+
+/**
+ * Génère la représentation C4X (.c4x / bloc Markdown ```c4x) à partir du même modèle C4 que Structurizr DSL.
+ */
+export function generateC4xDSL(
+	subject: MaturitySubject,
+	draft: TelegraphicDraft,
+	statements: Statement[],
+	context?: ProjectionContext,
+	options?: C4xRenderOptions
+): string {
+	return renderC4xDiagram(buildSubjectC4WorkspaceInput(subject, draft, statements, context), options);
 }
 
 /** Texte sûr dans un commentaire `doc` SysML : la fin de commentaire est neutralisée. */

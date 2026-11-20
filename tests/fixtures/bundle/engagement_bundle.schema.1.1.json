@@ -410,6 +410,9 @@
                   "structurizrDSL": {
                     "type": "string"
                   },
+                  "c4x": {
+                    "type": "string"
+                  },
                   "sysml_v2": {
                     "type": "string"
                   },
@@ -824,6 +827,9 @@
               "structurizrDSL": {
                 "type": "string"
               },
+              "c4x": {
+                "type": "string"
+              },
               "sysml_v2": {
                 "type": "string"
               },
@@ -843,6 +849,9 @@
                       "type": "string"
                     },
                     "structurizrDSL": {
+                      "type": "string"
+                    },
+                    "c4x": {
                       "type": "string"
                     },
                     "sysml_v2": {

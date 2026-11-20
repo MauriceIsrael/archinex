@@ -471,7 +471,7 @@ Dans l'onglet de délibération et de rendu (`ArtifactRegenerationHub.svelte`), 
 1. **Diagrammes d'Architecture Hi-Fi (Mermaid)** :
    - Modélisation de motifs canoniques : Actif/Actif Géoredondant Bi-Site (Dual-DC avec Quorum et DCI synchrone), Survie Edge Tactique (Mode Îlotage), Découplage de services critiques 3GPP (SIP Core, App Servers, Common Services) et Passerelle Hybride LMR/IWF.
    - Chaîne de déploiement progressive Zero-Downtime adaptée à la topologie retenue.
-2. **Modèle C4 Structurizr (DSL & Visuel)** : Hiérarchie logicielle System/Container.
+2. **Modèle C4 — C4X (`.c4x` / Markdown ```` ```c4x ````) & Structurizr DSL (`.dsl`)** : Hiérarchie logicielle Person / Boundary / System / Container générée en TypeScript pur sans dépendance externe (`c4xDsl.ts` et `structurizrDsl.ts`, licence MIT), avec annotations de métadonnées épistémiques (`%% @meta`) et aperçu visuel via `MermaidViewer`.
 3. **Modélisation SysML v2 (BDD)** : Définition des blocs et contraintes d'ingénierie système.
 4. **Configuration JSON Technique** : Paramétrage opérationnel opposable scellé.
 5. **Pont d'Export Canvas « Petites Briques » (`petitesBriquesBridge.ts`)** :

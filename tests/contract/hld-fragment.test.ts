@@ -178,4 +178,32 @@ describe('Fragment de HLD : lisible comme un brouillon', () => {
 		input.subject.deliberationStatus = 'awaiting_review';
 		expect(renderHldFragmentMarkdown(buildHldFragment(input))).toContain('### Conséquences et risques acceptés (décision en revue)');
 	});
+
+	it('gère les axes ontologiques et slots de décision même si axisUrn est absent (non-régression .replace sur undefined)', () => {
+		const input = base();
+		input.ontologyAxes = [
+			{
+				axisUrn: undefined as unknown as string,
+				axisTitle: 'Résilience multi-site',
+				togafDomain: 'technology',
+				status: 'bound_verified',
+				boundLeaves: [{ urn: 'urn:leaf:aa', title: 'Actif-Actif' }],
+				instantiatedComponents: ['site-a', 'site-b']
+			}
+		];
+		input.decisionSlots = [
+			{
+				slotId: 'slot:resilience',
+				axisUrn: undefined as unknown as string,
+				axisTitle: 'Résilience multi-site',
+				togafDomain: 'technology',
+				status: 'bound_verified',
+				instantiatedComponents: ['site-a']
+			}
+		];
+		const f = buildHldFragment(input);
+		expect(f.targetArchitectureMermaid).toContain('flowchart TB');
+		expect(f.targetArchitectureMermaid).toContain('Résilience multi-site');
+		expect(() => renderHldFragmentMarkdown(f)).not.toThrow();
+	});
 });

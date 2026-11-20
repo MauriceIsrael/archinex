@@ -701,8 +701,8 @@ export function targetArchitectureClassDefs(indent = '    '): string[] {
 	];
 }
 
-function safeMmdId(prefix: string, raw: string, index: number): string {
-	const cleaned = raw.replace(/[^a-zA-Z0-9_]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '');
+function safeMmdId(prefix: string, raw: string | null | undefined, index: number): string {
+	const cleaned = (raw ?? '').replace(/[^a-zA-Z0-9_]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '');
 	const suffix = cleaned ? cleaned.slice(-24) : String(index);
 	return `${prefix}_${index}_${suffix}`;
 }
@@ -778,11 +778,12 @@ function buildMultiAxisTargetArchitectureDiagram(
 	const axisMap = new Map<string, NormalizedAxis>();
 
 	for (const axis of context.ontologyAxes ?? []) {
+		const axisUrn = axis.axisUrn || axis.axisTitle || `axis-${axisMap.size}`;
 		const domainId = resolveAxisTogafDomain(axis.togafDomain, axis.domain, axis.axisTitle);
 		const boundLeafLabels = (axis.boundLeaves ?? []).map((l) => l.title || l.urn).filter(Boolean);
-		axisMap.set(axis.axisUrn, {
-			axisUrn: axis.axisUrn,
-			axisTitle: axis.axisTitle,
+		axisMap.set(axisUrn, {
+			axisUrn,
+			axisTitle: axis.axisTitle || axisUrn,
 			domainId,
 			status: axis.status || 'open',
 			boundLeafLabels: Array.from(new Set(boundLeafLabels)),
@@ -793,7 +794,8 @@ function buildMultiAxisTargetArchitectureDiagram(
 	}
 
 	for (const slot of context.decisionSlots ?? []) {
-		const existing = axisMap.get(slot.axisUrn);
+		const axisUrn = slot.axisUrn || slot.slotId || slot.axisTitle || `slot-${axisMap.size}`;
+		const existing = axisMap.get(axisUrn);
 		const domainId = resolveAxisTogafDomain(slot.togafDomain, existing?.domainId, slot.axisTitle);
 		const leafLabels = [
 			...(existing?.boundLeafLabels ?? []),
@@ -810,10 +812,10 @@ function buildMultiAxisTargetArchitectureDiagram(
 			...(slot.coveredRequirementRefs ?? [])
 		].filter(Boolean);
 
-		axisMap.set(slot.axisUrn, {
-			axisUrn: slot.axisUrn,
+		axisMap.set(axisUrn, {
+			axisUrn,
 			slotId: slot.slotId,
-			axisTitle: slot.axisTitle || existing?.axisTitle || slot.axisUrn,
+			axisTitle: slot.axisTitle || existing?.axisTitle || axisUrn,
 			domainId,
 			status: slot.status || existing?.status || 'open',
 			boundLeafLabels: Array.from(new Set(leafLabels)),

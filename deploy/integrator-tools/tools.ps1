@@ -115,7 +115,7 @@ switch ($Command) {
         Write-Host " - Keycloak (IdP/OIDC)   : http://127.0.0.1:8085 (admin / adminpassword)"
         Write-Host " - Zot OCI Registry      : http://127.0.0.1:5000/v2/"
         Write-Host " - Trivy Server          : http://127.0.0.1:4954"
-        Write-Host " - Technitium DDI/DNS    : http://127.0.0.1:5380 (DNS UDP/TCP: 5353)"
+        Write-Host " - Technitium DDI/DNS    : http://127.0.0.1:5380 (DNS UDP/TCP: 15353)"
         Write-Host " - Forgejo (GitOps)      : http://127.0.0.1:3001 (SSH: 2222)"
     }
 

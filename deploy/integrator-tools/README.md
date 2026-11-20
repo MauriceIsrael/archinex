@@ -70,5 +70,5 @@ Le script `seed-nautobot.py` injecte automatiquement les données requises pour 
 - **Keycloak (IdP / OIDC)** : `http://localhost:8085` (`admin` / `adminpassword`)
 - **Zot OCI Registry** : `http://localhost:5000/v2/`
 - **Trivy Server (CVE / SBOM)** : `http://localhost:4954`
-- **Technitium DDI / DNS** : `http://localhost:5380` (`admin` / `adminpassword`, DNS UDP/TCP sur le port `5353`)
+- **Technitium DDI / DNS** : `http://localhost:5380` (`admin` / `adminpassword`, DNS UDP/TCP sur le port `15353`)
 - **Forgejo (GitOps PR/CI)** : `http://localhost:3001` (SSH Git sur le port `2222`)

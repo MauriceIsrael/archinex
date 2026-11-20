@@ -82,7 +82,7 @@ case "$COMMAND" in
       echo " - Keycloak (IdP/OIDC)   : http://127.0.0.1:8085 (admin / adminpassword)"
       echo " - Zot OCI Registry      : http://127.0.0.1:5000/v2/"
       echo " - Trivy Server          : http://127.0.0.1:4954"
-      echo " - Technitium DDI/DNS    : http://127.0.0.1:5380 (DNS UDP/TCP: 5353)"
+      echo " - Technitium DDI/DNS    : http://127.0.0.1:5380 (DNS UDP/TCP: 15353)"
       echo " - Forgejo (GitOps)      : http://127.0.0.1:3001 (SSH: 2222)"
     fi
     ;;

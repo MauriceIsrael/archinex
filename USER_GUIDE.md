@@ -526,7 +526,7 @@ Pour tester les décisions et oracles dans un environnement d'intégration repr�
   - **Keycloak (IdP / OIDC)** : `http://localhost:8085` (`admin` / `adminpassword`)
   - **Zot OCI Registry** : `http://localhost:5000/v2/`
   - **Trivy Server (CVE / SBOM)** : `http://localhost:4954`
-  - **Technitium DDI / DNS** : `http://localhost:5380` (`admin` / `adminpassword`, DNS UDP/TCP : `5353`)
+  - **Technitium DDI / DNS** : `http://localhost:5380` (`admin` / `adminpassword`, DNS UDP/TCP : `15353`)
   - **Forgejo (GitOps PR/CI)** : `http://localhost:3001` (SSH : `2222`)
 - **Persistance des données** :
   - **Persistés** (volumes Docker nommés, conservés entre `down`/`up` et effacés uniquement via `.\tools.ps1 reset`) : `nautobot-db`, `zot`, `trivy` (cache CVE), `dns` (Technitium), `forgejo`.

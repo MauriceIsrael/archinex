@@ -228,6 +228,38 @@
 		}
 	}
 
+	async function handlePromoteSlotToSubject(slotId: string, axisTitle?: string) {
+		if (!projectId || !slotId || isActionRunning) return;
+		isActionRunning = true;
+		actionMessage = null;
+		actionError = null;
+		try {
+			const res = await fetch(`/api/projects/${encodeURIComponent(projectId)}/decision-slots`, {
+				method: 'POST',
+				headers: { 'Content-Type': 'application/json' },
+				body: JSON.stringify({
+					action: 'promote_to_subject',
+					actorRole: 'lead_architect',
+					slotId,
+					subjectTitle: axisTitle,
+					reason: `Promotion explicite de l'emplacement ${axisTitle || slotId} en sujet de délibération Type 1.`
+				})
+			});
+			const data = await res.json();
+			if (!res.ok || data.status === 'error') {
+				actionError = data.error || 'Échec de la promotion en sujet de délibération.';
+			} else {
+				localSlotsState = data;
+				actionMessage = `Emplacement « ${axisTitle || slotId} » promu en sujet de délibération (${data.promotedSubject?.subjectId}).`;
+				await refreshLocalState();
+			}
+		} catch (e: any) {
+			actionError = e.message || 'Erreur réseau.';
+		} finally {
+			isActionRunning = false;
+		}
+	}
+
 	async function handleSealArchitectureLock() {
 		if (!projectId || isActionRunning) return;
 		isActionRunning = true;
@@ -1025,19 +1057,31 @@
 							</td>
 							<td class="p-2 whitespace-nowrap">
 								{#if slot.lockBadge !== 'locked'}
-									<button
-										type="button"
-										disabled={isActionRunning}
-										onclick={() =>
-											handleRatifySingleSlot(
-												slot.slotId,
-												slotLeafOverrides[slot.slotId] || slot.boundLeafUrn || slot.candidateLeaves?.[0]?.urn
-											)}
-										class="px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-[11px] cursor-pointer"
-										data-testid="live-lock-ratify-slot-btn-{slot.slotId}"
-									>
-										✓ Ratifier cet axe
-									</button>
+									<div class="flex items-center gap-1.5 flex-wrap">
+										<button
+											type="button"
+											disabled={isActionRunning}
+											onclick={() =>
+												handleRatifySingleSlot(
+													slot.slotId,
+													slotLeafOverrides[slot.slotId] || slot.boundLeafUrn || slot.candidateLeaves?.[0]?.urn
+												)}
+											class="px-2.5 py-1 rounded bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-[11px] cursor-pointer"
+											data-testid="live-lock-ratify-slot-btn-{slot.slotId}"
+										>
+											✓ Ratifier cet axe
+										</button>
+										<button
+											type="button"
+											disabled={isActionRunning}
+											onclick={() => handlePromoteSlotToSubject(slot.slotId, slot.axisTitle)}
+											class="px-2 py-1 rounded border border-indigo-500/40 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-800 dark:text-indigo-200 font-semibold text-[10px] cursor-pointer"
+											title="Promouvoir cet emplacement en sujet de délibération Type 1"
+											data-testid="live-lock-promote-slot-btn-{slot.slotId}"
+										>
+											↗ Promouvoir en Sujet
+										</button>
+									</div>
 								{:else}
 									<div class="flex items-center gap-2 flex-wrap">
 										<span class="text-[11px] font-mono text-emerald-700 dark:text-emerald-300">

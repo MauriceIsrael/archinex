@@ -1096,6 +1096,66 @@ export async function promoteSlotToDeliberationSubject(
   state.promotions[slot.slotId] = descriptor;
   saveProjectSlotState(input.projectId, state);
 
+  // Matérialisation relationnelle dans Prisma (Subject + Options candidates) lorsque le projet existe en base
+  try {
+    const { prisma } = await import('../prisma.js');
+    const projectExists = await prisma.project.findUnique({
+      where: { id: input.projectId },
+      select: { id: true }
+    });
+    if (projectExists) {
+      const sectionRef = `§PROM-${Object.keys(state.promotions).length}`;
+      await prisma.subject.upsert({
+        where: { id: descriptor.subjectId },
+        create: {
+          id: descriptor.subjectId,
+          projectId: input.projectId,
+          sectionRef,
+          name: descriptor.title,
+          domain: descriptor.togafDomain,
+          problemStatement: descriptor.reason,
+          maturityLevel: 'L1_framed',
+          deliberationStatus: 'open',
+          waitingForRole: descriptor.promotedRole || 'lead_architect',
+          requirementRefs: JSON.stringify(slot.coveredRequirementRefs || []),
+          nature: 'architecture',
+          relativeEffort: 'M'
+        },
+        update: {
+          name: descriptor.title,
+          domain: descriptor.togafDomain,
+          problemStatement: descriptor.reason
+        }
+      });
+
+      for (let i = 0; i < descriptor.candidateOptions.length; i++) {
+        const opt = descriptor.candidateOptions[i];
+        const optId = `${descriptor.subjectId}-opt-${i + 1}`;
+        await prisma.option.upsert({
+          where: { id: optId },
+          create: {
+            id: optId,
+            subjectId: descriptor.subjectId,
+            title: opt.title,
+            summary: `Variante ontologique ${opt.urn} (${opt.domain})`,
+            origin: 'kb-pattern',
+            kbRefs: JSON.stringify([opt.urn]),
+            status: 'proposed',
+            author: descriptor.promotedBy,
+            role: descriptor.promotedRole || 'lead_architect',
+            productionMode: 'human-authored'
+          },
+          update: {
+            title: opt.title,
+            summary: `Variante ontologique ${opt.urn} (${opt.domain})`
+          }
+        });
+      }
+    }
+  } catch {
+    // Non bloquant en exécution hors-base (tests unitaires purs)
+  }
+
   return descriptor;
 }
 

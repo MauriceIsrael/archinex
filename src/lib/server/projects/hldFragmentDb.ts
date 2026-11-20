@@ -5,6 +5,8 @@ import { requirementBundleId } from '$lib/domain/requirementAudit';
 import { coverageWarnings } from '$lib/domain/maturityRules';
 import { getProjectFrameworks } from './frameworksDb';
 import { resolveProjectionPatternSemantically } from '../similarity/projectionSemanticClassifier';
+import type { Statement } from '$lib/types/epistemic';
+import { loadProjectComponentCatalog } from '../edp/componentCatalogRepository';
 
 const parseIds = (raw: string | null | undefined): string[] => {
 	try {
@@ -15,7 +17,7 @@ const parseIds = (raw: string | null | undefined): string[] => {
 	}
 };
 
-/** Fragment de HLD d'un sujet, à partir des tables relationnelles (décision, options, critères, exigences). */
+/** Fragment de HLD d'un sujet, à partir des tables relationnelles (décision, options, critères, exigences, énoncés, EDP). */
 export async function loadHldFragment(projectId: string, subjectId: string): Promise<{ fragment: HldFragment; markdown: string }> {
 	const ctx = await getSubjectArbitrationContext(subjectId);
 	const subject = ctx.subject;
@@ -23,7 +25,7 @@ export async function loadHldFragment(projectId: string, subjectId: string): Pro
 
 	const requirementRefs = parseIds(subject.requirementRefs);
 	const dependsOnIds = parseIds(subject.dependsOn);
-	const [dependsOn, sources, assertion] = await Promise.all([
+	const [dependsOn, sources, assertion, dbStatements, edpRow] = await Promise.all([
 		dependsOnIds.length
 			? prisma.subject.findMany({ where: { id: { in: dependsOnIds } }, select: { id: true, name: true, maturityLevel: true } })
 			: Promise.resolve([]),
@@ -33,8 +35,92 @@ export async function loadHldFragment(projectId: string, subjectId: string): Pro
 					where: { projectId, entityType: 'decision', entityId: ctx.decision.id, type: 'DECISION_ASSERTED' },
 					orderBy: { createdAt: 'desc' }
 				})
-			: Promise.resolve(null)
+			: Promise.resolve(null),
+		prisma.statement.findMany({
+			where: {
+				projectId,
+				OR: [{ subjectId }, { section: subject.sectionRef }],
+				status: 'active'
+			},
+			take: 100
+		}).catch(() => []),
+		(prisma as any).executableDecisionPackage?.findFirst?.({
+			where: { subjectId },
+			orderBy: { revision: 'desc' }
+		}).catch(() => null) ?? Promise.resolve(null)
 	]);
+
+	const mappedStatements: Statement[] = (dbStatements || []).map((st) => ({
+		id: st.id,
+		section: st.section || subject.sectionRef,
+		triplet: {
+			subject: st.subjectRef,
+			predicate: st.predicate,
+			value: st.value,
+			...(st.unit ? { unit: st.unit } : {})
+		},
+		justification: { basedOn: parseIds(st.basedOn) },
+		authority: {
+			author: st.author,
+			role: st.role,
+			productionMode: (st.productionMode || 'human-authored') as Statement['authority']['productionMode']
+		},
+		maturity: {
+			subjectLevel: (st.subjectLevel || subject.maturityLevel) as Statement['maturity']['subjectLevel'],
+			confidence: (st.confidence || 'designed') as Statement['maturity']['confidence']
+		},
+		revisability: { antecedents: parseIds(st.basedOn) },
+		status: 'active',
+		createdAt: st.createdAt.toISOString(),
+		updatedAt: st.updatedAt.toISOString()
+	}));
+
+	let decisionSlots: HldFragment['decisionSlots'];
+	let ontologyAxes: HldFragment['ontologyAxes'];
+	let catalogComponents: HldFragment['catalogComponents'];
+	try {
+		if (edpRow?.content) {
+			const parsedEdp = JSON.parse(edpRow.content);
+			const cov = parsedEdp.refinementCoverage;
+			if (Array.isArray(cov?.decisionSlots)) {
+				decisionSlots = cov.decisionSlots.map((s: any) => ({
+					slotId: s.slotId,
+					axisTitle: s.axisTitle,
+					togafDomain: s.togafDomain,
+					status: s.status,
+					boundLeafUrns: s.boundLeafUrns || [],
+					instantiatedComponents: s.instantiatedComponents || []
+				}));
+			}
+			if (Array.isArray(cov?.axes)) {
+				ontologyAxes = cov.axes.map((a: any) => ({
+					axisTitle: a.axisTitle,
+					domain: a.domain,
+					togafDomain: a.togafDomain,
+					status: a.status,
+					boundLeaves: (a.boundLeaves || []).map((l: any) => ({
+						urn: l.urn,
+						title: l.title,
+						domain: l.domain,
+						oracleRulesCount: Array.isArray(l.oracleRules) ? l.oracleRules.length : 0
+					})),
+					instantiatedComponents: a.instantiatedComponents || []
+				}));
+			}
+		}
+		const storedCatalog = loadProjectComponentCatalog(projectId);
+		if (storedCatalog.components.length > 0) {
+			catalogComponents = storedCatalog.components.map((c) => ({
+				name: c.metadata.name,
+				title: c.metadata.displayName || c.metadata.name,
+				domain: c.metadata.functionalDomain,
+				kind: c.spec.class,
+				dependsOn: c.spec.dependsOn || []
+			}));
+		}
+	} catch {
+		// Non bloquant
+	}
 
 	const requirements = sources.flatMap((s) =>
 		s.requirements.map((r) => ({
@@ -91,6 +177,10 @@ export async function loadHldFragment(projectId: string, subjectId: string): Pro
 		affirmedBy,
 		coverageWarnings: coverageWarnings((await getProjectFrameworks(projectId).catch(() => ({ frameworks: [] }))).frameworks).map((w) => w.message),
 		resolvedPattern,
+		statements: mappedStatements,
+		decisionSlots,
+		ontologyAxes,
+		catalogComponents,
 		generatedAt: new Date().toISOString()
 	});
 	return { fragment, markdown: renderHldFragmentMarkdown(fragment) };

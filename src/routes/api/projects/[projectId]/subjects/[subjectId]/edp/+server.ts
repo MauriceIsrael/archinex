@@ -11,7 +11,8 @@ import {
   composeMultiAxisHydration,
   evaluateMultiAxisOracle,
   ratifyDefaultDecisionSlots,
-  type LldHydrationOverrides
+  type LldHydrationOverrides,
+  type StructuredFactInput
 } from '$lib/server/edp/refinementCoverage';
 import { instantiateCatalogFromOntologyBindings } from '$lib/domain/edp/componentCatalog';
 import {
@@ -37,28 +38,117 @@ async function loadProjectNautobotOptions(projectId: string) {
 }
 import { exportSylvaWorkloadClusterGitops } from '$lib/server/edp/sylvaGitopsExport';
 import { authorizeProjectAccess } from '$lib/server/projects/projectAccess';
+import { requirementBundleId } from '$lib/domain/requirementAudit';
 
-async function loadSubjectContext(subjectId: string) {
+function parseStringIds(raw: string | null | undefined): string[] {
+  if (!raw) return [];
+  try {
+    const parsed = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((x): x is string => typeof x === 'string') : [];
+  } catch {
+    return [];
+  }
+}
+
+async function loadSubjectContext(subjectId: string, projectIdParam?: string) {
   const subject = await (prisma as any).subject?.findUnique({
     where: { id: subjectId },
     include: { decision: true, options: true }
   });
+  const resolvedProjectId = subject?.projectId || projectIdParam;
   const title = subject?.name || 'Plateforme Cloud & Interconnexion Sécurisée';
-  const sectionRef = subject?.section_ref || subjectId || 'ADR-012';
+  const sectionRef = subject?.sectionRef || subject?.section_ref || subjectId || 'ADR-012';
   const edpPrimaryKey = `EDP-${subjectId}`;
+
+  const retainedOption = subject?.options?.find(
+    (o: any) => o.id === subject?.decision?.retainedOptionId || o.status === 'retained'
+  );
+  const decisionParts = [
+    retainedOption?.title,
+    retainedOption?.summary,
+    subject?.decision?.rationale,
+    subject?.decision?.retainedOptionTitle
+  ]
+    .filter((v): v is string => typeof v === 'string' && v.trim().length > 0);
+
   const decisionText =
-    subject?.decision?.retainedOptionTitle ||
-    subject?.options?.map((o: any) => o.title).join('. ') ||
-    'Déploiement sur substrat serveur Bare-Metal avec réseau OOB dédié, environnements Dev/Recette Iso-Prod/Prod, cloisonnement de zone sécurité OAM et double adduction électrique 2N.';
+    decisionParts.length > 0
+      ? decisionParts.join('. ')
+      : subject?.options?.map((o: any) => o.title).join('. ') ||
+        'Déploiement sur substrat serveur Bare-Metal avec réseau OOB dédié, environnements Dev/Recette Iso-Prod/Prod, cloisonnement de zone sécurité OAM et double adduction électrique 2N.';
+
   const problem =
+    subject?.problemStatement ||
     subject?.problem ||
     `Spécification et raffinement multi-axes opposable pour : ${title}`;
 
-  return { subject, title, sectionRef, edpPrimaryKey, decisionText, problem };
+  const structuredFacts: StructuredFactInput[] = [];
+  const requirementClauses: string[] = [];
+
+  try {
+    const statements = await (prisma as any).statement?.findMany({
+      where: {
+        ...(resolvedProjectId ? { projectId: resolvedProjectId } : {}),
+        OR: [{ subjectId }, { section: sectionRef }],
+        status: 'active'
+      },
+      take: 100
+    });
+    for (const st of statements || []) {
+      const text = [st.subjectRef, st.predicate, st.value, st.unit].filter(Boolean).join(' ').trim();
+      if (text) {
+        structuredFacts.push({
+          id: st.id,
+          category: st.predicate,
+          statement: text,
+          target: st.subjectRef
+        });
+      }
+    }
+
+    const reqRefs = parseStringIds(subject?.requirementRefs);
+    if (resolvedProjectId && reqRefs.length > 0) {
+      const sources = await (prisma as any).requirementSource?.findMany({
+        where: { projectId: resolvedProjectId },
+        include: { requirements: true }
+      });
+      const refSet = new Set(reqRefs);
+      for (const src of sources || []) {
+        for (const req of src.requirements || []) {
+          const bundleId = requirementBundleId(src.sha256, req.clauseRef);
+          if (refSet.has(bundleId) || refSet.has(req.clauseRef) || refSet.has(req.id)) {
+            const reqText = [req.title, req.text].filter(Boolean).join(' — ').trim();
+            if (reqText) {
+              structuredFacts.push({
+                id: req.clauseRef,
+                category: req.category || 'RFP',
+                statement: reqText,
+                target: sectionRef
+              });
+              requirementClauses.push(req.clauseRef);
+            }
+          }
+        }
+      }
+    }
+  } catch {
+    // Tolérant si les tables relationnelles optionnelles ne sont pas disponibles
+  }
+
+  return {
+    subject,
+    title,
+    sectionRef,
+    edpPrimaryKey,
+    decisionText,
+    problem,
+    structuredFacts,
+    requirementClauses
+  };
 }
 
 export const GET: RequestHandler = async ({ params, url }) => {
-  const { subjectId } = params;
+  const { projectId, subjectId } = params;
   const isEnabled =
     isEdpFeatureEnabled() ||
     url.searchParams.get('edp') === '1' ||
@@ -70,7 +160,7 @@ export const GET: RequestHandler = async ({ params, url }) => {
 
   try {
     const catalog = await loadOntologyCatalog({ includeRuntimeOverlay: true });
-    const ctx = await loadSubjectContext(subjectId);
+    const ctx = await loadSubjectContext(subjectId, projectId);
     const requestedConcept = url.searchParams.get('concept') || undefined;
 
     // 1. Recherche en base SQLite d'un EDP persisté
@@ -96,6 +186,7 @@ export const GET: RequestHandler = async ({ params, url }) => {
           title: parsedContent.metadata?.title || ctx.title,
           problem: parsedContent.decision_context?.problem || ctx.problem,
           decisionText: parsedContent.decision_context?.decision || ctx.decisionText,
+          structuredFacts: ctx.structuredFacts,
           explicitBindings,
           excludedLeafUrns,
           excludedAxisUrns,
@@ -105,7 +196,10 @@ export const GET: RequestHandler = async ({ params, url }) => {
         catalog
       );
 
-      const overrides: LldHydrationOverrides = parsedContent.lldOverrides || {};
+      const overrides: LldHydrationOverrides = {
+        projectRequirementRefs: ctx.requirementClauses,
+        ...(parsedContent.lldOverrides || {})
+      };
       const hydratedInventory = composeMultiAxisHydration(
         subjectId,
         coverage.composedBindings,
@@ -154,6 +248,7 @@ export const GET: RequestHandler = async ({ params, url }) => {
         title: ctx.title,
         problem: ctx.problem,
         decisionText: ctx.decisionText,
+        structuredFacts: ctx.structuredFacts,
         autoBindFromText: true,
         selectedConceptUrn: requestedConcept || 'AUTO'
       },
@@ -163,7 +258,8 @@ export const GET: RequestHandler = async ({ params, url }) => {
     const hydratedInventory = composeMultiAxisHydration(
       subjectId,
       coverage.composedBindings,
-      catalog
+      catalog,
+      { projectRequirementRefs: ctx.requirementClauses }
     );
 
     const hasSecurityDomain = coverage.composedBindings.some(
@@ -276,7 +372,7 @@ export const POST: RequestHandler = async (event) => {
   if (action === 'bind_aspect') {
     try {
       const catalog = await loadOntologyCatalog({ includeRuntimeOverlay: true });
-      const ctx = await loadSubjectContext(subjectId);
+      const ctx = await loadSubjectContext(subjectId, projectId);
 
       const fromDb = await (prisma as any).executableDecisionPackage?.findFirst({
         where: { subjectId },
@@ -319,6 +415,7 @@ export const POST: RequestHandler = async (event) => {
           title: currentEdp.metadata?.title || ctx.title,
           problem: currentEdp.decision_context?.problem || ctx.problem,
           decisionText: currentEdp.decision_context?.decision || ctx.decisionText,
+          structuredFacts: ctx.structuredFacts,
           explicitBindings: priorExplicitBindings,
           excludedLeafUrns: Array.from(excludedLeafSet),
           excludedAxisUrns,
@@ -396,6 +493,7 @@ export const POST: RequestHandler = async (event) => {
           title: currentEdp.metadata?.title || ctx.title,
           problem: currentEdp.decision_context?.problem || ctx.problem,
           decisionText: currentEdp.decision_context?.decision || ctx.decisionText,
+          structuredFacts: ctx.structuredFacts,
           explicitBindings,
           excludedLeafUrns,
           excludedAxisUrns,
@@ -530,7 +628,7 @@ export const POST: RequestHandler = async (event) => {
   if (action === 'unratify') {
     try {
       const catalog = await loadOntologyCatalog({ includeRuntimeOverlay: true });
-      const ctx = await loadSubjectContext(subjectId);
+      const ctx = await loadSubjectContext(subjectId, projectId);
 
       const fromDb = await (prisma as any).executableDecisionPackage?.findFirst({
         where: { subjectId },
@@ -596,6 +694,7 @@ export const POST: RequestHandler = async (event) => {
           title: currentEdp.metadata?.title || ctx.title,
           problem: currentEdp.decision_context?.problem || ctx.problem,
           decisionText: currentEdp.decision_context?.decision || ctx.decisionText,
+          structuredFacts: ctx.structuredFacts,
           explicitBindings,
           excludedLeafUrns,
           excludedAxisUrns,
@@ -696,7 +795,7 @@ export const POST: RequestHandler = async (event) => {
     }
     try {
       const catalog = await loadOntologyCatalog({ includeRuntimeOverlay: true });
-      const ctx = await loadSubjectContext(subjectId);
+      const ctx = await loadSubjectContext(subjectId, projectId);
 
       const fromDb = await (prisma as any).executableDecisionPackage?.findFirst({
         where: { subjectId },
@@ -755,6 +854,7 @@ export const POST: RequestHandler = async (event) => {
           title: currentEdp.metadata?.title || ctx.title,
           problem: currentEdp.decision_context?.problem || ctx.problem,
           decisionText: currentEdp.decision_context?.decision || ctx.decisionText,
+          structuredFacts: ctx.structuredFacts,
           explicitBindings,
           excludedLeafUrns,
           excludedAxisUrns,
@@ -825,7 +925,7 @@ export const POST: RequestHandler = async (event) => {
   if (action === 'hydrate') {
     try {
       const catalog = await loadOntologyCatalog({ includeRuntimeOverlay: true });
-      const ctx = await loadSubjectContext(subjectId);
+      const ctx = await loadSubjectContext(subjectId, projectId);
 
       const fromDb = await (prisma as any).executableDecisionPackage?.findFirst({
         where: { subjectId },
@@ -851,6 +951,7 @@ export const POST: RequestHandler = async (event) => {
           title: ctx.title,
           problem: ctx.problem,
           decisionText: ctx.decisionText,
+          structuredFacts: ctx.structuredFacts,
           explicitBindings,
           excludedLeafUrns,
           excludedAxisUrns,
@@ -900,7 +1001,7 @@ export const POST: RequestHandler = async (event) => {
   if (action === 'synthesize') {
     try {
       const catalog = await loadOntologyCatalog({ includeRuntimeOverlay: true });
-      const ctx = await loadSubjectContext(subjectId);
+      const ctx = await loadSubjectContext(subjectId, projectId);
 
       const coverage = computeRefinementCoverage(
         {
@@ -908,6 +1009,7 @@ export const POST: RequestHandler = async (event) => {
           title: ctx.title,
           problem: ctx.problem,
           decisionText: ctx.decisionText,
+          structuredFacts: ctx.structuredFacts,
           autoBindFromText: true
         },
         catalog
@@ -1003,7 +1105,7 @@ export const POST: RequestHandler = async (event) => {
   if (action === 'verify' || action === 'simulate_drift') {
     try {
       const catalog = await loadOntologyCatalog({ includeRuntimeOverlay: true });
-      const ctx = await loadSubjectContext(subjectId);
+      const ctx = await loadSubjectContext(subjectId, projectId);
 
       const fromDb = await (prisma as any).executableDecisionPackage?.findFirst({
         where: { subjectId },
@@ -1028,6 +1130,7 @@ export const POST: RequestHandler = async (event) => {
           title: ctx.title,
           problem: ctx.problem,
           decisionText: ctx.decisionText,
+          structuredFacts: ctx.structuredFacts,
           explicitBindings,
           excludedLeafUrns,
           excludedAxisUrns,
@@ -1185,7 +1288,7 @@ export const POST: RequestHandler = async (event) => {
   if (action === 'export_sylva_gitops') {
     try {
       const catalog = await loadOntologyCatalog({ includeRuntimeOverlay: true });
-      const ctx = await loadSubjectContext(subjectId);
+      const ctx = await loadSubjectContext(subjectId, projectId);
 
       const fromDb = await (prisma as any).executableDecisionPackage?.findFirst({
         where: { subjectId },
@@ -1210,6 +1313,7 @@ export const POST: RequestHandler = async (event) => {
           title: ctx.title,
           problem: ctx.problem,
           decisionText: ctx.decisionText,
+          structuredFacts: ctx.structuredFacts,
           explicitBindings,
           excludedLeafUrns,
           excludedAxisUrns,

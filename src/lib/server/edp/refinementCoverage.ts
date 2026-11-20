@@ -275,6 +275,7 @@ export interface LldHydrationOverrides {
   pqcHybridAgility?: boolean;
   twinArbitrationMode?: TwinArbitrationMode;
   twinMandatedProfileId?: SylvaTopologyProfileId;
+  projectRequirementRefs?: string[];
 }
 
 export interface ReconciliationObjectGraph {
@@ -370,6 +371,7 @@ export interface MultiAxisHydratedInventory {
     };
   };
   resolved_components?: ResolvedComponentInstance[];
+  resolved_components_by_dc?: Record<string, ResolvedComponentInstance[]>;
   component_lint_issues?: BaseLintIssue[];
   reference_graph?: ReferenceGraph;
   dangling_references?: CatalogDanglingReferenceReport;
@@ -2033,6 +2035,7 @@ export function composeMultiAxisHydration(
         urn: entity.urn,
         zone_id: tpl.security_zone?.zone_id || entity.urn.split(':').pop()?.toUpperCase(),
         title: entity.title,
+        status: 'planned',
         isolation_level:
           isOam && overrides.oamIsolationLevel !== undefined
             ? overrides.oamIsolationLevel
@@ -2055,6 +2058,7 @@ export function composeMultiAxisHydration(
         const isStaging = tier.env === 'recette' || tier.env === 'staging' || tier.env === 'preprod';
         environments.push({
           ...tier,
+          status: 'planned',
           isoprod:
             isStaging && overrides.stagingIsoprod !== undefined
               ? overrides.stagingIsoprod
@@ -2116,6 +2120,19 @@ export function composeMultiAxisHydration(
           ? overrides.bmcAddress
           : `redfish+http://${nodeOobIp || `192.0.2.${10 + idx}`}/redfish/v1/Systems/1`;
 
+      const nodeInterfaces = interfaces.map((iface) => {
+        if (!iface.ip || idx === 0) return { ...iface };
+        const cidrMatch = /^(\d+\.\d+\.\d+)\.(\d+)(\/\d+)?$/.exec(iface.ip);
+        if (!cidrMatch) return { ...iface };
+        const prefix = cidrMatch[1];
+        const lastOctet = Math.min(254, Number(cidrMatch[2]) + idx);
+        const mask = cidrMatch[3] || '/24';
+        return {
+          ...iface,
+          ip: `${prefix}.${lastOctet}${mask}`
+        };
+      });
+
       nautobotDevices.push({
         name: nodeHostname,
         status: deviceStatus,
@@ -2124,7 +2141,7 @@ export function composeMultiAxisHydration(
         role: nodeRole,
         cluster_pool: prof.clusterPool,
         dataplane_profile: prof.dataplaneProfile,
-        interfaces,
+        interfaces: nodeInterfaces,
         power_feeds: powerFeeds,
         security_zones: securityZones.map((z) => z.zone_id)
       });
@@ -2247,6 +2264,10 @@ export function composeMultiAxisHydration(
     ) {
       evaluatedTripletsSet.add(t.id);
     }
+  }
+
+  for (const r of overrides.projectRequirementRefs || []) {
+    if (r && r.trim()) satisfiedClausesSet.add(r.trim());
   }
 
   const satisfiedClauses = Array.from(satisfiedClausesSet).sort();
@@ -2483,6 +2504,12 @@ export function composeMultiAxisHydration(
   const resolvedComponents = activeCatalog.filter((c) => !c.metadata.external).map(
     (comp) => resolveComponentInstance(comp, prodOverlay, primaryDc, DEFAULT_VALUE_CATALOGS)
   );
+  const resolvedComponentsByDc: Record<string, ResolvedComponentInstance[]> = {};
+  for (const dc of prodOverlay.spec.datacenters) {
+    resolvedComponentsByDc[dc] = activeCatalog
+      .filter((c) => !c.metadata.external)
+      .map((comp) => resolveComponentInstance(comp, prodOverlay, dc, DEFAULT_VALUE_CATALOGS));
+  }
   const referenceGraph = buildReferenceGraph(activeCatalog);
   const danglingReferences = verifyCatalogDanglingReferences(activeCatalog);
   const trustChain = {
@@ -2584,6 +2611,7 @@ export function composeMultiAxisHydration(
     trust_chain: trustChain,
     extended_domains: extendedDomains,
     resolved_components: resolvedComponents,
+    resolved_components_by_dc: resolvedComponentsByDc,
     component_lint_issues: componentLintIssues,
     reference_graph: referenceGraph,
     dangling_references: danglingReferences,

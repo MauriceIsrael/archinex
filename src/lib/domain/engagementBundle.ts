@@ -98,6 +98,7 @@ export interface SubjectProjections {
 	mermaid?: string;
 	structurizr_dsl?: string;
 	structurizrDSL?: string;
+	c4x?: string;
 	sysml_v2?: string;
 	sysmlV2?: string;
 }
@@ -221,6 +222,7 @@ export interface BundleArchitectureProjections {
 	mermaid?: string;
 	structurizr_dsl?: string;
 	structurizrDSL?: string;
+	c4x?: string;
 	sysml_v2?: string;
 	sysmlV2?: string;
 	by_subject?: Record<string, SubjectProjections>;

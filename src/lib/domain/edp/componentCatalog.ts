@@ -1,4 +1,4 @@
-﻿/**
+/**
  * Catalogue de Composants Logiques & Modèle Terrain (Lot 1 — Issue #283).
  *
  * Sépare strictement :
@@ -8,7 +8,7 @@
  * - Les Overlays d'Environnement & Datacenter (substitutions param.* permettant le What-If 2 vs 3 DCs).
  */
 
-export type EntityLifecycleStatus = 'active' | 'staged' | 'inactive';
+export type EntityLifecycleStatus = 'planned' | 'active' | 'staged' | 'inactive';
 export type ComponentClass = 'infrastructure' | 'business' | 'external' | 'domain-functional' | 'domain-technical';
 export type NicClass = 'admin' | 'business' | 'events' | 'internal' | 'storage' | 'backup' | 'oob';
 export type NicSubClass = 'trusted' | 'untrusted' | 'sync';
@@ -1019,7 +1019,9 @@ export const DEFAULT_COMPONENT_CATALOG: LogicalComponent[] = [
         groups: [
           { name: 'core-sig-endpoints', membersRef: 'ref(compute.modules[hss-dea].instances[*].nics[class=business].ip)' },
           { name: 'core-upf-endpoints', membersRef: 'ref(compute.modules[upf-cnf].instances[*].nics[class=business].ip)' },
-          { name: 'core-events', membersRef: 'ref(compute.modules[upf-cnf].instances[*].nics[class=events].ip)' }
+          { name: 'core-events', membersRef: 'ref(compute.modules[upf-cnf].instances[*].nics[class=events].ip)' },
+          { name: 'ext-mme-lot3', membersRef: 'ref(network.subnets[sn-core-sig].reserved[gateway])' },
+          { name: 'secgw-lot1', membersRef: 'ref(network.subnets[sn-core-sig].reserved[vip-rx])' }
         ],
         rules: [
           {
@@ -1032,6 +1034,26 @@ export const DEFAULT_COMPONENT_CATALOG: LogicalComponent[] = [
             log: true,
             tlsVersion: 'tls1.3',
             functionalFlow: 'Rx-N5'
+          },
+          {
+            id: 'r-core-s6a-ingress',
+            from: 'group:ext-mme-lot3',
+            to: 'group:secgw-lot1',
+            proto: 'sctp',
+            ports: [3868],
+            action: 'allow',
+            log: true,
+            functionalFlow: 'S6a'
+          },
+          {
+            id: 'r-core-s6a-mediation',
+            from: 'group:secgw-lot1',
+            to: 'group:core-sig-endpoints',
+            proto: 'sctp',
+            ports: [3868],
+            action: 'allow',
+            log: true,
+            functionalFlow: 'S6a'
           }
         ]
       },
@@ -2658,6 +2680,16 @@ export function createEmergentLogicalComponent(
     .replace(/^-+|-+$/g, '') || 'emergent-service';
   const shortPrefix = safeName.split('-')[0] || 'emergent';
 
+  // Offset déterministe par composant émergent pour éviter toute collision IPv4 entre 2 composants émergents
+  let nameHash = 0;
+  for (let i = 0; i < safeName.length; i++) {
+    nameHash = (nameHash * 31 + safeName.charCodeAt(i)) >>> 0;
+  }
+  const slotIndex = nameHash % 24; // 24 créneaux distincts espacés de 6 adresses (32..176)
+  const vipOffset = 10 + slotIndex;
+  const adminIpOffset = 32 + slotIndex * 6;
+  const businessIpOffset = 35 + slotIndex * 6;
+
   return {
     apiVersion: 'archinex.io/v1alpha1',
     kind: 'LogicalComponent',
@@ -2689,7 +2721,7 @@ export function createEmergentLogicalComponent(
             vrf: `vrf-${shortPrefix}-app`,
             zone: 'data',
             class: 'business',
-            reserved: { gateway: { offset: 1 }, [`vip-${shortPrefix}`]: { offset: 10 } }
+            reserved: { gateway: { offset: 1 }, [`vip-${shortPrefix}`]: { offset: vipOffset } }
           },
           {
             name: `sn-${shortPrefix}-events`,
@@ -2722,14 +2754,14 @@ export function createEmergentLogicalComponent(
                 index: 1,
                 vrf: `vrf-${shortPrefix}-admin`,
                 subnetRef: `sn-${shortPrefix}-admin`,
-                ip: { by: 'offset', value: 32, perInstance: true }
+                ip: { by: 'offset', value: adminIpOffset, perInstance: true }
               },
               {
                 class: 'business',
                 index: 2,
                 vrf: `vrf-${shortPrefix}-app`,
                 subnetRef: `sn-${shortPrefix}-app`,
-                ip: { by: 'offset', value: 40, perInstance: true },
+                ip: { by: 'offset', value: businessIpOffset, perInstance: true },
                 defaultRoute: true
               },
               {

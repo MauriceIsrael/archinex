@@ -8,6 +8,11 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Added
+- **Représentation C4X (`.c4x` / blocs Markdown ` ```c4x `)** : ajout du générateur pur TypeScript sans dépendance externe (`src/lib/domain/c4xDsl.ts`, licence MIT) projetant le modèle C4 partagé avec Structurizr DSL, avec support optionnel des métadonnées épistémiques (`%% @meta`) et des indices de positionnement (`$x`, `$y`).
+- **Sous-onglet C4X dans `ArtifactRegenerationHub.svelte`** : intégration d'un sélecteur `C4X (.c4x / Markdown)` / `Structurizr DSL (.dsl)` dans l'onglet C4, avec aperçu graphique via `MermaidViewer`, copie en bloc Markdown ` ```c4x ` et téléchargement `.c4x`.
+- **Export Bundle & Snapshots scellés** : ajout de la projection `c4x` dans `SubjectProjections`, `BundleArchitectureProjections`, `bundleAssembly.ts` et `FrozenSnapshot.projections` (sans modification des empreintes `sealSha256` existantes).
+
 ### Continuité Bout-en-Bout RFP → HLD → LLD Pré-Hydraté en Statut `"planned"` & Cohérence Inter-Objets (#344, #345, #346, #347, #348)
 - **Continuité Phase 1 → Phase 2 / Phase 5 (#345)** :
   - `deriveProjectHydrationContextFromEntries()` et `loadProjectHydrationContextFromDb()` préservent désormais les exigences évacuées (`disposition === 'evacuated'`) et détectent les capacités émergentes (`detectEmergentCapabilityNeed`).

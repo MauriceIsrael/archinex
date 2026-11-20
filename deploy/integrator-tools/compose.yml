@@ -1,8 +1,14 @@
-# Environnement d'intégration local pour la validation EDP & Telco-Cloud
+# Environnement d'intégration local pour la validation EDP & Telco-Cloud (écosystème Sylva)
 # Fournit :
-#  - Nautobot 2.x (DCIM SSOT) + PostgreSQL 15 + Redis 7 + Celery Worker
-#  - Batfish (Simulateur de plan de contrôle et matrice de flux réseau)
+#  - Nautobot 2.x (DCIM/IPAM SSOT) + PostgreSQL 15 + Redis 7 + Celery Worker (#351)
+#  - Batfish (Simulateur de plan de contrôle et matrice de flux réseau) (#353)
 #  - Open Policy Agent (OPA) en mode serveur HTTP REST
+#  - sushy-emulator (Bouchon Redfish BMC in-memory)
+#  - OpenBao (Secrets & PKI X.509) (#354)
+#  - Keycloak (IdP / IAM OIDC) (#357)
+#  - Zot + Trivy Server (Registre OCI / Cosign + Scan CVE/SBOM) (#355)
+#  - Technitium DNS Server (DDI / DNS avec API REST) (#352)
+#  - Forgejo (Forge GitOps PR/MR & CI locale légère) (#356)
 #
 # Usage :
 #   powershell .\tools.ps1 up
@@ -131,5 +137,86 @@ services:
       retries: 10
     restart: unless-stopped
 
+  openbao:
+    image: openbao/openbao:latest
+    container_name: archinex-openbao
+    command: ["server", "-dev", "-dev-root-token-id=archinex-bao-dev-token", "-dev-listen-address=0.0.0.0:8200"]
+    environment:
+      BAO_DEV_ROOT_TOKEN_ID: archinex-bao-dev-token
+      BAO_DEV_LISTEN_ADDRESS: "0.0.0.0:8200"
+    ports:
+      - "127.0.0.1:8200:8200"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:8200/v1/sys/health >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  keycloak:
+    image: quay.io/keycloak/keycloak:latest
+    container_name: archinex-keycloak
+    command: ["start-dev"]
+    environment:
+      KC_BOOTSTRAP_ADMIN_USERNAME: admin
+      KC_BOOTSTRAP_ADMIN_PASSWORD: adminpassword
+      KC_HEALTH_ENABLED: "true"
+    ports:
+      - "127.0.0.1:8085:8080"
+    restart: unless-stopped
+
+  zot:
+    image: ghcr.io/project-zot/zot:latest
+    container_name: archinex-zot-registry
+    ports:
+      - "127.0.0.1:5000:5000"
+    volumes:
+      - zot-data:/var/lib/registry
+    restart: unless-stopped
+
+  trivy:
+    image: aquasec/trivy:latest
+    container_name: archinex-trivy-server
+    command: ["server", "--listen", "0.0.0.0:4954"]
+    ports:
+      - "127.0.0.1:4954:4954"
+    volumes:
+      - trivy-cache:/root/.cache/
+    restart: unless-stopped
+
+  dns:
+    image: technitium/dns-server:latest
+    container_name: archinex-ddi-dns
+    environment:
+      DNS_SERVER_DOMAIN: archinex.local
+      DNS_SERVER_ADMIN_PASSWORD: adminpassword
+    ports:
+      - "127.0.0.1:5380:5380"
+      - "127.0.0.1:5353:53/udp"
+      - "127.0.0.1:5353:53/tcp"
+    volumes:
+      - dns-data:/etc/dns
+    restart: unless-stopped
+
+  forgejo:
+    image: codeberg.org/forgejo/forgejo:10
+    container_name: archinex-forgejo
+    environment:
+      USER_UID: "1000"
+      USER_GID: "1000"
+      FORGEJO__database__DB_TYPE: sqlite3
+      FORGEJO__server__HTTP_PORT: "3000"
+      FORGEJO__server__ROOT_URL: "http://127.0.0.1:3001/"
+    ports:
+      - "127.0.0.1:3001:3000"
+      - "127.0.0.1:2222:22"
+    volumes:
+      - forgejo-data:/data
+    restart: unless-stopped
+
 volumes:
   nautobot-db-data:
+  zot-data:
+  trivy-cache:
+  dns-data:
+  forgejo-data:

@@ -1,12 +1,17 @@
-# Environnement Docker d'Intégration & Outillage (Nautobot, Batfish, OPA)
+# Environnement Docker d'Intégration & Outillage Sylva (Nautobot, Batfish, OPA, OpenBao, Keycloak, Zot/Trivy, DDI, Forgejo)
 
-Cet environnement fournit aux intégrateurs et aux oracles de conformité Archinex/LLMOps une pile complète de vérification locale pour l'infrastructure Telco-Cloud (Project Sylva & SUSE Rancher) :
+Cet environnement fournit aux intégrateurs et aux oracles de conformité Archinex/LLMOps une pile complète et légère de vérification locale représentative d'un écosystème réel basé sur **Project Sylva** & **SUSE Rancher** :
 
-1. **Nautobot 2.x (DCIM SSOT)** : Source de vérité des équipements planifiés, rôles matériels, interfaces BMC/Redfish et adresses IP réservées (RFC 5737).
+1. **Nautobot 2.x (DCIM/IPAM SSOT, #351)** : Source de vérité des équipements planifiés, rôles matériels, interfaces BMC/Redfish et adresses IP réservées (RFC 5737).
 2. **PostgreSQL 15 & Redis 7** : Persistance et file de tâches Celery pour Nautobot.
-3. **Batfish (All-in-One)** : Simulateur de configuration et vérificateur de matrice de flux réseau.
+3. **Batfish (All-in-One, #353)** : Simulateur de configuration et vérificateur de matrice de flux réseau.
 4. **Open Policy Agent (OPA Server)** : Serveur d'évaluation Rego pour les oracles EDP (en complément du binaire CLI local `tools/bin/opa.exe`).
 5. **sushy-emulator (`quay.io/metal3-io/sushy-tools`)** : Bouchon Redfish BMC *in-memory* monté avec `sushy-emulator.conf` généré par le Jumeau Numérique Sylva (`capm3`).
+6. **OpenBao (`openbao/openbao`, #354)** : Gestionnaire de secrets et PKI X.509 en mode dev.
+7. **Keycloak (`quay.io/keycloak/keycloak`, #357)** : Fournisseur d'identité OIDC/IAM pour l'écosystème Sylva.
+8. **Zot + Trivy Server (`ghcr.io/project-zot/zot` & `aquasec/trivy`, #355)** : Registre OCI compatible Cosign/ORAS et serveur d'analyse CVE/SBOM.
+9. **Technitium DNS Server (`technitium/dns-server`, #352)** : Service DDI/DNS programmable via API REST.
+10. **Forgejo (`codeberg.org/forgejo/forgejo`, #356)** : Forge GitOps légère (dépôts, PR, webhooks) pour les exports Sylva.
 
 ---
 
@@ -61,3 +66,9 @@ Le script `seed-nautobot.py` injecte automatiquement les données requises pour 
 - **Batfish API** : `http://localhost:9997`
 - **OPA Server REST** : `http://localhost:8181/v1/data`
 - **sushy-emulator Redfish API** : `http://localhost:8000/redfish/v1/Systems`
+- **OpenBao (Secrets & PKI)** : `http://localhost:8200` (Root token dev : `archinex-bao-dev-token`)
+- **Keycloak (IdP / OIDC)** : `http://localhost:8085` (`admin` / `adminpassword`)
+- **Zot OCI Registry** : `http://localhost:5000/v2/`
+- **Trivy Server (CVE / SBOM)** : `http://localhost:4954`
+- **Technitium DDI / DNS** : `http://localhost:5380` (`admin` / `adminpassword`, DNS UDP/TCP sur le port `5353`)
+- **Forgejo (GitOps PR/CI)** : `http://localhost:3001` (SSH Git sur le port `2222`)

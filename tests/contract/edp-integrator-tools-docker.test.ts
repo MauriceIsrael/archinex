@@ -24,13 +24,29 @@ describe('EDP Integrator Tools Docker Stack Contract', () => {
     expect(composeContent).toContain('nautobot-worker:');
     expect(composeContent).toContain('batfish:');
     expect(composeContent).toContain('opa:');
+    expect(composeContent).toContain('sushy-emulator:');
+    expect(composeContent).toContain('openbao:');
+    expect(composeContent).toContain('keycloak:');
+    expect(composeContent).toContain('zot:');
+    expect(composeContent).toContain('trivy:');
+    expect(composeContent).toContain('dns:');
+    expect(composeContent).toContain('forgejo:');
 
-    // Vérification des ports
+    // Vérification des ports canoniques
     expect(composeContent).toContain('8080:8080');
     expect(composeContent).toContain('9997:9997');
     expect(composeContent).toContain('8181:8181');
+    expect(composeContent).toContain('8000:8000');
     expect(composeContent).toContain('5433:5432');
     expect(composeContent).toContain('6380:6379');
+    expect(composeContent).toContain('8200:8200');
+    expect(composeContent).toContain('8085:8080');
+    expect(composeContent).toContain('5000:5000');
+    expect(composeContent).toContain('4954:4954');
+    expect(composeContent).toContain('5380:5380');
+    expect(composeContent).toContain('5353:53/udp');
+    expect(composeContent).toContain('3001:3000');
+    expect(composeContent).toContain('2222:22');
   });
 
   it('aligne le token superuser Nautobot avec la configuration des adaptateurs', () => {

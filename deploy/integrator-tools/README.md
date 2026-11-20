@@ -66,7 +66,7 @@ Le script `seed-nautobot.py` injecte automatiquement les données requises pour 
   - En-tête : `Authorization: Token 0123456789abcdef0123456789abcdef01234567`
 - **Batfish API** : `http://localhost:9997`
 - **OPA Server REST** : `http://localhost:8181/v1/data`
-- **sushy-emulator Redfish API** : `http://localhost:8000/redfish/v1/Systems`
+- **sushy-emulator Redfish API** : `http://localhost:8001/redfish/v1/Systems`
 - **OpenBao (Secrets & PKI)** : `http://localhost:8200` (Root token dev : `archinex-bao-dev-token`)
 - **Keycloak (IdP / OIDC)** : `http://localhost:8085` (`admin` / `adminpassword`)
 - **Zot OCI Registry** : `http://localhost:5000/v2/`

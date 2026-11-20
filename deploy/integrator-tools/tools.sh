@@ -95,7 +95,7 @@ case "$COMMAND" in
       echo " - Nautobot GraphQL      : http://127.0.0.1:8080/api/graphql/"
       echo " - Batfish Service API   : http://127.0.0.1:9997"
       echo " - OPA Server HTTP       : http://127.0.0.1:8181/v1/data"
-      echo " - sushy-emulator Redfish: http://127.0.0.1:8000/redfish/v1/Systems"
+      echo " - sushy-emulator Redfish: http://127.0.0.1:8001/redfish/v1/Systems"
       echo " - OpenBao (Secrets/PKI) : http://127.0.0.1:8200 (Token: archinex-bao-dev-token)"
       echo " - Keycloak (IdP/OIDC)   : http://127.0.0.1:8085 (admin / adminpassword)"
       echo " - Zot OCI Registry      : http://127.0.0.1:5000/v2/"

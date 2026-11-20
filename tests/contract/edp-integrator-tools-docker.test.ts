@@ -36,7 +36,7 @@ describe('EDP Integrator Tools Docker Stack Contract', () => {
     expect(composeContent).toContain('8080:8080');
     expect(composeContent).toContain('9997:9997');
     expect(composeContent).toContain('8181:8181');
-    expect(composeContent).toContain('8000:8000');
+    expect(composeContent).toContain('8001:8000');
     expect(composeContent).toContain('5433:5432');
     expect(composeContent).toContain('6380:6379');
     expect(composeContent).toContain('8200:8200');

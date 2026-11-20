@@ -522,7 +522,7 @@ Pour tester les décisions et oracles dans un environnement d'intégration repr�
   - **Nautobot Web UI & GraphQL** : `http://localhost:8080` (`admin` / `adminpassword` / Token `0123456789abcdef0123456789abcdef01234567`) — `http://localhost:8080/api/graphql/`
   - **Batfish API** : `http://localhost:9997`
   - **OPA Server REST** : `http://localhost:8181/v1/data`
-  - **sushy-emulator Redfish** : `http://localhost:8000/redfish/v1/Systems`
+  - **sushy-emulator Redfish** : `http://localhost:8001/redfish/v1/Systems`
   - **OpenBao (Secrets & PKI)** : `http://localhost:8200` (Token dev : `archinex-bao-dev-token`)
   - **Keycloak (IdP / OIDC)** : `http://localhost:8085` (`admin` / `adminpassword`)
   - **Zot OCI Registry** : `http://localhost:5000/v2/`

@@ -971,13 +971,22 @@ export const POST: RequestHandler = async (event) => {
       const nautobotOpts = await loadProjectNautobotOptions(projectId);
       const syncSummary = await syncHydratedInventoryToNautobot(composedHydration, nautobotOpts);
       const nautobotSynced = syncSummary.reachable;
+      const hasSyncErrors = !nautobotSynced || syncSummary.errors.length > 0;
+      const nautobotUrl = syncSummary.baseUrl || nautobotOpts.baseUrl || 'http://localhost:8080';
       const devicesCount = Math.max(
         syncSummary.devicesSynced,
         composedHydration.nautobot_planned_devices.length
       );
 
+      const message = !nautobotSynced
+        ? `Nautobot injoignable (${nautobotUrl}) — synchronisation SSoT non effectuée (objets planned générés localement uniquement).`
+        : syncSummary.errors.length > 0
+          ? `Hydratation SSoT partielle dans Nautobot (${syncSummary.devicesSynced} équipement(s), ${syncSummary.errors.length} erreur(s)) : ${syncSummary.errors[0]}`
+          : `Hydratation SSoT poussée dans Nautobot (${syncSummary.circuitsSynced} circuit(s), ${syncSummary.vpnTunnelsSynced} tunnel(s) VPN, ${syncSummary.tenantsSynced} tenant(s), ${syncSummary.devicesSynced} équipement(s), ${syncSummary.interfacesSynced} interface(s), ${syncSummary.vrfsSynced} VRF(s), ${syncSummary.prefixesSynced} préfixe(s), ${syncSummary.ipAddressesSynced} IP(s), ${syncSummary.tagsSynced} tag(s) zone) !`;
+
       return json({
-        success: true,
+        success: !hasSyncErrors,
+        notificationType: hasSyncErrors ? 'warning' : 'success',
         nautobotSynced,
         nautobotSyncSummary: syncSummary,
         devicesCount,
@@ -988,9 +997,7 @@ export const POST: RequestHandler = async (event) => {
         environments: composedHydration.environments,
         powerFeeds: composedHydration.power_feeds,
         coveredDomains: composedHydration.coveredDomains,
-        message: nautobotSynced
-          ? `Hydratation SSoT poussée dans Nautobot (${syncSummary.circuitsSynced} circuit(s), ${syncSummary.vpnTunnelsSynced} tunnel(s) VPN, ${syncSummary.tenantsSynced} tenant(s), ${syncSummary.devicesSynced} équipement(s), ${syncSummary.interfacesSynced} interface(s), ${syncSummary.vrfsSynced} VRF(s), ${syncSummary.prefixesSynced} préfixe(s), ${syncSummary.ipAddressesSynced} IP(s), ${syncSummary.tagsSynced} tag(s) zone) !`
-          : `Objets planned multi-axes (${composedHydration.coveredDomains.join(' + ')}) générés avec succès !`
+        message
       });
     } catch (err: any) {
       return json({ success: false, error: err.message }, { status: 500 });

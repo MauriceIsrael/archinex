@@ -287,7 +287,8 @@ export async function syncHydratedInventoryToNautobot(
   try {
     await nbFetch('/api/status/', {}, clientOpts);
     summary.reachable = true;
-  } catch {
+  } catch (err: any) {
+    summary.errors.push(`Nautobot injoignable (${baseUrl}) : ${err?.message || String(err)}`);
     return summary;
   }
 
@@ -1318,7 +1319,9 @@ export async function pullLiveInventoryFromNautobot(
     await nbFetch('/api/status/', {}, clientOpts);
     result.reachable = true;
     result.source = 'nautobot_live';
-  } catch {
+  } catch (err: any) {
+    const baseUrl = clientOpts.baseUrl || DEFAULT_NAUTOBOT_URL;
+    result.errors.push(`Nautobot injoignable (${baseUrl}) : ${err?.message || String(err)}`);
     return result;
   }
 

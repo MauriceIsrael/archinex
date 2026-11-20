@@ -8,6 +8,16 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Allégement visuel de l'en-tête global et du workbench de délibération
+- **Workbench de délibération (`MaturityStepper.svelte`, `SubjectThreadView.svelte`)** :
+  - Repli par défaut de la timeline de critères `MaturityStepper` (`initialExpanded = false`) avec compteur synthétique `Critères (X/Y)` pour libérer l'espace de lecture.
+  - Passage par défaut de `SubjectThreadView` en mode onglets pleine largeur (`isSplitView = false`), la vue split côte-à-côte restant accessible via le bouton dédié.
+- **En-têtes et services techniques (`+layout.svelte`, `ProjectEngagementHeader.svelte`)** :
+  - Suppression de la répétition du titre d'engagement dans `ProjectEngagementHeader` (déjà affiché dans la pilule globale).
+  - Regroupement des badges techniques `LLMOps` et `DocEngine` sous un indicateur compact « Services » dans l'en-tête global.
+- **Tests** :
+  - Mise à jour des tests de contrat dans `tests/contract/deliberation-conversation.test.ts` et `tests/contract/deliberation-header-refactor.test.ts`.
+
 ### Added
 - **Représentation C4X (`.c4x` / blocs Markdown ` ```c4x `)** : ajout du générateur pur TypeScript sans dépendance externe (`src/lib/domain/c4xDsl.ts`, licence MIT) projetant le modèle C4 partagé avec Structurizr DSL, avec support optionnel des métadonnées épistémiques (`%% @meta`) et des indices de positionnement (`$x`, `$y`).
 - **Sous-onglet C4X dans `ArtifactRegenerationHub.svelte`** : intégration d'un sélecteur `C4X (.c4x / Markdown)` / `Structurizr DSL (.dsl)` dans l'onglet C4, avec aperçu graphique via `MermaidViewer`, copie en bloc Markdown ` ```c4x ` et téléchargement `.c4x`.

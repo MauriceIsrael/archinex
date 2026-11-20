@@ -316,7 +316,7 @@ describe('A24 — Délibération : Un sujet = une conversation (Issue #35)', () 
 			expect(l4Actions.some((a) => a.id === 'l4_prepare_kb')).toBe(true);
 		});
 
-		it('MaturityStepper affiche la timeline horizontale L0-L5 ouverte sur le prochain jalon avec critères et actions contextualisées', () => {
+		it('MaturityStepper affiche la timeline horizontale L0-L5 repliée par défaut et dépliable sur le prochain jalon', () => {
 			const report = computeMaturityCriteria({
 				subject: {
 					id: 'sub_1',
@@ -330,7 +330,7 @@ describe('A24 — Délibération : Un sujet = une conversation (Issue #35)', () 
 				doctrineConstraintsCount: 2
 			});
 
-			const { html } = render(MaturityStepper, {
+			const { html: collapsedHtml } = render(MaturityStepper, {
 				props: {
 					report,
 					userRole: 'lead_architect',
@@ -338,13 +338,26 @@ describe('A24 — Délibération : Un sujet = une conversation (Issue #35)', () 
 				}
 			});
 
-			expect(html).toContain('data-testid="maturity-stepper"');
-			expect(html).toContain('data-testid="milestone-step-L0"');
-			expect(html).toContain('data-testid="milestone-step-L2"');
-			expect(html).toContain('data-testid="maturity-criteria-panel"');
-			expect(html).toContain('Critères de passage vers L2 (Décomposé)');
-			expect(html).toContain('data-testid="milestone-contextual-actions"');
-			expect(html).toContain('@proposer');
+			expect(collapsedHtml).toContain('data-testid="maturity-stepper"');
+			expect(collapsedHtml).toContain('data-testid="milestone-step-L0"');
+			expect(collapsedHtml).toContain('data-testid="milestone-step-L2"');
+			expect(collapsedHtml).toContain('data-testid="maturity-stepper-toggle"');
+			expect(collapsedHtml).toContain('Critères (');
+			expect(collapsedHtml).not.toContain('data-testid="maturity-criteria-panel"');
+
+			const { html: expandedHtml } = render(MaturityStepper, {
+				props: {
+					report,
+					userRole: 'lead_architect',
+					isHumanUser: true,
+					initialExpanded: true
+				}
+			});
+
+			expect(expandedHtml).toContain('data-testid="maturity-criteria-panel"');
+			expect(expandedHtml).toContain('Critères de passage vers L2 (Décomposé)');
+			expect(expandedHtml).toContain('data-testid="milestone-contextual-actions"');
+			expect(expandedHtml).toContain('@proposer');
 		});
 
 		it('SubjectProblemCard affiche un bandeau compact sur 2 lignes par défaut et renvoie vers la Matrice sans dupliquer les cartes d’options', () => {

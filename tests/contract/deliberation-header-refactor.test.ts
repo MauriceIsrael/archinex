@@ -70,10 +70,11 @@ describe('Refonte de l’en-tête Délibération et statut global LLMOps', () =>
 		expect(html).toContain('Tableau');
 	});
 
-	it('5. Le header global (+layout.svelte) affiche la pastille d’engagement actif renvoyant vers /workspaces', () => {
+	it('5. Le header global (+layout.svelte) affiche la pastille d’engagement actif renvoyant vers /workspaces et regroupe les services techniques', () => {
 		const layoutContent = fs.readFileSync(path.resolve('src/routes/+layout.svelte'), 'utf8');
 		expect(layoutContent).toContain('data-testid="active-engagement-pill"');
 		expect(layoutContent).toContain('href="/workspaces"');
+		expect(layoutContent).toContain('data-testid="services-status-trigger"');
 	});
 
 	it('6. Les vues Workspaces, Création de Projet et Délibération ne contiennent plus de badges slogans superflus ("100% Local & Souverain", "valide de facto")', () => {

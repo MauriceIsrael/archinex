@@ -101,10 +101,10 @@
 		initialRequirements?: SubjectRequirementItem[];
 	} = $props();
 
-	// ─── État de navigation unifié (Onglets pleine largeur + Mode Split optionnel) ───
+	// ─── État de navigation unifié (Onglets pleine largeur par défaut + Mode Split optionnel) ───
 	type UnifiedWorkspaceTab = 'thread' | 'matrix' | 'kb' | 'cascade';
 	let activeWorkspaceTab = $state<UnifiedWorkspaceTab>(initialActiveWorkspaceTab);
-	let isSplitView = $state(true);
+	let isSplitView = $state(false);
 	// En mode Split, la colonne de gauche affiche le fil ('thread') et la colonne de droite affiche l'un des 3 volets d'analyse :
 	let splitRightTab = $derived<Exclude<UnifiedWorkspaceTab, 'thread'>>(
 		activeWorkspaceTab === 'thread' ? 'matrix' : activeWorkspaceTab

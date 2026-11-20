@@ -66,6 +66,13 @@
   // Session shorthand
   const session = $derived(data.session);
   const isAdmin = $derived(hasRole(session, 'admin'));
+  const isAnyServiceChecking = $derived(
+    deliberationStore.isSyncingLLMOps || deliberationStore.isCheckingDocEngine
+  );
+  const areAllServicesConnected = $derived(
+    deliberationStore.llmopsStatus === 'connected' &&
+      deliberationStore.docEngineStatus === 'connected'
+  );
 
   $effect(() => {
     const user = session?.user ?? null;
@@ -380,8 +387,40 @@
 
     <!-- Right-side controls -->
     <div class="ml-auto flex items-center gap-1">
-      <LLMOpsStatusBadge />
-      <DocumentEngineStatusBadge />
+      <DropdownMenu.Root>
+        <DropdownMenu.Trigger>
+          {#snippet child({ props })}
+            <Button
+              variant="ghost"
+              size="sm"
+              {...props}
+              data-testid="services-status-trigger"
+              class="h-8 gap-1.5 px-2 text-xs text-muted-foreground hover:text-foreground"
+              title="État des services techniques (LLMOps & Document Engine)"
+              aria-label="État des services techniques"
+            >
+              <span
+                class="inline-block h-2 w-2 rounded-full shrink-0 {isAnyServiceChecking
+                  ? 'bg-sky-500 animate-ping'
+                  : areAllServicesConnected
+                    ? 'bg-emerald-500'
+                    : 'bg-amber-500'}"
+              ></span>
+              <span class="hidden lg:inline font-medium">Services</span>
+              <ChevronDown class="h-3 w-3 opacity-60" />
+            </Button>
+          {/snippet}
+        </DropdownMenu.Trigger>
+        <DropdownMenu.Content class="w-64 p-3 space-y-2.5" align="end">
+          <div class="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+            Services techniques
+          </div>
+          <div class="flex flex-col gap-2">
+            <LLMOpsStatusBadge />
+            <DocumentEngineStatusBadge />
+          </div>
+        </DropdownMenu.Content>
+      </DropdownMenu.Root>
       <HelpMenu />
       <LanguageSwitcher />
       <ThemeSelector />

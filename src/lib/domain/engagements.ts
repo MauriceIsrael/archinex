@@ -12,6 +12,17 @@ export type EngagementType =
 	| 'audit_resilience'
 	| 'poc_migration';
 
+export interface ProjectNautobotConfig {
+	/** URL de l'instance Nautobot 2.x dédiée au projet (sinon repli sur NAUTOBOT_URL) */
+	url?: string;
+	/** Jeton API Nautobot dédié au projet (sinon repli sur NAUTOBOT_TOKEN) */
+	token?: string;
+	/** Préfixe logique d'isolation sur un Nautobot partagé (sinon dérivé du shortName / projectId) */
+	isolationPrefix?: string;
+	/** Active l'isolation logique (Namespace, Tag, préfixage des noms). Par défaut true sur instance partagée, false sur instance dédiée. */
+	isolateByProject?: boolean;
+}
+
 export interface ProjectStrategy {
 	objectives: string[];
 	principles: string[];
@@ -20,6 +31,8 @@ export interface ProjectStrategy {
 	budget?: string;
 	/** Référentiels réglementaires applicables (codes LLMOps : NIS2, RGPD, CRA…), confirmés par l'architecte. */
 	applicableFrameworks?: string[];
+	/** Configuration Nautobot 2.x SSoT par projet (instance dédiée ou isolation logique sur instance partagée). */
+	nautobot?: ProjectNautobotConfig;
 }
 
 export interface ProjectParticipant {

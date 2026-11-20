@@ -25,8 +25,17 @@ import {
 } from '$lib/server/edp/decisionSlotRegistry';
 import {
   syncHydratedInventoryToNautobot,
-  pullLiveInventoryFromNautobot
+  pullLiveInventoryFromNautobot,
+  resolveProjectNautobotOptions
 } from '$lib/server/edp/nautobotSync';
+
+async function loadProjectNautobotOptions(projectId: string) {
+  const project = await (prisma as any).project?.findUnique({
+    where: { id: projectId },
+    select: { id: true, shortName: true, strategy: true }
+  });
+  return resolveProjectNautobotOptions(project || { id: projectId });
+}
 import { exportSylvaWorkloadClusterGitops } from '$lib/server/edp/sylvaGitopsExport';
 import { authorizeProjectAccess } from '$lib/server/projects/projectAccess';
 import { requirementBundleId } from '$lib/domain/requirementAudit';
@@ -959,7 +968,8 @@ export const POST: RequestHandler = async (event) => {
         currentOverrides
       );
 
-      const syncSummary = await syncHydratedInventoryToNautobot(composedHydration);
+      const nautobotOpts = await loadProjectNautobotOptions(projectId);
+      const syncSummary = await syncHydratedInventoryToNautobot(composedHydration, nautobotOpts);
       const nautobotSynced = syncSummary.reachable;
       const devicesCount = Math.max(
         syncSummary.devicesSynced,
@@ -1186,7 +1196,8 @@ export const POST: RequestHandler = async (event) => {
       let liveDetectedDrifts: string[] = [];
 
       if (action === 'verify' && !hasLocalDriftOverrides) {
-        const livePull = await pullLiveInventoryFromNautobot(baselineInventory);
+        const nautobotOpts = await loadProjectNautobotOptions(projectId);
+        const livePull = await pullLiveInventoryFromNautobot(baselineInventory, nautobotOpts);
         if (livePull.reachable) {
           hydratedInventory = livePull.inventory;
           evaluationSource = 'nautobot_live';

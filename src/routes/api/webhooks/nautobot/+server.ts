@@ -8,7 +8,10 @@ import {
   evaluateMultiAxisOracle,
   type LldHydrationOverrides
 } from '$lib/server/edp/refinementCoverage';
-import { pullLiveInventoryFromNautobot } from '$lib/server/edp/nautobotSync';
+import {
+  pullLiveInventoryFromNautobot,
+  resolveProjectNautobotOptions
+} from '$lib/server/edp/nautobotSync';
 
 /**
  * Récepteur Webhook Nautobot 2.x (Issue #239) :
@@ -94,8 +97,19 @@ export const POST: RequestHandler = async ({ request }) => {
       webhookOverrides
     );
 
+    // Résoudre le scope / instance Nautobot du projet associé au sujet (si disponible)
+    const subjectRow = await (prisma as any).subject?.findUnique({
+      where: { id: subjectId },
+      select: { project: { select: { id: true, shortName: true, strategy: true } } }
+    });
+    const nautobotOpts = subjectRow?.project
+      ? resolveProjectNautobotOptions(subjectRow.project)
+      : payload.projectId
+        ? resolveProjectNautobotOptions({ id: String(payload.projectId) })
+        : {};
+
     // Tenter également un Pull Live complet si Nautobot est joignable
-    const livePull = await pullLiveInventoryFromNautobot(inventory);
+    const livePull = await pullLiveInventoryFromNautobot(inventory, nautobotOpts);
     if (livePull.reachable) {
       inventory = livePull.inventory;
     }

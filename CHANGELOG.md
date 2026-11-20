@@ -9,6 +9,10 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 ## Non publié
 
 ### Corrigé
+- **Diagnostic `OntologyClient` (`src/lib/server/edp/ontologyClient.ts`)** : inclut désormais `err.message` dans le log de repli lorsqu'un service distant répond en erreur sur le port `8000`.
+- **Test `sylva-digital-twin.test.ts`** : normalisation `\r\n` → `\n` pour la compatibilité Windows.
+
+### Corrigé
 - **Port hôte `sushy-emulator` (`deploy/integrator-tools/compose.yml`, `.github/workflows/twin-ci.yml`)** : déplacement du port hôte `8000` (qui entrait en conflit avec le Knowledge Hub LLMOps sur `http://127.0.0.1:8000`) vers `8001` (`127.0.0.1:8001:8000`), avec mise à jour de `tools.ps1`, `tools.sh`, `README.md`, `USER_GUIDE.md` et `tests/contract/edp-integrator-tools-docker.test.ts`.
 
 ### Corrigé

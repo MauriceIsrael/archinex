@@ -493,18 +493,84 @@ export function simulateWhatIfDatacenters(
   });
 }
 
+export interface IpCollisionIssue {
+  ip: string;
+  datacenter: string;
+  environment: string;
+  owners: string[];
+}
+
+export function verifyResolvedIpUniqueness(
+  instances: ResolvedComponentInstance[]
+): IpCollisionIssue[] {
+  const ownersByIpKey = new Map<string, { ip: string; datacenter: string; environment: string; owners: Set<string> }>();
+
+  for (const comp of instances) {
+    if (comp.external || comp.status === 'inactive') continue;
+    for (const sn of comp.subnets) {
+      for (const [resName, resIp] of Object.entries(sn.reservedIps || {})) {
+        if (!resIp || resIp === 'dhcp' || resIp.startsWith('dhcp:') || resName === 'gateway') continue;
+        const key = `${comp.environment}:${comp.datacenter}:${resIp}`;
+        const entry = ownersByIpKey.get(key) ?? {
+          ip: resIp,
+          datacenter: comp.datacenter,
+          environment: comp.environment,
+          owners: new Set<string>()
+        };
+        entry.owners.add(`${comp.name}.subnet[${sn.name}].reserved[${resName}]`);
+        ownersByIpKey.set(key, entry);
+      }
+    }
+    for (const mod of comp.modules) {
+      if (mod.status === 'inactive') continue;
+      for (let iIdx = 0; iIdx < mod.instances.length; iIdx++) {
+        const inst = mod.instances[iIdx];
+        const instLabel = (inst as any).instanceId || `${mod.name}-${iIdx + 1}`;
+        for (const nic of inst.nics) {
+          if (!nic.ip || nic.ip === 'dhcp' || nic.ip.startsWith('dhcp:')) continue;
+          const key = `${comp.environment}:${comp.datacenter}:${nic.ip}`;
+          const entry = ownersByIpKey.get(key) ?? {
+            ip: nic.ip,
+            datacenter: comp.datacenter,
+            environment: comp.environment,
+            owners: new Set<string>()
+          };
+          entry.owners.add(`${comp.name}.${instLabel}.nic[${nic.class}#${nic.index}]`);
+          ownersByIpKey.set(key, entry);
+        }
+      }
+    }
+  }
+
+  const collisions: IpCollisionIssue[] = [];
+  for (const item of ownersByIpKey.values()) {
+    if (item.owners.size > 1) {
+      collisions.push({
+        ip: item.ip,
+        datacenter: item.datacenter,
+        environment: item.environment,
+        owners: Array.from(item.owners).sort()
+      });
+    }
+  }
+  return collisions.sort((a, b) => a.ip.localeCompare(b.ip));
+}
+
 export interface CatalogDanglingReferenceReport {
   valid: boolean;
   danglingFirewallGroups: string[];
   missingDependencies: string[];
   missingVaultComponent: boolean;
+  danglingComponentRefs?: string[];
+  danglingSvmRefs?: string[];
+  danglingLogicalInterfaceGroups?: string[];
 }
 
 /**
  * Audit d'intégrité référentielle d'un catalogue de composants logiques :
  * vérifie que chaque groupe firewall `group:<nom>` ciblé par une règle explicite ou implicite
- * (`pki-ca-endpoints`, `siem-collectors`, etc.), chaque `dependsOn` et chaque montage `vault://*`
- * est effectivement soutenu par un composant actif présent dans le catalogue.
+ * (`pki-ca-endpoints`, `siem-collectors`, etc.), chaque `dependsOn`, chaque `ref(component:<nom>...)`,
+ * chaque `svmRef` et chaque montage `vault://*` est effectivement soutenu par un composant actif présent dans le catalogue.
  */
 export function verifyCatalogDanglingReferences(
   components: LogicalComponent[]
@@ -512,15 +578,22 @@ export function verifyCatalogDanglingReferences(
   const activeComponents = components.filter((c) => c.metadata.status !== 'inactive');
   const activeNames = new Set(activeComponents.map((c) => c.metadata.name));
   const declaredGroups = new Set<string>();
+  const declaredSvms = new Set<string>();
 
   for (const comp of activeComponents) {
     for (const grp of comp.spec.firewall?.groups || []) {
       declaredGroups.add(grp.name);
     }
+    for (const svm of comp.spec.storage?.svms || []) {
+      declaredSvms.add(svm.name);
+    }
   }
 
   const danglingGroupsSet = new Set<string>();
   const missingDepsSet = new Set<string>();
+  const danglingComponentRefsSet = new Set<string>();
+  const danglingSvmRefsSet = new Set<string>();
+  const danglingLogicalIfaceGroupsSet = new Set<string>();
   let usesVault = false;
 
   for (const comp of activeComponents) {
@@ -537,16 +610,42 @@ export function verifyCatalogDanglingReferences(
       if (mod.proxy?.accountRef?.startsWith('vault://')) {
         usesVault = true;
       }
+      for (const st of mod.storage || []) {
+        if (st.svmRef && !declaredSvms.has(st.svmRef)) {
+          danglingSvmRefsSet.add(`${comp.metadata.name}:${st.svmRef}`);
+        }
+      }
     }
 
     const explicitRules = comp.spec.firewall?.rules || [];
     const implicitRules = generateImplicitFlows(comp, explicitRules);
     for (const rule of [...explicitRules, ...implicitRules]) {
       for (const endpoint of [rule.from, rule.to]) {
-        if (typeof endpoint === 'string' && endpoint.startsWith('group:')) {
+        if (typeof endpoint !== 'string') continue;
+        if (endpoint.startsWith('group:')) {
           const groupName = endpoint.slice('group:'.length).trim();
           if (groupName && !declaredGroups.has(groupName)) {
             danglingGroupsSet.add(groupName);
+          }
+        }
+        const compRefMatch = /^ref\(component:([a-z0-9-]+)\./i.exec(endpoint);
+        if (compRefMatch) {
+          const targetComp = compRefMatch[1];
+          if (!activeNames.has(targetComp)) {
+            danglingComponentRefsSet.add(targetComp);
+          }
+        }
+      }
+    }
+
+    for (const li of comp.spec.logicalInterfaces || []) {
+      for (const flow of li.flows || []) {
+        for (const ep of [flow.from, flow.to]) {
+          if (typeof ep === 'string' && ep.startsWith('group:')) {
+            const gName = ep.slice('group:'.length).trim();
+            if (gName && !declaredGroups.has(gName)) {
+              danglingLogicalIfaceGroupsSet.add(gName);
+            }
           }
         }
       }
@@ -556,14 +655,22 @@ export function verifyCatalogDanglingReferences(
   const missingVaultComponent = usesVault && !activeNames.has('vault-cluster');
   const danglingFirewallGroups = Array.from(danglingGroupsSet).sort();
   const missingDependencies = Array.from(missingDepsSet).sort();
+  const danglingComponentRefs = Array.from(danglingComponentRefsSet).sort();
+  const danglingSvmRefs = Array.from(danglingSvmRefsSet).sort();
+  const danglingLogicalInterfaceGroups = Array.from(danglingLogicalIfaceGroupsSet).sort();
 
   return {
     valid:
       danglingFirewallGroups.length === 0 &&
       missingDependencies.length === 0 &&
-      !missingVaultComponent,
+      !missingVaultComponent &&
+      danglingSvmRefs.length === 0 &&
+      danglingLogicalInterfaceGroups.length === 0,
     danglingFirewallGroups,
     missingDependencies,
-    missingVaultComponent
+    missingVaultComponent,
+    danglingComponentRefs,
+    danglingSvmRefs,
+    danglingLogicalInterfaceGroups
   };
 }

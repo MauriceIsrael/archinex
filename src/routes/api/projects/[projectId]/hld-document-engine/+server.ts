@@ -6,8 +6,14 @@ import {
 	compileDossierWithDocumentEngine,
 	checkDocumentEngineHealth,
 	getDocumentStudioUrl,
-	DocumentEngineUnavailableError
+	DocumentEngineUnavailableError,
+	type DocumentEngineTransverseEnrichment
 } from '$lib/server/projects/documentEngineBridge';
+import {
+	buildProjectCompletenessLedger,
+	getProjectArchitectureLock
+} from '$lib/server/edp/decisionSlotRegistry';
+import { loadProjectHydrationContextFromDb } from '$lib/server/edp/projectHydrationContext';
 
 /**
  * Endpoint de compilation et d'export du dossier HLD via Document Engine.
@@ -36,8 +42,29 @@ export const GET: RequestHandler = async (event) => {
 	const includeMermaidCode = event.url.searchParams.get('includeMermaidCode') === 'true';
 
 	try {
-		const dossier = await loadProjectHldDossier(event.params.projectId);
-		const result = await compileDossierWithDocumentEngine(dossier, format, { includeMermaidCode });
+		const projectId = event.params.projectId;
+		const dossier = await loadProjectHldDossier(projectId);
+		let transverseEnrichment: DocumentEngineTransverseEnrichment | undefined;
+		try {
+			const dbContext = await loadProjectHydrationContextFromDb(projectId, dossier.projectTitle);
+			const ledger = await buildProjectCompletenessLedger({
+				...dbContext,
+				projectId,
+				projectTitle: dossier.projectTitle
+			});
+			const architectureLock = getProjectArchitectureLock(projectId);
+			transverseEnrichment = {
+				components: ledger.activeCatalog,
+				ratifiedSlots: ledger.slots,
+				architectureLock
+			};
+		} catch {
+			// Si l'ontologie ou le registre n'est pas disponible, on compile le HLD sans enrichissement transverse
+		}
+		const result = await compileDossierWithDocumentEngine(dossier, format, {
+			includeMermaidCode,
+			transverseEnrichment
+		});
 
 		return new Response(result.buffer, {
 			headers: {

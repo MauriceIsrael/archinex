@@ -217,10 +217,41 @@ export async function syncHydratedInventoryToNautobot(
   try {
     // 0. Récupérer les référentiels de base Nautobot (Status Active/Planned, Location pop-valmondois, Namespace Global)
     const statusesRes = await nbFetch('/api/extras/statuses/?limit=50', {}, clientOpts);
-    const statusPlanned =
-      statusesRes.results?.find((s: any) => s.name === 'Planned')?.id || 'Planned';
+    const statusPlannedObj = statusesRes.results?.find((s: any) => s.name === 'Planned');
+    const statusPlanned = statusPlannedObj?.id || 'Planned';
     const statusActive =
       statusesRes.results?.find((s: any) => s.name === 'Active')?.id || 'Active';
+
+    // S'assurer que le statut "Planned" autorise également ipam.vlan, ipam.prefix et ipam.ipaddress dans Nautobot 2.x
+    if (statusPlannedObj?.id) {
+      const existingStatusTypes: string[] = Array.isArray(statusPlannedObj.content_types)
+        ? statusPlannedObj.content_types
+        : [];
+      const requiredStatusTypes = [
+        'dcim.device',
+        'dcim.interface',
+        'circuits.circuit',
+        'ipam.vlan',
+        'ipam.prefix',
+        'ipam.ipaddress',
+        'vpn.vpntunnel'
+      ];
+      const mergedStatusTypes = Array.from(new Set([...existingStatusTypes, ...requiredStatusTypes]));
+      if (mergedStatusTypes.length > existingStatusTypes.length) {
+        try {
+          await nbFetch(
+            `/api/extras/statuses/${statusPlannedObj.id}/`,
+            {
+              method: 'PATCH',
+              body: JSON.stringify({ content_types: mergedStatusTypes })
+            },
+            clientOpts
+          );
+        } catch {
+          // Ignorer si le serveur mock ou l'instance Nautobot ne supporte pas le PATCH de status
+        }
+      }
+    }
 
     const locationsRes = await nbFetch('/api/dcim/locations/?limit=10', {}, clientOpts);
     const defaultLocation = locationsRes.results?.[0];
@@ -478,7 +509,7 @@ export async function syncHydratedInventoryToNautobot(
               const vlanPayload: Record<string, unknown> = {
                 vid: Number(link.vlan_id),
                 name: `vlan-${link.vlan_id}-lot3-secgw1`,
-                status: statusActive,
+                status: statusPlanned,
                 description: `VLAN d'interconnexion Underlay ${cid} (${link.endpoint_a} <-> ${link.endpoint_z})`
               };
               if (pivotTenantUuid) vlanPayload.tenant = pivotTenantUuid;
@@ -504,7 +535,7 @@ export async function syncHydratedInventoryToNautobot(
             try {
               const prefixPayload: Record<string, unknown> = {
                 prefix: String(link.subnet),
-                status: statusActive,
+                status: statusPlanned,
                 description: `Interco Underlay ${cid} | Tunnel ${tunnelInfo?.id || 'IPsec-ESP'} (${link.endpoint_a} <-> ${link.endpoint_z})`
               };
               if (defaultNamespaceId) prefixPayload.namespace = defaultNamespaceId;
@@ -697,7 +728,7 @@ export async function syncHydratedInventoryToNautobot(
               if (netPrefix && !syncedPrefixes.has(netPrefix)) {
                 const pfxPayload: Record<string, unknown> = {
                   prefix: netPrefix,
-                  status: statusActive,
+                  status: statusPlanned,
                   description: `Préfixe ${ifaceType} (${deviceName}:${ifaceName})`
                 };
                 if (defaultNamespaceId) pfxPayload.namespace = defaultNamespaceId;
@@ -719,7 +750,7 @@ export async function syncHydratedInventoryToNautobot(
 
               const ipPayload: Record<string, unknown> = {
                 address: ipCidr,
-                status: statusActive,
+                status: statusPlanned,
                 dns_name: `${deviceName}.${ifaceName}.local`.toLowerCase(),
                 description: `Adresse ${ifaceType} sur ${deviceName}:${ifaceName}`
               };

@@ -8,10 +8,12 @@
  */
 import type { Criterion, Option, OptionEvaluation, Decision } from './options';
 import type { Argument } from './debate';
+import type { Statement } from '$lib/types/epistemic';
 import {
 	generateTargetArchitectureDiagram,
 	generateDeploymentSequenceDiagram,
-	type ArchitectureProjectionPattern
+	type ArchitectureProjectionPattern,
+	type ProjectionContext
 } from './artifactProjections';
 
 export type HldFragmentStatus = 'decided' | 'awaiting_review' | 'undecided';
@@ -51,6 +53,10 @@ export interface HldFragmentInput {
 	targetArchitectureMermaid?: string;
 	deploymentSequenceMermaid?: string;
 	resolvedPattern?: ArchitectureProjectionPattern;
+	statements?: Statement[];
+	decisionSlots?: ProjectionContext['decisionSlots'];
+	ontologyAxes?: ProjectionContext['ontologyAxes'];
+	catalogComponents?: ProjectionContext['catalogComponents'];
 	generatedAt: string;
 }
 
@@ -85,6 +91,10 @@ export interface HldFragment {
 	targetArchitectureMermaid?: string;
 	deploymentSequenceMermaid?: string;
 	resolvedPattern?: ArchitectureProjectionPattern;
+	statements?: Statement[];
+	decisionSlots?: ProjectionContext['decisionSlots'];
+	ontologyAxes?: ProjectionContext['ontologyAxes'];
+	catalogComponents?: ProjectionContext['catalogComponents'];
 	generatedAt: string;
 }
 
@@ -207,7 +217,7 @@ export function buildHldFragment(input: HldFragmentInput): HldFragment {
 			};
 
 	const retainedOption = options.find((o) => o.status === 'retained');
-	const projectionContext = {
+	const projectionContext: ProjectionContext = {
 		decision: decisionBlock ? {
 			retainedOptionId: input.decision?.retainedOptionId,
 			retainedOptionTitle: retainedOption?.title,
@@ -216,8 +226,13 @@ export function buildHldFragment(input: HldFragmentInput): HldFragment {
 		} : null,
 		options: options.map((o) => ({ id: o.id, title: o.title, summary: o.summary, status: o.status })),
 		requirements: items.map((r) => ({ clauseRef: r.clauseRef, title: r.title })),
-		resolvedPattern: input.resolvedPattern
+		resolvedPattern: input.resolvedPattern,
+		decisionSlots: input.decisionSlots,
+		ontologyAxes: input.ontologyAxes,
+		catalogComponents: input.catalogComponents
 	};
+
+	const subjectStatements = input.statements ?? [];
 
 	const targetArchitectureMermaid = input.targetArchitectureMermaid ?? (retainedOption ? generateTargetArchitectureDiagram(
 		{
@@ -227,7 +242,7 @@ export function buildHldFragment(input: HldFragmentInput): HldFragment {
 			level: subject.maturityLevel
 		},
 		null,
-		[],
+		subjectStatements,
 		projectionContext
 	) : undefined);
 
@@ -238,7 +253,7 @@ export function buildHldFragment(input: HldFragmentInput): HldFragment {
 			sectionRef: subject.sectionRef
 		},
 		null,
-		[],
+		subjectStatements,
 		projectionContext
 	) : undefined);
 

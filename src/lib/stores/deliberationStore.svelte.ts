@@ -932,6 +932,7 @@ class DeliberationStore {
 	 * Ajoute un nouveau sujet de délibération au tableau de maturité de l'espace actif
 	 */
 	addMaturitySubject(input: {
+		id?: string;
 		sectionRef?: string;
 		name: string;
 		waitingForRole?: ArchitectRole;
@@ -940,19 +941,32 @@ class DeliberationStore {
 		initialHypothesis?: string;
 		initialConflict?: string;
 		initialQuestion?: string;
+		expertQuestions?: string[];
+		problemStatement?: string;
+		nature?: 'architecture' | 'contractuel' | 'organisationnel';
+		proposal?: import('$lib/domain/factorization').SubjectProposal;
+		dependsOnSubjectIds?: string[];
 		parentSubjectId?: string;
 		parentSubjectName?: string;
 		/** Identifiants dossier-scellé des exigences portées par ce sujet (`SRC-xxxx:clause`). */
 		requirementIds?: string[];
+		skipPersist?: boolean;
 	}): MaturitySubject {
-		const newId = `sub_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+		const newId = input.id || `sub_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
 		const sectionRef = input.sectionRef || `§${this.subjects.length + 1}.0`;
 		const role = input.waitingForRole || 'lead_architect';
+		const problemStmt = (input.problemStatement || input.initialQuestion || '').trim() || undefined;
 
 		const newSubject: MaturitySubject = {
 			id: newId,
 			section_ref: sectionRef,
 			name: input.name,
+			...(problemStmt ? { problem_statement: problemStmt } : {}),
+			...(input.nature ? { nature: input.nature } : {}),
+			...(input.proposal ? { proposal: input.proposal } : {}),
+			...(input.dependsOnSubjectIds && input.dependsOnSubjectIds.length > 0
+				? { depends_on_subject_ids: input.dependsOnSubjectIds }
+				: {}),
 			level: 'L0_named',
 			blocking_count: 1,
 			unlocks_count: 2,
@@ -973,6 +987,16 @@ class DeliberationStore {
 			const parent = this.subjects.find((s) => s.id === input.parentSubjectId);
 			if (parent && !parent.dependent_subject_ids.includes(newId)) {
 				parent.dependent_subject_ids.push(newId);
+			}
+		}
+
+		if (input.dependsOnSubjectIds && input.dependsOnSubjectIds.length > 0) {
+			for (const depId of input.dependsOnSubjectIds) {
+				const upstream = this.subjects.find((s) => s.id === depId);
+				if (upstream && !upstream.dependent_subject_ids.includes(newId)) {
+					upstream.dependent_subject_ids.push(newId);
+					upstream.unlocks_count = upstream.dependent_subject_ids.length;
+				}
 			}
 		}
 
@@ -1009,13 +1033,18 @@ class DeliberationStore {
 							assigned_role: role
 						}
 					]
-				: []
+				: [],
+			...(input.expertQuestions && input.expertQuestions.length > 0
+				? { expertQuestions: input.expertQuestions }
+				: {})
 		};
 
 		// Synchroniser avec l'engagement actif et persister
 		this.activeEngagement.subjects = $state.snapshot(this.subjects);
 		this.activeEngagement.drafts = $state.snapshot(this.drafts);
-		this.persistCustomState();
+		if (!input.skipPersist) {
+			this.persistCustomState();
+		}
 
 		this.logNotification(`Nouveau sujet ajouté au tableau de maturité : "${input.name}" (${sectionRef})`, 'success');
 		return newSubject;
@@ -1621,11 +1650,15 @@ class DeliberationStore {
 	 * Spécification détaillée (L4) d'un sujet pour la réactivité en direct des projections.
 	 */
 	getDetailedSpec(subjectId: string): string {
-		return this.detailedSpecs[subjectId] || '';
+		return this.detailedSpecs[subjectId] || this.drafts[subjectId]?.detailedSpec || '';
 	}
 
 	setDetailedSpec(subjectId: string, specText: string) {
 		this.detailedSpecs[subjectId] = specText;
+		if (this.drafts[subjectId]) {
+			this.drafts[subjectId].detailedSpec = specText;
+			this.persistCustomState();
+		}
 	}
 
 	getProjectionContext(subjectId: string): ProjectionContext {

@@ -1016,7 +1016,10 @@ export async function checkDocumentEngineHealth(timeoutMs = 1500): Promise<{ ava
 export async function compileDossierWithDocumentEngine(
 	dossier: ProjectHldDossier,
 	format: 'docx' | 'markdown' | 'pdf' = 'docx',
-	options?: { includeMermaidCode?: boolean }
+	options?: {
+		includeMermaidCode?: boolean;
+		transverseEnrichment?: DocumentEngineTransverseEnrichment;
+	}
 ): Promise<{ buffer: ArrayBuffer; contentType: string; filename: string }> {
 	const url = getDocumentEngineUrl();
 	const payload = buildDocumentEnginePayload(dossier, options);

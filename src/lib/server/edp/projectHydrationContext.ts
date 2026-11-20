@@ -6,7 +6,13 @@
  */
 
 import { prisma } from '$lib/server/prisma';
-import type { TogafDomainId } from '$lib/domain/edp/togafTaxonomy';
+import {
+  TOGAF_DOMAINS,
+  TOGAF_REFERENCE_BUILDING_BLOCKS,
+  detectEmergentCapabilityNeed,
+  resolveTogafDomain,
+  type TogafDomainId
+} from '$lib/domain/edp/togafTaxonomy';
 import type { CommodityDecisionSlotSummary } from '$lib/server/ingest/arckitRequirementsPipeline';
 import type { ProjectCompletenessInput } from './decisionSlotRegistry';
 import { matchAllBuildingBlocksSemantically } from '$lib/server/similarity/togafSemanticResolver';
@@ -16,6 +22,7 @@ export interface ProjectHydrationTextEntry {
   ref: string;
   text: string;
   categoryOrDomain?: string | null;
+  disposition?: string | null;
 }
 
 export async function deriveProjectHydrationContextFromEntries(
@@ -66,6 +73,67 @@ export async function deriveProjectHydrationContextFromEntries(
         });
       }
     }
+
+    // Continuité Phase 1 -> Phase 5 : si aucune brique standard ne correspond, détecter les besoins émergents
+    // ou rattacher toute exigence évacuée à la brique de référence de son domaine TOGAF (Zéro perte silencieuse).
+    if (matches.length === 0) {
+      const emergent = detectEmergentCapabilityNeed(trimmed, entry.categoryOrDomain || undefined, {
+        fallbackTitle: entry.ref || trimmed.slice(0, 48)
+      });
+      if (emergent) {
+        activeDomains.add(emergent.togafDomain);
+        const emergentAxisUrn = 'urn:archinex:ontology:axis:emergent_component_allocation';
+        const existingEmergent = slotMap.get(emergentAxisUrn);
+        if (existingEmergent) {
+          if (entry.ref && !existingEmergent.coveredClauseIds.includes(entry.ref)) {
+            existingEmergent.coveredClauseIds.push(entry.ref);
+            existingEmergent.coveredRawRefs.push(entry.ref);
+          }
+        } else {
+          slotMap.set(emergentAxisUrn, {
+            slotId: `slot:${emergentAxisUrn}`,
+            axisUrn: emergentAxisUrn,
+            title: emergent.title,
+            togafDomain: emergent.togafDomain,
+            documentEngineLayer: emergent.documentEngineLayer,
+            defaultLeafUrn: `urn:archinex:ontology:application:emergent:new_${emergent.suggestedComponentName.replace(/[^a-z0-9_]/gi, '_')}`,
+            logicalComponentName: emergent.suggestedComponentName,
+            coveredClauseIds: entry.ref ? [entry.ref] : [],
+            coveredRawRefs: entry.ref ? [entry.ref] : [],
+            status: 'default_proposed'
+          });
+        }
+      } else if (entry.disposition === 'evacuated') {
+        const domain = resolveTogafDomain(entry.categoryOrDomain || undefined);
+        activeDomains.add(domain);
+        const domainBlock =
+          TOGAF_REFERENCE_BUILDING_BLOCKS.find((b) => b.togafDomain === domain) ||
+          TOGAF_REFERENCE_BUILDING_BLOCKS[0];
+        const domainDef = TOGAF_DOMAINS[domain];
+        if (domainBlock) {
+          const existing = slotMap.get(domainBlock.axisUrn);
+          if (existing) {
+            if (entry.ref && !existing.coveredClauseIds.includes(entry.ref)) {
+              existing.coveredClauseIds.push(entry.ref);
+              existing.coveredRawRefs.push(entry.ref);
+            }
+          } else {
+            slotMap.set(domainBlock.axisUrn, {
+              slotId: `slot:${domainBlock.axisUrn}`,
+              axisUrn: domainBlock.axisUrn,
+              title: `${domainBlock.title} (${domainDef.shortLabel})`,
+              togafDomain: domain,
+              documentEngineLayer: domainDef.documentEngineLayer,
+              defaultLeafUrn: domainBlock.defaultLeafUrn,
+              logicalComponentName: domainBlock.logicalComponentName,
+              coveredClauseIds: entry.ref ? [entry.ref] : [],
+              coveredRawRefs: entry.ref ? [entry.ref] : [],
+              status: 'default_proposed'
+            });
+          }
+        }
+      }
+    }
   }
 
   const decisionText = (options?.decisionTexts || []).filter(Boolean).join('\n').trim() || undefined;
@@ -92,7 +160,14 @@ export async function loadProjectHydrationContextFromDb(
     const [requirements, subjects, statements] = await Promise.all([
       prisma.requirement.findMany({
         where: { source: { projectId } },
-        select: { clauseRef: true, title: true, text: true, category: true },
+        select: {
+          clauseRef: true,
+          title: true,
+          text: true,
+          category: true,
+          proposedDisposition: true,
+          decidedDisposition: true
+        },
         orderBy: { position: 'asc' },
         take: 200
       }),
@@ -121,7 +196,8 @@ export async function loadProjectHydrationContextFromDb(
         entries.push({
           ref: req.clauseRef,
           text,
-          categoryOrDomain: req.category
+          categoryOrDomain: req.category,
+          disposition: req.decidedDisposition || req.proposedDisposition
         });
       }
     }

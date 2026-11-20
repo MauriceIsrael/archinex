@@ -101,7 +101,11 @@ export function mapPrismaToCorpusDocument(
  */
 async function overlayServerSubjects(profiles: EngagementProfile[]): Promise<void> {
 	if (profiles.length === 0) return;
-	const rows = await prisma.subject.findMany({ where: { projectId: { in: profiles.map((p) => p.id) } } });
+	const projectIds = profiles.map((p) => p.id);
+	const [rows, serverStatements] = await Promise.all([
+		prisma.subject.findMany({ where: { projectId: { in: projectIds } } }),
+		prisma.statement.findMany({ where: { projectId: { in: projectIds } } })
+	]);
 	for (const profile of profiles) {
 		const own = rows.filter((r) => r.projectId === profile.id);
 		const known = new Map(profile.subjects.map((s) => [s.id, s]));
@@ -158,6 +162,49 @@ async function overlayServerSubjects(profiles: EngagementProfile[]): Promise<voi
 			if (!Array.isArray(draft.manque)) draft.manque = [];
 			if (!draft.section_id && s) draft.section_id = s.section_ref;
 			if (!draft.subject && s) draft.subject = s.name;
+		}
+
+		// Synchronisation inverse des énoncés nés côté serveur (ex: affirmation 4-yeux K16 dans prisma.statement)
+		const ownStmts = serverStatements.filter((st) => st.projectId === profile.id);
+		const knownStmts = new Map(profile.statements.map((st) => [st.id, st]));
+		for (const stRow of ownStmts) {
+			const existingStmt = knownStmts.get(stRow.id);
+			if (!existingStmt) {
+				const mappedStmt: Statement = {
+					id: stRow.id,
+					section: stRow.section || '§0.0',
+					triplet: {
+						subject: stRow.subjectRef,
+						predicate: stRow.predicate,
+						value: stRow.value,
+						...(stRow.unit ? { unit: stRow.unit } : {})
+					},
+					justification: {
+						basedOn: parseJsonSafe<string[]>(stRow.basedOn, []),
+						...(stRow.appliedRule ? { appliedRule: stRow.appliedRule } : {})
+					},
+					authority: {
+						author: stRow.author,
+						role: stRow.role,
+						productionMode: (stRow.productionMode || 'human-authored') as Statement['authority']['productionMode']
+					},
+					maturity: {
+						subjectLevel: (stRow.subjectLevel || 'L3_decided') as Statement['maturity']['subjectLevel'],
+						confidence: (stRow.confidence || 'designed') as Statement['maturity']['confidence']
+					},
+					revisability: {
+						antecedents: parseJsonSafe<string[]>(stRow.basedOn, []),
+						...(stRow.consequences ? { consequencesIfInvalidated: stRow.consequences } : {})
+					},
+					status: (stRow.status === 'contested' ? 'contested' : stRow.status === 'retracted' ? 'superseded' : 'active') as Statement['status'],
+					createdAt: stRow.createdAt.toISOString(),
+					updatedAt: stRow.updatedAt.toISOString()
+				};
+				profile.statements.push(mappedStmt);
+				knownStmts.set(stRow.id, mappedStmt);
+			} else if (stRow.confidence === 'verified' && existingStmt.maturity.confidence !== 'verified') {
+				existingStmt.maturity.confidence = 'verified';
+			}
 		}
 	}
 }
@@ -360,6 +407,72 @@ export async function saveEngagementToDb(profile: EngagementProfile): Promise<En
 						role: p.role || 'lead_architect'
 					}
 				});
+			}
+		}
+
+		if (profile.statements && profile.statements.length > 0) {
+			const subjectIdsBySection = new Map<string, string>();
+			const knownSubjectIds = new Set<string>();
+			for (const s of profile.subjects || []) {
+				if (s.id) {
+					knownSubjectIds.add(s.id);
+					if (s.section_ref) subjectIdsBySection.set(s.section_ref, s.id);
+				}
+			}
+
+			for (const st of profile.statements) {
+				if (!st.id || !st.triplet) continue;
+				const existingStmt = await tx.statement.findUnique({
+					where: { id: st.id },
+					select: { projectId: true, confidence: true }
+				});
+				if (existingStmt && existingStmt.projectId !== profile.id) continue;
+
+				const resolvedSubjectId = knownSubjectIds.has(st.triplet.subject)
+					? st.triplet.subject
+					: subjectIdsBySection.get(st.section) || null;
+
+				const stmtData = {
+					projectId: profile.id,
+					subjectId: resolvedSubjectId,
+					section: st.section || '§0.0',
+					subjectRef: String(st.triplet.subject || ''),
+					predicate: String(st.triplet.predicate || 'specifies'),
+					value: String(st.triplet.value ?? ''),
+					unit: st.triplet.unit ? String(st.triplet.unit) : null,
+					basedOn: JSON.stringify(st.justification?.basedOn || st.revisability?.antecedents || []),
+					appliedRule: st.justification?.appliedRule || null,
+					author: st.authority?.author || 'Architecte',
+					role: String(st.authority?.role || 'lead_architect'),
+					productionMode: st.authority?.productionMode || 'human-authored',
+					confidence:
+						existingStmt?.confidence === 'verified'
+							? 'verified'
+							: st.maturity?.confidence || 'designed',
+					subjectLevel: st.maturity?.subjectLevel || 'L1_framed',
+					consequences: st.revisability?.consequencesIfInvalidated || null,
+					status:
+						st.status === 'contested'
+							? 'contested'
+							: st.status === 'superseded'
+								? 'retracted'
+								: 'active'
+				};
+
+				if (!existingStmt) {
+					await tx.statement.create({
+						data: {
+							id: st.id,
+							...stmtData,
+							version: 1
+						}
+					});
+				} else {
+					await tx.statement.update({
+						where: { id: st.id },
+						data: stmtData
+					});
+				}
 			}
 		}
 	}, { timeout: 15000 });

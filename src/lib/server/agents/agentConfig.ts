@@ -7,6 +7,16 @@
 export const AGENT_TIMEOUT_MS = process.env.NODE_ENV === 'test' ? 300 : Number(process.env.AGENT_TIMEOUT_MS) || 15 * 60_000;
 
 /**
+ * Délai des agents de délibération invoqués interactivement depuis l'interface (@verifier, @challenger,
+ * @proposer, @synthesizer) : borné à 2 min par défaut pour éviter les attentes silencieuses ou coupures proxy
+ * avant bascule sur le repli déterministe. Surchargeable par INTERACTIVE_AGENT_TIMEOUT_MS ou AGENT_TIMEOUT_MS.
+ */
+export const INTERACTIVE_AGENT_TIMEOUT_MS =
+	process.env.NODE_ENV === 'test'
+		? 300
+		: Number(process.env.INTERACTIVE_AGENT_TIMEOUT_MS || process.env.AGENT_TIMEOUT_MS) || 2 * 60_000;
+
+/**
  * Préfixe des contributions de repli (modèle injoignable ou réponse inexploitable) : elles restent utiles comme
  * amorce, mais ne doivent jamais passer pour une analyse réelle du modèle.
  */

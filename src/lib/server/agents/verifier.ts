@@ -2,7 +2,7 @@ import { z } from 'zod';
 import { localLlmClient } from '../llm/localLlmClient';
 import type { Option } from '$lib/domain/options';
 import type { CreateArgumentData } from '../projects/debateDb';
-import { AGENT_TIMEOUT_MS, FALLBACK_PREFIX } from './agentConfig';
+import { INTERACTIVE_AGENT_TIMEOUT_MS, FALLBACK_PREFIX } from './agentConfig';
 
 const VerifierOutputSchema = z.object({
 	verifications: z.array(
@@ -31,6 +31,17 @@ function describeRules(input: { allowedKbRefs: string[]; doctrine?: Array<{ id: 
 			return `- Règle [${id}]${tag} : ${d.title ?? ''}${excerpt ? ` — ${excerpt}` : ''}`;
 		})
 		.join('\n');
+}
+
+function resolveOptionId(rawOptionId: string, options: Option[]): string | null {
+	const trimmed = rawOptionId.trim();
+	if (!trimmed) return options.length === 1 ? options[0].id : null;
+	const exact = options.find((o) => o.id === trimmed);
+	if (exact) return exact.id;
+	const lower = trimmed.toLowerCase();
+	const byTitle = options.filter((o) => o.title.trim().toLowerCase() === lower);
+	if (byTitle.length === 1) return byTitle[0].id;
+	return options.length === 1 ? options[0].id : null;
 }
 
 export async function runVerifierAgent(input: {
@@ -63,7 +74,7 @@ ${input.options.map((o) => `[ID: ${o.id}] Titre: ${o.title}\nRésumé: ${o.summa
 Génère les constats de vérification :`;
 
 	try {
-		const timeoutMs = AGENT_TIMEOUT_MS;
+		const timeoutMs = INTERACTIVE_AGENT_TIMEOUT_MS;
 		const response = await localLlmClient.chat({
 			messages: [
 				{ role: 'system', content: systemPrompt },
@@ -71,6 +82,7 @@ Génère les constats de vérification :`;
 			],
 			temperature: 0.1,
 			format: 'json',
+			effort: 'medium',
 			timeoutMs
 		});
 
@@ -79,20 +91,32 @@ Génère les constats de vérification :`;
 			const parsed = JSON.parse(jsonMatch[0]);
 			const validated = VerifierOutputSchema.parse(parsed);
 
-			return validated.verifications
-				.filter((v) => input.options.some((o) => o.id === v.optionId))
-				.map((v, idx) => ({
-					id: `arg-verif-${input.round}-${Date.now()}-${idx}`,
-					optionId: v.optionId,
-					stance: 'verification' as const,
-					claim: v.claim.trim(),
-					grounds: v.grounds.trim(),
-					kbRefs: v.kbRefs.filter((ref) => input.allowedKbRefs.includes(ref)),
-					confidence: v.confidence,
-					authorKind: 'agent:verifier',
-					round: input.round
-				}))
-				.filter((v) => v.kbRefs.length > 0);
+			const validVerifications = validated.verifications
+				.map((v, idx) => {
+					const resolvedOptionId = resolveOptionId(v.optionId, input.options);
+					if (!resolvedOptionId) return null;
+					const validKbRefs = v.kbRefs.filter((ref) => input.allowedKbRefs.includes(ref));
+					if (validKbRefs.length === 0) return null;
+					return {
+						id: `arg-verif-${input.round}-${Date.now()}-${idx}`,
+						optionId: resolvedOptionId,
+						stance: 'verification' as const,
+						claim: v.claim.trim(),
+						grounds: v.grounds.trim(),
+						kbRefs: validKbRefs,
+						confidence: v.confidence,
+						authorKind: 'agent:verifier',
+						round: input.round
+					};
+				})
+				.filter((v): v is NonNullable<typeof v> => v !== null);
+
+			if (validVerifications.length > 0) {
+				return validVerifications;
+			}
+			console.warn(
+				'[VerifierAgent] Aucune vérification exploitable après filtrage (optionId/kbRefs non reconnus) — bascule sur le repli déterministe.'
+			);
 		}
 	} catch (err) {
 		console.warn('[VerifierAgent] Repli déterministe hors ligne :', (err as any).message);

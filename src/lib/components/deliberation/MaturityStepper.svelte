@@ -22,7 +22,8 @@
 		Database,
 		ClockAlert,
 		Split,
-		Target
+		Target,
+		Loader2
 	} from 'lucide-svelte';
 
 	let {
@@ -30,6 +31,7 @@
 		userRole = 'lead_architect',
 		isHumanUser = true,
 		initialExpanded = false,
+		invokingAgentRole = null,
 		onAction = () => {},
 		onContextualAction = () => {},
 		onTransition = () => {}
@@ -38,6 +40,7 @@
 		userRole?: string;
 		isHumanUser?: boolean;
 		initialExpanded?: boolean;
+		invokingAgentRole?: string | null;
 		onAction?: (criterion: MaturityCriterion) => void;
 		onContextualAction?: (action: MilestoneContextualAction) => void;
 		onTransition?: (targetLevel: MaturityLevel) => void;
@@ -374,6 +377,11 @@
 							</div>
 
 							{#if !crit.satisfied}
+								{@const isCriterionAgentAction =
+									crit.actionType === 'run_verifier' || crit.actionType === 'add_option'}
+								{@const isThisCriterionRunning =
+									(crit.actionType === 'run_verifier' && invokingAgentRole === 'verifier') ||
+									(crit.actionType === 'add_option' && invokingAgentRole === 'proposer')}
 								<div class="flex items-center justify-between gap-1.5 pt-1 border-t border-border/40">
 									{#if crit.unblockRole}
 										<span class="text-[10px] text-muted-foreground truncate">
@@ -384,12 +392,18 @@
 									{/if}
 									<button
 										type="button"
+										disabled={isCriterionAgentAction && invokingAgentRole !== null}
 										onclick={() => onAction(crit)}
-										class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-primary/10 hover:bg-primary/20 text-primary text-[11px] font-semibold transition-colors cursor-pointer shrink-0"
+										class="inline-flex items-center gap-1 px-2 py-0.5 rounded bg-primary/10 hover:bg-primary/20 text-primary text-[11px] font-semibold transition-colors cursor-pointer shrink-0 disabled:opacity-60 disabled:cursor-wait"
 										title={`Action : ${crit.actionLabel}`}
 									>
-										<span>{crit.actionLabel}</span>
-										<ArrowRight class="h-3 w-3" />
+										{#if isThisCriterionRunning}
+											<Loader2 class="h-3 w-3 animate-spin" />
+											<span>{crit.actionType === 'run_verifier' ? 'Vérification en cours...' : 'En cours...'}</span>
+										{:else}
+											<span>{crit.actionLabel}</span>
+											<ArrowRight class="h-3 w-3" />
+										{/if}
 									</button>
 								</div>
 							{/if}
@@ -411,18 +425,25 @@
 						</span>
 
 						{#each contextualActions as act (act.id)}
+							{@const isActRunning = Boolean(act.agentRole && invokingAgentRole === act.agentRole)}
 							<button
 								type="button"
 								data-testid={`contextual-action-${act.id}`}
+								disabled={act.kind === 'agent' && invokingAgentRole !== null}
 								onclick={() => triggerContextualAction(act)}
-								class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer shadow-2xs {act.kind === 'agent'
+								class="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-[11px] font-semibold transition-colors cursor-pointer shadow-2xs disabled:opacity-60 disabled:cursor-wait {act.kind === 'agent'
 									? 'bg-purple-500/10 hover:bg-purple-500/20 text-purple-800 dark:text-purple-300 border border-purple-500/30'
 									: act.kind === 'workspace'
 										? 'bg-primary/10 hover:bg-primary/20 text-primary border border-primary/25'
 										: 'bg-background hover:bg-muted text-foreground border border-border'}"
 								title={act.description}
 							>
-								<span>{act.label}</span>
+								{#if isActRunning}
+									<Loader2 class="h-3 w-3 animate-spin" />
+									<span>En cours...</span>
+								{:else}
+									<span>{act.label}</span>
+								{/if}
 							</button>
 						{/each}
 					</div>

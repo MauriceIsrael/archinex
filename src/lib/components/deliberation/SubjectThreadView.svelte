@@ -354,7 +354,7 @@
 				  }
 				: null,
 			actor: {
-				userId: 'current-user',
+				userId: sessionUser?.id || 'current-user',
 				role: userRole,
 				isHuman: isHumanUser
 			}
@@ -866,11 +866,7 @@
 				scrollToNextUnresolvedObjection();
 				break;
 			case 'run_verifier':
-				deliberationStore.logNotification(
-					'Vérificateur sollicité : il confronte les options à la doctrine (peut prendre une minute).',
-					'info'
-				);
-				handleInvokeAgent('verifier');
+				void handleInvokeAgent('verifier');
 				break;
 			case 'derive_subjects':
 				activeWorkspaceTab = 'cascade';
@@ -1047,13 +1043,32 @@
 	}
 
 	async function handleInvokeAgent(role: 'challenger' | 'proposer' | 'verifier' | 'synthesizer') {
-		if (invokingAgentRole || isDebating || !projectId || !subjectId) return;
+		if (!projectId || !subjectId) return;
+		if (invokingAgentRole || isDebating) {
+			deliberationStore.logNotification(
+				`Un agent (@${invokingAgentRole || 'débat'}) est déjà en cours d'exécution. Veuillez patienter.`,
+				'info'
+			);
+			return;
+		}
+		const targetProjectId = projectId;
+		const targetSubjectId = subjectId;
 		invokingAgentRole = role;
+		deliberationStore.logNotification(
+			role === 'verifier'
+				? 'Vérificateur sollicité : il confronte les options à la doctrine en cours d’analyse…'
+				: `Agent @${role} sollicité : génération en cours…`,
+			'info'
+		);
+
+		const controller = new AbortController();
+		const timeoutTimer = setTimeout(() => controller.abort(), 135_000);
 		try {
-			const res = await fetch(`/api/projects/${projectId}/subjects/${subjectId}/debate`, {
+			const res = await fetch(`/api/projects/${targetProjectId}/subjects/${targetSubjectId}/debate`, {
 				method: 'POST',
 				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ agentRole: role })
+				body: JSON.stringify({ agentRole: role }),
+				signal: controller.signal
 			});
 
 			if (!res.ok) {
@@ -1062,14 +1077,35 @@
 			}
 
 			const data = await res.json();
-			await loadArgumentsAndContext();
-			deliberationStore.logNotification(
-				data.message || `L'agent @${role} est intervenu avec succès.`,
-				'success'
-			);
+			const producedCount = Array.isArray(data.arguments) ? data.arguments.length : 0;
+
+			// Ne pas écraser l'état si l'utilisateur a changé de sujet pendant l'attente
+			if (projectId === targetProjectId && subjectId === targetSubjectId) {
+				await loadArgumentsAndContext();
+			}
+
+			if (producedCount === 0) {
+				deliberationStore.logNotification(
+					data.message || `L'agent @${role} n'a produit aucune contribution sur ce sujet.`,
+					'warning'
+				);
+			} else {
+				deliberationStore.logNotification(
+					data.message ||
+						(role === 'verifier'
+							? `Vérificateur terminé : ${producedCount} constat(s) de conformité publié(s) dans le fil.`
+							: `L'agent @${role} a publié ${producedCount} contribution(s) dans le fil.`),
+					'success'
+				);
+			}
 		} catch (err: any) {
-			deliberationStore.logNotification(err.message || 'Erreur agent', 'warning');
+			const message =
+				err?.name === 'AbortError'
+					? `Délai d'attente dépassé pour l'agent @${role}. Réessayez ou vérifiez la disponibilité du modèle LLM.`
+					: err?.message || 'Erreur agent';
+			deliberationStore.logNotification(message, 'warning');
 		} finally {
+			clearTimeout(timeoutTimer);
 			invokingAgentRole = null;
 		}
 	}
@@ -2157,6 +2193,7 @@
 			report={effectiveReport}
 			{userRole}
 			{isHumanUser}
+			{invokingAgentRole}
 			onAction={handleCriterionAction}
 			onContextualAction={handleContextualMilestoneAction}
 			onTransition={handleTransitionMaturity}

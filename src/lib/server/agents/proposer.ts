@@ -3,7 +3,7 @@ import { localLlmClient } from '../llm/localLlmClient';
 import { normalizeProposal, type SubjectProposal } from '$lib/domain/factorization';
 import type { Option, Criterion } from '$lib/domain/options';
 import type { CreateArgumentData } from '../projects/debateDb';
-import { AGENT_TIMEOUT_MS, FALLBACK_PREFIX } from './agentConfig';
+import { INTERACTIVE_AGENT_TIMEOUT_MS, FALLBACK_PREFIX } from './agentConfig';
 
 const ProposerOutputSchema = z.object({
 	arguments: z.array(
@@ -82,7 +82,7 @@ RÈGLES D'OR :
 }`;
 
 		try {
-			const timeoutMs = AGENT_TIMEOUT_MS;
+			const timeoutMs = INTERACTIVE_AGENT_TIMEOUT_MS;
 			const response = await localLlmClient.chat({
 				messages: [
 					{ role: 'system', content: systemPrompt },
@@ -90,6 +90,7 @@ RÈGLES D'OR :
 				],
 				temperature: 0.15,
 				format: 'json',
+				effort: 'medium',
 				timeoutMs
 			});
 
@@ -182,7 +183,7 @@ ${input.options.map((o) => `[ID: ${o.id}] Titre: ${o.title}\nRésumé: ${o.summa
 Génère les arguments de soutien :`;
 
 	try {
-		const timeoutMs = AGENT_TIMEOUT_MS;
+		const timeoutMs = INTERACTIVE_AGENT_TIMEOUT_MS;
 		const response = await localLlmClient.chat({
 			messages: [
 				{ role: 'system', content: systemPrompt },
@@ -190,6 +191,7 @@ Génère les arguments de soutien :`;
 			],
 			temperature: 0.1,
 			format: 'json',
+			effort: 'medium',
 			timeoutMs
 		});
 
@@ -199,21 +201,24 @@ Génère les arguments de soutien :`;
 			const validated = ProposerOutputSchema.parse(parsed);
 
 			// Filtrer et normaliser
-			return {
-				arguments: validated.arguments
-					.filter((arg) => input.options.some((o) => o.id === arg.optionId))
-					.map((arg, idx) => ({
-						id: `arg-prop-${input.round}-${Date.now()}-${idx}`,
-						optionId: arg.optionId,
-						stance: 'support',
-						claim: arg.claim.trim(),
-						grounds: arg.grounds.trim(),
-						kbRefs: arg.kbRefs.filter((ref) => input.allowedKbRefs.includes(ref)),
-						confidence: arg.confidence,
-						authorKind: 'agent:proposer',
-						round: input.round
-					}))
-			};
+			const validArgs: CreateArgumentData[] = validated.arguments
+				.filter((arg) => input.options.some((o) => o.id === arg.optionId))
+				.map((arg, idx) => ({
+					id: `arg-prop-${input.round}-${Date.now()}-${idx}`,
+					optionId: arg.optionId,
+					stance: 'support',
+					claim: arg.claim.trim(),
+					grounds: arg.grounds.trim(),
+					kbRefs: arg.kbRefs.filter((ref) => input.allowedKbRefs.includes(ref)),
+					confidence: arg.confidence,
+					authorKind: 'agent:proposer',
+					round: input.round
+				}));
+
+			if (validArgs.length > 0) {
+				return { arguments: validArgs };
+			}
+			console.warn('[ProposerAgent] Aucun argument exploitable après filtrage — bascule sur le repli déterministe.');
 		}
 	} catch (err) {
 		console.warn('[ProposerAgent] Repli déterministe hors ligne :', (err as any).message);

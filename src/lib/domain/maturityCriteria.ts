@@ -1,6 +1,7 @@
 import type { MaturityLevel } from '$lib/types/epistemic';
 import type { Argument } from './debate';
 import { canDecideAlone } from './options';
+import { isViolationVerificationArgument } from './maturityRules';
 
 export interface MaturityCriterion {
 	id: string;
@@ -125,6 +126,23 @@ export function calculateConvergence(args: Argument[] = []): ConvergenceStats {
 }
 
 /**
+ * Détermine si le vérificateur d'architecture est passé pour un sujet :
+ * - au moins un constat `verification` actif (non retiré) existe dans le fil ;
+ * - aucun constat `verification` ouvert ne signale une violation / non-conformité non traitée.
+ */
+export function hasVerifierPassed(args: Argument[] = []): boolean {
+	const activeVerifications = args.filter(
+		(a) => a.stance === 'verification' && a.resolution !== 'withdrawn'
+	);
+	if (activeVerifications.length === 0) return false;
+
+	const hasUnresolvedViolation = activeVerifications.some(
+		(a) => a.resolution === 'open' && isViolationVerificationArgument(a)
+	);
+	return !hasUnresolvedViolation;
+}
+
+/**
  * Calcule de façon pure l'ensemble des critères de passage L0 -> L5.
  *
  * Respecte les exigences A26 :
@@ -163,9 +181,7 @@ export function computeMaturityCriteria(input: MaturityCriteriaInput): MaturityT
 	const openQuestions = (input.openQuestionsCount ?? 0) + openQuestionsArgs.length;
 
 	const openObjections = args.filter((a) => a.stance === 'objection' && a.resolution === 'open');
-	const verifierPassed =
-		input.verifierPassed === true ||
-		args.some((a) => a.stance === 'verification' && a.resolution !== 'open');
+	const verifierPassed = input.verifierPassed === true || hasVerifierPassed(args);
 
 	// Décision affirmée dans le Hub par un décideur distinct de son auteur (K16)
 	const dec = input.decision;

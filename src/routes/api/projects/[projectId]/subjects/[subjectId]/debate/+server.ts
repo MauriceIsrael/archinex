@@ -49,7 +49,20 @@ export const POST: RequestHandler = async (event) => {
 				body.prompt || '',
 				actor
 			);
-			return json({ status: 'ok', arguments: agentArgs }, { status: 201 });
+			const message =
+				agentArgs.length === 0
+					? body.agentRole === 'verifier'
+						? "Le vérificateur n'a produit aucun constat : vérifiez que le sujet comporte au moins une option d'architecture et une règle doctrinale applicable (#base)."
+						: `L'agent @${body.agentRole} n'a produit aucune contribution sur ce sujet.`
+					: undefined;
+			return json(
+				{
+					status: 'ok',
+					arguments: agentArgs,
+					...(message ? { message } : {})
+				},
+				{ status: 201 }
+			);
 		} catch (err: any) {
 			return json({ message: err.message }, { status: 400 });
 		}

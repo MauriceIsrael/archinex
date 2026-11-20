@@ -288,7 +288,7 @@ function isBlockingQuestionArgument(
 	return POSITIVE_BLOCKING_RX.test(stripped);
 }
 
-function isViolationVerificationArgument(
+export function isViolationVerificationArgument(
 	arg: Argument,
 	semanticHint?: 'blocking' | 'non_blocking' | 'violation' | 'compliant'
 ): boolean {

@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
 	computeMaturityCriteria,
 	calculateConvergence,
+	hasVerifierPassed,
 	type MaturityCriteriaInput
 } from '$lib/domain/maturityCriteria';
 import { canTransitionMaturity } from '$lib/domain/maturityBoard';
@@ -393,5 +394,60 @@ describe('Lot A26 Contract: Maturity Criteria Stepper, Locks, Convergence & Stag
 		expect(resUnmet.reason).toContain('Au moins 2 options d’architecture');
 		expect(resUnmet.missingCriteria).toBeDefined();
 		expect(resUnmet.missingCriteria?.length).toBeGreaterThan(0);
+	});
+
+	it('10. Vérificateur L2 -> L3 : un constat de conformité (resolution=open) valide le critère, une violation ouverte le bloque jusqu’à résolution', () => {
+		const compliantVerification: Argument = {
+			id: 'arg-verif-ok',
+			subjectId: 'sub-3',
+			optionId: 'opt-1',
+			stance: 'verification',
+			claim: 'Contrôle de conformité doctrine validé vis-à-vis de [SEC-01]',
+			grounds: 'Les mécanismes de chiffrement et de cloisonnement respectent la règle SEC-01 sans non-conformité.',
+			kbRefs: ['SEC-01'],
+			confidence: 'verified',
+			author: 'agent:verifier',
+			authorKind: 'agent:verifier',
+			productionMode: 'llm-derived',
+			round: 1,
+			resolution: 'open',
+			version: 1,
+			createdAt: new Date().toISOString()
+		};
+
+		expect(hasVerifierPassed([])).toBe(false);
+		expect(hasVerifierPassed([compliantVerification])).toBe(true);
+
+		const reportCompliant = computeMaturityCriteria({
+			subject: { id: 'sub-3', name: 'Passerelle API', level: 'L2_decomposed' },
+			arguments: [compliantVerification]
+		});
+		expect(
+			reportCompliant.transitions.L3_decided.criteria.find((c) => c.id === 'verifier_passed')
+				?.satisfied
+		).toBe(true);
+
+		// Une violation ouverte bloque le critère même en présence d'un autre constat conforme
+		const violationOpen: Argument = {
+			...compliantVerification,
+			id: 'arg-verif-viol',
+			claim: 'Violation détectée de la règle [SEC-02]',
+			grounds: 'L’option ne respecte pas l’exigence d’isolation stricte : non-conformité majeure.',
+			kbRefs: ['SEC-02'],
+			resolution: 'open'
+		};
+
+		expect(hasVerifierPassed([compliantVerification, violationOpen])).toBe(false);
+
+		// Une fois la violation acceptée en risque ou levée, le critère passe au vert
+		expect(
+			hasVerifierPassed([
+				compliantVerification,
+				{ ...violationOpen, resolution: 'accepted_risk' }
+			])
+		).toBe(true);
+
+		// Un constat retiré seul ne suffit pas
+		expect(hasVerifierPassed([{ ...compliantVerification, resolution: 'withdrawn' }])).toBe(false);
 	});
 });

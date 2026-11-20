@@ -8,6 +8,7 @@
 		canCloseObjection,
 		canResolveSpecificObjection
 	} from '$lib/domain/debate';
+	import { isViolationVerificationArgument } from '$lib/domain/maturityRules';
 	import {
 		Bot,
 		UserCheck,
@@ -75,6 +76,12 @@
 	);
 	const attrs = $derived(getArgumentVisualAttributes(argument));
 	const isObjectionOpen = $derived(argument.stance === 'objection' && argument.resolution === 'open');
+	const isViolationVerification = $derived(
+		argument.stance === 'verification' && isViolationVerificationArgument(argument)
+	);
+	const isVerificationViolationOpen = $derived(
+		isViolationVerification && argument.resolution === 'open'
+	);
 	const userCanClose = $derived(canCloseObjection(userRole, isHumanUser));
 	const closeCheck = $derived(
 		canResolveSpecificObjection(
@@ -480,13 +487,13 @@
 				</div>
 			</div>
 
-			<!-- Résolution de l'objection si présente dans le message -->
-			{#if argument.stance === 'objection'}
+			<!-- Résolution de l'objection ou d'une non-conformité détectée par le vérificateur -->
+			{#if argument.stance === 'objection' || isViolationVerification}
 				<div class="pt-2 border-t border-border/40 flex items-center justify-between gap-2 flex-wrap text-xs">
-					{#if isObjectionOpen}
+					{#if isObjectionOpen || isVerificationViolationOpen}
 						<div class="text-[10px] font-semibold text-rose-700 dark:text-rose-400 flex items-center gap-1">
 							<ShieldAlert class="h-3 w-3" />
-							<span>Objection ouverte</span>
+							<span>{isVerificationViolationOpen ? 'Non-conformité ouverte' : 'Objection ouverte'}</span>
 						</div>
 
 						{#if userCanClose}

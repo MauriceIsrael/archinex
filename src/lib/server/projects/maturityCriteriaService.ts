@@ -1,6 +1,6 @@
 import type { RequestEvent } from '@sveltejs/kit';
 import { prisma } from '$lib/server/prisma';
-import { computeMaturityCriteria } from '$lib/domain/maturityCriteria';
+import { computeMaturityCriteria, hasVerifierPassed } from '$lib/domain/maturityCriteria';
 import { isProjectCutOverToHub } from '$lib/server/projects/hubMigrationService';
 import { getActorFromEvent } from '$lib/server/projects/actorHelper';
 import { ensureSubjectExists } from '$lib/server/projects/projectsDb';
@@ -117,9 +117,7 @@ export async function computeSubjectMaturityReport(params: {
 			subject.sectionRef ? 1 : 0
 		),
 		openQuestionsCount: subject.questions.filter((q) => q.status === 'open').length,
-		verifierPassed: mappedArguments.some(
-			(a) => a.stance === 'verification' && a.resolution !== 'open'
-		),
+		verifierPassed: hasVerifierPassed(mappedArguments),
 		decision: subject.decision
 			? {
 					authorId: subject.decision.arbiterId,

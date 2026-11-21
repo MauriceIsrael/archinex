@@ -9,7 +9,14 @@
 		type ContextualSubjectInput
 	} from '$lib/domain/impactGraph';
 	import { deliberationStore } from '$lib/stores/deliberationStore.svelte';
+	import {
+		DEFAULT_EDITORIAL_DIALS,
+		buildImpactSimulationDeltaInput,
+		renderArchitectureDelta,
+		type EditorialDials
+	} from '$lib/domain/editorialSvg';
 	import MermaidViewer from './MermaidViewer.svelte';
+	import EditorialDiagramViewer from './EditorialDiagramViewer.svelte';
 	import { toast } from '$lib/toast/index.svelte';
 	import {
 		Network,
@@ -30,6 +37,8 @@
 	// État réactif
 	let scenario = $state<ImpactSimulationScenario>('cost_optimized_v1');
 	let activeTab = $state<'graph' | 'table' | 'debt'>('graph');
+	let graphRenderMode = $state<'mermaid' | 'editorial-delta'>('mermaid');
+	let deltaDials = $state<EditorialDials>({ ...DEFAULT_EDITORIAL_DIALS });
 	let isGeneratingLlm = $state<boolean>(false);
 	let isLoadingDb = $state<boolean>(false);
 
@@ -149,6 +158,16 @@
 
 	const simulation = $derived(simulateCostOptimization(baseGraph, scenario));
 	const mermaidCode = $derived(generateMermaidImpactDiagram(simulation, scenario));
+	const editorialDeltaDiagram = $derived(
+		renderArchitectureDelta({
+			...buildImpactSimulationDeltaInput(
+				simulation,
+				selectedSubject?.name || 'Compromis d’Architecture',
+				selectedSubject?.section_ref
+			),
+			dials: deltaDials
+		})
+	);
 
 	// Charge automatiquement le graphe enrichi depuis la base dès qu'on change de sujet
 	$effect(() => {
@@ -521,14 +540,34 @@
 					<span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-amber-500"></span> Dégradé</span>
 					<span class="flex items-center gap-1"><span class="w-2.5 h-2.5 rounded-full bg-rose-600"></span> Non-conforme</span>
 				</div>
-				<span class="font-mono text-[11px]">Rendu vectoriel colorisé &amp; zoomable</span>
+				<div class="inline-flex rounded-lg border bg-muted/50 p-0.5 text-[11px]" data-testid="impact-render-mode-switcher">
+					<button
+						type="button"
+						onclick={() => (graphRenderMode = 'mermaid')}
+						class="px-2.5 py-1 rounded-md font-semibold transition-colors cursor-pointer {graphRenderMode === 'mermaid' ? 'bg-background text-foreground shadow-2xs' : 'text-muted-foreground hover:text-foreground'}"
+					>
+						Graphe Mermaid
+					</button>
+					<button
+						type="button"
+						onclick={() => (graphRenderMode = 'editorial-delta')}
+						class="px-2.5 py-1 rounded-md font-semibold transition-colors cursor-pointer {graphRenderMode === 'editorial-delta' ? 'bg-background text-foreground shadow-2xs' : 'text-muted-foreground hover:text-foreground'}"
+						data-testid="impact-mode-editorial-delta"
+					>
+						Architecture Delta (SVG)
+					</button>
+				</div>
 			</div>
 
-			<MermaidViewer
-				code={mermaidCode}
-				title={selectedSubject ? `Graphe Causal · ${selectedSubject.section_ref} ${selectedSubject.name}` : 'Cartographie Causale d\'Impact · Optimum vs Compromis'}
-				defaultView="visual"
-			/>
+			{#if graphRenderMode === 'editorial-delta'}
+				<EditorialDiagramViewer diagram={editorialDeltaDiagram} bind:dials={deltaDials} />
+			{:else}
+				<MermaidViewer
+					code={mermaidCode}
+					title={selectedSubject ? `Graphe Causal · ${selectedSubject.section_ref} ${selectedSubject.name}` : 'Cartographie Causale d\'Impact · Optimum vs Compromis'}
+					defaultView="visual"
+				/>
+			{/if}
 		</div>
 
 	<!-- ═════════════════════════════════════════════════════════════════════════ -->

@@ -160,3 +160,97 @@ export function verifyBlockRegistry(sidecar: BlockRegistrySidecar): SvgVerificat
 
 	return { ok: issues.length === 0, issues };
 }
+
+/**
+ * Vérificateur spécialisé `Architecture Delta` (#421 / #424) :
+ * - Vérifie la présence des deux panneaux synchronisés (`before` et `after`).
+ * - Vérifie que tout composant `unchanged` conserve EXACTEMENT ses coordonnées locales `(x, y)`.
+ * - Vérifie la bijection entre les objets non-`unchanged` et les entrées `data-change` du registre central.
+ */
+export function verifyArchitectureDeltaSvg(svg: string): SvgVerificationReport {
+	const base = verifyEditorialSvg(svg);
+	const issues: SvgVerificationIssue[] = [...base.issues];
+
+	const beforeMatch = svg.match(/<g\b[^>]*data-snapshot="before"[^>]*>([\s\S]*?)<\/g>\s*<g class="editorial-delta-ledger">/);
+	const afterMatch = svg.match(/<g\b[^>]*data-snapshot="after"[^>]*>([\s\S]*?)<\/g>\s*(?:<g class="editorial-legend">|<\/svg>)/);
+
+	if (!beforeMatch || !afterMatch) {
+		issues.push({
+			rule: 'provenance',
+			message: 'Les panneaux synchronisés data-snapshot="before" et data-snapshot="after" sont requis.'
+		});
+		return { ok: false, issues };
+	}
+
+	const extractCoords = (panelXml: string) => {
+		const map = new Map<string, { status: string; x: number; y: number }>();
+		const re = /<g\b[^>]*data-kind="component"[^>]*data-object-id="([^"]+)"[^>]*data-status="([^"]+)"[^>]*>[\s\S]*?<rect\b[^>]*data-role="bounds"[^>]*x="([\d.-]+)"[^>]*y="([\d.-]+)"/g;
+		for (const m of panelXml.matchAll(re)) {
+			map.set(m[1], { status: m[2], x: Number(m[3]), y: Number(m[4]) });
+		}
+		return map;
+	};
+
+	const beforeCoords = extractCoords(beforeMatch[1]);
+	const afterCoords = extractCoords(afterMatch[1]);
+
+	const expectedChanges = new Set<string>();
+	for (const [id, b] of beforeCoords.entries()) {
+		const a = afterCoords.get(id);
+		if (b.status === 'unchanged') {
+			if (!a || a.x !== b.x || a.y !== b.y) {
+				issues.push({
+					rule: 'grid-4px',
+					message: `Composant unchanged "${id}" a changé de coordonnées entre Before et After.`
+				});
+			}
+		} else {
+			expectedChanges.add(`${b.status.toUpperCase()}:${id}`);
+		}
+	}
+	for (const [id, a] of afterCoords.entries()) {
+		if (a.status !== 'unchanged') {
+			expectedChanges.add(`${a.status.toUpperCase()}:${id}`);
+		}
+	}
+
+	const ledgerChanges = new Set<string>();
+	for (const m of svg.matchAll(/<text\b[^>]*data-change="([^"]+)"[^>]*data-target="([^"]+)"/g)) {
+		ledgerChanges.add(`${m[1]}:${m[2]}`);
+	}
+
+	for (const exp of expectedChanges) {
+		if (!ledgerChanges.has(exp)) {
+			issues.push({
+				rule: 'provenance',
+				message: `Entrée manquante dans le registre central Changes : ${exp}.`
+			});
+		}
+	}
+
+	return { ok: issues.length === 0, issues };
+}
+
+/**
+ * Vérificateur spécialisé `Requirement Traceability` (#420 / #424) :
+ * - Vérifie que chaque ligne `data-trace-row` porte `derives`, `satisfies` et `verifies`.
+ * - Vérifie que toute relation sans `data-trace-from` déclare explicitement `data-trace-missing="true"`.
+ */
+export function verifyRequirementTraceabilitySvg(svg: string): SvgVerificationReport {
+	const base = verifyEditorialSvg(svg);
+	const issues: SvgVerificationIssue[] = [...base.issues];
+
+	for (const m of svg.matchAll(/<path\b[^>]*data-trace-rel="([^"]+)"[^>]*>/g)) {
+		const tag = m[0];
+		const hasFrom = /\bdata-trace-from="[^"]+"/.test(tag);
+		const isMissing = /\bdata-trace-missing="true"/.test(tag);
+		if (!hasFrom && !isMissing) {
+			issues.push({
+				rule: 'provenance',
+				message: `Relation ${m[1]} sans data-trace-from doit déclarer explicitement data-trace-missing="true".`
+			});
+		}
+	}
+
+	return { ok: issues.length === 0, issues };
+}

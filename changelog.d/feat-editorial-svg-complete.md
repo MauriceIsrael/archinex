@@ -1,0 +1,5 @@
+### Finalisation des Vues Éditoriales SVG & Directeur Éditorial LLM (#421, #423, #424, #427)
+- Ajout de la vue **Architecture Delta** (`Before · Changes · After` sur grille `4px` synchronisée, stabilité des coordonnées `unchanged` et registre central `ADDED/REMOVED/CHANGED/MOVED/REWIRED`, #421), intégrée en parallèle de Mermaid dans `ImpactGraphExplorer.svelte`.
+- Ajout des vues de délibération & conformité KB (#423) : **Traces KB Appariées** (avec marqueur de 1re divergence et distinction explicite de `UNVERIFIED`), **Couches Compensatoires** (avec risque résiduel explicite) et **Matrice Thermique de Décision** pondérée, intégrées dans `ArtifactRegenerationHub.svelte`.
+- Ajout du **Directeur Éditorial assisté par LLM** (`editorialRecommenderAgent.ts` + endpoint authentifié `POST /api/projects/[projectId]/subjects/[subjectId]/editorial-recommendations`, #427) avec validation stricte des `focalId` et repli déterministe automatique.
+- Enrichissement des vérificateurs CI (`verifyArchitectureDeltaSvg`, `verifyRequirementTraceabilitySvg`) et de l'empaquetage HLD (`buildEditorialHldPackage`, #424).

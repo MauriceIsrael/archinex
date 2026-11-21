@@ -106,7 +106,11 @@ export type EditorialDiagramTypeId =
 	| 'architecture-delta'
 	| 'paired-policy-traces'
 	| 'compensating-layers'
-	| 'decision-heatmap';
+	| 'decision-heatmap'
+	| 'decision-radar'
+	| 'lifecycle-phase-map'
+	| 'deployment-sequence'
+	| 'coverage-unit-grid';
 
 export interface EditorialDiagramResult {
 	diagramType: EditorialDiagramTypeId;

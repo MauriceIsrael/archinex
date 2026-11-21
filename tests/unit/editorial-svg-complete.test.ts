@@ -4,7 +4,11 @@ import {
 	buildImpactSimulationDeltaInput,
 	renderArchitectureDelta,
 	renderCompensatingLayers,
+	renderCoverageUnitGrid,
 	renderDecisionHeatmap,
+	renderDecisionRadar,
+	renderDeploymentSequenceSvg,
+	renderLifecyclePhaseMap,
 	renderPairedPolicyTraces,
 	renderRequirementTraceability,
 	verifyArchitectureDeltaSvg,
@@ -214,6 +218,69 @@ describe('Editorial SVG Complete Suite (#421, #423, #424, #427)', () => {
 
 		expect(fallbackRes.source).toBe('deterministic');
 		expect(fallbackRes.fallbackReason).toContain('Ollama offline');
-		expect(fallbackRes.recommendations.length).toBe(6);
+		expect(fallbackRes.recommendations.length).toBe(10);
+	});
+
+	it('renders Lifecycle Phase Map, Decision Radar, Deployment Sequence, and Coverage Unit Grid passing all verifiers', () => {
+		const lifecycle = renderLifecyclePhaseMap({
+			subjectId: 'sub_lc',
+			sectionRef: 'S-8',
+			subjectName: 'Maturité Réseau',
+			currentLevel: 3,
+			unsettledCount: 2,
+			hasRetainedDecision: true,
+			isFrozen: false
+		});
+		expect(lifecycle.svg).toContain('data-diagram="lifecycle-phase-map"');
+		expect(verifyEditorialSvg(lifecycle.svg).ok).toBe(true);
+
+		const radar = renderDecisionRadar({
+			subjectId: 'sub_rad',
+			sectionRef: 'S-9',
+			subjectName: 'Compromis Plateforme',
+			criteria: [
+				{ id: 'c1', name: 'Résilience', weight: 3 },
+				{ id: 'c2', name: 'Coût', weight: 2 },
+				{ id: 'c3', name: 'Souveraineté', weight: 4 }
+			],
+			options: [
+				{ id: 'o1', title: 'Option A', retained: true, scores: { c1: 5, c2: 3, c3: 5 } },
+				{ id: 'o2', title: 'Option B', retained: false, scores: { c1: 3, c2: 5, c3: 2 } }
+			]
+		});
+		expect(radar.svg).toContain('data-diagram="decision-radar"');
+		expect(verifyEditorialSvg(radar.svg).ok).toBe(true);
+
+		const seq = renderDeploymentSequenceSvg({
+			subjectId: 'sub_seq',
+			sectionRef: 'S-10',
+			subjectName: 'Homologation Continue',
+			actors: ['Arbitre', 'Archinex', 'KB / OPA', 'Nautobot'],
+			steps: [
+				{ id: 'S1', fromActorIndex: 0, toActorIndex: 1, label: 'Signe décision', isFocal: true },
+				{ id: 'S2', fromActorIndex: 1, toActorIndex: 2, label: 'Vérifie KB' },
+				{ id: 'S3', fromActorIndex: 2, toActorIndex: 1, label: 'Verdict', isReturn: true }
+			],
+			altBranchPrimary: 'Planification validée',
+			altBranchFallback: 'Remédiation'
+		});
+		expect(seq.svg).toContain('data-diagram="deployment-sequence"');
+		expect(seq.svg).toContain('>ALT<');
+		expect(verifyEditorialSvg(seq.svg).ok).toBe(true);
+
+		const unitGrid = renderCoverageUnitGrid({
+			subjectId: 'sub_ug',
+			sectionRef: 'S-11',
+			subjectName: 'Couverture Globale',
+			rows: [
+				{ requirementId: 'R1', sourceRef: 'RFP', sourceLabel: 'Sec', requirementTitle: 'MFA', designElementId: 'D1', verificationId: 'V1' },
+				{ requirementId: 'R2', sourceRef: 'RFP', sourceLabel: 'Sec', requirementTitle: 'Logs', designElementId: 'D2', verificationId: null },
+				{ requirementId: 'R3', sourceRef: 'RFP', sourceLabel: 'Sec', requirementTitle: 'PRA', designElementId: null, verificationId: null }
+			]
+		});
+		expect(unitGrid.svg).toContain('data-diagram="coverage-unit-grid"');
+		expect(unitGrid.svg).toContain('data-unit-status="verified"');
+		expect(unitGrid.svg).toContain('data-unit-status="unlinked"');
+		expect(verifyEditorialSvg(unitGrid.svg).ok).toBe(true);
 	});
 });

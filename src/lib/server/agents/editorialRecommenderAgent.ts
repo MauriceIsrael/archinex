@@ -21,7 +21,11 @@ const LlmRecommendationItemSchema = z.object({
 		'architecture-delta',
 		'paired-policy-traces',
 		'compensating-layers',
-		'decision-heatmap'
+		'decision-heatmap',
+		'decision-radar',
+		'lifecycle-phase-map',
+		'deployment-sequence',
+		'coverage-unit-grid'
 	]),
 	score: z.number().min(0).max(100),
 	rationale: z.string().min(4).max(240),
@@ -31,7 +35,7 @@ const LlmRecommendationItemSchema = z.object({
 });
 
 const LlmRecommendationResponseSchema = z.object({
-	recommendations: z.array(LlmRecommendationItemSchema).min(1).max(6),
+	recommendations: z.array(LlmRecommendationItemSchema).min(1).max(10),
 	calloutText: z.string().max(120).optional()
 });
 
@@ -55,7 +59,11 @@ const VIEW_LABELS: Record<EditorialViewRecommendation['viewId'], string> = {
 	'architecture-delta': 'Architecture Delta',
 	'paired-policy-traces': 'Traces KB Appariées',
 	'compensating-layers': 'Couches Compensatoires',
-	'decision-heatmap': 'Matrice Décision'
+	'decision-heatmap': 'Matrice Décision',
+	'decision-radar': 'Radar Multi-Critères',
+	'lifecycle-phase-map': 'Cycle de Vie (L0–L5)',
+	'deployment-sequence': 'Séquence & Homologation',
+	'coverage-unit-grid': 'Grille de Couverture'
 };
 
 export async function adviseEditorialViewsWithLlm(

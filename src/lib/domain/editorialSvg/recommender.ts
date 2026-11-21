@@ -145,5 +145,66 @@ export function recommendEditorialViews(signals: SubjectEditorialSignals): Edito
 		source: 'deterministic'
 	});
 
+	const radarScore =
+		(signals.optionCount >= 2 && (signals.criteriaCount ?? 0) >= 3 ? 74 : 15) +
+		(signals.hasRetainedDecision ? 14 : 4);
+	recs.push({
+		viewId: 'decision-radar',
+		label: 'Radar Multi-Critères',
+		score: Math.min(100, radarScore),
+		implementedInPilot: true,
+		rationale:
+			(signals.criteriaCount ?? 0) >= 3
+				? `Compare la forme des compromis de ${signals.optionCount} options sur ${signals.criteriaCount} axes.`
+				: 'Pertinent à partir de 3 critères pondérés.',
+		suggestedDetail: 'balanced',
+		suggestedAudience: 'executive',
+		source: 'deterministic'
+	});
+
+	const unitGridScore =
+		(signals.requirementCount >= 7 ? 84 : signals.requirementCount > 0 ? 48 : 10) +
+		(signals.missingVerificationCount > 0 ? 12 : 0);
+	recs.push({
+		viewId: 'coverage-unit-grid',
+		label: 'Grille de Couverture',
+		score: Math.min(100, unitGridScore),
+		implementedInPilot: true,
+		rationale:
+			signals.requirementCount >= 7
+				? `${signals.requirementCount} exigences : la grille discrète 1 tuile = 1 exigence révèle immédiatement la complétude.`
+				: 'Vue exécutive discrète de la couverture des exigences.',
+		suggestedDetail: 'balanced',
+		suggestedAudience: 'executive',
+		source: 'deterministic'
+	});
+
+	const lifecycleScore = 45 + (signals.unsettledCount > 0 ? 25 : 0) + (signals.hasRetainedDecision ? 15 : 0);
+	recs.push({
+		viewId: 'lifecycle-phase-map',
+		label: 'Cycle de Vie (L0–L5)',
+		score: Math.min(100, lifecycleScore),
+		implementedInPilot: true,
+		rationale:
+			signals.unsettledCount > 0
+				? `Rail L0–L5 mettant en évidence ${signals.unsettledCount} point(s) d'interruption/reprise.`
+				: 'Situe le sujet sur son rail de maturité L0–L5 et ses issues terminales.',
+		suggestedDetail: 'balanced',
+		suggestedAudience: 'mixed',
+		source: 'deterministic'
+	});
+
+	const seqScore = 40 + (signals.hasRetainedDecision ? 30 : 0);
+	recs.push({
+		viewId: 'deployment-sequence',
+		label: 'Séquence & Homologation',
+		score: Math.min(100, seqScore),
+		implementedInPilot: true,
+		rationale: 'Chaîne d’échanges Architecte → Archinex → KB/OPA → Nautobot avec branche ALT de réconciliation.',
+		suggestedDetail: 'balanced',
+		suggestedAudience: 'engineer',
+		source: 'deterministic'
+	});
+
 	return recs.sort((a, b) => b.score - a.score);
 }

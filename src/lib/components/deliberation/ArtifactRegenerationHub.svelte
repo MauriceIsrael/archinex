@@ -5,7 +5,11 @@
 		DEFAULT_EDITORIAL_DIALS,
 		recommendEditorialViews,
 		renderCompensatingLayers,
+		renderCoverageUnitGrid,
 		renderDecisionHeatmap,
+		renderDecisionRadar,
+		renderDeploymentSequenceSvg,
+		renderLifecyclePhaseMap,
 		renderPairedPolicyTraces,
 		renderRequirementTraceability,
 		renderTraceableBlockTree,
@@ -233,6 +237,84 @@
 					unsettledTotal > 0
 						? `${unsettledTotal} énoncé(s) non consolidé(s) restant(s) à arbitrer ou couvrir avant scellement.`
 						: 'Tous les énoncés actifs de cette section sont consolidés ; surveillance continue via Nautobot.',
+				dials: editorialDials
+			});
+		}
+
+		if (editorialSubView === 'coverage-unit-grid') {
+			return renderCoverageUnitGrid({
+				subjectId: activeSubject.id,
+				sectionRef: activeSubject.section_ref,
+				subjectName: activeSubject.name,
+				rows: editorialTraceRows,
+				dials: editorialDials
+			});
+		}
+
+		if (editorialSubView === 'decision-radar') {
+			const criteria = (activeSubject.proposal?.criteria ?? []).map((c, idx) => ({
+				id: `crit-${idx}`,
+				name: c.name,
+				weight: c.weight
+			}));
+			const evals = activeSubject.proposal?.evaluations ?? [];
+			const rawOptions =
+				decisionCtx?.options && decisionCtx.options.length > 0
+					? decisionCtx.options.map((o) => ({ id: o.id, title: o.title }))
+					: (activeSubject.proposal?.options ?? []).map((o, idx) => ({ id: `opt-${idx}`, title: o.title }));
+			const options = rawOptions.map((o) => {
+				const scores: Record<string, number | null> = {};
+				for (const c of criteria) {
+					const found = evals.find((e) => e.option === o.title && e.criterion === c.name);
+					scores[c.id] = found ? found.score : null;
+				}
+				return {
+					id: o.id,
+					title: o.title,
+					retained: decisionCtx?.decision?.retainedOptionId === o.id,
+					scores
+				};
+			});
+			return renderDecisionRadar({
+				subjectId: activeSubject.id,
+				sectionRef: activeSubject.section_ref,
+				subjectName: activeSubject.name,
+				criteria,
+				options,
+				dials: editorialDials
+			});
+		}
+
+		if (editorialSubView === 'lifecycle-phase-map') {
+			const unsettledTotal = blockGraph.blocks.reduce((acc, b) => acc + b.unsettledCount, 0);
+			return renderLifecyclePhaseMap({
+				subjectId: activeSubject.id,
+				sectionRef: activeSubject.section_ref,
+				subjectName: activeSubject.name,
+				currentLevel: Number(String(activeSubject.level || '0').replace(/[^0-9]/g, '')) || 0,
+				unsettledCount: unsettledTotal,
+				hasRetainedDecision: Boolean(decisionCtx?.decision?.retainedOptionId),
+				isFrozen: Boolean(deliberationStore.frozenSnapshots[activeSubject.id]),
+				hasAcceptedViolations: Boolean(decisionCtx?.decision?.acceptedViolations?.length),
+				dials: editorialDials
+			});
+		}
+
+		if (editorialSubView === 'deployment-sequence') {
+			return renderDeploymentSequenceSvg({
+				subjectId: activeSubject.id,
+				sectionRef: activeSubject.section_ref,
+				subjectName: activeSubject.name,
+				actors: ['Arbitre', 'Archinex', 'KB / OPA', 'Nautobot'],
+				steps: [
+					{ id: 'S1', fromActorIndex: 0, toActorIndex: 1, label: 'Arbitre option retenue', isFocal: true },
+					{ id: 'S2', fromActorIndex: 1, toActorIndex: 2, label: 'Évalue clauses KB / Rego' },
+					{ id: 'S3', fromActorIndex: 2, toActorIndex: 1, label: 'Verdict structuré', isReturn: true },
+					{ id: 'S4', fromActorIndex: 1, toActorIndex: 3, label: 'Push intention (dry-run / plan)', isFocal: true },
+					{ id: 'S5', fromActorIndex: 3, toActorIndex: 1, label: 'Preuve exécution & dérive', isReturn: true }
+				],
+				altBranchPrimary: 'Planification Nautobot validée · Section scellée (L5)',
+				altBranchFallback: 'Dérive ou réserve → Remédier / Amender / Déroger',
 				dials: editorialDials
 			});
 		}
@@ -656,6 +738,38 @@
 						data-testid="editorial-subtab-layers"
 					>
 						Couches Compensatoires
+					</button>
+					<button
+						type="button"
+						onclick={() => (editorialSubView = 'coverage-unit-grid')}
+						class="px-2.5 py-1 rounded-md font-medium transition-colors {editorialSubView === 'coverage-unit-grid' ? 'bg-background shadow-xs text-foreground font-bold' : 'text-muted-foreground hover:text-foreground'}"
+						data-testid="editorial-subtab-unit-grid"
+					>
+						Grille Couverture
+					</button>
+					<button
+						type="button"
+						onclick={() => (editorialSubView = 'decision-radar')}
+						class="px-2.5 py-1 rounded-md font-medium transition-colors {editorialSubView === 'decision-radar' ? 'bg-background shadow-xs text-foreground font-bold' : 'text-muted-foreground hover:text-foreground'}"
+						data-testid="editorial-subtab-radar"
+					>
+						Radar Critères
+					</button>
+					<button
+						type="button"
+						onclick={() => (editorialSubView = 'lifecycle-phase-map')}
+						class="px-2.5 py-1 rounded-md font-medium transition-colors {editorialSubView === 'lifecycle-phase-map' ? 'bg-background shadow-xs text-foreground font-bold' : 'text-muted-foreground hover:text-foreground'}"
+						data-testid="editorial-subtab-lifecycle"
+					>
+						Cycle de Vie (L0–L5)
+					</button>
+					<button
+						type="button"
+						onclick={() => (editorialSubView = 'deployment-sequence')}
+						class="px-2.5 py-1 rounded-md font-medium transition-colors {editorialSubView === 'deployment-sequence' ? 'bg-background shadow-xs text-foreground font-bold' : 'text-muted-foreground hover:text-foreground'}"
+						data-testid="editorial-subtab-sequence"
+					>
+						Séquence &amp; Homologation
 					</button>
 				</div>
 

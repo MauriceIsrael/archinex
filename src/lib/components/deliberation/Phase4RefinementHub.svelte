@@ -1,6 +1,8 @@
 <script lang="ts">
 	import { deliberationStore } from '$lib/stores/deliberationStore.svelte';
 	import Phase3SubjectSelector from './Phase3SubjectSelector.svelte';
+	import Phase4NautobotPlanPreview from './Phase4NautobotPlanPreview.svelte';
+	import Phase4DriftDemoDrawer from './Phase4DriftDemoDrawer.svelte';
 	import {
 		Cpu,
 		ShieldCheck,
@@ -764,312 +766,25 @@
 		</div>
 
 		<!-- ═════════════════════════════════════════════════════════════════════ -->
-		<!-- COLONNE DROITE (5 cols) : HYDRATATION LLD, ORACLE OPA & SIMULATEUR DRIFT -->
+		<!-- COLONNE DROITE (5 cols) : INTENTION, PLAN DRY-RUN NAUTOBOT & ORACLE   -->
 		<!-- ═════════════════════════════════════════════════════════════════════ -->
 		<div class="xl:col-span-5 space-y-4">
-			<!-- BLOC A : Hydratation Multi-Axes (Nautobot DCIM + Sylva CAPI + Zones + Env + PDU) -->
-			<div class="rounded-xl border bg-card p-5 shadow-xs space-y-3.5">
-				<div class="flex items-center justify-between gap-2 flex-wrap border-b pb-2.5">
-					<div>
-						<span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-sky-500/15 text-sky-700 dark:text-sky-300">
-							Étape 2 · Hydratation LLD (Planned State)
-						</span>
-						<h3 class="text-sm font-bold text-foreground mt-1">
-							Objets Générés Multi-Axes (Nautobot & Sylva CAPI)
-						</h3>
-					</div>
-					<div class="flex items-center gap-1.5 flex-wrap">
-						<button
-							type="button"
-							disabled={isActionRunning}
-							onclick={() => triggerEdpAction({ action: 'hydrate' })}
-							class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer"
-							data-testid="phase4-hydrate-btn"
-						>
-							<Zap class="h-3.5 w-3.5" />
-							<span>Hydrater Nautobot & Sylva</span>
-						</button>
-						<button
-							type="button"
-							disabled={isActionRunning || lastVerdict?.verdict === 'violated'}
-							onclick={() =>
-								triggerEdpAction(
-									{ action: 'export_sylva_gitops' },
-									'Export GitOps Sylva (workload-clusters/values.yaml) généré !'
-								)}
-							class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-semibold shadow-xs transition-colors cursor-pointer"
-							title="Exporter workload-clusters/<cluster>/values.yaml et ouvrir une PR/MR GitOps vers sylva-core"
-							data-testid="phase4-export-sylva-gitops-btn"
-						>
-							<FileCode class="h-3.5 w-3.5" />
-							<span>Ouvrir PR/MR GitOps Sylva</span>
-						</button>
-						<a
-							href="http://localhost:8080/circuits/circuits/"
-							target="_blank"
-							rel="noreferrer"
-							class="inline-flex items-center gap-1 px-2 py-1.5 rounded-lg border bg-muted/40 hover:bg-muted text-[11px] font-semibold text-foreground"
-							title="Voir les circuits d'interconnexion dans Nautobot"
-						>
-							<span>Circuits</span>
-							<ExternalLink class="h-3 w-3" />
-						</a>
-						<a
-							href="http://localhost:8080/vpn/vpn-tunnels/"
-							target="_blank"
-							rel="noreferrer"
-							class="inline-flex items-center gap-1 px-2 py-1.5 rounded-lg border bg-muted/40 hover:bg-muted text-[11px] font-semibold text-foreground"
-							title="Voir les tunnels IPsec et leurs profils VPN dans le module VPN Nautobot 2.2+"
-							data-testid="phase4-nautobot-vpn-link"
-						>
-							<span>VPN Tunnels</span>
-							<ExternalLink class="h-3 w-3" />
-						</a>
-						<a
-							href="http://localhost:8080/tenancy/tenants/"
-							target="_blank"
-							rel="noreferrer"
-							class="inline-flex items-center gap-1 px-2 py-1.5 rounded-lg border bg-muted/40 hover:bg-muted text-[11px] font-semibold text-foreground"
-							title="Voir les tenants partenaires dans Nautobot"
-						>
-							<span>Tenants</span>
-							<ExternalLink class="h-3 w-3" />
-						</a>
-						<a
-							href="http://localhost:8080/dcim/devices/"
-							target="_blank"
-							rel="noreferrer"
-							class="inline-flex items-center gap-1 px-2 py-1.5 rounded-lg border bg-muted/40 hover:bg-muted text-[11px] font-semibold text-foreground"
-							title="Voir les 7 Équipements (Sylva + 3GPP Shadow + SecGW/DEA/HSS) dans Nautobot"
-						>
-							<span>Devices</span>
-							<ExternalLink class="h-3 w-3" />
-						</a>
-					</div>
-				</div>
+			<!-- BLOC A : Plan Dry-Run Nautobot & Lien unique Nautobot (Issue #405) -->
+			<Phase4NautobotPlanPreview
+				{hydrated}
+				{displayedResolvedComponents}
+				{allResolvedComponents}
+				{subjectBoundComponentNames}
+				bind:showAllResolvedComponents
+				edpStatus={currentEdp?.metadata?.status || 'proposed'}
+			/>
 
-				{#if hydrated}
-					<div class="grid grid-cols-1 sm:grid-cols-2 gap-2.5 text-xs">
-						{#each hydrated.nautobot_planned_devices || [] as dev}
-							<div class="p-2.5 rounded-lg border bg-muted/20 space-y-1">
-								<div class="flex items-center justify-between">
-									<span class="text-[10px] font-bold uppercase text-muted-foreground">Nautobot Device</span>
-									<span class="font-mono text-[10px] px-1.5 py-0.2 rounded bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">
-										{dev.status}
-									</span>
-								</div>
-								<div class="font-mono font-bold text-foreground">{dev.name}</div>
-								{#if dev.cluster_pool}
-									<div class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 inline-block">
-										Pool : {dev.cluster_pool}
-									</div>
-								{/if}
-								<div class="text-[11px] text-muted-foreground">
-									Modèle : <strong class="text-foreground">{dev.device_type}</strong>
-								</div>
-								<div class="text-[11px] text-muted-foreground">
-									OOB IP : <code class="font-mono text-foreground">{dev.oob_ip || 'aucune'}</code> · {dev.interfaces?.length || 0} interfaces
-								</div>
-								<div class="text-[11px] text-muted-foreground">
-									Énergie : <strong class="text-foreground">{(dev.power_feeds || []).join(' + ') || 'Aucune'}</strong>
-								</div>
-							</div>
-						{/each}
-
-						{#if hydrated.k8s_manifests?.[0]}
-							{@const bmh = hydrated.k8s_manifests[0]}
-							<div class="p-2.5 rounded-lg border bg-muted/20 space-y-1">
-								<div class="flex items-center justify-between">
-									<span class="text-[10px] font-bold uppercase text-muted-foreground">Sylva WorkloadCluster & CAPM3 ({hydrated.k8s_manifests.length})</span>
-									<span class="font-mono text-[10px] px-1.5 py-0.2 rounded bg-indigo-500/15 text-indigo-700 dark:text-indigo-300">
-										{hydrated.sylva_workload_cluster_values?.kind || bmh.kind}
-									</span>
-								</div>
-								<div class="font-mono font-bold text-foreground">
-									{hydrated.sylva_workload_cluster_values?.metadata?.name || bmh.metadata?.name}
-								</div>
-								<div class="text-[11px] text-muted-foreground">
-									Providers Sylva : <strong class="text-foreground">capm3 (Metal3) + cabpr (RKE2)</strong>
-								</div>
-								<div class="text-[11px] text-muted-foreground truncate" title={bmh.spec?.bmc?.address}>
-									BMC : <code class="font-mono text-foreground">{bmh.spec?.bmc?.address}</code>
-								</div>
-								<div class="text-[11px] text-muted-foreground">
-									Zones : <strong class="text-foreground">{(hydrated.security_zones || []).map((z: any) => z.zone_id).join(', ') || 'Aucune'}</strong>
-								</div>
-							</div>
-						{/if}
-					</div>
-
-					<!-- Composants Applicatifs & Logiques Hydratés -->
-					{#if allResolvedComponents.length > 0}
-						<div class="p-3 rounded-lg border border-emerald-500/30 bg-emerald-500/5 space-y-2 text-xs" data-testid="phase4-resolved-components">
-							<div class="flex items-center justify-between gap-2 flex-wrap">
-								<div class="flex items-center gap-2">
-									<span class="font-bold text-foreground">🧩 Composants Applicatifs & Logiques Hydratés ({displayedResolvedComponents.length})</span>
-									{#if subjectBoundComponentNames.size > 0 && allResolvedComponents.length > displayedResolvedComponents.length}
-										<span class="text-[10px] text-muted-foreground">
-											sur {allResolvedComponents.length} au catalogue de référence
-										</span>
-									{/if}
-								</div>
-								{#if subjectBoundComponentNames.size > 0 && allResolvedComponents.length > subjectBoundComponentNames.size}
-									<button
-										type="button"
-										onclick={() => (showAllResolvedComponents = !showAllResolvedComponents)}
-										class="px-2 py-0.5 rounded border text-[10px] font-semibold cursor-pointer bg-background hover:bg-muted text-foreground"
-										data-testid="phase4-toggle-all-components-btn"
-									>
-										{showAllResolvedComponents
-											? 'Ciblés par ce sujet uniquement'
-											: `Voir tout le catalogue (${allResolvedComponents.length})`}
-									</button>
-								{/if}
-							</div>
-							<div class="grid grid-cols-1 sm:grid-cols-2 gap-2">
-								{#each displayedResolvedComponents as comp}
-									{@const isSubjectTarget = subjectBoundComponentNames.has(comp.name)}
-									<div class="p-2.5 rounded-lg border bg-background/90 space-y-1" data-testid="phase4-resolved-component-card">
-										<div class="flex items-center justify-between gap-1.5">
-											<span class="font-mono font-bold text-foreground">{comp.name}</span>
-											<span class="text-[10px] font-mono px-1.5 py-0.5 rounded {isSubjectTarget
-												? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 font-semibold'
-												: 'bg-muted text-muted-foreground'}">
-												{isSubjectTarget ? 'Ciblé par ce sujet' : comp.functionalDomain}
-											</span>
-										</div>
-										<div class="text-[11px] text-muted-foreground">
-											Domaine : <strong class="text-foreground">{comp.functionalDomain}</strong> · Tenant : <code class="font-mono text-foreground">{comp.tenant}</code>
-										</div>
-										<div class="text-[10px] font-mono text-muted-foreground">
-											{comp.environment}/{comp.datacenter} · {comp.modules?.length || 0} module(s) · {comp.subnets?.length || 0} sous-réseau(x) · {comp.effectiveRules?.length || 0} règle(s) FW
-										</div>
-									</div>
-								{/each}
-							</div>
-						</div>
-					{/if}
-
-					<!-- Graphe d'Objets Exhaustif & Réconciliation Multi-Domaine (3GPP NRM / TM Forum SID / Nautobot SSoT) -->
-					{#if hydrated.reconciliation_graph && [hydrated.reconciliation_graph.partner_organizations, hydrated.reconciliation_graph.external_shadow_nodes, hydrated.reconciliation_graph.internal_mediation_nodes, hydrated.reconciliation_graph.ip_underlay_links, hydrated.reconciliation_graph.ipsec_tunnels, hydrated.reconciliation_graph.service_mediation_flows, hydrated.reconciliation_graph.sla_and_monitoring_contracts].some((a) => Array.isArray(a) && a.length > 0)}
-						{@const rg = hydrated.reconciliation_graph}
-						<div class="p-3 rounded-lg border border-indigo-500/30 bg-indigo-500/5 space-y-2.5 text-[11px]" data-testid="phase4-reconciliation-graph">
-							<div class="flex items-center justify-between gap-2 flex-wrap">
-								<div>
-									<div class="font-bold text-foreground flex items-center gap-1.5">
-										<span>🔗 Graphe d'Objets & Réconciliation Multi-Domaine</span>
-									</div>
-									<p class="text-[10px] text-muted-foreground">
-										Clé pivot de réconciliation inter-domaines : <code class="font-mono font-bold text-indigo-700 dark:text-indigo-300">tenant_ref = "{rg.pivot_tenant_id}"</code> (3GPP NRM · TM Forum GB922 · Nautobot SSoT)
-									</p>
-								</div>
-								<span class="font-mono text-[10px] px-2 py-0.5 rounded-full font-semibold {rg.partner_organizations?.length > 0 && rg.sla_and_monitoring_contracts?.length > 0 ? 'bg-emerald-500/15 text-emerald-700 dark:text-emerald-300' : 'bg-rose-500/15 text-rose-700 dark:text-rose-300'}">
-									{rg.partner_organizations?.length > 0 && rg.sla_and_monitoring_contracts?.length > 0 ? '✓ 7/7 Classes Réconciliées' : '❌ Rupture de Réconciliation'}
-								</span>
-							</div>
-
-							<div class="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-[10px]">
-								<div class="p-2 rounded border bg-background/80">
-									<div class="font-bold text-muted-foreground uppercase">1. Organisations Tiers (Tenancy)</div>
-									<div class="font-mono text-foreground mt-0.5">
-										{rg.partner_organizations?.map((o: any) => o.id).join(', ') || '⚠️ Aucune (Orphelin)'}
-									</div>
-								</div>
-								<div class="p-2 rounded border bg-background/80">
-									<div class="font-bold text-muted-foreground uppercase">2. Objets Externes 3GPP (Shadow)</div>
-									<div class="font-mono text-foreground mt-0.5">
-										{rg.external_shadow_nodes?.map((n: any) => `${n.id} (${n.nrm_3gpp_class})`).join(', ')}
-									</div>
-								</div>
-								<div class="p-2 rounded border bg-background/80">
-									<div class="font-bold text-muted-foreground uppercase">3. Lien IP & Tunnel IPsec ESP</div>
-									<div class="font-mono text-foreground mt-0.5">
-										{rg.ip_underlay_links?.[0]?.id} → {rg.ipsec_tunnels?.[0]?.id} ({rg.ipsec_tunnels?.[0]?.cipher_suite})
-									</div>
-								</div>
-								<div class="p-2 rounded border bg-background/80">
-									<div class="font-bold text-muted-foreground uppercase">4. Chaîne de médiation inter-domaines</div>
-									<div class="font-mono text-foreground mt-0.5">
-										{rg.service_mediation_flows?.[0]?.source_shadow_ref} → {(rg.service_mediation_flows?.[0]?.mandatory_mediation_hops || []).join(' → ')} → {rg.service_mediation_flows?.[0]?.destination_core_ref}
-									</div>
-								</div>
-								<div class="p-2 rounded border bg-background/80 sm:col-span-2">
-									<div class="font-bold text-muted-foreground uppercase">5. Contrats SLA & Sondes NOC Réconciliés sur <code class="font-mono">{rg.pivot_tenant_id}</code></div>
-									<div class="font-mono text-foreground mt-0.5">
-										{rg.sla_and_monitoring_contracts?.map((c: any) => `${c.id} [${c.requirement_ref}]`).join(' · ') || '⚠️ Aucun contrat SLA ni sonde NOC lié au partenaire'}
-									</div>
-								</div>
-							</div>
-						</div>
-					{/if}
-
-					<div class="flex items-center justify-between pt-1">
-						<span class="text-[11px] text-muted-foreground">
-							Environnements générés :
-							{#each hydrated.environments || [] as env}
-								<span class="font-mono text-[10px] px-1.5 py-0.5 rounded border bg-background ml-1">
-									{env.env} ({env.isoprod ? 'iso-prod' : 'dev'})
-								</span>
-							{/each}
-						</span>
-						<button
-							type="button"
-							onclick={() => (showRawJson = !showRawJson)}
-							class="text-[11px] font-semibold text-primary hover:underline cursor-pointer"
-						>
-							{showRawJson ? 'Masquer le JSON LLD' : 'Voir le JSON LLD complet'}
-						</button>
-					</div>
-
-					{#if sylvaGitopsExport}
-						<div class="p-3 rounded-lg border border-emerald-500/40 bg-emerald-500/5 space-y-2 text-[11px]" data-testid="phase4-sylva-gitops-card">
-							<div class="flex items-center justify-between gap-2 flex-wrap">
-								<div class="font-bold text-foreground flex items-center gap-1.5">
-									<FileCode class="h-3.5 w-3.5 text-emerald-600" />
-									<span>Export GitOps Sylva Natif (<code class="font-mono">{sylvaGitopsExport.targetPath}</code>)</span>
-								</div>
-								<div class="flex items-center gap-2">
-									<span class="font-mono text-[10px] px-2 py-0.5 rounded bg-emerald-500/15 text-emerald-700 dark:text-emerald-300">
-										Branche : {sylvaGitopsExport.branchName}
-									</span>
-									{#if sylvaGitopsExport.pullRequestUrl}
-										<a
-											href={sylvaGitopsExport.pullRequestUrl}
-											target="_blank"
-											rel="noreferrer"
-											class="inline-flex items-center gap-1 font-semibold text-emerald-700 dark:text-emerald-300 underline"
-										>
-											<span>PR/MR #{sylvaGitopsExport.pullRequestNumber || ''}</span>
-											<ExternalLink class="h-3 w-3" />
-										</a>
-									{/if}
-									<button
-										type="button"
-										onclick={() => (showSylvaValuesYaml = !showSylvaValuesYaml)}
-										class="text-[11px] font-semibold text-primary hover:underline cursor-pointer"
-									>
-										{showSylvaValuesYaml ? 'Masquer values.yaml' : 'Voir values.yaml'}
-									</button>
-								</div>
-							</div>
-							{#if showSylvaValuesYaml}
-								<pre class="p-2.5 rounded bg-slate-950 text-slate-100 font-mono text-[10px] overflow-x-auto max-h-56">{sylvaGitopsExport.valuesYaml}</pre>
-							{/if}
-						</div>
-					{/if}
-
-					{#if showRawJson}
-						<pre class="p-3 rounded-lg bg-slate-950 text-slate-100 font-mono text-[10px] overflow-x-auto max-h-60">{JSON.stringify(hydrated, null, 2)}</pre>
-					{/if}
-				{/if}
-			</div>
-
-			<!-- BLOC B : Oracle Déterministe OPA Multi-Axes & Simulateur de Drift CMDB -->
+			<!-- BLOC B : Vérification d'intention OPA & Ratification -->
 			<div class="rounded-xl border bg-card p-5 shadow-xs space-y-4">
 				<div class="flex items-center justify-between gap-2 flex-wrap border-b pb-2.5">
 					<div>
 						<span class="px-2 py-0.5 rounded text-[10px] font-bold uppercase bg-amber-500/15 text-amber-700 dark:text-amber-300">
-							Étape 3 · Oracle OPA Multi-Axes & Détection de Drift
+							Étape 2 · Vérification d'intention (Oracle OPA)
 						</span>
 						<h3 class="text-sm font-bold text-foreground mt-1">
 							Vérification Rego face à <code class="font-mono text-xs">data.ontology</code>
@@ -1101,25 +816,20 @@
 									? `❌ VIOLATION / DRIFT DÉTECTÉ (${lastVerdict.violations?.length || 0} règle(s) en échec)`
 									: '✓ CONFORME SUR TOUS LES AXES LIÉS (0 violation Rego)'}
 							</span>
-							<div class="flex items-center gap-1.5">
-								{#if lastVerdict.source}
-									<span
-										class="font-mono text-[10px] px-1.5 py-0.5 rounded border bg-background/70"
-										data-testid="phase4-oracle-source-badge"
-									>
-										{lastVerdict.source === 'nautobot_live'
-											? '🔄 Source : Nautobot 2.x Live (Pull SSoT)'
-											: lastVerdict.source === 'nautobot_webhook'
-												? '⚡ Source : Webhook Nautobot Temps Réel'
-												: lastVerdict.source === 'local_simulated'
-													? '🧪 Source : Simulateur de Dérive CMDB'
-													: '📦 Source : Inventaire Hydraté Local'}
-									</span>
-								{/if}
-								<span class="font-mono text-[10px] opacity-75">
-									multi_axis_refinement.rego
+							{#if lastVerdict.source}
+								<span
+									class="font-mono text-[10px] px-1.5 py-0.5 rounded border bg-background/70"
+									data-testid="phase4-oracle-source-badge"
+								>
+									{lastVerdict.source === 'nautobot_live'
+										? 'Source : Nautobot (lecture)'
+										: lastVerdict.source === 'nautobot_webhook'
+											? 'Source : Webhook Nautobot'
+											: lastVerdict.source === 'local_simulated'
+												? 'Source : Mode démonstration'
+												: 'Source : Plan d’intention local'}
 								</span>
-							</div>
+							{/if}
 						</div>
 
 						{#if (lastVerdict.detailedViolations && lastVerdict.detailedViolations.length > 0) || (lastVerdict.violations && lastVerdict.violations.length > 0)}
@@ -1140,7 +850,7 @@
 															class="inline-flex items-center text-[10px] text-blue-600 hover:underline bg-blue-50 dark:bg-blue-950/40 px-1.5 py-0.5 rounded border border-blue-200 dark:border-blue-800"
 															data-testid="violated-clause-link"
 														>
-															📜 {v.violated_clause_urn}
+															{v.violated_clause_urn}
 														</a>
 													{/if}
 													{#if v.violated_requirement_id}
@@ -1148,7 +858,7 @@
 															class="inline-flex items-center text-[10px] font-semibold text-amber-700 bg-amber-50 dark:bg-amber-950/40 px-1.5 py-0.5 rounded border border-amber-200 dark:border-amber-800"
 															data-testid="violated-req-badge"
 														>
-															🎯 {v.violated_requirement_id}
+															{v.violated_requirement_id}
 														</span>
 													{/if}
 												</div>
@@ -1161,123 +871,29 @@
 					</div>
 				{/if}
 
-				<!-- Simulateur de Dérive (Drift CMDB) sur les 5 axes -->
-				<div class="space-y-2 pt-2 border-t">
-					<div class="flex items-center justify-between">
-						<span class="text-xs font-bold text-foreground">
-							🧪 Simulateur de Dérive CMDB (Tester la détection OPA par axe)
-						</span>
-						{#if activeDriftScenario !== 'reset_clean'}
-							<button
-								type="button"
-								onclick={() => handleSimulateDrift('reset_clean')}
-								class="text-[11px] font-semibold text-emerald-600 hover:underline cursor-pointer"
-								data-testid="drift-reset-btn"
-							>
-								🔄 Restaurer l'état conforme
-							</button>
-						{/if}
-					</div>
-					<p class="text-[11px] text-muted-foreground">
-						Simulez une modification sauvage dans Nautobot ou dans les manifestes K8s pour vérifier que l'Oracle Rego détecte immédiatement la violation :
-					</p>
-					<div class="grid grid-cols-1 sm:grid-cols-2 gap-1.5 text-[11px]">
-						<button
-							type="button"
-							disabled={isActionRunning}
-							onclick={() => handleSimulateDrift('unapproved_hardware')}
-							class="px-2.5 py-1.5 rounded border text-left font-medium transition-colors cursor-pointer {activeDriftScenario === 'unapproved_hardware'
-								? 'bg-rose-600 text-white border-rose-700'
-								: 'bg-muted/30 hover:bg-rose-500/10 border-border text-foreground'}"
-							data-testid="drift-btn-hardware"
-						>
-							💥 Axe 1 : Serveur Whitebox non homologué
-						</button>
-						<button
-							type="button"
-							disabled={isActionRunning}
-							onclick={() => handleSimulateDrift('bmc_oob_mismatch')}
-							class="px-2.5 py-1.5 rounded border text-left font-medium transition-colors cursor-pointer {activeDriftScenario === 'bmc_oob_mismatch'
-								? 'bg-rose-600 text-white border-rose-700'
-								: 'bg-muted/30 hover:bg-rose-500/10 border-border text-foreground'}"
-							data-testid="drift-btn-oob"
-						>
-							💥 Axe 2 : Dérive IP BMC vs OOB Nautobot
-						</button>
-						<button
-							type="button"
-							disabled={isActionRunning}
-							onclick={() => handleSimulateDrift('unproxied_oam')}
-							class="px-2.5 py-1.5 rounded border text-left font-medium transition-colors cursor-pointer {activeDriftScenario === 'unproxied_oam'
-								? 'bg-rose-600 text-white border-rose-700'
-								: 'bg-muted/30 hover:bg-rose-500/10 border-border text-foreground'}"
-							data-testid="drift-btn-oam"
-						>
-							💥 Axe 3 : Désactivation du Proxy Zone OAM
-						</button>
-						<button
-							type="button"
-							disabled={isActionRunning}
-							onclick={() => handleSimulateDrift('non_isoprod_staging')}
-							class="px-2.5 py-1.5 rounded border text-left font-medium transition-colors cursor-pointer {activeDriftScenario === 'non_isoprod_staging'
-								? 'bg-rose-600 text-white border-rose-700'
-								: 'bg-muted/30 hover:bg-rose-500/10 border-border text-foreground'}"
-							data-testid="drift-btn-env"
-						>
-							💥 Axe 4 : Recette dégradée (non Iso-Prod)
-						</button>
-						<button
-							type="button"
-							disabled={isActionRunning}
-							onclick={() => handleSimulateDrift('single_power_feed')}
-							class="px-2.5 py-1.5 rounded border text-left font-medium transition-colors cursor-pointer sm:col-span-2 {activeDriftScenario === 'single_power_feed'
-								? 'bg-rose-600 text-white border-rose-700'
-								: 'bg-muted/30 hover:bg-rose-500/10 border-border text-foreground'}"
-							data-testid="drift-btn-power"
-						>
-							💥 Axe 5 : Perte d'une adduction électrique (1 seule PDU au lieu de 2N)
-						</button>
-						<button
-							type="button"
-							disabled={isActionRunning}
-							onclick={() => handleSimulateDrift('s6a_direct_bypass_dea')}
-							class="px-2.5 py-1.5 rounded border text-left font-medium transition-colors cursor-pointer {activeDriftScenario === 's6a_direct_bypass_dea'
-								? 'bg-rose-600 text-white border-rose-700'
-								: 'bg-muted/30 hover:bg-rose-500/10 border-border text-foreground'}"
-							data-testid="drift-btn-s6a-bypass"
-						>
-							💥 Flux direct sans médiation (contournement d'un bond obligatoire)
-						</button>
-						<button
-							type="button"
-							disabled={isActionRunning}
-							onclick={() => handleSimulateDrift('orphan_partner_tenant')}
-							class="px-2.5 py-1.5 rounded border text-left font-medium transition-colors cursor-pointer {activeDriftScenario === 'orphan_partner_tenant'
-								? 'bg-rose-600 text-white border-rose-700'
-								: 'bg-muted/30 hover:bg-rose-500/10 border-border text-foreground'}"
-							data-testid="drift-btn-orphan-tenant"
-						>
-							💥 Réconciliation : Rupture pivot SLA / NOC du partenaire
-						</button>
-					</div>
-				</div>
-
-				<!-- Validation formelle du paquet -->
+				<!-- Validation formelle de l'intention -->
 				<div class="pt-3 border-t flex items-center justify-between gap-2 flex-wrap">
 					<div class="text-[11px] text-muted-foreground">
-						Statut du paquet :
+						Statut de ratification :
 						<strong class="uppercase text-foreground">{currentEdp?.metadata?.status || 'proposed'}</strong>
 					</div>
 					<button
 						type="button"
 						disabled={isActionRunning || lastVerdict?.verdict === 'violated'}
-						onclick={() => triggerEdpAction({ action: 'validate' }, 'Paquet exécutable multi-axes homologué !')}
+						onclick={() => triggerEdpAction({ action: 'validate' }, 'Intention de planification ratifiée !')}
 						class="px-3.5 py-1.5 rounded-lg bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 text-white text-xs font-bold shadow-xs transition-colors cursor-pointer"
 						data-testid="phase4-validate-btn"
 					>
-						✓ Homologuer le paquet exécutable
+						✓ Ratifier l'intention
 					</button>
 				</div>
+
+				<!-- Outil de démonstration hors parcours principal (Issue #405) -->
+				<Phase4DriftDemoDrawer
+					{activeDriftScenario}
+					{isActionRunning}
+					onSimulateDrift={handleSimulateDrift}
+				/>
 			</div>
 		</div>
 	</div>

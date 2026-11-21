@@ -208,7 +208,7 @@ Seules les issues de réutilisation marquent la clause « Conforme (Réutilisé)
 Avant d'exécuter l'audit ou la factorisation sémantique d'un document, Archinex affiche un rapport d'extraction synthétique avec contrôle de cohérence :
 1. **Rapport d'extraction & Taux de couverture** :
    - Indication du nombre de pages et du nombre d'exigences découpées.
-   - Calcul de la couverture textuelle (`coverageRate`) avec seuil d'avertissement si elle est inférieure à 60 %.
+   - Calcul de la couverture d'extraction en caractères (`extractionCharCoverage`, distinct de la couverture de délibération des exigences définie dans `docs/concepts.md`) avec seuil d'avertissement si elle est inférieure à 60 %.
    - Synthèse des motifs détectés (`REQ-Lot1-*`, `Art. *`, `Clause *`, `§*`) et mise en évidence du motif dominant.
 2. **Détection explicite des anomalies** :
    - Trous dans la numérotation séquentielle avec affichage des plages manquantes (ex: `REQ-Lot1-13 .. REQ-Lot1-14`).

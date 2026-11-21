@@ -19,10 +19,9 @@ import {
 	evaluateMultiAxisOracle,
 	ratifyDefaultDecisionSlots
 } from '$lib/server/edp/refinementCoverage';
+import { readFixtureCatalog } from '../helpers/ontologyFixture';
 
-const fixtureCatalog = JSON.parse(
-	readFileSync(resolve(process.cwd(), 'tests/fixtures/edp/ontology_export.json'), 'utf8')
-) as OntologyCatalog;
+const fixtureCatalog = readFixtureCatalog() as OntologyCatalog;
 
 describe('Issue #326 : Axes & composants OSS/SMO/CMDB, eSIM SM-DP+, N3IWF/WLAN, eMBMS/Slicing & PQC', () => {
 	it('associe les 9 nouveaux axes de TOGAF_REFERENCE_BUILDING_BLOCKS à leurs composants responsables', () => {

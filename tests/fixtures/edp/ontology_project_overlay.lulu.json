@@ -1,0 +1,348 @@
+{
+  "description": "Extension de projet du scénario de démonstration « Lulu » (RFP Lot 1/2/3) : identifiants d'exigences, mots-clés de scénario et instances du graphe de réconciliation que l'ancienne fixture d'Archinex portait dans l'ontologie. Hors de l'ontologie commune (LLMOps#192, Archinex#417) ; appliquée seulement quand ARCHINEX_ONTOLOGY_PROJECT_OVERLAY la désigne (tests, démo).",
+  "entityPatches": {
+    "urn:archinex:ontology:infrastructure:server:baremetal": {
+      "governed_by_clauses": [
+        "REQ-Lot1-268"
+      ]
+    },
+    "urn:archinex:ontology:infrastructure:compute:suse_telco_cloud_sylva": {
+      "governed_by_clauses": [
+        "REQ-Lot1-271"
+      ]
+    },
+    "urn:archinex:ontology:telecom:network:oob": {
+      "governed_by_clauses": [
+        "REQ-Lot1-OOB-01"
+      ]
+    },
+    "urn:archinex:ontology:security:crypto:ipsec_ikev2_aes256": {
+      "governed_by_clauses": [
+        "REQ-Lot1-1343"
+      ],
+      "keywords": [
+        "lot3",
+        "lot 3"
+      ],
+      "projections": {
+        "required_mediation_hops": [
+          "secgw-lot1-01",
+          "dea-lot1-01"
+        ]
+      },
+      "hydration_template": {
+        "mediation_chain": [
+          "secgw-lot1-01",
+          "dea-lot1-01",
+          "hss-lot1-01"
+        ],
+        "partner_tenant_id": "org-lot3-mno",
+        "reconciliation_graph": {
+          "pivot_tenant_id": "org-lot3-mno",
+          "standards_applied": [
+            "3GPP TS 28.620 / TS 28.541 NRM (ExternalFunction & EP_RP)",
+            "TM Forum ODA/SID GB922 (Party -> Resource -> Service -> SLA)",
+            "Nautobot SSoT / DiffSync + Tenancy & VPN Models",
+            "LF Europe Sylva & FluxCD / Kustomize GitOps"
+          ],
+          "partner_organizations": [
+            {
+              "id": "org-lot3-mno",
+              "nautobot_model": "tenancy.Tenant",
+              "tmf_sid_class": "PartyRole / PartnerOrganization",
+              "name": "Opérateur Tiers Lot 3 (MNO Cœur Mobile)",
+              "demarcation_point": "MMR-Meet-Me-Room-Lot1",
+              "noc_contact": "noc@lot3-operator.fr"
+            },
+            {
+              "id": "org-lot2-ran",
+              "nautobot_model": "tenancy.Tenant",
+              "tmf_sid_class": "PartyRole / PartnerOrganization",
+              "name": "Opérateur Tiers Lot 2 (RAN & Cellules Mobiles Intermittentes)",
+              "demarcation_point": "SecGW-RAN-Lot1",
+              "noc_contact": "noc@lot2-ran.fr"
+            }
+          ],
+          "external_shadow_nodes": [
+            {
+              "id": "ext-mme-lot3-01",
+              "nrm_3gpp_class": "ExternalMMEFunction",
+              "nautobot_model": "dcim.Device (status=external-shadow)",
+              "tenant_ref": "org-lot3-mno",
+              "zone": "ZONE-PARTNER-LOT3-UNTRUSTED",
+              "loopback_ip": "172.16.30.10",
+              "managed_by_lot1": false
+            },
+            {
+              "id": "ext-ran-cell-mobile-01",
+              "nrm_3gpp_class": "ExternalENodeBFunction",
+              "nautobot_model": "dcim.Device (status=external-shadow)",
+              "tenant_ref": "org-lot2-ran",
+              "zone": "ZONE-RAN-MOBILE-UNTRUSTED",
+              "intermittent_operation": true,
+              "managed_by_lot1": false
+            }
+          ],
+          "internal_mediation_nodes": [
+            {
+              "id": "secgw-lot1-01",
+              "nrm_3gpp_class": "SecurityGatewayFunction",
+              "nautobot_model": "dcim.Device / virtualization.VirtualMachine",
+              "role": "Terminaison IPsec ESP Lot 1 (SecGW-Lot1)",
+              "zone": "ZONE-DMZ-INTERCO-LOT1",
+              "ha_mode": "active-standby-vrrp-bfd",
+              "peer_shadow_ref": "ext-mme-lot3-01",
+              "tenant_ref": "org-lot3-mno"
+            },
+            {
+              "id": "dea-lot1-01",
+              "nrm_3gpp_class": "DiameterEdgeAgentFunction",
+              "nautobot_model": "dcim.Device / k8s.CNF",
+              "role": "Médiation & Filtrage S6a Diameter (DEA-Lot1)",
+              "zone": "ZONE-MEDIATION-SIGNALING-LOT1",
+              "topology_hiding": true,
+              "imsi_pseudonymization": true,
+              "upstream_secgw_ref": "secgw-lot1-01",
+              "tenant_ref": "org-lot3-mno"
+            },
+            {
+              "id": "hss-lot1-01",
+              "nrm_3gpp_class": "HSSFunction",
+              "nautobot_model": "dcim.Device / k8s.CNF",
+              "role": "Serveur Abonnés Cœur Lot 1 (HSS-Lot1)",
+              "zone": "ZONE-CORE-HSS-RESTRICTED",
+              "direct_external_access": false,
+              "allowed_upstream_ref": "dea-lot1-01"
+            }
+          ],
+          "ip_underlay_links": [
+            {
+              "id": "link-ip-lot3-secgw1",
+              "nrm_3gpp_class": "EP_RP (Underlay IP Link)",
+              "nautobot_model": "circuits.Circuit + ipam.Prefix",
+              "tenant_ref": "org-lot3-mno",
+              "endpoint_a": "ext-mme-lot3-01",
+              "endpoint_z": "secgw-lot1-01",
+              "subnet": "100.64.14.0/30",
+              "vlan_id": 1403,
+              "bfd_fast_failover": true
+            }
+          ],
+          "ipsec_tunnels": [
+            {
+              "id": "tun-ipsec-esp-lot3-secgw1",
+              "nautobot_model": "vpn.Tunnel (IPsec ESP)",
+              "tenant_ref": "org-lot3-mno",
+              "underlay_link_ref": "link-ip-lot3-secgw1",
+              "termination_a": "ext-mme-lot3-01",
+              "termination_z": "secgw-lot1-01",
+              "protocol": "IPsec-ESP-IKEv2",
+              "cipher_suite": "AES-256-GCM",
+              "pfs_dh_group": "DH-20-ECP384",
+              "dpd_timeout_sec": 10
+            }
+          ],
+          "service_mediation_flows": [
+            {
+              "id": "flow-s6a-lot3-to-hss1",
+              "nrm_3gpp_class": "EP_S6a (Diameter S6a Reference Point)",
+              "tenant_ref": "org-lot3-mno",
+              "app_protocol": "Diameter-S6a-SCTP-3868",
+              "source_shadow_ref": "ext-mme-lot3-01",
+              "ipsec_tunnel_ref": "tun-ipsec-esp-lot3-secgw1",
+              "mandatory_mediation_hops": [
+                "secgw-lot1-01",
+                "dea-lot1-01"
+              ],
+              "destination_core_ref": "hss-lot1-01",
+              "direct_bypass_allowed": false,
+              "encrypted_end_to_end": true
+            }
+          ],
+          "sla_and_monitoring_contracts": [
+            {
+              "id": "sla-lot3-hosting-s6a",
+              "tmf_sid_class": "ServiceLevelAgreement (GB922)",
+              "tenant_ref": "org-lot3-mno",
+              "covered_flow_ref": "flow-s6a-lot3-to-hss1",
+              "covered_tunnel_ref": "tun-ipsec-esp-lot3-secgw1",
+              "colocation_power_sla": "99.99% Dual-Feed 2N (Responsabilité Lot 1)",
+              "network_service_sla_boundary": "Point de démarcation SecGW-Lot1 (Tiers Lot 3 responsable en amont)",
+              "requirement_ref": "REQ-Lot1-1343"
+            },
+            {
+              "id": "probe-noc-s6a-lot3",
+              "tmf_sid_class": "ResourceMonitorProbe (Prometheus / Alertmanager NOC)",
+              "tenant_ref": "org-lot3-mno",
+              "covered_flow_ref": "flow-s6a-lot3-to-hss1",
+              "monitored_targets": [
+                "link-ip-lot3-secgw1",
+                "tun-ipsec-esp-lot3-secgw1",
+                "secgw-lot1-01",
+                "dea-lot1-01"
+              ],
+              "suppress_intermittent_mobile_cell_alarms": true,
+              "requirement_ref": "REQ-Lot1-1274"
+            }
+          ]
+        }
+      }
+    },
+    "urn:archinex:ontology:security:zone:oam": {
+      "governed_by_clauses": [
+        "REQ-Lot1-SecZone-01"
+      ]
+    },
+    "urn:archinex:ontology:platform:env:iso_prod_3tiers": {
+      "governed_by_clauses": [
+        "REQ-Lot1-Env-01"
+      ]
+    },
+    "urn:archinex:ontology:facilities:power:dual_feed_2n": {
+      "governed_by_clauses": [
+        "REQ-Lot1-269"
+      ]
+    },
+    "urn:archinex:ontology:concept:telco_cloud_platform": {
+      "keywords": [
+        "lulu"
+      ]
+    },
+    "urn:archinex:ontology:application:gis:central_fusion_hybrid_geofencing": {
+      "governed_by_clauses": [
+        "REQ-Lot1-786",
+        "REQ-Lot1-795",
+        "REQ-Lot1-819",
+        "REQ-Lot1-830"
+      ]
+    },
+    "urn:archinex:ontology:application:gis:central_fusion_server_only_geofencing": {
+      "governed_by_clauses": [
+        "REQ-Lot1-786",
+        "REQ-Lot1-795"
+      ]
+    },
+    "urn:archinex:ontology:application:gis:distributed_terminal_geofencing": {
+      "governed_by_clauses": [
+        "REQ-Lot1-819",
+        "REQ-Lot1-830"
+      ]
+    },
+    "urn:archinex:ontology:endpoint:mdm:emm_zero_touch_enrollment": {
+      "governed_by_clauses": [
+        "REQ-Endpoint-MDM-01"
+      ]
+    },
+    "urn:archinex:ontology:endpoint:mdm:onprem_sovereign_emm": {
+      "governed_by_clauses": [
+        "REQ-Endpoint-MDM-02"
+      ]
+    },
+    "urn:archinex:ontology:security:pki:endpoint_scep_est_enrollment": {
+      "governed_by_clauses": [
+        "REQ-Endpoint-PKI-01"
+      ]
+    },
+    "urn:archinex:ontology:endpoint:os:hardened_verified_boot": {
+      "governed_by_clauses": [
+        "REQ-Endpoint-OS-01"
+      ]
+    },
+    "urn:archinex:ontology:endpoint:crypto:fbe_hardware_keystore": {
+      "governed_by_clauses": [
+        "REQ-Endpoint-Crypto-01"
+      ]
+    },
+    "urn:archinex:ontology:endpoint:sandbox:work_profile_strict_isolation": {
+      "governed_by_clauses": [
+        "REQ-Endpoint-Sandbox-01"
+      ]
+    },
+    "urn:archinex:ontology:endpoint:sandbox:dedicated_kiosk_cobo": {
+      "governed_by_clauses": [
+        "REQ-Endpoint-Sandbox-02"
+      ]
+    },
+    "urn:archinex:ontology:endpoint:ota:signed_ab_staged_rollout": {
+      "governed_by_clauses": [
+        "REQ-Endpoint-OTA-01"
+      ]
+    },
+    "urn:archinex:ontology:security:esim:smdp_sas_sm_eu_hsm": {
+      "governed_by_clauses": [
+        "REQ-Telecom-eSIM-01"
+      ]
+    },
+    "urn:archinex:ontology:security:esim:smdp_onprem_sovereign_hsm": {
+      "governed_by_clauses": [
+        "REQ-Telecom-eSIM-02"
+      ]
+    },
+    "urn:archinex:ontology:operations:oss:unified_nrm_ts28532_mediation": {
+      "governed_by_clauses": [
+        "REQ-OSS-NRM-01"
+      ]
+    },
+    "urn:archinex:ontology:operations:oss:mno_mocn_adapter_mediation": {
+      "governed_by_clauses": [
+        "REQ-OSS-MOCN-01"
+      ]
+    },
+    "urn:archinex:ontology:operations:smo:graduated_hitl_remediation": {
+      "governed_by_clauses": [
+        "REQ-SMO-HITL-01"
+      ]
+    },
+    "urn:archinex:ontology:operations:cmdb:nautobot_itsm_reconciliation": {
+      "governed_by_clauses": [
+        "REQ-OSS-CMDB-01"
+      ]
+    },
+    "urn:archinex:ontology:operations:assurance:e2e_probes_5qi_qos": {
+      "governed_by_clauses": [
+        "REQ-OSS-Assurance-01"
+      ]
+    },
+    "urn:archinex:ontology:network:interworking:n3iwf_epdg_ipsec": {
+      "governed_by_clauses": [
+        "REQ-Telecom-WLAN-01"
+      ]
+    },
+    "urn:archinex:ontology:network:interworking:atsss_multipath_steering": {
+      "governed_by_clauses": [
+        "REQ-Telecom-WLAN-02"
+      ]
+    },
+    "urn:archinex:ontology:telecom:core:slicing_5qi_sst_isolation": {
+      "governed_by_clauses": [
+        "REQ-Core-Slicing-01"
+      ]
+    },
+    "urn:archinex:ontology:application:broadcast:embms_5mbs_group_broadcast": {
+      "governed_by_clauses": [
+        "REQ-MCX-eMBMS-01"
+      ]
+    },
+    "urn:archinex:ontology:security:pqc:hybrid_mlkem_mldsa_agility": {
+      "governed_by_clauses": [
+        "REQ-Sec-PQC-01"
+      ]
+    }
+  },
+  "addedTriplets": [
+    {
+      "id": "tr-prj-lulu-008",
+      "subject": "urn:archinex:ontology:security:crypto:ipsec_ikev2_aes256",
+      "predicate": "satisfies_clause",
+      "object": "REQ-Lot1-1343",
+      "rationale": "Lien fort formel: le chiffrement IPsec ESP satisfait l'exigence REQ-Lot1-1343."
+    },
+    {
+      "id": "tr-prj-lulu-009",
+      "subject": "urn:archinex:ontology:infrastructure:server:baremetal",
+      "predicate": "satisfies_clause",
+      "object": "REQ-Lot1-268",
+      "rationale": "Lien fort: substrat bare-metal pour REQ-Lot1-268."
+    }
+  ]
+}

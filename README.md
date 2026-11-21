@@ -2,6 +2,12 @@
 
 > **Plateforme d'arbitrage, de convergence dialectique et de gouvernance d'architecture adossée au Knowledge Hub LLMOps.**
 
+## Positionnement
+
+Archinex est une **couche d'assurance de décision** : il capture la délibération, vérifie les décisions contre une base de connaissances (réglementaire et doctrinale), mesure la **complétude de la couverture des exigences** et rend les justifications **lisibles par des schémas déterministes**. Il ne pilote pas les outils d'implémentation.
+
+La dérive apparaît surtout **après** le HLD. Archinex boucle donc la boucle avec **un seul point de réconciliation bidirectionnel : Nautobot**. Archinex y crée les objets au statut *Planned* ; les connecteurs et l'enforcement dans les systèmes réels les font évoluer et y écrivent leur preuve ; Archinex lit cet état, détecte les écarts avec les décisions et les ramène en délibération. Voir l'orientation révisée dans [`ARCHITECTURE.md` §16](ARCHITECTURE.md).
+
 Archinex outille le *modèle de délibération* entre architectes experts et agents IA. Plutôt que de concurrencer les outils de modélisation système (Structurizr, SysML v2, Enterprise Architect, Mermaid), Archinex capture les controverses, maintient la cohérence de vérité logique par graphe causal, chasse le blabla par des brouillons-appâts percutants et projette de façon déterministe les énoncés prouvés vers les outils cibles sans dérive documentaire.
 
 ---
@@ -116,7 +122,7 @@ l'architecture lui confère immédiatement **3 corps concrets** dans Archinex :
    * L'Oracle OPA évalue automatiquement l'inventaire face aux **15 règles d'or de Sylva** (`npm run check:sylva` en < 60ms). Toute tentative de contournement (ex: serveur non homologué, Vault désactivé sous NIS2) est immédiatement bloquée en citant la clause réglementaire violée.
 3. **Un Corps de Traçabilité & d'Audit (Le Lien Fort) :**
    * Le descripteur KRM généré et l'inventaire Nautobot reçoivent dans leurs métadonnées les annotations immuables `archinex.io/satisfied-clauses`.
-   * La preuve mathématique et opposable de conformité est établie sans rupture, du texte de doctrine jusqu'au code GitOps déployé.
+   * Une **traçabilité vérifiable** relie le texte de doctrine au code GitOps déployé. Aujourd'hui, les annotations `archinex.io/satisfied-clauses` déclarent cette liaison ; **une annotation n'est pas une preuve**. La cible (en cours : #398, #399) est qu'un objet ne soit dit « réalisé » que si une preuve d'exécution écrite par le connecteur est présente.
 
 ---
 

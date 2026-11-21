@@ -908,6 +908,16 @@ Pour dépasser le simple comptage multiplicatif What-If (« 2 vs 3 DCs »), Arch
 
 La feuille de route ci-dessous détaille les prochaines étapes d'évolution d'Archinex pour industrialiser la chaîne **Décision HLD $\rightarrow$ Ontologie KAOS $\rightarrow$ SSoT Nautobot & Clusters Sylva** sans jamais dupliquer les briques existantes de l'écosystème.
 
+### Orientation révisée (prime sur les horizons ci-dessous)
+
+1. **Nautobot est l'unique point de réconciliation bidirectionnel d'Archinex.** Archinex crée les objets au statut *Planned* et ne parle à aucun outil d'implémentation. Les connecteurs vers les systèmes réels (GitOps Sylva, DNS/DDI, Vault/PKI, IdP, Batfish, supply chain, ITSM) sont **derrière Nautobot** : ils lisent ses objets, agissent, puis y écrivent leur statut et leur preuve. Archinex lit cet état ; il ne force jamais un statut « réalisé » (épique #372, #398, #399).
+2. **Archinex se concentre sur la délibération, la complétude de la couverture des exigences et la justification visuelle** (épique #400).
+3. **Ordre de réalisation** : sécurité et intégrité (P0) → fiabilité de la décision (#373) → tranche minimale de réconciliation Nautobot puis cadre des connecteurs (#372) → couverture et visuels (#400) → généralisation (#374, prérequis du push générique).
+4. **Gel** : aucun nouvel appel d'écriture d'Archinex vers un outil d'implémentation, et aucun nouveau connecteur direct, tant que la tranche minimale (Tenant ; Device + statut ; Prefix/VLAN/IP) n'est pas en production sur un projet réel.
+5. Les adaptateurs existants (`src/lib/server/edp/adapters/`) ne sont pas câblés dans l'application ; leur relocalisation est suivie dans #411.
+
+Les horizons 1 à 3 ci-dessous décrivent l'intention d'origine : les éléments qui parlent directement à un outil (export GitOps vers une forge, Batfish, Prometheus, Nephio) sont **à re-cadrer derrière Nautobot** et **gelés** jusqu'à la clôture de la tranche minimale.
+
 ### Horizon 1 — Court Terme (Implémenté — Épique #241) : GitOps Sylva Natif & Synchronisation Bidirectionnelle `DiffSync`
 1. **Export GitOps Direct vers un Dépôt `sylva-core` (`workload-clusters/`) — #238 (`src/lib/server/edp/sylvaGitopsExport.ts`)** :
    - Permet depuis la Phase 4 (`action: 'export_sylva_gitops'`) de sérialiser le fichier `workload-clusters/<cluster-name>/values.yaml` (assaini de tout secret via `sanitizeManifests()`) et d'ouvrir automatiquement une Merge Request (GitLab API v4) ou Pull Request (GitHub REST API) vers un dépôt `sylva-core`, consommable par FluxCD dans un cluster de management Sylva. L'export est formellement bloqué (`HTTP 409`) si le verdict de l'Oracle OPA est `violated`.

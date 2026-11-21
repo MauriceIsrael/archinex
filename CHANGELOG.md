@@ -8,6 +8,11 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Feuille de route recentrée : Nautobot point unique de réconciliation, Archinex sur la délibération (#397)
+- **Documentation (`ARCHITECTURE.md` §16, `README.md`)** :
+  - Ajout d'une orientation révisée (Nautobot seul point de réconciliation bidirectionnel, connecteurs derrière Nautobot, gel des connecteurs directs, ordre de réalisation).
+  - Ajout d'une section « Positionnement » et remplacement de la formulation « preuve mathématique » par « traçabilité vérifiable ».
+
 ### Sécurité API : refus par défaut sur `/api/**` et isolation des vues anonymes (#391)
 - **Hook serveur (`src/hooks.server.ts`)** :
   - Remplacement de la liste d'inclusion partielle par une politique de **refus par défaut (401)** sur l'ensemble de `/api/**`, avec liste blanche explicite minimale (`/api/auth/*`, `/api/invite/accept`, `/api/invite/activate`).

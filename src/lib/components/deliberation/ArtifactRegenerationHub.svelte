@@ -4,9 +4,19 @@
 	import {
 		DEFAULT_EDITORIAL_DIALS,
 		recommendEditorialViews,
+		renderCompensatingLayers,
+		renderCoverageUnitGrid,
+		renderDecisionHeatmap,
+		renderDecisionRadar,
+		renderDeploymentSequenceSvg,
+		renderLifecyclePhaseMap,
+		renderPairedPolicyTraces,
 		renderRequirementTraceability,
 		renderTraceableBlockTree,
+		type EditorialDiagramTypeId,
 		type EditorialDials,
+		type EditorialViewRecommendation,
+		type PairedPolicyRuleRow,
 		type TraceabilityRowInput
 	} from '$lib/domain/editorialSvg';
 	import MermaidViewer from './MermaidViewer.svelte';
@@ -17,8 +27,11 @@
 
 	let activeTab = $state<TabType>('mermaid');
 	let mermaidSubView = $state<'target' | 'sequence' | 'causal'>('target');
-	let editorialSubView = $state<'traceable-blocks' | 'requirement-traceability'>('traceable-blocks');
+	let editorialSubView = $state<EditorialDiagramTypeId>('traceable-blocks');
 	let editorialDials = $state<EditorialDials>({ ...DEFAULT_EDITORIAL_DIALS });
+	let llmEditorialRecs = $state<EditorialViewRecommendation[] | null>(null);
+	let llmCalloutText = $state<string | undefined>(undefined);
+	let isAskingEditorialLlm = $state(false);
 	let c4SubView = $state<'c4x' | 'structurizr'>('c4x');
 	let petitesBriquesSubView = $state<'visual' | 'yaml' | 'json'>('visual');
 	let selectedBlockAxisId = $state<string | null>(null);
@@ -64,23 +77,67 @@
 		});
 	});
 
-	const editorialRecommendations = $derived.by(() => {
+	const editorialSignals = $derived.by(() => {
 		const blockGraph = projections?.projectionBlocks;
-		if (!activeSubject || !blockGraph) return [];
-		const decisionCtx = deliberationStore.decisionContexts[activeSubject.id];
-		const totalStatements = blockGraph.blocks.reduce((acc, b) => acc + b.items.length, 0);
-		const unsettledCount = blockGraph.blocks.reduce((acc, b) => acc + b.unsettledCount, 0);
+		const decisionCtx = activeSubject ? deliberationStore.decisionContexts[activeSubject.id] : undefined;
+		const totalStatements = blockGraph ? blockGraph.blocks.reduce((acc, b) => acc + b.items.length, 0) : 0;
+		const unsettledCount = blockGraph ? blockGraph.blocks.reduce((acc, b) => acc + b.unsettledCount, 0) : 0;
 		const missingVerificationCount = editorialTraceRows.filter((r) => !r.verificationId).length;
-		return recommendEditorialViews({
-			blockCount: blockGraph.blocks.length,
+		const acceptedViolations = decisionCtx?.decision?.acceptedViolations;
+		return {
+			blockCount: blockGraph?.blocks.length ?? 0,
 			statementCount: totalStatements,
 			unsettledCount,
-			requirementCount: blockGraph.requirements.length,
+			requirementCount: blockGraph?.requirements.length ?? 0,
 			missingVerificationCount,
-			optionCount: decisionCtx?.options?.length ?? 0,
-			hasRetainedDecision: Boolean(decisionCtx?.decision?.retainedOptionId)
-		});
+			optionCount: decisionCtx?.options?.length ?? activeSubject?.proposal?.options?.length ?? 0,
+			criteriaCount: activeSubject?.proposal?.criteria?.length ?? 0,
+			hasRetainedDecision: Boolean(decisionCtx?.decision?.retainedOptionId),
+			hasAcceptedViolations: Boolean(acceptedViolations && acceptedViolations.length > 0)
+		};
 	});
+
+	const editorialRecommendations = $derived.by(() => {
+		if (llmEditorialRecs && llmEditorialRecs.length > 0) return llmEditorialRecs;
+		return recommendEditorialViews(editorialSignals);
+	});
+
+	async function askEditorialDirector() {
+		const pId = deliberationStore.activeEngagement?.id || deliberationStore.activeEngagementId;
+		if (!pId || !activeSubject) return;
+		isAskingEditorialLlm = true;
+		try {
+			const blockGraph = projections?.projectionBlocks;
+			const validIds = [
+				...(blockGraph?.blocks.map((b) => b.axisId) ?? []),
+				...(blockGraph?.requirements.map((r) => r.clauseRef) ?? [])
+			];
+			const res = await fetch(
+				`/api/projects/${encodeURIComponent(pId)}/subjects/${encodeURIComponent(activeSubject.id)}/editorial-recommendations`,
+				{
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({
+						subjectName: activeSubject.name,
+						sectionRef: activeSubject.section_ref,
+						signals: editorialSignals,
+						validEntityIds: validIds
+					})
+				}
+			);
+			if (res.ok) {
+				const data = await res.json();
+				if (Array.isArray(data.recommendations) && data.recommendations.length > 0) {
+					llmEditorialRecs = data.recommendations;
+					llmCalloutText = data.calloutText;
+				}
+			}
+		} catch {
+			// Repli silencieux sur les recommandations déterministes
+		} finally {
+			isAskingEditorialLlm = false;
+		}
+	}
 
 	const activeEditorialDiagram = $derived.by(() => {
 		const blockGraph = projections?.projectionBlocks;
@@ -96,6 +153,168 @@
 				sectionRef: activeSubject.section_ref,
 				subjectName: activeSubject.name,
 				rows: editorialTraceRows,
+				dials: editorialDials
+			});
+		}
+
+		if (editorialSubView === 'paired-policy-traces') {
+			const opts = decisionCtx?.options ?? [];
+			const optA = retainedOption ?? opts[0];
+			const optB = opts.find((o) => o.id !== optA?.id) ?? opts[1];
+			const rules: PairedPolicyRuleRow[] = blockGraph.requirements.slice(0, 6).map((req) => {
+				const block = req.targetAxisId ? blockGraph.blocks.find((b) => b.axisId === req.targetAxisId) : null;
+				const hasVerified = Boolean(block?.items.some((i) => i.badge.tag === 'Verified' || i.badge.tag === 'Designed'));
+				return {
+					ruleId: req.clauseRef,
+					ruleTitle: req.title,
+					optionAStatus: hasVerified ? 'PASS' : 'UNVERIFIED',
+					optionBStatus: block ? (block.unsettledCount > 0 ? 'FAIL' : 'PASS') : 'SKIPPED'
+				};
+			});
+			return renderPairedPolicyTraces({
+				subjectId: activeSubject.id,
+				sectionRef: activeSubject.section_ref,
+				subjectName: activeSubject.name,
+				optionALabel: optA?.title || 'Option retenue',
+				optionBLabel: optB?.title || 'Option alternative',
+				rules,
+				dials: editorialDials
+			});
+		}
+
+		if (editorialSubView === 'decision-heatmap') {
+			const criteria = (activeSubject.proposal?.criteria ?? []).map((c, idx) => ({
+				id: `crit-${idx}`,
+				name: c.name,
+				weight: c.weight
+			}));
+			const evals = activeSubject.proposal?.evaluations ?? [];
+			const rawOptions =
+				decisionCtx?.options && decisionCtx.options.length > 0
+					? decisionCtx.options.map((o) => ({ id: o.id, title: o.title }))
+					: (activeSubject.proposal?.options ?? []).map((o, idx) => ({ id: `opt-${idx}`, title: o.title }));
+			const options = rawOptions.map((o) => {
+				const scores: Record<string, number | null> = {};
+				for (const c of criteria) {
+					const found = evals.find((e) => e.option === o.title && e.criterion === c.name);
+					scores[c.id] = found ? found.score : null;
+				}
+				return {
+					id: o.id,
+					title: o.title,
+					retained: decisionCtx?.decision?.retainedOptionId === o.id,
+					scores
+				};
+			});
+			return renderDecisionHeatmap({
+				subjectId: activeSubject.id,
+				sectionRef: activeSubject.section_ref,
+				subjectName: activeSubject.name,
+				criteria,
+				options,
+				calloutText: llmCalloutText || decisionCtx?.decision?.reversibility,
+				dials: editorialDials
+			});
+		}
+
+		if (editorialSubView === 'compensating-layers') {
+			const layers = blockGraph.blocks.slice(0, 4).map((b, idx) => ({
+				id: `LAY-${idx + 1}`,
+				surface: b.togafRef || b.label,
+				controlName: b.components[0] || b.label,
+				actor: (idx === 0 ? 'human' : idx === 1 ? 'code' : 'platform') as 'human' | 'code' | 'platform',
+				timing: (idx === 0 ? 'write' : idx === 1 ? 'merge' : 'run') as 'write' | 'merge' | 'run',
+				coverageNote: `${b.settledCount}/${b.items.length} consolidé(s) · ${b.requirementRefs.length} req`,
+				isGap: b.unsettledCount > 0
+			}));
+			const unsettledTotal = blockGraph.blocks.reduce((acc, b) => acc + b.unsettledCount, 0);
+			return renderCompensatingLayers({
+				subjectId: activeSubject.id,
+				sectionRef: activeSubject.section_ref,
+				subjectName: activeSubject.name,
+				layers,
+				residualRiskSummary:
+					unsettledTotal > 0
+						? `${unsettledTotal} énoncé(s) non consolidé(s) restant(s) à arbitrer ou couvrir avant scellement.`
+						: 'Tous les énoncés actifs de cette section sont consolidés ; surveillance continue via Nautobot.',
+				dials: editorialDials
+			});
+		}
+
+		if (editorialSubView === 'coverage-unit-grid') {
+			return renderCoverageUnitGrid({
+				subjectId: activeSubject.id,
+				sectionRef: activeSubject.section_ref,
+				subjectName: activeSubject.name,
+				rows: editorialTraceRows,
+				dials: editorialDials
+			});
+		}
+
+		if (editorialSubView === 'decision-radar') {
+			const criteria = (activeSubject.proposal?.criteria ?? []).map((c, idx) => ({
+				id: `crit-${idx}`,
+				name: c.name,
+				weight: c.weight
+			}));
+			const evals = activeSubject.proposal?.evaluations ?? [];
+			const rawOptions =
+				decisionCtx?.options && decisionCtx.options.length > 0
+					? decisionCtx.options.map((o) => ({ id: o.id, title: o.title }))
+					: (activeSubject.proposal?.options ?? []).map((o, idx) => ({ id: `opt-${idx}`, title: o.title }));
+			const options = rawOptions.map((o) => {
+				const scores: Record<string, number | null> = {};
+				for (const c of criteria) {
+					const found = evals.find((e) => e.option === o.title && e.criterion === c.name);
+					scores[c.id] = found ? found.score : null;
+				}
+				return {
+					id: o.id,
+					title: o.title,
+					retained: decisionCtx?.decision?.retainedOptionId === o.id,
+					scores
+				};
+			});
+			return renderDecisionRadar({
+				subjectId: activeSubject.id,
+				sectionRef: activeSubject.section_ref,
+				subjectName: activeSubject.name,
+				criteria,
+				options,
+				dials: editorialDials
+			});
+		}
+
+		if (editorialSubView === 'lifecycle-phase-map') {
+			const unsettledTotal = blockGraph.blocks.reduce((acc, b) => acc + b.unsettledCount, 0);
+			return renderLifecyclePhaseMap({
+				subjectId: activeSubject.id,
+				sectionRef: activeSubject.section_ref,
+				subjectName: activeSubject.name,
+				currentLevel: Number(String(activeSubject.level || '0').replace(/[^0-9]/g, '')) || 0,
+				unsettledCount: unsettledTotal,
+				hasRetainedDecision: Boolean(decisionCtx?.decision?.retainedOptionId),
+				isFrozen: Boolean(deliberationStore.frozenSnapshots[activeSubject.id]),
+				hasAcceptedViolations: Boolean(decisionCtx?.decision?.acceptedViolations?.length),
+				dials: editorialDials
+			});
+		}
+
+		if (editorialSubView === 'deployment-sequence') {
+			return renderDeploymentSequenceSvg({
+				subjectId: activeSubject.id,
+				sectionRef: activeSubject.section_ref,
+				subjectName: activeSubject.name,
+				actors: ['Arbitre', 'Archinex', 'KB / OPA', 'Nautobot'],
+				steps: [
+					{ id: 'S1', fromActorIndex: 0, toActorIndex: 1, label: 'Arbitre option retenue', isFocal: true },
+					{ id: 'S2', fromActorIndex: 1, toActorIndex: 2, label: 'Évalue clauses KB / Rego' },
+					{ id: 'S3', fromActorIndex: 2, toActorIndex: 1, label: 'Verdict structuré', isReturn: true },
+					{ id: 'S4', fromActorIndex: 1, toActorIndex: 3, label: 'Push intention (dry-run / plan)', isFocal: true },
+					{ id: 'S5', fromActorIndex: 3, toActorIndex: 1, label: 'Preuve exécution & dérive', isReturn: true }
+				],
+				altBranchPrimary: 'Planification Nautobot validée · Section scellée (L5)',
+				altBranchFallback: 'Dérive ou réserve → Remédier / Amender / Déroger',
 				dials: editorialDials
 			});
 		}
@@ -486,7 +705,7 @@
 						class="px-2.5 py-1 rounded-md font-medium transition-colors {editorialSubView === 'traceable-blocks' ? 'bg-background shadow-xs text-foreground font-bold' : 'text-muted-foreground hover:text-foreground'}"
 						data-testid="editorial-subtab-blocks"
 					>
-						Décomposition en Blocs Traçables (TOGAF)
+						Blocs TOGAF
 					</button>
 					<button
 						type="button"
@@ -494,7 +713,63 @@
 						class="px-2.5 py-1 rounded-md font-medium transition-colors {editorialSubView === 'requirement-traceability' ? 'bg-background shadow-xs text-foreground font-bold' : 'text-muted-foreground hover:text-foreground'}"
 						data-testid="editorial-subtab-traceability"
 					>
-						Traçabilité Exigences × Conception × Preuve
+						Traçabilité Exigences
+					</button>
+					<button
+						type="button"
+						onclick={() => (editorialSubView = 'paired-policy-traces')}
+						class="px-2.5 py-1 rounded-md font-medium transition-colors {editorialSubView === 'paired-policy-traces' ? 'bg-background shadow-xs text-foreground font-bold' : 'text-muted-foreground hover:text-foreground'}"
+						data-testid="editorial-subtab-policy"
+					>
+						Traces KB Appariées
+					</button>
+					<button
+						type="button"
+						onclick={() => (editorialSubView = 'decision-heatmap')}
+						class="px-2.5 py-1 rounded-md font-medium transition-colors {editorialSubView === 'decision-heatmap' ? 'bg-background shadow-xs text-foreground font-bold' : 'text-muted-foreground hover:text-foreground'}"
+						data-testid="editorial-subtab-heatmap"
+					>
+						Matrice Décision
+					</button>
+					<button
+						type="button"
+						onclick={() => (editorialSubView = 'compensating-layers')}
+						class="px-2.5 py-1 rounded-md font-medium transition-colors {editorialSubView === 'compensating-layers' ? 'bg-background shadow-xs text-foreground font-bold' : 'text-muted-foreground hover:text-foreground'}"
+						data-testid="editorial-subtab-layers"
+					>
+						Couches Compensatoires
+					</button>
+					<button
+						type="button"
+						onclick={() => (editorialSubView = 'coverage-unit-grid')}
+						class="px-2.5 py-1 rounded-md font-medium transition-colors {editorialSubView === 'coverage-unit-grid' ? 'bg-background shadow-xs text-foreground font-bold' : 'text-muted-foreground hover:text-foreground'}"
+						data-testid="editorial-subtab-unit-grid"
+					>
+						Grille Couverture
+					</button>
+					<button
+						type="button"
+						onclick={() => (editorialSubView = 'decision-radar')}
+						class="px-2.5 py-1 rounded-md font-medium transition-colors {editorialSubView === 'decision-radar' ? 'bg-background shadow-xs text-foreground font-bold' : 'text-muted-foreground hover:text-foreground'}"
+						data-testid="editorial-subtab-radar"
+					>
+						Radar Critères
+					</button>
+					<button
+						type="button"
+						onclick={() => (editorialSubView = 'lifecycle-phase-map')}
+						class="px-2.5 py-1 rounded-md font-medium transition-colors {editorialSubView === 'lifecycle-phase-map' ? 'bg-background shadow-xs text-foreground font-bold' : 'text-muted-foreground hover:text-foreground'}"
+						data-testid="editorial-subtab-lifecycle"
+					>
+						Cycle de Vie (L0–L5)
+					</button>
+					<button
+						type="button"
+						onclick={() => (editorialSubView = 'deployment-sequence')}
+						class="px-2.5 py-1 rounded-md font-medium transition-colors {editorialSubView === 'deployment-sequence' ? 'bg-background shadow-xs text-foreground font-bold' : 'text-muted-foreground hover:text-foreground'}"
+						data-testid="editorial-subtab-sequence"
+					>
+						Séquence &amp; Homologation
 					</button>
 				</div>
 
@@ -503,6 +778,8 @@
 					recommendations={editorialRecommendations}
 					bind:dials={editorialDials}
 					onSelectView={(viewId) => (editorialSubView = viewId)}
+					onAskLlmAdvice={askEditorialDirector}
+					isAskingLlm={isAskingEditorialLlm}
 				/>
 			{:else if activeTab === 'structurizr' || activeTab === 'sysml'}
 				{@const blockGraph = projections.projectionBlocks}

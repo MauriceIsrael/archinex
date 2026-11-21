@@ -2,12 +2,15 @@
 	import {
 		DEFAULT_EDITORIAL_DIALS,
 		SIZE_PRESETS,
+		verifyArchitectureDeltaSvg,
 		verifyEditorialSvg,
+		verifyRequirementTraceabilitySvg,
 		wrapStandaloneHtml,
 		type DiagramAudienceDial,
 		type DiagramDetailDial,
 		type DiagramSizeDial,
 		type EditorialDiagramResult,
+		type EditorialDiagramTypeId,
 		type EditorialDials,
 		type EditorialSkin,
 		type EditorialViewRecommendation
@@ -20,6 +23,7 @@
 		FileJson,
 		Globe,
 		Info,
+		Loader2,
 		Maximize2,
 		Sparkles,
 		X,
@@ -43,13 +47,17 @@
 		recommendations = [],
 		dials = $bindable<EditorialDials>({ ...DEFAULT_EDITORIAL_DIALS }),
 		onSelectView,
-		onSelectProvenance
+		onSelectProvenance,
+		onAskLlmAdvice,
+		isAskingLlm = false
 	} = $props<{
 		diagram: EditorialDiagramResult;
 		recommendations?: EditorialViewRecommendation[];
 		dials?: EditorialDials;
-		onSelectView?: (viewId: 'traceable-blocks' | 'requirement-traceability') => void;
+		onSelectView?: (viewId: EditorialDiagramTypeId) => void;
 		onSelectProvenance?: (selection: ProvenanceSelection) => void;
+		onAskLlmAdvice?: () => void;
+		isAskingLlm?: boolean;
 	}>();
 
 	let zoom = $state(1);
@@ -57,7 +65,11 @@
 	let showLedger = $state(false);
 	let selectedProvenance = $state<ProvenanceSelection | null>(null);
 
-	const verification = $derived(verifyEditorialSvg(diagram.svg));
+	const verification = $derived.by(() => {
+		if (diagram.diagramType === 'architecture-delta') return verifyArchitectureDeltaSvg(diagram.svg);
+		if (diagram.diagramType === 'requirement-traceability') return verifyRequirementTraceabilitySvg(diagram.svg);
+		return verifyEditorialSvg(diagram.svg);
+	});
 
 	function handleSvgClick(event: MouseEvent) {
 		const target = event.target as HTMLElement | null;
@@ -126,10 +138,10 @@
 				<span class="truncate max-w-xl">{recommendations[0].rationale}</span>
 			</div>
 			<div class="flex items-center gap-1 flex-wrap">
-				{#each recommendations.filter((r: EditorialViewRecommendation) => r.implementedInPilot) as rec}
+				{#each recommendations.filter((r: EditorialViewRecommendation) => r.implementedInPilot).slice(0, 4) as rec}
 					<button
 						type="button"
-						onclick={() => onSelectView?.(rec.viewId as 'traceable-blocks' | 'requirement-traceability')}
+						onclick={() => onSelectView?.(rec.viewId)}
 						class="px-2 py-0.5 rounded border text-[11px] font-medium transition-colors cursor-pointer {diagram.diagramType === rec.viewId
 							? 'bg-primary text-primary-foreground border-primary'
 							: 'bg-background text-muted-foreground hover:text-foreground'}"
@@ -138,6 +150,23 @@
 						{rec.label} ({rec.score}%)
 					</button>
 				{/each}
+				{#if onAskLlmAdvice}
+					<button
+						type="button"
+						onclick={onAskLlmAdvice}
+						disabled={isAskingLlm}
+						class="inline-flex items-center gap-1 px-2 py-0.5 rounded border border-amber-500/40 bg-amber-500/10 text-amber-800 dark:text-amber-200 text-[11px] font-medium hover:bg-amber-500/20 disabled:opacity-50 cursor-pointer"
+						data-testid="editorial-ask-llm-btn"
+					>
+						{#if isAskingLlm}
+							<Loader2 class="h-3 w-3 animate-spin" />
+							<span>Analyse…</span>
+						{:else}
+							<Sparkles class="h-3 w-3" />
+							<span>Affiner par IA</span>
+						{/if}
+					</button>
+				{/if}
 			</div>
 		</div>
 	{/if}

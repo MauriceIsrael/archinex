@@ -100,8 +100,20 @@ export interface FidelityLedger {
 	entries: FidelityLedgerEntry[];
 }
 
+export type EditorialDiagramTypeId =
+	| 'traceable-blocks'
+	| 'requirement-traceability'
+	| 'architecture-delta'
+	| 'paired-policy-traces'
+	| 'compensating-layers'
+	| 'decision-heatmap'
+	| 'decision-radar'
+	| 'lifecycle-phase-map'
+	| 'deployment-sequence'
+	| 'coverage-unit-grid';
+
 export interface EditorialDiagramResult {
-	diagramType: 'traceable-blocks' | 'requirement-traceability';
+	diagramType: EditorialDiagramTypeId;
 	slug: string;
 	title: string;
 	description: string;

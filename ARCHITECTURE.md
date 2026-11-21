@@ -72,7 +72,9 @@ Tout énoncé, option, argument ou décision manipulé par Archinex obéit aux i
 
 ### Invariants Inviolables
 1. **Énoncé à 5 facettes** : Contenu (triplet ontologique), Justification (antécédents), Autorité (auteur, rôle, mode de production), Maturité (niveau, confiance), Révisabilité.
-2. **Règle Bloquante `verified × llm-derived`** : Aucun énoncé ni argument ne peut être promu au statut de confiance `verified` s'il est produit en mode `llm-derived`. La vérification et la décision requièrent formellement l'intervention humaine d'un architecte qualifié (`human-authored` ou `llm-proposed-human-approved`).
+2. **Règle Bloquante `verified × llm-derived` (énoncés et arguments)** : Cet invariant constitutionnel couvre **à la fois les énoncés (`Statement`) et les arguments de débat (`Argument`)**. Aucun énoncé ni aucun argument produit en mode `llm-derived` ne peut être promu ou stocké au statut de confiance `verified` sans validation humaine préalable (`human-authored` ou `llm-proposed-human-approved`).
+   - **Énoncés** : rejetés au portier d'enveloppe (`src/lib/validation/epistemicEnvelope.ts`) et en persistance (`src/lib/server/projects/projectsDb.ts`).
+   - **Arguments** : confiance plafonnée à `designed` avec avertissement journalisé dans `createArgument` (`src/lib/server/projects/debateDb.ts`), combinaison rejetée dans `validateArgument` (`src/lib/domain/debate.ts`), et verrouillée en base par le garde-fou Prisma (`src/lib/server/prismaFactory.ts`) sur tous les chemins d'écriture (`create`, `createMany`, `update`, `updateMany`, `upsert`).
 3. **Règle du Silence** : Une hypothèse, objection ou dilemme non contesté n'est **jamais** considéré comme approuvé tacitement. L'approbation doit résulter d'un acte formel d'arbitrage.
 4. **Brouillon Télégraphique** : Style télégraphique dense, sans jargon creux ni verbiage IA non vérifié.
 

@@ -43,9 +43,41 @@ export interface ArgumentValidationResult {
 }
 
 /**
+ * Confiance maximale autorisée pour un argument généré en mode `llm-derived`
+ * (Invariant II : la combinaison `verified × llm-derived` est strictement interdite).
+ */
+export const LLM_DERIVED_MAX_CONFIDENCE: EpistemicConfidence = 'designed';
+
+export interface CappedConfidenceResult {
+	confidence: EpistemicConfidence;
+	capped: boolean;
+	originalConfidence?: EpistemicConfidence;
+}
+
+/**
+ * Plafonne la confiance d'un argument `llm-derived` : un agent ne peut jamais
+ * produire `verified` sans validation humaine préalable.
+ */
+export function capArgumentConfidence(
+	confidence: EpistemicConfidence | undefined,
+	productionMode: ProductionMode | undefined
+): CappedConfidenceResult {
+	const effective: EpistemicConfidence = confidence ?? 'assumed';
+	if (productionMode === 'llm-derived' && effective === 'verified') {
+		return {
+			confidence: LLM_DERIVED_MAX_CONFIDENCE,
+			capped: true,
+			originalConfidence: effective
+		};
+	}
+	return { confidence: effective, capped: false };
+}
+
+/**
  * Valide un argument selon les invariants du co-design Archinex.
  * - Invariant IV & Rigueur : 'grounds' (fondement factuel ou technique) obligatoire.
- * - Invariant II : Respect strict du mode de production selon l'auteur (agent => llm-derived, humain => human-authored).
+ * - Invariant II : Respect strict du mode de production selon l'auteur (agent => llm-derived, humain => human-authored)
+ *   et interdiction absolue de la combinaison `confidence: 'verified'` × `productionMode: 'llm-derived'`.
  * - Intégrité doctrinale : Tout kbRef doit appartenir à la doctrine autorisée pour ce sujet.
  */
 export function validateArgument(
@@ -85,6 +117,16 @@ export function validateArgument(
 				reason: "Un argument rédigé par un humain doit avoir 'productionMode: human-authored'."
 			};
 		}
+	}
+
+	const effectiveProductionMode =
+		arg.productionMode ?? (arg.authorKind?.startsWith('agent:') ? 'llm-derived' : undefined);
+	if (effectiveProductionMode === 'llm-derived' && arg.confidence === 'verified') {
+		return {
+			valid: false,
+			reason:
+				"Invariant II violé : la combinaison confidence='verified' et productionMode='llm-derived' est strictement interdite pour un argument sans validation humaine."
+		};
 	}
 
 	return { valid: true };

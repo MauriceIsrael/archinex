@@ -240,7 +240,12 @@ describe('Deliberation Subject Switch Performance & LLMOps Caching Contract', ()
 		const event = {
 			params: { projectId: testProjectId, subjectId: testSubjectId },
 			request: new Request(`http://localhost/api/projects/${testProjectId}/subjects/${testSubjectId}/workbench`),
-			locals: { user: { id: 'u1', email: 'alice@test.local', role: 'lead_architect' } }
+			locals: {
+				session: {
+					user: { id: 'u1', email: 'alice@test.local', name: 'Alice', role: 'admin' },
+					expires: new Date(Date.now() + 60_000).toISOString()
+				}
+			}
 		} as unknown as Parameters<typeof getWorkbench>[0];
 
 		const res = await getWorkbench(event);

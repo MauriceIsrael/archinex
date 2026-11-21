@@ -10,18 +10,39 @@ export const init: ServerInit = async () => {
   }
 };
 
-const SESSION_REQUIRED_PREFIXES = ['/api/knowledge/', '/api/frameworks/'];
-const HMAC_REQUIRED_PREFIXES = ['/api/webhooks/'];
+/**
+ * Liste blanche explicite des routes /api/** accessibles sans session ni signature HMAC (#391).
+ * Toute autre route sous /api/** est refusée par défaut (401).
+ *
+ * - /api/auth/* : connexion, déconnexion, rafraîchissement de jeton.
+ * - /api/invite/accept et /api/invite/activate : finalisation d'invitation par jeton
+ *   (la route racine /api/invite reste protégée par session).
+ * - /api/webhooks/* : authentifié par signature HMAC (#377), refusé en 401 sans en-tête de signature.
+ */
+export const PUBLIC_API_PREFIXES: readonly string[] = ['/api/auth/'];
+export const PUBLIC_API_EXACT_PATHS: readonly string[] = [
+  '/api/invite/accept',
+  '/api/invite/activate'
+];
+export const HMAC_REQUIRED_PREFIXES: readonly string[] = ['/api/webhooks/'];
 
-export function requiresSession(pathname: string): boolean {
-  if (pathname.includes('/bundle-export') || pathname.includes('/export-bundle')) {
+export function isPublicApiPath(pathname: string): boolean {
+  const normalized = pathname.length > 1 && pathname.endsWith('/') ? pathname.slice(0, -1) : pathname;
+  if (PUBLIC_API_EXACT_PATHS.includes(normalized)) {
     return true;
   }
-  return SESSION_REQUIRED_PREFIXES.some((p) => pathname.startsWith(p));
+  return PUBLIC_API_PREFIXES.some((prefix) => normalized.startsWith(prefix));
 }
 
 export function requiresWebhookSignature(pathname: string): boolean {
   return HMAC_REQUIRED_PREFIXES.some((p) => pathname.startsWith(p));
+}
+
+export function requiresSession(pathname: string): boolean {
+  if (pathname === '/api' || pathname.startsWith('/api/')) {
+    return !isPublicApiPath(pathname) && !requiresWebhookSignature(pathname);
+  }
+  return false;
 }
 
 export function requiresAuthentication(pathname: string): boolean {

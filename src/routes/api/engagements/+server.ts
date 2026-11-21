@@ -2,7 +2,11 @@ import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { prisma } from '$lib/server/prisma';
 import { getAllEngagementsFromDb, saveEngagementToDb } from '$lib/server/engagementsDb';
-import { addCreatorAsMember } from '$lib/server/projects/projectAccess';
+import {
+	addCreatorAsMember,
+	authorizeProjectAccess,
+	getAccessibleProjectIds
+} from '$lib/server/projects/projectAccess';
 import { pushApplicableFrameworks } from '$lib/server/compliance/complianceService';
 
 const frameworksOf = (strategy: unknown): string[] | null => {
@@ -10,20 +14,33 @@ const frameworksOf = (strategy: unknown): string[] | null => {
 	return Array.isArray(fws) ? [...fws].filter((f): f is string => typeof f === 'string').sort() : null;
 };
 
-export const GET: RequestHandler = async ({ url }) => {
+export const GET: RequestHandler = async ({ url, locals }) => {
+	const session = locals.session;
+	if (!session?.user) {
+		return json({ status: 'error', error: 'Non authentifié : session requise' }, { status: 401 });
+	}
 	try {
 		const full = url.searchParams.get('full') === 'true';
-		const engagements = await getAllEngagementsFromDb({
-			includeCorpusKeyClauses: full,
-			stripSubjectProposals: !full
-		});
-		return json(engagements);
+		const [engagements, allowedIds] = await Promise.all([
+			getAllEngagementsFromDb({
+				includeCorpusKeyClauses: full,
+				stripSubjectProposals: !full
+			}),
+			getAccessibleProjectIds(session)
+		]);
+		const visible = allowedIds ? engagements.filter((e) => allowedIds.has(e.id)) : engagements;
+		return json(visible);
 	} catch (err: any) {
 		return json({ error: err.message || 'Failed to fetch engagements' }, { status: 500 });
 	}
 };
 
-export const POST: RequestHandler = async ({ request, locals }) => {
+export const POST: RequestHandler = async (event) => {
+	const { request, locals } = event;
+	const session = locals.session;
+	if (!session?.user) {
+		return json({ status: 'error', error: 'Non authentifié : session requise' }, { status: 401 });
+	}
 	try {
 		const body = await request.json();
 		if (!body?.engagement) {
@@ -31,9 +48,13 @@ export const POST: RequestHandler = async ({ request, locals }) => {
 		}
 		const previous = await prisma.engagement.findUnique({ where: { id: body.engagement.id }, select: { strategy: true } });
 		const isCreation = !previous;
+		if (!isCreation) {
+			const auth = await authorizeProjectAccess(event, body.engagement.id);
+			if (auth.error) return auth.error;
+		}
 		const saved = await saveEngagementToDb(body.engagement);
 		// Seulement à la création : une sauvegarde ultérieure ne donne pas l'accès au projet.
-		const creatorId = locals.session?.user?.id;
+		const creatorId = session.user.id;
 		if (isCreation && creatorId) {
 			await addCreatorAsMember(saved.id, creatorId).catch((err) =>
 				console.warn(`[engagements] Créateur non rattaché au projet ${saved.id} :`, err?.message || err)

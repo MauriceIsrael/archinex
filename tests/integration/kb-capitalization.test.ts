@@ -312,6 +312,12 @@ describe('Lot A5 Integration: KB Capitalization & Human-in-the-loop Gate (Porte 
 	it('6. Récupère le statut des candidats soumis via le endpoint GET', async () => {
 		const fakeEvent: any = {
 			params: { projectId: testProjectId, subjectId: testSubjectId },
+			locals: {
+				session: {
+					user: { id: 'alice-lead', email: 'alice@test.local', name: 'Alice', role: 'admin' },
+					expires: new Date(Date.now() + 60_000).toISOString()
+				}
+			},
 			request: {
 				url: `http://localhost/api/projects/${testProjectId}/subjects/${testSubjectId}/capitalization`,
 				headers: new Headers({

@@ -5,12 +5,15 @@ import {
 	updateEngagementInDb,
 	deleteEngagementFromDb
 } from '$lib/server/engagementsDb';
+import { authorizeProjectAccess } from '$lib/server/projects/projectAccess';
 
-export const GET: RequestHandler = async ({ params }) => {
-	const id = params.id;
+export const GET: RequestHandler = async (event) => {
+	const id = event.params.id;
 	if (!id) {
 		return json({ error: 'Missing engagement ID' }, { status: 400 });
 	}
+	const auth = await authorizeProjectAccess(event, id);
+	if (auth.error) return auth.error;
 
 	const engagement = await getEngagementByIdFromDb(id);
 	if (!engagement) {
@@ -20,14 +23,16 @@ export const GET: RequestHandler = async ({ params }) => {
 	return json(engagement);
 };
 
-export const PATCH: RequestHandler = async ({ params, request }) => {
-	const id = params.id;
+export const PATCH: RequestHandler = async (event) => {
+	const id = event.params.id;
 	if (!id) {
 		return json({ error: 'Missing engagement ID' }, { status: 400 });
 	}
+	const auth = await authorizeProjectAccess(event, id);
+	if (auth.error) return auth.error;
 
 	try {
-		const body = await request.json();
+		const body = await event.request.json();
 		const updated = await updateEngagementInDb(id, body);
 		if (!updated) {
 			return json({ error: `Engagement '${id}' not found` }, { status: 404 });
@@ -38,11 +43,13 @@ export const PATCH: RequestHandler = async ({ params, request }) => {
 	}
 };
 
-export const DELETE: RequestHandler = async ({ params }) => {
-	const id = params.id;
+export const DELETE: RequestHandler = async (event) => {
+	const id = event.params.id;
 	if (!id) {
 		return json({ error: 'Missing engagement ID' }, { status: 400 });
 	}
+	const auth = await authorizeProjectAccess(event, id);
+	if (auth.error) return auth.error;
 
 	try {
 		const success = await deleteEngagementFromDb(id);

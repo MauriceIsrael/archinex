@@ -1,11 +1,46 @@
 import { json, type RequestHandler } from '@sveltejs/kit';
 import { llmopsClient } from '$lib/server/llmops/client';
+import { authorizeProjectAccess } from '$lib/server/projects/projectAccess';
 
-export const GET: RequestHandler = async ({ url }) => {
+const ALLOWED_LLMOPS_ROLES = new Set(['user', 'admin']);
+
+function requireLlmopsSession(locals: App.Locals) {
+  const session = locals.session;
+  if (!session?.user) {
+    return {
+      error: json(
+        { status: 'error', error: 'Non authentifié : session requise' },
+        { status: 401 }
+      )
+    };
+  }
+  if (!ALLOWED_LLMOPS_ROLES.has(session.user.role)) {
+    return {
+      error: json(
+        { status: 'error', error: 'Accès refusé : rôle insuffisant pour accéder au relais LLMOps' },
+        { status: 403 }
+      )
+    };
+  }
+  return { session };
+}
+
+export const GET: RequestHandler = async (event) => {
+  const auth = requireLlmopsSession(event.locals);
+  if (auth.error) return auth.error;
+
+  const { url } = event;
   const action = url.searchParams.get('action') || 'sync';
   const engagement = url.searchParams.get('engagement') || undefined;
   const subject = url.searchParams.get('subject') || undefined;
   const status = url.searchParams.get('status') || undefined;
+
+  if (engagement) {
+    const projectAuth = await authorizeProjectAccess(event, engagement);
+    if (projectAuth.error && projectAuth.error.status !== 404) {
+      return projectAuth.error;
+    }
+  }
 
   try {
     switch (action) {
@@ -41,7 +76,11 @@ export const GET: RequestHandler = async ({ url }) => {
   }
 };
 
-export const POST: RequestHandler = async ({ request, url }) => {
+export const POST: RequestHandler = async (event) => {
+  const auth = requireLlmopsSession(event.locals);
+  if (auth.error) return auth.error;
+
+  const { request, url } = event;
   const action = url.searchParams.get('action') || 'shred';
 
   try {
@@ -51,22 +90,34 @@ export const POST: RequestHandler = async ({ request, url }) => {
       if (!rfpText || typeof rfpText !== 'string') {
         return json({ status: 'error', error: 'Missing rfpText' }, { status: 400 });
       }
+      if (engagement && typeof engagement === 'string') {
+        const projectAuth = await authorizeProjectAccess(event, engagement);
+        if (projectAuth.error && projectAuth.error.status !== 404) {
+          return projectAuth.error;
+        }
+      }
       const result = await llmopsClient.shredRfp(rfpText, documentId, documentVersion, engagement);
       return json(result);
     }
 
     if (action === 'suggest' || action === 'store-rule') {
-      const { title, rationale, suggestedChange, author, sourceEngagement, contactEmail } = body;
+      const { title, rationale, suggestedChange, sourceEngagement } = body;
       if (!title || !suggestedChange) {
         return json({ status: 'error', error: 'Missing title or suggestedChange' }, { status: 400 });
+      }
+      if (sourceEngagement && typeof sourceEngagement === 'string') {
+        const projectAuth = await authorizeProjectAccess(event, sourceEngagement);
+        if (projectAuth.error && projectAuth.error.status !== 404) {
+          return projectAuth.error;
+        }
       }
       const result = await llmopsClient.submitKnowledgeSuggestion({
         title,
         rationale: rationale || 'Induction et validation humaine depuis Archinex',
         suggestedChange,
-        author,
+        author: auth.session.user.name || auth.session.user.email,
         sourceEngagement,
-        contactEmail
+        contactEmail: auth.session.user.email
       });
       return json(result);
     }

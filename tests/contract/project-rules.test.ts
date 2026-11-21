@@ -419,7 +419,13 @@ describe('Lot A30 Contract Tests: Règles du projet, désactivation justifiée, 
 		// Appel GET /rules?subjectId=... sur testSubjectId (où DOC-HA-01 est désactivée, SEC-RESIL-02 matche, NIS2/SOV ont des faits absents)
 		const getRulesEvent = {
 			params: { projectId: testProjectId },
-			url: new URL(`http://localhost/api/projects/${testProjectId}/rules?subjectId=${testSubjectId}`)
+			url: new URL(`http://localhost/api/projects/${testProjectId}/rules?subjectId=${testSubjectId}`),
+			locals: {
+				session: {
+					user: { id: 'u-rules-admin', email: 'admin@test.local', name: 'Admin', role: 'admin' },
+					expires: new Date(Date.now() + 60_000).toISOString()
+				}
+			}
 		} as unknown as RequestEvent;
 
 		const res = await getRulesEndpoint(getRulesEvent as any);

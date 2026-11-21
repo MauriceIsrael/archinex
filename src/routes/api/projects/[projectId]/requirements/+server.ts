@@ -34,13 +34,9 @@ const AuditSchema = z.object({
 	confirmedDeliberated: z.array(z.string())
 });
 
-function authorize(event: Parameters<RequestHandler>[0]) {
-	return authorizeProjectAccess(event, event.params.projectId!);
-}
-
 /** Enregistre l'audit d'un RFP (propositions du modèle + clauses confirmées par l'humain). Idempotent. */
 export const POST: RequestHandler = async (event) => {
-	const auth = await authorize(event);
+	const auth = await authorizeProjectAccess(event, event.params.projectId);
 	if (auth.error) return auth.error;
 
 	let body: unknown;
@@ -67,7 +63,7 @@ export const POST: RequestHandler = async (event) => {
 
 /** État retenu de chaque exigence (décision humaine > proposition du modèle). */
 export const GET: RequestHandler = async (event) => {
-	const auth = await authorize(event);
+	const auth = await authorizeProjectAccess(event, event.params.projectId);
 	if (auth.error) return auth.error;
 
 	const sources = await listRequirementSources(event.params.projectId);

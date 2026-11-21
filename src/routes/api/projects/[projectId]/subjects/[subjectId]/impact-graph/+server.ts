@@ -119,7 +119,11 @@ async function loadContextualInput(
 }
 
 /** GET : retourne le graphe causal déterministe contextualisé pour ce sujet. */
-export const GET: RequestHandler = async ({ params }) => {
+export const GET: RequestHandler = async (event) => {
+	const auth = await authorizeProjectAccess(event, event.params.projectId);
+	if (auth.error) return auth.error;
+	const { params } = event;
+
 	try {
 		const input = await loadContextualInput(params.projectId!, params.subjectId!);
 		const graph = buildContextualImpactGraph(input);

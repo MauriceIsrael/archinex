@@ -11,12 +11,16 @@ import {
 import { parseSubjectDecision } from '$lib/server/projects/arbitrationDb';
 import { computeSubjectMaturityReport } from '$lib/server/projects/maturityCriteriaService';
 import { resolveSubjectRequirements } from '$lib/server/projects/requirementsDb';
+import { authorizeProjectAccess } from '$lib/server/projects/projectAccess';
 
 /**
  * Endpoint agrégé pour le chargement rapide de l'espace sujet en phase délibération.
  * Regroupe en une seule requête HTTP les données locales SQLite/Prisma sans bloquer sur LLMOps.
  */
 export const GET: RequestHandler = async (event) => {
+	const auth = await authorizeProjectAccess(event, event.params.projectId);
+	if (auth.error) return auth.error;
+
 	const { projectId, subjectId } = event.params;
 
 	try {

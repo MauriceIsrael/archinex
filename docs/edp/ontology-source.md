@@ -24,7 +24,7 @@ node scripts/sync-ontology-fixture.mjs --from-file ... --check
 Le script écrit aussi `ontology_export.provenance.json` (origine, version du catalogue, empreinte SHA-256). `tests/contract/ontology-fixture-provenance.test.ts` :
 
 - hors-ligne : échoue si la fixture est retouchée à la main (empreinte différente de la provenance) ;
-- en ligne (`hub-live`, chaque nuit) : échoue si la fixture n'est plus identique à ce que sert le Hub, c'est-à-dire dès que l'ontologie du Hub a changé. Il faut alors **resynchroniser puis relire les tests** qui en dépendent.
+- en ligne (`tests/contract/hub-ontology-fixture-live.test.ts`, lancé par `hub-live` sur les PR et chaque nuit) : échoue si la fixture n’est plus identique à ce que sert le Hub, c'est-à-dire dès que l'ontologie du Hub a changé. Il faut alors **resynchroniser puis relire les tests** qui en dépendent.
 
 Les révisions des entités viennent du catalogue : ni les tests ni la démo ne figent de numéro de révision.
 

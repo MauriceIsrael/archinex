@@ -4,10 +4,7 @@
  *
  * - Hors-ligne : l'empreinte de la fixture est celle que `scripts/sync-ontology-fixture.mjs` a enregistrée
  *   (toute retouche à la main la fait échouer) ;
- * - En ligne (`hub-live`, chaque nuit) : la fixture est identique à ce que sert le Hub, donc elle est périmée dès
- *   que l'ontologie du Hub change.
- *
- *   LLMOPS_LIVE_URL=http://127.0.0.1:8099 npx vitest run tests/contract/ontology-fixture-provenance.test.ts
+ * - En ligne : voir `hub-ontology-fixture-live.test.ts` (le nom contient « live » pour être lancé par `hub-live`).
  */
 import { describe, it, expect } from 'vitest';
 import { readFileSync } from 'node:fs';
@@ -16,7 +13,6 @@ import { canonical, sha256, assertCatalogShape } from '../../scripts/sync-ontolo
 
 const FIXTURE = resolve(process.cwd(), 'tests/fixtures/edp/ontology_export.json');
 const PROVENANCE = resolve(process.cwd(), 'tests/fixtures/edp/ontology_export.provenance.json');
-const LIVE = process.env.LLMOPS_LIVE_URL;
 
 const fixtureText = readFileSync(FIXTURE, 'utf-8');
 const fixture = JSON.parse(fixtureText);
@@ -37,18 +33,6 @@ describe('Fixture d\'ontologie = copie de l\'export du Hub', () => {
 		expect(Object.keys(fixture.entities)).toHaveLength(provenance.entities);
 		expect(fixture.triplets).toHaveLength(provenance.triplets);
 		expect(fixture.catalog_version).toBe(provenance.catalog_version);
-	});
-});
-
-describe.skipIf(!LIVE)('Fixture d\'ontologie contre le Hub réel', () => {
-	it('est identique à GET /api/knowledge/ontology/export (sinon : node scripts/sync-ontology-fixture.mjs --from-hub …)', async () => {
-		const res = await fetch(`${LIVE!.replace(/\/$/, '')}/api/knowledge/ontology/export`, {
-			headers: { Accept: 'application/json', Authorization: `Bearer ${process.env.LLMOPS_LIVE_TOKEN ?? 'contract-service-token'}` }
-		});
-		expect(res.status).toBe(200);
-		const json = await res.json();
-		const live = json.data || json;
-		expect(canonical(live) === fixtureText, 'la fixture est périmée par rapport au Hub : la resynchroniser et relire les tests').toBe(true);
 	});
 });
 

@@ -59,7 +59,7 @@ Tant que la tranche minimale n'est pas **en production sur un projet réel**, so
 | Détection d'écart, `DriftFinding`, décision caduque | **Possède** | Source de l'état | — |
 | Action dans le système réel | — | — | **Possèdent** |
 
-La propriété fine des champs et les transitions de statut autorisées sont définies par #398 ; le contrat d'écriture des preuves par #399.
+La propriété fine des champs et les transitions de statut autorisées sont définies par #398 et publiées dans [`docs/edp/field-ownership.md`](../edp/field-ownership.md) (tables de statuts et de transitions par acteur) ; le marquage de traçabilité et le push idempotent (#376) dans [`docs/edp/nautobot-trace-markers.md`](../edp/nautobot-trace-markers.md) ; le contrat d'écriture des preuves par les connecteurs par #399.
 
 ## 4. Où vivent les oracles
 

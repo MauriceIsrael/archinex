@@ -414,30 +414,29 @@ export function compareFrozenIntentWithNautobotObject(params: {
   const findings: DriftFindingDraft[] = [];
 
   if (plannedObj) {
-    // 2a. Comparaison du statut (status_regression vs attribute_mismatch)
+    // 2a. Comparaison du statut (progression légitime #398 ignorée, régression ou statut inconnu signalés)
     const observedStatus = extractNautobotScalar(dataSnapshot.status);
     const expectedStatus = extractNautobotScalar(plannedObj.status);
-    if (
-      observedStatus &&
-      expectedStatus &&
-      observedStatus.toLowerCase() !== expectedStatus.toLowerCase()
-    ) {
-      const regression = isStatusRegression(expectedStatus, observedStatus);
-      findings.push({
-        projectId,
-        subjectId,
-        decisionId,
-        clauseRefs,
-        objectRef,
-        kind: regression ? 'status_regression' : 'attribute_mismatch',
-        attributeKey: 'status',
-        outOfDecision: false,
-        expected: expectedStatus.toLowerCase(),
-        observed: observedStatus.toLowerCase(),
-        severity: regression ? 'high' : 'medium',
-        sourceEvent,
-        summary: `Statut de '${objectRef.name || objectRef.id}' modifié : '${observedStatus}' (attendu : '${expectedStatus}').`
-      });
+    if (observedStatus && expectedStatus) {
+      const observation = evaluateStatusObservation(expectedStatus, observedStatus);
+      if (observation.verdict !== 'unchanged' && observation.verdict !== 'progress') {
+        const regression = observation.verdict === 'regression';
+        findings.push({
+          projectId,
+          subjectId,
+          decisionId,
+          clauseRefs,
+          objectRef,
+          kind: regression ? 'status_regression' : 'attribute_mismatch',
+          attributeKey: 'status',
+          outOfDecision: false,
+          expected: observation.expected,
+          observed: observation.observed,
+          severity: regression ? 'high' : 'medium',
+          sourceEvent,
+          summary: `Statut de '${objectRef.name || objectRef.id}' modifié : '${observedStatus}' (attendu : '${expectedStatus}') — ${observation.reason}`
+        });
+      }
     }
 
     // 2b. Comparaison générique des attributs clés présents dans l'intention planifiée
@@ -580,6 +579,15 @@ function hydrateDriftFindingRow(row: any): DriftFindingRecord {
     severity: (row.severity || 'medium') as DriftSeverity,
     firstSeenAt: row.firstSeenAt instanceof Date ? row.firstSeenAt.toISOString() : String(row.firstSeenAt),
     lastSeenAt: row.lastSeenAt instanceof Date ? row.lastSeenAt.toISOString() : String(row.lastSeenAt),
+    resolvedAt: row.resolvedAt
+      ? row.resolvedAt instanceof Date
+        ? row.resolvedAt.toISOString()
+        : String(row.resolvedAt)
+      : null,
+    detectedDelayMs:
+      typeof row.detectedDelayMs === 'number' && Number.isFinite(row.detectedDelayMs)
+        ? row.detectedDelayMs
+        : null,
     state: (row.state || 'open') as DriftState,
     sourceEvent: row.sourceEvent
   };
@@ -628,6 +636,11 @@ export async function persistDriftFindings(
           severity: draft.severity,
           firstSeenAt: now,
           lastSeenAt: now,
+          resolvedAt: null,
+          detectedDelayMs:
+            typeof draft.detectedDelayMs === 'number' && Number.isFinite(draft.detectedDelayMs)
+              ? Math.max(0, Math.round(draft.detectedDelayMs))
+              : null,
           state: 'open',
           sourceEvent: draft.sourceEvent
         },
@@ -641,6 +654,7 @@ export async function persistDriftFindings(
           observed: JSON.stringify(draft.observed ?? null),
           severity: draft.severity,
           lastSeenAt: now,
+          resolvedAt: null,
           state: 'open',
           sourceEvent: draft.sourceEvent
         }
@@ -658,6 +672,39 @@ export async function persistDriftFindings(
   }
 
   return persisted;
+}
+
+/**
+ * Marque comme `remediated` (avec horodatage `resolvedAt`) les `DriftFinding` ouverts d'un projet
+ * dont l'empreinte n'est plus observée lors d'une réconciliation complète réussie (#379).
+ * Ne doit être appelée QUE lorsque Nautobot est joignable et que la réconciliation a réussi.
+ */
+export async function resolveAbsentDriftFindings(
+  projectId: string,
+  activeFingerprints: ReadonlySet<string>,
+  now: Date = new Date(),
+  db: any = prisma
+): Promise<number> {
+  const openRows = await db.driftFinding.findMany({
+    where: { projectId, state: 'open' },
+    select: { id: true, fingerprint: true }
+  });
+
+  const toResolveIds = openRows
+    .filter((row: { id: string; fingerprint: string }) => !activeFingerprints.has(row.fingerprint))
+    .map((row: { id: string }) => row.id);
+
+  if (toResolveIds.length === 0) return 0;
+
+  const res = await db.driftFinding.updateMany({
+    where: { id: { in: toResolveIds } },
+    data: {
+      state: 'remediated',
+      resolvedAt: now
+    }
+  });
+
+  return typeof res?.count === 'number' ? res.count : toResolveIds.length;
 }
 
 /**

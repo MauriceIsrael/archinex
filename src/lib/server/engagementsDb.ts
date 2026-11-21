@@ -1,7 +1,11 @@
 import { prisma } from './prisma';
 import { seedSubjectProposal } from './projects/proposalSeeder';
 import type { EngagementProfile, EngagementType, ProjectParticipant, ProjectStrategy } from '$lib/domain/engagements';
-import type { MaturitySubject } from '$lib/domain/maturityBoard';
+import {
+	normalizeMaturitySubject,
+	normalizeMaturitySubjects,
+	type MaturitySubject
+} from '$lib/domain/maturityBoard';
 import type { TelegraphicDraft } from '$lib/domain/telegraphic';
 import type { Statement } from '$lib/types/epistemic';
 import type { DialogueMessage } from '$lib/domain/dialectic';
@@ -23,12 +27,8 @@ export function mapPrismaToEngagementProfile(
 	row: any,
 	options: { stripSubjectProposals?: boolean } = {}
 ): EngagementProfile {
-	const parsed = parseJsonSafe<any>(row.subjects, []);
-	const rawSubjects: MaturitySubject[] = Array.isArray(parsed)
-		? parsed
-		: typeof parsed === 'object' && parsed !== null
-		? Object.values(parsed)
-		: [];
+	const parsed = parseJsonSafe<unknown>(row.subjects, []);
+	const rawSubjects = normalizeMaturitySubjects(parsed);
 	const subjects = options.stripSubjectProposals
 		? rawSubjects.map((s) => {
 				if (s.proposal) {
@@ -124,22 +124,23 @@ async function overlayServerSubjects(profiles: EngagementProfile[]): Promise<voi
 			const parent = profile.subjects
 				.filter((s) => row.id.startsWith(`sub-child-${s.id}-`) || row.id.startsWith(`sub-child-agent-${s.id}-`))
 				.sort((a, b) => b.id.length - a.id.length)[0];
-			const subject: MaturitySubject = {
+			const subject = normalizeMaturitySubject({
 				id: row.id,
-				section_ref: row.sectionRef,
+				sectionRef: row.sectionRef,
 				name: row.name,
-				level: row.maturityLevel as MaturitySubject['level'],
-				blocking_count: row.blockingCount,
-				unlocks_count: row.unlocksCount,
-				waiting_for_role: (row.waitingForRole || 'lead_architect') as MaturitySubject['waiting_for_role'],
-				relative_effort: (row.relativeEffort || 'M') as MaturitySubject['relative_effort'],
-				last_transition_date: row.updatedAt.toISOString(),
-				stall_days: 0,
-				is_stalled: false,
-				dependent_subject_ids: [],
-				problem_statement: row.problemStatement || undefined,
+				maturityLevel: row.maturityLevel,
+				blockingCount: row.blockingCount,
+				unlocksCount: row.unlocksCount,
+				waitingForRole: row.waitingForRole,
+				relativeEffort: row.relativeEffort,
+				updatedAt: row.updatedAt,
+				deliberationStatus: row.deliberationStatus,
+				problemStatement: row.problemStatement,
+				requirementRefs: row.requirementRefs,
+				dependsOn: row.dependsOn,
+				nature: row.nature,
 				...(parent ? { parent_subject_id: parent.id, parent_subject_name: parent.name } : {})
-			};
+			});
 			profile.subjects.push(subject);
 			known.set(row.id, subject);
 			profile.drafts[row.id] ??= {

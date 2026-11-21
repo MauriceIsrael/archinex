@@ -8,6 +8,8 @@ import {
 	sortMaturityBoard,
 	resolveSubjectArbitration,
 	canTransitionMaturity,
+	normalizeMaturitySubjects,
+	toSafeCount,
 	type MaturitySubject
 } from '$lib/domain/maturityBoard';
 import {
@@ -302,7 +304,7 @@ class DeliberationStore {
 		// 3. Charger depuis le cache ou initialiser depuis le profil
 		const cached = this.engagementCache[targetId];
 		if (cached) {
-			this.subjects = cached.subjects;
+			this.subjects = normalizeMaturitySubjects(cached.subjects);
 			this.drafts = cached.drafts;
 			this.statements = cached.statements;
 			this.corpusDocuments = cached.corpusDocuments;
@@ -320,7 +322,7 @@ class DeliberationStore {
 			this.detailedSpecs = cached.detailedSpecs ? $state.snapshot(cached.detailedSpecs) : {};
 			this.frozenSnapshots = cached.frozenSnapshots ? $state.snapshot(cached.frozenSnapshots) : {};
 		} else {
-			this.subjects = [...targetProfile.subjects];
+			this.subjects = normalizeMaturitySubjects(targetProfile.subjects);
 			const rawDrafts = { ...targetProfile.drafts };
 			for (const d of Object.values(rawDrafts)) {
 				if (d && typeof d === 'object') {
@@ -428,10 +430,15 @@ class DeliberationStore {
 		this.isHydratedFromDb = true;
 		untrack(() => {
 			if (engagements && engagements.length > 0) {
+				// Normaliser les sujets à la frontière serveur -> store (snake_case / camelCase / valeurs par défaut)
+				const normalizedEngagements = engagements.map((e) => ({
+					...e,
+					subjects: normalizeMaturitySubjects(e.subjects)
+				}));
 				// Préserver les engagements en mémoire s'ils n'existent pas encore dans la DB (ex: nouvel espace créé)
-				const existingIds = new Set(engagements.map((e) => e.id));
+				const existingIds = new Set(normalizedEngagements.map((e) => e.id));
 				const localOnly = this.engagements.filter((e) => !existingIds.has(e.id));
-				this.engagements = [...engagements, ...localOnly];
+				this.engagements = [...normalizedEngagements, ...localOnly];
 
 				const savedId = typeof window !== 'undefined' ? localStorage.getItem('archinex:activeEngagementId') : null;
 				if (savedId && this.engagements.some((e) => e.id === savedId)) {
@@ -450,7 +457,7 @@ class DeliberationStore {
 			// Met à jour l'engagement actif
 			const current = this.activeEngagement;
 			if (current) {
-				this.subjects = current.subjects || [];
+				this.subjects = normalizeMaturitySubjects(current.subjects);
 				const rawDrafts = current.drafts || {};
 				for (const d of Object.values(rawDrafts)) {
 					if (d && typeof d === 'object') {
@@ -743,9 +750,13 @@ class DeliberationStore {
 
 	stalledSubjects = $derived(this.subjects.filter((s) => s.is_stalled));
 
-	totalUnlocks = $derived(this.subjects.reduce((sum, s) => sum + s.unlocks_count, 0));
+	totalUnlocks = $derived(
+		this.subjects.reduce((sum, s) => sum + toSafeCount(s.unlocks_count), 0)
+	);
 
-	totalBlocking = $derived(this.subjects.reduce((sum, s) => sum + s.blocking_count, 0));
+	totalBlocking = $derived(
+		this.subjects.reduce((sum, s) => sum + toSafeCount(s.blocking_count), 0)
+	);
 
 	// Propriétés dérivées du corpus documentaire
 	get activeDocument(): CorpusDocument {

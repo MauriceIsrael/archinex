@@ -1,0 +1,14 @@
+{
+  "_comment": "Généré par scripts/sync-ontology-fixture.mjs : ne pas modifier à la main. La fixture est une copie de l'export du Hub (LLMOps).",
+  "source": "MauriceIsrael/LLMOps",
+  "origin": {
+    "kind": "file",
+    "path": "data/snapshots/ontology_export.json"
+  },
+  "llmops_ref": "e8d5d39395c0b43724322b85979f20e93952e0e9",
+  "catalog_version": "1.0",
+  "generated_at": "2026-11-21T00:00:00Z",
+  "entities": 119,
+  "triplets": 212,
+  "sha256": "72d630a7d75fedae863038eae34442db9a81a1151afee2f8267fcf546252d393"
+}

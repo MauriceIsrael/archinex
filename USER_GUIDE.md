@@ -456,22 +456,15 @@ Cette commande réinitialise l'espace projet `lulu-lot1-noc` dans la base SQLite
 
 ---
 
-## 13. Paquets de Décision Exécutables (EDP) & Oracles OPA [Expérimental]
+## 13. Paquets de Décision Exécutables (EDP) & Oracles OPA
 
-Dans le cadre du lot expérimental (`ARCHINEX_EXPERIMENTAL_EDP=1`), Archinex permet de lier à chaque décision d'architecture arbitrée un **Paquet de Décision Exécutable** (EDP). Ce paquet permet de confronter automatiquement les décisions d'architecture de haut niveau (HLD) aux configurations et manifestes techniques réels ou planifiés (LLD).
+Archinex permet de lier à chaque décision d'architecture arbitrée un **Paquet de Décision Exécutable** (EDP). Ce paquet permet de confronter automatiquement les décisions d'architecture de haut niveau (HLD) aux configurations et manifestes techniques réels ou planifiés (LLD).
 
-### 13.1 Activation du Mode Expérimental
-Le sous-système EDP est strictement hermétique et n'altère en rien le fonctionnement standard d'Archinex s'il n'est pas activé :
-```bash
-# Activation via variable d'environnement (Linux / macOS)
-export ARCHINEX_EXPERIMENTAL_EDP=1
-
-# Activation sous Windows PowerShell
-$env:ARCHINEX_EXPERIMENTAL_EDP="1"
-```
+### 13.1 Disponibilité
+Le sous-système EDP est **toujours actif** : il n'existe ni mode expérimental ni variable d'environnement d'activation. Les prérequis techniques (binaire OPA) sont décrits dans `docs/fresh-install.md`.
 
 ### 13.2 Visualisation dans l'IHM Workbench (`EdpCard`)
-Lorsque le drapeau est actif, la fiche de chaque décision affiche un panneau dédié **Paquet de Décision Exécutable** :
+La fiche de chaque décision affiche un panneau dédié **Paquet de Décision Exécutable** :
 - **Badge d'état** : `PROPOSÉ`, `VALIDÉ` ou `⚠️ STALE (CADUC)`.
 - **Mode de production** : `human-authored` (rédigé par l'architecte) ou `llm-proposed-human-approved` (assisté par l'IA sous chaîne déterministe).
 - **Validateur humain (Invariant II)** : Nom et rôle de l'architecte ayant formellement homologué le paquet.

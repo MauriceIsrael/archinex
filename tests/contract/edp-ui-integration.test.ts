@@ -12,16 +12,22 @@ describe('EDP UI & API Integration Contract', () => {
     const content = readFileSync(apiRoute, 'utf-8');
     expect(content).toContain('export const GET: RequestHandler');
     expect(content).toContain('export const POST: RequestHandler');
-    expect(content).toContain('isEdpFeatureEnabled');
+    expect(content).not.toContain('isEdpFeatureEnabled');
+    expect(content).not.toContain('isExperimentalEnabled');
     expect(content).toContain('verifyEdp');
   });
 
-  it('expose isExperimentalEnabled dans la page de délibération (+page.server.ts)', () => {
-    const pageServer = resolve(rootDir, 'src/routes/deliberation/+page.server.ts');
-    const content = readFileSync(pageServer, 'utf-8');
-
-    expect(content).toContain('isExperimentalEnabled');
-    expect(content).toContain("event.url.searchParams.get('edp') === '1'");
+  it('n\'a plus aucun drapeau expérimental : ni dans la page, ni dans l\'en-tête, ni dans la carte EDP', () => {
+    for (const f of [
+      'src/routes/deliberation/+page.server.ts',
+      'src/routes/deliberation/+page.svelte',
+      'src/lib/components/deliberation/ProjectEngagementHeader.svelte',
+      'src/lib/components/edp/EdpCard.svelte',
+      'src/lib/server/edp/edpRepository.ts'
+    ]) {
+      const content = readFileSync(resolve(rootDir, f), 'utf-8');
+      expect(content, f).not.toMatch(/isExperimentalEnabled|ARCHINEX_EXPERIMENTAL_EDP|isEdpFeatureEnabled/);
+    }
   });
 
   it('retire l’onglet et les sections Oracle EDP de SubjectThreadView (délibération)', () => {
@@ -40,7 +46,7 @@ describe('EDP UI & API Integration Contract', () => {
     const headerFile = resolve(rootDir, 'src/lib/components/deliberation/ProjectEngagementHeader.svelte');
     const headerContent = readFileSync(headerFile, 'utf-8');
     expect(headerContent).toContain('phase-tab-refinement');
-    expect(headerContent).toContain('{#if isExperimentalEnabled}');
+    expect(headerContent).not.toContain('isExperimentalEnabled');
 
     const pageFile = resolve(rootDir, 'src/routes/deliberation/+page.svelte');
     const pageContent = readFileSync(pageFile, 'utf-8');

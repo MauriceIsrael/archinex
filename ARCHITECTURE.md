@@ -483,11 +483,11 @@ Dans l'onglet de délibération et de rendu (`ArtifactRegenerationHub.svelte`), 
 
 ---
 
-## 12. Paquet de Décision Exécutable (EDP) & Oracles OPA/Rego (Expérimental)
+## 12. Paquet de Décision Exécutable (EDP) & Oracles OPA/Rego
 
 > **Orientation (ADR-017)** : toute écriture vers un outil d'implémentation passe par Nautobot, seul point de réconciliation bidirectionnel d'Archinex ; les connecteurs sont derrière Nautobot. Voir [`docs/adr/ADR-017-nautobot-point-unique-reconciliation.md`](docs/adr/ADR-017-nautobot-point-unique-reconciliation.md).
 
-Dans le cadre de l'initiative expérimentale (`ARCHINEX_EXPERIMENTAL_EDP=1`), Archinex associe à chaque décision d'architecture arbitrée un **Paquet de Décision Exécutable** (EDP) assurant l'opposabilité et la vérifiabilité continue du HLD face aux instanciations LLD réelles ou simulées :
+Archinex associe à chaque décision d'architecture arbitrée un **Paquet de Décision Exécutable** (EDP) assurant l'opposabilité et la vérifiabilité continue du HLD face aux instanciations LLD réelles ou simulées :
 
 1. **Séparation Stricte Intension (HLD) vs Extension (LLD)** :
    - Le contexte de décision (`decision_context`) exprime des règles pures sur l'ontologie d'entreprise sans aucune valeur d'instanciation. Le module `intentionPurity.ts` filtre rigoureusement toute adresse IPv4, IPv6, CIDR, adresse MAC ou nom d'hôte physique ou logique avec une liste blanche stricte de standards et versions autorisées (Invariant X).
@@ -512,7 +512,7 @@ Dans le cadre de l'initiative expérimentale (`ARCHINEX_EXPERIMENTAL_EDP=1`), Ar
    - Adaptateur Nautobot Planned (`nautobotAdapter.ts`) normalisant les équipements physiques et interfaces.
 7. **Chaîne de Rédaction Assistée LLM & Composant IHM Workbench** :
    - Pipeline de garde `edpDrafting.ts` filtrant les propositions d'IA par l'ensemble des contrôles déterministes avant toute présentation humaine.
-   - Composant UI `EdpCard.svelte` sous drapeau `ARCHINEX_EXPERIMENTAL_EDP`, permettant aux architectes habilités de visualiser les verdicts, scores de mutation et de valider ou contester formellement l'EDP.
+   - Composant UI `EdpCard.svelte`, permettant aux architectes habilités de visualiser les verdicts, scores de mutation et de valider ou contester formellement l'EDP.
 8. **Paquets de Référence & Promotion** :
    - Deux références complètes : `adr012-baremetal` (infrastructure Telco Cloud) et `adr015-security-zones` (cloisonnement de zones NIS2), atteignant chacune 100 % de score de mutation.
    - Document de promotion formel : [ADR-016](docs/adr/ADR-016-promotion-edp-experimental.md).

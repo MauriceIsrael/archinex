@@ -214,29 +214,26 @@ test_pass if { 1 == 1 }`;
       }
     };
 
-    it('ne rend rien lorsque le drapeau expérimental est inactif (ARCHINEX_EXPERIMENTAL_EDP absent)', () => {
+    it('ne rend rien lorsqu\'aucun paquet n\'est fourni', () => {
       const { html } = render(EdpCard, {
         props: {
-          edp: mockEdp,
-          isExperimentalEnabled: false,
+          edp: null,
           currentUserRole: 'Lead Architect'
         }
       });
 
       expect(html).not.toContain('edp-card');
-      expect(html).not.toContain('EXPÉRIMENTAL');
     });
 
-    it('affiche le bandeau expérimental, le statut et l’action de validation pour un rôle habilité', () => {
+    it('affiche le statut et l’action de validation pour un rôle habilité', () => {
       const { html } = render(EdpCard, {
         props: {
           edp: mockEdp,
-          isExperimentalEnabled: true,
           currentUserRole: 'Lead Architect'
         }
       });
 
-      expect(html).toContain('EXPÉRIMENTAL');
+      expect(html).not.toContain('EXPÉRIMENTAL');
       expect(html).toContain('Isolation Stricte des Zones de Sécurité');
       expect(html).toContain('Valider le paquet');
     });
@@ -251,7 +248,6 @@ test_pass if { 1 == 1 }`;
       const { html } = render(EdpCard, {
         props: {
           edp: staleEdp,
-          isExperimentalEnabled: true,
           currentUserRole: 'Lead Architect'
         }
       });
@@ -265,7 +261,6 @@ test_pass if { 1 == 1 }`;
       const { html } = render(EdpCard, {
         props: {
           edp: mockEdp,
-          isExperimentalEnabled: true,
           currentUserRole: 'Viewer'
         }
       });

@@ -14,12 +14,11 @@
 	} from 'lucide-svelte';
 
 	interface Props {
-		isExperimentalEnabled?: boolean;
 		onOpenQuickAsk?: () => void;
 		onOpenLiveLock?: () => void;
 	}
 
-	let { isExperimentalEnabled = true, onOpenQuickAsk, onOpenLiveLock }: Props = $props();
+	let { onOpenQuickAsk, onOpenLiveLock }: Props = $props();
 
 	const activeEngagement = $derived(deliberationStore.activeEngagement);
 	const activePosture = $derived(deliberationStore.activePosture);
@@ -227,7 +226,6 @@
 					{/if}
 				</button>
 
-				{#if isExperimentalEnabled}
 					<span class="text-muted-foreground/40 text-xs select-none hidden sm:inline">→</span>
 
 					<!-- Phase 4 : Raffinement & Hydratation du Sujet -->
@@ -272,7 +270,6 @@
 							<span>Architecture Lockée</span>
 						</button>
 					{/if}
-				{/if}
 			</div>
 		</div>
 	</div>

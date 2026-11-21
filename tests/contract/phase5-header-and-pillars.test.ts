@@ -22,7 +22,6 @@ describe('Issue #314 — Positionnement Phase 5 à droite de Phase 4 & Piliers t
 	it('place Phase 5 · Consolidation et Architecture Lockée à droite de Phase 4 · Raffinement dans ProjectEngagementHeader', () => {
 		const { html } = render(ProjectEngagementHeader, {
 			props: {
-				isExperimentalEnabled: true,
 				onOpenQuickAsk: () => {},
 				onOpenLiveLock: () => {}
 			}

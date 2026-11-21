@@ -3,6 +3,7 @@
 - **Statut** : Accepté (Promotion conditionnée vers phase pilote)
 - **Date** : 2026-10-29
 - **Auteur** : Comité d'Architecture Archinex (G3)
+- **Amendement 2026-11-21** : le cadre expérimental et le drapeau `ARCHINEX_EXPERIMENTAL_EDP` sont **supprimés** ; le sous-système EDP est toujours actif. La condition n°1 ci-dessous (« Maintien du Feature Flag à l'Exécution ») est **caduque**.
 - **Contexte** : Évaluation finale de l'expérimentation EDP (Epic #166, Issues #167 à #189)
 
 ---
@@ -19,7 +20,7 @@ L'expérimentation EDP a exploré l'introduction de Paquets de Décision Exécut
 
 Le Comité d'Architecture prononce le **GO pour la promotion** du sous-système EDP depuis la branche `experimental/edp` vers une intégration progressive dans le tronc commun, sous les conditions suivantes :
 
-1. **Maintien du Feature Flag à l'Exécution** : Le drapeau d'environnement `ARCHINEX_EXPERIMENTAL_EDP=1` reste actif par défaut dans les environnements de production pour préserver l'étanchéité stricte des modules d'arbitrage existants.
+1. ~~**Maintien du Feature Flag à l'Exécution**~~ *(caduque, voir l'amendement)* : Le drapeau d'environnement `ARCHINEX_EXPERIMENTAL_EDP=1` reste actif par défaut dans les environnements de production pour préserver l'étanchéité stricte des modules d'arbitrage existants.
 2. **Pérennisation des Gardes Constitutionnelles** :
    - Invariant I (Vérité à 4 états : `compliant`, `violated`, `insufficient_input`, `not_applicable`).
    - Invariant II (Refus absolu du statut `validated` pour tout artefact LLM sans validateur humain identifié).

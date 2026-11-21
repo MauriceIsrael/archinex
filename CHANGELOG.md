@@ -8,6 +8,18 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Propriété des champs Nautobot et cycle de vie des statuts : le push ne régresse plus la réalité (#398)
+- **Domaine (`src/lib/domain/edp/fieldOwnership.ts`)** :
+  - Registre déclaratif versionné de propriété des champs (intention / réalisé / opérationnel) pour la tranche minimale (Tenant, Device, Prefix, VLAN, IP) ; champ ou type inconnu = opérationnel ; `archinex_*` = intention, `realized_*` = réalisé.
+  - Table des statuts et des transitions autorisées par acteur (Archinex : création en `planned` et mise hors service décidée ; connecteur : progression, panne, retrait) ; évaluation d'un statut observé (`progress` / `regression` / `unexpected`).
+  - `guardIntentPush` : sur un objet existant, seuls les champs d'intention sont réécrits.
+- **Nautobot (`nautobotSync.ts`, `driftService.ts`)** :
+  - **Correction** : un nouveau push ne renvoie plus `status: Planned` ni de champ réalisé sur un objet existant (il faisait régresser un équipement déjà promu par un connecteur).
+  - **Correction** : une progression légitime (ex. `planned` → `active`) n'est plus signalée comme écart `attribute_mismatch` ; un recul ou une panne reste `status_regression` ; un statut inconnu reste signalé.
+  - `isStatusRegression` délègue au registre (définition unique).
+- **Hypothèses de portée** : tranche minimale seule couverte ; `tags` et `custom_fields` sont traités comme des métadonnées d'intention (une balise ajoutée par un tiers est écrasée au prochain push) ; `comments` d'un équipement porte l'intention OOB/PDU.
+- **Tests & Documentation** : ajout de `tests/contract/field-ownership.test.ts` (16 tests, dont deux qui échouent sans le correctif) et de `docs/edp/field-ownership.md`.
+
 ### ADR-017 : Nautobot, point unique de réconciliation bidirectionnelle (#375)
 - **Documentation (`docs/adr/ADR-017-nautobot-point-unique-reconciliation.md`, `ARCHITECTURE.md` §12, §13, §15, §16)** :
   - Nouvel ADR (statut : proposé) : règles de décision, tranche minimale et types d'écart, liste fermée hors périmètre, sécurité, répartition des responsabilités, emplacement des oracles, dégradation si Nautobot est indisponible.

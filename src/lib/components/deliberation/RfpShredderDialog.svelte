@@ -30,8 +30,8 @@ Le raccordement au réseau opérateur exige une redondance de synchronisation IE
 
 	function loadSample() {
 		rfpText = SAMPLE_TEXT;
-		documentId = 'CCTP-LOT2-ANNEXE-OIV';
-		documentTitle = 'CCTP Lot 2 · Exigences Souveraineté & Latence';
+		documentId = 'CCTP-EXEMPLE-ANNEXE';
+		documentTitle = 'CCTP Exemple · Exigences Souveraineté & Latence';
 	}
 
 	async function handleShred() {

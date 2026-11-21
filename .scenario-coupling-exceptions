@@ -1,0 +1,4 @@
+# Dérogations temporaires au contrôle de couplage (une par ligne) : <chemin> # <raison> (#<issue>)
+# Chaque ligne DOIT encore correspondre à au moins une occurrence : sinon le contrôle échoue (liste à tenir à jour).
+src/lib/domain/artifactProjections.ts # diagramme de motif « S6a » en dur, à migrer vers un gabarit rattaché à l'ontologie (#404)
+src/lib/domain/edp/componentCatalog.ts # catalogue de composants de référence dérivé d'un scénario (groupes ext-mme-lot3 / secgw-lot1), à externaliser (#390)

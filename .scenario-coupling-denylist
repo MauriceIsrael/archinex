@@ -1,0 +1,12 @@
+# Motifs de couplage à un scénario d'exemple, interdits dans la logique de src/ (AGENTS.md §1 « L'exemple n'est jamais la règle »).
+# Appliqués par scripts/check-scenario-coupling.mjs, insensibles à la casse, hors commentaires.
+# Les dérogations (fichier + raison + issue) vivent dans .scenario-coupling-exceptions et doivent rester temporaires.
+#
+# « Lot N » / « LotN » : numéro de lot contractuel d'un dossier précis. Les codes de partition du moteur
+# (LOT-01-SOUV, LOT-02-INFRA…, un domaine d'ingénierie suivi d'un libellé) ne sont PAS visés : (?!-[a-z]).
+# S6a n'est pas listé : c'est un nom d'interface normalisé (vocabulaire du domaine), pas un identifiant de projet.
+\blot[ _-]?[0-9]+\b(?!-[a-z])
+\blulu\b
+\bluludemo\b
+\bdemolulu\b
+org-lot

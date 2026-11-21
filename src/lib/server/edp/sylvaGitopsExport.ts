@@ -320,12 +320,17 @@ export async function exportSylvaWorkloadClusterGitops(
       isolation_level: z.isolation_level,
       proxy_required: z.proxy_required
     })),
-    reconciliation_pivot: {
-      tenant_ref: input.hydratedInventory.reconciliation_graph?.pivot_tenant_id || 'org-lot3-mno',
-      ipsec_tunnel_ref:
-        input.hydratedInventory.reconciliation_graph?.ipsec_tunnels?.[0]?.id ||
-        'tun-ipsec-esp-lot3-secgw1'
-    }
+    // Pivot émis seulement si le graphe de réconciliation en déclare un (aucune valeur par défaut).
+    ...(input.hydratedInventory.reconciliation_graph?.pivot_tenant_id
+      ? {
+          reconciliation_pivot: {
+            tenant_ref: input.hydratedInventory.reconciliation_graph.pivot_tenant_id,
+            ...(input.hydratedInventory.reconciliation_graph.ipsec_tunnels?.[0]?.id
+              ? { ipsec_tunnel_ref: input.hydratedInventory.reconciliation_graph.ipsec_tunnels[0].id }
+              : {})
+          }
+        }
+      : {})
   };
 
   const sanitizedValues = sanitizeManifests(helmValuesPayload) as Record<string, unknown>;

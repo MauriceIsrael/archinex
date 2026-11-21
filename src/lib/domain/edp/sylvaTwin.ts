@@ -1349,7 +1349,7 @@ export function runSylvaDigitalTwinMatrix(options: {
       profileId: targetProfileId,
       faultId: 'power_feed_loss_pdu_a',
       message: `Profil '${targetProfileId}' : la perte de la voie électrique PDU-A provoque une interruption de service (absence de double adduction 2N).`,
-      violatedRequirementId: 'REQ-Lot1-1343'
+      violatedRequirementId: 'REQ-Twin-Power-04'
     });
   }
 

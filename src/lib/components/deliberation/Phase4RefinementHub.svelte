@@ -809,7 +809,7 @@
 							target="_blank"
 							rel="noreferrer"
 							class="inline-flex items-center gap-1 px-2 py-1.5 rounded-lg border bg-muted/40 hover:bg-muted text-[11px] font-semibold text-foreground"
-							title="Voir le Circuit S6a link-ip-lot3-secgw1 dans Nautobot"
+							title="Voir les circuits d'interconnexion dans Nautobot"
 						>
 							<span>Circuits</span>
 							<ExternalLink class="h-3 w-3" />
@@ -819,7 +819,7 @@
 							target="_blank"
 							rel="noreferrer"
 							class="inline-flex items-center gap-1 px-2 py-1.5 rounded-lg border bg-muted/40 hover:bg-muted text-[11px] font-semibold text-foreground"
-							title="Voir le Tunnel IPsec ESP tun-ipsec-esp-lot3-secgw1 et le VPNProfile dans le module VPN Nautobot 2.2+"
+							title="Voir les tunnels IPsec et leurs profils VPN dans le module VPN Nautobot 2.2+"
 							data-testid="phase4-nautobot-vpn-link"
 						>
 							<span>VPN Tunnels</span>
@@ -830,7 +830,7 @@
 							target="_blank"
 							rel="noreferrer"
 							class="inline-flex items-center gap-1 px-2 py-1.5 rounded-lg border bg-muted/40 hover:bg-muted text-[11px] font-semibold text-foreground"
-							title="Voir les Tenants org-lot3-mno & org-lot2-ran dans Nautobot"
+							title="Voir les tenants partenaires dans Nautobot"
 						>
 							<span>Tenants</span>
 							<ExternalLink class="h-3 w-3" />
@@ -951,7 +951,7 @@
 					{/if}
 
 					<!-- Graphe d'Objets Exhaustif & Réconciliation Multi-Domaine (3GPP NRM / TM Forum SID / Nautobot SSoT) -->
-					{#if hydrated.reconciliation_graph}
+					{#if hydrated.reconciliation_graph && [hydrated.reconciliation_graph.partner_organizations, hydrated.reconciliation_graph.external_shadow_nodes, hydrated.reconciliation_graph.internal_mediation_nodes, hydrated.reconciliation_graph.ip_underlay_links, hydrated.reconciliation_graph.ipsec_tunnels, hydrated.reconciliation_graph.service_mediation_flows, hydrated.reconciliation_graph.sla_and_monitoring_contracts].some((a) => Array.isArray(a) && a.length > 0)}
 						{@const rg = hydrated.reconciliation_graph}
 						<div class="p-3 rounded-lg border border-indigo-500/30 bg-indigo-500/5 space-y-2.5 text-[11px]" data-testid="phase4-reconciliation-graph">
 							<div class="flex items-center justify-between gap-2 flex-wrap">
@@ -988,7 +988,7 @@
 									</div>
 								</div>
 								<div class="p-2 rounded border bg-background/80">
-									<div class="font-bold text-muted-foreground uppercase">4. Chaîne Médiation S6a (Lot 3 ↔ Lot 1)</div>
+									<div class="font-bold text-muted-foreground uppercase">4. Chaîne de médiation inter-domaines</div>
 									<div class="font-mono text-foreground mt-0.5">
 										{rg.service_mediation_flows?.[0]?.source_shadow_ref} → {(rg.service_mediation_flows?.[0]?.mandatory_mediation_hops || []).join(' → ')} → {rg.service_mediation_flows?.[0]?.destination_core_ref}
 									</div>
@@ -1246,7 +1246,7 @@
 								: 'bg-muted/30 hover:bg-rose-500/10 border-border text-foreground'}"
 							data-testid="drift-btn-s6a-bypass"
 						>
-							💥 §14 : Flux S6a direct MME-Lot3 → HSS-Lot1 (Bypass DEA)
+							💥 Flux direct sans médiation (contournement d'un bond obligatoire)
 						</button>
 						<button
 							type="button"
@@ -1257,7 +1257,7 @@
 								: 'bg-muted/30 hover:bg-rose-500/10 border-border text-foreground'}"
 							data-testid="drift-btn-orphan-tenant"
 						>
-							💥 Réconciliation : Rupture pivot SLA / NOC Partenaire Lot 3
+							💥 Réconciliation : Rupture pivot SLA / NOC du partenaire
 						</button>
 					</div>
 				</div>

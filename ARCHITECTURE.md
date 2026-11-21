@@ -107,15 +107,18 @@ Un tour d'orchestration (3 tours maximum) enchaîne 4 agents spécialisés :
 Toute objection doit être résolue (`answered` ou `accepted_risk`) par un expert humain habilité avant l'arbitrage.
 
 ### Étape 4 : Calcul Dynamique de la Maturité (`computeMaturity`)
-La maturité d'un sujet n'est plus fixée manuellement : elle est calculée par une fonction pure qui évalue 8 codes de blocage :
-- `MISSING_PROBLEM_STATEMENT` : Problème non formulé.
-- `MISSING_CRITERIA` : Moins de 2 critères définis.
-- `INSUFFICIENT_OPTIONS` : Moins de 2 options formulées.
-- `UNEVALUATED_OPTION` : Option non évaluée sur tous les critères.
-- `OPEN_OBJECTION` : Objection ouverte non résolue dans le débat.
-- `UNRESOLVED_VIOLATION` : Règle doctrinale violée sans dérogation justifiée.
-- `OPEN_BLOCKING_QUESTION` : Question bloquante sans réponse.
-- `COVERAGE_INCOMPLETE` : Référentiel réglementaire projet (`NIS2`, `SecNumCloud`...) non couvert.
+La maturité d'un sujet n'est plus fixée manuellement : elle est calculée par une fonction pure qui distingue **codes bloquants à l'arbitrage** et **alertes / réserves tracées** :
+- **Codes bloquants (`blockers`)** :
+  - `MISSING_PROBLEM_STATEMENT` : Problème non formulé.
+  - `MISSING_CRITERIA` : Moins de 2 critères définis (1 suffit si option unique justifiée).
+  - `INSUFFICIENT_OPTIONS` : Moins de 2 options formulées (sauf option unique justifiée).
+  - `UNEVALUATED_OPTION` : Option non évaluée sur tous les critères.
+  - `OPEN_OBJECTION` : Objection ouverte non résolue dans le débat.
+  - `UNRESOLVED_VIOLATION` : Règle doctrinale violée (`verdict: 'violates'` ou `checkOption` validé) sans dérogation justifiée.
+  - `OPEN_BLOCKING_QUESTION` : Question bloquante sans réponse.
+- **Alertes non bloquantes à l'arbitrage (`warnings`), opposables au scellement** :
+  - `COVERAGE_INCOMPLETE` : Référentiel réglementaire projet (`NIS2`, `SecNumCloud`...) en statut `partial`, `missing` ou `unknown`. Non bloquant à l'arbitrage (la maintenance KB relève de LLMOps), mais enregistré en **réserve de couverture** (`coverageReserves`) sur la décision, reporté dans le HLD/bundle et la RTM, et **bloquant au scellement** (`freezeExport` et `generateArchitectureLockManifest`) pour les statuts `missing`/`unknown` sans acceptation explicite tracée.
+  - `VERIFICATION_VERDICT_UNKNOWN` : Verdict de vérification `unknown` ou non structuré (ne vaut jamais « conforme »).
 
 ### Étape 5 : Arbitrage Humain Opposable (Porte G3)
 Seul un `lead_architect` ou un `domain_expert` habilité sur le domaine du sujet peut prononcer l'arbitrage :

@@ -102,6 +102,14 @@ export interface AssemblySubject {
 			checkedAt: string;
 			unassessedRuleIds: string[];
 			frameworks: string[];
+			coverageReserves?: Array<{
+				frameworkId: string;
+				name?: string;
+				status: 'partial' | 'missing' | 'unknown';
+				validatedCount?: number;
+				expectedCount?: number;
+				hubRevision: string | null;
+			}>;
 			derogation?: {
 				reason: string;
 				acknowledgedAt: string;
@@ -504,12 +512,24 @@ export function assembleEngagementBundle(input: AssemblyInput): EngagementBundle
 			let complianceCheckBundle: BundleComplianceCheck | undefined;
 			if (d.complianceCheck) {
 				const cc = d.complianceCheck;
+				const sortedReserves = [...(cc.coverageReserves || [])]
+					.sort((a, b) => cmp(a.frameworkId, b.frameworkId))
+					.map((r) => ({
+						framework_id: r.frameworkId,
+						...(r.name ? { name: r.name } : {}),
+						status: r.status,
+						...(r.validatedCount !== undefined ? { validated_count: r.validatedCount } : {}),
+						...(r.expectedCount !== undefined ? { expected_count: r.expectedCount } : {}),
+						hub_revision: r.hubRevision ?? null
+					}));
+
 				complianceCheckBundle = {
 					status: cc.status,
 					hub_revision: cc.hubRevision ?? null,
 					checked_at: cc.checkedAt,
 					unassessed_rule_ids: [...(cc.unassessedRuleIds || [])].sort(),
 					frameworks: [...(cc.frameworks || [])].sort(),
+					...(sortedReserves.length > 0 ? { coverage_reserves: sortedReserves } : {}),
 					...(cc.derogation
 						? {
 								derogation: {
@@ -522,6 +542,22 @@ export function assembleEngagementBundle(input: AssemblyInput): EngagementBundle
 							}
 						: {})
 				};
+
+				for (const reserve of sortedReserves) {
+					const ratio =
+						reserve.expected_count !== undefined
+							? ` (${reserve.validated_count ?? 0}/${reserve.expected_count})`
+							: '';
+					const label = `${reserve.name || reserve.framework_id} [${reserve.status}]${ratio}`;
+					consequences.push(`coverage_reserve:${label}`);
+					gaps.push({
+						id: `GAP-COVERAGE-${sub.id}-${reserve.framework_id}`,
+						kind: 'other',
+						subject_id: sub.id,
+						description: `Réserve de couverture réglementaire sur « ${sub.name} » : ${label}.`,
+						blocking: reserve.status === 'missing' || reserve.status === 'unknown'
+					});
+				}
 
 				if (isIncompleteKbCheck) {
 					const detail =

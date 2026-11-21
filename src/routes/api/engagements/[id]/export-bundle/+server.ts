@@ -1,17 +1,14 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { exportEngagementBundle } from '$lib/server/bundleExportService';
+import { authorizeProjectAccess } from '$lib/server/projects/projectAccess';
 import type { ConfidentialityLevel } from '$lib/domain/engagementBundle';
 
 export const POST: RequestHandler = async (event) => {
-	// 1. Authentification stricte par session (jamais par en-tête)
-	const session = event.locals.session;
-	if (!session || !session.user) {
-		return json(
-			{ status: 'error', error: 'Non authentifié : session requise' },
-			{ status: 401 }
-		);
-	}
+	// 1. Authentification stricte par session et contrôle d'accès au projet
+	const auth = await authorizeProjectAccess(event, event.params.id);
+	if (auth.error) return auth.error;
+	const session = auth.session;
 
 	// Un en-tête X-Actor-Email fourni par le client est explicitement ignoré
 	const actorHandle = session.user.name || session.user.email;

@@ -210,7 +210,12 @@ describe('Issue #309 — Exigences du sujet en Phase 2 & recentrage Phase 3', ()
 			const event = {
 				params: { projectId, subjectId },
 				request: new Request(`http://localhost/api/projects/${projectId}/subjects/${subjectId}/workbench`),
-				locals: { user: { id: 'u1', email: 'alice@test.local', role: 'lead_architect' } }
+				locals: {
+					session: {
+						user: { id: 'u1', email: 'alice@test.local', name: 'Alice', role: 'admin' },
+						expires: new Date(Date.now() + 60_000).toISOString()
+					}
+				}
 			} as unknown as Parameters<typeof getWorkbench>[0];
 
 			const res = await getWorkbench(event);

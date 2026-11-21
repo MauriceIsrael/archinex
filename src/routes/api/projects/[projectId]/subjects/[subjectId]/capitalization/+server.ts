@@ -11,6 +11,9 @@ import { UnauthorizedArbitrationError } from '$lib/server/projects/arbitrationDb
 import { authorizeProjectAccess } from '$lib/server/projects/projectAccess';
 
 export const GET: RequestHandler = async (event) => {
+	const auth = await authorizeProjectAccess(event, event.params.projectId);
+	if (auth.error) return auth.error;
+
 	const { subjectId } = event.params;
 	const actor = getActorInfo(event);
 	const url = new URL(event.request.url);

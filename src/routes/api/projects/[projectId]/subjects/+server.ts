@@ -5,7 +5,11 @@ import { CreateSubjectSchema } from '$lib/schemas/projectApiSchemas';
 import { getActorFromEvent } from '$lib/server/projects/actorHelper';
 import { authorizeProjectAccess } from '$lib/server/projects/projectAccess';
 
-export const GET: RequestHandler = async ({ params }) => {
+export const GET: RequestHandler = async (event) => {
+	const auth = await authorizeProjectAccess(event, event.params.projectId);
+	if (auth.error) return auth.error;
+	const { params } = event;
+
 	try {
 		const subjects = await listSubjects(params.projectId);
 		return json({ subjects });

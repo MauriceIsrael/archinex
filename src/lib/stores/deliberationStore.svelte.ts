@@ -108,9 +108,9 @@ class DeliberationStore {
 					}
 				}
 			} catch {}
-			// Chargement différé : si la page SSR initialise déjà le store via initFromDb, on évite un fetch réseau redondant
+			// Chargement différé : uniquement si un utilisateur authentifié est présent (#391)
 			queueMicrotask(() => {
-				if (!this.isHydratedFromDb && this.engagements.length === 0) {
+				if (this.currentUser && !this.isHydratedFromDb && this.engagements.length === 0) {
 					this.loadFromServer();
 				}
 			});
@@ -187,7 +187,15 @@ class DeliberationStore {
 			return;
 		}
 		this.currentUser = user;
+		if (!user) {
+			this.engagements = [];
+			this.isHydratedFromDb = false;
+			return;
+		}
 		this.syncRoleWithWorkspace();
+		if (typeof window !== 'undefined' && !this.isHydratedFromDb && this.engagements.length === 0) {
+			this.loadFromServer();
+		}
 	}
 
 	syncRoleWithWorkspace() {

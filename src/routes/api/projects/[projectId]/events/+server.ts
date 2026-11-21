@@ -1,8 +1,13 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
 import { getDomainEvents } from '$lib/server/projects/projectsDb';
+import { authorizeProjectAccess } from '$lib/server/projects/projectAccess';
 
-export const GET: RequestHandler = async ({ params, url }) => {
+export const GET: RequestHandler = async (event) => {
+	const auth = await authorizeProjectAccess(event, event.params.projectId);
+	if (auth.error) return auth.error;
+
+	const { params, url } = event;
 	try {
 		const since = url.searchParams.get('since') || undefined;
 		const entityType = url.searchParams.get('entityType') || undefined;

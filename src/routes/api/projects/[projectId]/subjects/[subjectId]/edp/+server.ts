@@ -147,7 +147,11 @@ async function loadSubjectContext(subjectId: string, projectIdParam?: string) {
   };
 }
 
-export const GET: RequestHandler = async ({ params, url }) => {
+export const GET: RequestHandler = async (event) => {
+	const auth = await authorizeProjectAccess(event, event.params.projectId);
+	if (auth.error) return auth.error;
+	const { params, url } = event;
+
   const { projectId, subjectId } = params;
   const isEnabled =
     isEdpFeatureEnabled() ||

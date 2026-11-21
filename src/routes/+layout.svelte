@@ -177,7 +177,7 @@
 
   // Suivi en arrière-plan d'un dépouillement RFP en cours si l'utilisateur navigue ailleurs
   $effect(() => {
-    if (typeof window === 'undefined') return;
+    if (typeof window === 'undefined' || !session) return;
     const pollBgAudit = async () => {
       const activeRunId = localStorage.getItem(ACTIVE_FACTORIZATION_RUN_KEY);
       if (!activeRunId) return;
@@ -367,8 +367,8 @@
       {$t('app.title', { default: 'archinex' })}
     </span>
 
-    <!-- Rappel compact de l'engagement actif (cliquable vers /workspaces) -->
-    {#if deliberationStore.activeEngagement}
+    <!-- Rappel compact de l'engagement actif (cliquable vers /workspaces) — masqué aux anonymes (#391) -->
+    {#if session && deliberationStore.activeEngagement?.id}
       <a
         href="/workspaces"
         data-testid="active-engagement-pill"
@@ -387,40 +387,42 @@
 
     <!-- Right-side controls -->
     <div class="ml-auto flex items-center gap-1">
-      <DropdownMenu.Root>
-        <DropdownMenu.Trigger>
-          {#snippet child({ props })}
-            <Button
-              variant="ghost"
-              size="sm"
-              {...props}
-              data-testid="services-status-trigger"
-              class="h-8 gap-1.5 px-2 text-xs text-muted-foreground hover:text-foreground"
-              title="État des services techniques (LLMOps & Document Engine)"
-              aria-label="État des services techniques"
-            >
-              <span
-                class="inline-block h-2 w-2 rounded-full shrink-0 {isAnyServiceChecking
-                  ? 'bg-sky-500 animate-ping'
-                  : areAllServicesConnected
-                    ? 'bg-emerald-500'
-                    : 'bg-amber-500'}"
-              ></span>
-              <span class="hidden lg:inline font-medium">Services</span>
-              <ChevronDown class="h-3 w-3 opacity-60" />
-            </Button>
-          {/snippet}
-        </DropdownMenu.Trigger>
-        <DropdownMenu.Content class="w-64 p-3 space-y-2.5" align="end">
-          <div class="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
-            Services techniques
-          </div>
-          <div class="flex flex-col gap-2">
-            <LLMOpsStatusBadge />
-            <DocumentEngineStatusBadge />
-          </div>
-        </DropdownMenu.Content>
-      </DropdownMenu.Root>
+      {#if session}
+        <DropdownMenu.Root>
+          <DropdownMenu.Trigger>
+            {#snippet child({ props })}
+              <Button
+                variant="ghost"
+                size="sm"
+                {...props}
+                data-testid="services-status-trigger"
+                class="h-8 gap-1.5 px-2 text-xs text-muted-foreground hover:text-foreground"
+                title="État des services techniques (LLMOps & Document Engine)"
+                aria-label="État des services techniques"
+              >
+                <span
+                  class="inline-block h-2 w-2 rounded-full shrink-0 {isAnyServiceChecking
+                    ? 'bg-sky-500 animate-ping'
+                    : areAllServicesConnected
+                      ? 'bg-emerald-500'
+                      : 'bg-amber-500'}"
+                ></span>
+                <span class="hidden lg:inline font-medium">Services</span>
+                <ChevronDown class="h-3 w-3 opacity-60" />
+              </Button>
+            {/snippet}
+          </DropdownMenu.Trigger>
+          <DropdownMenu.Content class="w-64 p-3 space-y-2.5" align="end">
+            <div class="text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+              Services techniques
+            </div>
+            <div class="flex flex-col gap-2">
+              <LLMOpsStatusBadge />
+              <DocumentEngineStatusBadge />
+            </div>
+          </DropdownMenu.Content>
+        </DropdownMenu.Root>
+      {/if}
       <HelpMenu />
       <LanguageSwitcher />
       <ThemeSelector />

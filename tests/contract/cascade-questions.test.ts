@@ -16,6 +16,11 @@ import type { RequestEvent } from '@sveltejs/kit';
 describe('Lot A28 Contract Tests: Cascade de questions, sujets enfants & détection de contestation (#39)', () => {
 	const testProjectId = 'test-proj-cascade-39';
 	const testSubjectId = 'sub-parent-ha-39';
+	const testLocals = {
+		session: {
+			user: { id: 'user-architect-39', email: 'arch39@archinex.local', name: 'Architect 39', role: 'admin' }
+		}
+	};
 
 	beforeAll(async () => {
 		await prisma.project.deleteMany({ where: { id: testProjectId } });
@@ -216,12 +221,6 @@ describe('Lot A28 Contract Tests: Cascade de questions, sujets enfants & détect
 			}
 		};
 
-		const testLocals = {
-			session: {
-				user: { id: 'user-architect-39', email: 'arch39@archinex.local', name: 'Architect 39', role: 'admin' }
-			}
-		};
-
 		// 1. Attempt to close mandatory question without justification -> 400
 		const badRequestEvent = {
 			locals: testLocals,
@@ -304,6 +303,7 @@ describe('Lot A28 Contract Tests: Cascade de questions, sujets enfants & détect
 
 		// GET cascade endpoint returns treeSeries and contestation
 		const getEvent = {
+			locals: testLocals,
 			params: { projectId: testProjectId, subjectId: testSubjectId },
 			request: new Request('http://localhost')
 		} as unknown as RequestEvent;
@@ -383,6 +383,7 @@ describe('Lot A28 Contract Tests: Cascade de questions, sujets enfants & détect
 
 		// 1. Appel sur le sujet parent : retourne discoveryTree avec enfants + petits-enfants
 		const parentEvent = {
+			locals: testLocals,
 			params: { projectId: testProjectId, subjectId: testSubjectId },
 			request: new Request('http://localhost')
 		} as unknown as RequestEvent;
@@ -400,6 +401,7 @@ describe('Lot A28 Contract Tests: Cascade de questions, sujets enfants & détect
 
 		// 2. Appel sur le sous-sujet enfant : remonte le parent dans ancestors
 		const childEvent = {
+			locals: testLocals,
 			params: { projectId: testProjectId, subjectId: childSplitId },
 			request: new Request('http://localhost')
 		} as unknown as RequestEvent;
@@ -411,6 +413,7 @@ describe('Lot A28 Contract Tests: Cascade de questions, sujets enfants & détect
 
 		// 3. Sujet non relié : aucun fait ne doit fuir depuis dec-testSubjectId
 		const unrelatedEvent = {
+			locals: testLocals,
 			params: { projectId: testProjectId, subjectId: 'sub-unrelated-os-39' },
 			request: new Request('http://localhost')
 		} as unknown as RequestEvent;

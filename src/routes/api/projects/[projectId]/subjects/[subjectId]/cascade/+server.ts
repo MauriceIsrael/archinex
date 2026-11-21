@@ -6,8 +6,13 @@ import {
 	getDiscoveryTreeForSubject
 } from '$lib/server/cascade/cascadeService';
 import { buildDiscoveryTreeData } from '$lib/domain/cascade';
+import { authorizeProjectAccess } from '$lib/server/projects/projectAccess';
 
-export const GET: RequestHandler = async ({ params }) => {
+export const GET: RequestHandler = async (event) => {
+	const auth = await authorizeProjectAccess(event, event.params.projectId);
+	if (auth.error) return auth.error;
+	const { params } = event;
+
 	const { projectId, subjectId } = params;
 
 	try {

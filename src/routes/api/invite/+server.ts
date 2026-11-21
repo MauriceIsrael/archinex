@@ -1,6 +1,7 @@
 import { json, error } from '@sveltejs/kit';
 import { createInvitation, listInvitations, deleteInvitation } from '$lib/server/invitations';
 import { sendInvitationEmail } from '$lib/server/mailer';
+import { authorizeProjectAccess } from '$lib/server/projects/projectAccess';
 import type { RequestHandler } from './$types';
 import { z } from 'zod';
 
@@ -15,7 +16,10 @@ const InviteSchema = z.object({
 });
 
 // GET: Lister les invitations
-export const GET: RequestHandler = async ({ url }) => {
+export const GET: RequestHandler = async ({ url, locals }) => {
+	if (!locals.session?.user) {
+		return json({ status: 'error', error: 'Non authentifié : session requise' }, { status: 401 });
+	}
 	const email = url.searchParams.get('email') || undefined;
 	const status = url.searchParams.get('status') || undefined;
 	const invitations = listInvitations({ email, status });
@@ -23,7 +27,11 @@ export const GET: RequestHandler = async ({ url }) => {
 };
 
 // POST: Envoyer une nouvelle invitation
-export const POST: RequestHandler = async ({ request, url, locals }) => {
+export const POST: RequestHandler = async (event) => {
+	const { request, url, locals } = event;
+	if (!locals.session?.user) {
+		return json({ status: 'error', error: 'Non authentifié : session requise' }, { status: 401 });
+	}
 	const body = await request.json().catch(() => ({}));
 	const result = InviteSchema.safeParse(body);
 
@@ -32,7 +40,12 @@ export const POST: RequestHandler = async ({ request, url, locals }) => {
 		throw error(400, msg);
 	}
 
-	const inviterName = locals.session?.user?.name || 'Lead Architect';
+	if (result.data.projectId) {
+		const auth = await authorizeProjectAccess(event, result.data.projectId);
+		if (auth.error) return auth.error;
+	}
+
+	const inviterName = locals.session.user.name || locals.session.user.email;
 
 	const invitation = createInvitation({
 		...result.data,
@@ -54,7 +67,10 @@ export const POST: RequestHandler = async ({ request, url, locals }) => {
 };
 
 // DELETE: Révoquer une invitation
-export const DELETE: RequestHandler = async ({ request, url }) => {
+export const DELETE: RequestHandler = async ({ request, url, locals }) => {
+	if (!locals.session?.user) {
+		return json({ status: 'error', error: 'Non authentifié : session requise' }, { status: 401 });
+	}
 	const body = await request.json().catch(() => ({}));
 	const id = body.id || url.searchParams.get('id');
 	if (!id) {

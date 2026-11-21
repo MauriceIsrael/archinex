@@ -6,7 +6,11 @@ import { StartDebateSchema } from '$lib/schemas/debateApiSchemas';
 import { getActorInfo } from '$lib/server/projects/actorHelper';
 import { authorizeProjectAccess } from '$lib/server/projects/projectAccess';
 
-export const GET: RequestHandler = async ({ params }) => {
+export const GET: RequestHandler = async (event) => {
+	const auth = await authorizeProjectAccess(event, event.params.projectId);
+	if (auth.error) return auth.error;
+	const { params } = event;
+
 	const { subjectId } = params;
 
 	try {

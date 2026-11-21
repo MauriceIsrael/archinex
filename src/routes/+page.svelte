@@ -152,111 +152,138 @@
 			</div>
 		</div>
 
-		<!-- Barre de filtre interactif & Recherche -->
-		<div class="pt-2 border-t flex flex-col sm:flex-row sm:items-center justify-between gap-3">
-			<div class="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
-				<span class="text-xs font-semibold text-muted-foreground flex items-center gap-1 shrink-0">
-					<Filter class="h-3.5 w-3.5" />
-					Type :
-				</span>
+		{#if session}
+			<!-- Barre de filtre interactif & Recherche -->
+			<div class="pt-2 border-t flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+				<div class="flex items-center gap-2 overflow-x-auto pb-1 sm:pb-0">
+					<span class="text-xs font-semibold text-muted-foreground flex items-center gap-1 shrink-0">
+						<Filter class="h-3.5 w-3.5" />
+						Type :
+					</span>
 
-				<button
-					type="button"
-					onclick={() => (selectedTypeFilter = 'all')}
-					class="px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors shrink-0 {selectedTypeFilter === 'all' ? 'bg-primary text-primary-foreground' : 'bg-muted/50 hover:bg-muted text-muted-foreground'}"
-				>
-					Tous ({overviewSummary.totalEngagements})
-				</button>
-
-				<button
-					type="button"
-					onclick={() => (selectedTypeFilter = 'project_rfp')}
-					class="px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors shrink-0 {selectedTypeFilter === 'project_rfp' ? 'bg-amber-600 text-white' : 'bg-muted/50 hover:bg-muted text-muted-foreground'}"
-				>
-					RFP Client ({overviewSummary.engagementsByType.project_rfp})
-				</button>
-
-				<button
-					type="button"
-					onclick={() => (selectedTypeFilter = 'generic_blueprint')}
-					class="px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors shrink-0 {selectedTypeFilter === 'generic_blueprint' ? 'bg-blue-600 text-white' : 'bg-muted/50 hover:bg-muted text-muted-foreground'}"
-				>
-					Blueprints ({overviewSummary.engagementsByType.generic_blueprint})
-				</button>
-
-				{#if overviewSummary.engagementsByType.audit_resilience > 0}
 					<button
 						type="button"
-						onclick={() => (selectedTypeFilter = 'audit_resilience')}
-						class="px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors shrink-0 {selectedTypeFilter === 'audit_resilience' ? 'bg-emerald-600 text-white' : 'bg-muted/50 hover:bg-muted text-muted-foreground'}"
+						onclick={() => (selectedTypeFilter = 'all')}
+						class="px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors shrink-0 {selectedTypeFilter === 'all' ? 'bg-primary text-primary-foreground' : 'bg-muted/50 hover:bg-muted text-muted-foreground'}"
 					>
-						Audits ({overviewSummary.engagementsByType.audit_resilience})
+						Tous ({overviewSummary.totalEngagements})
 					</button>
-				{/if}
+
+					<button
+						type="button"
+						onclick={() => (selectedTypeFilter = 'project_rfp')}
+						class="px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors shrink-0 {selectedTypeFilter === 'project_rfp' ? 'bg-amber-600 text-white' : 'bg-muted/50 hover:bg-muted text-muted-foreground'}"
+					>
+						RFP Client ({overviewSummary.engagementsByType.project_rfp})
+					</button>
+
+					<button
+						type="button"
+						onclick={() => (selectedTypeFilter = 'generic_blueprint')}
+						class="px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors shrink-0 {selectedTypeFilter === 'generic_blueprint' ? 'bg-blue-600 text-white' : 'bg-muted/50 hover:bg-muted text-muted-foreground'}"
+					>
+						Blueprints ({overviewSummary.engagementsByType.generic_blueprint})
+					</button>
+
+					{#if overviewSummary.engagementsByType.audit_resilience > 0}
+						<button
+							type="button"
+							onclick={() => (selectedTypeFilter = 'audit_resilience')}
+							class="px-2.5 py-1 rounded-lg text-xs font-semibold transition-colors shrink-0 {selectedTypeFilter === 'audit_resilience' ? 'bg-emerald-600 text-white' : 'bg-muted/50 hover:bg-muted text-muted-foreground'}"
+						>
+							Audits ({overviewSummary.engagementsByType.audit_resilience})
+						</button>
+					{/if}
+				</div>
+
+				<!-- Champ de recherche rapide -->
+				<div class="relative sm:w-64">
+					<Search class="h-3.5 w-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
+					<input
+						type="text"
+						bind:value={searchQuery}
+						placeholder="Filtrer un projet..."
+						class="w-full text-xs pl-8 pr-3 py-1.5 rounded-lg border bg-background placeholder:text-muted-foreground focus:outline-hidden focus:ring-1 focus:ring-primary"
+					/>
+				</div>
+			</div>
+		{/if}
+	</div>
+
+	{#if session}
+		<!-- ═════════════════════════════════════════════════════════════════════════ -->
+		<!-- 0. INDICATEUR DE SANTÉ DES CONTRÔLES & CLAUSES KB (CHECKS:)               -->
+		<!-- ═════════════════════════════════════════════════════════════════════════ -->
+		{#if data.kbClausesHealth}
+			<KbClausesHealthBanner health={data.kbClausesHealth} />
+		{/if}
+
+		<!-- ═════════════════════════════════════════════════════════════════════════ -->
+		<!-- 1. BANDEAU DE SYNTHÈSE EXÉCUTIVE (KPIS CLÉS)                               -->
+		<!-- ═════════════════════════════════════════════════════════════════════════ -->
+		<GlobalKpiCards summary={overviewSummary} />
+
+		<!-- ═════════════════════════════════════════════════════════════════════════ -->
+		<!-- 1b. TOP 5 DES OPPORTUNITÉS DE FRUGALITÉ (COÛT VS COMPROMIS TECHNIQUE)     -->
+		<!-- ═════════════════════════════════════════════════════════════════════════ -->
+		<FrugalityOpportunitiesCard opportunities={data.frugalityOpportunities} />
+
+		<!-- ═════════════════════════════════════════════════════════════════════════ -->
+		<!-- 2. TAILLE ET AVANCEMENT DÉTAILLÉ DES ENGAGEMENTS (TABLEAU COMPARATIF)      -->
+		<!-- ═════════════════════════════════════════════════════════════════════════ -->
+		<EngagementsSizeTable
+			engagements={displayedEngagements}
+			selectedType={selectedTypeFilter}
+		/>
+
+		<!-- ═════════════════════════════════════════════════════════════════════════ -->
+		<!-- 3. DEUX VOLETS CÔTE À CÔTE : CHARGE ÉQUIPES & VIGILANCE ÉPISTÉMIQUE       -->
+		<!-- ═════════════════════════════════════════════════════════════════════════ -->
+		<div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
+			<!-- GAUCHE : Monopolisation des Équipes & Radar (7 cols) -->
+			<div class="lg:col-span-7">
+				<TeamMonopolizationCard teams={overviewSummary.teams} />
 			</div>
 
-			<!-- Champ de recherche rapide -->
-			<div class="relative sm:w-64">
-				<Search class="h-3.5 w-3.5 absolute left-2.5 top-1/2 -translate-y-1/2 text-muted-foreground" />
-				<input
-					type="text"
-					bind:value={searchQuery}
-					placeholder="Filtrer un projet..."
-					class="w-full text-xs pl-8 pr-3 py-1.5 rounded-lg border bg-background placeholder:text-muted-foreground focus:outline-hidden focus:ring-1 focus:ring-primary"
+			<!-- DROITE : Alertes & Points d'Attention Épistémiques (5 cols) -->
+			<div class="lg:col-span-5">
+				<EpistemicAlertsCard
+					alerts={overviewSummary.epistemicAlerts}
+					totalOverrunsKiloEuros={overviewSummary.totalFinancialOverrunsKiloEuros}
 				/>
 			</div>
 		</div>
-	</div>
 
-	<!-- ═════════════════════════════════════════════════════════════════════════ -->
-	<!-- 0. INDICATEUR DE SANTÉ DES CONTRÔLES & CLAUSES KB (CHECKS:)               -->
-	<!-- ═════════════════════════════════════════════════════════════════════════ -->
-	<KbClausesHealthBanner health={data.kbClausesHealth} />
-
-	<!-- ═════════════════════════════════════════════════════════════════════════ -->
-	<!-- 1. BANDEAU DE SYNTHÈSE EXÉCUTIVE (KPIS CLÉS)                               -->
-	<!-- ═════════════════════════════════════════════════════════════════════════ -->
-	<GlobalKpiCards summary={overviewSummary} />
-
-	<!-- ═════════════════════════════════════════════════════════════════════════ -->
-	<!-- 1b. TOP 5 DES OPPORTUNITÉS DE FRUGALITÉ (COÛT VS COMPROMIS TECHNIQUE)     -->
-	<!-- ═════════════════════════════════════════════════════════════════════════ -->
-	<FrugalityOpportunitiesCard opportunities={data.frugalityOpportunities} />
-
-	<!-- ═════════════════════════════════════════════════════════════════════════ -->
-	<!-- 2. TAILLE ET AVANCEMENT DÉTAILLÉ DES ENGAGEMENTS (TABLEAU COMPARATIF)      -->
-	<!-- ═════════════════════════════════════════════════════════════════════════ -->
-	<EngagementsSizeTable
-		engagements={displayedEngagements}
-		selectedType={selectedTypeFilter}
-	/>
-
-	<!-- ═════════════════════════════════════════════════════════════════════════ -->
-	<!-- 3. DEUX VOLETS CÔTE À CÔTE : CHARGE ÉQUIPES & VIGILANCE ÉPISTÉMIQUE       -->
-	<!-- ═════════════════════════════════════════════════════════════════════════ -->
-	<div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-stretch">
-		<!-- GAUCHE : Monopolisation des Équipes & Radar (7 cols) -->
-		<div class="lg:col-span-7">
-			<TeamMonopolizationCard teams={overviewSummary.teams} />
+		<!-- ═════════════════════════════════════════════════════════════════════════ -->
+		<!-- 4. DYNAMIQUE & GROSSISSEMENT DE LA BASE DE CONNAISSANCE COMMUNE           -->
+		<!-- ═════════════════════════════════════════════════════════════════════════ -->
+		<KnowledgeGrowthChart
+			growthPoints={overviewSummary.knowledgeGrowth}
+			categories={overviewSummary.knowledgeCategories}
+			crossProjectReusePct={overviewSummary.crossProjectReusePct}
+			totalDocuments={overviewSummary.totalKnowledgeDocuments}
+			totalClauses={overviewSummary.totalClauses}
+		/>
+	{:else}
+		<div class="rounded-2xl border bg-card p-8 text-center space-y-4">
+			<div class="mx-auto flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10 text-primary">
+				<ShieldCheck class="h-6 w-6" />
+			</div>
+			<div class="space-y-1">
+				<h2 class="text-lg font-semibold text-foreground">Authentification requise</h2>
+				<p class="text-sm text-muted-foreground max-w-md mx-auto">
+					Connectez-vous pour accéder à vos espaces de travail, engagements d'architecture et tableaux de gouvernance.
+				</p>
+			</div>
+			<div>
+				<a
+					href="/login?redirectTo=/"
+					class="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-primary text-primary-foreground hover:bg-primary/90 font-semibold text-sm transition-colors"
+				>
+					<LogIn class="h-4 w-4" />
+					<span>Se connecter</span>
+				</a>
+			</div>
 		</div>
-
-		<!-- DROITE : Alertes & Points d'Attention Épistémiques (5 cols) -->
-		<div class="lg:col-span-5">
-			<EpistemicAlertsCard
-				alerts={overviewSummary.epistemicAlerts}
-				totalOverrunsKiloEuros={overviewSummary.totalFinancialOverrunsKiloEuros}
-			/>
-		</div>
-	</div>
-
-	<!-- ═════════════════════════════════════════════════════════════════════════ -->
-	<!-- 4. DYNAMIQUE & GROSSISSEMENT DE LA BASE DE CONNAISSANCE COMMUNE           -->
-	<!-- ═════════════════════════════════════════════════════════════════════════ -->
-	<KnowledgeGrowthChart
-		growthPoints={overviewSummary.knowledgeGrowth}
-		categories={overviewSummary.knowledgeCategories}
-		crossProjectReusePct={overviewSummary.crossProjectReusePct}
-		totalDocuments={overviewSummary.totalKnowledgeDocuments}
-		totalClauses={overviewSummary.totalClauses}
-	/>
+	{/if}
 </div>

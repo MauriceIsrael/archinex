@@ -205,7 +205,7 @@ export const WORKSPACE_PRESETS: Array<{
 			participants: DEFAULT_PARTICIPANTS,
 			upstreamDocuments: [
 				{
-					title: 'CCTP Lot 1 · Infrastructure Télécom Ferroviaire & Transmission Bord',
+					title: 'CCTP · Infrastructure Télécom Ferroviaire & Transmission Bord',
 					category: 'cctp',
 					categoryLabel: 'CCTP Contractuel',
 					sourceOrAuthor: 'Direction de l\'Ingénierie Ferroviaire (MOA)',

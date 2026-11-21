@@ -208,7 +208,7 @@
 ## 3. Interfaces, Protocoles & Matrice de Flux
 - **Chiffrement & Sécurité** : Chiffrement matériel / logique de bout en bout (suites cryptographiques fortes).
 - **Médiation & Contrôle** : Passerelle dédiée de médiation pour l'isolation et la conformité aux exigences réglementaires.
-- **Séparation des zones** : Cloisonnement strict entre le périmètre Lot 1 et les tiers.
+- **Séparation des zones** : Cloisonnement strict entre le périmètre du projet et les tiers.
 
 ## 4. Exploitation, Supervision & Points de Vigilance
 - **Supervision NOC** : Sondes de télémétrie temps réel et alertes d'intégrité opérationnelle.

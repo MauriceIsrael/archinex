@@ -14,7 +14,7 @@
     "pretest": "prisma generate && svelte-kit sync",
     "check": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json",
     "check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
-    "check:denylist": "node scripts/check-no-project-names.mjs",
+    "check:denylist": "node scripts/check-no-project-names.mjs && node scripts/check-scenario-coupling.mjs",
     "check:sylva": "tsx scripts/check-sylva-golden-rules.ts",
     "changelog:check": "node scripts/consolidate-changelog.mjs --check",
     "changelog:consolidate": "node scripts/consolidate-changelog.mjs",

@@ -183,14 +183,14 @@ describe('EDP Horizon 1 (#241) : GitOps Sylva Natif (#238), Collecte Live Nautob
       (c) => c.path === '/api/vpn/ike-proposals/' && c.method === 'POST'
     );
     expect(ikePost).toBeDefined();
-    expect(ikePost?.body.name).toBe('ike-prop-lot3-aes256gcm-dh20');
+    expect(ikePost?.body.name).toBe('ike-prop-tun-ipsec-esp-lot3-secgw1'); // dérivé de l'identifiant du tunnel (vpnObjectLogicalNames)
     expect(ikePost?.body.encryption_algorithm).toBe('AES-256-GCM');
 
     const ipsecPost = calledEndpoints.find(
       (c) => c.path === '/api/vpn/ipsec-proposals/' && c.method === 'POST'
     );
     expect(ipsecPost).toBeDefined();
-    expect(ipsecPost?.body.name).toBe('ipsec-prop-lot3-esp-aes256gcm');
+    expect(ipsecPost?.body.name).toBe('ipsec-prop-tun-ipsec-esp-lot3-secgw1');
     expect(ipsecPost?.body.protocol).toBe('ESP');
     expect(ipsecPost?.body.encryption_algorithm).toBe('AES-256-GCM');
 
@@ -198,7 +198,7 @@ describe('EDP Horizon 1 (#241) : GitOps Sylva Natif (#238), Collecte Live Nautob
       (c) => c.path === '/api/vpn/vpn-profiles/' && c.method === 'POST'
     );
     expect(profilePost).toBeDefined();
-    expect(profilePost?.body.name).toBe('vpn-prof-interco-lot3-s6a');
+    expect(profilePost?.body.name).toBe('vpn-prof-tun-ipsec-esp-lot3-secgw1');
 
     const tunnelPost = calledEndpoints.find(
       (c) => c.path === '/api/vpn/vpn-tunnels/' && c.method === 'POST'
@@ -216,7 +216,7 @@ describe('EDP Horizon 1 (#241) : GitOps Sylva Natif (#238), Collecte Live Nautob
     // Simuler une instance Nautobot dans laquelle un opérateur a effectué 3 modifications sauvages :
     // 1. Remplacement du serveur Dell PowerEdge R750 par un serveur Whitebox non homologué
     // 2. Suppression du tenant partenaire 'org-lot3-mno' (seul 'org-lot2-ran' subsiste)
-    // 3. Dégradation de la proposition IPsec 'ipsec-prop-lot3-esp-aes256gcm' vers '3DES-CBC'
+    // 3. Dégradation de la proposition IPsec 'ipsec-prop-tun-ipsec-esp-lot3-secgw1' vers '3DES-CBC'
     const mockDriftedNautobotFetch: typeof fetch = async (input) => {
       const url = new URL(String(input));
       if (url.pathname === '/api/status/') {
@@ -262,7 +262,7 @@ describe('EDP Horizon 1 (#241) : GitOps Sylva Natif (#238), Collecte Live Nautob
           JSON.stringify({
             results: [
               {
-                name: 'ipsec-prop-lot3-esp-aes256gcm',
+                name: 'ipsec-prop-tun-ipsec-esp-lot3-secgw1',
                 encryption_algorithm: '3DES-CBC'
               }
             ]

@@ -1,5 +1,5 @@
 import type { Statement, SubjectMaturity } from '$lib/types/epistemic';
-import type { MaturitySubject } from '$lib/domain/maturityBoard';
+import { toSafeCount, type MaturitySubject } from '$lib/domain/maturityBoard';
 import type { TelegraphicDraft } from '$lib/domain/telegraphic';
 
 export interface RetractionCascadeResult {
@@ -180,7 +180,7 @@ export function executeRetractionCascade(params: {
 			return {
 				...sub,
 				level: newLevel,
-				blocking_count: sub.blocking_count + 1,
+				blocking_count: toSafeCount(sub.blocking_count) + 1,
 				last_transition_date: new Date().toISOString()
 			};
 		}

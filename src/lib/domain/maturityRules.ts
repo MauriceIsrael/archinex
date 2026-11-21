@@ -11,6 +11,7 @@ export type MaturityBlockerCode =
 	| 'UNRESOLVED_VIOLATION'
 	| 'OPEN_BLOCKING_QUESTION'
 	| 'COVERAGE_INCOMPLETE'
+	| 'COMPLIANCE_CHECK_INCOMPLETE'
 	| 'SEALED_SUBJECT';
 
 export interface MaturityBlocker {

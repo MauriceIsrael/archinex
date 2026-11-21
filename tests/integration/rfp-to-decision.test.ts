@@ -5,6 +5,8 @@ import { buildEngagementProfileFromWorkspaceInput, type InitialSubjectInput } fr
 import { getEngagementByIdFromDb, saveEngagementToDb } from '$lib/server/engagementsDb';
 import { getSubjectArbitrationContext, recordArbitrationDecision } from '$lib/server/projects/arbitrationDb';
 import { exportEngagementBundle } from '$lib/server/bundleExportService';
+import { buildComplianceMatrix, renderComplianceMatrixMarkdown } from '$lib/domain/complianceMatrix';
+import { requirementBundleId } from '$lib/domain/requirementAudit';
 import { loadHldFragment } from '$lib/server/projects/hldFragmentDb';
 import type { ActorInfo } from '$lib/server/projects/projectsDb';
 
@@ -194,5 +196,125 @@ describe('Du RFP factorisé à la décision formelle', () => {
 		expect(fragment.decision?.retained).toBe('Actif-actif géoredondant');
 		expect(fragment.options.some((o) => o.proposedByModel)).toBe(true);
 		expect(markdown).toContain('### Décision');
+	});
+
+	it('échec fermé (fail-closed) si le Hub KB est injoignable ou laisse des règles non évaluées, sauf dérogation explicite tracée dans le bundle et la matrice', async () => {
+		const subId = subjects[1].id!;
+		const ctx = await getSubjectArbitrationContext(subId);
+		const option = ctx.options[0];
+
+		// Rattacher une exigence au sujet pour vérifier la projection dans la matrice de conformité
+		const reqId = `REQ-KB-${stamp}`;
+		await prisma.requirementSource.create({
+			data: {
+				id: `src-kb-${stamp}`,
+				projectId,
+				title: 'RFP KB Test',
+				sha256: 'a'.repeat(64)
+			}
+		});
+		await prisma.requirement.create({
+			data: {
+				id: reqId,
+				sourceId: `src-kb-${stamp}`,
+				position: 1,
+				clauseRef: '§KB-1',
+				title: 'Contrôle réglementaire obligatoire',
+				text: 'L architecture doit être vérifiée contre les référentiels applicables.',
+				criticality: 'bloquant',
+				proposedDisposition: 'deliberated',
+				proposedBy: '@alice-lead',
+				proposedAt: new Date(),
+				decidedDisposition: 'deliberated',
+				decidedBy: '@alice-lead',
+				decidedAt: new Date()
+			}
+		});
+		await prisma.subject.update({
+			where: { id: subId },
+			data: { requirementRefs: JSON.stringify([requirementBundleId('a'.repeat(64), '§KB-1')]) }
+		});
+
+		const base = {
+			retainedOptionId: option.id,
+			rejected: [],
+			rationale: 'Le RFP impose les sites Tier IV au Luxembourg.',
+			reversibility: 'irreversible' as const
+		};
+
+		// 1. Vérification partielle (règle unassessed) : refusée sans dérogation
+		vi.mocked(llmopsClient.checkOption).mockResolvedValue({
+			offline: false,
+			hub_revision: 'rev-2026-11',
+			verdicts: [{ typed_id: 'control:NIS2-ART21-UNASSESSED', verdict: 'unassessed', message: 'Non évaluable automatiquement.' }]
+		} as never);
+
+		await expect(recordArbitrationDecision(subId, base, lead)).rejects.toMatchObject({
+			name: 'MaturityUnreadyError',
+			blockers: [expect.objectContaining({ code: 'COMPLIANCE_CHECK_INCOMPLETE', targetId: 'partial' })]
+		});
+
+		const partialDecision = await recordArbitrationDecision(
+			subId,
+			{
+				...base,
+				complianceCheckDerogation: {
+					acknowledged: true,
+					reason: 'Revue manuelle effectuée par l’architecte sécurité sur la règle non évaluée.'
+				}
+			},
+			lead
+		);
+		expect(partialDecision.complianceCheck?.status).toBe('partial');
+		expect(partialDecision.complianceCheck?.unassessedRuleIds).toEqual(['control:NIS2-ART21-UNASSESSED']);
+		expect(partialDecision.complianceCheck?.hubRevision).toBe('rev-2026-11');
+
+		// 2. Hub injoignable (offline: true) : refusée sans dérogation
+		vi.mocked(llmopsClient.checkOption).mockResolvedValue({
+			offline: true,
+			verdicts: [{ rule_id: 'RULE-DEFAULT', status: 'unassessed', rationale: 'Hors ligne' }]
+		} as never);
+
+		await expect(recordArbitrationDecision(subId, base, lead)).rejects.toMatchObject({
+			name: 'MaturityUnreadyError',
+			blockers: [expect.objectContaining({ code: 'COMPLIANCE_CHECK_INCOMPLETE', targetId: 'not_checked' })]
+		});
+
+		// 3. Hub injoignable avec dérogation explicite : persistée en not_checked et exportée
+		const offlineDecision = await recordArbitrationDecision(
+			subId,
+			{
+				...base,
+				complianceCheckDerogation: {
+					acknowledged: true,
+					reason: 'Hub LLMOps en maintenance planifiée, arbitrage urgent validé en comité.'
+				}
+			},
+			lead
+		);
+		expect(offlineDecision.complianceCheck?.status).toBe('not_checked');
+		expect(offlineDecision.complianceCheck?.derogation?.reason).toContain('maintenance planifiée');
+
+		const reloadedCtx = await getSubjectArbitrationContext(subId);
+		expect(reloadedCtx.decision?.complianceCheck?.status).toBe('not_checked');
+
+		// 4. Bundle et Matrice de conformité signalent « Vérification KB incomplète » et statut Provisional
+		const { bundle } = await exportEngagementBundle({ projectId, confidentiality: 'internal', actorHandle: '@alice' });
+		const exportedDecision = bundle.data.decisions.find((d) => d.subject_id === subId);
+		expect(exportedDecision?.compliance_check?.status).toBe('not_checked');
+		expect(exportedDecision?.compliance_check?.derogation?.reason).toContain('maintenance planifiée');
+		expect(exportedDecision?.consequences?.some((c) => c.includes('Vérification KB incomplète'))).toBe(true);
+		expect(bundle.data.gaps.some((g) => g.subject_id === subId && g.description.includes('Vérification KB incomplète'))).toBe(true);
+
+		const matrix = buildComplianceMatrix(bundle);
+		const row = matrix.rows.find((r) => r.clauseRef === '§KB-1');
+		expect(row?.status).toBe('Provisional');
+		expect(row?.isProvisional).toBe(true);
+		expect(row?.provisionalReason).toContain('Vérification KB incomplète');
+		const md = renderComplianceMatrixMarkdown(matrix);
+		expect(md).toContain('Vérification KB incomplète');
+
+		// Restaure le mock nominal
+		vi.mocked(llmopsClient.checkOption).mockResolvedValue({ verdicts: [], offline: false } as never);
 	});
 });

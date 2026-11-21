@@ -193,20 +193,42 @@ export function buildComplianceMatrix(bundle: EngagementBundle): ComplianceMatri
 		else {
 			let decStatus = decision.compliance_status;
 			let decRationale = decision.compliance_rationale;
+			let checkStatus = decision.compliance_check?.status;
+			let checkWarning: string | undefined;
 
-			if (!decStatus && decision.consequences) {
+			if (decision.consequences) {
 				for (const c of decision.consequences) {
-					if (c.startsWith('compliance_status:')) {
+					if (!decStatus && c.startsWith('compliance_status:')) {
 						decStatus = c.replace('compliance_status:', '') as ComplianceStatus;
-					} else if (c.startsWith('compliance_rationale:')) {
+					} else if (!decRationale && c.startsWith('compliance_rationale:')) {
 						decRationale = c.replace('compliance_rationale:', '');
+					} else if (!checkStatus && c.startsWith('compliance_check_status:')) {
+						checkStatus = c.replace('compliance_check_status:', '') as 'checked' | 'partial' | 'not_checked';
+					} else if (c.startsWith('compliance_check_warning:')) {
+						checkWarning = c.replace('compliance_check_warning:', '');
 					}
 				}
 			}
 
-			if (decStatus && COMPLIANCE_STATUSES.includes(decStatus)) {
+			if (checkStatus === 'not_checked' || checkStatus === 'partial') {
+				const detail =
+					checkStatus === 'not_checked'
+						? 'Hub KB injoignable'
+						: `${decision.compliance_check?.unassessed_rule_ids?.length ?? 0} règle(s) non évaluée(s)`;
+				const derog = decision.compliance_check?.derogation?.reason
+					? ` — Dérogation : ${decision.compliance_check.derogation.reason}`
+					: '';
+				const kbReason = checkWarning || `Vérification KB incomplète (${detail})${derog}`;
+				status = 'Provisional';
+				isProvisional = true;
+				provisionalReason = kbReason;
+				justification = decRationale ? `${kbReason} · ${decRationale}` : kbReason;
+			} else if (decStatus && COMPLIANCE_STATUSES.includes(decStatus)) {
 				status = decStatus;
 				justification = decRationale || decision.rationale;
+				if (status === 'Provisional') {
+					isProvisional = true;
+				}
 			} else {
 				// Dérivation par défaut : si des violations acceptées existent, partiellement conforme
 				status = 'Compliant';
@@ -216,7 +238,9 @@ export function buildComplianceMatrix(bundle: EngagementBundle): ComplianceMatri
 			// Si des conflits ouverts existent globalement sur l'engagement, il reste provisoire
 			if (openConflictsCount > 0) {
 				isProvisional = true;
-				provisionalReason = `${openConflictsCount} conflit(s) ouvert(s) non arbitré(s) dans le dossier.`;
+				provisionalReason = provisionalReason
+					? `${provisionalReason} ; ${openConflictsCount} conflit(s) ouvert(s) non arbitré(s) dans le dossier.`
+					: `${openConflictsCount} conflit(s) ouvert(s) non arbitré(s) dans le dossier.`;
 			}
 		}
 

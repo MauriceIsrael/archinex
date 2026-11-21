@@ -419,6 +419,7 @@ model Decision {
   arbiterRole        String
   decidedAt          DateTime @default(now())
   acceptedViolations String   @default("[]") // JSON array [{typedId, justification}]
+  complianceCheck    String?  // JSON object DecisionComplianceCheck { status, hubRevision, checkedAt, unassessedRuleIds, frameworks, derogation? }
   kbCandidateIds     String   @default("[]") // JSON array
   version            Int      @default(1)
   

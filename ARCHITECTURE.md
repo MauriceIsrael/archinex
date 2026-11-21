@@ -121,6 +121,7 @@ Seul un `lead_architect` ou un `domain_expert` habilité sur le domaine du sujet
 - Enregistrement des motifs d'écartement pour chaque alternative ;
 - Évaluation de la réversibilité (`reversible`, `costly`, `irreversible`) ;
 - Enregistrement des dérogations acceptées avec justification opposable ;
+- **Vérification réglementaire KB en échec fermé (*fail-closed*)** : chaque arbitrage persiste un bloc opposable `complianceCheck` (`checked` | `partial` | `not_checked`, `hubRevision`, `checkedAt`, `unassessedRuleIds[]`, `frameworks[]`). Si le Hub KB est injoignable (`not_checked`) ou laisse des règles non évaluées (`partial`), la décision est refusée sauf dérogation explicite motivée (« décision sans vérification KB complète »), tracée dans le bundle (`compliance_check` + lacune dédiée) et classée `Provisional` dans la matrice de conformité ;
 - Promotion formelle à `L3_decided` et transformation des énoncés dérivés en `llm-proposed-human-approved`.
 
 ### Étape 6 : Capitalisation Souveraine vers LLMOps (Porte G4)

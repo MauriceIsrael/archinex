@@ -8,6 +8,7 @@
 	import type { Option, Decision } from '$lib/domain/options';
 	import type { ExtractedFact } from '$lib/server/agents/factExtractor';
 	import { explainActionRefusal, getRoleLabel } from '$lib/domain/spaceActor';
+	import ComplianceCheckBanner, { type UiCompliancePayload } from './ComplianceCheckBanner.svelte';
 	import {
 		Gavel,
 		CheckCircle2,
@@ -155,8 +156,54 @@
 		}
 	}
 
+	let quickCompliance = $state<UiCompliancePayload | null>(null);
+	let quickComplianceLoading = $state(false);
+	let quickViolationJustifications = $state<Record<string, string>>({});
+	let quickDerogationAcknowledged = $state(false);
+	let quickDerogationReason = $state('');
+
+	$effect(() => {
+		if (!projectId || !subjectId || options.length === 0 || decision) {
+			quickCompliance = null;
+			quickComplianceLoading = false;
+			return;
+		}
+		const controller = new AbortController();
+		quickComplianceLoading = true;
+		fetch(`/api/projects/${projectId}/subjects/${subjectId}/compliance`, { signal: controller.signal })
+			.then((r) => (r.ok ? r.json() : null))
+			.then((data) => {
+				if (controller.signal.aborted) return;
+				quickCompliance =
+					data?.status === 'ok'
+						? data
+						: { frameworks: [], offline: true, violations: [], unassessedCount: 0, checkStatus: 'not_checked' };
+			})
+			.catch(() => {
+				if (!controller.signal.aborted) {
+					quickCompliance = { frameworks: [], offline: true, violations: [], unassessedCount: 0, checkStatus: 'not_checked' };
+				}
+			})
+			.finally(() => {
+				if (!controller.signal.aborted) quickComplianceLoading = false;
+			});
+		return () => controller.abort();
+	});
+
 	async function handleQuickArbitrate() {
 		if (!selectedQuickOptionId || !quickRationale.trim() || isSubmittingQuickArbitrate) return;
+		const needsDerogation =
+			!quickCompliance ||
+			quickCompliance.offline ||
+			quickCompliance.checkStatus === 'not_checked' ||
+			quickCompliance.checkStatus === 'partial' ||
+			(quickCompliance.unassessedRuleIds?.length ?? 0) > 0 ||
+			quickCompliance.unassessedCount > 0;
+		if (needsDerogation && (!quickDerogationAcknowledged || quickDerogationReason.trim().length < 5)) {
+			assertError =
+				'Vérification réglementaire KB incomplète : cochez la dérogation explicite et saisissez un motif (min. 5 caractères) pour trancher.';
+			return;
+		}
 		isSubmittingQuickArbitrate = true;
 		assertError = '';
 		try {
@@ -165,6 +212,9 @@
 				optionId: o.id,
 				reason: `Écartée au profit de l'option ${selectedQuickOptionId}`
 			}));
+			const acceptedViolations = (quickCompliance?.violations ?? [])
+				.filter((v) => v.optionId === selectedQuickOptionId && v.validated && quickViolationJustifications[v.typedId]?.trim())
+				.map((v) => ({ typedId: v.typedId, justification: quickViolationJustifications[v.typedId].trim() }));
 
 			const res = await fetch(`/api/projects/${projectId}/subjects/${subjectId}/decision`, {
 				method: 'POST',
@@ -173,7 +223,16 @@
 					retainedOptionId: selectedQuickOptionId,
 					rationale: quickRationale.trim(),
 					reversibility: 'reversible',
-					rejected
+					rejected,
+					acceptedViolations,
+					...(quickDerogationAcknowledged
+						? {
+								complianceCheckDerogation: {
+									acknowledged: true,
+									reason: quickDerogationReason.trim()
+								}
+							}
+						: {})
 				})
 			});
 
@@ -279,6 +338,15 @@
 					rows="2"
 					class="w-full text-xs px-2.5 py-1.5 rounded-md border bg-background text-foreground resize-none focus:ring-1 focus:ring-primary focus:outline-none"
 				></textarea>
+
+				<ComplianceCheckBanner
+					compliance={quickCompliance}
+					loading={quickComplianceLoading}
+					selectedOptionId={selectedQuickOptionId}
+					bind:violationJustifications={quickViolationJustifications}
+					bind:derogationAcknowledged={quickDerogationAcknowledged}
+					bind:derogationReason={quickDerogationReason}
+				/>
 
 				<button
 					type="button"

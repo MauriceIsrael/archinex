@@ -8,6 +8,13 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Finalisation des Vues Éditoriales SVG & Directeur Éditorial LLM (#421, #423, #424, #427)
+- Ajout de la vue **Architecture Delta** (`Before · Changes · After` sur grille `4px` synchronisée, stabilité des coordonnées `unchanged` et registre central `ADDED/REMOVED/CHANGED/MOVED/REWIRED`, #421), intégrée en parallèle de Mermaid dans `ImpactGraphExplorer.svelte`.
+- Ajout des vues de délibération & conformité KB (#423) : **Traces KB Appariées** (avec marqueur de 1re divergence et distinction explicite de `UNVERIFIED`), **Couches Compensatoires** (avec risque résiduel explicite), **Matrice Thermique de Décision** pondérée et **Radar Multi-Critères** (`decisionRadar.ts`), intégrées dans `ArtifactRegenerationHub.svelte`.
+- Ajout de 3 vues complémentaires à forte valeur ajoutée : **Cycle de Vie de Maturité L0–L5** (`lifecyclePhaseMap.ts`, patron §9 avec bande d'interruption/reprise et issues terminales), **Séquence d'Homologation & Déploiement** (`deploymentSequenceSvg.ts`, avec fragment combiné `ALT`), et **Grille d'Unités de Couverture** (`coverageUnitGrid.ts`, 1 tuile cliquable = 1 exigence pour les dossiers denses).
+- Ajout du **Directeur Éditorial assisté par LLM** (`editorialRecommenderAgent.ts` + endpoint authentifié `POST /api/projects/[projectId]/subjects/[subjectId]/editorial-recommendations`, #427) avec validation stricte des `focalId` et repli déterministe automatique.
+- Enrichissement des vérificateurs CI (`verifyArchitectureDeltaSvg`, `verifyRequirementTraceabilitySvg`) et de l'empaquetage HLD (`buildEditorialHldPackage`, #424).
+
 ### Vues Éditoriales SVG Déterministes (Pilote `diagram-design` — #418, #419, #420, #422)
 - Ajout du moteur de rendu SVG éditorial déterministe `src/lib/domain/editorialSvg/` (grille stricte `4px`, zéro ombre, connecteurs orthogonaux à coudes arrondis, rôles de couleurs WCAG AA ≥ 4.5:1 en thèmes `light`, `dark` et `full-editorial`, contrat d'accessibilité `role="img"` + `<title>`/`<desc>`, et les 4 Cadrans d'adaptation `Size` / `Detail` / `Audience` / `Skin` avec *Fidelity Ledger*).
 - Implémentation de deux vues pilotes déterministes : **Décomposition en blocs traçables (TOGAF)** avec attributs `data-block-*` et export sidecar `.registry.json`, et **Traçabilité Exigences × Conception × Preuve** avec contrat explicite `data-trace-missing="true"` pour tout maillon absent.

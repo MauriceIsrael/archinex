@@ -12,19 +12,8 @@ import type {
   OracleVerdictRecord,
   OracleVerdictSource
 } from './driftTypes';
+import { evaluateStatusObservation } from '../../domain/edp/fieldOwnership.js';
 import { unscopeNautobotName } from './nautobotSync';
-
-const REGRESSED_STATUSES = new Set([
-  'offline',
-  'failed',
-  'decommissioning',
-  'decommissioned',
-  'retired',
-  'quarantined',
-  'deprecated'
-]);
-
-const HEALTHY_STATUSES = new Set(['planned', 'staged', 'active']);
 
 /**
  * Sérialisation JSON canonique (clés triées récursivement) pour calculer des empreintes
@@ -189,12 +178,8 @@ export function hasTraceabilityMarkers(markers: ArchinexTraceMarkers): boolean {
  * (ex. Planned/Active → Offline/Failed/Decommissioning/Retired, ou Active → Planned).
  */
 export function isStatusRegression(expectedStatus: string, observedStatus: string): boolean {
-  const exp = String(expectedStatus || '').trim().toLowerCase();
-  const obs = String(observedStatus || '').trim().toLowerCase();
-  if (!exp || !obs || exp === obs) return false;
-  if (HEALTHY_STATUSES.has(exp) && REGRESSED_STATUSES.has(obs)) return true;
-  if (exp === 'active' && (obs === 'planned' || obs === 'staged')) return true;
-  return false;
+  // Définition unique du cycle de vie : registre de propriété (ADR-017, #398).
+  return evaluateStatusObservation(expectedStatus, observedStatus).verdict === 'regression';
 }
 
 /**

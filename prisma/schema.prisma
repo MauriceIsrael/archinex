@@ -419,6 +419,7 @@ model Decision {
   arbiterRole        String
   decidedAt          DateTime @default(now())
   acceptedViolations String   @default("[]") // JSON array [{typedId, justification}]
+  complianceCheck    String?  // JSON object DecisionComplianceCheck { status, hubRevision, checkedAt, unassessedRuleIds, frameworks, derogation? }
   kbCandidateIds     String   @default("[]") // JSON array
   version            Int      @default(1)
   
@@ -694,4 +695,80 @@ model FactVocabularyEntry {
   updatedAt       DateTime @updatedAt
 
   @@map("fact_vocabulary_entries")
+}
+
+// ── Détection de dérive (DriftFinding) & Réconciliation Nautobot (#377) ─────
+
+/// Écart typé et persisté entre l'intention figée (EDP) et l'état observé dans Nautobot.
+/// Un objet non marqué `archinex_*` est enregistré avec `outOfDecision = true` (jamais ignoré).
+model DriftFinding {
+  id            String   @id @default(cuid())
+  projectId     String
+  subjectId     String?  // null si objet non marqué ("hors décision")
+  decisionId    String?  // null si objet non marqué ("hors décision")
+  clauseRefs    String   @default("[]") // JSON string[]
+  objectType    String   // ex. dcim.device, tenancy.tenant, ipam.prefix, ipam.vlan, ipam.ipaddress
+  objectId      String   // identifiant Nautobot ou nom canonique
+  objectRef     String   // JSON { type, id, name? }
+  attributeKey  String   @default("") // attribut ou dimension concernée pour déduplication fine
+  fingerprint   String   // SHA-256 canonique (objectType|objectId|kind|attributeKey)
+  kind          String   // missing | unexpected | attribute_mismatch | status_regression
+  outOfDecision Boolean  @default(false) // true si objet sans marquage archinex_*
+  expected      String   @default("null") // JSON valeur/état attendu
+  observed      String   @default("null") // JSON valeur/état observé
+  severity      String   @default("medium") // low | medium | high | critical
+  firstSeenAt   DateTime @default(now())
+  lastSeenAt    DateTime @default(now())
+  state         String   @default("open") // open | remediated | amended | waived
+  sourceEvent   String   // identifiant de l'événement webhook ou du pull de réconciliation
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  @@unique([projectId, fingerprint])
+  @@index([projectId, state])
+  @@index([subjectId, state])
+  @@index([decisionId])
+  @@map("drift_findings")
+}
+
+/// Reçu d'idempotence des événements webhook entrants (empêche le double traitement sur rejeu).
+model WebhookEventReceipt {
+  id          String    @id @default(cuid())
+  provider    String    @default("nautobot")
+  eventId     String
+  projectId   String
+  modelName   String
+  eventType   String
+  status      String    @default("accepted") // accepted | processing | processed | failed
+  findingIds  String    @default("[]") // JSON string[]
+  error       String?
+  receivedAt  DateTime  @default(now())
+  processedAt DateTime?
+
+  @@unique([provider, eventId])
+  @@index([projectId, receivedAt])
+  @@map("webhook_event_receipts")
+}
+
+/// Verdict d'évaluation de l'oracle stocké à côté de l'EDP (sans jamais muter l'intention figée).
+model EdpOracleVerdict {
+  id                  String   @id @default(cuid())
+  edpId               String
+  projectId           String
+  subjectId           String
+  decisionId          String
+  verdict             String   // compliant | violated | error | unknown
+  source              String   // nautobot_webhook | nautobot_live | local_simulated | local_fallback
+  provenance          String   // origine détaillée (ex. webhook_event, pull live, simulation)
+  intentHash          String?  // empreinte SHA-256 de l'intention figée comparée
+  ontologyFingerprint String?
+  webhookEventId      String?
+  violations          String   @default("[]") // JSON string[]
+  detailedViolations  String   @default("[]") // JSON array
+  driftFindingIds     String   @default("[]") // JSON string[]
+  verifiedAt          DateTime @default(now())
+
+  @@index([edpId, verifiedAt])
+  @@index([projectId, subjectId, verifiedAt])
+  @@map("edp_oracle_verdicts")
 }

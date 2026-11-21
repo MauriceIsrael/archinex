@@ -8,6 +8,54 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Détection de dérive typée (`DriftFinding`) et webhook Nautobot authentifié par HMAC (#377)
+- **Persistance Prisma (`prisma/schema.prisma`)** :
+  - Ajout des modèles `DriftFinding` (`drift_findings`), `WebhookEventReceipt` (`webhook_event_receipts`) et `EdpOracleVerdict` (`edp_oracle_verdicts`) pour persister les écarts typés (`missing`, `unexpected`, `attribute_mismatch`, `status_regression`), l'idempotence webhook par identifiant d'événement et les verdicts oracle à côté de l'EDP sans jamais modifier l'intention figée.
+- **Service de dérive et authentification HMAC (`src/lib/server/edp/driftTypes.ts`, `driftService.ts`, `nautobotWebhookAuth.ts`, `nautobotWebhookProcessor.ts`, `nautobotSync.ts`)** :
+  - Comparaison générique entre l'intention figée (EDP, `intent_hash`) et l'état Nautobot observé, avec distinction explicite des objets non marqués `archinex_*` (`outOfDecision: true`).
+  - Vérification cryptographique HMAC (SHA-512 / SHA-256 en temps constant) par secret de projet (`strategy.nautobot.webhookSecret` ou variable d'environnement par projet), échec fermé en `401` sans effet de bord.
+  - Enrichissement de `pullLiveInventoryFromNautobot` avec `findings: DriftFindingDraft[]` typés en plus de `detectedDrifts`.
+- **Route Webhook & Garde Hooks (`src/routes/api/webhooks/nautobot/+server.ts`, `src/hooks.server.ts`, `src/routes/api/projects/[projectId]/subjects/[subjectId]/edp/+server.ts`)** :
+  - Ajout du préfixe `/api/webhooks/` aux exigences d'authentification (`requiresWebhookSignature` / `requiresAuthentication`), réponse rapide (`202 Accepted`) avec évaluation oracle asynchrone, suppression complète du couplage S6a et des `catch` silencieux (remontée journal + `500` sur erreur de persistance).
+- **Tests & Documentation** :
+  - Ajout de `tests/integration/nautobot-drift-webhook.test.ts`, extension du test d'énumération dans `tests/contract/actor-from-session.test.ts` et mise à jour de `ARCHITECTURE.md`.
+
+### Correctif KPI « NaN » sur le tableau de bord de délibération (#392)
+- **Normalisation unifiée serveur → store (`src/lib/domain/maturityBoard.ts`, `src/lib/server/engagementsDb.ts`, `src/lib/stores/deliberationStore.svelte.ts`)** :
+  - Ajout du mapper typé `normalizeMaturitySubject` / `normalizeMaturitySubjects` et de `toSafeCount` pour convertir de façon homogène les sujets issus du serveur (clés camelCase Prisma `unlocksCount`/`blockingCount` ou objets JSON partiels) en `MaturitySubject` canoniques avec compteurs finis garantis.
+  - Application systématique de la normalisation à la lecture DB (`mapPrismaToEngagementProfile`, `overlayServerSubjects`) et à la frontière du store (`initFromDb`, `switchEngagement`), ainsi que de valeurs par défaut sûres dans `totalUnlocks`, `totalBlocking`, `sortMaturityBoard`, `resolveSubjectArbitration` et `retractation.ts`.
+- **Garde d'affichage & seed démo (`src/lib/components/deliberation/DeliberationDashboardKpis.svelte`, `scripts/seed-demo.ts`)** :
+  - Garde `Number.isFinite` sur l'affichage des KPI `totalUnlocks` et `totalBlocking` pour prévenir tout affichage `NaN`.
+  - Complétion des champs de maturité par défaut sur le sujet de démonstration dans `scripts/seed-demo.ts`.
+- **Tests** :
+  - Ajout de `tests/contract/deliberation-kpi-subject-normalization.test.ts` couvrant la normalisation camelCase/partielle, le calcul des agrégats du store et la garde d'affichage KPI.
+
+### Plafonnement épistémique des arguments `llm-derived` (invariant `verified × llm-derived`)
+- **Domaine & Persistance (`src/lib/domain/debate.ts`, `src/lib/server/projects/debateDb.ts`, `src/lib/server/prismaFactory.ts`, `src/lib/server/agents/verifier.ts`)** :
+  - Ajout de `capArgumentConfidence` (`LLM_DERIVED_MAX_CONFIDENCE = 'designed'`) et rejet explicite de la combinaison `confidence='verified'` × `productionMode='llm-derived'` dans `validateArgument`.
+  - Plafonnement automatique à `designed` avec avertissement journalisé (`console.warn`) dans `createArgument` lorsqu'un agent (`llm-derived`) retourne `confidence: 'verified'`.
+  - Ajout d'un garde-fou Prisma (`$extends`) dans `createPrismaClient` bloquant tout contournement direct (`create`, `createMany`, `createManyAndReturn`, `update`, `updateMany`, `upsert`) de l'invariant `verified × llm-derived` sur `Argument`.
+  - Alignement du prompt système de `verifier.ts` afin de ne plus demander `"confidence": "verified"` au modèle.
+- **Tests & Documentation** :
+  - Ajout de `tests/contract/epistemic-argument-confidence.test.ts` couvrant le domaine, le plafonnement + journalisation dans `createArgument` et le garde-fou Prisma.
+  - Mise à jour de `ARCHITECTURE.md` (§2) précisant que l'invariant `verified × llm-derived` couvre à la fois les énoncés et les arguments.
+
+### Vérification réglementaire KB en échec fermé et trace opposable sur la décision (#382)
+- **Persistance et contrôle fail-closed (`prisma/schema.prisma`, `src/lib/server/compliance/complianceService.ts`, `src/lib/server/projects/arbitrationDb.ts`, `src/lib/schemas/decisionApiSchemas.ts`)** :
+  - Ajout du bloc `complianceCheck` persisté sur `Decision` (`status: checked | partial | not_checked`, `hubRevision`, `checkedAt`, `unassessedRuleIds[]`, `frameworks[]`, `derogation?`).
+  - Passage en **échec fermé (fail-closed)** lors de l'arbitrage (Porte G3) : si le Hub KB est injoignable (`not_checked`) ou laisse des règles applicables non évaluées (`partial`), `recordArbitrationDecision` refuse la décision (`COMPLIANCE_CHECK_INCOMPLETE`) sauf dérogation explicite motivée de l'arbitre (`complianceCheckDerogation`).
+- **Traçabilité dans le dossier scellé et la matrice de conformité (`src/lib/domain/engagementBundle.ts`, `src/lib/domain/bundleAssembly.ts`, `src/lib/domain/bundleVerifier.ts`, `src/lib/domain/complianceMatrix.ts`, `src/lib/server/bundleExportService.ts`)** :
+  - Export de `compliance_check` sur les décisions du bundle (conforme au schéma 1.1) et génération d'une lacune dédiée « Vérification KB incomplète » lorsque le statut est `not_checked` ou `partial`.
+  - Classement automatique en `Provisional` dans la matrice de conformité (Markdown et CSV) avec signalement explicite « Vérification KB incomplète » et motif de dérogation.
+- **Interface utilisateur d'arbitrage (`src/lib/components/deliberation/ComplianceCheckBanner.svelte`, `ArbitrationPanel.svelte`, `OptionsMatrix.svelte`, `DecisionSurveyCard.svelte`)** :
+  - Affichage de l'état de la vérification KB **avant** de trancher avec distinction explicite entre « Hub KB non connecté » et « Hub KB connecté · aucune violation », et saisie guidée de la dérogation explicite motivée.
+- **Tests & Documentation** :
+  - Extension de `tests/integration/rfp-to-decision.test.ts` et `tests/contract/compliance-matrix.test.ts`, et mise à jour de `ARCHITECTURE.md` et `USER_GUIDE.md`.
+
+### Corrigé
+- **Critère L2 → L3 « Vérificateur d’architecture passé » en multi-options (`src/lib/domain/maturityCriteria.ts`, `src/lib/server/projects/maturityCriteriaService.ts`, `src/lib/components/deliberation/SubjectThreadView.svelte`)** :
+  - Une non-conformité détectée par `@verifier` sur une option concurrente (ou rejetée) ne bloque plus le passage au vert du critère tant qu'au moins une option candidate vérifiée est conforme (et que l'option retenue, lorsqu'une décision existe, ne présente pas de violation ouverte).
+
 ### Corrigé
 - **Critère L2 → L3 « Vérificateur d’architecture passé » (`src/lib/domain/maturityCriteria.ts`, `src/lib/server/projects/maturityCriteriaService.ts`)** : introduction du prédicat partagé `hasVerifierPassed()` afin qu'un constat `verification` conforme (`resolution: 'open'`) valide bien le critère, tandis qu'une violation/non-conformité ouverte le maintient bloqué jusqu'à résolution (`answered` ou `accepted_risk`).
 - **Résolution des non-conformités dans le fil (`src/lib/components/deliberation/SubjectMessageBubble.svelte`)** : affichage des actions de clôture / acceptation de risque sur les constats `verification` signalant une non-conformité.

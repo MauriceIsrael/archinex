@@ -690,6 +690,28 @@ export function verifyEngagementBundle(bundle: EngagementBundle): BundleProblem[
 				});
 			}
 		}
+
+		// 7 quater. Trace opposable du contrôle réglementaire KB (fail-closed)
+		if (d.compliance_check) {
+			const VALID_CHECK_STATUSES = ['checked', 'partial', 'not_checked'];
+			const ccWhere = `/data/decisions/${i}/compliance_check`;
+			if (!VALID_CHECK_STATUSES.includes(d.compliance_check.status)) {
+				out.push({
+					code: 'COMPLIANCE_CHECK_INVALID',
+					path: `${ccWhere}/status`,
+					message: `'${d.compliance_check.status}' is not one of ${VALID_CHECK_STATUSES.join(', ')}`
+				});
+			} else if (
+				(d.compliance_check.status === 'not_checked' || d.compliance_check.status === 'partial') &&
+				!(d.compliance_check.derogation?.reason || '').trim()
+			) {
+				out.push({
+					code: 'COMPLIANCE_CHECK_UNJUSTIFIED',
+					path: ccWhere,
+					message: `a '${d.compliance_check.status}' compliance_check requires an explicit derogation reason`
+				});
+			}
+		}
 	});
 
 	// 8. Vie privée : aucun e-mail

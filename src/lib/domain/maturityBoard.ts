@@ -31,6 +31,229 @@ export interface MaturitySubject {
 	proposal?: import('$lib/domain/factorization').SubjectProposal;
 }
 
+/**
+ * Forme brute d'un sujet à la frontière serveur / JSON / store :
+ * accepte aussi bien le format métier snake_case (`MaturitySubject`) que le format Prisma / API camelCase.
+ */
+export interface ServerSubjectLike {
+	id: string;
+	section_ref?: string | null;
+	sectionRef?: string | null;
+	name?: string | null;
+	level?: MaturityLevel | string | null;
+	maturityLevel?: MaturityLevel | string | null;
+	blocking_count?: number | string | null;
+	blockingCount?: number | string | null;
+	unlocks_count?: number | string | null;
+	unlocksCount?: number | string | null;
+	waiting_for_role?: ArchitectRole | string | null;
+	waitingForRole?: ArchitectRole | string | null;
+	relative_effort?: MaturitySubject['relative_effort'] | string | null;
+	relativeEffort?: MaturitySubject['relative_effort'] | string | null;
+	last_transition_date?: string | Date | null;
+	lastTransitionDate?: string | Date | null;
+	updatedAt?: string | Date | null;
+	stall_days?: number | string | null;
+	stallDays?: number | string | null;
+	is_stalled?: boolean | null;
+	isStalled?: boolean | null;
+	dependent_subject_ids?: string[] | string | null;
+	dependentSubjectIds?: string[] | string | null;
+	parent_subject_id?: string | null;
+	parentSubjectId?: string | null;
+	parent_subject_name?: string | null;
+	parentSubjectName?: string | null;
+	awaiting_review?: boolean | null;
+	deliberationStatus?: string | null;
+	foundation_contested?: boolean | null;
+	foundationContested?: boolean | null;
+	requirement_ids?: string[] | string | null;
+	requirementIds?: string[] | string | null;
+	requirementRefs?: string[] | string | null;
+	problem_statement?: string | null;
+	problemStatement?: string | null;
+	nature?: MaturitySubject['nature'] | string | null;
+	depends_on_subject_ids?: string[] | string | null;
+	dependsOnSubjectIds?: string[] | string | null;
+	dependsOn?: string[] | string | null;
+	proposal?: MaturitySubject['proposal'];
+	[key: string]: unknown;
+}
+
+const VALID_MATURITY_LEVELS: ReadonlySet<string> = new Set<MaturityLevel>([
+	'L0_named',
+	'L1_framed',
+	'L2_decomposed',
+	'L3_decided',
+	'L4_specified',
+	'L5_archived'
+]);
+
+const VALID_RELATIVE_EFFORTS: ReadonlySet<string> = new Set<MaturitySubject['relative_effort']>([
+	'XS',
+	'S',
+	'M',
+	'L',
+	'XL'
+]);
+
+const VALID_NATURES: ReadonlySet<string> = new Set(['architecture', 'contractuel', 'organisationnel']);
+
+/**
+ * Convertit une valeur arbitraire en entier fini positif ou nul (`fallback` par défaut, 0).
+ */
+export function toSafeCount(value: unknown, fallback = 0): number {
+	const n =
+		typeof value === 'number'
+			? value
+			: typeof value === 'string' && value.trim() !== ''
+				? Number(value)
+				: NaN;
+	return Number.isFinite(n) && n >= 0 ? Math.trunc(n) : fallback;
+}
+
+function pickSafeCount(...values: unknown[]): number {
+	for (const v of values) {
+		if (typeof v === 'number' && Number.isFinite(v) && v >= 0) return Math.trunc(v);
+		if (typeof v === 'string' && v.trim() !== '') {
+			const parsed = Number(v);
+			if (Number.isFinite(parsed) && parsed >= 0) return Math.trunc(parsed);
+		}
+	}
+	return 0;
+}
+
+function toStringArray(value: unknown): string[] | undefined {
+	if (Array.isArray(value)) {
+		return value.filter((item): item is string => typeof item === 'string');
+	}
+	if (typeof value === 'string' && value.trim().startsWith('[')) {
+		try {
+			const parsed = JSON.parse(value);
+			if (Array.isArray(parsed)) {
+				return parsed.filter((item): item is string => typeof item === 'string');
+			}
+		} catch {
+			return undefined;
+		}
+	}
+	return undefined;
+}
+
+function toIsoDateString(...values: unknown[]): string {
+	for (const v of values) {
+		if (v instanceof Date && Number.isFinite(v.getTime())) {
+			return v.toISOString();
+		}
+		if (typeof v === 'string' && v.trim().length > 0) {
+			return v;
+		}
+	}
+	return new Date().toISOString();
+}
+
+/**
+ * Normalise un sujet brut (format serveur Prisma camelCase ou format JSON snake_case partiel)
+ * vers un `MaturitySubject` canonique avec compteurs finis garantis.
+ */
+export function normalizeMaturitySubject(raw: ServerSubjectLike): MaturitySubject {
+	const rawLevel =
+		typeof raw.level === 'string' && VALID_MATURITY_LEVELS.has(raw.level)
+			? (raw.level as MaturityLevel)
+			: typeof raw.maturityLevel === 'string' && VALID_MATURITY_LEVELS.has(raw.maturityLevel)
+				? (raw.maturityLevel as MaturityLevel)
+				: 'L0_named';
+
+	const rawEffort =
+		typeof raw.relative_effort === 'string' && VALID_RELATIVE_EFFORTS.has(raw.relative_effort)
+			? (raw.relative_effort as MaturitySubject['relative_effort'])
+			: typeof raw.relativeEffort === 'string' && VALID_RELATIVE_EFFORTS.has(raw.relativeEffort)
+				? (raw.relativeEffort as MaturitySubject['relative_effort'])
+				: 'M';
+
+	const dependentSubjectIds =
+		toStringArray(raw.dependent_subject_ids) ?? toStringArray(raw.dependentSubjectIds) ?? [];
+	const requirementIds =
+		toStringArray(raw.requirement_ids) ??
+		toStringArray(raw.requirementIds) ??
+		toStringArray(raw.requirementRefs);
+	const dependsOnSubjectIds =
+		toStringArray(raw.depends_on_subject_ids) ??
+		toStringArray(raw.dependsOnSubjectIds) ??
+		toStringArray(raw.dependsOn);
+
+	const parentSubjectId = raw.parent_subject_id ?? raw.parentSubjectId ?? undefined;
+	const parentSubjectName = raw.parent_subject_name ?? raw.parentSubjectName ?? undefined;
+	const awaitingReview =
+		typeof raw.awaiting_review === 'boolean'
+			? raw.awaiting_review || undefined
+			: raw.deliberationStatus === 'awaiting_review'
+				? true
+				: undefined;
+	const foundationContested =
+		typeof raw.foundation_contested === 'boolean'
+			? raw.foundation_contested
+			: typeof raw.foundationContested === 'boolean'
+				? raw.foundationContested
+				: undefined;
+	const problemStatement =
+		(typeof raw.problem_statement === 'string' && raw.problem_statement.trim()) ||
+		(typeof raw.problemStatement === 'string' && raw.problemStatement.trim()) ||
+		undefined;
+	const nature =
+		typeof raw.nature === 'string' && VALID_NATURES.has(raw.nature)
+			? (raw.nature as MaturitySubject['nature'])
+			: undefined;
+
+	const normalized: MaturitySubject = {
+		id: String(raw.id),
+		section_ref: (raw.section_ref || raw.sectionRef || '§0.0').trim() || '§0.0',
+		name: (raw.name || 'Sujet sans titre').trim() || 'Sujet sans titre',
+		level: rawLevel,
+		blocking_count: pickSafeCount(raw.blocking_count, raw.blockingCount),
+		unlocks_count: pickSafeCount(raw.unlocks_count, raw.unlocksCount),
+		waiting_for_role: ((raw.waiting_for_role || raw.waitingForRole || 'lead_architect') as ArchitectRole),
+		relative_effort: rawEffort,
+		last_transition_date: toIsoDateString(raw.last_transition_date, raw.lastTransitionDate, raw.updatedAt),
+		stall_days: pickSafeCount(raw.stall_days, raw.stallDays),
+		is_stalled:
+			typeof raw.is_stalled === 'boolean'
+				? raw.is_stalled
+				: typeof raw.isStalled === 'boolean'
+					? raw.isStalled
+					: false,
+		dependent_subject_ids: dependentSubjectIds
+	};
+
+	if (parentSubjectId) normalized.parent_subject_id = parentSubjectId;
+	if (parentSubjectName) normalized.parent_subject_name = parentSubjectName;
+	if (awaitingReview) normalized.awaiting_review = awaitingReview;
+	if (foundationContested !== undefined) normalized.foundation_contested = foundationContested;
+	if (requirementIds && requirementIds.length > 0) normalized.requirement_ids = requirementIds;
+	if (problemStatement) normalized.problem_statement = problemStatement;
+	if (nature) normalized.nature = nature;
+	if (dependsOnSubjectIds && dependsOnSubjectIds.length > 0) {
+		normalized.depends_on_subject_ids = dependsOnSubjectIds;
+	}
+	if (raw.proposal !== undefined) normalized.proposal = raw.proposal;
+
+	return normalized;
+}
+
+/**
+ * Normalise une collection brute de sujets (tableau ou dictionnaire) vers `MaturitySubject[]`.
+ */
+export function normalizeMaturitySubjects(raw: unknown): MaturitySubject[] {
+	const items: unknown[] = Array.isArray(raw)
+		? raw
+		: typeof raw === 'object' && raw !== null
+			? Object.values(raw as Record<string, unknown>)
+			: [];
+	return items
+		.filter((item): item is ServerSubjectLike => typeof item === 'object' && item !== null && typeof (item as ServerSubjectLike).id === 'string' && (item as ServerSubjectLike).id.length > 0)
+		.map((item) => normalizeMaturitySubject(item));
+}
+
 export interface ActorContext {
 	role: ArchitectRole;
 	is_human: boolean;
@@ -72,15 +295,19 @@ export function computeStallDays(
 export function sortMaturityBoard(subjects: MaturitySubject[]): MaturitySubject[] {
 	return [...subjects].sort((a, b) => {
 		// 1. Débloque (effet domino)
-		if (b.unlocks_count !== a.unlocks_count) {
-			return b.unlocks_count - a.unlocks_count;
+		const bUnlocks = toSafeCount(b.unlocks_count);
+		const aUnlocks = toSafeCount(a.unlocks_count);
+		if (bUnlocks !== aUnlocks) {
+			return bUnlocks - aUnlocks;
 		}
 		// 2. Stagnation
-		if (b.stall_days !== a.stall_days) {
-			return b.stall_days - a.stall_days;
+		const bStall = toSafeCount(b.stall_days);
+		const aStall = toSafeCount(a.stall_days);
+		if (bStall !== aStall) {
+			return bStall - aStall;
 		}
 		// 3. Nombre de bloquants
-		return b.blocking_count - a.blocking_count;
+		return toSafeCount(b.blocking_count) - toSafeCount(a.blocking_count);
 	});
 }
 
@@ -191,7 +418,7 @@ export function resolveSubjectArbitration(
 		}
 
 		if (unblockedSubjectIds.includes(s.id)) {
-			const newBlockingCount = Math.max(0, s.blocking_count - 1);
+			const newBlockingCount = Math.max(0, toSafeCount(s.blocking_count) - 1);
 			return {
 				...s,
 				blocking_count: newBlockingCount

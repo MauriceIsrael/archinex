@@ -2,9 +2,16 @@ import { prisma } from '../prisma';
 import { computeMaturity, type MaturityComputationResult, type MaturityBlocker } from '$lib/domain/maturityRules';
 import { classifyArgumentsForMaturity, type MaturityArgumentSemanticClass } from '../similarity/maturitySemanticClassifier';
 import { getProjectFrameworks } from './frameworksDb';
-import { checkSubjectCompliance } from '../compliance/complianceService';
+import { checkSubjectCompliance, getApplicableFrameworks } from '../compliance/complianceService';
 import type { ActorInfo } from './projectsDb';
-import { canDecideAlone, type Criterion, type Option, type OptionEvaluation, type Decision } from '$lib/domain/options';
+import {
+	canDecideAlone,
+	type Criterion,
+	type Option,
+	type OptionEvaluation,
+	type Decision,
+	type DecisionComplianceCheck
+} from '$lib/domain/options';
 import type { Argument } from '$lib/domain/debate';
 
 export class MaturityUnreadyError extends Error {
@@ -44,6 +51,44 @@ export interface CreateDecisionInput {
 	complianceRationale?: string;
 	portability?: 'project_specific' | 'reusable_product_capability' | 'reusable_architecture_doctrine';
 	acceptedViolations?: Array<{ typedId: string; justification: string }>;
+	/** Dérogation explicite de l'arbitre permettant de trancher malgré une vérification KB incomplète (partial ou not_checked). */
+	complianceCheckDerogation?: {
+		acknowledged: boolean;
+		reason: string;
+	};
+}
+
+export function parseDecisionComplianceCheck(raw: string | null | undefined): DecisionComplianceCheck | undefined {
+	if (!raw) return undefined;
+	try {
+		const parsed = JSON.parse(raw);
+		if (!parsed || typeof parsed !== 'object') return undefined;
+		if (!['checked', 'partial', 'not_checked'].includes(parsed.status)) return undefined;
+		return {
+			status: parsed.status,
+			hubRevision: typeof parsed.hubRevision === 'string' ? parsed.hubRevision : null,
+			checkedAt: typeof parsed.checkedAt === 'string' ? parsed.checkedAt : '',
+			unassessedRuleIds: Array.isArray(parsed.unassessedRuleIds)
+				? parsed.unassessedRuleIds.filter((id: unknown): id is string => typeof id === 'string')
+				: [],
+			frameworks: Array.isArray(parsed.frameworks)
+				? parsed.frameworks.filter((fw: unknown): fw is string => typeof fw === 'string')
+				: [],
+			...(parsed.derogation && typeof parsed.derogation === 'object' && typeof parsed.derogation.reason === 'string'
+				? {
+						derogation: {
+							reason: parsed.derogation.reason,
+							acknowledgedAt: typeof parsed.derogation.acknowledgedAt === 'string' ? parsed.derogation.acknowledgedAt : '',
+							...(typeof parsed.derogation.acknowledgedBy === 'string'
+								? { acknowledgedBy: parsed.derogation.acknowledgedBy }
+								: {})
+						}
+					}
+				: {})
+		};
+	} catch {
+		return undefined;
+	}
 }
 
 /**
@@ -88,6 +133,7 @@ export async function parseSubjectDecision(
 		rationale: string;
 		reversibility: string;
 		acceptedViolations: string;
+		complianceCheck?: string | null;
 		kbCandidateIds: string;
 		arbiterId: string;
 		arbiterRole: string;
@@ -139,6 +185,8 @@ export async function parseSubjectDecision(
 					orderBy: { createdAt: 'desc' }
 				});
 
+	const complianceCheck = parseDecisionComplianceCheck(rawDecision.complianceCheck);
+
 	return {
 		acceptedViolationsFromDecision,
 		parsedDecision: {
@@ -155,6 +203,7 @@ export async function parseSubjectDecision(
 			arbiterRole: rawDecision.arbiterRole,
 			decidedAt: rawDecision.decidedAt.toISOString(),
 			acceptedViolations: realViolations,
+			...(complianceCheck ? { complianceCheck } : {}),
 			kbCandidateIds: JSON.parse(rawDecision.kbCandidateIds || '[]'),
 			validatedBy: assertedEvent?.actorId || undefined,
 			version: rawDecision.version
@@ -346,11 +395,36 @@ export async function recordArbitrationDecision(
 		throw new MaturityUnreadyError(readinessWithViolations.blockers);
 	}
 
-	// Conformité réglementaire de l'option retenue (LLMOps) : une clause validée par l'expert qui la déclare
-	// non conforme bloque, sauf écart accepté et justifié par l'arbitre. LLMOps injoignable : on ne bloque pas.
-	const compliance = await checkSubjectCompliance(subject.projectId, subjectId, [data.retainedOptionId]).catch(() => null);
+	// Vérification que l'option retenue existe avant le contrôle réglementaire
+	const retained = ctx.options.find((o) => o.id === data.retainedOptionId);
+	if (!retained) {
+		throw new Error(`L'option retenue ${data.retainedOptionId} est inconnue sur ce sujet.`);
+	}
+
+	// Conformité réglementaire de l'option retenue (LLMOps) — ÉCHEC FERMÉ (fail-closed) :
+	// - Une clause validée par l'expert déclarant l'option non conforme bloque, sauf écart accepté et justifié.
+	// - Si le Hub KB est injoignable (not_checked) ou laisse des règles non évaluées (partial), la décision est
+	//   refusée sauf dérogation explicite motivée de l'arbitre (« décision sans vérification KB complète »).
+	let compliance: Awaited<ReturnType<typeof checkSubjectCompliance>>;
+	try {
+		compliance = await checkSubjectCompliance(subject.projectId, subjectId, [data.retainedOptionId]);
+	} catch {
+		const fallbackFrameworks = await getApplicableFrameworks(subject.projectId).catch(() => []);
+		compliance = {
+			frameworks: fallbackFrameworks,
+			offline: true,
+			violations: [],
+			unassessedCount: 0,
+			unassessedRuleIds: [],
+			hubRevision: null,
+			checkedAt: new Date().toISOString(),
+			checkStatus: 'not_checked',
+			coverageWarnings: []
+		};
+	}
+
 	const acceptedIds = new Set((data.acceptedViolations || []).map((v) => v.typedId));
-	const blockingViolations = (compliance?.violations ?? []).filter((v) => v.validated && !acceptedIds.has(v.typedId));
+	const blockingViolations = (compliance.violations ?? []).filter((v) => v.validated && !acceptedIds.has(v.typedId));
 	if (blockingViolations.length > 0) {
 		throw new MaturityUnreadyError(
 			blockingViolations.map((v) => ({
@@ -361,14 +435,39 @@ export async function recordArbitrationDecision(
 		);
 	}
 
-	// Vérification que l'option retenue existe
-	const retained = ctx.options.find((o) => o.id === data.retainedOptionId);
-	if (!retained) {
-		throw new Error(`L'option retenue ${data.retainedOptionId} est inconnue sur ce sujet.`);
+	const decidedAt = new Date();
+	const complianceCheckRecord: DecisionComplianceCheck = {
+		status: compliance.checkStatus,
+		hubRevision: compliance.hubRevision,
+		checkedAt: compliance.checkedAt,
+		unassessedRuleIds: compliance.unassessedRuleIds,
+		frameworks: compliance.frameworks
+	};
+
+	if (complianceCheckRecord.status === 'not_checked' || complianceCheckRecord.status === 'partial') {
+		const derogation = data.complianceCheckDerogation;
+		const derogationReason = derogation?.reason?.trim() || '';
+		if (!derogation?.acknowledged || derogationReason.length < 5) {
+			const detailMessage =
+				complianceCheckRecord.status === 'not_checked'
+					? 'Vérification réglementaire KB impossible (Hub LLMOps injoignable ou hors ligne). Impossible de trancher sans dérogation explicite motivée (« décision sans vérification KB complète »).'
+					: `Vérification réglementaire KB incomplète (${complianceCheckRecord.unassessedRuleIds.length || compliance.unassessedCount} règle(s) non évaluée(s)${complianceCheckRecord.unassessedRuleIds.length > 0 ? ` : ${complianceCheckRecord.unassessedRuleIds.join(', ')}` : ''}). Impossible de trancher sans dérogation explicite motivée (« décision sans vérification KB complète »).`;
+			throw new MaturityUnreadyError([
+				{
+					code: 'COMPLIANCE_CHECK_INCOMPLETE',
+					message: detailMessage,
+					targetId: complianceCheckRecord.status
+				}
+			]);
+		}
+		complianceCheckRecord.derogation = {
+			reason: derogationReason,
+			acknowledgedAt: decidedAt.toISOString(),
+			acknowledgedBy: actor.userId
+		};
 	}
 
 	const decisionId = `dec-${subjectId}-${Date.now()}`;
-	const decidedAt = new Date();
 	const decidesAlone = canDecideAlone(actor.role);
 
 	const violationsToStore = [...(data.acceptedViolations || [])];
@@ -400,6 +499,7 @@ export async function recordArbitrationDecision(
 				arbiterRole: actor.role,
 				decidedAt,
 				acceptedViolations: JSON.stringify(violationsToStore),
+				complianceCheck: JSON.stringify(complianceCheckRecord),
 				kbCandidateIds: '[]',
 				version: 1
 			},
@@ -412,6 +512,7 @@ export async function recordArbitrationDecision(
 				arbiterRole: actor.role,
 				decidedAt,
 				acceptedViolations: JSON.stringify(violationsToStore),
+				complianceCheck: JSON.stringify(complianceCheckRecord),
 				version: { increment: 1 }
 			}
 		});
@@ -475,6 +576,7 @@ export async function recordArbitrationDecision(
 					arbiter: { id: actor.userId, role: actor.role },
 					reversibility: data.reversibility,
 					rationale: data.rationale,
+					complianceCheck: complianceCheckRecord,
 					awaitingReview: !decidesAlone
 				})
 			}
@@ -492,10 +594,12 @@ export async function recordArbitrationDecision(
 		reversibility: created.reversibility as any,
 		complianceStatus: data.complianceStatus || 'Compliant',
 		complianceRationale: data.complianceRationale,
+		portability: data.portability || 'project_specific',
 		arbiterId: created.arbiterId,
 		arbiterRole: created.arbiterRole,
 		decidedAt: created.decidedAt.toISOString(),
 		acceptedViolations: data.acceptedViolations || [],
+		complianceCheck: complianceCheckRecord,
 		kbCandidateIds: JSON.parse(created.kbCandidateIds),
 		version: created.version
 	};

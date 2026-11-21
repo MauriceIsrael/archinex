@@ -515,6 +515,67 @@
                 "type": "string",
                 "description": "Candidate through which the decision was capitalised in the KB, if it was."
               },
+              "compliance_check": {
+                "type": "object",
+                "additionalProperties": false,
+                "description": "Trace opposable de la vérification réglementaire KB effectuée lors de l'arbitrage.",
+                "properties": {
+                  "status": {
+                    "enum": [
+                      "checked",
+                      "partial",
+                      "not_checked"
+                    ]
+                  },
+                  "hub_revision": {
+                    "type": [
+                      "string",
+                      "null"
+                    ]
+                  },
+                  "checked_at": {
+                    "$ref": "#/definitions/date_time"
+                  },
+                  "unassessed_rule_ids": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "frameworks": {
+                    "type": "array",
+                    "items": {
+                      "type": "string"
+                    }
+                  },
+                  "derogation": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "properties": {
+                      "reason": {
+                        "type": "string"
+                      },
+                      "acknowledged_at": {
+                        "$ref": "#/definitions/date_time"
+                      },
+                      "acknowledged_by": {
+                        "type": "string"
+                      }
+                    },
+                    "required": [
+                      "reason",
+                      "acknowledged_at"
+                    ]
+                  }
+                },
+                "required": [
+                  "status",
+                  "hub_revision",
+                  "checked_at",
+                  "unassessed_rule_ids",
+                  "frameworks"
+                ]
+              },
               "epistemic_status": {
                 "$ref": "#/definitions/epistemic_status"
               },

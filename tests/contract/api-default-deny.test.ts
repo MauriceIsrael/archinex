@@ -4,6 +4,8 @@ import { join, relative } from 'node:path';
 import {
 	handle,
 	requiresSession,
+	requiresWebhookSignature,
+	requiresAuthentication,
 	isPublicApiPath,
 	PUBLIC_API_PREFIXES,
 	PUBLIC_API_EXACT_PATHS
@@ -78,11 +80,16 @@ describe('Sécurité API : refus par défaut sur /api/** et isolation anonyme (#
 				if (!expectedPublicPaths.has(pathname)) {
 					unexpectedPublicRoutes.push(pathname);
 				}
-				expect(requiresSession(pathname), pathname).toBe(false);
+				expect(requiresAuthentication(pathname), pathname).toBe(false);
 				continue;
 			}
 
-			expect(requiresSession(pathname), pathname).toBe(true);
+			expect(requiresAuthentication(pathname), pathname).toBe(true);
+			if (requiresWebhookSignature(pathname)) {
+				expect(requiresSession(pathname), pathname).toBe(false);
+			} else {
+				expect(requiresSession(pathname), pathname).toBe(true);
+			}
 
 			let resolvedCalled = false;
 			const res = await handle({
@@ -112,21 +119,26 @@ describe('Sécurité API : refus par défaut sur /api/** et isolation anonyme (#
 		expect(requiresSession('/api/invite/accept')).toBe(false);
 		expect(requiresSession('/api/invite/activate')).toBe(false);
 
-		// Endpoints explicitement listés dans #391 : tous refusés par défaut
+		// Endpoints explicitement listés dans #391 : tous refusés par défaut (session ou HMAC pour /api/webhooks/*)
 		for (const protectedPath of [
 			'/api/engagements',
 			'/api/engagements/demo',
 			'/api/corpus',
 			'/api/llmops',
 			'/api/projects/demo/events',
-			'/api/webhooks/nautobot',
 			'/api/invite',
 			'/api/frugality-opportunities',
 			'/api/knowledge/health',
 			'/api/frameworks/ingestions'
 		]) {
 			expect(requiresSession(protectedPath), protectedPath).toBe(true);
+			expect(requiresAuthentication(protectedPath), protectedPath).toBe(true);
 		}
+
+		// Les webhooks exigent une signature HMAC (#377) et sont refusés sans en-tête de signature
+		expect(requiresWebhookSignature('/api/webhooks/nautobot')).toBe(true);
+		expect(requiresAuthentication('/api/webhooks/nautobot')).toBe(true);
+		expect(isPublicApiPath('/api/webhooks/nautobot')).toBe(false);
 	});
 
 	it('les handlers engagements, corpus, llmops et events refusent les appels directs sans session (401)', async () => {

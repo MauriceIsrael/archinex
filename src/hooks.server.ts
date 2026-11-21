@@ -2,6 +2,7 @@ import { verifyAccessToken, verifyRefreshToken, signAccessToken, signRefreshToke
 import type { Handle, ServerInit } from '@sveltejs/kit';
 import type { Session } from './app.d.ts';
 import { prisma } from '$lib/server/prisma';
+import { hasWebhookSignatureHeader } from '$lib/server/edp/nautobotWebhookAuth';
 
 export const init: ServerInit = async () => {
   if (process.env.NODE_ENV === 'production') {
@@ -10,19 +11,20 @@ export const init: ServerInit = async () => {
 };
 
 /**
- * Liste blanche explicite des routes /api/** accessibles sans session (#391).
+ * Liste blanche explicite des routes /api/** accessibles sans session ni signature HMAC (#391).
  * Toute autre route sous /api/** est refusée par défaut (401).
  *
  * - /api/auth/* : connexion, déconnexion, rafraîchissement de jeton.
  * - /api/invite/accept et /api/invite/activate : finalisation d'invitation par jeton
  *   (la route racine /api/invite reste protégée par session).
- * - Les webhooks ne peuvent entrer dans cette liste qu'une fois authentifiés par signature HMAC (#377).
+ * - /api/webhooks/* : authentifié par signature HMAC (#377), refusé en 401 sans en-tête de signature.
  */
 export const PUBLIC_API_PREFIXES: readonly string[] = ['/api/auth/'];
 export const PUBLIC_API_EXACT_PATHS: readonly string[] = [
   '/api/invite/accept',
   '/api/invite/activate'
 ];
+export const HMAC_REQUIRED_PREFIXES: readonly string[] = ['/api/webhooks/'];
 
 export function isPublicApiPath(pathname: string): boolean {
   const normalized = pathname.length > 1 && pathname.endsWith('/') ? pathname.slice(0, -1) : pathname;
@@ -32,11 +34,19 @@ export function isPublicApiPath(pathname: string): boolean {
   return PUBLIC_API_PREFIXES.some((prefix) => normalized.startsWith(prefix));
 }
 
+export function requiresWebhookSignature(pathname: string): boolean {
+  return HMAC_REQUIRED_PREFIXES.some((p) => pathname.startsWith(p));
+}
+
 export function requiresSession(pathname: string): boolean {
   if (pathname === '/api' || pathname.startsWith('/api/')) {
-    return !isPublicApiPath(pathname);
+    return !isPublicApiPath(pathname) && !requiresWebhookSignature(pathname);
   }
   return false;
+}
+
+export function requiresAuthentication(pathname: string): boolean {
+  return requiresSession(pathname) || requiresWebhookSignature(pathname);
 }
 
 export const handle: Handle = async ({ event, resolve }) => {
@@ -126,6 +136,14 @@ export const handle: Handle = async ({ event, resolve }) => {
   }
 
   event.locals.session = session;
+
+  // Les routes webhook exigent un en-tête de signature HMAC (vérifié cryptographiquement par projet dans le handler).
+  if (requiresWebhookSignature(event.url.pathname) && !hasWebhookSignatureHeader(event.request.headers)) {
+    return new Response(
+      JSON.stringify({ status: 'error', error: 'Non authentifié : signature HMAC webhook requise' }),
+      { status: 401, headers: { 'Content-Type': 'application/json' } }
+    );
+  }
 
   // Les routes qui parlent à LLMOps au nom d'un expert exigent une session : l'identité envoyée à LLMOps
   // (X-Actor-Email) vient de cette session et d'elle seule, jamais d'un en-tête fourni par le navigateur.

@@ -72,7 +72,9 @@ Tout énoncé, option, argument ou décision manipulé par Archinex obéit aux i
 
 ### Invariants Inviolables
 1. **Énoncé à 5 facettes** : Contenu (triplet ontologique), Justification (antécédents), Autorité (auteur, rôle, mode de production), Maturité (niveau, confiance), Révisabilité.
-2. **Règle Bloquante `verified × llm-derived`** : Aucun énoncé ni argument ne peut être promu au statut de confiance `verified` s'il est produit en mode `llm-derived`. La vérification et la décision requièrent formellement l'intervention humaine d'un architecte qualifié (`human-authored` ou `llm-proposed-human-approved`).
+2. **Règle Bloquante `verified × llm-derived` (énoncés et arguments)** : Cet invariant constitutionnel couvre **à la fois les énoncés (`Statement`) et les arguments de débat (`Argument`)**. Aucun énoncé ni aucun argument produit en mode `llm-derived` ne peut être promu ou stocké au statut de confiance `verified` sans validation humaine préalable (`human-authored` ou `llm-proposed-human-approved`).
+   - **Énoncés** : rejetés au portier d'enveloppe (`src/lib/validation/epistemicEnvelope.ts`) et en persistance (`src/lib/server/projects/projectsDb.ts`).
+   - **Arguments** : confiance plafonnée à `designed` avec avertissement journalisé dans `createArgument` (`src/lib/server/projects/debateDb.ts`), combinaison rejetée dans `validateArgument` (`src/lib/domain/debate.ts`), et verrouillée en base par le garde-fou Prisma (`src/lib/server/prismaFactory.ts`) sur tous les chemins d'écriture (`create`, `createMany`, `update`, `updateMany`, `upsert`).
 3. **Règle du Silence** : Une hypothèse, objection ou dilemme non contesté n'est **jamais** considéré comme approuvé tacitement. L'approbation doit résulter d'un acte formel d'arbitrage.
 4. **Brouillon Télégraphique** : Style télégraphique dense, sans jargon creux ni verbiage IA non vérifié.
 
@@ -121,6 +123,7 @@ Seul un `lead_architect` ou un `domain_expert` habilité sur le domaine du sujet
 - Enregistrement des motifs d'écartement pour chaque alternative ;
 - Évaluation de la réversibilité (`reversible`, `costly`, `irreversible`) ;
 - Enregistrement des dérogations acceptées avec justification opposable ;
+- **Vérification réglementaire KB en échec fermé (*fail-closed*)** : chaque arbitrage persiste un bloc opposable `complianceCheck` (`checked` | `partial` | `not_checked`, `hubRevision`, `checkedAt`, `unassessedRuleIds[]`, `frameworks[]`). Si le Hub KB est injoignable (`not_checked`) ou laisse des règles non évaluées (`partial`), la décision est refusée sauf dérogation explicite motivée (« décision sans vérification KB complète »), tracée dans le bundle (`compliance_check` + lacune dédiée) et classée `Provisional` dans la matrice de conformité ;
 - Promotion formelle à `L3_decided` et transformation des énoncés dérivés en `llm-proposed-human-approved`.
 
 ### Étape 6 : Capitalisation Souveraine vers LLMOps (Porte G4)
@@ -908,8 +911,10 @@ La feuille de route ci-dessous détaille les prochaines étapes d'évolution d'A
 ### Horizon 1 — Court Terme (Implémenté — Épique #241) : GitOps Sylva Natif & Synchronisation Bidirectionnelle `DiffSync`
 1. **Export GitOps Direct vers un Dépôt `sylva-core` (`workload-clusters/`) — #238 (`src/lib/server/edp/sylvaGitopsExport.ts`)** :
    - Permet depuis la Phase 4 (`action: 'export_sylva_gitops'`) de sérialiser le fichier `workload-clusters/<cluster-name>/values.yaml` (assaini de tout secret via `sanitizeManifests()`) et d'ouvrir automatiquement une Merge Request (GitLab API v4) ou Pull Request (GitHub REST API) vers un dépôt `sylva-core`, consommable par FluxCD dans un cluster de management Sylva. L'export est formellement bloqué (`HTTP 409`) si le verdict de l'Oracle OPA est `violated`.
-2. **Collecte Temps Réel (Pull / Webhook) depuis Nautobot 2.x vers l'Oracle OPA — #239 (`pullLiveInventoryFromNautobot` & `POST /api/webhooks/nautobot`)** :
-   - Lors du clic sur **« Exécuter l'Oracle OPA »** (`action: 'verify'`), Archinex interroge directement l'état courant des objets dans Nautobot (`GET /api/dcim/devices/`, `/api/circuits/circuits/`, `/api/tenancy/tenants/`, `/api/vpn/ipsec-proposals/`, `/api/vpn/vpn-tunnels/`). Toute modification manuelle effectuée par un opérateur dans l'interface web de Nautobot (`http://localhost:8080`) ou reçue sur `POST /api/webhooks/nautobot` déclenche immédiatement le verdict `VIOLATED` dans Archinex.
+2. **Collecte Temps Réel (Pull / Webhook) & Détection de Dérive Persistée (`DriftFinding`) depuis Nautobot 2.x — #239 / #377 (`pullLiveInventoryFromNautobot`, `driftService.ts` & `POST /api/webhooks/nautobot`)** :
+   - Lors du clic sur **« Exécuter l'Oracle OPA »** (`action: 'verify'`) ou à réception d'un événement sur `POST /api/webhooks/nautobot`, Archinex compare l'**intention figée** de l'EDP (`hydratedInventory` + `intent_hash`) à l'état observé dans Nautobot **sans jamais muter l'EDP d'origine** (`executable_decision_packages`).
+   - Les écarts sont typés et persistés dans `drift_findings` (`DriftFinding` : `missing`, `unexpected`, `attribute_mismatch`, `status_regression`, dédupliqués par empreinte `(projectId, fingerprint)`), et les objets dépourvus de marquage `archinex_*` sont enregistrés comme écarts **« hors décision »** (`outOfDecision: true`), jamais ignorés.
+   - Le webhook `POST /api/webhooks/nautobot` exige une **signature HMAC par projet** (`X-Hook-Signature` / `X-Archinex-Signature`, pré-filtrée dans `src/hooks.server.ts`, échec fermé 401), rattache le sujet/décision exclusivement par les marqueurs `archinex_*` de l'objet Nautobot, garantit l'**idempotence** par identifiant d'événement (`webhook_event_receipts`), répond rapidement (`202 Accepted`) avec évaluation oracle asynchrone stockée à côté de l'EDP dans `edp_oracle_verdicts`, et remonte explicitement toute erreur de persistance (journal + 500).
 3. **Modélisation Native des Tunnels IPsec dans le Module VPN de Nautobot 2.2+ — #240 (`syncHydratedInventoryToNautobot`)** :
    - En complément du `circuits.Circuit` (`link-ip-lot3-secgw1`), l'hydratation instancie de manière idempotente via `/api/vpn/` les objets `vpn.IKEProposal` (`ike-prop-lot3-aes256gcm-dh20`), `vpn.IPSecProposal` (`ipsec-prop-lot3-esp-aes256gcm`), `vpn.VPNProfile` (`vpn-prof-interco-lot3-s6a`) et `vpn.VPNTunnel` (`tun-ipsec-esp-lot3-secgw1`).
 

@@ -2,6 +2,7 @@ import { prisma } from '../prisma';
 import { ConcurrencyConflictError, type ActorInfo } from './projectsDb';
 import {
 	validateArgument,
+	capArgumentConfidence,
 	canCloseObjection,
 	canResolveSpecificObjection,
 	type Stance,
@@ -87,11 +88,20 @@ export async function createArgument(
 	const productionMode: ProductionMode = isAgent ? 'llm-derived' : 'human-authored';
 	const authorKind = data.authorKind || (isAgent ? 'agent:proposer' : 'human');
 
+	const confidenceResult = capArgumentConfidence(data.confidence, productionMode);
+	if (confidenceResult.capped) {
+		console.warn(
+			`[EpistemicGuard] Plafonnement de confiance sur argument llm-derived (subjectId=${subjectId}, authorKind=${authorKind}) : '${confidenceResult.originalConfidence}' → '${confidenceResult.confidence}' (invariant verified × llm-derived).`
+		);
+	}
+	const effectiveConfidence = confidenceResult.confidence;
+
 	const validation = validateArgument(
 		{
 			claim: data.claim,
 			grounds: data.grounds,
 			kbRefs: data.kbRefs || [],
+			confidence: effectiveConfidence,
 			authorKind,
 			productionMode
 		},
@@ -197,7 +207,7 @@ export async function createArgument(
 				claim: data.claim.trim(),
 				grounds: data.grounds.trim(),
 				kbRefs: JSON.stringify(data.kbRefs || []),
-				confidence: data.confidence || 'assumed',
+				confidence: effectiveConfidence,
 				author: effectiveAuthor,
 				authorKind,
 				productionMode,

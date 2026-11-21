@@ -20,8 +20,12 @@
 		totalSubjects > 0 ? Math.round((decidedSubjects / totalSubjects) * 100) : 0
 	);
 
-	const totalUnlocks = $derived(deliberationStore.totalUnlocks);
-	const totalBlocking = $derived(deliberationStore.totalBlocking);
+	const totalUnlocks = $derived(
+		Number.isFinite(deliberationStore.totalUnlocks) ? deliberationStore.totalUnlocks : 0
+	);
+	const totalBlocking = $derived(
+		Number.isFinite(deliberationStore.totalBlocking) ? deliberationStore.totalBlocking : 0
+	);
 	const stalledCount = $derived(deliberationStore.stalledSubjects.length);
 	const sealedCount = $derived(Object.keys(deliberationStore.frozenSnapshots).length);
 

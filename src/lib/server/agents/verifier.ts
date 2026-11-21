@@ -61,8 +61,9 @@ export async function runVerifierAgent(input: {
 Ton rôle est de vérifier rigoureusement la conformité des options d'architecture avec le référentiel de doctrine et les exigences de sécurité.
 RÈGLE D'OR : Chaque vérification DOIT citer AU MOINS un identifiant de règle doctrinale existant parmi : [${input.allowedKbRefs.join(', ')}].
 Chaque constat DOIT comporter un champ 'grounds' explicitant l'analyse de conformité.
+En tant qu'agent IA (mode llm-derived), ne renvoie JAMAIS "confidence": "verified" (réservé à la validation humaine) ; utilise au maximum "designed" ou "assumed".
 Réponds STRICTEMENT par un JSON valide :
-{"verifications": [{"optionId": "...", "stance": "verification", "claim": "...", "grounds": "...", "kbRefs": ["..."], "confidence": "verified"}]}`;
+{"verifications": [{"optionId": "...", "stance": "verification", "claim": "...", "grounds": "...", "kbRefs": ["..."], "confidence": "designed"}]}`;
 
 	const userMessage = `Sujet : ${input.subject.sectionRef} ${input.subject.name}
 Règles doctrinales applicables :

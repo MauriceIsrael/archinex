@@ -28,6 +28,13 @@ import {
   pullLiveInventoryFromNautobot,
   resolveProjectNautobotOptions
 } from '$lib/server/edp/nautobotSync';
+import {
+  computeIntentHash,
+  getLatestOracleVerdict,
+  listDriftFindings,
+  persistDriftFindings,
+  recordOracleVerdict
+} from '$lib/server/edp/driftService';
 
 async function loadProjectNautobotOptions(projectId: string) {
   const project = await (prisma as any).project?.findUnique({
@@ -211,8 +218,28 @@ export const GET: RequestHandler = async (event) => {
         overrides
       );
 
+      const [latestExternalVerdict, subjectFindings] = await Promise.all([
+        getLatestOracleVerdict({ edpId: fromDb.id }),
+        listDriftFindings({ projectId, subjectId })
+      ]);
+
+      const projectedLastVerdict = latestExternalVerdict
+        ? {
+            verdict: latestExternalVerdict.verdict,
+            verified_at: latestExternalVerdict.verifiedAt,
+            source: latestExternalVerdict.source,
+            provenance: latestExternalVerdict.provenance,
+            intent_hash: latestExternalVerdict.intentHash,
+            violations: latestExternalVerdict.violations,
+            detailedViolations: latestExternalVerdict.detailedViolations,
+            ontologyFingerprint: latestExternalVerdict.ontologyFingerprint,
+            driftFindingIds: latestExternalVerdict.driftFindingIds
+          }
+        : parsedContent.lastVerdict;
+
       return json({
         isExperimentalEnabled: true,
+        driftFindings: subjectFindings,
         edp: {
           ...parsedContent,
           metadata: {
@@ -227,6 +254,7 @@ export const GET: RequestHandler = async (event) => {
           refinementCoverage: coverage,
           hydratedInventory,
           lldOverrides: overrides,
+          lastVerdict: projectedLastVerdict,
           provenance: {
             ...parsedContent.provenance,
             production_mode: fromDb.productionMode,
@@ -1192,28 +1220,83 @@ export const POST: RequestHandler = async (event) => {
       );
 
       // Si action === 'verify' et qu'aucune surcharge de simulation locale n'est active,
-      // tenter une collecte temps réel (Pull SSoT — Issue #239) depuis Nautobot 2.x.
+      // tenter une collecte temps réel (Pull SSoT — Issue #239 / #377) depuis Nautobot 2.x.
       const hasLocalDriftOverrides = Object.keys(activeOverrides).length > 0;
-      let hydratedInventory = baselineInventory;
+      let observedInventory = baselineInventory;
       let evaluationSource: 'nautobot_live' | 'local_simulated' | 'local_fallback' =
         hasLocalDriftOverrides ? 'local_simulated' : 'local_fallback';
       let liveDetectedDrifts: string[] = [];
+      let persistedFindings: Awaited<ReturnType<typeof persistDriftFindings>> = [];
+      const resolvedDecisionId = ctx.subject?.decision?.id || `DEC-${subjectId}`;
 
       if (action === 'verify' && !hasLocalDriftOverrides) {
         const nautobotOpts = await loadProjectNautobotOptions(projectId);
-        const livePull = await pullLiveInventoryFromNautobot(baselineInventory, nautobotOpts);
+        const livePull = await pullLiveInventoryFromNautobot(baselineInventory, {
+          ...nautobotOpts,
+          driftContext: {
+            projectId,
+            subjectId,
+            decisionId: resolvedDecisionId,
+            clauseRefs: ctx.requirementClauses,
+            sourceEvent: `nautobot_pull:${new Date().toISOString()}`
+          }
+        });
         if (livePull.reachable) {
-          hydratedInventory = livePull.inventory;
+          observedInventory = livePull.inventory;
           evaluationSource = 'nautobot_live';
           liveDetectedDrifts = livePull.detectedDrifts;
+          if (livePull.findings.length > 0) {
+            persistedFindings = await persistDriftFindings(livePull.findings);
+          }
         }
       }
 
       const evalRes = await evaluateMultiAxisOracle(
-        hydratedInventory,
+        observedInventory,
         effectiveBindingsForEval,
         catalog
       );
+
+      // L'intention figée (hydratedInventory de l'EDP) n'est jamais écrasée par l'état observé Nautobot.
+      const preservedIntentInventory =
+        evaluationSource === 'nautobot_live' && parsedDb?.hydratedInventory
+          ? parsedDb.hydratedInventory
+          : baselineInventory;
+      const intentHash = computeIntentHash(preservedIntentInventory);
+
+      const lastVerdictPayload = {
+        verdict: evalRes.verdict,
+        verified_at: new Date().toISOString(),
+        source: evaluationSource,
+        provenance:
+          evaluationSource === 'nautobot_live'
+            ? 'nautobot_live_pull'
+            : evaluationSource === 'local_simulated'
+              ? 'local_simulation'
+              : 'local_baseline',
+        intent_hash: intentHash,
+        live_detected_drifts: liveDetectedDrifts,
+        driftFindingIds: persistedFindings.map((f) => f.id),
+        violations: evalRes.violationMessages,
+        detailedViolations: evalRes.violations,
+        ontologyFingerprint: evalRes.ontologyFingerprint
+      };
+
+      // Stocker le verdict de l'oracle à côté de l'EDP dans `edp_oracle_verdicts`.
+      await recordOracleVerdict({
+        edpId: ctx.edpPrimaryKey,
+        projectId,
+        subjectId,
+        decisionId: resolvedDecisionId,
+        verdict: evalRes.verdict,
+        source: evaluationSource,
+        provenance: lastVerdictPayload.provenance,
+        intentHash,
+        ontologyFingerprint: evalRes.ontologyFingerprint,
+        violations: evalRes.violationMessages,
+        detailedViolations: evalRes.violations,
+        driftFindingIds: persistedFindings.map((f) => f.id)
+      });
 
       const updatedEdp = {
         ...(parsedDb || {
@@ -1238,26 +1321,20 @@ export const POST: RequestHandler = async (event) => {
         },
         selectedConceptUrn: activeConcept,
         refinementCoverage: coverage,
-        hydratedInventory,
+        hydratedInventory: preservedIntentInventory,
         lldOverrides: activeOverrides,
-        lastVerdict: {
-          verdict: evalRes.verdict,
-          verified_at: new Date().toISOString(),
-          source: evaluationSource,
-          live_detected_drifts: liveDetectedDrifts,
-          violations: evalRes.violationMessages,
-          detailedViolations: evalRes.violations,
-          ontologyFingerprint: evalRes.ontologyFingerprint,
-          mutation_score: 100
-        }
+        lastVerdict: lastVerdictPayload
       };
 
+      // Ne jamais réécrire un EDP déjà persisté lors d'une vérification de dérive live :
+      // seule la création initiale (ou une simulation explicite) persiste l'EDP.
+      if (!parsedDb || evaluationSource !== 'nautobot_live') {
         await (prisma as any).executableDecisionPackage?.upsert({
           where: { id: ctx.edpPrimaryKey },
           create: {
             id: ctx.edpPrimaryKey,
             subjectId,
-            decisionId: ctx.subject?.decision?.id || `DEC-${subjectId}`,
+            decisionId: resolvedDecisionId,
             status: updatedEdp.metadata.status || 'proposed',
             revision: updatedEdp.metadata.revision || 1,
             productionMode: 'llm-proposed-human-approved',
@@ -1269,6 +1346,7 @@ export const POST: RequestHandler = async (event) => {
             content: JSON.stringify(updatedEdp)
           }
         });
+      }
 
       return json({
         success: true,
@@ -1276,11 +1354,12 @@ export const POST: RequestHandler = async (event) => {
         verdict: evalRes.verdict,
         source: evaluationSource,
         liveDetectedDrifts,
+        driftFindings: persistedFindings,
         evaluatedAxesCount: evalRes.evaluatedAxesCount,
         violations: evalRes.violationMessages,
         detailedViolations: evalRes.violations,
         ontologyFingerprint: evalRes.ontologyFingerprint,
-        hydratedInventory,
+        hydratedInventory: observedInventory,
         durationMs: evalRes.durationMs
       });
     } catch (err: any) {

@@ -56,12 +56,13 @@ export interface MaturityCriteriaInput {
 		stall_days?: number;
 	};
 	criteria?: Array<{ id: string; name: string }>;
-	options?: Array<{ id: string; title: string }>;
+	options?: Array<{ id: string; title: string; status?: string }>;
 	arguments?: Argument[];
 	doctrineConstraintsCount?: number;
 	openQuestionsCount?: number;
 	verifierPassed?: boolean;
 	decision?: {
+		retainedOptionId?: string;
 		authorId?: string;
 		/** Rôle de l'auteur : la décision du Lead Architect est effective sans revue. */
 		authorRole?: string;
@@ -125,21 +126,58 @@ export function calculateConvergence(args: Argument[] = []): ConvergenceStats {
 	};
 }
 
+export interface VerifierPassContext {
+	options?: Array<{ id: string; status?: string }>;
+	retainedOptionId?: string | null;
+}
+
 /**
  * Détermine si le vérificateur d'architecture est passé pour un sujet :
  * - au moins un constat `verification` actif (non retiré) existe dans le fil ;
- * - aucun constat `verification` ouvert ne signale une violation / non-conformité non traitée.
+ * - aucune violation ouverte de niveau sujet (sans optionId) ;
+ * - si une option est retenue, celle-ci n'a pas de violation ouverte non résolue ;
+ * - avant arbitrage (L2), au moins une option candidate (non rejetée) vérifiée est conforme
+ *   (une non-conformité sur une option concurrente écartée ne bloque pas le passage du vérificateur).
  */
-export function hasVerifierPassed(args: Argument[] = []): boolean {
+export function hasVerifierPassed(
+	args: Argument[] = [],
+	context?: VerifierPassContext
+): boolean {
 	const activeVerifications = args.filter(
 		(a) => a.stance === 'verification' && a.resolution !== 'withdrawn'
 	);
 	if (activeVerifications.length === 0) return false;
 
-	const hasUnresolvedViolation = activeVerifications.some(
-		(a) => a.resolution === 'open' && isViolationVerificationArgument(a)
+	const hasOpenSubjectViolation = activeVerifications.some(
+		(a) => !a.optionId && a.resolution === 'open' && isViolationVerificationArgument(a)
 	);
-	return !hasUnresolvedViolation;
+	if (hasOpenSubjectViolation) return false;
+
+	const byOption = new Map<string, Argument[]>();
+	for (const a of activeVerifications) {
+		if (!a.optionId) continue;
+		const list = byOption.get(a.optionId) ?? [];
+		list.push(a);
+		byOption.set(a.optionId, list);
+	}
+
+	if (byOption.size === 0) return true;
+
+	const optionHasOpenViolation = (optArgs: Argument[]) =>
+		optArgs.some((a) => a.resolution === 'open' && isViolationVerificationArgument(a));
+
+	if (context?.retainedOptionId) {
+		const retainedArgs = byOption.get(context.retainedOptionId);
+		return retainedArgs ? !optionHasOpenViolation(retainedArgs) : true;
+	}
+
+	const rejectedIds = new Set(
+		(context?.options ?? []).filter((o) => o.status === 'rejected').map((o) => o.id)
+	);
+	const candidateEntries = Array.from(byOption.entries()).filter(([id]) => !rejectedIds.has(id));
+	if (candidateEntries.length === 0) return false;
+
+	return candidateEntries.some(([, optArgs]) => !optionHasOpenViolation(optArgs));
 }
 
 /**
@@ -181,7 +219,12 @@ export function computeMaturityCriteria(input: MaturityCriteriaInput): MaturityT
 	const openQuestions = (input.openQuestionsCount ?? 0) + openQuestionsArgs.length;
 
 	const openObjections = args.filter((a) => a.stance === 'objection' && a.resolution === 'open');
-	const verifierPassed = input.verifierPassed === true || hasVerifierPassed(args);
+	const verifierPassed =
+		input.verifierPassed === true ||
+		hasVerifierPassed(args, {
+			options: input.options,
+			retainedOptionId: input.decision?.retainedOptionId
+		});
 
 	// Décision affirmée dans le Hub par un décideur distinct de son auteur (K16)
 	const dec = input.decision;

@@ -8,6 +8,19 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Sécurité API : refus par défaut sur `/api/**` et isolation des vues anonymes (#391)
+- **Hook serveur (`src/hooks.server.ts`)** :
+  - Remplacement de la liste d'inclusion partielle par une politique de **refus par défaut (401)** sur l'ensemble de `/api/**`, avec liste blanche explicite minimale (`/api/auth/*`, `/api/invite/accept`, `/api/invite/activate`).
+  - Les routes `/api/engagements`, `/api/corpus`, `/api/llmops`, `/api/projects/*/events`, `/api/invite` racine et `/api/webhooks/nautobot` (non encore signé HMAC, #377) répondent désormais `401` sans session.
+- **Contrôle d'accès projet (`src/lib/server/projects/projectAccess.ts`, `src/routes/api/**`)** :
+  - Ajout de `getAccessibleProjectIds(session)` comme source de vérité unique alignée sur `authorizeProjectAccess`.
+  - Application de `authorizeProjectAccess` sur `engagements`, `engagements/[id]`, `engagements/[id]/export-bundle`, `corpus` (lecture/écriture), `frugality-opportunities`, `invite`, `projects` et sur 100 % des handlers (`GET`, `POST`, `PATCH`, `PUT`, `DELETE`) sous `/api/projects/[projectId]/**` (dont `events`).
+  - Protection de `/api/llmops` par session, rôle valide et contrôle d'accès projet sur le paramètre `engagement`, sans relayer le jeton de service à un anonyme.
+- **Isolation SSR & en-tête (`src/routes/+page.server.ts`, `src/routes/+page.svelte`, `src/routes/+layout.svelte`, `src/lib/stores/deliberationStore.svelte.ts`)** :
+  - Aucune donnée de projet, d'engagement ou de corpus n'est renvoyée dans le HTML servi à un visiteur anonyme ; la pilule d'engagement actif et le menu Services sont masqués sans session.
+- **Tests de contrat (`tests/contract/api-default-deny.test.ts`)** :
+  - Énumération automatique de tous les `+server.ts` sous `src/routes/api/**` vérifiant le `401` anonyme hors liste blanche, la couverture intégrale de `authorizeProjectAccess` sur `/api/projects/[projectId]/**` et l'absence de fuite projet sur `/` et `+layout.server.ts`.
+
 ### Détection de dérive typée (`DriftFinding`) et webhook Nautobot authentifié par HMAC (#377)
 - **Persistance Prisma (`prisma/schema.prisma`)** :
   - Ajout des modèles `DriftFinding` (`drift_findings`), `WebhookEventReceipt` (`webhook_event_receipts`) et `EdpOracleVerdict` (`edp_oracle_verdicts`) pour persister les écarts typés (`missing`, `unexpected`, `attribute_mismatch`, `status_regression`), l'idempotence webhook par identifiant d'événement et les verdicts oracle à côté de l'EDP sans jamais modifier l'intention figée.

@@ -1,0 +1,11 @@
+### Détection de dérive typée (`DriftFinding`) et webhook Nautobot authentifié par HMAC (#377)
+- **Persistance Prisma (`prisma/schema.prisma`)** :
+  - Ajout des modèles `DriftFinding` (`drift_findings`), `WebhookEventReceipt` (`webhook_event_receipts`) et `EdpOracleVerdict` (`edp_oracle_verdicts`) pour persister les écarts typés (`missing`, `unexpected`, `attribute_mismatch`, `status_regression`), l'idempotence webhook par identifiant d'événement et les verdicts oracle à côté de l'EDP sans jamais modifier l'intention figée.
+- **Service de dérive et authentification HMAC (`src/lib/server/edp/driftTypes.ts`, `driftService.ts`, `nautobotWebhookAuth.ts`, `nautobotWebhookProcessor.ts`, `nautobotSync.ts`)** :
+  - Comparaison générique entre l'intention figée (EDP, `intent_hash`) et l'état Nautobot observé, avec distinction explicite des objets non marqués `archinex_*` (`outOfDecision: true`).
+  - Vérification cryptographique HMAC (SHA-512 / SHA-256 en temps constant) par secret de projet (`strategy.nautobot.webhookSecret` ou variable d'environnement par projet), échec fermé en `401` sans effet de bord.
+  - Enrichissement de `pullLiveInventoryFromNautobot` avec `findings: DriftFindingDraft[]` typés en plus de `detectedDrifts`.
+- **Route Webhook & Garde Hooks (`src/routes/api/webhooks/nautobot/+server.ts`, `src/hooks.server.ts`, `src/routes/api/projects/[projectId]/subjects/[subjectId]/edp/+server.ts`)** :
+  - Ajout du préfixe `/api/webhooks/` aux exigences d'authentification (`requiresWebhookSignature` / `requiresAuthentication`), réponse rapide (`202 Accepted`) avec évaluation oracle asynchrone, suppression complète du couplage S6a et des `catch` silencieux (remontée journal + `500` sur erreur de persistance).
+- **Tests & Documentation** :
+  - Ajout de `tests/integration/nautobot-drift-webhook.test.ts`, extension du test d'énumération dans `tests/contract/actor-from-session.test.ts` et mise à jour de `ARCHITECTURE.md`.

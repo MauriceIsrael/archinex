@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { join } from 'node:path';
-import { requiresSession } from '../../src/hooks.server';
+import { requiresSession, requiresWebhookSignature, requiresAuthentication } from '../../src/hooks.server';
 
 /**
  * L'identité envoyée à LLMOps (X-Actor-Email) vient de la session, jamais d'un en-tête du navigateur :
@@ -62,5 +62,26 @@ describe('Identité de l’acteur : session uniquement', () => {
       /\b(requirePermission|requireKbRole|requireKbPermission)\b/.test(readFileSync(p, 'utf-8'))
     );
     expect(offenders).toEqual([]);
+  });
+
+  it('toutes les routes sous /api/webhooks exigent une signature HMAC, ne font pas confiance à payload.subjectId et ne contiennent aucun code S6a (#377)', () => {
+    const webhookRoutes = walk('src/routes/api/webhooks').filter((p) => p.endsWith('+server.ts'));
+    expect(webhookRoutes.length).toBeGreaterThan(0);
+
+    for (const filePath of webhookRoutes) {
+      const normalized = filePath.replace(/\\/g, '/');
+      const apiPath = normalized
+        .replace(/^src\/routes/, '')
+        .replace(/\/\+server\.ts$/, '');
+      expect(requiresWebhookSignature(apiPath), apiPath).toBe(true);
+      expect(requiresAuthentication(apiPath), apiPath).toBe(true);
+
+      const content = readFileSync(filePath, 'utf-8');
+      expect(content, `${filePath} doit vérifier la signature HMAC`).toContain('verifyNautobotWebhookHmac');
+      expect(content, `${filePath} ne doit jamais faire confiance à payload.subjectId`).not.toMatch(/payload\.subjectId/);
+      expect(content, `${filePath} ne doit contenir aucun scénario S6a codé en dur`).not.toMatch(
+        /s6aDirectBypassDea|ipsec_tunnels\[0\]|service_mediation_flows\[0\]|mutation_score:\s*100/
+      );
+    }
   });
 });

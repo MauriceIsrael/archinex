@@ -2,6 +2,7 @@ import { verifyAccessToken, verifyRefreshToken, signAccessToken, signRefreshToke
 import type { Handle, ServerInit } from '@sveltejs/kit';
 import type { Session } from './app.d.ts';
 import { prisma } from '$lib/server/prisma';
+import { hasWebhookSignatureHeader } from '$lib/server/edp/nautobotWebhookAuth';
 
 export const init: ServerInit = async () => {
   if (process.env.NODE_ENV === 'production') {
@@ -10,12 +11,21 @@ export const init: ServerInit = async () => {
 };
 
 const SESSION_REQUIRED_PREFIXES = ['/api/knowledge/', '/api/frameworks/'];
+const HMAC_REQUIRED_PREFIXES = ['/api/webhooks/'];
 
 export function requiresSession(pathname: string): boolean {
   if (pathname.includes('/bundle-export') || pathname.includes('/export-bundle')) {
     return true;
   }
   return SESSION_REQUIRED_PREFIXES.some((p) => pathname.startsWith(p));
+}
+
+export function requiresWebhookSignature(pathname: string): boolean {
+  return HMAC_REQUIRED_PREFIXES.some((p) => pathname.startsWith(p));
+}
+
+export function requiresAuthentication(pathname: string): boolean {
+  return requiresSession(pathname) || requiresWebhookSignature(pathname);
 }
 
 export const handle: Handle = async ({ event, resolve }) => {
@@ -105,6 +115,14 @@ export const handle: Handle = async ({ event, resolve }) => {
   }
 
   event.locals.session = session;
+
+  // Les routes webhook exigent un en-tête de signature HMAC (vérifié cryptographiquement par projet dans le handler).
+  if (requiresWebhookSignature(event.url.pathname) && !hasWebhookSignatureHeader(event.request.headers)) {
+    return new Response(
+      JSON.stringify({ status: 'error', error: 'Non authentifié : signature HMAC webhook requise' }),
+      { status: 401, headers: { 'Content-Type': 'application/json' } }
+    );
+  }
 
   // Les routes qui parlent à LLMOps au nom d'un expert exigent une session : l'identité envoyée à LLMOps
   // (X-Actor-Email) vient de cette session et d'elle seule, jamais d'un en-tête fourni par le navigateur.

@@ -1,7 +1,7 @@
 import fs from 'node:fs';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { execSync, execFileSync } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 import { describe, it, expect } from 'vitest';
 
 describe('Sandbox Windows Support & Docker Desktop Contract', () => {
@@ -134,7 +134,7 @@ describe('Sandbox Windows Support & Docker Desktop Contract', () => {
 		expect(pem).toMatch(/-----END PRIVATE KEY-----$/);
 	});
 
-	it('valide la configuration docker compose config avec les variables du bac à sable', () => {
+	it('valide la configuration docker compose config avec les variables du bac à sable', { timeout: 30000 }, () => {
 		const tmpEnv = path.join(sandboxDir, 'test-contract.env');
 		const envContent = [
 			"SANDBOX_ORIGIN='https://localhost:8443'",
@@ -155,8 +155,11 @@ describe('Sandbox Windows Support & Docker Desktop Contract', () => {
 		fs.writeFileSync(tmpEnv, envContent, 'utf-8');
 
 		try {
-			const cmd = `docker compose -f "${composeYml}" --env-file "${tmpEnv}" --project-directory "${sandboxDir}" config`;
-			const stdout = execSync(cmd, { encoding: 'utf-8', stdio: 'pipe' });
+			const stdout = execFileSync(
+				'docker',
+				['compose', '-f', composeYml, '--env-file', tmpEnv, '--project-directory', sandboxDir, 'config'],
+				{ encoding: 'utf-8', stdio: 'pipe', timeout: 25000 }
+			);
 			expect(stdout).toContain('archinex-sandbox');
 			expect(stdout).toContain('hub');
 			expect(stdout).toContain('archinex');

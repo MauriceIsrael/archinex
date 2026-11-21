@@ -9,6 +9,10 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 ## Non publié
 
 ### Corrigé
+- **Critère L2 → L3 « Vérificateur d’architecture passé » en multi-options (`src/lib/domain/maturityCriteria.ts`, `src/lib/server/projects/maturityCriteriaService.ts`, `src/lib/components/deliberation/SubjectThreadView.svelte`)** :
+  - Une non-conformité détectée par `@verifier` sur une option concurrente (ou rejetée) ne bloque plus le passage au vert du critère tant qu'au moins une option candidate vérifiée est conforme (et que l'option retenue, lorsqu'une décision existe, ne présente pas de violation ouverte).
+
+### Corrigé
 - **Critère L2 → L3 « Vérificateur d’architecture passé » (`src/lib/domain/maturityCriteria.ts`, `src/lib/server/projects/maturityCriteriaService.ts`)** : introduction du prédicat partagé `hasVerifierPassed()` afin qu'un constat `verification` conforme (`resolution: 'open'`) valide bien le critère, tandis qu'une violation/non-conformité ouverte le maintient bloqué jusqu'à résolution (`answered` ou `accepted_risk`).
 - **Résolution des non-conformités dans le fil (`src/lib/components/deliberation/SubjectMessageBubble.svelte`)** : affichage des actions de clôture / acceptation de risque sur les constats `verification` signalant une non-conformité.
 - **Agents interactifs de délibération (`src/lib/server/agents/verifier.ts`, `proposer.ts`, `challenger.ts`, `synthesizer.ts`, `agentConfig.ts`, `debateOrchestrator.ts`)** :

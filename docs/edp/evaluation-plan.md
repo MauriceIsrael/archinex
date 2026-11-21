@@ -1,6 +1,6 @@
 # Plan d'Évaluation de l'Expérience : Paquets de Décision Exécutables (EDP)
 
-Ce document fige les critères d'évaluation objectifs et mesurables pour décider de la promotion ou de l'abandon du thème expérimental EDP (Lot A12, Issue #189).
+Ce document fige les critères d'évaluation objectifs et mesurables pour décider de la promotion ou de l'abandon du thème EDP (Lot A12, Issue #189). *Le cadre expérimental et son drapeau ont depuis été supprimés (le sous-système est toujours actif).*
 
 ---
 

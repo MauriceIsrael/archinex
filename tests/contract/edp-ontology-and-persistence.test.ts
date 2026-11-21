@@ -1,4 +1,4 @@
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import { resolve } from 'node:path';
 import {
   loadOntologyCatalog,
@@ -13,23 +13,12 @@ import {
   getEdpPackage,
   transitionEdpStatus,
   retractEdpOnAntecedentChange,
-  isEdpFeatureEnabled,
   InvariantViolationError,
-  UnauthorizedRoleError,
-  FeatureDisabledError
+  UnauthorizedRoleError
 } from '../../src/lib/server/edp/edpRepository.js';
 
 describe('EDP Ontology, Projections & Persistence Contract (#173, #181, #174, #177)', () => {
-  const originalEnv = process.env.ARCHINEX_EXPERIMENTAL_EDP;
   const fixturePath = resolve(process.cwd(), 'tests/fixtures/edp/ontology_export.json');
-
-  beforeEach(() => {
-    process.env.ARCHINEX_EXPERIMENTAL_EDP = '1';
-  });
-
-  afterEach(() => {
-    process.env.ARCHINEX_EXPERIMENTAL_EDP = originalEnv;
-  });
 
   describe('Client d’Ontologie & Contrôle des Liaisons (Issue #173)', () => {
     it('charge le catalogue depuis la fixture locale hors-ligne', async () => {
@@ -189,12 +178,6 @@ describe('EDP Ontology, Projections & Persistence Contract (#173, #181, #174, #1
       expect(updated.validatedAt).toBeDefined();
     });
 
-    it('bloque les opérations si le drapeau ARCHINEX_EXPERIMENTAL_EDP est absent', async () => {
-      delete process.env.ARCHINEX_EXPERIMENTAL_EDP;
-      expect(isEdpFeatureEnabled()).toBe(false);
-
-      await expect(getEdpPackage(testEdpId)).rejects.toThrow(FeatureDisabledError);
-    });
   });
 
   describe('Rétractation & Maintenance de Vérité (Invariant VI - Issue #177)', () => {

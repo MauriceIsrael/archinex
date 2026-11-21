@@ -80,7 +80,6 @@
 	<!-- EN-TÊTE SUPÉRIEUR 2 NIVEAUX : PROJET (Cadrage & Tableau) vs SUJET (Focus) -->
 	<!-- ═════════════════════════════════════════════════════════════════════════ -->
 	<ProjectEngagementHeader
-		isExperimentalEnabled={data?.isExperimentalEnabled}
 		onOpenQuickAsk={() => (isQuickAskOpen = true)}
 		onOpenLiveLock={() => (isLiveLockModalOpen = true)}
 	/>

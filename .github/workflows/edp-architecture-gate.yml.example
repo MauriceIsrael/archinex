@@ -1,4 +1,4 @@
-name: EDP Architecture Gate (Experimental)
+name: EDP Architecture Gate
 
 on:
   pull_request:
@@ -13,8 +13,6 @@ jobs:
   edp-gate:
     name: Architecture Governance Gate
     runs-on: ubuntu-latest
-    env:
-      ARCHINEX_EXPERIMENTAL_EDP: '1'
 
     steps:
       - name: Checkout code

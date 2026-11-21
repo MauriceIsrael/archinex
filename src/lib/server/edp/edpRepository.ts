@@ -14,13 +14,6 @@ export class UnauthorizedRoleError extends Error {
   }
 }
 
-export class FeatureDisabledError extends Error {
-  constructor(message: string = 'Fonctionnalité EDP inactive (drapeau ARCHINEX_EXPERIMENTAL_EDP absent).') {
-    super(message);
-    this.name = 'FeatureDisabledError';
-  }
-}
-
 export const AUTHORIZED_VALIDATOR_ROLES = new Set([
   'Lead Architect',
   'Domain Expert Architect',
@@ -54,20 +47,9 @@ export interface TransitionStatusOptions {
 }
 
 /**
- * Vérifie si le drapeau expérimental EDP est activé.
- */
-export function isEdpFeatureEnabled(): boolean {
-  return process.env.ARCHINEX_EXPERIMENTAL_EDP === '1';
-}
-
-/**
  * Enregistre ou met à jour un Paquet de Décision Exécutable dans la base (Issue #174).
  */
 export async function saveEdpPackage(data: EdpPackageInput) {
-  if (!isEdpFeatureEnabled()) {
-    throw new FeatureDisabledError();
-  }
-
   // Application de l'Invariant II à la création
   if (data.status === 'validated') {
     if (data.productionMode === 'llm-derived') {
@@ -125,10 +107,6 @@ export async function saveEdpPackage(data: EdpPackageInput) {
  * Récupère un EDP par son identifiant.
  */
 export async function getEdpPackage(id: string) {
-  if (!isEdpFeatureEnabled()) {
-    throw new FeatureDisabledError();
-  }
-
   const pkg = await (prisma as any).executableDecisionPackage.findUnique({
     where: { id }
   });
@@ -146,10 +124,6 @@ export async function getEdpPackage(id: string) {
  * Liste les EDP associés à une décision.
  */
 export async function listEdpPackagesByDecision(decisionId: string) {
-  if (!isEdpFeatureEnabled()) {
-    throw new FeatureDisabledError();
-  }
-
   const list = await (prisma as any).executableDecisionPackage.findMany({
     where: { decisionId },
     orderBy: { revision: 'desc' }
@@ -166,10 +140,6 @@ export async function listEdpPackagesByDecision(decisionId: string) {
  * Effectue une transition de statut sous contrôle strict des Invariants II et VII (Issue #174).
  */
 export async function transitionEdpStatus(options: TransitionStatusOptions) {
-  if (!isEdpFeatureEnabled()) {
-    throw new FeatureDisabledError();
-  }
-
   const existing = await (prisma as any).executableDecisionPackage.findUnique({
     where: { id: options.id }
   });
@@ -218,10 +188,6 @@ export async function retractEdpOnAntecedentChange(
   antecedentIdOrUrn: string,
   details?: { oldRevision?: string | number; newRevision?: string | number }
 ) {
-  if (!isEdpFeatureEnabled()) {
-    return { affectedCount: 0 };
-  }
-
   const allPackages = await (prisma as any).executableDecisionPackage.findMany({
     where: {
       status: { in: ['proposed', 'validated'] }

@@ -89,7 +89,6 @@
     staleReason?: string | null;
   } | null = null;
 
-  export let isExperimentalEnabled: boolean = false;
   export let currentUserRole: string = 'Viewer';
   export let currentUserId: string = 'current-user';
   export let hydratedData: any = null;
@@ -165,14 +164,11 @@
   }
 </script>
 
-{#if isExperimentalEnabled && edp}
+{#if edp}
   <div class="edp-card border rounded-lg p-5 shadow-sm bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-800" data-testid="edp-card">
-    <!-- Bandeau Expérimental -->
+    <!-- En-tête du paquet -->
     <div class="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
       <div class="flex items-center space-x-2">
-        <span class="inline-flex items-center px-2 py-0.5 rounded text-xs font-semibold bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300">
-          🧪 EXPÉRIMENTAL
-        </span>
         <h3 class="text-base font-bold text-slate-900 dark:text-slate-100" data-testid="edp-title">
           {edp.metadata?.title || 'Paquet de Décision Exécutable'}
         </h3>

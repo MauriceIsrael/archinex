@@ -3,7 +3,7 @@ import type { RequestHandler } from './$types';
 import { readFileSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { prisma } from '$lib/server/prisma';
-import { isEdpFeatureEnabled, transitionEdpStatus } from '$lib/server/edp/edpRepository';
+import { transitionEdpStatus } from '$lib/server/edp/edpRepository';
 import { verifyEdp } from '$lib/server/edp/edpVerify';
 import { loadOntologyCatalog } from '$lib/server/edp/ontologyClient';
 import {
@@ -160,15 +160,6 @@ export const GET: RequestHandler = async (event) => {
 	const { params, url } = event;
 
   const { projectId, subjectId } = params;
-  const isEnabled =
-    isEdpFeatureEnabled() ||
-    url.searchParams.get('edp') === '1' ||
-    process.env.NODE_ENV !== 'production';
-
-  if (!isEnabled) {
-    return json({ edp: null, isExperimentalEnabled: false });
-  }
-
   try {
     const catalog = await loadOntologyCatalog({ includeRuntimeOverlay: true });
     const ctx = await loadSubjectContext(subjectId, projectId);
@@ -238,7 +229,6 @@ export const GET: RequestHandler = async (event) => {
         : parsedContent.lastVerdict;
 
       return json({
-        isExperimentalEnabled: true,
         driftFindings: subjectFindings,
         edp: {
           ...parsedContent,
@@ -314,7 +304,6 @@ export const GET: RequestHandler = async (event) => {
       : { metadata: { status: 'proposed', revision: 1 }, decision_context: {} };
 
     return json({
-      isExperimentalEnabled: true,
       edp: {
         ...raw,
         metadata: {
@@ -340,7 +329,7 @@ export const GET: RequestHandler = async (event) => {
       }
     });
   } catch (err: any) {
-    return json({ edp: null, isExperimentalEnabled: true, error: err.message }, { status: 500 });
+    return json({ edp: null, error: err.message }, { status: 500 });
   }
 };
 

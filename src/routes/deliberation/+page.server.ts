@@ -1,5 +1,4 @@
 import type { PageServerLoad } from './$types';
-import { isEdpFeatureEnabled } from '$lib/server/edp/edpRepository';
 import { requireAuth } from '$lib/auth/guard.server';
 
 export const load: PageServerLoad = async (event) => {
@@ -11,16 +10,8 @@ export const load: PageServerLoad = async (event) => {
 		sessionUser?.role ||
 		'lead_architect';
 
-	const isExperimentalEnabled =
-		event.url.searchParams.get('edp') === '0'
-			? false
-			: isEdpFeatureEnabled() ||
-				event.url.searchParams.get('edp') === '1' ||
-				process.env.NODE_ENV !== 'production';
-
 	return {
 		sessionRole,
-		isExperimentalEnabled,
 		sessionUser: {
 			id: sessionUser.id,
 			name: sessionUser.name,

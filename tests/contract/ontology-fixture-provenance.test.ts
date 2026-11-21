@@ -51,3 +51,36 @@ describe.skipIf(!LIVE)('Fixture d\'ontologie contre le Hub réel', () => {
 		expect(canonical(live) === fixtureText, 'la fixture est périmée par rapport au Hub : la resynchroniser et relire les tests').toBe(true);
 	});
 });
+
+describe('Extension de projet', () => {
+	it('échoue clairement quand elle cible une entité que le Hub n\'a plus', async () => {
+		const { applyProjectOverlay } = await import('../../src/lib/server/edp/ontologyClient');
+		const catalog = { catalog_version: '1', generated_at: 'x', entities: {}, triplets: [] };
+		expect(() =>
+			applyProjectOverlay(catalog, { entityPatches: { 'urn:archinex:ontology:absente': { keywords: ['x'] } } })
+		).toThrow(/absente de l'ontologie du Hub/);
+	});
+
+	it('fusionne objets et tableaux, remplace sur $replace, et ne touche pas au catalogue d\'origine', async () => {
+		const { applyProjectOverlay } = await import('../../src/lib/server/edp/ontologyClient');
+		const u = 'urn:archinex:ontology:t:leaf';
+		const catalog: any = {
+			catalog_version: '1',
+			generated_at: 'x',
+			entities: { [u]: { urn: u, revision: 1, keywords: ['a'], projections: { p: 1 }, oracle_rules: ['r1'] } },
+			triplets: [{ id: 't1', subject: u, predicate: 'depends_on', object: u }]
+		};
+		const out: any = applyProjectOverlay(catalog, {
+			entityPatches: { [u]: { keywords: ['a', 'b'], projections: { q: 2 }, oracle_rules: { $replace: ['r2'] } } },
+			addedTriplets: [
+				{ id: 't1', subject: u, predicate: 'depends_on', object: u },
+				{ id: 'tr-prj-1', subject: u, predicate: 'depends_on', object: u }
+			]
+		} as any);
+		expect(out.entities[u].keywords).toEqual(['a', 'b']);
+		expect(out.entities[u].projections).toEqual({ p: 1, q: 2 });
+		expect(out.entities[u].oracle_rules).toEqual(['r2']);
+		expect(out.triplets.map((t: any) => t.id)).toEqual(['t1', 'tr-prj-1']);
+		expect(catalog.entities[u].keywords).toEqual(['a']);
+	});
+});

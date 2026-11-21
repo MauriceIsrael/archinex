@@ -485,6 +485,8 @@ Dans l'onglet de délibération et de rendu (`ArtifactRegenerationHub.svelte`), 
 
 ## 12. Paquet de Décision Exécutable (EDP) & Oracles OPA/Rego (Expérimental)
 
+> **Orientation (ADR-017)** : toute écriture vers un outil d'implémentation passe par Nautobot, seul point de réconciliation bidirectionnel d'Archinex ; les connecteurs sont derrière Nautobot. Voir [`docs/adr/ADR-017-nautobot-point-unique-reconciliation.md`](docs/adr/ADR-017-nautobot-point-unique-reconciliation.md).
+
 Dans le cadre de l'initiative expérimentale (`ARCHINEX_EXPERIMENTAL_EDP=1`), Archinex associe à chaque décision d'architecture arbitrée un **Paquet de Décision Exécutable** (EDP) assurant l'opposabilité et la vérifiabilité continue du HLD face aux instanciations LLD réelles ou simulées :
 
 1. **Séparation Stricte Intension (HLD) vs Extension (LLD)** :
@@ -518,6 +520,8 @@ Dans le cadre de l'initiative expérimentale (`ARCHINEX_EXPERIMENTAL_EDP=1`), Ar
 ---
 
 ## 13. Architecture Logicielle de la Phase 4 : Raffinement Ontologique Multi-Axes, Hydratation Exhaustive & Réconciliation (`Phase4RefinementHub`)
+
+> **Orientation (ADR-017)** : toute écriture vers un outil d'implémentation passe par Nautobot, seul point de réconciliation bidirectionnel d'Archinex ; les connecteurs sont derrière Nautobot. Voir [`docs/adr/ADR-017-nautobot-point-unique-reconciliation.md`](docs/adr/ADR-017-nautobot-point-unique-reconciliation.md).
 
 Pour éviter l'écueil classique des architectures où le document de spécification (HLD) et l'ingénierie d'exécution (LLD / CMDB / GitOps) divergent sitôt l'arbitrage rendu, Archinex structure le cycle de vie d'un sujet d'architecture en **4 phases continues** et ajoute en Phase 4 un moteur formel de **raffinement piloté par l'ontologie**, d'**hydratation multi-objets** et de **réconciliation inter-domaines**.
 
@@ -602,6 +606,8 @@ La conception de la Phase 4 d'Archinex s'appuie sur **4 travaux académiques fon
 ---
 
 ## 15. Vues d'Intégration Détaillées (Sylva, FluxCD GitOps, Nautobot 2.x SSoT & 3GPP/TMF)
+
+> **Orientation (ADR-017)** : toute écriture vers un outil d'implémentation passe par Nautobot, seul point de réconciliation bidirectionnel d'Archinex ; les connecteurs sont derrière Nautobot. Voir [`docs/adr/ADR-017-nautobot-point-unique-reconciliation.md`](docs/adr/ADR-017-nautobot-point-unique-reconciliation.md).
 
 ### 15.1 Principe Directeur vis-à-vis de Sylva : Ne Jamais Réinventer `sylva-core` / `sylva-units` ni Introduire de Couche Intermédiaire Nephio
 
@@ -909,6 +915,8 @@ Pour dépasser le simple comptage multiplicatif What-If (« 2 vs 3 DCs »), Arch
 La feuille de route ci-dessous détaille les prochaines étapes d'évolution d'Archinex pour industrialiser la chaîne **Décision HLD $\rightarrow$ Ontologie KAOS $\rightarrow$ SSoT Nautobot & Clusters Sylva** sans jamais dupliquer les briques existantes de l'écosystème.
 
 ### Orientation révisée (prime sur les horizons ci-dessous)
+
+Décision formalisée dans l'[ADR-017](docs/adr/ADR-017-nautobot-point-unique-reconciliation.md) (statut : proposé).
 
 1. **Nautobot est l'unique point de réconciliation bidirectionnel d'Archinex.** Archinex crée les objets au statut *Planned* et ne parle à aucun outil d'implémentation. Les connecteurs vers les systèmes réels (GitOps Sylva, DNS/DDI, Vault/PKI, IdP, Batfish, supply chain, ITSM) sont **derrière Nautobot** : ils lisent ses objets, agissent, puis y écrivent leur statut et leur preuve. Archinex lit cet état ; il ne force jamais un statut « réalisé » (épique #372, #398, #399).
 2. **Archinex se concentre sur la délibération, la complétude de la couverture des exigences et la justification visuelle** (épique #400).

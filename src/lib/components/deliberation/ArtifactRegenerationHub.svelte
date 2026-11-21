@@ -1,13 +1,24 @@
 <script lang="ts">
 	import { deliberationStore } from '$lib/stores/deliberationStore.svelte';
 	import { wrapC4xMarkdown } from '$lib/domain/c4xDsl';
+	import {
+		DEFAULT_EDITORIAL_DIALS,
+		recommendEditorialViews,
+		renderRequirementTraceability,
+		renderTraceableBlockTree,
+		type EditorialDials,
+		type TraceabilityRowInput
+	} from '$lib/domain/editorialSvg';
 	import MermaidViewer from './MermaidViewer.svelte';
-	import { RefreshCw, Download, Copy, Check, Terminal, FileCode, Layers, Cpu, ShieldCheck, Scale, FileSpreadsheet, Boxes, ExternalLink } from 'lucide-svelte';
+	import EditorialDiagramViewer from './EditorialDiagramViewer.svelte';
+	import { RefreshCw, Download, Copy, Check, Terminal, FileCode, Layers, Cpu, ShieldCheck, Scale, FileSpreadsheet, Boxes, ExternalLink, Sparkles } from 'lucide-svelte';
 
-	type TabType = 'mermaid' | 'structurizr' | 'sysml' | 'config' | 'compliance' | 'petites-briques';
+	type TabType = 'mermaid' | 'editorial' | 'structurizr' | 'sysml' | 'config' | 'compliance' | 'petites-briques';
 
 	let activeTab = $state<TabType>('mermaid');
 	let mermaidSubView = $state<'target' | 'sequence' | 'causal'>('target');
+	let editorialSubView = $state<'traceable-blocks' | 'requirement-traceability'>('traceable-blocks');
+	let editorialDials = $state<EditorialDials>({ ...DEFAULT_EDITORIAL_DIALS });
 	let c4SubView = $state<'c4x' | 'structurizr'>('c4x');
 	let petitesBriquesSubView = $state<'visual' | 'yaml' | 'json'>('visual');
 	let selectedBlockAxisId = $state<string | null>(null);
@@ -21,6 +32,83 @@
 	const projections = $derived(
 		activeSubject ? deliberationStore.getProjections(activeSubject.id) : null
 	);
+
+	const editorialTraceRows = $derived.by((): TraceabilityRowInput[] => {
+		if (!activeSubject || !projections?.projectionBlocks) return [];
+		const blockGraph = projections.projectionBlocks;
+		const decisionCtx = deliberationStore.decisionContexts[activeSubject.id];
+		const retainedOption = decisionCtx?.decision?.retainedOptionId
+			? decisionCtx.options.find((o) => o.id === decisionCtx.decision?.retainedOptionId)
+			: null;
+		const isFrozen = Boolean(deliberationStore.frozenSnapshots[activeSubject.id]);
+
+		return blockGraph.requirements.map((req) => {
+			const block = req.targetAxisId
+				? blockGraph.blocks.find((b) => b.axisId === req.targetAxisId)
+				: null;
+			const settledItem = block?.items.find((i) => i.badge.tag === 'Verified' || i.badge.tag === 'Designed');
+			return {
+				requirementId: req.clauseRef,
+				sourceRef: activeSubject.section_ref || 'RFP',
+				sourceLabel: activeSubject.name,
+				requirementTitle: req.title,
+				designElementId: block ? block.safeId.toUpperCase() : retainedOption ? 'DEC-OPT' : null,
+				designElementLabel: block ? block.label : retainedOption ? retainedOption.title : null,
+				verificationId: settledItem ? settledItem.statement.id : isFrozen ? 'SEAL-L5' : null,
+				verificationLabel: settledItem
+					? `${settledItem.badge.label} · ${settledItem.componentName}`
+					: isFrozen
+						? 'Section scellée (L5)'
+						: null
+			};
+		});
+	});
+
+	const editorialRecommendations = $derived.by(() => {
+		const blockGraph = projections?.projectionBlocks;
+		if (!activeSubject || !blockGraph) return [];
+		const decisionCtx = deliberationStore.decisionContexts[activeSubject.id];
+		const totalStatements = blockGraph.blocks.reduce((acc, b) => acc + b.items.length, 0);
+		const unsettledCount = blockGraph.blocks.reduce((acc, b) => acc + b.unsettledCount, 0);
+		const missingVerificationCount = editorialTraceRows.filter((r) => !r.verificationId).length;
+		return recommendEditorialViews({
+			blockCount: blockGraph.blocks.length,
+			statementCount: totalStatements,
+			unsettledCount,
+			requirementCount: blockGraph.requirements.length,
+			missingVerificationCount,
+			optionCount: decisionCtx?.options?.length ?? 0,
+			hasRetainedDecision: Boolean(decisionCtx?.decision?.retainedOptionId)
+		});
+	});
+
+	const activeEditorialDiagram = $derived.by(() => {
+		const blockGraph = projections?.projectionBlocks;
+		if (!activeSubject || !blockGraph) return null;
+		const decisionCtx = deliberationStore.decisionContexts[activeSubject.id];
+		const retainedOption = decisionCtx?.decision?.retainedOptionId
+			? decisionCtx.options.find((o) => o.id === decisionCtx.decision?.retainedOptionId)
+			: null;
+
+		if (editorialSubView === 'requirement-traceability') {
+			return renderRequirementTraceability({
+				subjectId: activeSubject.id,
+				sectionRef: activeSubject.section_ref,
+				subjectName: activeSubject.name,
+				rows: editorialTraceRows,
+				dials: editorialDials
+			});
+		}
+
+		return renderTraceableBlockTree({
+			subjectId: activeSubject.id,
+			sectionRef: activeSubject.section_ref,
+			subjectName: activeSubject.name,
+			retainedOptionTitle: retainedOption?.title,
+			graph: blockGraph,
+			dials: editorialDials
+		});
+	});
 
 	$effect(() => {
 		if (activeSubject?.id) {
@@ -85,6 +173,8 @@
 				if (mermaidSubView === 'sequence') return (projections as any).deploymentSequenceMermaid || projections.mermaid;
 				if (mermaidSubView === 'causal') return projections.mermaid;
 				return (projections as any).targetArchitectureMermaid || projections.mermaid;
+			case 'editorial':
+				return activeEditorialDiagram?.svg || '';
 			case 'structurizr':
 				return c4SubView === 'c4x' ? (projections.c4xDSL || '') : projections.structurizrDSL;
 			case 'sysml':
@@ -119,6 +209,10 @@
 				if (mermaidSubView === 'sequence') filename = `${activeSubject?.id || 'arch'}_deployment_sequence.mmd`;
 				else if (mermaidSubView === 'causal') filename = `${activeSubject?.id || 'arch'}_causal_graph.mmd`;
 				else filename = `${activeSubject?.id || 'arch'}_target_architecture.mmd`;
+				break;
+			case 'editorial':
+				filename = `${activeEditorialDiagram?.slug || activeSubject?.id || 'arch'}.svg`;
+				mimeType = 'image/svg+xml;charset=utf-8';
 				break;
 			case 'structurizr':
 				filename = c4SubView === 'c4x'
@@ -218,6 +312,18 @@
 			>
 				<Layers class="h-3.5 w-3.5" />
 				<span>Diagrammes d'Architecture (Mermaid)</span>
+			</button>
+
+			<button
+				type="button"
+				onclick={() => (activeTab = 'editorial')}
+				class="px-3 py-1.5 font-semibold rounded-lg transition-colors flex items-center gap-1.5 whitespace-nowrap {activeTab === 'editorial'
+					? 'bg-primary text-primary-foreground shadow-2xs'
+					: 'text-muted-foreground hover:text-foreground hover:bg-muted/60'}"
+				data-testid="tab-editorial-svg"
+			>
+				<Sparkles class="h-3.5 w-3.5" />
+				<span>Vues Éditoriales (SVG)</span>
 			</button>
 
 			<button
@@ -372,6 +478,32 @@
 						defaultView="visual"
 					/>
 				{/if}
+			{:else if activeTab === 'editorial' && activeEditorialDiagram}
+				<div class="flex flex-wrap items-center gap-1.5 p-1 rounded-lg bg-muted/60 border border-border/40 w-fit text-xs" data-testid="editorial-view-switcher">
+					<button
+						type="button"
+						onclick={() => (editorialSubView = 'traceable-blocks')}
+						class="px-2.5 py-1 rounded-md font-medium transition-colors {editorialSubView === 'traceable-blocks' ? 'bg-background shadow-xs text-foreground font-bold' : 'text-muted-foreground hover:text-foreground'}"
+						data-testid="editorial-subtab-blocks"
+					>
+						Décomposition en Blocs Traçables (TOGAF)
+					</button>
+					<button
+						type="button"
+						onclick={() => (editorialSubView = 'requirement-traceability')}
+						class="px-2.5 py-1 rounded-md font-medium transition-colors {editorialSubView === 'requirement-traceability' ? 'bg-background shadow-xs text-foreground font-bold' : 'text-muted-foreground hover:text-foreground'}"
+						data-testid="editorial-subtab-traceability"
+					>
+						Traçabilité Exigences × Conception × Preuve
+					</button>
+				</div>
+
+				<EditorialDiagramViewer
+					diagram={activeEditorialDiagram}
+					recommendations={editorialRecommendations}
+					bind:dials={editorialDials}
+					onSelectView={(viewId) => (editorialSubView = viewId)}
+				/>
 			{:else if activeTab === 'structurizr' || activeTab === 'sysml'}
 				{@const blockGraph = projections.projectionBlocks}
 				{@const activeBlock = selectedBlockAxisId ? blockGraph?.blocks.find((b) => b.axisId === selectedBlockAxisId) : null}

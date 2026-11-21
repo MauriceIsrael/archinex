@@ -1,5 +1,6 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { prisma } from '$lib/server/prisma';
+import { llmopsClient } from '$lib/server/llmops/client';
 import {
 	createProject,
 	createSubject,
@@ -50,6 +51,7 @@ describe('Lot A5 Integration: KB Capitalization & Human-in-the-loop Gate (Porte 
 	let crit2Id: string;
 
 	beforeAll(async () => {
+		vi.spyOn(llmopsClient, 'checkOption').mockResolvedValue({ verdicts: [], offline: false } as never);
 		await prisma.project.deleteMany({ where: { id: testProjectId } });
 
 		// 1. Initialise le projet et les membres

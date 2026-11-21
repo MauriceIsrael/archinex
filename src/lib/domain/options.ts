@@ -66,6 +66,23 @@ export interface AcceptedViolation {
 	justification: string;
 }
 
+export type ComplianceCheckStatus = 'checked' | 'partial' | 'not_checked';
+
+export interface ComplianceCheckDerogation {
+	reason: string;
+	acknowledgedAt: string; // ISO date
+	acknowledgedBy?: string;
+}
+
+export interface DecisionComplianceCheck {
+	status: ComplianceCheckStatus;
+	hubRevision: string | null;
+	checkedAt: string; // ISO date
+	unassessedRuleIds: string[];
+	frameworks: string[];
+	derogation?: ComplianceCheckDerogation;
+}
+
 export interface Decision {
 	id: string;
 	subjectId: string;
@@ -80,6 +97,7 @@ export interface Decision {
 	arbiterRole: string;
 	decidedAt: string; // ISO date
 	acceptedViolations: AcceptedViolation[];
+	complianceCheck?: DecisionComplianceCheck;
 	kbCandidateIds: string[];
 	validatedBy?: string;
 	version?: number;

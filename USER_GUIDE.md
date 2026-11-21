@@ -75,7 +75,8 @@ Dès que tous les blocages sont levés :
 1. Sélectionnez l'option retenue.
 2. Renseignez le motif d'écartement pour chaque alternative rejetée.
 3. Exposez la motivation d'arbitrage et qualifiez sa réversibilité (*réversible*, *coûteuse*, *structurante/irréversible*).
-4. Cliquez sur **Prononcer l'arbitrage opposable**. Le sujet passe au niveau scellé `L3_decided`.
+4. Vérifiez le bandeau **Contrôle réglementaire KB** affiché avant de trancher : l'interface distingue explicitement *Hub KB connecté · aucune violation* de *Hub KB non connecté* ou *Vérification KB incomplète*. Si le Hub est injoignable ou si des règles restent non évaluées, l'arbitrage est bloqué par défaut (*fail-closed*) ; vous pouvez toutefois acter une **dérogation explicite motivée** (« décision sans vérification KB complète »), qui sera tracée en statut `Provisional` dans la matrice de conformité et le dossier exporté.
+5. Cliquez sur **Prononcer l'arbitrage opposable**. Le sujet passe au niveau scellé `L3_decided`.
 
 ### Étape 5 bis : Extraction des faits, Arbre de découverte & Diagnostic des règles (Onglet 4 « Cascade & Règles »)
 1. **Extraction & affirmation des faits (`K18`)** : dans l'onglet **Options, Matrice & Arbitrage**, les faits machine-lisibles (ex. `resilience_mode=actif/actif`, `site_count=2`, `sovereignty_level=secnumcloud`) sont extraits de votre motivation et validés lors de l'affirmation L3. Ces faits alimentent le moteur de cascade, l'agent Proposeur (*Angles morts*), la détection de remise en cause et l'export/synchronisation Hub LLMOps.

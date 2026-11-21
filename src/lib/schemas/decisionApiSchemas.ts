@@ -25,7 +25,13 @@ export const CreateDecisionSchema = z
 					justification: z.string().min(5, 'La justification de la dispense est obligatoire (au moins 5 caractères).')
 				})
 			)
-			.default([])
+			.default([]),
+		complianceCheckDerogation: z
+			.object({
+				acknowledged: z.boolean(),
+				reason: z.string().default('')
+			})
+			.optional()
 	})
 	.refine(
 		(data) => {
@@ -38,6 +44,19 @@ export const CreateDecisionSchema = z
 			message:
 				'Une justification ou réserve explicite (au moins 5 caractères) est obligatoire lorsque le statut retenu est « Partially compliant » ou « Non-compliant ».',
 			path: ['complianceRationale']
+		}
+	)
+	.refine(
+		(data) => {
+			if (data.complianceCheckDerogation?.acknowledged) {
+				return data.complianceCheckDerogation.reason.trim().length >= 5;
+			}
+			return true;
+		},
+		{
+			message:
+				'Un motif explicite (au moins 5 caractères) est obligatoire pour la dérogation « décision sans vérification KB complète ».',
+			path: ['complianceCheckDerogation']
 		}
 	);
 

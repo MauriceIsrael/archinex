@@ -1,5 +1,6 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { prisma } from '$lib/server/prisma';
+import { llmopsClient } from '$lib/server/llmops/client';
 import {
 	createProject,
 	createSubject,
@@ -53,10 +54,12 @@ describe('Lot A4 Integration: Calculated Maturity & Human Arbitration Gate (Port
 	let objectionArgId: string;
 
 	beforeAll(async () => {
+		vi.spyOn(llmopsClient, 'checkOption').mockResolvedValue({ verdicts: [], offline: false } as never);
 		await prisma.project.deleteMany({ where: { id: testProjectId } });
 	});
 
 	afterAll(async () => {
+		vi.restoreAllMocks();
 		await prisma.project.deleteMany({ where: { id: testProjectId } });
 	});
 

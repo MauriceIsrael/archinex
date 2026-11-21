@@ -105,6 +105,11 @@ describe('Lot A5 E2E: Second cas de test IT pure - Plateforme Cloud Privé Souve
 			status: 'in_review'
 		});
 
+		vi.spyOn(llmopsClient, 'checkOption').mockResolvedValue({
+			verdicts: [],
+			offline: false
+		} as never);
+
 		// Configuration du faux LLM pour le débat
 		setupFakeLlm({
 			proposerArguments: [

@@ -359,6 +359,121 @@ describe('Matrice de Conformité Standardisée (Issue #118)', () => {
 			expect(matrix.rows[0].status).toBe('Partially compliant');
 			expect(matrix.rows[0].justification).toBe('Dérogation temporaire accordée pour la phase pilote.');
 		});
+
+		it('exporte compliance_check (not_checked + dérogation) conforme au schéma 1.1 et classe la matrice en Provisional (#382)', async () => {
+			const { assembleEngagementBundle } = await import('$lib/domain/bundleAssembly');
+			const { requirementBundleId } = await import('$lib/domain/requirementAudit');
+			const Ajv = (await import('ajv')).default;
+			const addFormats = (await import('ajv-formats')).default;
+			const { readFileSync } = await import('node:fs');
+
+			const schema11 = JSON.parse(
+				readFileSync(new URL('../fixtures/bundle/engagement_bundle.schema.1.1.json', import.meta.url), 'utf-8')
+			);
+			const ajv = new Ajv({ allErrors: true, strict: false });
+			addFormats(ajv);
+			const validate11 = ajv.compile(schema11);
+
+			const sha = 'b'.repeat(64);
+			const reqId = requirementBundleId(sha, 'REQ-KB-2.1');
+			const assembled = assembleEngagementBundle({
+				project: { id: 'proj-kb-check', title: 'Projet Vérif KB' },
+				confidentiality: 'internal',
+				now: new Date('2026-10-10T10:00:00Z'),
+				sources: [
+					{
+						kind: 'rfp',
+						title: 'RFP KB',
+						language: 'fr',
+						sha256: sha,
+						requirements: [
+							{
+								clauseRef: 'REQ-KB-2.1',
+								position: 1,
+								title: 'Conformité réglementaire',
+								text: 'Contrôle réglementaire obligatoire.',
+								criticality: 'bloquant',
+								proposedDisposition: 'deliberated',
+								proposedBy: '@alice',
+								proposedAt: new Date('2026-10-01T08:00:00Z'),
+								decidedDisposition: 'deliberated',
+								decidedBy: '@alice',
+								decidedAt: new Date('2026-10-02T00:00:00Z')
+							}
+						]
+					}
+				],
+				subjects: [
+					{
+						id: 'subj-kb',
+						sectionRef: '§2',
+						name: 'Sujet Sécurité',
+						maturityLevel: 'L3_decided',
+						requirementRefs: [reqId],
+						options: [{ id: 'opt-kb', title: 'Option Sécurisée' }],
+						questions: [],
+						decision: {
+							id: 'dec-kb',
+							retainedOptionId: 'opt-kb',
+							rejected: [],
+							rationale: 'Arbitrage d urgence en comité.',
+							complianceStatus: 'Compliant',
+							complianceCheck: {
+								status: 'not_checked',
+								hubRevision: null,
+								checkedAt: '2026-10-03T00:00:00.000Z',
+								unassessedRuleIds: [],
+								frameworks: ['NIS2'],
+								derogation: {
+									reason: 'Hub injoignable, revue manuelle effectuée.',
+									acknowledgedAt: '2026-10-03T00:00:00.000Z',
+									acknowledgedBy: 'alice@example.com'
+								}
+							},
+							arbiterId: 'alice@example.com',
+							decidedAt: new Date('2026-10-03T00:00:00Z')
+						}
+					}
+				],
+				statements: []
+			});
+
+			// 1. Conforme au schéma 1.1 sans additionalProperties et sans fuite d'email
+			const isValid = validate11(assembled);
+			expect(validate11.errors ?? []).toEqual([]);
+			expect(isValid).toBe(true);
+			expect(verifyEngagementBundle(assembled)).toEqual([]);
+			expect(assembled.data.decisions[0].compliance_check?.status).toBe('not_checked');
+			expect(assembled.data.decisions[0].compliance_check?.derogation?.acknowledged_by).not.toContain('@example.com');
+
+			// 2. Matrice de conformité en Provisional avec mention explicite
+			const matrix = buildComplianceMatrix(assembled);
+			expect(matrix.isProvisional).toBe(true);
+			expect(matrix.summary.provisional).toBe(1);
+			expect(matrix.rows[0].status).toBe('Provisional');
+			expect(matrix.rows[0].provisionalReason).toContain('Vérification KB incomplète');
+			expect(renderComplianceMatrixMarkdown(matrix)).toContain('Vérification KB incomplète');
+		});
+
+		it('CreateDecisionSchema exige un motif de dérogation (>= 5 car.) quand complianceCheckDerogation est activée', () => {
+			const invalid = CreateDecisionSchema.safeParse({
+				retainedOptionId: 'opt-1',
+				rejected: [],
+				rationale: 'Motivation complète de la décision.',
+				reversibility: 'costly',
+				complianceCheckDerogation: { acknowledged: true, reason: 'ok' }
+			});
+			expect(invalid.success).toBe(false);
+
+			const valid = CreateDecisionSchema.safeParse({
+				retainedOptionId: 'opt-1',
+				rejected: [],
+				rationale: 'Motivation complète de la décision.',
+				reversibility: 'costly',
+				complianceCheckDerogation: { acknowledged: true, reason: 'Hub en maintenance planifiée.' }
+			});
+			expect(valid.success).toBe(true);
+		});
 	});
 });
 

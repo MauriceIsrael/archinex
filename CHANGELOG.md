@@ -8,6 +8,13 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Vues Éditoriales SVG Déterministes (Pilote `diagram-design` — #418, #419, #420, #422)
+- Ajout du moteur de rendu SVG éditorial déterministe `src/lib/domain/editorialSvg/` (grille stricte `4px`, zéro ombre, connecteurs orthogonaux à coudes arrondis, rôles de couleurs WCAG AA ≥ 4.5:1 en thèmes `light`, `dark` et `full-editorial`, contrat d'accessibilité `role="img"` + `<title>`/`<desc>`, et les 4 Cadrans d'adaptation `Size` / `Detail` / `Audience` / `Skin` avec *Fidelity Ledger*).
+- Implémentation de deux vues pilotes déterministes : **Décomposition en blocs traçables (TOGAF)** avec attributs `data-block-*` et export sidecar `.registry.json`, et **Traçabilité Exigences × Conception × Preuve** avec contrat explicite `data-trace-missing="true"` pour tout maillon absent.
+- Ajout d'un **Directeur Éditorial** déterministe (`recommender.ts`) qui évalue les signaux disponibles sur le sujet pour recommander les vues les plus pertinentes.
+- Ajout du composant `EditorialDiagramViewer.svelte` (inspection interactive de la provenance au clic, export `.svg` / `.html` hors-ligne / `.registry.json`) intégré dans un onglet **« Vues Éditoriales (SVG) »** en parallèle de Mermaid dans `ArtifactRegenerationHub.svelte`.
+- Ajout des vérificateurs CI de géométrie (`4px`, connecteurs orthogonaux), contraste WCAG AA, accessibilité SVG et intégrité du registre `.registry.json` (`tests/unit/editorial-svg.test.ts`).
+
 ### Marquage de traçabilité `archinex_*` et push Nautobot idempotent, avec simulation (#376)
 - **Marquage (`src/lib/server/edp/traceMarkers.ts`, `nautobotSync.ts`)** :
   - Chaque objet de la tranche minimale (Tenant, Device, Prefix, VLAN, IP) porte `archinex_project`, `archinex_subject_id`, `archinex_decision_id`, `archinex_decision_revision`, `archinex_clause_refs` et l'empreinte d'intention `archinex_intent_hash` (`v1:<sha256>` sur les seuls champs d'intention). Champs personnalisés créés de façon idempotente (`ensureTraceCustomFields`).

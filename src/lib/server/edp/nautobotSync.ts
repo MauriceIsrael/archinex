@@ -1,10 +1,7 @@
+import { evaluateStatusObservation, guardIntentPush, ownedTypeFromListPath } from '../../domain/edp/fieldOwnership.js';
 import type { MultiAxisHydratedInventory } from './refinementCoverage.js';
 import type { DriftFindingDraft } from './driftTypes.js';
-import {
-  extractArchinexMarkers,
-  hasTraceabilityMarkers,
-  isStatusRegression
-} from './driftService.js';
+import { extractArchinexMarkers, hasTraceabilityMarkers } from './driftService.js';
 
 const DEFAULT_NAUTOBOT_URL = process.env.NAUTOBOT_URL || 'http://localhost:8080';
 const DEFAULT_NAUTOBOT_TOKEN =
@@ -199,12 +196,16 @@ async function getOrCreateByQuery(
   if (existing.results && existing.results.length > 0) {
     const item = existing.results[0];
     if (patchOnExisting && item.id) {
+      // Propriété des champs (ADR-017, #398) : sur un objet existant, seuls les champs d'INTENTION sont réécrits.
+      // Jamais de statut ni de champ réalisé : un nouveau push ne fait pas régresser ce qu'un connecteur a réalisé.
+      const guarded = guardIntentPush(ownedTypeFromListPath(listPath), createPayload, true);
+      if (Object.keys(guarded.payload).length === 0) return item;
       try {
         return await nbFetch(
           `${listPath}${item.id}/`,
           {
             method: 'PATCH',
-            body: JSON.stringify(createPayload)
+            body: JSON.stringify(guarded.payload)
           },
           clientOpts
         );
@@ -1495,22 +1496,26 @@ export async function pullLiveInventoryFromNautobot(
         liveDev.status?.name ||
         (typeof liveDev.status === 'string' ? liveDev.status : undefined);
       if (liveStatus) {
-        const normalizedStatus = String(liveStatus).toLowerCase();
-        if (normalizedStatus !== String(plannedDev.status).toLowerCase()) {
-          const regression = isStatusRegression(String(plannedDev.status), normalizedStatus);
-          result.detectedDrifts.push(
-            `Device '${devName}' modifié dans Nautobot : status='${normalizedStatus}' (attendu: '${plannedDev.status}')`
-          );
-          result.findings.push({
-            ...base,
-            objectRef: devRef,
-            kind: regression ? 'status_regression' : 'attribute_mismatch',
-            attributeKey: 'status',
-            expected: String(plannedDev.status).toLowerCase(),
-            observed: normalizedStatus,
-            severity: regression ? 'high' : 'medium'
-          });
-          plannedDev.status = normalizedStatus;
+        // Le statut est un champ RÉALISÉ (#398) : une progression légitime posée par un connecteur n'est pas un écart ;
+        // un recul ou une panne est une régression ; un statut inconnu reste signalé (jamais ignoré).
+        const observation = evaluateStatusObservation(plannedDev.status, liveStatus);
+        if (observation.verdict !== 'unchanged') {
+          if (observation.verdict !== 'progress') {
+            const regression = observation.verdict === 'regression';
+            result.detectedDrifts.push(
+              `Device '${devName}' modifié dans Nautobot : status='${observation.observed}' (attendu: '${observation.expected}') : ${observation.reason}`
+            );
+            result.findings.push({
+              ...base,
+              objectRef: devRef,
+              kind: regression ? 'status_regression' : 'attribute_mismatch',
+              attributeKey: 'status',
+              expected: observation.expected,
+              observed: observation.observed,
+              severity: regression ? 'high' : 'medium'
+            });
+          }
+          plannedDev.status = observation.observed;
         }
       }
 

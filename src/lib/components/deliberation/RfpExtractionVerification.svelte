@@ -124,7 +124,7 @@
 					</span>
 				</h3>
 				<p class="text-[11px] text-muted-foreground">
-					{report.clauseCount.toLocaleString('fr-FR')} exigences identifiées sur {report.pageCount} page{report.pageCount > 1 ? 's' : ''} · Couverture textuelle : <strong class="text-foreground">{report.coverageRate}%</strong>
+					{report.clauseCount.toLocaleString('fr-FR')} exigences identifiées sur {report.pageCount} page{report.pageCount > 1 ? 's' : ''} · Couverture extraction (caractères) : <strong class="text-foreground">{report.extractionCharCoverage}%</strong>
 				</p>
 			</div>
 		</div>
@@ -168,14 +168,14 @@
 		</div>
 
 		<div class="p-2.5 rounded-lg border bg-muted/30 space-y-0.5">
-			<div class="text-[10px] text-muted-foreground uppercase font-semibold">Couverture Texte</div>
-			<div class="text-lg font-bold font-mono {report.coverageRate < 60 ? 'text-amber-600' : 'text-emerald-600'}">
-				{report.coverageRate}%
+			<div class="text-[10px] text-muted-foreground uppercase font-semibold">Couverture Caractères</div>
+			<div class="text-lg font-bold font-mono {report.extractionCharCoverage < 60 ? 'text-amber-600' : 'text-emerald-600'}">
+				{report.extractionCharCoverage}%
 			</div>
 			<div class="h-1 rounded-full bg-muted overflow-hidden mt-1">
 				<div
-					class="h-full {report.coverageRate < 60 ? 'bg-amber-500' : 'bg-emerald-500'}"
-					style="width: {report.coverageRate}%"
+					class="h-full {report.extractionCharCoverage < 60 ? 'bg-amber-500' : 'bg-emerald-500'}"
+					style="width: {report.extractionCharCoverage}%"
 				></div>
 			</div>
 		</div>

@@ -158,12 +158,14 @@ describe('Intégration Nautobot : le push ne régresse pas la réalité, la prog
     const inv = await baselineInventory();
     const first = inv.nautobot_planned_devices[0];
     const name = String(first.name);
-    const live = [{ id: 'dev-1', name, status: { value: 'active' }, serial: 'SN-123' }];
+    // Équipement MARQUÉ (empreinte périmée) : la mise à jour est exercée, et ne doit jamais renvoyer statut ni champ réalisé.
+    const live = [{ id: 'dev-1', name, status: { value: 'active' }, serial: 'SN-123', custom_fields: { archinex_intent_hash: 'v1:perimee' } }];
     const { calls, fetchImpl } = fakeNautobot({ devices: live });
 
     await syncHydratedInventoryToNautobot(inv, { baseUrl: 'http://localhost:8080', token: 't', fetchImpl });
 
     const patches = calls.filter((c) => c.method === 'PATCH' && c.path.startsWith('/api/dcim/devices/dev-1'));
+    expect(patches.length).toBeGreaterThan(0); // le chemin de mise à jour est bien exercé
     for (const p of patches) {
       expect(p.body).not.toHaveProperty('status');
       expect(p.body).not.toHaveProperty('serial');

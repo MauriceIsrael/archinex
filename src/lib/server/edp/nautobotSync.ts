@@ -1,4 +1,16 @@
 import { evaluateStatusObservation, guardIntentPush, ownedTypeFromListPath } from '../../domain/edp/fieldOwnership.js';
+import {
+  TRACE_CONTENT_TYPES,
+  TRACE_CUSTOM_FIELD_DEFINITIONS,
+  buildTraceCustomFields,
+  computeObjectIntentHash,
+  planIntentWrite,
+  readIntentHash,
+  summarizeSyncPlan,
+  type IntentWriteAction,
+  type SyncPlanEntry,
+  type TraceContext
+} from './traceMarkers.js';
 import type { MultiAxisHydratedInventory } from './refinementCoverage.js';
 import type { DriftFindingDraft } from './driftTypes.js';
 import { extractArchinexMarkers, hasTraceabilityMarkers } from './driftService.js';
@@ -31,6 +43,12 @@ export interface NautobotSyncSummary {
     ipAddresses: string;
   };
   errors: string[];
+  /** Vrai si aucune écriture n'a été envoyée (simulation). */
+  dryRun?: boolean;
+  /** Plan de la synchronisation : actions sur les objets d'intention et écritures d'objets de support (#376). */
+  plan?: SyncPlanEntry[];
+  /** Résumé lisible du plan. */
+  planSummary?: string;
 }
 
 export interface NautobotLivePullResult {
@@ -66,6 +84,14 @@ export interface NautobotClientOptions {
   projectScope?: string;
   /** Contexte de gouvernance optionnel pour qualifier les `DriftFindingDraft` produits lors du pull. */
   driftContext?: NautobotDriftContext;
+  /** Marquage de traçabilité `archinex_*` écrit sur chaque objet de la tranche minimale (#376). */
+  trace?: TraceContext;
+  /** Simulation : aucune écriture n'est envoyée à Nautobot ; le plan est renvoyé dans le résumé (#376). */
+  dryRun?: boolean;
+  /** Adopte explicitement les objets existants NON marqués (sinon ils ne sont jamais modifiés) (#376). */
+  adoptUnmarked?: boolean;
+  /** Collecteur interne du plan de synchronisation. */
+  planSink?: SyncPlanEntry[];
   fetchImpl?: typeof fetch;
 }
 
@@ -159,8 +185,21 @@ export function resolveProjectNautobotOptions(
 async function nbFetch(
   path: string,
   options: RequestInit = {},
-  clientOpts: NautobotClientOptions = {}
+  clientOpts: NautobotClientOptions = {},
+  planOptions: { record?: boolean } = {}
 ): Promise<any> {
+  // Simulation (#376) : toute écriture est interceptée et consignée au plan ; rien n'est envoyé à Nautobot.
+  const method = String(options.method || 'GET').toUpperCase();
+  if (clientOpts.dryRun && method !== 'GET') {
+    if (planOptions.record !== false) clientOpts.planSink?.push({ kind: 'write', method, path });
+    let body: Record<string, unknown> = {};
+    try {
+      body = options.body ? JSON.parse(String(options.body)) : {};
+    } catch {
+      body = {};
+    }
+    return { id: `dryrun-${path.replace(/\W+/g, '-')}-${String(body.name ?? body.cid ?? body.prefix ?? body.address ?? body.vid ?? '')}`, ...body };
+  }
   const baseUrl = clientOpts.baseUrl || DEFAULT_NAUTOBOT_URL;
   const token = clientOpts.token || DEFAULT_NAUTOBOT_TOKEN;
   const fetchFn = clientOpts.fetchImpl || fetch;
@@ -184,6 +223,150 @@ async function nbFetch(
   return res.json();
 }
 
+/**
+ * Vrai si l'objet existant porte DÉJÀ toutes les valeurs du payload (aucune écriture nécessaire).
+ * Prudent par construction : au moindre doute (forme inconnue), renvoie false et l'écriture a lieu.
+ *  - clé de relation : l'objet imbriqué `{id}` doit avoir l'identifiant du payload ;
+ *  - `tags` : comparaison sur les noms ; `custom_fields` : sous-ensemble ;
+ *  - scalaires : égalité stricte (nombres et chaînes numériques tolérés).
+ */
+export function payloadAlreadyApplied(existing: Record<string, any>, payload: Record<string, unknown>): boolean {
+  const scalarEq = (a: unknown, b: unknown) => a === b || (a !== null && b !== null && typeof a !== 'object' && typeof b !== 'object' && String(a) === String(b));
+  for (const [key, want] of Object.entries(payload)) {
+    if (want === undefined) continue;
+    const have = key === 'custom_fields' ? existing._custom_field_data ?? existing.custom_fields : existing[key];
+    if (key === 'custom_fields') {
+      if (!have || typeof have !== 'object') return false;
+      for (const [ck, cv] of Object.entries(want as Record<string, unknown>)) {
+        if (!scalarEq((have as Record<string, unknown>)[ck], cv)) return false;
+      }
+      continue;
+    }
+    if (key === 'tags') {
+      if (!Array.isArray(want) || !Array.isArray(have)) return false;
+      const names = new Set(have.map((t: any) => (t && typeof t === 'object' ? t.name : t)));
+      if (!(want as any[]).every((t) => names.has(t && typeof t === 'object' ? t.name : t))) return false;
+      continue;
+    }
+    if (have && typeof have === 'object' && !Array.isArray(have)) {
+      const haveId = (have as Record<string, unknown>).id;
+      if (typeof want === 'string' && haveId !== undefined && String(haveId) === want) continue;
+      return false;
+    }
+    if (Array.isArray(want) || Array.isArray(have)) {
+      if (JSON.stringify(want) !== JSON.stringify(have)) return false;
+      continue;
+    }
+    if (!scalarEq(have, want)) return false;
+  }
+  return true;
+}
+
+/**
+ * Écrit un objet de la tranche minimale avec marquage de traçabilité et push idempotent (#376, ADR-017).
+ *  - absent → création (en Planned) avec marqueurs `archinex_*` ;
+ *  - marqué, même empreinte d'intention → aucune écriture ;
+ *  - marqué, empreinte différente → mise à jour des seuls champs d'intention (#398) ;
+ *  - NON marqué → jamais modifié, sauf adoption explicite.
+ */
+/** Objets existants NON marqués que la synchronisation a laissés intacts : on ne leur rattache rien (#376). */
+const skippedUnmarkedObjects = new WeakSet<object>();
+function isSkippedUnmarked(obj: unknown): boolean {
+  return Boolean(obj) && typeof obj === 'object' && skippedUnmarkedObjects.has(obj as object);
+}
+
+async function writeIntentObject(
+  type: NonNullable<ReturnType<typeof ownedTypeFromListPath>>,
+  listPath: string,
+  existingItem: any | null,
+  createPayload: Record<string, unknown>,
+  patchOnExisting: boolean,
+  clientOpts: NautobotClientOptions
+): Promise<any> {
+  const desiredHash = computeObjectIntentHash(type, createPayload);
+  const markers = buildTraceCustomFields(
+    clientOpts.trace,
+    clientOpts.projectScope ? normalizeProjectScope(clientOpts.projectScope) : undefined,
+    desiredHash
+  );
+  const payload: Record<string, unknown> = {
+    ...createPayload,
+    custom_fields: { ...((createPayload.custom_fields as Record<string, unknown>) || {}), ...markers }
+  };
+  const label = String(createPayload.name ?? createPayload.prefix ?? createPayload.address ?? createPayload.vid ?? '');
+  const record = (action: IntentWriteAction, reason: string) =>
+    clientOpts.planSink?.push({ kind: 'intent', action, type, name: label, reason });
+
+  // Un appelant qui interdit la mise à jour (patchOnExisting = false) ne réécrit jamais un objet existant.
+  const decision = planIntentWrite({
+    exists: Boolean(existingItem),
+    existingHash: readIntentHash(existingItem),
+    desiredHash,
+    adoptUnmarked: clientOpts.adoptUnmarked
+  });
+  if (existingItem && !patchOnExisting) {
+    record('noop', 'Mise à jour non demandée par l\'appelant.');
+    return existingItem;
+  }
+  record(decision.action, decision.reason);
+
+  if (decision.action === 'create') {
+    return nbFetch(listPath, { method: 'POST', body: JSON.stringify(payload) }, clientOpts, { record: false });
+  }
+  if (decision.action === 'skip_unmarked') {
+    skippedUnmarkedObjects.add(existingItem);
+    return existingItem;
+  }
+  if (decision.action === 'noop') return existingItem;
+
+  // update | adopt : seuls les champs d'intention (et les marqueurs) sont réécrits (#398).
+  const guarded = guardIntentPush(type, payload, true);
+  if (!existingItem.id || Object.keys(guarded.payload).length === 0) return existingItem;
+  try {
+    return await nbFetch(
+      `${listPath}${existingItem.id}/`,
+      { method: 'PATCH', body: JSON.stringify(guarded.payload) },
+      clientOpts,
+      { record: false }
+    );
+  } catch {
+    return existingItem;
+  }
+}
+
+/**
+ * Crée (idempotent) les champs personnalisés de traçabilité `archinex_*` sur les types de la tranche minimale.
+ * Prérequis Nautobot : droit d'écriture sur `extras.customfield` pour le jeton utilisé.
+ */
+async function ensureTraceCustomFields(clientOpts: NautobotClientOptions): Promise<{ ensured: number; errors: string[] }> {
+  let ensured = 0;
+  const errors: string[] = [];
+  for (const def of TRACE_CUSTOM_FIELD_DEFINITIONS) {
+    try {
+      const found = await nbFetch(`/api/extras/custom-fields/?key=${encodeURIComponent(def.key)}`, {}, clientOpts);
+      if (found?.results && found.results.length > 0) continue;
+      await nbFetch(
+        '/api/extras/custom-fields/',
+        {
+          method: 'POST',
+          body: JSON.stringify({
+            key: def.key,
+            label: def.label,
+            type: def.type,
+            required: false,
+            content_types: TRACE_CONTENT_TYPES
+          })
+        },
+        clientOpts
+      );
+      ensured++;
+    } catch (e: any) {
+      errors.push(`Champ personnalisé ${def.key}: ${e.message}`);
+    }
+  }
+  return { ensured, errors };
+}
+
 async function getOrCreateByQuery(
   listPath: string,
   queryParam: string,
@@ -193,8 +376,13 @@ async function getOrCreateByQuery(
 ): Promise<any> {
   const sep = listPath.includes('?') ? '&' : '?';
   const existing = await nbFetch(`${listPath}${sep}${queryParam}`, {}, clientOpts);
+  const ownedType = ownedTypeFromListPath(listPath);
+  if (ownedType) {
+    return writeIntentObject(ownedType, listPath, existing?.results?.[0] ?? null, createPayload, patchOnExisting, clientOpts);
+  }
   if (existing.results && existing.results.length > 0) {
     const item = existing.results[0];
+    if (patchOnExisting && item.id && payloadAlreadyApplied(item, createPayload)) return item;
     if (patchOnExisting && item.id) {
       // Propriété des champs (ADR-017, #398) : sur un objet existant, seuls les champs d'INTENTION sont réécrits.
       // Jamais de statut ni de champ réalisé : un nouveau push ne fait pas régresser ce qu'un connecteur a réalisé.
@@ -293,8 +481,11 @@ export function vpnObjectLogicalNames(tunnelId: string): {
  */
 export async function syncHydratedInventoryToNautobot(
   hydrated: MultiAxisHydratedInventory,
-  clientOpts: NautobotClientOptions = {}
+  clientOptsInput: NautobotClientOptions = {}
 ): Promise<NautobotSyncSummary> {
+  // Collecteur du plan (objets d'intention et écritures de support) ; partagé par tous les appels de cette synchronisation.
+  const planSink: SyncPlanEntry[] = [];
+  let clientOpts: NautobotClientOptions = { ...clientOptsInput, planSink };
   const baseUrl = clientOpts.baseUrl || DEFAULT_NAUTOBOT_URL;
   const scope = clientOpts.projectScope ? normalizeProjectScope(clientOpts.projectScope) : undefined;
   const summary: NautobotSyncSummary = {
@@ -320,7 +511,8 @@ export async function syncHydratedInventoryToNautobot(
       vrfs: `${baseUrl}/ipam/vrfs/`,
       ipAddresses: `${baseUrl}/ipam/ip-addresses/`
     },
-    errors: []
+    errors: [],
+    ...(clientOpts.dryRun ? { dryRun: true } : {})
   };
 
   try {
@@ -342,6 +534,14 @@ export async function syncHydratedInventoryToNautobot(
       : [];
 
   const satisfiedClausesStr = satisfiedClauses.join(', ');
+
+  // Marquage de traçabilité : les clauses satisfaites de l'inventaire complètent le contexte fourni (#376).
+  clientOpts = {
+    ...clientOpts,
+    trace: { ...clientOpts.trace, clauseRefs: clientOpts.trace?.clauseRefs ?? satisfiedClauses }
+  };
+  const ensuredFields = await ensureTraceCustomFields(clientOpts);
+  summary.errors.push(...ensuredFields.errors);
   const clauseTags = satisfiedClauses.map((c) => ({
     name: c.replace(/[^a-zA-Z0-9_-]/g, '_').slice(0, 100),
     slug: c.toLowerCase().replace(/[^a-z0-9_-]/g, '-').slice(0, 100)
@@ -393,24 +593,20 @@ export async function syncHydratedInventoryToNautobot(
     // S'assurer que le LocationType "Site" autorise bien l'attachement des Devices, Terminaisons de Circuits, VLANs et Préfixes
     if (defaultLocation?.location_type?.id) {
       try {
-        await nbFetch(
-          `/api/dcim/location-types/${defaultLocation.location_type.id}/`,
-          {
-            method: 'PATCH',
-            body: JSON.stringify({
-              content_types: [
-                'dcim.device',
-                'circuits.circuittermination',
-                'ipam.vlan',
-                'ipam.prefix',
-                'dcim.rack'
-              ]
-            })
-          },
-          clientOpts
-        );
+        // Idempotent (#376) : on n'écrit que si un type de contenu manque, et on FUSIONNE avec l'existant
+        // (un PATCH avec une liste fixe remplacerait, donc supprimerait, les types déjà autorisés).
+        const required = ['dcim.device', 'circuits.circuittermination', 'ipam.vlan', 'ipam.prefix', 'dcim.rack'];
+        const ltPath = `/api/dcim/location-types/${defaultLocation.location_type.id}/`;
+        const currentLt = await nbFetch(ltPath, {}, clientOpts);
+        const existingTypes: string[] = Array.isArray(currentLt?.content_types)
+          ? currentLt.content_types.map((t: any) => (typeof t === 'string' ? t : t?.label ?? t?.model ?? '')).filter(Boolean)
+          : [];
+        const merged = Array.from(new Set([...existingTypes, ...required]));
+        if (merged.length > existingTypes.length) {
+          await nbFetch(ltPath, { method: 'PATCH', body: JSON.stringify({ content_types: merged }) }, clientOpts);
+        }
       } catch {
-        // Ignorer si déjà configuré
+        // Ignorer si déjà configuré ou non supporté par l'instance
       }
     }
 
@@ -1037,11 +1233,16 @@ export async function syncHydratedInventoryToNautobot(
 
         if (primaryIp4Id) {
           try {
-            await nbFetch(
-              `/api/dcim/devices/${deviceId}/`,
-              { method: 'PATCH', body: JSON.stringify({ primary_ip4: primaryIp4Id }) },
-              clientOpts
-            );
+            // Idempotent (#376) : aucune écriture si l'IP primaire est déjà celle attendue.
+            const currentDev = await nbFetch(`/api/dcim/devices/${deviceId}/`, {}, clientOpts).catch(() => null);
+            const currentPrimary = currentDev?.primary_ip4?.id ?? currentDev?.primary_ip4;
+            if (currentPrimary === undefined || String(currentPrimary ?? '') !== String(primaryIp4Id)) {
+              await nbFetch(
+                `/api/dcim/devices/${deviceId}/`,
+                { method: 'PATCH', body: JSON.stringify({ primary_ip4: primaryIp4Id }) },
+                clientOpts
+              );
+            }
           } catch {
             // Ignorer si primary_ip4 ne peut être posé sur cette version/mock
           }
@@ -1095,7 +1296,8 @@ export async function syncHydratedInventoryToNautobot(
             if (dev.oob_ip && !ifacesToSync.some((i) => i.type === 'management' || i.name === 'oob0')) {
               ifacesToSync.unshift({ name: 'oob0', type: 'management', ip: `${dev.oob_ip}/24` });
             }
-            await syncDeviceInterfacesAndIps(
+            // Un équipement existant non marqué n'est jamais modifié : on ne lui rattache ni interface, ni IP (#376).
+            if (!isSkippedUnmarked(devObj)) await syncDeviceInterfacesAndIps(
               String(devObj.id),
               scopedDevName,
               ifacesToSync,
@@ -1149,7 +1351,8 @@ export async function syncHydratedInventoryToNautobot(
             deviceIdMap.set(String(ext.id), extObj.id);
             summary.devicesSynced++;
             if (underlayEndpoints.has(String(ext.id))) {
-              await syncDeviceInterfacesAndIps(
+              // Un équipement existant non marqué n'est jamais modifié : on ne lui rattache ni interface, ni IP (#376).
+              if (!isSkippedUnmarked(extObj)) await syncDeviceInterfacesAndIps(
                 String(extObj.id),
                 scopedExtName,
                 [{ name: 'eth-interco', type: 'data' }],
@@ -1200,7 +1403,8 @@ export async function syncHydratedInventoryToNautobot(
             deviceIdMap.set(String(node.id), nodeObj.id);
             summary.devicesSynced++;
             if (underlayEndpoints.has(String(node.id))) {
-              await syncDeviceInterfacesAndIps(
+              // Un équipement existant non marqué n'est jamais modifié : on ne lui rattache ni interface, ni IP (#376).
+              if (!isSkippedUnmarked(nodeObj)) await syncDeviceInterfacesAndIps(
                 String(nodeObj.id),
                 scopedNodeName,
                 [{ name: 'eth-interco', type: 'data' }],
@@ -1327,6 +1531,8 @@ export async function syncHydratedInventoryToNautobot(
     summary.errors.push(e.message);
   }
 
+  summary.plan = planSink;
+  summary.planSummary = summarizeSyncPlan(planSink);
   return summary;
 }
 

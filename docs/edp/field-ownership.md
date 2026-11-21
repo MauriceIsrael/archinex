@@ -21,12 +21,12 @@ Champ ou type inconnu du registre : `operational`. `archinex_*` : `intent`. `rea
 | Type | Intention | Réalisé |
 |---|---|---|
 | `tenancy.tenant` | `name`, `tenant_group`, `tags`, `custom_fields` | (aucun : un Tenant n'a pas de statut) |
-| `dcim.device` | `name`, `device_type`, `role`, `tenant`, `location`, `platform`, `oob_ip`, `power_feeds`, `interfaces`, `comments`, `tags`, `custom_fields` | `status`, `serial`, `software_version`, `primary_ip4`, `primary_ip6` |
+| `dcim.device` | `name`, `device_type`, `role`, `tenant`, `location`, `platform`, `oob_ip`, `power_feeds`, `interfaces`, `primary_ip4`, `primary_ip6`, `comments`, `tags`, `custom_fields` | `status`, `serial`, `software_version` |
 | `ipam.prefix` | `prefix`, `namespace`, `tenant`, `vlan`, `tags`, `custom_fields` | `status` |
 | `ipam.vlan` | `vid`, `name`, `vlan_group`, `tenant`, `location`, `tags`, `custom_fields` | `status` |
 | `ipam.ipaddress` | `address`, `dns_name`, `parent`, `tenant`, `tags`, `custom_fields` | `status` |
 
-`address` est une intention tant qu'Archinex la calcule ; elle deviendra réalisée quand l'allocation sera déléguée à l'IPAM de Nautobot (#351).
+`address`, `primary_ip4` et `primary_ip6` sont des intentions tant qu'Archinex calcule l'adresse ; elle deviendra réalisée quand l'allocation sera déléguée à l'IPAM de Nautobot (#351).
 
 ## Statuts
 

@@ -1001,7 +1001,18 @@ export const POST: RequestHandler = async (event) => {
       );
 
       const nautobotOpts = await loadProjectNautobotOptions(projectId);
-      const syncSummary = await syncHydratedInventoryToNautobot(composedHydration, nautobotOpts);
+      // Marquage de traçabilité (#376) : chaque objet porte le projet, le sujet et la décision dont il provient.
+      // `dryRun: true` simule le push (aucune écriture) et renvoie le plan dans `nautobotSyncSummary.plan`.
+      const syncSummary = await syncHydratedInventoryToNautobot(composedHydration, {
+        ...nautobotOpts,
+        trace: {
+          projectId,
+          subjectId,
+          decisionId: ctx.subject?.decision?.id || `DEC-${subjectId}`,
+          decisionRevision: Number(ctx.subject?.decision?.version ?? fromDb?.revision) || undefined
+        },
+        dryRun: body.dryRun === true
+      });
       const nautobotSynced = syncSummary.reachable;
       const devicesCount = Math.max(
         syncSummary.devicesSynced,

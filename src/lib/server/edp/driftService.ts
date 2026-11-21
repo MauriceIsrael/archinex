@@ -525,7 +525,9 @@ export function compareFrozenIntentWithNautobotObject(params: {
 
   // Cas 3 : Si aucun écart d'attribut spécifique n'a été trouvé mais qu'un `intent_hash`
   // est présent sur l'objet et diverge de l'empreinte de l'état observé
-  if (findings.length === 0 && markers.intentHash) {
+  // Les empreintes `v1:` (#376) couvrent les seuls champs d'INTENTION et se comparent champ par champ (ci-dessus) :
+  // le résumé observé inclut l'identifiant et le statut (champs réalisés) et ne leur est pas comparable.
+  if (findings.length === 0 && markers.intentHash && !markers.intentHash.startsWith('v1:')) {
     const observedHash = computeIntentHash(observedSummary);
     if (observedHash !== markers.intentHash) {
       findings.push({

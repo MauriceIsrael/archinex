@@ -56,8 +56,9 @@ export const FIELD_OWNERSHIP_REGISTRY: Readonly<Record<OwnedObjectType, FieldOwn
     status: 'realized',
     serial: 'realized',
     software_version: 'realized',
-    primary_ip4: 'realized',
-    primary_ip6: 'realized',
+    // Posée par Archinex (adresse de management calculée) tant que l'allocation n'est pas déléguée à l'IPAM (#351).
+    primary_ip4: 'intent',
+    primary_ip6: 'intent',
     // `comments` porte l'intention OOB / PDU sous forme structurée (lue par la détection de dérive).
     comments: 'intent',
     asset_tag: 'operational',

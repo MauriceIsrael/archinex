@@ -1,4 +1,10 @@
 import type { MultiAxisHydratedInventory } from './refinementCoverage.js';
+import type { DriftFindingDraft } from './driftTypes.js';
+import {
+  extractArchinexMarkers,
+  hasTraceabilityMarkers,
+  isStatusRegression
+} from './driftService.js';
 
 const DEFAULT_NAUTOBOT_URL = process.env.NAUTOBOT_URL || 'http://localhost:8080';
 const DEFAULT_NAUTOBOT_TOKEN =
@@ -41,8 +47,19 @@ export interface NautobotLivePullResult {
     tenants: number;
     vpnTunnels: number;
   };
+  /** Écarts typés et structurés prêts à persister dans `drift_findings` (Issue #377). */
+  findings: DriftFindingDraft[];
+  /** Résumés textuels conservés pour rétrocompatibilité d'affichage. */
   detectedDrifts: string[];
   errors: string[];
+}
+
+export interface NautobotDriftContext {
+  projectId?: string;
+  subjectId?: string | null;
+  decisionId?: string | null;
+  clauseRefs?: string[];
+  sourceEvent?: string;
 }
 
 export interface NautobotClientOptions {
@@ -50,6 +67,8 @@ export interface NautobotClientOptions {
   token?: string;
   /** Scope logique d'isolation par projet (Namespace, Tag, préfixage réversible des noms) sur un Nautobot partagé. */
   projectScope?: string;
+  /** Contexte de gouvernance optionnel pour qualifier les `DriftFindingDraft` produits lors du pull. */
+  driftContext?: NautobotDriftContext;
   fetchImpl?: typeof fetch;
 }
 
@@ -135,6 +154,7 @@ export function resolveProjectNautobotOptions(
     ...(baseUrl ? { baseUrl } : {}),
     ...(token ? { token } : {}),
     ...(projectScope ? { projectScope } : {}),
+    ...(overrideOpts.driftContext ? { driftContext: overrideOpts.driftContext } : {}),
     ...(overrideOpts.fetchImpl ? { fetchImpl: overrideOpts.fetchImpl } : {})
   };
 }
@@ -1299,6 +1319,26 @@ export async function pullLiveInventoryFromNautobot(
   const scope = clientOpts.projectScope ? normalizeProjectScope(clientOpts.projectScope) : undefined;
   const tagFilter = scope ? `&tag=${encodeURIComponent(projectTagName(scope))}` : '';
   const cloned: MultiAxisHydratedInventory = JSON.parse(JSON.stringify(baselineHydrated));
+  const driftCtx = clientOpts.driftContext || {};
+  const findingProjectId = driftCtx.projectId || scope || 'default';
+  const findingSourceEvent = driftCtx.sourceEvent || `nautobot_pull:${new Date().toISOString()}`;
+  const buildFindingBase = (liveObj?: Record<string, any> | null) => {
+    const markers = extractArchinexMarkers(liveObj);
+    const hasMarkers = hasTraceabilityMarkers(markers);
+    const subjectId = markers.subjectId ?? driftCtx.subjectId ?? null;
+    const decisionId = markers.decisionId ?? driftCtx.decisionId ?? null;
+    const clauseRefs =
+      markers.clauseRefs.length > 0 ? markers.clauseRefs : driftCtx.clauseRefs || [];
+    const outOfDecision = !hasMarkers && !decisionId && !subjectId;
+    return {
+      projectId: markers.projectId || findingProjectId,
+      subjectId,
+      decisionId,
+      clauseRefs,
+      outOfDecision,
+      sourceEvent: findingSourceEvent
+    };
+  };
   const result: NautobotLivePullResult = {
     reachable: false,
     source: 'local_fallback',
@@ -1310,6 +1350,7 @@ export async function pullLiveInventoryFromNautobot(
       tenants: 0,
       vpnTunnels: 0
     },
+    findings: [],
     detectedDrifts: [],
     errors: []
   };
@@ -1339,12 +1380,30 @@ export async function pullLiveInventoryFromNautobot(
       const filteredOrgs = (cloned.reconciliation_graph.partner_organizations || []).filter((org) =>
         liveTenantNames.has(String(org.id))
       );
+      const missingOrgs = (cloned.reconciliation_graph.partner_organizations || []).filter(
+        (org) => !liveTenantNames.has(String(org.id))
+      );
       if (
         filteredOrgs.length < (cloned.reconciliation_graph.partner_organizations || []).length
       ) {
         result.detectedDrifts.push(
           `Tenant partenaire '${pivotTenantId}' absent ou supprimé dans Nautobot (/api/tenancy/tenants/)`
         );
+        for (const missingOrg of missingOrgs) {
+          result.findings.push({
+            ...buildFindingBase(null),
+            objectRef: {
+              type: 'tenancy.tenant',
+              id: String(missingOrg.id),
+              name: String(missingOrg.id)
+            },
+            kind: 'missing',
+            attributeKey: 'tenant_missing',
+            expected: { id: missingOrg.id, name: missingOrg.id },
+            observed: null,
+            severity: 'high'
+          });
+        }
       }
       cloned.reconciliation_graph.partner_organizations = filteredOrgs;
     }
@@ -1364,10 +1423,18 @@ export async function pullLiveInventoryFromNautobot(
       }
     }
 
+    const plannedDeviceNames = new Set<string>();
     for (const plannedDev of cloned.nautobot_planned_devices || []) {
       const devName = String(plannedDev.name);
+      plannedDeviceNames.add(devName);
       const liveDev = liveDeviceByName.get(devName);
       if (!liveDev) continue;
+      const devRef = {
+        type: 'dcim.device',
+        id: String(liveDev.id || devName),
+        name: devName
+      };
+      const base = buildFindingBase(liveDev);
 
       // Modèle matériel (device_type)
       const liveModel =
@@ -1386,6 +1453,15 @@ export async function pullLiveInventoryFromNautobot(
           result.detectedDrifts.push(
             `Device '${devName}' modifié dans Nautobot : device_type='${mappedType}' (attendu: '${plannedDev.device_type}')`
           );
+          result.findings.push({
+            ...base,
+            objectRef: devRef,
+            kind: 'attribute_mismatch',
+            attributeKey: 'device_type',
+            expected: plannedDev.device_type,
+            observed: mappedType,
+            severity: 'high'
+          });
           plannedDev.device_type = mappedType;
         }
       }
@@ -1398,9 +1474,19 @@ export async function pullLiveInventoryFromNautobot(
       if (liveStatus) {
         const normalizedStatus = String(liveStatus).toLowerCase();
         if (normalizedStatus !== String(plannedDev.status).toLowerCase()) {
+          const regression = isStatusRegression(String(plannedDev.status), normalizedStatus);
           result.detectedDrifts.push(
             `Device '${devName}' modifié dans Nautobot : status='${normalizedStatus}' (attendu: '${plannedDev.status}')`
           );
+          result.findings.push({
+            ...base,
+            objectRef: devRef,
+            kind: regression ? 'status_regression' : 'attribute_mismatch',
+            attributeKey: 'status',
+            expected: String(plannedDev.status).toLowerCase(),
+            observed: normalizedStatus,
+            severity: regression ? 'high' : 'medium'
+          });
           plannedDev.status = normalizedStatus;
         }
       }
@@ -1412,6 +1498,15 @@ export async function pullLiveInventoryFromNautobot(
           result.detectedDrifts.push(
             `Device '${devName}' modifié dans Nautobot : oob_ip='${cf.oob_ip}'`
           );
+          result.findings.push({
+            ...base,
+            objectRef: devRef,
+            kind: 'attribute_mismatch',
+            attributeKey: 'oob_ip',
+            expected: plannedDev.oob_ip,
+            observed: cf.oob_ip,
+            severity: 'high'
+          });
           plannedDev.oob_ip = cf.oob_ip;
         }
       } else if (typeof liveDev.comments === 'string') {
@@ -1426,6 +1521,15 @@ export async function pullLiveInventoryFromNautobot(
             result.detectedDrifts.push(
               `Device '${devName}' modifié dans Nautobot (comments OOB) : oob_ip='${finalOob}'`
             );
+            result.findings.push({
+              ...base,
+              objectRef: devRef,
+              kind: 'attribute_mismatch',
+              attributeKey: 'oob_ip',
+              expected: plannedDev.oob_ip,
+              observed: finalOob,
+              severity: 'high'
+            });
             plannedDev.oob_ip = finalOob;
           }
         }
@@ -1439,9 +1543,45 @@ export async function pullLiveInventoryFromNautobot(
             result.detectedDrifts.push(
               `Device '${devName}' modifié dans Nautobot (comments PDU) : ${feeds.length} alimentation(s)`
             );
+            result.findings.push({
+              ...base,
+              objectRef: devRef,
+              kind: 'attribute_mismatch',
+              attributeKey: 'power_feeds',
+              expected: plannedDev.power_feeds,
+              observed: feeds,
+              severity: 'medium'
+            });
             plannedDev.power_feeds = feeds;
           }
         }
+      }
+    }
+
+    // Détecter les équipements présents dans Nautobot mais absents de l'intention planifiée
+    for (const [devName, liveDev] of liveDeviceByName.entries()) {
+      if (plannedDeviceNames.has(devName)) continue;
+      const markers = extractArchinexMarkers(liveDev);
+      const unmarked = !hasTraceabilityMarkers(markers);
+      if (unmarked) {
+        result.findings.push({
+          projectId: markers.projectId || findingProjectId,
+          subjectId: null,
+          decisionId: null,
+          clauseRefs: [],
+          objectRef: {
+            type: 'dcim.device',
+            id: String(liveDev.id || devName),
+            name: devName
+          },
+          kind: 'unexpected',
+          attributeKey: 'out_of_decision',
+          outOfDecision: true,
+          expected: null,
+          observed: { name: devName, status: liveDev.status?.value || liveDev.status || null },
+          severity: 'medium',
+          sourceEvent: findingSourceEvent
+        });
       }
     }
 

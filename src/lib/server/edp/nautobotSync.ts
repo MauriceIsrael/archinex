@@ -455,11 +455,29 @@ function mapNautobotInterfaceType(ifaceType: string): string {
 }
 
 /**
+ * Noms logiques (avant préfixage de projet) des objets VPN natifs Nautobot associés à un tunnel du graphe.
+ * Dérivés de l'identifiant du tunnel : partagés par la synchronisation (écriture) et la détection de dérive (lecture),
+ * sans aucun nom de scénario.
+ */
+export function vpnObjectLogicalNames(tunnelId: string): {
+  ikeProposal: string;
+  ipsecProposal: string;
+  profile: string;
+} {
+  return {
+    ikeProposal: `ike-prop-${tunnelId}`,
+    ipsecProposal: `ipsec-prop-${tunnelId}`,
+    profile: `vpn-prof-${tunnelId}`
+  };
+}
+
+/**
  * Synchronise de manière idempotente l'inventaire hydraté multi-axes et son graphe de réconciliation
- * (Tenants Lot 2/3, Provider, CircuitType, Circuit S6a `link-ip-lot3-secgw1`, Terminaisons A/Z,
- * Objets natifs du module VPN Nautobot 2.2+ : `vpn.IKEProposal`, `vpn.IPSecProposal`, `vpn.VPNProfile`, `vpn.VPNTunnel`,
- * VLAN 1403, Préfixe IP 100.64.14.0/30, Équipements Externes 3GPP Shadow, Nœuds de Médiation SecGW/DEA/HSS
- * et Serveurs Bare-Metal Sylva) dans l'instance Nautobot 2.x active.
+ * (Tenants partenaires, Provider, CircuitType, Circuits, Terminaisons A/Z,
+ * objets natifs du module VPN Nautobot 2.2+ : `vpn.IKEProposal`, `vpn.IPSecProposal`, `vpn.VPNProfile`, `vpn.VPNTunnel`,
+ * VLAN et préfixes IP des liens, équipements externes et nœuds de médiation déclarés par le graphe,
+ * et serveurs Bare-Metal Sylva) dans l'instance Nautobot 2.x active.
+ * Un graphe de réconciliation vide (aucune feuille d'ontologie liée n'en déclare) ne produit aucun de ces objets.
  */
 export async function syncHydratedInventoryToNautobot(
   hydrated: MultiAxisHydratedInventory,
@@ -680,7 +698,7 @@ export async function syncHydratedInventoryToNautobot(
         const scopedTenantName = scopedNautobotName(orgSlug, scope, 100);
         const tenantPayload: Record<string, unknown> = {
           name: scopedTenantName,
-          description: `${org.name} — Démarcation : ${org.demarcation_point || 'MMR Lot 1'}`,
+          description: `${org.name} — Démarcation : ${org.demarcation_point || 'non renseigné'}`,
           comments: `Modèle TM Forum SID : ${org.tmf_sid_class || 'PartyRole'}\nContact NOC : ${org.noc_contact || 'N/A'}`
         };
         if (projectTag) tenantPayload.tags = [projectTag];
@@ -701,7 +719,7 @@ export async function syncHydratedInventoryToNautobot(
       }
     }
 
-    const pivotTenantUuid = tenantIdMap.get(rg?.pivot_tenant_id || 'org-lot3-mno') || null;
+    const pivotTenantUuid = rg?.pivot_tenant_id ? tenantIdMap.get(rg.pivot_tenant_id) || null : null;
 
     // 1bis. Tags `zone-<nom>` (/api/extras/tags/), Plateformes (/api/dcim/platforms/) et VRFs (/api/ipam/vrfs/)
     //       pour alimenter le tirage en lecture seule d'IP Flow Manager (`nautobot_adapter.py`).
@@ -793,18 +811,21 @@ export async function syncHydratedInventoryToNautobot(
       }
     }
 
-    // 2. Synchronisation du Provider, CircuitType, Circuit (`link-ip-lot3-secgw1`) & CircuitTerminations A/Z
+    // 2. Synchronisation du Provider, CircuitType, Circuit & CircuitTerminations A/Z (objets déclarés par le graphe)
     if (rg?.ip_underlay_links && rg.ip_underlay_links.length > 0) {
       try {
+        // Fournisseur et contact NOC dérivés de l'organisation pivot déclarée par le graphe (aucune constante).
+        const pivotOrg = (rg.partner_organizations || []).find((o) => String(o.id) === rg.pivot_tenant_id);
+        const providerName = `provider-${rg.pivot_tenant_id || 'interco'}`;
         const provider = await getOrCreateByQuery(
           '/api/circuits/providers/',
-          `name=${encodeURIComponent('Provider-Lot3-MNO-Interco')}`,
+          `name=${encodeURIComponent(providerName)}`,
           {
-            name: 'Provider-Lot3-MNO-Interco',
-            asn: 65003,
-            noc_contact: 'noc@lot3-operator.fr',
-            comments:
-              'Opérateur Tiers Lot 3 fournissant le lien d’interconnexion S6a vers le SecGW-Lot1 (§14 Lulu).'
+            name: providerName,
+            ...(pivotOrg?.noc_contact ? { noc_contact: String(pivotOrg.noc_contact) } : {}),
+            comments: `Fournisseur des liaisons d'interconnexion du graphe de réconciliation${
+              pivotOrg?.name ? ` (organisation partenaire « ${String(pivotOrg.name)} »)` : ''
+            }.`
           },
           true,
           clientOpts
@@ -812,11 +833,10 @@ export async function syncHydratedInventoryToNautobot(
 
         const circuitType = await getOrCreateByQuery(
           '/api/circuits/circuit-types/',
-          `name=${encodeURIComponent('Interco-WAN-IPsec-ESP-S6a')}`,
+          `name=${encodeURIComponent('Interco-WAN')}`,
           {
-            name: 'Interco-WAN-IPsec-ESP-S6a',
-            description:
-              'Liaison Inter-Lots portant Tunnel IPsec ESP (IKEv2 AES-256-GCM) et Médiation Diameter S6a'
+            name: 'Interco-WAN',
+            description: "Liaison d'interconnexion portant un tunnel chiffré et un flux médiatisé"
           },
           true,
           clientOpts
@@ -836,16 +856,16 @@ export async function syncHydratedInventoryToNautobot(
             circuit_type: circuitType.id,
             status: statusPlanned,
             commit_rate: 1000000,
-            description: `Underlay ${link.subnet} (VLAN ${link.vlan_id}) | Tunnel ${tunnelInfo?.id || 'IPsec-ESP'} (${tunnelInfo?.cipher_suite || 'AES-256-GCM'}) | Flux ${flowInfo?.id || 'S6a'}`,
+            description: `Underlay ${link.subnet} (VLAN ${link.vlan_id}) | Tunnel ${tunnelInfo?.id || 'n/a'} (${tunnelInfo?.cipher_suite || 'n/a'}) | Flux ${flowInfo?.id || 'n/a'}`,
             comments: [
-              `### Réconciliation Multi-Domaine Archinex (§14 Lot 3 ↔ Lot 1)`,
+              `### Réconciliation multi-domaine Archinex`,
               `- **Pivot Tenant** : \`${link.tenant_ref}\``,
-              `- **Extrémité A (3GPP Shadow)** : \`${link.endpoint_a}\` (\`ExternalMMEFunction\`)`,
-              `- **Extrémité Z (Lot 1)** : \`${link.endpoint_z}\` (\`SecurityGatewayFunction\`)`,
+              `- **Extrémité A (nœud externe)** : \`${link.endpoint_a}\``,
+              `- **Extrémité Z (nœud interne)** : \`${link.endpoint_z}\``,
               `- **Tunnel IPsec ESP** : \`${tunnelInfo?.id}\` (${tunnelInfo?.protocol} · ${tunnelInfo?.cipher_suite} · ${tunnelInfo?.pfs_dh_group})`,
-              `- **Flux Médiatisé S6a** : \`${flowInfo?.id}\` (Hops obligatoires : ${(flowInfo?.mandatory_mediation_hops as string[] || []).join(' → ')})`,
-              `- **Contrat SLA associé** : \`${slaInfo?.id || 'N/A'}\` (${slaInfo?.requirement_ref || 'REQ-Lot1-1343'})`,
-              `- **Sonde NOC associée** : \`${probeInfo?.id || 'N/A'}\` (${probeInfo?.requirement_ref || 'REQ-Lot1-1274'})`
+              `- **Flux médiatisé** : \`${flowInfo?.id}\` (Hops obligatoires : ${(flowInfo?.mandatory_mediation_hops as string[] || []).join(' → ')})`,
+              `- **Contrat SLA associé** : \`${slaInfo?.id || 'N/A'}\` (${slaInfo?.requirement_ref || 'n/a'})`,
+              `- **Sonde NOC associée** : \`${probeInfo?.id || 'N/A'}\` (${probeInfo?.requirement_ref || 'n/a'})`
             ].join('\n')
           };
           if (pivotTenantUuid) {
@@ -870,7 +890,7 @@ export async function syncHydratedInventoryToNautobot(
           if (circuitObj?.id) {
             summary.circuitsSynced++;
             if (defaultLocationId) {
-              // Terminaison Z côté Lot 1 (pop-valmondois / SecGW-Lot1)
+              // Terminaison Z (extrémité interne du lien)
               await getOrCreateByQuery(
                 '/api/circuits/circuit-terminations/',
                 `circuit=${circuitObj.id}&term_side=Z`,
@@ -879,12 +899,12 @@ export async function syncHydratedInventoryToNautobot(
                   term_side: 'Z',
                   location: defaultLocationId,
                   port_speed: 10000000,
-                  description: `Terminaison Lot 1 : ${link.endpoint_z} (SecGW-Lot1 IPsec ESP)`
+                  description: `Terminaison Z : ${link.endpoint_z}`
                 },
                 true,
                 clientOpts
               );
-              // Terminaison A côté Partenaire Lot 3 (ext-mme-lot3-01)
+              // Terminaison A (extrémité externe du lien)
               await getOrCreateByQuery(
                 '/api/circuits/circuit-terminations/',
                 `circuit=${circuitObj.id}&term_side=A`,
@@ -893,7 +913,7 @@ export async function syncHydratedInventoryToNautobot(
                   term_side: 'A',
                   location: defaultLocationId,
                   port_speed: 10000000,
-                  description: `Terminaison Tiers Lot 3 : ${link.endpoint_a} (ExternalMMEFunction)`
+                  description: `Terminaison A : ${link.endpoint_a}`
                 },
                 true,
                 clientOpts
@@ -901,11 +921,11 @@ export async function syncHydratedInventoryToNautobot(
             }
           }
 
-          // 3. Synchronisation du VLAN 1403 et du Préfixe IP 100.64.14.0/30 dans IPAM
+          // 3. Synchronisation du VLAN et du préfixe IP du lien dans IPAM
           let vlanUuid: string | null = null;
           if (link.vlan_id) {
             try {
-              const vlanName = scopedNautobotName(`vlan-${link.vlan_id}-lot3-secgw1`, scope, 64);
+              const vlanName = scopedNautobotName(`vlan-${link.vlan_id}-${String(link.id)}`, scope, 64);
               const vlanPayload: Record<string, unknown> = {
                 vid: Number(link.vlan_id),
                 name: vlanName,
@@ -1085,12 +1105,12 @@ export async function syncHydratedInventoryToNautobot(
       );
       const roleMediation = await getOrCreateByQuery(
         '/api/extras/roles/',
-        `name=${encodeURIComponent('lot1-mediation-core-cnf')}`,
+        `name=${encodeURIComponent('mediation-core-cnf')}`,
         {
-          name: 'lot1-mediation-core-cnf',
+          name: 'mediation-core-cnf',
           color: '4caf50',
           content_types: ['dcim.device'],
-          description: 'Fonction Réseau Cœur & Médiation Lot 1 (SecGW / DEA S6a / HSS)'
+          description: 'Fonction réseau interne du graphe de réconciliation (passerelle, médiation, cœur)'
         },
         true,
         clientOpts
@@ -1296,7 +1316,7 @@ export async function syncHydratedInventoryToNautobot(
         if (link.endpoint_z) underlayEndpoints.add(String(link.endpoint_z));
       }
 
-      // 4b. Équipements Externes Fictifs 3GPP NRM (ext-mme-lot3-01, ext-ran-cell-mobile-01)
+      // 4b. Équipements externes (objets fantômes 3GPP NRM) déclarés par le graphe
       for (const ext of rg?.external_shadow_nodes || []) {
         try {
           const extTenantUuid = tenantIdMap.get(String(ext.tenant_ref)) || pivotTenantUuid;
@@ -1313,7 +1333,7 @@ export async function syncHydratedInventoryToNautobot(
             role: roleShadow.id,
             location: defaultLocationId,
             status: statusPlanned,
-            comments: `3GPP TS 28.620 ${ext.nrm_3gpp_class} (Shadow Object hors contrôle Lot 1) | Zone : ${ext.zone} | Tenant : ${ext.tenant_ref}`
+            comments: `3GPP TS 28.620 ${ext.nrm_3gpp_class} (Shadow Object hors contrôle du projet) | Zone : ${ext.zone} | Tenant : ${ext.tenant_ref}`
           };
           if (platShadow) payload.platform = platShadow;
           if (extTenantUuid) payload.tenant = extTenantUuid;
@@ -1346,7 +1366,7 @@ export async function syncHydratedInventoryToNautobot(
         }
       }
 
-      // 4c. Nœuds Internes de Médiation & Cœur Lot 1 (secgw-lot1-01, dea-lot1-01, hss-lot1-01)
+      // 4c. Nœuds internes de médiation et de cœur déclarés par le graphe
       for (const node of rg?.internal_mediation_nodes || []) {
         try {
           const nodeZoneTags: Array<{ name: string }> = [];
@@ -1365,8 +1385,9 @@ export async function syncHydratedInventoryToNautobot(
             comments: `3GPP ${node.nrm_3gpp_class} — ${node.role} | Zone : ${node.zone}`
           };
           if (platMediation) payload.platform = platMediation;
-          if (pivotTenantUuid && node.id !== 'hss-lot1-01') {
-            payload.tenant = pivotTenantUuid;
+          const nodeTenantUuid = node.tenant_ref ? tenantIdMap.get(String(node.tenant_ref)) || null : null;
+          if (nodeTenantUuid) {
+            payload.tenant = nodeTenantUuid;
           }
           const allNodeTags = withProjectTags(nodeZoneTags);
           if (allNodeTags.length > 0) payload.tags = allNodeTags;
@@ -1403,12 +1424,15 @@ export async function syncHydratedInventoryToNautobot(
     if (rg?.ipsec_tunnels && rg.ipsec_tunnels.length > 0) {
       for (const tun of rg.ipsec_tunnels) {
         try {
-          const tunId = scopedNautobotName(String(tun.id || 'tun-ipsec-esp-lot3-secgw1'), scope, 100);
-          const ikePropName = scopedNautobotName('ike-prop-lot3-aes256gcm-dh20', scope, 100);
-          const ipsecPropName = scopedNautobotName('ipsec-prop-lot3-esp-aes256gcm', scope, 100);
-          const vpnProfName = scopedNautobotName('vpn-prof-interco-lot3-s6a', scope, 100);
-          const cipherSuite = String(tun.cipher_suite || 'AES-256-GCM');
-          const dhGroup = String(tun.pfs_dh_group || 'DH-20-ECP384');
+          if (!tun.id) continue; // un tunnel sans identifiant ne peut être ni nommé ni réconcilié
+          const logicalTunId = String(tun.id);
+          const tunId = scopedNautobotName(logicalTunId, scope, 100);
+          const vpnNames = vpnObjectLogicalNames(logicalTunId);
+          const ikePropName = scopedNautobotName(vpnNames.ikeProposal, scope, 100);
+          const ipsecPropName = scopedNautobotName(vpnNames.ipsecProposal, scope, 100);
+          const vpnProfName = scopedNautobotName(vpnNames.profile, scope, 100);
+          const cipherSuite = String(tun.cipher_suite || 'unspecified');
+          const dhGroup = String(tun.pfs_dh_group || 'unspecified');
 
           // 5a. vpn.IKEProposal
           const ikeProposal = await getOrCreateByQuery(
@@ -1421,7 +1445,7 @@ export async function syncHydratedInventoryToNautobot(
               authentication_algorithm: 'HMAC-SHA2-384',
               group: '20',
               sa_lifetime: 28800,
-              description: `IKEv2 Proposal (§14 Lot 3 ↔ Lot 1) — ${cipherSuite} / ${dhGroup}`
+              description: `IKEv2 Proposal du tunnel ${logicalTunId} — ${cipherSuite} / ${dhGroup}`
             },
             true,
             clientOpts
@@ -1437,7 +1461,7 @@ export async function syncHydratedInventoryToNautobot(
               encryption_algorithm: cipherSuite,
               authentication_algorithm: 'HMAC-SHA2-384',
               sa_lifetime_seconds: 3600,
-              description: `IPsec ESP Proposal (§14 Lot 3 ↔ Lot 1) — ${cipherSuite}`
+              description: `IPsec ESP Proposal du tunnel ${logicalTunId} — ${cipherSuite}`
             },
             true,
             clientOpts
@@ -1446,7 +1470,7 @@ export async function syncHydratedInventoryToNautobot(
           // 5c. vpn.VPNProfile
           const vpnProfilePayload: Record<string, unknown> = {
             name: vpnProfName,
-            description: `Profil VPN Interconnexion S6a Lot 3 ↔ SecGW-Lot1 (${cipherSuite}, PFS ${dhGroup})`,
+            description: `Profil VPN du tunnel ${logicalTunId} (${cipherSuite}, PFS ${dhGroup})`,
             keepalive_enabled: true,
             keepalive_interval: Number(tun.dpd_timeout_sec || 10),
             keepalive_retries: 3
@@ -1469,7 +1493,7 @@ export async function syncHydratedInventoryToNautobot(
             clientOpts
           );
 
-          // 5d. vpn.VPNTunnel (`tun-ipsec-esp-lot3-secgw1`)
+          // 5d. vpn.VPNTunnel
           const tunnelPayload: Record<string, unknown> = {
             name: tunId,
             tunnel_id: tunId,
@@ -1579,8 +1603,7 @@ export async function pullLiveInventoryFromNautobot(
       : rawTenants;
     result.observedCounts.tenants = liveTenants.length;
 
-    const pivotTenantId = cloned.reconciliation_graph?.pivot_tenant_id || 'org-lot3-mno';
-    if (liveTenants.length > 0 && cloned.reconciliation_graph) {
+        if (liveTenants.length > 0 && cloned.reconciliation_graph) {
       const liveTenantNames = new Set(
         liveTenants.map((t) => unscopeNautobotName(String(t.name), scope))
       );
@@ -1594,7 +1617,7 @@ export async function pullLiveInventoryFromNautobot(
         filteredOrgs.length < (cloned.reconciliation_graph.partner_organizations || []).length
       ) {
         result.detectedDrifts.push(
-          `Tenant partenaire '${pivotTenantId}' absent ou supprimé dans Nautobot (/api/tenancy/tenants/)`
+          `Tenant partenaire '${missingOrgs.map((o) => String(o.id)).join("', '")}' absent ou supprimé dans Nautobot (/api/tenancy/tenants/)`
         );
         for (const missingOrg of missingOrgs) {
           result.findings.push({
@@ -1796,19 +1819,28 @@ export async function pullLiveInventoryFromNautobot(
       }
     }
 
-    // Vérifier aussi si le nœud de médiation DEA (`dea-lot1-01`) a été désactivé / décommissionné dans Nautobot
-    const liveDea = liveDeviceByName.get('dea-lot1-01');
-    if (liveDea && cloned.reconciliation_graph?.service_mediation_flows?.[0]) {
-      const deaStatus = String(
-        liveDea.status?.value || liveDea.status?.name || liveDea.status || ''
-      ).toLowerCase();
-      if (['offline', 'decommissioning', 'retired', 'failed'].includes(deaStatus)) {
-        result.detectedDrifts.push(
-          `Nœud de médiation 'dea-lot1-01' marqué '${deaStatus}' dans Nautobot -> contournement S6a détecté`
-        );
-        cloned.reconciliation_graph.service_mediation_flows[0].mandatory_mediation_hops = [
-          'secgw-lot1-01'
-        ];
+    // Vérifier aussi si un bond de médiation obligatoire du flux a été désactivé / décommissionné dans Nautobot
+    const firstFlow = cloned.reconciliation_graph?.service_mediation_flows?.[0];
+    if (firstFlow) {
+      const declaredHops = Array.isArray(firstFlow.mandatory_mediation_hops)
+        ? (firstFlow.mandatory_mediation_hops as string[])
+        : [];
+      const failedHops = new Set<string>();
+      for (const hop of declaredHops) {
+        const liveHop = liveDeviceByName.get(String(hop));
+        if (!liveHop) continue;
+        const hopStatus = String(
+          liveHop.status?.value || liveHop.status?.name || liveHop.status || ''
+        ).toLowerCase();
+        if (['offline', 'decommissioning', 'retired', 'failed'].includes(hopStatus)) {
+          failedHops.add(String(hop));
+          result.detectedDrifts.push(
+            `Nœud de médiation '${hop}' marqué '${hopStatus}' dans Nautobot -> contournement de la médiation détecté`
+          );
+        }
+      }
+      if (failedHops.size > 0) {
+        firstFlow.mandatory_mediation_hops = declaredHops.filter((h) => !failedHops.has(String(h)));
       }
     }
 
@@ -1826,7 +1858,7 @@ export async function pullLiveInventoryFromNautobot(
         (c) => unscopeNautobotName(String(c.cid), scope) === targetCid
       );
       if (liveCircuit) {
-        // Si un opérateur a détaché le Tenant du circuit S6a dans Nautobot
+        // Si un opérateur a détaché le Tenant du circuit dans Nautobot
         const circuitTenantName =
           liveCircuit.tenant?.name ||
           liveCircuit.tenant?.display ||
@@ -1842,15 +1874,16 @@ export async function pullLiveInventoryFromNautobot(
         // Si les commentaires du circuit mentionnent un bypass DEA
         if (
           typeof liveCircuit.comments === 'string' &&
-          /bypass[_\s-]*dea|direct[_\s-]*hss/i.test(liveCircuit.comments) &&
+          /bypass|contournement/i.test(liveCircuit.comments) &&
           cloned.reconciliation_graph.service_mediation_flows?.[0]
         ) {
           result.detectedDrifts.push(
-            `Circuit '${targetCid}' modifié dans Nautobot : contournement DEA S6a déclaré`
+            `Circuit '${targetCid}' modifié dans Nautobot : contournement de la médiation déclaré`
           );
-          cloned.reconciliation_graph.service_mediation_flows[0].mandatory_mediation_hops = [
-            'secgw-lot1-01'
-          ];
+          const hopsBefore = cloned.reconciliation_graph.service_mediation_flows[0].mandatory_mediation_hops;
+          cloned.reconciliation_graph.service_mediation_flows[0].mandatory_mediation_hops = Array.isArray(hopsBefore)
+            ? hopsBefore.slice(0, -1)
+            : [];
         }
       }
     }
@@ -1861,19 +1894,26 @@ export async function pullLiveInventoryFromNautobot(
       const liveIpsecProps: any[] = Array.isArray(ipsecPropsRes?.results)
         ? ipsecPropsRes.results
         : [];
-      const targetProp = liveIpsecProps.find(
-        (p) =>
-          belongsToProjectScope(String(p.name || ''), scope) &&
-          unscopeNautobotName(String(p.name), scope) === 'ipsec-prop-lot3-esp-aes256gcm'
-      );
+      const firstTunnel = cloned.reconciliation_graph?.ipsec_tunnels?.[0];
+      const expectedIpsecPropName = firstTunnel?.id
+        ? vpnObjectLogicalNames(String(firstTunnel.id)).ipsecProposal
+        : null;
+      const targetProp = expectedIpsecPropName
+        ? liveIpsecProps.find(
+            (p) =>
+              belongsToProjectScope(String(p.name || ''), scope) &&
+              unscopeNautobotName(String(p.name), scope) === expectedIpsecPropName
+          )
+        : undefined;
       if (targetProp && cloned.reconciliation_graph?.ipsec_tunnels?.[0]) {
         const liveAlgo =
           targetProp.encryption_algorithm?.value ||
           targetProp.encryption_algorithm?.name ||
           targetProp.encryption_algorithm;
-        if (liveAlgo && String(liveAlgo).toUpperCase() !== 'AES-256-GCM') {
+        const expectedAlgo = String(cloned.reconciliation_graph.ipsec_tunnels[0].cipher_suite || '');
+        if (liveAlgo && expectedAlgo && String(liveAlgo).toUpperCase() !== expectedAlgo.toUpperCase()) {
           result.detectedDrifts.push(
-            `Proposition IPsec '${targetProp.name}' dégradée dans Nautobot : encryption_algorithm='${liveAlgo}' (attendu: 'AES-256-GCM')`
+            `Proposition IPsec '${targetProp.name}' dégradée dans Nautobot : encryption_algorithm='${liveAlgo}' (attendu: '${expectedAlgo}')`
           );
           cloned.reconciliation_graph.ipsec_tunnels[0].cipher_suite = String(liveAlgo);
         }

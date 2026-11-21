@@ -2,7 +2,7 @@ import { execSync } from 'child_process';
 import * as fs from 'fs';
 
 const steps = [
-	{ name: '1/6 Denylist Check', cmd: 'node scripts/check-no-project-names.mjs' },
+	{ name: '1/6 Denylist & Couplage Scénario', cmd: 'node scripts/check-no-project-names.mjs && node scripts/check-scenario-coupling.mjs' },
 	{ name: '2/6 Changelog Fragments Check', cmd: 'node scripts/consolidate-changelog.mjs --check' },
 	{ name: '3/6 Sylva CRD & OPA Golden Rules', cmd: 'npx tsx scripts/check-sylva-golden-rules.ts' },
 	{ name: '4/6 Vitest Tests', cmd: 'npx svelte-kit sync && npx vitest run' },

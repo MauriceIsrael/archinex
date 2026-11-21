@@ -8,6 +8,36 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Propriété des champs Nautobot et cycle de vie des statuts : le push ne régresse plus la réalité (#398)
+- **Domaine (`src/lib/domain/edp/fieldOwnership.ts`)** :
+  - Registre déclaratif versionné de propriété des champs (intention / réalisé / opérationnel) pour la tranche minimale (Tenant, Device, Prefix, VLAN, IP) ; champ ou type inconnu = opérationnel ; `archinex_*` = intention, `realized_*` = réalisé.
+  - Table des statuts et des transitions autorisées par acteur (Archinex : création en `planned` et mise hors service décidée ; connecteur : progression, panne, retrait) ; évaluation d'un statut observé (`progress` / `regression` / `unexpected`).
+  - `guardIntentPush` : sur un objet existant, seuls les champs d'intention sont réécrits.
+- **Nautobot (`nautobotSync.ts`, `driftService.ts`)** :
+  - **Correction** : un nouveau push ne renvoie plus `status: Planned` ni de champ réalisé sur un objet existant (il faisait régresser un équipement déjà promu par un connecteur).
+  - **Correction** : une progression légitime (ex. `planned` → `active`) n'est plus signalée comme écart `attribute_mismatch` ; un recul ou une panne reste `status_regression` ; un statut inconnu reste signalé.
+  - `isStatusRegression` délègue au registre (définition unique).
+- **Hypothèses de portée** : tranche minimale seule couverte ; `tags` et `custom_fields` sont traités comme des métadonnées d'intention (une balise ajoutée par un tiers est écrasée au prochain push) ; `comments` d'un équipement porte l'intention OOB/PDU.
+- **Tests & Documentation** : ajout de `tests/contract/field-ownership.test.ts` (16 tests, dont deux qui échouent sans le correctif) et de `docs/edp/field-ownership.md`.
+
+### ADR-017 : Nautobot, point unique de réconciliation bidirectionnelle (#375)
+- **Documentation (`docs/adr/ADR-017-nautobot-point-unique-reconciliation.md`, `ARCHITECTURE.md` §12, §13, §15, §16)** :
+  - Nouvel ADR (statut : proposé) : règles de décision, tranche minimale et types d'écart, liste fermée hors périmètre, sécurité, répartition des responsabilités, emplacement des oracles, dégradation si Nautobot est indisponible.
+  - Tableau « outil → alimentation depuis Nautobot → code » et classement des composants existants (adaptateurs non câblés, export GitOps direct, jumeau numérique, registre d'état IMP V2) ; sort des issues #351 à #358 ; questions ouvertes pour les mainteneurs.
+  - Renvois vers l'ADR depuis `ARCHITECTURE.md`.
+
+### Hydratation générique : plus aucun scénario de projet codé en dur dans `src/` (#388, #389)
+- **Graphe de réconciliation (`src/lib/server/edp/reconciliationGraph.ts`, `refinementCoverage.ts`)** :
+  - Le graphe (organisations partenaires, nœuds, liens, tunnels, flux, contrats) est désormais composé à partir de `hydration_template.reconciliation_graph` des feuilles d'ontologie liées ; il est **vide** quand aucune feuille liée n'en déclare (nouveau champ `sources`).
+  - Les données du scénario d'exemple migrent dans la fixture `tests/fixtures/edp/ontology_export.json`.
+  - Les surcharges de simulation de dérive (`s6aDirectBypassDea`, `orphanPartnerTenant`) s'appliquent de façon générique (retrait du dernier bond obligatoire ; retrait de l'organisation partenaire et de ses contrats).
+- **Nautobot (`nautobotSync.ts`)** :
+  - Fournisseur, type de circuit, VLAN, rôle et objets VPN dérivés des données du graphe (`vpnObjectLogicalNames`) ; plus de tenant pivot, de nom de fournisseur ni de clause codés en dur ; détection de dérive fondée sur les bonds de médiation déclarés par le flux.
+  - **Changement de noms** : les objets VPN sont nommés à partir de l'identifiant du tunnel (`ike-prop-<tunnel>`, `ipsec-prop-<tunnel>`, `vpn-prof-<tunnel>`), le fournisseur `provider-<tenant pivot>`, le type de circuit `Interco-WAN`, le rôle `mediation-core-cnf`. Les objets déjà créés sous les anciens noms ne seront plus retrouvés.
+- **Export GitOps, jumeau, interface (`sylvaGitopsExport.ts`, `sylvaTwin.ts`, `Phase4RefinementHub.svelte`, `SubjectThreadView.svelte`, `engagements.ts`, `RfpShredderDialog.svelte`)** : `reconciliation_pivot` émis seulement s'il existe ; libellés et identifiants génériques ; panneau « graphe de réconciliation » masqué quand il est vide.
+- **Contrôle de couplage (`scripts/check-scenario-coupling.mjs`, `.scenario-coupling-denylist`, `.scenario-coupling-exceptions`)** : nouvelle porte, intégrée à `npm run check:denylist` et à `npm run verify` ; hors commentaires ; dérogations déclarées avec raison et issue, et rejet des dérogations obsolètes.
+- **Tests & Documentation** : ajout de `tests/contract/hydration-generalization.test.ts` (deux scénarios sans rapport, projet sans graphe, absence de fuite) et `tests/contract/scenario-coupling-guard.test.ts` ; mise à jour de `tests/contract/edp-horizon1-gitops-diffsync-vpn.test.ts` pour les noms dérivés.
+
 ### Feuille de route recentrée : Nautobot point unique de réconciliation, Archinex sur la délibération (#397)
 - **Documentation (`ARCHITECTURE.md` §16, `README.md`)** :
   - Ajout d'une orientation révisée (Nautobot seul point de réconciliation bidirectionnel, connecteurs derrière Nautobot, gel des connecteurs directs, ordre de réalisation).

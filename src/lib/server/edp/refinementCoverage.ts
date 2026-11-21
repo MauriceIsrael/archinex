@@ -1314,6 +1314,10 @@ export function computeRefinementCoverage(
       }
 
       const semanticScore = shouldAutoBind ? leafMatchDetails.score : 0;
+      // Liaison automatique sur un MOT-CLÉ de la feuille, jamais sur un simple mot de son titre : le titre est un libellé
+      // éditorial du Knowledge Hub (il change sans que le sens change) et un seul mot courant (« alimentation ») liait
+      // une variante concurrente (UPS N+1) en plus de la feuille 2N, qui en écrasait l'hydratation.
+      const hasKeywordHit = shouldAutoBind && leafMatchDetails.directKeywordScore > 0;
       const isDefaultStandard =
         shouldAutoBind && !isExcluded && leafEntity.is_default_standard === true;
 
@@ -1328,7 +1332,7 @@ export function computeRefinementCoverage(
         if (combinedScore > 0 && (!bestAutoAppCandidate || combinedScore > bestAutoAppCandidate.score)) {
           bestAutoAppCandidate = { summary, score: combinedScore };
         }
-      } else if (hasStrongLinkInCorpus || semanticScore > 0 || isDefaultStandard) {
+      } else if (hasStrongLinkInCorpus || hasKeywordHit || isDefaultStandard) {
         boundLeafUrns.add(leafEntity.urn);
         boundLeaves.push(summary);
         if (hasStrongLinkInCorpus) {

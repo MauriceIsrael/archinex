@@ -289,19 +289,25 @@ export async function seedDemo(client?: any) {
   console.log(`✅ [Phase 3 · Spécification HLD] Spécification L3/L4 enregistrée (4 sections + objets cibles)`);
 
   // 4. Phase 4 : Raffinement Ontologique Multi-Axes, Hydratation Exhaustive (7 classes d'objets) & Oracle OPA
+  // Le scénario « Lulu » est de la donnée de projet : elle ne vit pas dans l'ontologie du Hub mais dans une extension
+  // appliquée par-dessus (identifiants d'exigences, graphe de réconciliation). Sans extension désignée, la démo prend
+  // celle du scénario, plus les écarts de doctrine non encore tranchés dans le Hub (Archinex#417).
+  process.env.ARCHINEX_ONTOLOGY_PROJECT_OVERLAY ??=
+    'tests/fixtures/edp/ontology_project_overlay.lulu.json,tests/fixtures/edp/ontology_pending_conflicts.json';
   const catalog = await loadOntologyCatalog({ includeRuntimeOverlay: true });
 
+  // Liaisons de la démo sur la révision COURANTE de chaque entité du catalogue (le Hub fait évoluer les révisions).
   const demoBindings = [
-    { urn: 'urn:archinex:ontology:infrastructure:server:baremetal', revision: 1 },
-    { urn: 'urn:archinex:ontology:infrastructure:compute:suse_telco_cloud_sylva', revision: 1 },
-    { urn: 'urn:archinex:ontology:telecom:network:oob', revision: 1 },
-    { urn: 'urn:archinex:ontology:telecom:network:spine_leaf_evpn', revision: 1 },
-    { urn: 'urn:archinex:ontology:security:crypto:ipsec_ikev2_aes256', revision: 1 },
-    { urn: 'urn:archinex:ontology:security:zone:oam', revision: 2 },
-    { urn: 'urn:archinex:ontology:security:zone:user_plane', revision: 1 },
-    { urn: 'urn:archinex:ontology:platform:env:iso_prod_3tiers', revision: 1 },
-    { urn: 'urn:archinex:ontology:facilities:power:dual_feed_2n', revision: 1 }
-  ];
+    'urn:archinex:ontology:infrastructure:server:baremetal',
+    'urn:archinex:ontology:infrastructure:compute:suse_telco_cloud_sylva',
+    'urn:archinex:ontology:telecom:network:oob',
+    'urn:archinex:ontology:telecom:network:spine_leaf_evpn',
+    'urn:archinex:ontology:security:crypto:ipsec_ikev2_aes256',
+    'urn:archinex:ontology:security:zone:oam',
+    'urn:archinex:ontology:security:zone:user_plane',
+    'urn:archinex:ontology:platform:env:iso_prod_3tiers',
+    'urn:archinex:ontology:facilities:power:dual_feed_2n'
+  ].map((urn) => ({ urn, revision: catalog.entities[urn].revision }));
 
   const coverage = computeRefinementCoverage(
     {

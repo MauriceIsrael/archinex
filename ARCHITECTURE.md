@@ -70,6 +70,7 @@ Tout énoncé (`Statement`) ou argument (`Argument`) obéit à [`openspec/consti
 - **Interdiction absolue `verified × llm-derived`** : verrouillée à la validation (`src/lib/validation/epistemicEnvelope.ts`), dans le domaine (`src/lib/domain/debate.ts`) et en base Prisma (`src/lib/server/prismaFactory.ts`).
 - **Règle du silence** : l'absence de contestation ne vaut jamais approbation.
 - **Échec fermé (*fail-closed*)** : en production, l'indisponibilité du Knowledge Hub, d'OPA ou de Nautobot renvoie un état explicite (`not_checked`, `unavailable`, `non vérifié`), jamais un faux « conforme » ([ADR-020](docs/adr/ADR-020-interdiction-repli-silencieux-production.md)).
+- **Réserves de couverture réglementaire (`COVERAGE_INCOMPLETE`)** : un référentiel réglementaire projet en statut `partial`, `missing` ou `unknown` est **Non bloquant à l'arbitrage** (Porte G3, enregistré en `coverageReserves` sur la décision et reporté dans le bundle HLD et la matrice RTM), mais **bloquant au scellement** (`freezeExport` et `generateArchitectureLockManifest`) pour les statuts `missing`/`unknown` sans acceptation explicite tracée.
 
 ---
 

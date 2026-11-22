@@ -29,10 +29,11 @@ describe('EDP Ontology, Projections & Persistence Contract (#173, #181, #174, #1
 
     it('valide avec succès des liaisons ontologiques conformes', async () => {
       const catalog = await loadOntologyCatalog({ fixturePath });
+      // Révisions lues dans le catalogue du Hub : elles changent quand le Hub évolue, pas le contrat testé ici.
       const bindings = [
-        { urn: 'urn:archinex:ontology:infrastructure:server:baremetal', revision: 1 },
-        { urn: 'urn:archinex:ontology:telecom:network:oob', revision: 1 }
-      ];
+        'urn:archinex:ontology:infrastructure:server:baremetal',
+        'urn:archinex:ontology:telecom:network:oob'
+      ].map((urn) => ({ urn, revision: catalog.entities[urn].revision }));
 
       const result = checkOntologyBindings(bindings, catalog);
       expect(result.valid).toBe(true);
@@ -53,8 +54,11 @@ describe('EDP Ontology, Projections & Persistence Contract (#173, #181, #174, #1
 
     it('signale un avertissement stale_binding si la liaison est sur une ancienne révision', async () => {
       const catalog = await loadOntologyCatalog({ fixturePath });
-      // L'URN oam est en révision 2 dans le catalogue
-      const bindings = [{ urn: 'urn:archinex:ontology:security:zone:oam', revision: 1 }];
+      // Une liaison sur la révision précédente de l'entité (la révision courante vient du catalogue du Hub)
+      const urn = 'urn:archinex:ontology:infrastructure:server:baremetal';
+      const current = Number(catalog.entities[urn].revision);
+      expect(current).toBeGreaterThan(1);
+      const bindings = [{ urn, revision: current - 1 }];
 
       const result = checkOntologyBindings(bindings, catalog);
       expect(result.valid).toBe(true); // non bloquant mais avertissement

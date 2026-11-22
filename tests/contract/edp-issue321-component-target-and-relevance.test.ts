@@ -10,10 +10,9 @@ import {
 	collectInstantiatedComponents,
 	computeRefinementCoverage
 } from '$lib/server/edp/refinementCoverage';
+import { readFixtureCatalog } from '../helpers/ontologyFixture';
 
-const fixtureCatalog = JSON.parse(
-	readFileSync(resolve(process.cwd(), 'tests/fixtures/edp/ontology_export.json'), 'utf8')
-) as OntologyCatalog;
+const fixtureCatalog = readFixtureCatalog() as OntologyCatalog;
 
 describe('Issue #321 : Composant cible unifié, motif d’activation & filtrage de pertinence des axes', () => {
 	it('résout le composant cible via DEFAULT_URN_TO_COMPONENT et le catalogue projet même sans triplet instantiates_component', () => {

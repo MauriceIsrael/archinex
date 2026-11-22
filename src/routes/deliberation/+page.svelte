@@ -15,6 +15,7 @@
 	import WhyInspector from '$lib/components/deliberation/WhyInspector.svelte';
 	import FreezeSectionDialog from '$lib/components/deliberation/FreezeSectionDialog.svelte';
 	import ImpactGraphExplorer from '$lib/components/deliberation/ImpactGraphExplorer.svelte';
+	import CoverageMatrixView from '$lib/components/deliberation/CoverageMatrixView.svelte';
 	import RequirementsQuickAskModal from '$lib/components/deliberation/RequirementsQuickAskModal.svelte';
 	import { deliberationStore } from '$lib/stores/deliberationStore.svelte';
 	import { page } from '$app/stores';
@@ -48,7 +49,12 @@
 
 		if (querySubject && deliberationStore.subjects.some((s) => s.id === querySubject)) {
 			deliberationStore.selectSubject(querySubject);
-		} else if (queryMode === 'board' || queryMode === 'conversation' || queryMode === 'graph') {
+		} else if (
+			queryMode === 'board' ||
+			queryMode === 'conversation' ||
+			queryMode === 'graph' ||
+			queryMode === 'coverage'
+		) {
 			deliberationStore.setDeliberationViewMode(queryMode);
 		}
 
@@ -110,6 +116,18 @@
 			{:else if deliberationStore.deliberationViewMode === 'graph'}
 				<div class="space-y-4">
 					<ImpactGraphExplorer />
+				</div>
+			<!-- 2b. Vue Couverture visuelle des exigences (Issue #402) -->
+			{:else if deliberationStore.deliberationViewMode === 'coverage'}
+				<div class="space-y-4">
+					<CoverageMatrixView
+						projectId={deliberationStore.activeEngagement?.id || deliberationStore.activeEngagementId || ''}
+						onNavigateSubject={(sid) => deliberationStore.selectSubject(sid)}
+						onNavigateDecision={(sid) => deliberationStore.selectSubject(sid)}
+						onNavigateNautobot={(url) => {
+							if (typeof window !== 'undefined' && url) window.open(url, '_blank', 'noopener,noreferrer');
+						}}
+					/>
 				</div>
 			<!-- 3. Vue Délibération par sujet (Périmètre Sujet) -->
 			{:else}

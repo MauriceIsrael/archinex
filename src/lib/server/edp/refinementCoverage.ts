@@ -41,7 +41,13 @@ import {
   type SylvaTwinArbitrationReport,
   type TwinArbitrationMode
 } from '../../domain/edp/sylvaTwin.js';
-import { composeReconciliationGraph, type ReconciliationObjectGraph } from './reconciliationGraph.js';
+import {
+  composeReconciliationGraph,
+  findLeavesRequiringReconciliationGraph,
+  isReconciliationGraphEmpty,
+  type ReconciliationInstancesInput,
+  type ReconciliationObjectGraph
+} from './reconciliationGraph.js';
 import type { Encoder } from '../similarity/encoder.js';
 import { matchEntitiesSemantically, tryResolveSemanticEncoder } from '../similarity/semanticClassifier.js';
 
@@ -278,9 +284,26 @@ export interface LldHydrationOverrides {
   twinArbitrationMode?: TwinArbitrationMode;
   twinMandatedProfileId?: SylvaTopologyProfileId;
   projectRequirementRefs?: string[];
+  /** Instances projet du graphe de réconciliation (modèle feuille × instances projet). */
+  reconciliationInstances?: ReconciliationInstancesInput;
 }
 
-export type { ReconciliationObjectGraph } from './reconciliationGraph';
+export type {
+  ReconciliationClassKey,
+  ReconciliationGraphModel,
+  ReconciliationInstancesInput,
+  ReconciliationObjectGraph,
+  ReconciliationRelationRule,
+  ReconciliationRequirementMatch,
+  ReconciliationValidationIssue,
+  ReconciliationValidationIssueCode,
+  ReconciliationValidationResult
+} from './reconciliationGraph';
+export {
+  ReconciliationIntegrityError,
+  validateReconciliationInstances,
+  findLeavesRequiringReconciliationGraph
+} from './reconciliationGraph';
 
 export interface MultiAxisHydratedInventory {
   nautobot_planned_devices: Array<Record<string, unknown>>;
@@ -380,13 +403,52 @@ export interface MultiAxisOracleViolation {
   violated_requirement_id?: string;
 }
 
+export type OracleVerdictSource = 'defaults' | 'catalogue' | 'inventaire_reel';
+
 export interface MultiAxisOracleEvaluationResult {
-  verdict: 'compliant' | 'violated';
+  verdict: 'compliant' | 'violated' | 'insufficient_input';
+  /** Provenance du verdict : valeurs par défaut (simulation non opposable), catalogue ratifié ou inventaire réel Nautobot (#380). */
+  source: OracleVerdictSource;
+  /** Horodatage ISO-8601 de l'évaluation de l'oracle. */
+  evaluatedAt: string;
+  /** Révision ou empreinte de l'ontologie utilisée pour l'évaluation. */
+  ontologyRevision: string;
   violations: MultiAxisOracleViolation[];
   violationMessages: string[];
+  insufficientInputReasons?: string[];
   evaluatedAxesCount: number;
   ontologyFingerprint: string;
   durationMs: number;
+}
+
+export function inferOracleVerdictSource(
+  bindings: Array<OntologyBindingItem & { source?: string; ratificationStatus?: string }>,
+  options?: { source?: OracleVerdictSource; hasRealInventory?: boolean; allRatified?: boolean }
+): OracleVerdictSource {
+  if (options?.source) return options.source;
+  if (options?.hasRealInventory) return 'inventaire_reel';
+  if (options?.allRatified && bindings.length > 0) return 'catalogue';
+  if (
+    bindings.length > 0 &&
+    bindings.every(
+      (b) =>
+        b.source !== 'default' &&
+        b.ratificationStatus !== 'default_proposed' &&
+        (b.source !== undefined || b.ratificationStatus !== undefined)
+    )
+  ) {
+    return 'catalogue';
+  }
+  return 'defaults';
+}
+
+export function sanitizeHostnameSegment(raw: string): string {
+  const cleaned = raw
+    .replace(/[^a-zA-Z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .toLowerCase();
+  const tail = cleaned.slice(-12).replace(/^-+|-+$/g, '');
+  return tail || 'edge';
 }
 
 /**
@@ -1315,6 +1377,10 @@ export function computeRefinementCoverage(
       }
 
       const semanticScore = shouldAutoBind ? leafMatchDetails.score : 0;
+      // Liaison automatique sur un MOT-CLÉ de la feuille, jamais sur un simple mot de son titre : le titre est un libellé
+      // éditorial du Knowledge Hub (il change sans que le sens change) et un seul mot courant (« alimentation ») liait
+      // une variante concurrente (UPS N+1) en plus de la feuille 2N, qui en écrasait l'hydratation.
+      const hasKeywordHit = shouldAutoBind && leafMatchDetails.directKeywordScore > 0;
       const isDefaultStandard =
         shouldAutoBind && !isExcluded && leafEntity.is_default_standard === true;
 
@@ -1329,7 +1395,7 @@ export function computeRefinementCoverage(
         if (combinedScore > 0 && (!bestAutoAppCandidate || combinedScore > bestAutoAppCandidate.score)) {
           bestAutoAppCandidate = { summary, score: combinedScore };
         }
-      } else if (hasStrongLinkInCorpus || semanticScore > 0 || isDefaultStandard) {
+      } else if (hasStrongLinkInCorpus || hasKeywordHit || isDefaultStandard) {
         boundLeafUrns.add(leafEntity.urn);
         boundLeaves.push(summary);
         if (hasStrongLinkInCorpus) {
@@ -2329,10 +2395,11 @@ export function composeMultiAxisHydration(
     }
   };
 
-  // Graphe composé uniquement à partir des fragments déclarés par les feuilles liées (aucun scénario codé en dur).
+  // Graphe composé à partir du modèle de la feuille × instances projet (ou fragment historique de test).
   const reconciliationGraph: ReconciliationObjectGraph = composeReconciliationGraph(bindings, catalog, {
     s6aDirectBypassDea: overrides.s6aDirectBypassDea,
-    orphanPartnerTenant: overrides.orphanPartnerTenant
+    orphanPartnerTenant: overrides.orphanPartnerTenant,
+    instances: overrides.reconciliationInstances
   });
 
   const prodOverlay = DEFAULT_ENVIRONMENT_OVERLAYS[0];
@@ -2479,16 +2546,28 @@ export function composeMultiAxisHydration(
  */
 export async function evaluateMultiAxisOracle(
   hydratedInventory: MultiAxisHydratedInventory,
-  bindings: OntologyBindingItem[],
-  catalog: OntologyCatalog
+  bindings: Array<OntologyBindingItem & { source?: string; ratificationStatus?: string }>,
+  catalog: OntologyCatalog,
+  options?: {
+    source?: OracleVerdictSource;
+    hasRealInventory?: boolean;
+    allRatified?: boolean;
+    ontologyRevision?: string;
+    now?: Date;
+  }
 ): Promise<MultiAxisOracleEvaluationResult> {
   const compiled = compileOntologyProjections(bindings, catalog);
   const policyPath = resolve(process.cwd(), 'edp/policies/multi_axis_refinement.rego');
+  const source = inferOracleVerdictSource(bindings, options);
+  const evaluatedAt = (options?.now ?? new Date()).toISOString();
+  const ontologyRevision =
+    options?.ontologyRevision ?? catalog.catalog_version ?? compiled.fingerprint.slice(0, 12);
 
   const opaRes = await runOpaEval<{
-    verdict: 'compliant' | 'violated';
+    verdict: 'compliant' | 'violated' | 'insufficient_input';
     violations: MultiAxisOracleViolation[];
     violation_messages: string[];
+    insufficient_inputs?: string[];
     evaluated_axes_count: number;
   }>({
     query: 'data.archinex.edp.multiaxis.evaluation',
@@ -2503,10 +2582,42 @@ export async function evaluateMultiAxisOracle(
       ? opaRes.output.violation_messages
       : violations.map((v) => v.message);
 
+    // Garde anti-vacuité (#414 / #380) : si une feuille liée exige un graphe de réconciliation
+    // (via `reconciliation_model` ou `oracle_rules`) et qu'aucune instance n'est fournie,
+    // le verdict ne peut JAMAIS être « conforme » par vacuité.
+    const insufficientInputReasons: string[] = Array.isArray(opaRes.output.insufficient_inputs)
+      ? [...opaRes.output.insufficient_inputs]
+      : [];
+
+    const requiringLeaves = findLeavesRequiringReconciliationGraph(bindings, catalog);
+    if (requiringLeaves.length > 0 && isReconciliationGraphEmpty(hydratedInventory.reconciliation_graph)) {
+      for (const req of requiringLeaves) {
+        const detail =
+          req.rules.length > 0
+            ? `règles ${req.rules.join(', ')}`
+            : `modèle (${req.requiredClasses.join(', ') || 'reconciliation_model'})`;
+        const reason = `Graphe de réconciliation vide : aucune instance projet fournie pour la feuille '${req.urn}' (${detail}).`;
+        if (!insufficientInputReasons.includes(reason)) {
+          insufficientInputReasons.push(reason);
+        }
+      }
+    }
+
+    const verdict: 'compliant' | 'violated' | 'insufficient_input' =
+      violations.length > 0
+        ? 'violated'
+        : insufficientInputReasons.length > 0 || opaRes.output.verdict === 'insufficient_input'
+          ? 'insufficient_input'
+          : 'compliant';
+
     return {
-      verdict: violations.length === 0 ? 'compliant' : 'violated',
+      verdict,
+      source,
+      evaluatedAt,
+      ontologyRevision,
       violations,
       violationMessages,
+      ...(insufficientInputReasons.length > 0 ? { insufficientInputReasons } : {}),
       evaluatedAxesCount: opaRes.output.evaluated_axes_count ?? Object.keys(compiled.ontology).length,
       ontologyFingerprint: compiled.fingerprint,
       durationMs: opaRes.durationMs
@@ -2515,6 +2626,9 @@ export async function evaluateMultiAxisOracle(
 
   return {
     verdict: 'violated',
+    source,
+    evaluatedAt,
+    ontologyRevision,
     violations: [
       {
         rule: 'data.archinex.edp.multiaxis.opa_runtime_error',

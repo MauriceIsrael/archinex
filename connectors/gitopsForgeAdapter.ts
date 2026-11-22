@@ -5,7 +5,40 @@ import {
   type AdapterMode,
   type BaseAdapterOptions
 } from './adapterTypes.js';
-import type { SylvaGitopsExportResult } from '../sylvaGitopsExport.js';
+import {
+  buildConnectorWriteBackPayload,
+  writeBackToNautobot,
+  type ConnectorWriteBackPayload,
+  type NautobotWriteBackResult,
+  type NautobotWriteBackTarget
+} from './writeBackContract.js';
+
+export const GITOPS_FORGE_CONNECTOR_NAME = 'gitops-forge-connector';
+export const GITOPS_FORGE_CONNECTOR_VERSION = '1.0.0';
+
+/**
+ * Structure découplée du bundle GitOps consommé par le connecteur Forgejo
+ * (sans import depuis `src/`, ADR-017 / #411).
+ */
+export interface GitopsBundlePayload {
+  clusterName: string;
+  branchName: string;
+  baseBranch: string;
+  targetPath: string;
+  workloadClusterManifestPath: string;
+  valuesYaml: string;
+  workloadClusterManifestYaml: string;
+  tenantWorkloads: Array<{ path: string; yaml: string }>;
+  sha256: string;
+  provenance: {
+    edpId: string;
+    subjectId: string;
+    revision: number | string;
+    ontologyFingerprint: string;
+    opaVerdict: string;
+    exportedAt: string;
+  };
+}
 
 export const DEFAULT_FORGEJO_URL = process.env.FORGEJO_URL || 'http://127.0.0.1:3001';
 
@@ -38,7 +71,7 @@ export interface ForgejoRepoResult {
 export interface ForgejoPushExportOptions extends ForgejoClientOptions {
   owner: string;
   repo: string;
-  bundle: SylvaGitopsExportResult;
+  bundle: GitopsBundlePayload;
   createRepoIfMissing?: boolean;
   includeTenantWorkloads?: boolean;
 }
@@ -397,6 +430,46 @@ export class GitopsForgeAdapter implements GitopsForgePort {
       checkedAt,
       errors
     };
+  }
+
+  /**
+   * Construit le payload de write-back Nautobot (#399) à partir du résultat d'une
+   * publication GitOps (connecteur de référence #381 / #411).
+   */
+  buildWriteBackPayload(
+    pushResult: ForgejoPushExportResult,
+    revision: string | number
+  ): ConnectorWriteBackPayload {
+    const succeeded = pushResult.mode === 'forgejo_pr' && Boolean(pushResult.pullRequestUrl);
+    return buildConnectorWriteBackPayload({
+      realizedStatus: succeeded ? 'staged' : 'failed',
+      realizedRevision: revision,
+      connectorName: GITOPS_FORGE_CONNECTOR_NAME,
+      connectorVersion: GITOPS_FORGE_CONNECTOR_VERSION,
+      evidenceRef:
+        pushResult.pullRequestUrl ||
+        `${pushResult.baseUrl}/${pushResult.owner}/${pushResult.repo}/src/branch/${pushResult.branchName}`,
+      realizedAt: pushResult.checkedAt
+    });
+  }
+
+  /**
+   * Remonte le statut réalisé et la preuve (URL de PR) dans Nautobot selon le contrat #399.
+   */
+  async reportRealizationToNautobot(
+    target: NautobotWriteBackTarget,
+    pushResult: ForgejoPushExportResult,
+    revision: string | number
+  ): Promise<NautobotWriteBackResult> {
+    const payload = this.buildWriteBackPayload(pushResult, revision);
+    return writeBackToNautobot(
+      {
+        ...target,
+        nautobotStatus:
+          target.nautobotStatus ?? (payload.realized_status === 'staged' ? 'Staged' : 'Failed')
+      },
+      payload
+    );
   }
 }
 

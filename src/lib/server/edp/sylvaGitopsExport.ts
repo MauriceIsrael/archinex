@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { sanitizeManifests } from './adapters/sylvaAdapter.js';
+import { sanitizeManifests } from './manifestSanitizer.js';
 import type { MultiAxisHydratedInventory } from './refinementCoverage.js';
 import type { ResolvedComponentInstance } from '../../domain/edp/refResolver.js';
 import { sanitizeResourceSegment } from '../../domain/edp/resourceNaming.js';
@@ -9,7 +9,7 @@ export interface SylvaGitopsExportInput {
   subjectId: string;
   revision: number | string;
   ontologyFingerprint: string;
-  opaVerdict: 'compliant' | 'violated';
+  opaVerdict: 'compliant' | 'violated' | 'insufficient_input';
   hydratedInventory: MultiAxisHydratedInventory;
   repoUrl?: string;
   baseBranch?: string;

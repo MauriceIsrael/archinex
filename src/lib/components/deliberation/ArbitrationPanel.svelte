@@ -19,6 +19,9 @@
 	import type { Argument } from '$lib/domain/debate';
 	import CapitalizationPanel from './CapitalizationPanel.svelte';
 	import ComplianceCheckBanner, { type UiCompliancePayload } from './ComplianceCheckBanner.svelte';
+	import DecisionCard from './DecisionCard.svelte';
+	import { buildDecisionCardModel } from '$lib/domain/decisionCard';
+	import { deliberationStore } from '$lib/stores/deliberationStore.svelte';
 
 	let {
 		projectId = '',
@@ -117,6 +120,41 @@
 
 	const retainedOption = $derived(safeOptions.find((o: Option) => o.id === selectedOptionId));
 	const otherOptions = $derived(safeOptions.filter((o: Option) => o.id !== selectedOptionId));
+
+	const decisionCardModel = $derived(
+		buildDecisionCardModel({
+			subjectId: subjectId || 'subject',
+			subjectTitle: deliberationStore.activeSubject?.name || 'Sujet en arbitrage',
+			sectionRef: deliberationStore.activeSubject?.section_ref || subjectId,
+			requirements: (deliberationStore.activeSubject?.requirement_ids ?? []).map((ref: string) => ({
+				id: ref,
+				clauseRef: ref,
+				title: ref,
+				criticality: 'bloquant'
+			})),
+			kbCompliance: compliance
+				? {
+						offline: compliance.offline,
+						checkStatus: compliance.checkStatus,
+						frameworks: compliance.frameworks,
+						violations: compliance.violations,
+						unassessedRuleIds: compliance.unassessedRuleIds
+					}
+				: null,
+			options: safeOptions,
+			criteria,
+			argumentsList,
+			decision,
+			draftSelection: {
+				retainedOptionId: selectedOptionId,
+				rationale,
+				reversibility,
+				rejectionReasons,
+				violationJustifications,
+				derogationReason
+			}
+		})
+	);
 
 	async function submitArbitration() {
 		if (!selectedOptionId) {
@@ -235,6 +273,11 @@
 			</div>
 		</div>
 	</div>
+
+	<!-- Carte de décision synthétique : ce que l'arbitre signe, sur un seul écran (Issue #403) -->
+	{#if safeOptions.length > 0 || decision}
+		<DecisionCard card={decisionCardModel} />
+	{/if}
 
 	<!-- Blocages actifs si non mûr -->
 	{#if !decision && maturityResult && !maturityResult.readyForArbitration}

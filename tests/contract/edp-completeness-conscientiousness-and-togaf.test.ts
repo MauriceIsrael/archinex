@@ -37,10 +37,9 @@ import {
   applyClassificationInvariants,
   buildAuditReport
 } from '$lib/server/ingest/arckitRequirementsPipeline';
+import { readFixtureCatalog } from '../helpers/ontologyFixture';
 
-const fixtureCatalog = JSON.parse(
-  readFileSync(resolve(process.cwd(), 'tests/fixtures/edp/ontology_export.json'), 'utf8')
-) as OntologyCatalog;
+const fixtureCatalog = readFixtureCatalog() as OntologyCatalog;
 
 describe('Taxonomie TOGAF unifiée, routage commodités, conscientisation & chaîne de confiance', () => {
   it('unifie les taxonomies hétérogènes vers 7 domaines TOGAF canoniques et détecte les angles morts', () => {

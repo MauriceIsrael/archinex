@@ -19,20 +19,105 @@
 		ArrowRight,
 		Circle,
 		Clock,
-		AlertCircle
+		AlertCircle,
+		AlertTriangle,
+		HelpCircle,
+		ShieldCheck
 	} from 'lucide-svelte';
+	import { formatRelativeAgeFr } from '$lib/domain/edp/driftMetrics';
+
+	interface HeaderDriftSummary {
+		posture: 'unverified' | 'drift_detected' | 'no_drift';
+		openCount: number;
+		staleCount: number;
+		lastSuccessAgeMs: number | null;
+	}
 
 	interface Props {
 		onOpenQuickAsk?: () => void;
 		onOpenLiveLock?: () => void;
+		driftSummary?: HeaderDriftSummary | null;
 	}
 
-	let { onOpenQuickAsk, onOpenLiveLock }: Props = $props();
+	let { onOpenQuickAsk, onOpenLiveLock, driftSummary = null }: Props = $props();
+
+	let fetchedDrift = $state<HeaderDriftSummary | null>(null);
+	const effectiveDrift = $derived<HeaderDriftSummary>(
+		driftSummary ??
+			fetchedDrift ?? {
+				posture: 'unverified',
+				openCount: 0,
+				staleCount: 0,
+				lastSuccessAgeMs: null
+			}
+	);
 
 	const activeEngagement = $derived(deliberationStore.activeEngagement);
 	const activePosture = $derived(deliberationStore.activePosture);
 	const viewMode = $derived(deliberationStore.deliberationViewMode);
 	const activeSubject = $derived(deliberationStore.activeSubject);
+
+	$effect(() => {
+		const pid = activeEngagement?.id;
+		if (!pid || typeof window === 'undefined' || driftSummary) return;
+		let cancelled = false;
+		fetch(`/api/projects/${encodeURIComponent(pid)}/drift`)
+			.then((res) => (res.ok ? res.json() : null))
+			.then((data) => {
+				if (cancelled || !data || data.status === 'error') return;
+				fetchedDrift = {
+					posture: data.posture ?? 'unverified',
+					openCount: data.indicators?.openBySeverity?.total ?? 0,
+					staleCount: data.indicators?.staleDecisionsCount ?? 0,
+					lastSuccessAgeMs: data.reconciliation?.lastSuccessAgeMs ?? null
+				};
+			})
+			.catch(() => {
+				// Non bloquant : l'état reste « non vérifié » (jamais vert)
+			});
+		return () => {
+			cancelled = true;
+		};
+	});
+
+	const driftPillMeta = $derived.by(() => {
+		if (effectiveDrift.posture === 'no_drift') {
+			return {
+				label: 'Aucune dérive',
+				cls: 'bg-emerald-100 hover:bg-emerald-200/80 text-emerald-900 dark:bg-emerald-950/60 dark:text-emerald-200 border-emerald-300 dark:border-emerald-700',
+				title: `Aucune dérive détectée (dernière réconciliation : ${formatRelativeAgeFr(effectiveDrift.lastSuccessAgeMs)}). Cliquer pour ouvrir la vue Dérive.`
+			};
+		}
+		if (effectiveDrift.posture === 'drift_detected') {
+			const parts: string[] = [];
+			if (effectiveDrift.openCount > 0) parts.push(`${effectiveDrift.openCount} écart(s)`);
+			if (effectiveDrift.staleCount > 0) parts.push(`${effectiveDrift.staleCount} stale`);
+			return {
+				label: `Dérive : ${parts.join(' · ') || 'active'}`,
+				cls: 'bg-rose-100 hover:bg-rose-200/80 text-rose-900 dark:bg-rose-950/60 dark:text-rose-200 border-rose-300 dark:border-rose-700',
+				title: `Dérive active détectée (${parts.join(', ')}). Cliquer pour ouvrir la vue Dérive.`
+			};
+		}
+		return {
+			label: 'Dérive : Non vérifié',
+			cls: 'bg-amber-100 hover:bg-amber-200/80 text-amber-950 dark:bg-amber-950/60 dark:text-amber-200 border-amber-400 dark:border-amber-700',
+			title:
+				effectiveDrift.lastSuccessAgeMs !== null
+					? `Réconciliation périmée ou Nautobot injoignable (dernier succès : ${formatRelativeAgeFr(effectiveDrift.lastSuccessAgeMs)}). Cliquer pour ouvrir la vue Dérive.`
+					: 'Aucune réconciliation Nautobot effectuée : état non vérifié. Cliquer pour ouvrir la vue Dérive.'
+		};
+	});
+
+	function openDriftView() {
+		deliberationStore.setPosture('consolidation');
+		if (typeof document !== 'undefined') {
+			setTimeout(() => {
+				document
+					.getElementById('phase5-drift-view')
+					?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+			}, 60);
+		}
+	}
 
 	// Est-ce qu'on est actuellement positionné à l'échelle d'un Sujet ?
 	const isInSubjectScope = $derived(
@@ -242,6 +327,25 @@
 					</span>
 				</button>
 
+				<!-- Vue Couverture visuelle des exigences (Issue #402) -->
+				<button
+					type="button"
+					data-testid="project-coverage-tab"
+					aria-current={activePosture === 'deliberation' && viewMode === 'coverage' ? 'page' : undefined}
+					onclick={() => {
+						deliberationStore.setPosture('deliberation');
+						deliberationStore.setDeliberationViewMode('coverage');
+					}}
+					class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs transition-all cursor-pointer {activePosture ===
+						'deliberation' && viewMode === 'coverage'
+						? 'bg-primary text-primary-foreground font-bold shadow-xs border border-primary'
+						: 'bg-muted/40 hover:bg-muted text-foreground/80 hover:text-foreground font-medium border border-transparent'}"
+					title="Matrice visuelle de complétude de la couverture des exigences"
+				>
+					<Layers class="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+					<span>Couverture</span>
+				</button>
+
 				<!-- Outil secondaire : Assistant Exigences (poids visuel réduit) -->
 				{#if onOpenQuickAsk}
 					<button
@@ -351,13 +455,13 @@
 					>→</span
 				>
 
-				<!-- Phase 4 : Raffinement & Hydratation du Sujet -->
+				<!-- Phase 4 : Intention & planification (Issues #393, #405) -->
 				<button
 					type="button"
 					data-testid="phase-tab-refinement"
 					data-phase-status={nav.phases.refinement.status}
 					aria-current={activePosture === 'refinement' ? 'step' : undefined}
-					aria-label={`Phase 4 · Raffinement — ${nav.phases.refinement.statusLabel} : ${nav.phases.refinement.reason}`}
+					aria-label={`Phase 4 · Intention & planification — ${nav.phases.refinement.statusLabel} : ${nav.phases.refinement.reason}`}
 					title={`${nav.phases.refinement.statusLabel} — ${nav.phases.refinement.reason}`}
 					onclick={openSubjectRefinement}
 					class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs transition-all cursor-pointer {stepButtonClass(
@@ -367,20 +471,20 @@
 				>
 					{@render statusIcon(nav.phases.refinement.status, activePosture === 'refinement')}
 					<Cpu class="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-					<span>Phase 4 · Raffinement</span>
+					<span>Phase 4 · Intention & planification</span>
 				</button>
 
 				<span class="text-muted-foreground/40 text-xs select-none hidden sm:inline" aria-hidden="true"
 					>→</span
 				>
 
-				<!-- Phase 5 : Consolidation Projet (transversale multi-sujets) -->
+				<!-- Phase 5 : Consolidation & dérive (Issues #393, #405) -->
 				<button
 					type="button"
 					data-testid="phase-tab-consolidation"
 					data-phase-status={nav.phases.consolidation.status}
 					aria-current={activePosture === 'consolidation' ? 'step' : undefined}
-					aria-label={`Phase 5 · Consolidation — ${nav.phases.consolidation.statusLabel} : ${nav.phases.consolidation.reason}`}
+					aria-label={`Phase 5 · Consolidation & dérive — ${nav.phases.consolidation.statusLabel} : ${nav.phases.consolidation.reason}`}
 					title={`${nav.phases.consolidation.statusLabel} — ${nav.phases.consolidation.reason}`}
 					onclick={openProjectConsolidation}
 					class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs transition-all cursor-pointer {stepButtonClass(
@@ -390,23 +494,44 @@
 				>
 					{@render statusIcon(nav.phases.consolidation.status, activePosture === 'consolidation')}
 					<Layers class="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-					<span>Phase 5 · Consolidation</span>
+					<span>Phase 5 · Consolidation & dérive</span>
 				</button>
 			</div>
 
-			<!-- Outil secondaire : Architecture Lockée (poids visuel réduit) -->
-			{#if onOpenLiveLock}
+			<!-- Outils secondaires : Architecture Lockée & Pastille Dérive (#379) -->
+			<div class="flex items-center gap-1.5 flex-wrap">
+				{#if onOpenLiveLock}
+					<button
+						type="button"
+						data-testid="live-lock-quick-open-btn"
+						onclick={onOpenLiveLock}
+						title="Inspecter à tout instant l'architecture verrouillée en direct (Cartographie, Matrice des emplacements & architecture.lock)"
+						class="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-[11px] text-muted-foreground hover:text-emerald-700 dark:hover:text-emerald-300 hover:bg-emerald-500/10 font-medium border border-border/70 transition-all cursor-pointer"
+					>
+						<Lock class="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+						<span>Architecture Lockée</span>
+					</button>
+				{/if}
+
+				<!-- Pastille « Dérive » : distingue strictement « Non vérifié » d'« Aucune dérive » (#379) -->
 				<button
 					type="button"
-					data-testid="live-lock-quick-open-btn"
-					onclick={onOpenLiveLock}
-					title="Inspecter à tout instant l'architecture verrouillée en direct (Cartographie, Matrice des emplacements & architecture.lock)"
-					class="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-[11px] text-muted-foreground hover:text-emerald-700 dark:hover:text-emerald-300 hover:bg-emerald-500/10 font-medium border border-border/70 transition-all cursor-pointer"
+					data-testid="header-drift-pill"
+					data-posture={effectiveDrift.posture}
+					onclick={openDriftView}
+					title={driftPillMeta.title}
+					class="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-[11px] font-semibold border transition-all cursor-pointer {driftPillMeta.cls}"
 				>
-					<Lock class="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
-					<span>Architecture Lockée</span>
+					{#if effectiveDrift.posture === 'no_drift'}
+						<ShieldCheck class="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+					{:else if effectiveDrift.posture === 'drift_detected'}
+						<AlertTriangle class="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+					{:else}
+						<HelpCircle class="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+					{/if}
+					<span>{driftPillMeta.label}</span>
 				</button>
-			{/if}
+			</div>
 		</div>
 	</nav>
 </div>

@@ -33,10 +33,9 @@ import {
 	applyClassificationInvariants,
 	buildAuditReport
 } from '$lib/server/ingest/arckitRequirementsPipeline';
+import { readFixtureCatalog } from '../helpers/ontologyFixture';
 
-const fixtureCatalog = JSON.parse(
-	readFileSync(resolve(process.cwd(), 'tests/fixtures/edp/ontology_export.json'), 'utf8')
-) as OntologyCatalog;
+const fixtureCatalog = readFixtureCatalog() as OntologyCatalog;
 
 describe('Allocation explicite SIG (§9.4, §11 DEMOLULU) & Sujets RFP inédits / émergents (ex: IoT)', () => {
 	it('expose les axes SIG (fusion de localisation + moteur cartographique) sur sub_lulu_64 en « Défaut proposé » puis alloue explicitement gis-server / ptt-server', async () => {

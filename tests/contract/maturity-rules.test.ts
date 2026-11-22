@@ -258,12 +258,13 @@ describe('Lot A4 Contract: Maturity Rules & Arbitration Gate (computeMaturity)',
 		expect(res.readyForArbitration).toBe(true);
 	});
 
-	it('7. Détecte UNRESOLVED_VIOLATION si une vérification de violation n\'est pas couverte par acceptedViolations', () => {
+	it('7. Détecte UNRESOLVED_VIOLATION si une vérification de violation structurée (verdict=violates) n\'est pas couverte par acceptedViolations', () => {
 		const violationArg: Argument = {
 			id: 'arg-verif-viol',
 			subjectId: baseSubject.id,
 			optionId: opt1.id,
 			stance: 'verification',
+			verdict: 'violates',
 			claim: 'Violation de la doctrine de résilience télécom',
 			grounds: 'Non conforme à la règle NIS2-042 sur la redondance géographique distante.',
 			kbRefs: ['NIS2-042'],
@@ -300,6 +301,35 @@ describe('Lot A4 Contract: Maturity Rules & Arbitration Gate (computeMaturity)',
 		});
 		expect(res2.blockers.some((b) => b.code === 'UNRESOLVED_VIOLATION')).toBe(false);
 		expect(res2.readyForArbitration).toBe(true);
+	});
+
+	it('7 bis. Un verdict inconnu ou absent (texte « exigence non respectée » sans verdict) émet un avertissement VERIFICATION_VERDICT_UNKNOWN et ne vaut jamais conforme (#384)', () => {
+		const unstructuredArg: Argument = {
+			id: 'arg-verif-unstructured',
+			subjectId: baseSubject.id,
+			optionId: opt1.id,
+			stance: 'verification',
+			claim: 'Exigence non respectée sur la rotation des clés',
+			grounds: 'Constat libre sans verdict structuré.',
+			kbRefs: ['SEC-01'],
+			confidence: 'assumed',
+			author: 'Verifier',
+			authorKind: 'agent:verifier',
+			productionMode: 'llm-derived',
+			round: 1,
+			resolution: 'open',
+			version: 1
+		};
+
+		const res = computeMaturity({
+			subject: baseSubject,
+			criteria: [crit1, crit2],
+			options: [opt1, opt2],
+			evaluations: [evalOpt1Crit1, evalOpt1Crit2, evalOpt2Crit1, evalOpt2Crit2],
+			arguments: [unstructuredArg]
+		});
+		expect(res.blockers.some((b) => b.code === 'UNRESOLVED_VIOLATION')).toBe(false);
+		expect(res.warnings.some((w) => w.code === 'VERIFICATION_VERDICT_UNKNOWN' && w.targetId === 'arg-verif-unstructured')).toBe(true);
 	});
 
 	it('8. Détecte OPEN_BLOCKING_QUESTION si une question bloquante est en suspens', () => {

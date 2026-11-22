@@ -402,6 +402,7 @@ describe('Lot A26 Contract: Maturity Criteria Stepper, Locks, Convergence & Stag
 			subjectId: 'sub-3',
 			optionId: 'opt-1',
 			stance: 'verification',
+			verdict: 'compliant',
 			claim: 'Contrôle de conformité doctrine validé vis-à-vis de [SEC-01]',
 			grounds: 'Les mécanismes de chiffrement et de cloisonnement respectent la règle SEC-01 sans non-conformité.',
 			kbRefs: ['SEC-01'],
@@ -431,6 +432,7 @@ describe('Lot A26 Contract: Maturity Criteria Stepper, Locks, Convergence & Stag
 		const violationOpen: Argument = {
 			...compliantVerification,
 			id: 'arg-verif-viol',
+			verdict: 'violates',
 			claim: 'Violation détectée de la règle [SEC-02]',
 			grounds: 'L’option ne respecte pas l’exigence d’isolation stricte : non-conformité majeure.',
 			kbRefs: ['SEC-02'],
@@ -438,6 +440,25 @@ describe('Lot A26 Contract: Maturity Criteria Stepper, Locks, Convergence & Stag
 		};
 
 		expect(hasVerifierPassed([compliantVerification, violationOpen])).toBe(false);
+
+		// Un verdict unknown ou absent ne vaut jamais conforme (issue #384)
+		const unknownVerdictArg: Argument = {
+			...compliantVerification,
+			id: 'arg-verif-unknown',
+			verdict: 'unknown',
+			claim: 'Exigence non respectée ou incertaine',
+			grounds: 'Analyse incomplète.'
+		};
+		expect(hasVerifierPassed([unknownVerdictArg])).toBe(false);
+
+		const missingVerdictArg: Argument = {
+			...compliantVerification,
+			id: 'arg-verif-missing',
+			verdict: undefined,
+			claim: 'Exigence non respectée sans verdict structuré',
+			grounds: 'Texte libre sans verdict.'
+		};
+		expect(hasVerifierPassed([missingVerdictArg])).toBe(false);
 
 		// Une fois la violation acceptée en risque ou levée, le critère passe au vert
 		expect(
@@ -452,11 +473,18 @@ describe('Lot A26 Contract: Maturity Criteria Stepper, Locks, Convergence & Stag
 	});
 
 	it('11. Vérificateur multi-options (L2) : une non-conformité sur une option concurrente ne bloque pas le critère tant qu’au moins une option candidate est conforme', () => {
-		const mkVerif = (id: string, optionId: string, claim: string, grounds: string): Argument => ({
+		const mkVerif = (
+			id: string,
+			optionId: string,
+			verdict: Argument['verdict'],
+			claim: string,
+			grounds: string
+		): Argument => ({
 			id,
 			subjectId: 'sub-multi',
 			optionId,
 			stance: 'verification',
+			verdict,
 			claim,
 			grounds,
 			kbRefs: ['SEC-01'],
@@ -470,9 +498,9 @@ describe('Lot A26 Contract: Maturity Criteria Stepper, Locks, Convergence & Stag
 			createdAt: new Date().toISOString()
 		});
 
-		const opt1Ok = mkVerif('v1', 'opt-1', 'Option conforme sous conditions', 'Cloisonnement cryptographique satisfait.');
-		const opt2Ok = mkVerif('v2', 'opt-2', 'Option robuste et conforme', 'Domaines de défaillance indépendants.');
-		const opt3Ko = mkVerif('v3', 'opt-3', 'Option non conforme en l’état', 'Point de défaillance unique non conforme à SEC-01.');
+		const opt1Ok = mkVerif('v1', 'opt-1', 'compliant', 'Option conforme sous conditions', 'Cloisonnement cryptographique satisfait.');
+		const opt2Ok = mkVerif('v2', 'opt-2', 'compliant', 'Option robuste et conforme', 'Domaines de défaillance indépendants.');
+		const opt3Ko = mkVerif('v3', 'opt-3', 'violates', 'Option non conforme en l’état', 'Point de défaillance unique non conforme à SEC-01.');
 
 		// L2 avant décision : 2 options conformes + 1 non conforme -> vérificateur passé (vert)
 		expect(hasVerifierPassed([opt1Ok, opt2Ok, opt3Ko])).toBe(true);
@@ -491,7 +519,7 @@ describe('Lot A26 Contract: Maturity Criteria Stepper, Locks, Convergence & Stag
 		).toBe(true);
 
 		// Si TOUTES les options vérifiées sont non conformes -> reste bloqué (rouge)
-		const opt1Ko = mkVerif('v1-ko', 'opt-1', 'Option non conforme', 'Violation majeure.');
+		const opt1Ko = mkVerif('v1-ko', 'opt-1', 'violates', 'Option non conforme', 'Violation majeure.');
 		expect(hasVerifierPassed([opt1Ko, opt3Ko])).toBe(false);
 
 		// Si l'option retenue est celle qui a une violation ouverte -> bloqué jusqu'à résolution

@@ -28,6 +28,7 @@ import {
   type ReferenceGraph,
   type ResolvedComponentInstance
 } from '../../domain/edp/refResolver.js';
+import { buildResourceName } from '../../domain/edp/resourceNaming.js';
 import {
   detectEmergentCapabilityNeed,
   resolveTogafDomain,
@@ -40,7 +41,13 @@ import {
   type SylvaTwinArbitrationReport,
   type TwinArbitrationMode
 } from '../../domain/edp/sylvaTwin.js';
-import { composeReconciliationGraph, type ReconciliationObjectGraph } from './reconciliationGraph.js';
+import {
+  composeReconciliationGraph,
+  findLeavesRequiringReconciliationGraph,
+  isReconciliationGraphEmpty,
+  type ReconciliationInstancesInput,
+  type ReconciliationObjectGraph
+} from './reconciliationGraph.js';
 import type { Encoder } from '../similarity/encoder.js';
 import { matchEntitiesSemantically, tryResolveSemanticEncoder } from '../similarity/semanticClassifier.js';
 
@@ -279,9 +286,26 @@ export interface LldHydrationOverrides {
   twinArbitrationMode?: TwinArbitrationMode;
   twinMandatedProfileId?: SylvaTopologyProfileId;
   projectRequirementRefs?: string[];
+  /** Instances projet du graphe de réconciliation (modèle feuille × instances projet). */
+  reconciliationInstances?: ReconciliationInstancesInput;
 }
 
-export type { ReconciliationObjectGraph } from './reconciliationGraph';
+export type {
+  ReconciliationClassKey,
+  ReconciliationGraphModel,
+  ReconciliationInstancesInput,
+  ReconciliationObjectGraph,
+  ReconciliationRelationRule,
+  ReconciliationRequirementMatch,
+  ReconciliationValidationIssue,
+  ReconciliationValidationIssueCode,
+  ReconciliationValidationResult
+} from './reconciliationGraph';
+export {
+  ReconciliationIntegrityError,
+  validateReconciliationInstances,
+  findLeavesRequiringReconciliationGraph
+} from './reconciliationGraph';
 
 export interface MultiAxisHydratedInventory {
   nautobot_planned_devices: Array<Record<string, unknown>>;
@@ -386,7 +410,7 @@ export interface MultiAxisOracleViolation {
 export type OracleVerdictSource = 'defaults' | 'catalogue' | 'inventaire_reel';
 
 export interface MultiAxisOracleEvaluationResult {
-  verdict: 'compliant' | 'violated';
+  verdict: 'compliant' | 'violated' | 'insufficient_input';
   /** Provenance du verdict : valeurs par défaut (simulation non opposable), catalogue ratifié ou inventaire réel Nautobot (#380). */
   source: OracleVerdictSource;
   /** Horodatage ISO-8601 de l'évaluation de l'oracle. */
@@ -395,6 +419,7 @@ export interface MultiAxisOracleEvaluationResult {
   ontologyRevision: string;
   violations: MultiAxisOracleViolation[];
   violationMessages: string[];
+  insufficientInputReasons?: string[];
   evaluatedAxesCount: number;
   ontologyFingerprint: string;
   durationMs: number;
@@ -1842,8 +1867,13 @@ export function composeMultiAxisHydration(
   catalog: OntologyCatalog,
   overrides: LldHydrationOverrides = {}
 ): MultiAxisHydratedInventory {
-  const hostSlug = sanitizeHostnameSegment(subjectId);
-  const hostname = `srv-${hostSlug}-01`;
+  const hostname = buildResourceName('srv', subjectId, 'edge', {
+    maxSegmentLen: 12,
+    suffix: '01'
+  });
+  const workloadClusterName = buildResourceName('wc', subjectId, 'workload', {
+    maxSegmentLen: 12
+  });
 
   const nautobotDevices: Array<Record<string, unknown>> = [];
   const k8sManifests: Array<Record<string, unknown>> = [];
@@ -2165,7 +2195,10 @@ export function composeMultiAxisHydration(
       const nodeHostname =
         idx === 0
           ? hostname
-          : `srv-${hostSlug}-0${idx + 1}`;
+          : buildResourceName('srv', subjectId, 'edge', {
+              maxSegmentLen: 12,
+              suffix: String(idx + 1).padStart(2, '0')
+            });
       const nodeType = overrides.deviceType !== undefined ? overrides.deviceType : prof.deviceType;
       const nodeRole = overrides.nodeRole !== undefined ? overrides.nodeRole : prof.role;
       const nodeOobIp =
@@ -2211,7 +2244,7 @@ export function composeMultiAxisHydration(
           namespace: 'sylva-system',
           labels: {
             'app.kubernetes.io/managed-by': 'sylva-units-operator',
-            'sylva.org/workload-cluster': `wc-${hostSlug}`,
+            'sylva.org/workload-cluster': workloadClusterName,
             'sylva.org/machine-deployment-pool': prof.clusterPool,
             'sylva.org/device-type': nodeType,
             'sylva.org/security-zones': securityZones.map((z) => z.zone_id).join('-') || 'default'
@@ -2334,10 +2367,10 @@ export function composeMultiAxisHydration(
     apiVersion: 'workloadclusteroperator.sylva/v1alpha1',
     kind: 'SylvaWorkloadCluster',
     metadata: {
-      name: `wc-${hostSlug}`,
+      name: workloadClusterName,
       namespace: 'sylva-workload-clusters',
       annotations: {
-        'archinex.io/gitops-target': `workload-clusters/wc-${hostSlug}`,
+        'archinex.io/gitops-target': `workload-clusters/${workloadClusterName}`,
         'archinex.io/source-subject': subjectId,
         'archinex.io/satisfied-clauses': satisfiedClauses.join(','),
         'archinex.io/evaluated-triplets': evaluatedTriplets.join(',')
@@ -2386,10 +2419,11 @@ export function composeMultiAxisHydration(
     }
   };
 
-  // Graphe composé uniquement à partir des fragments déclarés par les feuilles liées (aucun scénario codé en dur).
+  // Graphe composé à partir du modèle de la feuille × instances projet (ou fragment historique de test).
   const reconciliationGraph: ReconciliationObjectGraph = composeReconciliationGraph(bindings, catalog, {
     s6aDirectBypassDea: overrides.s6aDirectBypassDea,
-    orphanPartnerTenant: overrides.orphanPartnerTenant
+    orphanPartnerTenant: overrides.orphanPartnerTenant,
+    instances: overrides.reconciliationInstances
   });
 
   const prodOverlay = DEFAULT_ENVIRONMENT_OVERLAYS[0];
@@ -2555,9 +2589,10 @@ export async function evaluateMultiAxisOracle(
     options?.ontologyRevision ?? catalog.catalog_version ?? compiled.fingerprint.slice(0, 12);
 
   const opaRes = await runOpaEval<{
-    verdict: 'compliant' | 'violated';
+    verdict: 'compliant' | 'violated' | 'insufficient_input';
     violations: MultiAxisOracleViolation[];
     violation_messages: string[];
+    insufficient_inputs?: string[];
     evaluated_axes_count: number;
   }>({
     query: 'data.archinex.edp.multiaxis.evaluation',
@@ -2572,13 +2607,42 @@ export async function evaluateMultiAxisOracle(
       ? opaRes.output.violation_messages
       : violations.map((v) => v.message);
 
+    // Garde anti-vacuité (#414 / #380) : si une feuille liée exige un graphe de réconciliation
+    // (via `reconciliation_model` ou `oracle_rules`) et qu'aucune instance n'est fournie,
+    // le verdict ne peut JAMAIS être « conforme » par vacuité.
+    const insufficientInputReasons: string[] = Array.isArray(opaRes.output.insufficient_inputs)
+      ? [...opaRes.output.insufficient_inputs]
+      : [];
+
+    const requiringLeaves = findLeavesRequiringReconciliationGraph(bindings, catalog);
+    if (requiringLeaves.length > 0 && isReconciliationGraphEmpty(hydratedInventory.reconciliation_graph)) {
+      for (const req of requiringLeaves) {
+        const detail =
+          req.rules.length > 0
+            ? `règles ${req.rules.join(', ')}`
+            : `modèle (${req.requiredClasses.join(', ') || 'reconciliation_model'})`;
+        const reason = `Graphe de réconciliation vide : aucune instance projet fournie pour la feuille '${req.urn}' (${detail}).`;
+        if (!insufficientInputReasons.includes(reason)) {
+          insufficientInputReasons.push(reason);
+        }
+      }
+    }
+
+    const verdict: 'compliant' | 'violated' | 'insufficient_input' =
+      violations.length > 0
+        ? 'violated'
+        : insufficientInputReasons.length > 0 || opaRes.output.verdict === 'insufficient_input'
+          ? 'insufficient_input'
+          : 'compliant';
+
     return {
-      verdict: violations.length === 0 ? 'compliant' : 'violated',
+      verdict,
       source,
       evaluatedAt,
       ontologyRevision,
       violations,
       violationMessages,
+      ...(insufficientInputReasons.length > 0 ? { insufficientInputReasons } : {}),
       evaluatedAxesCount: opaRes.output.evaluated_axes_count ?? Object.keys(compiled.ontology).length,
       ontologyFingerprint: compiled.fingerprint,
       durationMs: opaRes.durationMs

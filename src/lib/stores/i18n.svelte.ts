@@ -1,56 +1,19 @@
 /**
- * i18n Store — Locale persistence layer on top of svelte-i18n.
- *
- * This module:
- * 1. Restores the user's saved locale from localStorage on startup (client-only).
- * 2. Exports `setLocale()` to change locale + persist the choice.
- *
- * @usage
- * In components, import from svelte-i18n for reactive `$locale` / `$t()`:
- *   import { t, locale } from 'svelte-i18n';
- *
- * Use `setLocale()` from this module when you need to change the locale
- * and have it persisted to localStorage:
- *   import { setLocale } from '$lib/stores/i18n.svelte';
- *   setLocale('fr');
- *
- * @extension
- * To add a new locale:
- *  1. Add JSON file to src/lib/locales/
- *  2. Register it in src/lib/i18n.ts (BEFORE the init() call)
- *  3. Add its display name to LanguageSwitcher.svelte's languageNames map
+ * i18n Store — Force la locale française (`fr-FR`) pour garantir la cohérence
+ * linguistique de l'interface Archinex (cf. issue #393).
  */
 
 import { locale as i18nLocale } from 'svelte-i18n';
-import { get } from 'svelte/store';
 
-const LOCALE_KEY = 'preferredLocale';
+export const DEFAULT_LOCALE = 'fr-FR';
 
-function getSavedLocale(): string {
-  if (typeof window !== 'undefined') {
-    return window.localStorage.getItem(LOCALE_KEY) ?? 'en';
-  }
-  return 'en';
-}
-
-function saveLocale(locale: string): void {
-  if (typeof window !== 'undefined') {
-    window.localStorage.setItem(LOCALE_KEY, locale);
-  }
-}
-
-// Restore saved locale on startup (client-side only).
-// Must use module-scope `if` (not $effect) because this runs before component lifecycle.
 if (typeof window !== 'undefined') {
-  const saved = getSavedLocale();
-  i18nLocale.set(saved);
+  i18nLocale.set(DEFAULT_LOCALE);
 }
 
 /**
- * Set the application locale. Updates svelte-i18n and persists to localStorage.
- * @param newLocale — BCP 47 locale code, e.g. 'en', 'fr', 'fr-FR'
+ * Définit la locale active (maintenue en français par défaut).
  */
-export function setLocale(newLocale: string): void {
-  i18nLocale.set(newLocale);
-  saveLocale(newLocale);
+export function setLocale(_newLocale?: string): void {
+  i18nLocale.set(DEFAULT_LOCALE);
 }

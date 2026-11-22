@@ -1,0 +1,106 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Archinex Knowledge Hub (LLMOps) API Contract",
+    "version": "1.0.0",
+    "x-contract-id": "CONTRAT-KH-API-V1",
+    "x-supported-versions": ["1.0"]
+  },
+  "paths": {
+    "/health": { "get": { "operationId": "getHealth" } },
+    "/snapshot/latest": { "get": { "operationId": "getLatestSnapshot" } },
+    "/api/knowledge/health": { "get": { "operationId": "getKbHealth" } },
+    "/api/knowledge/candidates": { "get": { "operationId": "listCandidates" }, "post": { "operationId": "submitCandidate" } },
+    "/api/knowledge/publications": { "get": { "operationId": "listKbPublications" }, "post": { "operationId": "publishKbDoctrine" } },
+    "/api/knowledge/evals/{datasetId}": { "get": { "operationId": "getEvalDataset" } },
+    "/api/knowledge/evals/{datasetId}/runs": { "post": { "operationId": "runEvalBenchmark" } },
+    "/api/engagements": { "post": { "operationId": "createManagedEngagement" } },
+    "/api/engagements/{engagementId}/members": { "get": { "operationId": "getEngagementMembers" }, "put": { "operationId": "setEngagementMembers" } },
+    "/api/engagements/{engagementId}/subjects": { "post": { "operationId": "addSubject" } },
+    "/api/engagements/{engagementId}/statements": { "post": { "operationId": "addStatement" } },
+    "/api/engagements/{engagementId}/decisions": { "post": { "operationId": "addDecision" } },
+    "/api/engagements/{engagementId}/exports": { "get": { "operationId": "listEngagementExports" }, "post": { "operationId": "exportEngagementSnapshot" } },
+    "/api/doctrine/context": { "get": { "operationId": "getDoctrineContext" } },
+    "/api/doctrine/check-option": { "post": { "operationId": "checkOption" } }
+  },
+  "components": {
+    "schemas": {
+      "HubContractHealth": {
+        "type": "object",
+        "required": ["status", "plane", "schema_version", "service", "engine_version", "engine_commit"],
+        "properties": {
+          "status": { "type": "string" },
+          "plane": { "type": "string" },
+          "schema_version": { "type": "string" },
+          "service": { "type": "string" },
+          "engine_version": { "type": "string" },
+          "engine_commit": { "type": "string" },
+          "contract_version": { "type": "string" }
+        }
+      },
+      "HubContractVersionNegotiation": {
+        "type": "object",
+        "required": ["clientVersion", "compatible", "status"],
+        "properties": {
+          "clientVersion": { "type": "string" },
+          "serverVersion": { "type": "string", "nullable": true },
+          "compatible": { "type": "boolean" },
+          "status": { "type": "string", "enum": ["negotiated", "unversioned", "mismatch"] }
+        }
+      },
+      "HubContractEnvelope": {
+        "type": "object",
+        "required": ["status"],
+        "properties": {
+          "status": { "type": "string", "enum": ["ok", "error"] },
+          "data": {},
+          "error": { "type": "string" },
+          "reason": { "type": "string" },
+          "contract_version": { "type": "string" }
+        }
+      },
+      "HubContractMember": {
+        "type": "object",
+        "required": ["email", "role"],
+        "properties": {
+          "email": { "type": "string" },
+          "role": { "type": "string", "enum": ["reader", "contributor", "decider", "owner"] },
+          "displayName": { "type": "string" }
+        }
+      },
+      "HubContractAuditEvent": {
+        "type": "object",
+        "required": ["id", "action", "actor", "timestamp"],
+        "properties": {
+          "id": { "type": "string" },
+          "action": { "type": "string" },
+          "actor": { "type": "string" },
+          "timestamp": { "type": "string" },
+          "target": { "type": "string" }
+        }
+      },
+      "HubContractDoctrineQuery": {
+        "type": "object",
+        "properties": {
+          "engagement": { "type": "string" },
+          "subject": { "type": "string" },
+          "domains": { "type": "array", "items": { "type": "string" } },
+          "frameworks": { "type": "array", "items": { "type": "string" } },
+          "max_items": { "type": "integer" },
+          "max_chars": { "type": "integer" }
+        }
+      },
+      "HubContractEvalRunSummary": {
+        "type": "object",
+        "required": ["run_id", "dataset_id", "status"],
+        "properties": {
+          "run_id": { "type": "string" },
+          "dataset_id": { "type": "string" },
+          "status": { "type": "string" },
+          "score": { "type": "number" },
+          "total_cases": { "type": "integer" }
+        }
+      }
+    }
+  }
+}

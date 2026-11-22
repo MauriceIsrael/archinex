@@ -8,6 +8,59 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Navigation à états par phase, i18n française cohérente, libellés normalisés et audit accessibilité (#393)
+- **Stepper à états par phase (`src/lib/domain/phaseNavigation.ts`, `src/lib/components/deliberation/ProjectEngagementHeader.svelte`)** :
+  - Chaque phase (Phase 1 à Phase 5) calcule et affiche un état explicite (`not_started` / `in_progress` / `ready` / `blocked`) assorti d'une infobulle explicative et d'un `aria-label` décrivant la raison.
+  - Ajout d'une « Prochaine action » unique (`data-testid="next-action-cta"`) guidant l'utilisateur vers l'étape recommandée, avec allègement visuel des outils secondaires (`Assistant Exigences`, `Architecture Lockée`).
+- **Cohérence linguistique française (`src/app.html`, `src/lib/i18n.ts`, `src/lib/stores/i18n.svelte.ts`, `src/routes/+layout.svelte`, `src/routes/login/+page.svelte`, `src/routes/api/auth/login/+server.ts`, `src/lib/components/ThemeSelector.svelte`, `src/lib/locales/fr-FR.json`)** :
+  - Retrait du sélecteur de langue (`LanguageSwitcher`) et verrouillage de l'interface en français (`fr-FR`, `<html lang="fr">`).
+  - Traduction complète de la page `/login`, des messages d'erreur de `/api/auth/login` et des libellés de repli de la navigation.
+- **Normalisation des noms générés (`src/lib/domain/edp/resourceNaming.ts`, `src/lib/server/edp/refinementCoverage.ts`, `src/lib/domain/edp/refResolver.ts`, `src/lib/server/edp/sylvaGitopsExport.ts`)** :
+  - Suppression des doubles tirets (`--`, ex. `srv--proposes-89-01` → `srv-proposes-89-01`) et garantie d'identifiants propres pour les hôtes, clusters et règles.
+- **Tests, Accessibilité & CI (`tests/contract/issue393-ux-navigation-i18n-naming.test.ts`, `tests/e2e/browser/accessibility.spec.ts`, `playwright.a11y.config.ts`, `.github/workflows/verify.yml`, `docs/testing.md`)** :
+  - Ajout de la suite d'audit `axe-core` autonome (`npm run test:a11y`) couvrant `/login`, `/`, `/deliberation` (Tableau, Phase 2, Phase 4, Phase 5), `/kb/dashboard`, `/kb/reviews` et le viewport mobile 390 px, intégrée au workflow CI `verify.yml`.
+
+### Découpage modulaire du client LLMOps, de la route EDP et de SubjectThreadView (#396)
+- **Routes & service EDP (`src/lib/server/edp/actions/`, `src/routes/api/projects/[projectId]/subjects/[subjectId]/edp/`)** :
+  - Extraction de toute la logique métier dans une couche service testable validée par Zod (`schemas.ts`, `context.ts`, `getEdpState.ts`, `validateAndChallenge.ts`, `bindingActions.ts`, `axisScopeActions.ts`, `hydrationAndSynthesis.ts`, `verificationAndExport.ts`).
+  - Création de 11 endpoints dédiés par action (`/edp/validate`, `/edp/challenge`, `/edp/bind-aspect`, `/edp/unratify`, `/edp/dismiss-axis`, `/edp/restore-axis`, `/edp/hydrate`, `/edp/synthesize`, `/edp/verify`, `/edp/simulate-drift`, `/edp/export-sylva-gitops`) ; la route `/edp/+server.ts` (44 lignes) délègue via une table de dispatch typée sans aucune chaîne `if (action === ...)`.
+  - Remplacement des chaînes `if (action === ...)` restantes dans les routes API (`ontology`, `llmops`, `catalog`, `cascade/actions`) par des tables de handlers typées.
+- **Client LLMOps (`src/lib/server/llmops/`)** :
+  - Découpage de `client.ts` en une couche transport avec négociation de version (`transport.ts`, `X-Hub-Contract-Version`) et 6 modules de domaine (`domains/doctrine.ts`, `frameworks.ts`, `knowledge.ts`, `knowledgeAdmin.ts`, `evaluations.ts`, `engagements.ts`), composés par la façade `LLMOpsClient` à 100 % rétrocompatible.
+  - Ajout du contrat OpenAPI du Hub (`contract/hub-openapi.json`) et du générateur de types déterministe (`scripts/generate-llmops-types.mjs` / `npm run llmops:gen-types`).
+- **Vue délibération (`src/lib/components/deliberation/thread/`)** :
+  - Extraction des sous-composants `SubjectThreadHeader.svelte`, `SubjectDiscussionPane.svelte`, `SubjectMatrixPane.svelte`, `SubjectDoctrinePane.svelte` et `SubjectCascadePane.svelte` depuis `SubjectThreadView.svelte`.
+- **Garde-fou lint, tests & documentation** :
+  - Ajout de `scripts/check-file-size.mjs` (`npm run lint:size`, intégré à `npm run verify`) : erreur bloquante sur toute route serveur > 300 lignes ou contenant une chaîne `if (action === ...)`, avertissement sur les fichiers `src/` > 600 lignes.
+  - Ajout de `tests/contract/issue396-modularization.test.ts` et mise à jour de `ARCHITECTURE.md`.
+
+- **Source projet du graphe de réconciliation — Modèle (Hub) × Instances (Projet) (#414)** :
+  - Séparation formelle entre le **modèle** porté par la feuille d'ontologie (`hydration_template.reconciliation_model` : classes requises, relations référentielles, standards normatifs, zéro identifiant concret) et les **instances** fournies par le projet (`lldOverrides.reconciliationInstances` / `composeReconciliationGraph(..., { instances })`). Le fragment historique `hydration_template.reconciliation_graph` reste accepté pour la compatibilité et les fixtures de test.
+  - Validation d'intégrité stricte (`validateReconciliationInstances` / `ReconciliationIntegrityError`) vérifiant l'unicité des identifiants (par classe et inter-nœuds), la présence et la résolution de `pivot_tenant_id`, les classes requises par le modèle et la résolution de toutes les références (`tenant_ref`, extrémités des liens, tunnels, bonds de médiation, contrats SLA).
+  - Garde anti-vacuité (`insufficient_input`) dans `evaluateMultiAxisOracle()` et `edp/policies/multi_axis_refinement.rego` : un projet sans instance lié à une feuille exigeant un graphe de réconciliation n'obtient jamais `compliant` par vacuité ; `insufficient_input` bloque également le scellement `architecture.lock` et l'export GitOps.
+  - Contrat JSON Schema (`src/lib/schemas/reconciliation-graph.schema.json`) et documentation complète avec exemple hors télécom (Santé / HDS) dans `docs/edp/reconciliation-graph-contract.md`.
+
+### Feuille de route réordonnée, gel des connecteurs directs et recadrage du positionnement (#397)
+- **Documentation d'architecture (`ARCHITECTURE.md` §16)** :
+  - Réécriture complète de la section §16 selon l'ordre de priorité : P0 sécurité/intégrité → épique « Décision éclairée » (#373) → réconciliation Nautobot (#372 : tranche minimale puis cadre des connecteurs) → cœur Archinex couverture & visuels (#400, en parallèle) → généralisation (#374) → extensions aval derrière Nautobot (gelées).
+  - Formalisation de la politique de gel des connecteurs directs et des appels d'écriture directe vers les outils d'implémentation jusqu'à mise en production de la tranche minimale Nautobot sur un projet réel, avec renvoi au re-cadrage des issues #351–#358 (ADR-017 / #375).
+  - Ajout de la gouvernance par **revue trimestrielle du périmètre** avec liste fermée « Dans le périmètre / Hors périmètre » et reclassement des anciens Horizons 1 à 3 (retrait des formulations de « preuve mathématique »).
+- **Positionnement et promesses (`README.md`)** :
+  - Clarification du positionnement comme **couche d'assurance de décision**, de l'hydratation comme **interface** avec garanties explicites sur la provenance (`défaut` / `catalogue` / `réel`), et de Nautobot comme unique point de réconciliation bidirectionnel.
+  - Reformulation des promesses (« énoncés arbitrés et traçables », « traçabilité vérifiable », « une annotation n'est pas une preuve ») et alignement du diagramme de boucle fermée.
+
+### Relocalisation des 6 adaptateurs Port/Adapter hors du cœur d'Archinex (#411)
+- **Connecteurs derrière Nautobot (`connectors/`)** :
+  - Relocalisation des 6 adaptateurs (`batfishAdapter.ts`, `openbaoAdapter.ts`, `keycloakAdapter.ts`, `ociSupplyChainAdapter.ts`, `ddiDnsAdapter.ts`, `gitopsForgeAdapter.ts`) et de `adapterTypes.ts` hors de `src/lib/server/edp/adapters/` vers `connectors/`, sans aucun import depuis `src/`.
+  - Ajout du contrat de write-back Nautobot (`connectors/writeBackContract.ts`, aligné #399) et implémentation sur le socle GitOps Forgejo (`GitopsForgeAdapter.buildWriteBackPayload` / `reportRealizationToNautobot`).
+- **Modules neutres conservés dans le cœur (`src/lib/server/edp/`)** :
+  - Déplacement de `sanitizeManifests` et `transformSylvaManifestsToRefinedInput` vers `src/lib/server/edp/manifestSanitizer.ts`.
+  - Déplacement de l'extraction GraphQL en lecture seule vers `src/lib/server/edp/nautobotPlannedExtract.ts` (+ `nautobot_planned_extract.graphql`), avec paramétrage de `$site_slug: [String]` (suppression du site par défaut codé en dur).
+  - Suppression complète du répertoire `src/lib/server/edp/adapters/`.
+- **Tests & Documentation** :
+  - Migration des suites `tests/contract/edp-sylva-stack-adapters.test.ts` et `tests/integration/edp-sylva-docker-stack.test.ts` vers `connectors/`, avec ajout des tests de contrat du write-back et de l'invariant d'isolation de `src/`.
+  - Publication du tableau de classement des 6 adaptateurs dans `docs/edp/connectors-classification.md`, `docs/adr/ADR-017-nautobot-point-unique-reconciliation.md`, `connectors/README.md` et mise à jour de `ARCHITECTURE.md` et `docs/edp/integrator-guide.md`.
+
 ### Recentrage Archinex : délibération, complétude de couverture et justification visuelle (#400, #401, #402, #403, #404, #405)
 - **Modèle unique de complétude de couverture (`src/lib/domain/coverageModel.ts`, `GET /api/projects/[projectId]/coverage`)** :
   - Calcul déterministe et monotone des 6 étapes de couverture (`non qualifiée` → `qualifiée` → `rattachée` → `décidée` → `planifiée` → `réalisée prouvée`) avec dénominateurs explicites ventilés par criticité, domaine et sujet.

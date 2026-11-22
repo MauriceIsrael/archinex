@@ -257,8 +257,10 @@
 		<div class="flex items-center gap-2">
 			<!-- Sélecteur compact de posture (A32) -->
 			<div class="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg border bg-background text-xs font-semibold shadow-2xs">
-				<span class="text-muted-foreground text-[11px]">Posture :</span>
+				<label for="compose-stance" class="text-muted-foreground text-[11px]">Posture :</label>
 				<select
+					id="compose-stance"
+					aria-label="Posture de la contribution"
 					bind:value={stance}
 					class="bg-transparent font-semibold cursor-pointer focus:outline-none text-xs text-foreground"
 				>

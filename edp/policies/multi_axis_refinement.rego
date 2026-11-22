@@ -995,18 +995,34 @@ violations contains v if {
 }
 
 # ==============================================================================
+# GARDE ANTI-VACUITÉ (#414 / #380) : AXE 6 SANS INSTANCES PROJET
+# ==============================================================================
+
+insufficient_inputs contains msg if {
+	ipsec_proj := object.get(data.ontology, "security_crypto_ipsec_ikev2_aes256", null)
+	ipsec_proj != null
+	rg := object.get(input, "reconciliation_graph", {})
+	count(object.get(rg, "ipsec_tunnels", [])) == 0
+	count(object.get(rg, "service_mediation_flows", [])) == 0
+	msg := "Graphe de réconciliation vide : aucune instance projet fournie (ipsec_tunnels, service_mediation_flows) pour évaluer l'axe wan_interco_encryption."
+}
+
+# ==============================================================================
 # SYNTHÈSE DU VERDICT MULTI-AXES
 # ==============================================================================
 
 violation_messages := [v.message | some v in violations]
 
-verdict := "compliant" if {
-	count(violations) == 0
-} else := "violated"
+verdict := "violated" if {
+	count(violations) > 0
+} else := "insufficient_input" if {
+	count(insufficient_inputs) > 0
+} else := "compliant"
 
 evaluation := {
 	"verdict": verdict,
 	"violations": [v | some v in violations],
 	"violation_messages": violation_messages,
+	"insufficient_inputs": [m | some m in insufficient_inputs],
 	"evaluated_axes_count": count(data.ontology),
 }

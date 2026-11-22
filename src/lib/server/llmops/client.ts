@@ -1,15 +1,33 @@
 /**
- * Client d'intégration LLMOps (Knowledge Hub) pour Archinex
- * Mode REST live uniquement : si LLMOps est injoignable, le client le signale (santé « unreachable »,
- * listes vides, erreur explicite) et ne fabrique jamais de données de repli.
+ * Client d'intégration LLMOps (Knowledge Hub) pour Archinex.
+ * Façade unifiée composant la couche transport (négociation de version, air-gap, cache)
+ * et les modules métier par domaine : doctrine, frameworks, knowledge, knowledgeAdmin,
+ * evaluations et engagements.
  * Conforme à CONTRAT-KH-API-V1 et ADR-0015.
  */
 
-import fs from 'node:fs';
-import path from 'node:path';
-
-import { ActorAssertionConfigError, actorIdentityHeaders } from './actorAssertion';
+import {
+	LLMOpsTransport,
+	HubApiError,
+	LLMOPS_DEFAULT_TIMEOUT_MS,
+	LLMOPS_GOVERNANCE_TIMEOUT_MS,
+	HUB_CONTRACT_ID,
+	HUB_CONTRACT_SPEC_VERSION,
+	HUB_CONTRACT_VERSION,
+	HUB_SUPPORTED_CONTRACT_VERSIONS,
+	hostMatchesAllowList,
+	isContractVersionCompatible,
+	type LLMOpsClientConfig,
+	type HubContractVersionNegotiation
+} from './transport';
+import { DoctrineDomainClient } from './domains/doctrine';
+import { FrameworksDomainClient } from './domains/frameworks';
+import { KnowledgeDomainClient } from './domains/knowledge';
+import { KnowledgeAdminDomainClient } from './domains/knowledgeAdmin';
+import { EvaluationsDomainClient } from './domains/evaluations';
+import { EngagementsDomainClient } from './domains/engagements';
 import { configuredModel } from '../similarity/encoder';
+import type { HubFactVocabulary } from '$lib/domain/hubFactVocabulary';
 import type {
   CheckClausesList,
   CheckClauseRow,
@@ -111,612 +129,66 @@ import type {
   HubDecisionFactInput
 } from './types';
 
-import { HubApiError } from '$lib/types/llmops';
-import { parseHubFactVocabulary, type HubFactVocabulary } from '$lib/domain/hubFactVocabulary';
-import { isCandidateAuthor } from '$lib/domain/candidateAuthorship';
-export { HubApiError };
+export {
+	HubApiError,
+	LLMOPS_DEFAULT_TIMEOUT_MS,
+	LLMOPS_GOVERNANCE_TIMEOUT_MS,
+	HUB_CONTRACT_ID,
+	HUB_CONTRACT_SPEC_VERSION,
+	HUB_CONTRACT_VERSION,
+	HUB_SUPPORTED_CONTRACT_VERSIONS,
+	hostMatchesAllowList,
+	isContractVersionCompatible,
+	LLMOpsTransport,
+	DoctrineDomainClient,
+	FrameworksDomainClient,
+	KnowledgeDomainClient,
+	KnowledgeAdminDomainClient,
+	EvaluationsDomainClient,
+	EngagementsDomainClient,
+	type LLMOpsClientConfig,
+	type HubContractVersionNegotiation
+};
 
-export interface LLMOpsClientConfig {
-  baseUrl?: string;
-  authToken?: string;
-  defaultEngagement?: string;
-  /** Délai uniforme (ms) : prime sur les délais par opération (tests, diagnostic). */
-  timeoutMs?: number;
-  /** Hôtes autorisés en plus du réseau local (voir LLMOPS_ALLOWED_HOSTS). */
-  allowedHosts?: string[];
-  /** Durée de rétention du cache en mémoire pour les lectures GET (ms). Défaut : 30 000 ms (0 en test Vitest). */
-  cacheTtlMs?: number;
-}
+export class LLMOpsClient extends LLMOpsTransport {
+	public readonly doctrine: DoctrineDomainClient;
+	public readonly frameworks: FrameworksDomainClient;
+	public readonly knowledge: KnowledgeDomainClient;
+	public readonly knowledgeAdmin: KnowledgeAdminDomainClient;
+	public readonly evaluations: EvaluationsDomainClient;
+	public readonly engagements: EngagementsDomainClient;
 
-/**
- * Délais par opération (ms), mesurés contre un vrai serveur LLMOps : une soumission de candidat prend 2,4 à 2,9 s
- * (contrôles + index de doctrine), une simulation ~3 s, une publication ~9 s (reconstruction du graphe), un upload
- * de référentiel jusqu'à 120 s (extraction bornée côté LLMOps), une application jusqu'à plusieurs dizaines de secondes.
- * Les lectures « moteur » historiques (health, board, snapshots) gardent un délai court : leur repli hors-ligne est voulu.
- */
-export const LLMOPS_DEFAULT_TIMEOUT_MS = 1500;
-export const LLMOPS_GOVERNANCE_TIMEOUT_MS = 15_000;
-const OPERATION_TIMEOUTS: Array<{ method?: string; pattern: RegExp; ms: number }> = [
-  { method: 'POST', pattern: /\/api\/knowledge\/publications$/, ms: 300_000 },
-  { method: 'POST', pattern: /\/api\/knowledge\/candidates\/[^/]+\/promote$/, ms: 300_000 },
-  { method: 'POST', pattern: /\/api\/frameworks\/ingestions\/[^/]+\/apply$/, ms: 300_000 },
-  { method: 'POST', pattern: /\/api\/frameworks\/ingestions$/, ms: 150_000 },
-  { method: 'POST', pattern: /\/api\/knowledge\/(checks\/simulate|candidates\/validate)$/, ms: 30_000 },
-  { method: 'POST', pattern: /\/api\/knowledge\/evals\/[^/]+\/runs$/, ms: 60_000 },
-  { method: 'POST', pattern: /\/api\/knowledge\/candidates$/, ms: 30_000 },
-  { method: 'PATCH', pattern: /\/api\/knowledge\/candidates\/[^/]+$/, ms: 30_000 },
-  { method: 'POST', pattern: /\/api\/knowledge\/similar$/, ms: 30_000 },
-  { method: 'PUT', pattern: /\/api\/knowledge\/embeddings$/, ms: 60_000 },
-  { method: 'POST', pattern: /\/api\/knowledge\/reuse-confirmations$/, ms: 15_000 },
-  { method: 'POST', pattern: /\/api\/knowledge\/similarity-evals\/[^/]+\/runs$/, ms: 60_000 },
-  { method: 'POST', pattern: /\/api\/engagements\/[^/]+\/exports$/, ms: 60_000 },
-  { pattern: /\/api\/knowledge\/health$/, ms: 30_000 },
-  { pattern: /\/snapshot(\/|$)/, ms: LLMOPS_GOVERNANCE_TIMEOUT_MS },
-  { pattern: /\/api\/(knowledge|frameworks|engagements)(\/|$)/, ms: LLMOPS_GOVERNANCE_TIMEOUT_MS }
-];
+	constructor(config: LLMOpsClientConfig | string = {}, maybeAuthToken?: string) {
+		super(config, maybeAuthToken);
+		this.doctrine = new DoctrineDomainClient(this);
+		this.frameworks = new FrameworksDomainClient(this);
+		this.knowledge = new KnowledgeDomainClient(this);
+		this.knowledgeAdmin = new KnowledgeAdminDomainClient(this);
+		this.evaluations = new EvaluationsDomainClient(this);
+		this.engagements = new EngagementsDomainClient(this);
+	}
 
-/** Vrai si `host` correspond à une entrée de liste (nom exact, ou `*.suffixe` pour tout sous-domaine). */
-export function hostMatchesAllowList(host: string, allowed: string[]): boolean {
-  const h = host.toLowerCase();
-  return allowed.some((entry) => {
-    const e = entry.trim().toLowerCase();
-    if (!e) return false;
-    if (e.startsWith('*.')) return h.endsWith(e.slice(1)) && h.length > e.length - 1;
-    return h === e;
-  });
-}
+	get transport(): LLMOpsTransport {
+		return this;
+	}
 
-function normalizeFrameworkRequirement(r: any, fwId: string): FrameworkRequirement {
-  const reqId = r.requirement_id || r.id || 'REQ';
-  const dom = Array.isArray(r.domain) ? (r.domain[0] || 'security') : (r.domain || 'security');
-  const mapped = Array.isArray(r.links) ? r.links : (Array.isArray(r.mapped_assets) ? r.mapped_assets : []);
-  const rawStatus = (r.decision || r.status || 'pending').toLowerCase();
-  let status: FrameworkRequirementStatus = 'pending';
-  if (rawStatus === 'accept' || rawStatus === 'accepted') status = 'accepted';
-  else if (rawStatus === 'amend' || rawStatus === 'amended') status = 'amended';
-  else if (rawStatus === 'reject' || rawStatus === 'rejected') status = 'rejected';
+	getBoard(engagement?: string): Promise<{ data: LLMOpsBoardItem[]; source: 'live' | 'offline-fallback' }> {
+		return this.engagements.getBoard(engagement);
+	}
 
-  return {
-    id: reqId,
-    framework_id: fwId,
-    section: r.section || reqId,
-    title: r.title || reqId,
-    text: r.legal_text || r.text || '',
-    domain: dom,
-    status,
-    mapped_assets: mapped,
-    amendment_notes: status === 'amended' ? r.comment || r.amendment_notes : r.amendment_notes,
-    rejection_reason: status === 'rejected' ? r.rejection_reason || r.comment : r.rejection_reason,
-    reviewed_by: r.reviewer || r.reviewed_by,
-    reviewed_at: r.reviewed_at,
-    title_fr: r.title_fr || r.proposed_title_fr || undefined,
-    source_ref: r.source_ref || undefined,
-    in_kb: typeof r.in_kb === 'boolean' ? r.in_kb : undefined,
-    proposed_acceptance_criteria: Array.isArray(r.proposed_acceptance_criteria) ? r.proposed_acceptance_criteria : [],
-    proposed_links: Array.isArray(r.proposed_links) ? r.proposed_links : [],
-    proposed_title_fr: r.proposed_title_fr || undefined,
-    links_production_mode: r.links_production_mode || undefined,
-    acceptance_criteria: Array.isArray(r.acceptance_criteria) ? r.acceptance_criteria : [],
-    row_status: r.status || undefined,
-    checks: Array.isArray(r.checks)
-      ? r.checks.map((c: any) => ({
-          asset_id: c.asset_id || reqId,
-          typed_id: c.typed_id || `control:${c.asset_id || reqId}`,
-          asset_type: c.asset_type || 'control',
-          asset_title: c.asset_title || r.title || reqId,
-          asset_title_fr: c.asset_title_fr || r.title_fr,
-          framework: c.framework || fwId,
-          severity: c.severity || 'mandatory',
-          domain: Array.isArray(c.domain) ? c.domain : [dom],
-          asset_excerpt: c.asset_excerpt || r.legal_text || r.text || '',
-          revision: c.revision ?? 1,
-          check_id: c.check_id || c.id || `${reqId}-C1`,
-          kind: c.kind || 'requires',
-          when: c.when || { terms_any: [] },
-          expect: c.expect || null,
-          message: c.message || null,
-          status: c.status || 'draft',
-          review: c.review || null,
-          may_decide: typeof c.may_decide === 'boolean' ? c.may_decide : true
-        }))
-      : undefined
-  };
-}
+	getStatements(engagement?: string, subject?: string): Promise<{ data: LLMOpsStatement[]; source: 'live' | 'offline-fallback' }> {
+		return this.engagements.getStatements(engagement, subject);
+	}
 
-function normalizeFrameworkIngestion(item: any): FrameworkIngestion {
-  if (!item || typeof item !== 'object') {
-    return {
-      id: '0',
-      framework_id: '',
-      framework_name: '',
-      version: '1.0',
-      file_name: '',
-      file_format: 'txt',
-      file_size_bytes: 0,
-      created_at: new Date().toISOString(),
-      status: 'ready',
-      total_requirements: 0,
-      reviewed_requirements: 0,
-      requirements: []
-    };
-  }
+	getConflicts(engagement?: string, status = 'open'): Promise<{ data: LLMOpsConflict[]; source: 'live' | 'offline-fallback' }> {
+		return this.engagements.getConflicts(engagement, status);
+	}
 
-  const rawReqs = Array.isArray(item.requirements) ? item.requirements : [];
-  const fwId = item.framework_id || item.framework || 'FRAMEWORK';
-  const reqs = rawReqs.map((r: any) => normalizeFrameworkRequirement(r, fwId));
-  const total = item.total_requirements ?? item.total ?? reqs.length ?? 0;
-  const reviewed = item.reviewed_requirements ?? item.reviewed ?? item.decided ?? 0;
+	shredRfp(rfpText: string, documentId = 'cctp-archinex-input', documentVersion = '1.0', engagement?: string): Promise<LLMOpsRfpShredResponse> {
+		return this.engagements.shredRfp(rfpText, documentId, documentVersion, engagement);
+	}
 
-  return {
-    id: String(item.id ?? fwId),
-    framework_id: fwId,
-    framework_name: item.framework_name || item.framework || fwId,
-    version: item.version || '1.0',
-    file_name: item.file_name || item.source_name || `${fwId.toLowerCase()}.txt`,
-    file_format: item.file_format || 'txt',
-    file_size_bytes: item.file_size_bytes || 0,
-    created_at: item.created_at || new Date().toISOString(),
-    created_by: item.created_by,
-    status: item.status || 'ready',
-    total_requirements: total,
-    total,
-    reviewed_requirements: reviewed,
-    decided: item.decided ?? reviewed,
-    requirements: reqs,
-    abandoned_by: item.abandoned_by ?? null,
-    abandoned_at: item.abandoned_at ?? null,
-    abandon_reason: item.abandon_reason ?? null
-  };
-}
-
-function resolveDefaultAuthToken(): string {
-  if (process.env.LLMOPS_AUTH_TOKEN) return process.env.LLMOPS_AUTH_TOKEN;
-
-  try {
-    const envPath = path.resolve(process.cwd(), '.env');
-    if (fs.existsSync(envPath)) {
-      const lines = fs.readFileSync(envPath, 'utf-8').split(/\r?\n/);
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (trimmed.startsWith('LLMOPS_AUTH_TOKEN=')) {
-          const val = trimmed.slice('LLMOPS_AUTH_TOKEN='.length).replace(/^["']|["']$/g, '').trim();
-          if (val) return val;
-        }
-      }
-    }
-  } catch {}
-
-  try {
-    const tokenPath = path.resolve(process.cwd(), '../LLMOps/.llmops-local-service-token');
-    if (fs.existsSync(tokenPath)) {
-      const val = fs.readFileSync(tokenPath, 'utf-8').trim();
-      if (val) return val;
-    }
-  } catch {}
-
-  return 'demo-local-sovereign-2026';
-}
-
-function resolveDefaultBaseUrl(): string {
-  if (process.env.LLMOPS_BASE_URL) return process.env.LLMOPS_BASE_URL;
-
-  try {
-    const envPath = path.resolve(process.cwd(), '.env');
-    if (fs.existsSync(envPath)) {
-      const lines = fs.readFileSync(envPath, 'utf-8').split(/\r?\n/);
-      for (const line of lines) {
-        const trimmed = line.trim();
-        if (trimmed.startsWith('LLMOPS_BASE_URL=')) {
-          const val = trimmed.slice('LLMOPS_BASE_URL='.length).replace(/^["']|["']$/g, '').trim();
-          if (val) return val;
-        }
-      }
-    }
-  } catch {}
-
-  return 'http://127.0.0.1:8000';
-}
-
-export class LLMOpsClient {
-  private baseUrl: string;
-  private authToken: string;
-  private defaultEngagement: string;
-  private timeoutMs: number | undefined;
-  private allowedHosts: string[];
-  private cacheTtlMs: number;
-  private cache = new Map<string, { value: any; expiresAt: number }>();
-  private inFlight = new Map<string, Promise<any>>();
-
-  constructor(config: LLMOpsClientConfig | string = {}, maybeAuthToken?: string) {
-    const conf: LLMOpsClientConfig = typeof config === 'string' ? { baseUrl: config, authToken: maybeAuthToken } : config;
-    // Par défaut, le client fonctionne STRICTEMENT en réseau local souverain (127.0.0.1:8000 ou mode hors-ligne scellé).
-    // Tout appel vers GCP Cloud Run ou un cloud externe est rigoureusement bloqué pour garantir l'étanchéité absolue des RFP.
-    this.baseUrl = (conf.baseUrl || resolveDefaultBaseUrl()).replace(/\/+$/, '');
-    this.authToken = conf.authToken || resolveDefaultAuthToken();
-    this.defaultEngagement = conf.defaultEngagement || process.env.LLMOPS_ENGAGEMENT || 'default-project';
-    this.timeoutMs = conf.timeoutMs || (Number(process.env.LLMOPS_TIMEOUT_MS) || undefined);
-    this.allowedHosts = (conf.allowedHosts ?? (process.env.LLMOPS_ALLOWED_HOSTS || '').split(','))
-      .map((h) => h.trim())
-      .filter(Boolean);
-    this.cacheTtlMs = conf.cacheTtlMs ?? (process.env.VITEST ? 0 : 30_000);
-  }
-
-  /**
-   * Vide le cache en mémoire (toutes les clés ou seulement celles correspondant au préfixe optionnel).
-   */
-  invalidateCache(prefix?: string): void {
-    if (!prefix) {
-      this.cache.clear();
-      return;
-    }
-    for (const key of this.cache.keys()) {
-      if (key.startsWith(prefix)) {
-        this.cache.delete(key);
-      }
-    }
-  }
-
-  /**
-   * Définit dynamiquement la durée de rétention du cache en mémoire (ms).
-   */
-  setCacheTtl(ttlMs: number): void {
-    this.cacheTtlMs = Math.max(0, ttlMs);
-  }
-
-  /**
-   * Exécute une lecture avec mise en cache mémoire et déduplication des requêtes concurrentes (singleflight).
-   */
-  async cachedFetch<T>(key: string, fetcher: () => Promise<T>, ttlMs?: number): Promise<T> {
-    const effectiveTtl = ttlMs ?? this.cacheTtlMs;
-    const now = Date.now();
-
-    if (effectiveTtl > 0) {
-      const cached = this.cache.get(key);
-      if (cached && cached.expiresAt > now) {
-        return cached.value as T;
-      }
-    }
-
-    if (this.inFlight.has(key)) {
-      return this.inFlight.get(key)! as Promise<T>;
-    }
-
-    const promise = (async () => {
-      try {
-        const result = await fetcher();
-        if (effectiveTtl > 0 && result !== undefined && result !== null) {
-          const isErrorStatus =
-            result &&
-            typeof result === 'object' &&
-            'status' in result &&
-            ((result as any).status === 'error' || (result as any).status === 'unavailable');
-          // En cas d'erreur ou d'indisponibilité, TTL réduit à 2s pour permettre une reprise rapide sans marteler
-          const finalTtl = isErrorStatus ? Math.min(effectiveTtl, 2000) : effectiveTtl;
-          this.cache.set(key, { value: result, expiresAt: Date.now() + finalTtl });
-        }
-        return result;
-      } finally {
-        this.inFlight.delete(key);
-      }
-    })();
-
-    this.inFlight.set(key, promise);
-    return promise;
-  }
-
-  /** Délai applicable à un appel : uniforme si configuré, sinon selon l'opération (voir OPERATION_TIMEOUTS). */
-  timeoutFor(url: string, method = 'GET'): number {
-    if (this.timeoutMs) return this.timeoutMs;
-    let path = url;
-    try {
-      path = new URL(url).pathname;
-    } catch {
-      // chemin relatif : utilisé tel quel
-    }
-    const rule = OPERATION_TIMEOUTS.find((r) => r.pattern.test(path) && (!r.method || r.method === method.toUpperCase()));
-    return rule ? rule.ms : LLMOPS_DEFAULT_TIMEOUT_MS;
-  }
-
-  setBaseUrl(url: string) {
-    this.baseUrl = url.replace(/\/+$/, '');
-    this.invalidateCache();
-  }
-
-  getBaseUrl(): string {
-    return this.baseUrl;
-  }
-
-  /**
-   * Vérifie si une URL appartient strictement au réseau local ou à la machine hôte.
-   * Tout domaine cloud externe (GCP, AWS, Azure, internet public) est bloqué par défaut.
-   */
-  isLocalNetworkUrl(urlStr: string): boolean {
-    try {
-      const parsed = new URL(urlStr);
-      const host = parsed.hostname.toLowerCase();
-      // Exception explicite et nominative (LLMOPS_ALLOWED_HOSTS) : le serveur LLMOps déployé de l'organisation.
-      // Rien d'autre n'est ouvert : un hôte absent de la liste reste soumis aux règles ci-dessous.
-      if (hostMatchesAllowList(host, this.allowedHosts)) {
-        return true;
-      }
-      // Domaines cloud / externes formellement interdits
-      if (
-        host.includes('run.app') ||
-        host.includes('googleapis.com') ||
-        host.includes('amazonaws.com') ||
-        host.includes('openai.com') ||
-        host.includes('azure.com')
-      ) {
-        return false;
-      }
-
-      return (
-        host === 'localhost' ||
-        host === '127.0.0.1' ||
-        host === '::1' ||
-        host === '0.0.0.0' ||
-        !host.includes('.') || // Noms d'hôtes locaux intranet (ex: nas, srv-local)
-        host.endsWith('.local') ||
-        host.endsWith('.internal') ||
-        host.endsWith('.lan') ||
-        host.endsWith('.home') ||
-        /^192\.168\./.test(host) ||
-        /^10\./.test(host) ||
-        /^172\.(1[6-9]|2[0-9]|3[0-1])\./.test(host)
-      );
-    } catch {
-      return false;
-    }
-  }
-
-  /**
-   * Mappe les identifiants d'engagements locaux vers l'identifiant reconnu par le serveur local.
-   */
-  resolveRemoteEngagement(engagement?: string): string {
-    return engagement || this.defaultEngagement;
-  }
-
-  private getHeaders(engagement?: string, actorEmail?: string, idempotencyKey?: string): Record<string, string> {
-    const eng = this.resolveRemoteEngagement(engagement || this.defaultEngagement);
-    const headers: Record<string, string> = {
-      'Accept': 'application/json',
-      'Content-Type': 'application/json',
-      'Authorization': `Bearer ${this.authToken}`,
-      'X-Engagement-Id': eng
-    };
-    if (actorEmail) {
-      // Assertion signée (X-Actor-Token) quand une clé est configurée, en-tête brut sinon : voir actorAssertion.ts (LLMOps#144).
-      try {
-        Object.assign(headers, actorIdentityHeaders(actorEmail));
-      } catch (err) {
-        if (err instanceof ActorAssertionConfigError) console.error(`[llmops] ${err.message}`);
-        throw err;
-      }
-    }
-    if (idempotencyKey) {
-      headers['Idempotency-Key'] = idempotencyKey;
-    }
-    return headers;
-  }
-
-  private async parseOrThrow<T>(res: Response): Promise<T> {
-    if (res.ok) {
-      const body = await res.json().catch(() => ({}));
-      return (body && typeof body === 'object' && 'data' in body && body.data !== undefined ? body.data : body) as T;
-    }
-    const errBody = await res.json().catch(() => ({}));
-    const code = errBody.error || errBody.status || `HTTP_${res.status}`;
-    const reason = errBody.reason || errBody.message || `Erreur HTTP ${res.status}`;
-    throw new HubApiError(res.status, code, reason, errBody);
-  }
-
-  protected async fetchWithTimeout(url: string, options: RequestInit = {}): Promise<Response> {
-    if (!this.isLocalNetworkUrl(url)) {
-      console.warn(`🔒 [Air-Gap Souverain] Blocage d'exfiltration : tentative de connexion vers un cloud externe (${url}) bloquée net. Les données du RFP restent confinées à votre réseau local.`);
-      throw new Error(`Air-Gap Security: External cloud access prohibited (${url}). Working in local network only.`);
-    }
-
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), this.timeoutFor(url, options.method || 'GET'));
-    try {
-      const response = await fetch(url, {
-        ...options,
-        signal: controller.signal
-      });
-      clearTimeout(timer);
-      return response;
-    } catch (err) {
-      clearTimeout(timer);
-      throw err;
-    }
-  }
-
-  /**
-   * État de santé renvoyé quand le serveur LLMOps est injoignable : explicitement « unreachable »,
-   * jamais un faux « ok ».
-   */
-  private unreachableHealth(): LLMOpsHealth {
-    return {
-      status: 'unreachable',
-      plane: 'none',
-      schema_version: '',
-      service: 'llmops-unreachable',
-      engine_version: '',
-      engine_commit: ''
-    };
-  }
-
-  /**
-   * Surveillance de santé / version (Mode 1 live avec fallback Mode 2)
-   */
-  async getHealth(options: { bypassCache?: boolean } = {}): Promise<{ data: LLMOpsHealth; source: 'live' | 'offline-fallback' }> {
-    const cacheKey = `health:${this.baseUrl}`;
-    if (options.bypassCache) this.invalidateCache(cacheKey);
-    return this.cachedFetch(
-      cacheKey,
-      async () => {
-        try {
-          const url = `${this.baseUrl}/health`;
-          const res = await this.fetchWithTimeout(url);
-          if (res.ok) {
-            const data = (await res.json()) as LLMOpsHealth;
-            return { data, source: 'live' };
-          }
-        } catch {
-          // Live unreachable -> fallback offline
-        }
-
-        return { data: this.unreachableHealth(), source: 'offline-fallback' };
-      },
-      5000 // Santé rafraîchie sous 5s pour détecter les coupures rapidement
-    );
-  }
-
-  /**
-   * Récupération du snapshot scellé
-   */
-  async getLatestSnapshot(options: { bypassCache?: boolean } = {}): Promise<{ data: LLMOpsSnapshot; source: 'live' | 'offline-fallback' }> {
-    const cacheKey = `snapshot:latest:${this.baseUrl}`;
-    if (options.bypassCache) this.invalidateCache(cacheKey);
-    return this.cachedFetch(cacheKey, async () => {
-      try {
-        const url = `${this.baseUrl}/snapshot/latest`;
-        const res = await this.fetchWithTimeout(url, { headers: this.getHeaders() });
-        if (res.ok) {
-          const data = (await res.json()) as LLMOpsSnapshot;
-          return { data, source: 'live' };
-        }
-      } catch (err: unknown) {
-        const orig = err instanceof Error ? ` (${err.message})` : '';
-        throw new Error(`LLMOps injoignable (${this.baseUrl}) : aucun instantané scellé disponible${orig}`);
-      }
-
-      throw new Error(`LLMOps injoignable (${this.baseUrl}) : aucun instantané scellé disponible.`);
-    });
-  }
-
-  /**
-   * Tableau de maturité d'architecture (L0-L4)
-   */
-  async getBoard(engagement?: string): Promise<{ data: LLMOpsBoardItem[]; source: 'live' | 'offline-fallback' }> {
-    const remoteEng = this.resolveRemoteEngagement(engagement || this.defaultEngagement);
-    try {
-      const url = `${this.baseUrl}/api/arbitration/board?engagement=${encodeURIComponent(remoteEng)}`;
-      const res = await this.fetchWithTimeout(url, { headers: this.getHeaders(remoteEng) });
-      if (res.ok) {
-        const env = (await res.json()) as LLMOpsResponseEnvelope<LLMOpsBoardItem[]>;
-        if (env.status === 'ok' && Array.isArray(env.data)) {
-          return { data: env.data, source: 'live' };
-        }
-      } else if (res.status === 403 || res.status === 401) {
-        return { data: [], source: 'live' };
-      }
-    } catch {
-      // Fallback
-    }
-
-    return { data: [], source: 'offline-fallback' };
-  }
-
-  /**
-   * Liste des énoncés d'architecture
-   */
-  async getStatements(
-    engagement?: string,
-    subject?: string
-  ): Promise<{ data: LLMOpsStatement[]; source: 'live' | 'offline-fallback' }> {
-    const remoteEng = this.resolveRemoteEngagement(engagement || this.defaultEngagement);
-    try {
-      let url = `${this.baseUrl}/api/arbitration/statements?engagement=${encodeURIComponent(remoteEng)}`;
-      if (subject) {
-        url += `&subject=${encodeURIComponent(subject)}`;
-      }
-      const res = await this.fetchWithTimeout(url, { headers: this.getHeaders(remoteEng) });
-      if (res.ok) {
-        const env = (await res.json()) as LLMOpsResponseEnvelope<LLMOpsStatement[]>;
-        if (env.status === 'ok' && Array.isArray(env.data)) {
-          return { data: env.data, source: 'live' };
-        }
-      } else if (res.status === 403 || res.status === 401) {
-        return { data: [], source: 'live' };
-      }
-    } catch {
-      // Fallback
-    }
-
-    return { data: [], source: 'offline-fallback' };
-  }
-
-  /**
-   * Liste des conflits / contradictions
-   */
-  async getConflicts(
-    engagement?: string,
-    status = 'open'
-  ): Promise<{ data: LLMOpsConflict[]; source: 'live' | 'offline-fallback' }> {
-    const remoteEng = this.resolveRemoteEngagement(engagement || this.defaultEngagement);
-    try {
-      const url = `${this.baseUrl}/api/arbitration/conflicts?engagement=${encodeURIComponent(remoteEng)}&status=${encodeURIComponent(status)}`;
-      const res = await this.fetchWithTimeout(url, { headers: this.getHeaders(remoteEng) });
-      if (res.ok) {
-        const env = (await res.json()) as LLMOpsResponseEnvelope<LLMOpsConflict[]>;
-        if (env.status === 'ok' && Array.isArray(env.data)) {
-          return { data: env.data, source: 'live' };
-        }
-      } else if (res.status === 403 || res.status === 401) {
-        return { data: [], source: 'live' };
-      }
-    } catch {
-      // Fallback
-    }
-
-    return { data: [], source: 'offline-fallback' };
-  }
-
-  /**
-   * Dépouillement automatique d'un CCTP en clauses candidates (RFP Shredder)
-   */
-  async shredRfp(
-    rfpText: string,
-    documentId = 'cctp-archinex-input',
-    documentVersion = '1.0',
-    engagement?: string
-  ): Promise<LLMOpsRfpShredResponse> {
-    const eng = engagement || this.defaultEngagement;
-    try {
-      const url = `${this.baseUrl}/api/rfp/shred-to-candidates`;
-      const res = await this.fetchWithTimeout(url, {
-        method: 'POST',
-        headers: this.getHeaders(eng),
-        body: JSON.stringify({
-          rfp_text: rfpText,
-          document_id: documentId,
-          document_version: documentVersion,
-          engagement: eng,
-          destination: 'knowledge-hub-reference'
-        })
-      });
-      if (res.ok) {
-        return (await res.json()) as LLMOpsRfpShredResponse;
-      }
-      const errBody = await res.json().catch(() => ({}));
-      throw new Error(errBody.error || errBody.detail || `Erreur HTTP ${res.status} lors du dépouillement RFP`);
-    } catch (e: any) {
-      if (e.message && (e.message.startsWith('Erreur HTTP') || e.message.includes('Air-Gap Security'))) {
-        throw e;
-      }
-      if (e?.name === 'AbortError' || e?.name === 'TimeoutError') {
-        throw new Error('Erreur HTTP : Délai dépassé lors du dépouillement RFP');
-      }
-
-      throw new Error(`Serveur LLMOps inaccessible pour le dépouillement RFP : ${e.message}`);
-    }
-  }
-
-  /**
-   * Soumission d'une règle doctrinale candidate ou suggestion au Knowledge Hub LLMOps
-   */
-  async submitKnowledgeSuggestion(suggestion: {
+	submitKnowledgeSuggestion(suggestion: {
     title: string;
     rationale: string;
     suggestedChange: string;
@@ -724,551 +196,69 @@ export class LLMOpsClient {
     sourceEngagement?: string;
     contactEmail?: string;
   }): Promise<{ status: string; suggestionId?: string; message?: string }> {
-    const eng = suggestion.sourceEngagement || this.defaultEngagement;
-    const remoteEng = this.resolveRemoteEngagement(eng);
+		return this.doctrine.submitKnowledgeSuggestion(suggestion);
+	}
 
-    try {
-      const url = `${this.baseUrl}/api/knowledge/suggestions`;
-      const res = await this.fetchWithTimeout(url, {
-        method: 'POST',
-        headers: this.getHeaders(remoteEng),
-        body: JSON.stringify({
-          title: suggestion.title,
-          rationale: suggestion.rationale,
-          suggested_change: suggestion.suggestedChange,
-          author: suggestion.author || 'M. Israel (Lead Architect)',
-          contact_email: suggestion.contactEmail || 'maurice.israel@free.fr',
-          source_engagement: remoteEng
-        })
-      });
+	getOntologyExport(): Promise<any> {
+		return this.doctrine.getOntologyExport();
+	}
 
-      if (res.ok) {
-        this.invalidateCache();
-        const body = await res.json();
-        const payload = body.data || body;
-        return {
-          status: 'ok',
-          suggestionId: payload.suggestion_id,
-          message: payload.message || `Règle doctrinale transmise au Knowledge Hub avec l'ID ${payload.suggestion_id}.`
-        };
-      }
-      const errBody = await res.json().catch(() => ({}));
-      throw new Error(errBody.error || errBody.detail || `Erreur HTTP ${res.status} lors de la suggestion`);
-    } catch (e: any) {
-      throw e;
-    }
-  }
-
-  /**
-   * Export du catalogue d'ontologie SI et relations depuis le Knowledge Hub (GET /api/knowledge/ontology/export)
-   */
-  async getOntologyExport(): Promise<any> {
-    const url = `${this.baseUrl}/api/knowledge/ontology/export`;
-    const res = await this.fetchWithTimeout(url, { headers: this.getHeaders() });
-    if (!res.ok) {
-      throw new Error(`Knowledge Hub indisponible pour l'ontologie : code HTTP ${res.status}`);
-    }
-    const json = await res.json();
-    return json.data || json;
-  }
-
-  /**
-   * Doctrine applicable à un sujet (GET /api/knowledge/context)
-   */
-  async getDoctrineContext(params: {
+	getDoctrineContext(params: {
     subject?: string;
     domains?: string[];
     frameworks?: string[];
     max_items?: number;
     max_chars?: number;
   } = {}): Promise<DoctrineContext> {
-    const q = new URLSearchParams();
-    if (params.subject) q.set('subject', params.subject);
-    if (params.domains && params.domains.length > 0) q.set('domains', params.domains.join(','));
-    if (params.frameworks && params.frameworks.length > 0) q.set('frameworks', params.frameworks.join(','));
-    if (params.max_items) q.set('max_items', String(params.max_items));
-    if (params.max_chars) q.set('max_chars', String(params.max_chars));
+		return this.doctrine.getDoctrineContext(params);
+	}
 
-    const cacheKey = `kb:doctrine-context:${q.toString()}`;
-    const live = await this.cachedFetch<DoctrineContext | null>(cacheKey, async () => {
-      try {
-        const url = `${this.baseUrl}/api/knowledge/context?${q.toString()}`;
-        const res = await this.fetchWithTimeout(url, { headers: this.getHeaders() });
-        if (res.ok) {
-          const body = await res.json();
-          const data = (body.data || body) as DoctrineContext;
-          return { ...data, offline: false };
-        }
-        // Hub joignable mais requête refusée (paramètre manquant, jeton…) : à distinguer d'une indisponibilité.
-        const detail = await res.text().catch(() => '');
-        console.warn(`[LLMOps] Contexte de doctrine refusé (HTTP ${res.status}) : ${detail.slice(0, 200)}`);
-      } catch {
-        // Live unreachable -> fallback offline
-      }
-      return null;
-    });
-
-    if (live) return live;
-
-    // Repli hors ligne scellé : filtre l'instantané scellé par termes et domaines
-    return this.getDoctrineContextOffline(params);
-  }
-
-  /**
-   * Filtrage hors-ligne scellé pour getDoctrineContext
-   */
-  private getDoctrineContextOffline(params: {
-    subject?: string;
-    domains?: string[];
-    frameworks?: string[];
-    max_items?: number;
-  }): DoctrineContext {
-    let items: DoctrineItem[] = [];
-
-    if (params.max_items && items.length > params.max_items) {
-      items = items.slice(0, params.max_items);
-    }
-
-    return {
-      subject: params.subject,
-      domains: params.domains,
-      frameworks: params.frameworks,
-      items,
-      total_items: items.length,
-      truncated: false,
-      offline: true
-    };
-  }
-
-  /**
-   * Vérification d'une option d'architecture par rapport à la doctrine (POST /api/knowledge/check)
-   */
-  async checkOption(params: {
+	checkOption(params: {
     option: { id: string; title: string; summary: string; kbRefs?: string[] };
     subject?: string;
     domain?: string;
     domains?: string[];
     frameworks?: string[];
   }): Promise<CheckResult> {
-    const domain = params.domain || (params.domains && params.domains[0]);
-    const cacheKey = `compliance:check:${JSON.stringify({
-      subject: params.subject ?? '',
-      domain: domain ?? '',
-      frameworks: [...(params.frameworks ?? [])].sort(),
-      option: {
-        id: params.option.id,
-        title: params.option.title,
-        summary: params.option.summary,
-        kbRefs: [...(params.option.kbRefs ?? [])].sort()
-      }
-    })}`;
+		return this.doctrine.checkOption(params);
+	}
 
-    const live = await this.cachedFetch<CheckResult | null>(cacheKey, async () => {
-      try {
-        const url = `${this.baseUrl}/api/knowledge/check`;
-        const bodyPayload = {
-          ...params,
-          // Le juge de LLMOps lit title, description et statements : le résumé d'Archinex doit arriver en description
-          option: { ...params.option, description: params.option.summary },
-          domain
-        };
-        const res = await this.fetchWithTimeout(url, {
-          method: 'POST',
-          headers: this.getHeaders(),
-          body: JSON.stringify(bodyPayload)
-        });
-        if (res.ok) {
-          const body = await res.json();
-          const data = (body.data || body) as CheckResult;
-          return { ...data, offline: false };
-        }
-      } catch {
-        // Live unreachable -> fallback offline
-      }
-      return null;
-    });
+	getFrameworkCoverage(engagement?: string): Promise<FrameworkCoverage> {
+		return this.doctrine.getFrameworkCoverage(engagement);
+	}
 
-    if (live) return live;
+	setApplicableFrameworks(engagement: string, frameworks: string[]): Promise<{ status: string }> {
+		return this.doctrine.setApplicableFrameworks(engagement, frameworks);
+	}
 
-    // Repli hors-ligne : renvoie tout en unassessed, avec offline: true. Ne jamais inventer de verdict.
-    const kbRefs = params.option.kbRefs || [];
-    const verdicts: OptionVerdict[] = kbRefs.map((ref) => ({
-      rule_id: ref,
-      status: 'unassessed',
-      rationale: 'Évaluation non disponible en mode hors-ligne. Verdict non émis.',
-      exception_allowed: false
-    }));
+	submitCandidate(candidate: KbCandidate, actorEmail?: string): Promise<{ candidate_id: string; status: string }> {
+		return this.knowledge.submitCandidate(candidate, actorEmail);
+	}
 
-    if (verdicts.length === 0) {
-      verdicts.push({
-        rule_id: 'RULE-DEFAULT',
-        status: 'unassessed',
-        rationale: 'Aucun référentiel KB associé à cette option. Vérification hors-ligne indisponible.',
-        exception_allowed: false
-      });
-    }
+	listCandidates(filter: { source?: string; engagement?: string } = {}, actorEmail?: string): Promise<KbCandidate[]> {
+		return this.knowledge.listCandidates(filter, actorEmail);
+	}
 
-    return {
-      verdicts,
-      offline: true
-    };
-  }
+	getMe(actorEmail: string): Promise<KbMeResponse> {
+		return this.knowledgeAdmin.getMe(actorEmail);
+	}
 
-  /**
-   * Couverture réglementaire du projet (GET /api/compliance/frameworks/applicable)
-   */
-  async getFrameworkCoverage(engagement?: string): Promise<FrameworkCoverage> {
-    const remoteEng = this.resolveRemoteEngagement(engagement || this.defaultEngagement);
-    const cacheKey = `compliance:coverage:${remoteEng}`;
-    const live = await this.cachedFetch<FrameworkCoverage | null>(cacheKey, async () => {
-      try {
-        const url = `${this.baseUrl}/api/compliance/frameworks/applicable?engagement=${encodeURIComponent(remoteEng)}`;
-        const res = await this.fetchWithTimeout(url, { headers: this.getHeaders(remoteEng) });
-        if (res.ok) {
-          const body = await res.json();
-          const data = body.data || body;
-          // Format servi par LLMOps : { applicable_frameworks, coverage: { NIS2: { status, expected, validated, missing_ids } } }
-          if (data && typeof data.coverage === 'object' && data.coverage !== null) {
-            const frameworks = Object.entries(data.coverage as Record<string, any>).map(([name, c]) => ({
-              name,
-              required: true,
-              status: (['covered', 'partial', 'missing'].includes(c?.status) ? c.status : 'unknown') as FrameworkStatus['status'],
-              covered_count: c?.validated ?? 0,
-              total_count: c?.expected ?? 0,
-              missing_clauses: Array.isArray(c?.missing_ids) ? c.missing_ids : []
-            }));
-            const overall: FrameworkCoverage['overall_coverage'] = frameworks.length === 0
-              ? 'unknown'
-              : frameworks.every((f) => f.status === 'covered') ? 'covered'
-              : frameworks.some((f) => f.status === 'missing') ? 'missing' : 'partial';
-            return { frameworks, overall_coverage: overall, checked_at: new Date().toISOString(), offline: false };
-          }
-          return { ...(data as FrameworkCoverage), frameworks: data?.frameworks ?? [], offline: false };
-        }
-      } catch {
-        // Live unreachable -> fallback offline
-      }
-      return null;
-    });
+	getOwners(actorEmail?: string): Promise<KbOwnersRegistry> {
+		return this.knowledgeAdmin.getOwners(actorEmail);
+	}
 
-    if (live) return live;
+	updateOwners(owners: KbOwner[], actorEmail?: string): Promise<{ success: boolean; updated_count: number; offline?: boolean; error?: string }> {
+		return this.knowledgeAdmin.updateOwners(owners, actorEmail);
+	}
 
-    return {
-      frameworks: [],
-      overall_coverage: 'unknown',
-      checked_at: new Date().toISOString(),
-      offline: true
-    };
-  }
-
-  /**
-   * Déclaration des référentiels applicables au projet (PUT /api/compliance/frameworks/applicable)
-   */
-  async setApplicableFrameworks(
-    engagement: string,
-    frameworks: string[]
-  ): Promise<{ status: string }> {
-    const remoteEng = this.resolveRemoteEngagement(engagement);
-    try {
-      const url = `${this.baseUrl}/api/compliance/frameworks/applicable`;
-      const res = await this.fetchWithTimeout(url, {
-        method: 'PUT',
-        headers: this.getHeaders(remoteEng),
-        body: JSON.stringify({ engagement: remoteEng, frameworks })
-      });
-      if (res.ok) {
-        return { status: 'ok' };
-      }
-    } catch {
-      // Live unreachable -> fallback offline
-    }
-
-    return { status: 'offline_recorded' };
-  }
-
-  /**
-   * Soumission d'un candidat à la KB (POST /api/knowledge/candidates)
-   */
-  async submitCandidate(candidate: KbCandidate, actorEmail?: string): Promise<{ candidate_id: string; status: string }> {
-    const eng = candidate.source.engagement || this.defaultEngagement;
-    const remoteEng = this.resolveRemoteEngagement(eng);
-
-    try {
-      const url = `${this.baseUrl}/api/knowledge/candidates`;
-      const res = await this.fetchWithTimeout(url, {
-        method: 'POST',
-        headers: this.getHeaders(remoteEng, actorEmail),
-        body: JSON.stringify(candidate)
-      });
-      if (res.ok) {
-        this.invalidateCache();
-        const body = await res.json();
-        const payload = body.data || body;
-        return {
-          candidate_id: payload.candidate_id || payload.id || `CAND-${Date.now()}`,
-          status: payload.status || 'in_review'
-        };
-      }
-      const errBody = await res.json().catch(() => ({}));
-      throw new Error(errBody.error || errBody.reason || `Erreur HTTP ${res.status} lors de la soumission du candidat`);
-    } catch (e: any) {
-      if (e.message && (e.message.startsWith('Erreur HTTP') || e.message.includes('Air-Gap Security'))) {
-        throw e;
-      }
-      if (e?.name === 'AbortError' || e?.name === 'TimeoutError') {
-        // Délai dépassé : LLMOps a pu enregistrer le candidat. Ne JAMAIS fabriquer un identifiant factice
-        // (doublon ou candidat fantôme) : l'appelant doit vérifier la file avant de réessayer.
-        throw new Error(
-          'Erreur HTTP : LLMOps n’a pas répondu à temps ; la soumission a peut-être été enregistrée. ' +
-            'Vérifiez la file des candidats avant de la renvoyer.'
-        );
-      }
-      // Serveur injoignable (connexion refusée) -> mise en attente locale avec statut explicite.
-      // Ne jamais fabriquer un faux identifiant de hub (CAND-LOCAL-…) qui ferait croire
-      // que la candidature a été attribuée et enregistrée par le hub de connaissances (#54).
-      return {
-        candidate_id: '',
-        status: 'pending_dispatch'
-      };
-    }
-  }
-
-  /**
-   * Liste des candidats KB (GET /api/knowledge/candidates)
-   */
-  async listCandidates(filter: { source?: string; engagement?: string } = {}, actorEmail?: string): Promise<KbCandidate[]> {
-    const eng = filter.engagement || this.defaultEngagement;
-    const remoteEng = this.resolveRemoteEngagement(eng);
-
-    try {
-      const q = new URLSearchParams();
-      if (filter.source) q.set('source', filter.source);
-      if (remoteEng) q.set('engagement', remoteEng);
-
-      const url = `${this.baseUrl}/api/knowledge/candidates?${q.toString()}`;
-      const res = await this.fetchWithTimeout(url, { headers: this.getHeaders(remoteEng, actorEmail) });
-      if (res.ok) {
-        this.invalidateCache();
-        const body = await res.json();
-        const data = body.data || body;
-        return Array.isArray(data) ? data : [];
-      }
-    } catch {
-      // Fallback
-    }
-
-    return [];
-  }
-
-  /**
-   * Récupère le profil KB de l'utilisateur connecté auprès de LLMOps
-   * GET /api/knowledge/me avec X-Actor-Email
-   */
-  async getMe(actorEmail: string): Promise<KbMeResponse> {
-    if (!actorEmail) {
-      return { status: 'error', error: 'Actor email required' };
-    }
-
-    try {
-      const url = `${this.baseUrl}/api/knowledge/me`;
-      const res = await this.fetchWithTimeout(url, {
-        headers: this.getHeaders(undefined, actorEmail)
-      });
-
-      if (res.status === 503) {
-        return { status: 'unavailable', error: 'LLMOps governance database unavailable (503)' };
-      }
-
-      if (res.status === 401) {
-        const errBody = await res.json().catch(() => ({}));
-        return {
-          status: 'unauthorized',
-          error: errBody.error || errBody.reason || 'Jeton de service ou authentification invalide (401)',
-          reason: errBody.reason
-        };
-      }
-
-      if (res.status === 403) {
-        const errBody = await res.json().catch(() => ({}));
-        const reason = String(errBody.reason || errBody.error || errBody.detail || errBody.message || '');
-        const isNotRegistered =
-          errBody.status === 'unauthorized' ||
-          errBody.error === 'unauthorized' ||
-          /not a registered expert/i.test(reason) ||
-          /non enregistr/i.test(reason);
-
-        return {
-          status: isNotRegistered ? 'not_registered' : 'forbidden',
-          error: isNotRegistered
-            ? "Compte non synchronisé avec le registre souverain LLMOps."
-            : (errBody.error || errBody.reason || `HTTP ${res.status}`),
-          reason: errBody.reason
-        };
-      }
-
-      if (res.ok) {
-        this.invalidateCache();
-        const body = await res.json();
-        const data = body.data || body;
-        return {
-          status: 'ok',
-          data: {
-            handle: data.handle || `@${actorEmail.split('@')[0]}`,
-            email: data.email || actorEmail,
-            name: data.name,
-            kb_roles: (data.kb_roles || data.roles || []) as KbRole[],
-            owned_domains: data.owned_domains || data.domains || [],
-            pending_reviews: data.pending_reviews ?? 0,
-            delegated: data.delegated ?? false
-          }
-        };
-      }
-
-      const errBody = await res.json().catch(() => ({}));
-      return {
-        status: res.status === 403 ? 'forbidden' : 'error',
-        error: errBody.error || errBody.reason || errBody.detail || `HTTP ${res.status}`
-      };
-    } catch {
-      // Live inaccessible -> fallback local
-    }
-
-    return {
-      status: 'ok',
-      data: {
-        handle: `@${actorEmail.split('@')[0]}`,
-        email: actorEmail,
-        kb_roles: [],
-        owned_domains: [],
-        pending_reviews: 0,
-        offline: true
-      }
-    };
-  }
-
-  /**
-   * Récupère le registre des propriétaires (owners) de doctrine
-   * GET /api/knowledge/owners
-   */
-  async getOwners(actorEmail?: string): Promise<KbOwnersRegistry> {
-    try {
-      const url = `${this.baseUrl}/api/knowledge/owners`;
-      const res = await this.fetchWithTimeout(url, {
-        headers: this.getHeaders(undefined, actorEmail)
-      });
-      if (res.ok) {
-        this.invalidateCache();
-        const body = await res.json();
-        const payload = body.data || body;
-        const owners = Array.isArray(payload) ? payload : (payload.owners || []);
-        return {
-          owners,
-          domains: payload.domains || {},
-          default_owner: payload.default_owner,
-          total: owners.length
-        };
-      }
-    } catch {
-      // Fallback
-    }
-
-    return {
-      owners: [],
-      total: 0,
-      offline: true
-    };
-  }
-
-  /**
-   * Met à jour le registre des propriétaires (owners)
-   * PUT /api/knowledge/owners
-   */
-  async updateOwners(owners: KbOwner[], actorEmail?: string): Promise<{ success: boolean; updated_count: number; offline?: boolean; error?: string }> {
-    try {
-      // Préserver les domaines et le default_owner existants si possible
-      let currentDomains: Record<string, string> = {};
-      let defaultOwner = '@maintainers';
-
-      try {
-        const current = await this.getOwners(actorEmail);
-        if (current.domains && Object.keys(current.domains).length > 0) currentDomains = current.domains;
-        if (current.default_owner) defaultOwner = current.default_owner;
-      } catch {
-        // Ignorer si échec
-      }
-
-      // Reconstruire la liste des owners au format attendu par LLMOps
-      const cleanOwners = owners.map((o) => ({
-        handle: o.handle,
-        email: o.email || null,
-        roles: o.roles || [],
-        delegated: Boolean(o.delegated)
-      }));
-
-      // S'assurer que defaultOwner fait partie des owners
-      if (!cleanOwners.some((o) => o.handle === defaultOwner) && cleanOwners.length > 0) {
-        defaultOwner = cleanOwners[0].handle;
-      }
-
-      const payload = {
-        owners: cleanOwners,
-        domains: currentDomains,
-        default_owner: defaultOwner
-      };
-
-      const url = `${this.baseUrl}/api/knowledge/owners`;
-      const res = await this.fetchWithTimeout(url, {
-        method: 'PUT',
-        headers: this.getHeaders(undefined, actorEmail),
-        body: JSON.stringify(payload)
-      });
-
-      if (res.status === 503) {
-        return { success: false, updated_count: 0, error: 'LLMOps governance database unavailable (503)' };
-      }
-
-      if (res.ok) {
-        this.invalidateCache();
-        const body = await res.json();
-        const resPayload = body.data || body;
-        return {
-          success: true,
-          updated_count: resPayload.owners ?? resPayload.updated_count ?? owners.length
-        };
-      }
-
-      const errBody = await res.json().catch(() => ({}));
-      return {
-        success: false,
-        updated_count: 0,
-        error: errBody.error || errBody.reason || `HTTP ${res.status}`
-      };
-    } catch {
-      // Fallback
-    }
-
-    return {
-      success: false,
-      updated_count: 0,
-      offline: true
-    };
-  }
-
-  /**
-   * Met à jour ou inscrit explicitement une seule personne/handle dans le registre des propriétaires LLMOps
-   * en fusionnant avec l'état courant de GET /api/knowledge/owners (sans écraser les autres entrées ni les domaines).
-   */
-  async upsertOwnerInRegistry(
-    input: {
+	upsertOwnerInRegistry(input: {
       handle: string;
       email: string | null;
       roles: KbRole[];
       delegated?: boolean;
       domains?: string[];
       previousHandle?: string;
-    },
-    actorEmail?: string
-  ): Promise<{
+    }, actorEmail?: string): Promise<{
     success: boolean;
     handle: string;
     owners_count: number;
@@ -1276,1226 +266,112 @@ export class LLMOpsClient {
     offline?: boolean;
     error?: string;
   }> {
-    const targetHandle = input.handle.trim().startsWith('@')
-      ? input.handle.trim().toLowerCase()
-      : `@${input.handle.trim().toLowerCase()}`;
-    const targetEmail = input.email ? input.email.trim().toLowerCase() : null;
-    const prevHandle = input.previousHandle
-      ? input.previousHandle.trim().startsWith('@')
-        ? input.previousHandle.trim().toLowerCase()
-        : `@${input.previousHandle.trim().toLowerCase()}`
-      : null;
+		return this.knowledgeAdmin.upsertOwnerInRegistry(input, actorEmail);
+	}
 
-    try {
-      const current = await this.getOwners(actorEmail);
-      if (current.offline) {
-        return {
-          success: false,
-          handle: targetHandle,
-          owners_count: 0,
-          domains_count: 0,
-          offline: true,
-          error: 'Serveur LLMOps injoignable : impossible de lire ou modifier le registre des responsables.'
-        };
-      }
+	getReviewInbox(actorEmail: string, filters?: { domain?: string; kind?: string; excludeOwn?: boolean; actorHandle?: string }): Promise<KbInboxResponse> {
+		return this.knowledge.getReviewInbox(actorEmail, filters);
+	}
 
-      const ownersMap = new Map<
-        string,
-        { handle: string; email: string | null; roles: KbRole[]; delegated: boolean }
-      >();
-      for (const o of current.owners || []) {
-        const h = o.handle.trim().toLowerCase();
-        // Si une autre entrée possédait déjà cet e-mail, on le libère pour éviter le doublon d'e-mail côté LLMOps
-        const sameEmail = targetEmail && o.email && o.email.trim().toLowerCase() === targetEmail;
-        ownersMap.set(h, {
-          handle: h,
-          email: sameEmail && h !== targetHandle ? null : o.email || null,
-          roles: Array.isArray(o.roles) && o.roles.length > 0 ? o.roles : ['kb:review'],
-          delegated: sameEmail && h !== targetHandle ? false : Boolean(o.delegated)
-        });
-      }
+	getCandidate(candidateId: string, actorEmail?: string): Promise<{ status: 'ok' | 'error' | 'unavailable' | 'not_registered'; data?: KbCandidateDetail; error?: string; reason?: string }> {
+		return this.knowledge.getCandidate(candidateId, actorEmail);
+	}
 
-      if (prevHandle && prevHandle !== targetHandle && ownersMap.has(prevHandle)) {
-        const prevEntry = ownersMap.get(prevHandle)!;
-        if (prevEntry.email && (!targetEmail || prevEntry.email.toLowerCase() === targetEmail)) {
-          ownersMap.set(prevHandle, {
-            ...prevEntry,
-            email: null,
-            delegated: false
-          });
-        }
-      }
-
-      const cleanRoles: KbRole[] =
-        Array.isArray(input.roles) && input.roles.length > 0 ? input.roles : ['kb:review'];
-
-      ownersMap.set(targetHandle, {
-        handle: targetHandle,
-        email: targetEmail,
-        roles: cleanRoles,
-        delegated: input.delegated ?? Boolean(targetEmail)
-      });
-
-      const domainsMap: Record<string, string> = { ...(current.domains || {}) };
-      let defaultOwner = current.default_owner || '@maintainers';
-      if (!ownersMap.has(defaultOwner)) {
-        defaultOwner = targetHandle;
-      }
-
-      if (input.domains !== undefined) {
-        const wantedDomains = new Set(
-          input.domains.map((d) => d.trim().toLowerCase()).filter((d) => d.length > 0)
-        );
-        // Retirer les domaines qui pointaient vers targetHandle mais ne sont plus souhaités
-        for (const [dom, h] of Object.entries(domainsMap)) {
-          if (h.toLowerCase() === targetHandle && !wantedDomains.has(dom.toLowerCase())) {
-            if (defaultOwner !== targetHandle && ownersMap.has(defaultOwner)) {
-              domainsMap[dom] = defaultOwner;
-            } else {
-              delete domainsMap[dom];
-            }
-          }
-        }
-        // Assigner les domaines souhaités à targetHandle
-        for (const dom of wantedDomains) {
-          domainsMap[dom] = targetHandle;
-        }
-      }
-
-      const cleanOwners = Array.from(ownersMap.values());
-      const payload = {
-        owners: cleanOwners,
-        domains: domainsMap,
-        default_owner: defaultOwner
-      };
-
-      // Si l'acteur courant possède déjà kb:admin dans le registre LLMOps, propager X-Actor-Email ;
-      // sinon utiliser le scope kb:admin du jeton de service (amorçage autorisé par le contrat LLMOps).
-      const actorIsKbAdminInRegistry = Boolean(
-        actorEmail &&
-          (current.owners || []).some(
-            (o) =>
-              o.email &&
-              o.email.toLowerCase() === actorEmail.toLowerCase() &&
-              Array.isArray(o.roles) &&
-              o.roles.includes('kb:admin')
-          )
-      );
-
-      const url = `${this.baseUrl}/api/knowledge/owners`;
-      let res = await this.fetchWithTimeout(url, {
-        method: 'PUT',
-        headers: this.getHeaders(undefined, actorIsKbAdminInRegistry ? actorEmail : undefined),
-        body: JSON.stringify(payload)
-      });
-
-      if (res.status === 403) {
-        // En cas de refus 403 (jeton sans scope kb:admin direct ou acteur local non souverain),
-        // tenter avec un compte administrateur KB déclaré dans le registre (ex: @maintainers)
-        const kbAdminOwner = (current.owners || []).find(
-          (o) => o.email && Array.isArray(o.roles) && o.roles.includes('kb:admin')
-        );
-        if (kbAdminOwner?.email && kbAdminOwner.email.toLowerCase() !== actorEmail?.toLowerCase()) {
-          res = await this.fetchWithTimeout(url, {
-            method: 'PUT',
-            headers: this.getHeaders(undefined, kbAdminOwner.email),
-            body: JSON.stringify(payload)
-          });
-        } else if (actorIsKbAdminInRegistry) {
-          res = await this.fetchWithTimeout(url, {
-            method: 'PUT',
-            headers: this.getHeaders(undefined, undefined),
-            body: JSON.stringify(payload)
-          });
-        }
-      }
-
-      if (res.status === 503) {
-        return {
-          success: false,
-          handle: targetHandle,
-          owners_count: 0,
-          domains_count: 0,
-          error: 'Base de gouvernance LLMOps indisponible (503)'
-        };
-      }
-
-      if (res.ok) {
-        this.invalidateCache();
-        const body = await res.json();
-        const resPayload = body.data || body;
-        return {
-          success: true,
-          handle: targetHandle,
-          owners_count: resPayload.owners ?? cleanOwners.length,
-          domains_count: resPayload.domains ?? Object.keys(domainsMap).length
-        };
-      }
-
-      const errBody = await res.json().catch(() => ({}));
-      return {
-        success: false,
-        handle: targetHandle,
-        owners_count: 0,
-        domains_count: 0,
-        error: errBody.error || errBody.reason || `HTTP ${res.status}`
-      };
-    } catch {
-      return {
-        success: false,
-        handle: targetHandle,
-        owners_count: 0,
-        domains_count: 0,
-        offline: true,
-        error: 'Serveur LLMOps injoignable'
-      };
-    }
-  }
-
-  // ─────────────────────────────────────────────────────────────────────────────
-  // BOÎTE DE REVUE EXPERTE & CANDIDATS KB (Lot A7 - Porte G5)
-  // ─────────────────────────────────────────────────────────────────────────────
-
-  /**
-   * Récupère la boîte de réception des revues en attente pour un expert.
-   * Propage l'en-tête X-Actor-Email.
-   */
-  async getReviewInbox(
-    actorEmail: string,
-    filters?: { domain?: string; kind?: string; excludeOwn?: boolean; actorHandle?: string }
-  ): Promise<KbInboxResponse> {
-    if (!this.isLocalNetworkUrl(this.baseUrl)) {
-      return { status: 'unavailable', error: 'Enclave locale non configurée' };
-    }
-
-    try {
-      const url = new URL(`${this.baseUrl}/api/knowledge/reviews/inbox`);
-      if (filters?.domain) url.searchParams.set('domain', filters.domain);
-      if (filters?.kind) url.searchParams.set('kind', filters.kind);
-      if (filters?.excludeOwn) url.searchParams.set('exclude_own', 'true');
-
-      const res = await this.fetchWithTimeout(url.toString(), {
-        headers: this.getHeaders(undefined, actorEmail)
-      });
-
-      if (res.status === 503) {
-        return { status: 'unavailable', error: 'Service de gouvernance KB indisponible (503)' };
-      }
-
-      if (res.status === 401) {
-        const errBody = await res.json().catch(() => ({}));
-        return {
-          status: 'unauthorized',
-          error: errBody.error || errBody.reason || 'Jeton de service ou authentification invalide (401)',
-          reason: errBody.reason
-        };
-      }
-
-      if (res.status === 403) {
-        const errBody = await res.json().catch(() => ({}));
-        const reason = String(errBody.reason || errBody.error || errBody.detail || errBody.message || '');
-        const isNotRegistered =
-          errBody.status === 'unauthorized' ||
-          errBody.error === 'unauthorized' ||
-          /not a registered expert/i.test(reason) ||
-          /non enregistr/i.test(reason);
-
-        return {
-          status: isNotRegistered ? 'not_registered' : 'error',
-          error: isNotRegistered
-            ? "Compte non synchronisé avec le registre souverain LLMOps."
-            : (errBody.error || errBody.reason || 'Accès interdit (403)'),
-          reason: errBody.reason
-        };
-      }
-
-      if (res.ok) {
-        this.invalidateCache();
-        const body = await res.json();
-        const rawPayload = body.data || body;
-        const rawItems: any[] = Array.isArray(rawPayload)
-          ? rawPayload
-          : Array.isArray(rawPayload.items)
-            ? rawPayload.items
-            : [];
-
-        const now = new Date();
-        const items: KbReviewInboxItem[] = rawItems.map((item) => {
-          const due = item.due_at ? new Date(item.due_at) : null;
-          const is_overdue = due ? now > due : false;
-          const candId = item.candidate_id || item.id || '';
-          return {
-            id: candId,
-            candidate_id: candId,
-            title: item.title || '',
-            kind: item.kind || item.asset_type || 'new_asset',
-            domain: Array.isArray(item.domain) ? item.domain.join(', ') : (item.domain || ''),
-            reason: item.reason || 'review',
-            waiting_since: item.waiting_since || item.created_at || '',
-            due_at: item.due_at || '',
-            is_overdue: item.is_overdue ?? is_overdue,
-            author: item.author || '',
-            author_role: item.author_role,
-            severity: item.severity,
-            isAuthor: isCandidateAuthor(item.author, { email: actorEmail, handle: filters?.actorHandle })
-          };
-        });
-
-        let filtered = items;
-        if (filters?.domain) {
-          filtered = filtered.filter((i) => i.domain.toLowerCase().includes(filters.domain!.toLowerCase()));
-        }
-        if (filters?.kind) {
-          filtered = filtered.filter((i) => i.kind.toLowerCase() === filters.kind!.toLowerCase());
-        }
-        if (filters?.excludeOwn) {
-          filtered = filtered.filter((i) => !i.isAuthor);
-        }
-
-        return {
-          status: 'ok',
-          data: filtered
-        };
-      }
-
-      return {
-        status: 'error',
-        error: `Erreur HTTP ${res.status} lors de la récupération de la boîte de revue`
-      };
-    } catch {
-      return {
-        status: 'unavailable',
-        error: 'Mode hors-ligne : boîte de revue indisponible sans serveur de gouvernance'
-      };
-    }
-  }
-
-  /**
-   * Récupère le détail d'un candidat à la KB (avec les 7 vérifications automatiques, historique, etc.)
-   */
-  async getCandidate(
-    candidateId: string,
-    actorEmail?: string
-  ): Promise<{ status: 'ok' | 'error' | 'unavailable' | 'not_registered'; data?: KbCandidateDetail; error?: string; reason?: string }> {
-    if (!this.isLocalNetworkUrl(this.baseUrl)) {
-      return { status: 'unavailable', error: 'Enclave locale non configurée' };
-    }
-
-    try {
-      const res = await this.fetchWithTimeout(`${this.baseUrl}/api/knowledge/candidates/${candidateId}`, {
-        headers: this.getHeaders(undefined, actorEmail)
-      });
-
-      if (res.status === 503) {
-        return { status: 'unavailable', error: 'Service de gouvernance KB indisponible (503)' };
-      }
-
-      if (res.status === 401) {
-        const errBody = await res.json().catch(() => ({}));
-        return { status: 'error', error: errBody.error || errBody.reason || 'Authentification requise (401)' };
-      }
-
-      if (res.status === 403) {
-        const errBody = await res.json().catch(() => ({}));
-        const reason = String(errBody.reason || errBody.error || errBody.detail || errBody.message || '');
-        const isNotRegistered =
-          errBody.status === 'unauthorized' ||
-          errBody.error === 'unauthorized' ||
-          /not a registered expert/i.test(reason) ||
-          /non enregistr/i.test(reason);
-
-        return {
-          status: isNotRegistered ? 'not_registered' : 'error',
-          error: isNotRegistered
-            ? "Compte non synchronisé avec le registre souverain LLMOps."
-            : (errBody.error || errBody.reason || 'Accès interdit (403)'),
-          reason: errBody.reason
-        };
-      }
-
-      if (res.ok) {
-        this.invalidateCache();
-        const body = await res.json();
-        return {
-          status: 'ok',
-          data: body.data || body
-        };
-      }
-
-      return {
-        status: 'error',
-        error: `Candidat introuvable ou erreur HTTP ${res.status}`
-      };
-    } catch {
-      return {
-        status: 'unavailable',
-        error: 'Service de gouvernance KB indisponible'
-      };
-    }
-  }
-
-  /**
-   * Action d'examen d'un candidat (accept, amend, reject).
-   * Propage STRICTEMENT l'en-tête X-Actor-Email et JAMAIS de champ reviewer dans le corps (règle Issue #2).
-   */
-  async reviewCandidate(
-    candidateId: string,
-    action: 'accept' | 'amend' | 'reject',
-    payload: { reason?: string; amended_content?: string },
-    actorEmail: string
-  ): Promise<{
+	reviewCandidate(candidateId: string, action: 'accept' | 'amend' | 'reject', payload: { reason?: string; amended_content?: string }, actorEmail: string): Promise<{
     status: 'ok' | 'error' | 'conflict' | 'forbidden' | 'unavailable';
     data?: KbCandidateDetail;
     error?: string;
     /** Code stable lorsque le Hub en donne un (ex. `separation_of_duties`). */
     code?: string;
   }> {
-    if (!this.isLocalNetworkUrl(this.baseUrl)) {
-      return { status: 'unavailable', error: 'Enclave locale non configurée' };
-    }
+		return this.knowledge.reviewCandidate(candidateId, action, payload, actorEmail);
+	}
 
-    try {
-      const bodyToSend: { action: string; reason?: string; amended_content?: string } = {
-        action,
-        reason: payload.reason,
-        amended_content: payload.amended_content
-      };
+	assignCandidate(candidateId: string, assignee: string, reason: string, actorEmail: string): Promise<{ status: 'ok' | 'error' | 'forbidden' | 'unavailable'; data?: KbCandidateDetail; error?: string }> {
+		return this.knowledge.assignCandidate(candidateId, assignee, reason, actorEmail);
+	}
 
-      const res = await this.fetchWithTimeout(`${this.baseUrl}/api/knowledge/candidates/${candidateId}`, {
-        method: 'PATCH',
-        headers: {
-          ...this.getHeaders(undefined, actorEmail),
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(bodyToSend)
-      });
+	requestReview(candidateId: string, req: { kind: 'second_review' | 'advice'; recipient: string; message: string; due_at?: string }, actorEmail: string): Promise<{ status: 'ok' | 'error' | 'unavailable'; success?: boolean; error?: string }> {
+		return this.knowledge.requestReview(candidateId, req, actorEmail);
+	}
 
-      if (res.status === 403) {
-        const errJson = await res.json().catch(() => ({}));
-        return {
-          status: 'forbidden',
-          error:
-            errJson.error ||
-            `Action refusée (403) : vous ne possédez pas les droits de domaine requis pour statuer sur ce candidat.`
-        };
-      }
+	getComments(candidateId: string, actorEmail?: string): Promise<{ status: 'ok' | 'error' | 'unavailable'; data?: KbComment[]; error?: string }> {
+		return this.knowledge.getComments(candidateId, actorEmail);
+	}
 
-      if (res.status === 409) {
-        const errJson = await res.json().catch(() => ({}));
-        return {
-          status: 'conflict',
-          error:
-            errJson.error ||
-            `Conflit d'état (409) : ce candidat a déjà fait l'objet d'une décision terminale.`
-        };
-      }
+	addComment(candidateId: string, message: string, actorEmail: string): Promise<{ status: 'ok' | 'error' | 'unavailable'; data?: KbComment; error?: string }> {
+		return this.knowledge.addComment(candidateId, message, actorEmail);
+	}
 
-      if (res.status === 503) {
-        return { status: 'unavailable', error: 'Service de gouvernance KB indisponible (503)' };
-      }
+	pollEvents(sinceCursor?: string): Promise<KbEventsResponse> {
+		return this.knowledge.pollEvents(sinceCursor);
+	}
 
-      if (res.ok) {
-        this.invalidateCache();
-        const body = await res.json();
-        return {
-          status: 'ok',
-          data: body.data || body
-        };
-      }
+	getAssetTemplate(assetType: KbAssetType): Promise<{ status: 'ok' | 'error' | 'unavailable'; data?: KbAssetTemplate; error?: string }> {
+		return this.knowledge.getAssetTemplate(assetType);
+	}
 
-      const errJson = await res.json().catch(() => ({}));
-      // Le Hub (contrat 1.37) interdit à l'auteur d'un candidat de le relire : 400 `invalid_argument`, argument `reviewer`,
-      // raison `separation_of_duties: …`. Ce n'est ni une erreur technique ni un défaut de droits de domaine : on le dit.
-      const hubReason: string = typeof errJson.reason === 'string' ? errJson.reason : '';
-      if (hubReason.startsWith('separation_of_duties')) {
-        return {
-          status: 'forbidden',
-          code: 'separation_of_duties',
-          error:
-            'Séparation des tâches : vous êtes l’auteur de ce candidat, il doit être relu par une autre personne ayant les droits du domaine.'
-        };
-      }
-      return {
-        status: 'error',
-        error: errJson.error || hubReason || `Erreur HTTP ${res.status} lors de l'examen du candidat`
-      };
-    } catch {
-      return {
-        status: 'unavailable',
-        error: 'Mode hors-ligne : action d’examen impossible sans connexion à LLMOps'
-      };
-    }
-  }
-
-  /**
-   * Assigne ou réassigne un candidat à un autre expert.
-   */
-  async assignCandidate(
-    candidateId: string,
-    assignee: string,
-    reason: string,
-    actorEmail: string
-  ): Promise<{ status: 'ok' | 'error' | 'forbidden' | 'unavailable'; data?: KbCandidateDetail; error?: string }> {
-    if (!this.isLocalNetworkUrl(this.baseUrl)) {
-      return { status: 'unavailable', error: 'Enclave locale non configurée' };
-    }
-
-    try {
-      const res = await this.fetchWithTimeout(`${this.baseUrl}/api/knowledge/candidates/${candidateId}/assign`, {
-        method: 'POST',
-        headers: {
-          ...this.getHeaders(undefined, actorEmail),
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ handle: assignee, assignee, reason })
-      });
-
-      if (res.status === 403) {
-        const body = await res.json().catch(() => ({}));
-        return {
-          status: 'forbidden',
-          error: body.error || body.reason || 'Seul le propriétaire actuel ou un mainteneur peut réassigner ce candidat'
-        };
-      }
-
-      if (res.status === 503) {
-        return { status: 'unavailable', error: 'Service de gouvernance KB indisponible (503)' };
-      }
-
-      if (res.ok) {
-        this.invalidateCache();
-        const body = await res.json();
-        return { status: 'ok', data: body.data || body };
-      }
-
-      const body = await res.json().catch(() => ({}));
-      return { status: 'error', error: body.error || body.reason || `Erreur HTTP ${res.status} lors de l'assignation` };
-    } catch {
-      return { status: 'unavailable', error: 'Service indisponible' };
-    }
-  }
-
-  /**
-   * Sollicite un second avis ou une expertise complémentaire sur un candidat.
-   */
-  async requestReview(
-    candidateId: string,
-    req: { kind: 'second_review' | 'advice'; recipient: string; message: string; due_at?: string },
-    actorEmail: string
-  ): Promise<{ status: 'ok' | 'error' | 'unavailable'; success?: boolean; error?: string }> {
-    if (!this.isLocalNetworkUrl(this.baseUrl)) {
-      return { status: 'unavailable', error: 'Enclave locale non configurée' };
-    }
-
-    try {
-      const payload = {
-        handle: req.recipient || (req as any).handle,
-        recipient: req.recipient,
-        kind: req.kind,
-        message: req.message,
-        due_at: req.due_at
-      };
-
-      const res = await this.fetchWithTimeout(
-        `${this.baseUrl}/api/knowledge/candidates/${candidateId}/request-review`,
-        {
-          method: 'POST',
-          headers: {
-            ...this.getHeaders(undefined, actorEmail),
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify(payload)
-        }
-      );
-
-      if (res.status === 503) {
-        return { status: 'unavailable', error: 'Service de gouvernance KB indisponible (503)' };
-      }
-
-      if (res.ok) {
-        return { status: 'ok', success: true };
-      }
-
-      const body = await res.json().catch(() => ({}));
-      return { status: 'error', error: body.error || body.reason || `Erreur HTTP ${res.status} lors de la sollicitation de revue` };
-    } catch {
-      return { status: 'unavailable', error: 'Service indisponible' };
-    }
-  }
-
-  /**
-   * Récupère le fil de discussion associé à un candidat.
-   */
-  async getComments(
-    candidateId: string,
-    actorEmail?: string
-  ): Promise<{ status: 'ok' | 'error' | 'unavailable'; data?: KbComment[]; error?: string }> {
-    if (!this.isLocalNetworkUrl(this.baseUrl)) {
-      return { status: 'unavailable', error: 'Enclave locale non configurée' };
-    }
-
-    try {
-      const res = await this.fetchWithTimeout(`${this.baseUrl}/api/knowledge/candidates/${candidateId}/comments`, {
-        headers: this.getHeaders(undefined, actorEmail)
-      });
-
-      if (res.status === 503) {
-        return { status: 'unavailable', error: 'Service de gouvernance KB indisponible (503)' };
-      }
-
-      if (res.ok) {
-        this.invalidateCache();
-        const body = await res.json();
-        const raw = Array.isArray(body.data)
-          ? body.data
-          : Array.isArray(body.data?.comments)
-            ? body.data.comments
-            : Array.isArray(body.comments)
-              ? body.comments
-              : [];
-        const comments: KbComment[] = raw.map((c: any) => ({
-          id: String(c.id ?? ''),
-          candidate_id: c.candidate_id || candidateId,
-          author_handle: c.author_handle || c.author || '',
-          author_name: c.author_name || c.author || '',
-          message: c.message || c.body || '',
-          created_at: c.created_at || c.at || ''
-        }));
-        return { status: 'ok', data: comments };
-      }
-
-      const body = await res.json().catch(() => ({}));
-      return { status: 'error', error: body.error || body.reason || `Erreur HTTP ${res.status} lors du chargement des commentaires` };
-    } catch {
-      return { status: 'unavailable', error: 'Service indisponible' };
-    }
-  }
-
-  /**
-   * Ajoute un commentaire sur un candidat.
-   */
-  async addComment(
-    candidateId: string,
-    message: string,
-    actorEmail: string
-  ): Promise<{ status: 'ok' | 'error' | 'unavailable'; data?: KbComment; error?: string }> {
-    if (!this.isLocalNetworkUrl(this.baseUrl)) {
-      return { status: 'unavailable', error: 'Enclave locale non configurée' };
-    }
-
-    try {
-      const res = await this.fetchWithTimeout(`${this.baseUrl}/api/knowledge/candidates/${candidateId}/comments`, {
-        method: 'POST',
-        headers: {
-          ...this.getHeaders(undefined, actorEmail),
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify({ body: message, message })
-      });
-
-      if (res.status === 503) {
-        return { status: 'unavailable', error: 'Service de gouvernance KB indisponible (503)' };
-      }
-
-      if (res.ok) {
-        this.invalidateCache();
-        const body = await res.json();
-        const c = body.data || body;
-        return {
-          status: 'ok',
-          data: {
-            id: String(c.id ?? ''),
-            candidate_id: c.candidate_id || candidateId,
-            author_handle: c.author_handle || c.author || '',
-            author_name: c.author_name || c.author || '',
-            message: c.message || c.body || message,
-            created_at: c.created_at || c.at || new Date().toISOString()
-          }
-        };
-      }
-
-      const body = await res.json().catch(() => ({}));
-      return { status: 'error', error: body.error || body.reason || `Erreur HTTP ${res.status} lors de l'ajout du commentaire` };
-    } catch {
-      return { status: 'unavailable', error: 'Service indisponible' };
-    }
-  }
-
-  /**
-   * Scrute les événements de gouvernance KB depuis un curseur.
-   */
-  async pollEvents(sinceCursor?: string): Promise<KbEventsResponse> {
-    if (!this.isLocalNetworkUrl(this.baseUrl)) {
-      return { status: 'unavailable', error: 'Enclave locale non configurée' };
-    }
-
-    try {
-      const url = new URL(`${this.baseUrl}/api/knowledge/events`);
-      if (sinceCursor) url.searchParams.set('since', sinceCursor);
-
-      const res = await this.fetchWithTimeout(url.toString(), {
-        headers: this.getHeaders()
-      });
-
-      if (res.status === 503) {
-        return { status: 'unavailable', error: 'Service de gouvernance KB indisponible (503)' };
-      }
-
-      if (res.ok) {
-        this.invalidateCache();
-        const body = await res.json();
-        const payload = body.data || body;
-        const rawEvents = Array.isArray(payload.events) ? payload.events : [];
-        const events: KbEvent[] = rawEvents.map((e: any) => ({
-          id: String(e.id ?? ''),
-          type: e.type || e.action || 'candidate.submitted',
-          cursor: String(e.id ?? payload.next_cursor ?? ''),
-          candidate_id: e.candidate_id || e.payload?.candidate_id,
-          recipients: Array.isArray(e.recipients) ? e.recipients : [],
-          payload: e.payload || {},
-          timestamp: e.at || e.timestamp || '',
-          at: e.at || e.timestamp || ''
-        }));
-        return {
-          status: 'ok',
-          data: {
-            events,
-            next_cursor: String(payload.next_cursor ?? '')
-          }
-        };
-      }
-
-      const body = await res.json().catch(() => ({}));
-      return { status: 'error', error: body.error || body.reason || `Erreur HTTP ${res.status} lors du polling d'événements` };
-    } catch {
-      return { status: 'unavailable', error: 'Service indisponible' };
-    }
-  }
-
-  // ─────────────────────────────────────────────────────────────────────────────
-  // ATELIER DE DOCTRINE & SIMULATION DE CLAUSES (Lot A8)
-  // ─────────────────────────────────────────────────────────────────────────────
-
-  /**
-   * Récupère le gabarit officiel pour un type d'actif (principle, pattern, decision, etc.)
-   */
-  async getAssetTemplate(
-    assetType: KbAssetType
-  ): Promise<{ status: 'ok' | 'error' | 'unavailable'; data?: KbAssetTemplate; error?: string }> {
-    if (!this.isLocalNetworkUrl(this.baseUrl)) {
-      return { status: 'unavailable', error: 'Enclave locale non configurée' };
-    }
-
-    try {
-      const res = await this.fetchWithTimeout(`${this.baseUrl}/api/knowledge/templates/${assetType}`, {
-        headers: this.getHeaders()
-      });
-
-      if (res.status === 503) {
-        return { status: 'unavailable', error: 'Service LLMOps indisponible (503)' };
-      }
-
-      if (res.ok) {
-        this.invalidateCache();
-        const body = await res.json();
-        return {
-          status: 'ok',
-          data: body.data || body
-        };
-      }
-
-      return {
-        status: 'error',
-        error: `Gabarit introuvable pour ${assetType} (HTTP ${res.status})`
-      };
-    } catch {
-      return {
-        status: 'unavailable',
-        error: 'Mode hors-ligne : consultation de gabarit indisponible'
-      };
-    }
-  }
-
-  /**
-   * Validation à blanc en temps réel d'un brouillon d'actif (syntaxe, 7 contrôles prévisionnels)
-   */
-  async validateCandidate(candidateDraft: {
+	validateCandidate(candidateDraft: {
     title?: string;
     summary?: string;
     domain?: string;
     predicates?: TestablePredicates;
     [key: string]: any;
   }): Promise<{ status: 'ok' | 'error' | 'unavailable'; data?: CandidateValidationResult; error?: string }> {
-    if (!this.isLocalNetworkUrl(this.baseUrl)) {
-      return { status: 'unavailable', error: 'Enclave locale non configurée' };
-    }
+		return this.knowledge.validateCandidate(candidateDraft);
+	}
 
-    try {
-      const res = await this.fetchWithTimeout(`${this.baseUrl}/api/knowledge/candidates/validate`, {
-        method: 'POST',
-        headers: {
-          ...this.getHeaders(),
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(candidateDraft)
-      });
+	listCheckClauses(filters: { status?: string; framework?: string; type?: string; asset_id?: string } = {}, actorEmail?: string, options: { bypassCache?: boolean } = {}): Promise<{ status: 'ok' | 'error' | 'unavailable'; data?: CheckClausesList; error?: string }> {
+		return this.doctrine.listCheckClauses(filters, actorEmail, options);
+	}
 
-      if (res.status === 503) {
-        return { status: 'unavailable', error: 'Service LLMOps indisponible (503)' };
-      }
+	decideCheckClause(assetId: string, checkId: string, body: { decision: CheckClauseDecision; comment?: string; clause?: { kind?: string; when?: CheckClauseMatcher; expect?: CheckClauseMatcher; message?: string } }, actorEmail: string): Promise<{ status: 'ok' | 'forbidden' | 'invalid' | 'not_found' | 'error' | 'unavailable'; data?: CheckClauseRow; error?: string }> {
+		return this.doctrine.decideCheckClause(assetId, checkId, body, actorEmail);
+	}
 
-      if (res.ok) {
-        this.invalidateCache();
-        const body = await res.json();
-        return {
-          status: 'ok',
-          data: body.data || body
-        };
-      }
-
-      return {
-        status: 'error',
-        error: `Erreur HTTP ${res.status} lors de la validation à blanc`
-      };
-    } catch {
-      return {
-        status: 'unavailable',
-        error: 'Mode hors-ligne : validation à blanc indisponible'
-      };
-    }
-  }
-
-  /**
-   * Clauses vérifiables de la doctrine et leur statut propre (GET /api/knowledge/checks, contrat 1.26)
-   */
-  async listCheckClauses(
-    filters: { status?: string; framework?: string; type?: string; asset_id?: string } = {},
-    actorEmail?: string,
-    options: { bypassCache?: boolean } = {}
-  ): Promise<{ status: 'ok' | 'error' | 'unavailable'; data?: CheckClausesList; error?: string }> {
-    const q = new URLSearchParams();
-    if (filters) {
-      for (const [k, v] of Object.entries(filters)) if (v) q.set(k, v);
-    }
-    const qs = q.toString();
-    const cacheKey = `kb:checks:${this.baseUrl}:${qs}:${actorEmail || ''}`;
-    if (options.bypassCache) this.invalidateCache(cacheKey);
-
-    return this.cachedFetch(cacheKey, async () => {
-      try {
-        const res = await this.fetchWithTimeout(`${this.baseUrl}/api/knowledge/checks?${qs}`, {
-          headers: this.getHeaders(undefined, actorEmail)
-        });
-        const body = await res.json().catch(() => ({}));
-        if (res.ok) return { status: 'ok', data: (body.data || body) as CheckClausesList };
-        if (res.status === 404) {
-          return { status: 'error', error: 'LLMOps ne connaît pas encore la décision par clause (contrat 1.26 requis)' };
-        }
-        return { status: 'error', error: body.reason || body.error || `Erreur HTTP ${res.status}` };
-      } catch {
-        return { status: 'unavailable', error: 'Mode hors-ligne : clauses vérifiables indisponibles' };
-      }
-    });
-  }
-
-  /**
-   * Décision sur une clause : valider, amender (valider une clause corrigée) ou rejeter (contrat 1.26).
-   * Le relecteur est la personne connectée (X-Actor-Email), jamais un champ du corps.
-   */
-  async decideCheckClause(
-    assetId: string,
-    checkId: string,
-    body: { decision: CheckClauseDecision; comment?: string; clause?: { kind?: string; when?: CheckClauseMatcher; expect?: CheckClauseMatcher; message?: string } },
-    actorEmail: string
-  ): Promise<{ status: 'ok' | 'forbidden' | 'invalid' | 'not_found' | 'error' | 'unavailable'; data?: CheckClauseRow; error?: string }> {
-    this.invalidateCache('kb:');
-    this.invalidateCache('compliance:');
-    try {
-      const url = `${this.baseUrl}/api/knowledge/assets/${encodeURIComponent(assetId)}/checks/${encodeURIComponent(checkId)}`;
-      const res = await this.fetchWithTimeout(url, {
-        method: 'PATCH',
-        headers: { ...this.getHeaders(undefined, actorEmail), 'Content-Type': 'application/json' },
-        body: JSON.stringify(body)
-      });
-      const payload = await res.json().catch(() => ({}));
-      if (res.ok) return { status: 'ok', data: (payload.data || payload) as CheckClauseRow };
-      const error = payload.reason || payload.error?.message || payload.error || `Erreur HTTP ${res.status}`;
-      if (res.status === 403) return { status: 'forbidden', error };
-      if (res.status === 404) return { status: 'not_found', error };
-      if (res.status === 400) return { status: 'invalid', error };
-      return { status: 'error', error };
-    } catch {
-      return { status: 'unavailable', error: 'Mode hors-ligne : décision impossible' };
-    }
-  }
-
-  /**
-   * Enregistre une clause de vérification rédigée en brouillon pour un actif (Issue #99, contrat 1.26).
-   * La clause entre avec status: 'draft' et provenance: 'llm-derived', et n'est jamais bloquante
-   * tant qu'un relecteur ne l'a pas validée explicitement.
-   */
-  async submitDraftClause(
-    assetId: string,
-    clause: {
+	submitDraftClause(assetId: string, clause: {
       kind: 'requires' | 'forbids';
       when: CheckClauseMatcher;
       expect?: CheckClauseMatcher | null;
       message: string;
       provenance?: string;
-    },
-    actorEmail: string
-  ): Promise<{ status: 'ok' | 'forbidden' | 'invalid' | 'not_found' | 'error' | 'unavailable'; data?: any; channel?: 'asset_check' | 'candidate'; error?: string }> {
-    try {
-      // 1. Tente l'enregistrement direct via la route des checks de l'actif
-      const url = `${this.baseUrl}/api/knowledge/assets/${encodeURIComponent(assetId)}/checks`;
-      const res = await this.fetchWithTimeout(url, {
-        method: 'POST',
-        headers: { ...this.getHeaders(undefined, actorEmail), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ clause: { ...clause, status: 'draft', provenance: clause.provenance || 'llm-derived' } })
-      });
-      const payload = await res.json().catch(() => ({}));
-      if (res.ok) {
-        this.invalidateCache('kb:');
-        this.invalidateCache('compliance:');
-        return { status: 'ok', data: payload.data || payload, channel: 'asset_check' };
-      }
+    }, actorEmail: string): Promise<{ status: 'ok' | 'forbidden' | 'invalid' | 'not_found' | 'error' | 'unavailable'; data?: any; channel?: 'asset_check' | 'candidate'; error?: string }> {
+		return this.doctrine.submitDraftClause(assetId, clause, actorEmail);
+	}
 
-      // Si la route directe n'existe pas (404/405), enregistre un candidat d'amendement
-      if (res.status === 404 || res.status === 405) {
-        const candUrl = `${this.baseUrl}/api/knowledge/candidates`;
-        const candRes = await this.fetchWithTimeout(candUrl, {
-          method: 'POST',
-          headers: { ...this.getHeaders(undefined, actorEmail), 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            kind: 'amendment',
-            asset_type: 'control',
-            target_asset_id: assetId,
-            title: `Proposition de clause vérifiable pour ${assetId}`,
-            summary: clause.message,
-            suggested_change: JSON.stringify({ ...clause, status: 'draft', provenance: clause.provenance || 'llm-derived' }, null, 2),
-            source: { system: 'archinex', author: actorEmail, provenance: clause.provenance || 'llm-derived' },
-            author: actorEmail,
-            production_mode: 'llm-derived'
-          })
-        });
-        const candPayload = await candRes.json().catch(() => ({}));
-        if (candRes.ok) {
-          this.invalidateCache('kb:');
-          return { status: 'ok', data: candPayload.data || candPayload, channel: 'candidate' };
-        }
-        const error = candPayload.reason || candPayload.error?.message || candPayload.error || `Erreur HTTP ${candRes.status}`;
-        return { status: 'error', error };
-      }
+	tryAssetClauses(assetId: string, checks: unknown[], options: Array<{ title: string; description?: string }>): Promise<{ status: 'ok' | 'error' | 'unavailable'; data?: Array<{ title: string; after: AssetClauseTrialVerdict[] }>; error?: string }> {
+		return this.doctrine.tryAssetClauses(assetId, checks, options);
+	}
 
-      const error = payload.reason || payload.error?.message || payload.error || `Erreur HTTP ${res.status}`;
-      if (res.status === 403) return { status: 'forbidden', error };
-      if (res.status === 400) return { status: 'invalid', error };
-      return { status: 'error', error };
-    } catch {
-      return { status: 'unavailable', error: 'Mode hors-ligne : enregistrement du brouillon impossible' };
-    }
-  }
+	simulateClause(req: ClauseSimulationRequest): Promise<{ status: 'ok' | 'error' | 'unavailable'; data?: ClauseSimulationResult; error?: string }> {
+		return this.doctrine.simulateClause(req);
+	}
 
-  /**
-   * Essai des clauses d'un actif sur des options libres (POST /api/knowledge/checks/simulate, sans écriture).
-   * Renvoie, pour chaque option, les verdicts de l'actif avec les clauses proposées.
-   */
-  async tryAssetClauses(
-    assetId: string,
-    checks: unknown[],
-    options: Array<{ title: string; description?: string }>
-  ): Promise<{ status: 'ok' | 'error' | 'unavailable'; data?: Array<{ title: string; after: AssetClauseTrialVerdict[] }>; error?: string }> {
-    try {
-      const res = await this.fetchWithTimeout(`${this.baseUrl}/api/knowledge/checks/simulate`, {
-        method: 'POST',
-        headers: { ...this.getHeaders(), 'Content-Type': 'application/json' },
-        body: JSON.stringify({ asset_id: assetId, checks, options, dataset: null })
-      });
-      const payload = await res.json().catch(() => ({}));
-      if (res.ok) return { status: 'ok', data: ((payload.data || payload).options || []) as Array<{ title: string; after: AssetClauseTrialVerdict[] }> };
-      return { status: 'error', error: payload.reason || payload.error || `Erreur HTTP ${res.status}` };
-    } catch {
-      return { status: 'unavailable', error: "Mode hors-ligne : essai impossible" };
-    }
-  }
-
-  /**
-   * Simule l'impact d'une clause et de ses prédicats (précision, rappel, alertes régressions)
-   */
-  async simulateClause(
-    req: ClauseSimulationRequest
-  ): Promise<{ status: 'ok' | 'error' | 'unavailable'; data?: ClauseSimulationResult; error?: string }> {
-    if (!this.isLocalNetworkUrl(this.baseUrl)) {
-      return { status: 'unavailable', error: 'Enclave locale non configurée' };
-    }
-
-    try {
-      const res = await this.fetchWithTimeout(`${this.baseUrl}/api/knowledge/checks/simulate`, {
-        method: 'POST',
-        headers: {
-          ...this.getHeaders(),
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(req)
-      });
-
-      if (res.status === 503) {
-        return { status: 'unavailable', error: 'Service LLMOps indisponible (503)' };
-      }
-
-      if (res.ok) {
-        this.invalidateCache();
-        const body = await res.json();
-        return {
-          status: 'ok',
-          data: body.data || body
-        };
-      }
-
-      return {
-        status: 'error',
-        error: `Erreur HTTP ${res.status} lors de la simulation de clause`
-      };
-    } catch {
-      return {
-        status: 'unavailable',
-        error: 'Mode hors-ligne : simulation de clause indisponible'
-      };
-    }
-  }
-
-  /**
-   * Vue d'ensemble des référentiels de conformité opposables et de leur couverture (GET /api/compliance/frameworks)
-   */
-  async getComplianceFrameworks(options: { bypassCache?: boolean } = {}): Promise<{
+	getComplianceFrameworks(options: { bypassCache?: boolean } = {}): Promise<{
     status: 'ok' | 'error' | 'unavailable';
     data: ComplianceFrameworkOverview[];
     error?: string;
   }> {
-    const cacheKey = `compliance:frameworks:${this.baseUrl}`;
-    if (options.bypassCache) this.invalidateCache(cacheKey);
+		return this.frameworks.getComplianceFrameworks(options);
+	}
 
-    return this.cachedFetch(cacheKey, async () => {
-      try {
-        const url = `${this.baseUrl}/api/compliance/frameworks`;
-        const res = await this.fetchWithTimeout(url, { headers: this.getHeaders() });
-        if (res.ok) {
-          const body = await res.json();
-          const rawList = Array.isArray(body.data)
-            ? body.data
-            : Array.isArray(body.frameworks)
-              ? body.frameworks
-              : Array.isArray(body)
-                ? body
-                : [];
-          const byFw = new Map<string, ComplianceFrameworkOverview>();
-          for (const item of rawList) {
-            if (!item || typeof item !== 'object') continue;
-            const fw = String(item.framework || item.name || item.id || '').trim();
-            if (!fw) continue;
-            const statusRaw = String(item.status || 'unknown').toLowerCase();
-            const status: ComplianceFrameworkOverview['status'] =
-              statusRaw === 'covered' || statusRaw === 'partial' || statusRaw === 'missing'
-                ? statusRaw
-                : 'unknown';
-            const present = Number(item.present ?? item.control_count ?? 0);
-            const validated = Number(item.validated ?? item.covered_count ?? 0);
-            const expected =
-              item.expected !== undefined && item.expected !== null
-                ? Number(item.expected)
-                : item.total_count !== undefined && item.total_count !== null
-                  ? Number(item.total_count)
-                  : null;
-            const provisional =
-              item.provisional !== undefined
-                ? Number(item.provisional)
-                : Math.max(0, present - validated);
-            const validatedControls = Array.isArray(item.validated_controls)
-              ? item.validated_controls.map((vc: any) => ({
-                  id: String(vc.id || ''),
-                  validated_by: Array.isArray(vc.validated_by) ? vc.validated_by.map(String) : [],
-                  validated_at: vc.validated_at ?? null
-                }))
-              : [];
+	listFrameworkIngestions(actorEmail?: string, status?: string): Promise<{ status: 'ok' | 'error' | 'unavailable'; data?: FrameworkIngestion[]; error?: string }> {
+		return this.frameworks.listFrameworkIngestions(actorEmail, status);
+	}
 
-            const existing = byFw.get(fw);
-            if (!existing) {
-              byFw.set(fw, {
-                framework: fw,
-                version: String(item.version || '1.0'),
-                title: String(item.title || item.framework_name || fw),
-                jurisdiction: item.jurisdiction ? String(item.jurisdiction) : undefined,
-                description: item.description ? String(item.description) : undefined,
-                control_count: Number(item.control_count ?? present),
-                status,
-                expected,
-                present,
-                validated,
-                provisional,
-                declared_by: item.declared_by ?? null,
-                declared_at: item.declared_at ?? null,
-                validated_controls: validatedControls
-              });
-            } else {
-              existing.control_count += Number(item.control_count ?? 0);
-              if (!existing.version.includes(String(item.version || ''))) {
-                existing.version = `${existing.version}, ${item.version}`;
-              }
-            }
-          }
-          return {
-            status: 'ok',
-            data: Array.from(byFw.values())
-          };
-        }
-        return {
-          status: 'error',
-          data: [],
-          error: `Erreur HTTP ${res.status} lors du chargement des référentiels de conformité`
-        };
-      } catch {
-        return {
-          status: 'unavailable',
-          data: [],
-          error: 'Mode hors-ligne : référentiels de conformité indisponibles'
-        };
-      }
-    });
-  }
-
-  /**
-   * Liste des référentiels réglementaires ingérés (GET /api/frameworks/ingestions)
-   */
-  async listFrameworkIngestions(
-    actorEmail?: string,
-    status?: string
-  ): Promise<{ status: 'ok' | 'error' | 'unavailable'; data?: FrameworkIngestion[]; error?: string }> {
-    try {
-      const q = new URLSearchParams();
-      if (status && status.trim()) q.set('status', status.trim());
-      const qs = q.toString();
-      const url = `${this.baseUrl}/api/frameworks/ingestions${qs ? `?${qs}` : ''}`;
-      const res = await this.fetchWithTimeout(url, {
-        headers: this.getHeaders(undefined, actorEmail)
-      });
-      if (res.ok) {
-        this.invalidateCache();
-        const body = await res.json();
-        const payload = body.data || body;
-        const rawList = Array.isArray(payload.ingestions)
-          ? payload.ingestions
-          : Array.isArray(payload)
-            ? payload
-            : [];
-        return {
-          status: 'ok',
-          data: rawList.map(normalizeFrameworkIngestion)
-        };
-      }
-      const errBody = await res.json().catch(() => ({}));
-      return {
-        status: 'error',
-        error: errBody.error || errBody.reason || `Erreur HTTP ${res.status} lors de la récupération des référentiels`
-      };
-    } catch {
-      return {
-        status: 'unavailable',
-        error: 'Mode hors-ligne : référentiels réglementaires indisponibles'
-      };
-    }
-  }
-
-  /**
-   * Abandon d'une ingestion de référentiel (POST /api/frameworks/ingestions/:id/abandon)
-   */
-  async abandonFrameworkIngestion(
-    ingestionId: string | number,
-    reason: string,
-    actorEmail?: string
-  ): Promise<{
+	abandonFrameworkIngestion(ingestionId: string | number, reason: string, actorEmail?: string): Promise<{
     status: 'ok' | 'error' | 'forbidden' | 'conflict' | 'bad_request' | 'unavailable';
     data?: FrameworkIngestion;
     error?: string;
   }> {
-    if (!reason || !reason.trim()) {
-      return {
-        status: 'bad_request',
-        error: 'Un motif d’abandon (reason) est requis.'
-      };
-    }
-    try {
-      const url = `${this.baseUrl}/api/frameworks/ingestions/${encodeURIComponent(String(ingestionId))}/abandon`;
-      const res = await this.fetchWithTimeout(url, {
-        method: 'POST',
-        headers: this.getHeaders(undefined, actorEmail),
-        body: JSON.stringify({ reason: reason.trim() })
-      });
+		return this.frameworks.abandonFrameworkIngestion(ingestionId, reason, actorEmail);
+	}
 
-      if (res.status === 403) {
-        const body = await res.json().catch(() => ({}));
-        return { status: 'forbidden', error: body.error || body.reason || 'Action réservée aux mainteneurs' };
-      }
-      if (res.status === 409) {
-        const body = await res.json().catch(() => ({}));
-        return {
-          status: 'conflict',
-          error: body.error || body.reason || 'Conflit d’état : impossible d’abandonner une ingestion déjà appliquée'
-        };
-      }
-      if (res.status === 400) {
-        const body = await res.json().catch(() => ({}));
-        return { status: 'bad_request', error: body.error || body.reason || 'Requête invalide' };
-      }
-      if (res.ok) {
-        this.invalidateCache();
-        const body = await res.json();
-        return { status: 'ok', data: normalizeFrameworkIngestion(body.data || body) };
-      }
-      const body = await res.json().catch(() => ({}));
-      return { status: 'error', error: body.error || body.reason || `Erreur HTTP ${res.status}` };
-    } catch {
-      return { status: 'unavailable', error: 'Mode hors-ligne : abandon d’ingestion indisponible' };
-    }
-  }
+	getFrameworkIngestion(ingestionId: string, actorEmail?: string): Promise<{ status: 'ok' | 'error' | 'unavailable'; data?: FrameworkIngestion; error?: string }> {
+		return this.frameworks.getFrameworkIngestion(ingestionId, actorEmail);
+	}
 
-  /**
-   * Détails d'une ingestion de référentiel (GET /api/frameworks/ingestions/:id)
-   */
-  async getFrameworkIngestion(
-    ingestionId: string,
-    actorEmail?: string
-  ): Promise<{ status: 'ok' | 'error' | 'unavailable'; data?: FrameworkIngestion; error?: string }> {
-    try {
-      const url = `${this.baseUrl}/api/frameworks/ingestions/${encodeURIComponent(ingestionId)}`;
-      const res = await this.fetchWithTimeout(url, {
-        headers: this.getHeaders(undefined, actorEmail)
-      });
-      if (res.ok) {
-        this.invalidateCache();
-        const body = await res.json();
-        const payload = body.data || body;
-        return {
-          status: 'ok',
-          data: normalizeFrameworkIngestion(payload)
-        };
-      }
-      return {
-        status: 'error',
-        error: `Erreur HTTP ${res.status} lors de la consultation du référentiel`
-      };
-    } catch {
-      return {
-        status: 'unavailable',
-        error: 'Mode hors-ligne : consultation du référentiel indisponible'
-      };
-    }
-  }
-
-  /**
-   * Ingestion / Téléversement d'un référentiel (POST /api/frameworks/ingestions)
-   */
-  async ingestFramework(
-    payload: {
+	ingestFramework(payload: {
       framework_id?: string;
       framework?: string;
       framework_name?: string;
@@ -2508,97 +384,11 @@ export class LLMOpsClient {
       file_content?: Buffer | Uint8Array | Blob | string;
       raw_text?: string;
       requirements?: any[];
-    },
-    actorEmail?: string
-  ): Promise<{ status: 'ok' | 'error' | 'unavailable' | 'too_large'; data?: FrameworkIngestion; error?: string }> {
-    const MAX_FILE_SIZE = 20 * 1024 * 1024;
-    const declaredSize = payload.file_size_bytes ?? 0;
-    const bufferSize = payload.file_content
-      ? (payload.file_content as any).length ?? (payload.file_content as any).byteLength ?? 0
-      : payload.raw_text
-        ? Buffer.byteLength(payload.raw_text)
-        : 0;
-    if (Math.max(declaredSize, bufferSize) > MAX_FILE_SIZE) {
-      return {
-        status: 'too_large',
-        error: 'Fichier trop volumineux (taille maximale autorisée : 20 Mo)'
-      };
-    }
+    }, actorEmail?: string): Promise<{ status: 'ok' | 'error' | 'unavailable' | 'too_large'; data?: FrameworkIngestion; error?: string }> {
+		return this.frameworks.ingestFramework(payload, actorEmail);
+	}
 
-    try {
-      const url = `${this.baseUrl}/api/frameworks/ingestions`;
-      const fwName = payload.framework || payload.framework_id || 'NIS2';
-      const version = payload.version || '1.0';
-      const fileName = payload.file_name || `${fwName.toLowerCase()}.txt`;
-
-      // Build multipart/form-data for live LLMOps server
-      const formData = new FormData();
-      formData.append('framework', fwName);
-      formData.append('framework_id', fwName);
-      formData.append('version', version);
-      if (payload.tag) formData.append('tag', payload.tag);
-      if (payload.domain) formData.append('domain', payload.domain);
-      if (payload.framework_name) formData.append('framework_name', payload.framework_name);
-      if (payload.file_format) formData.append('file_format', payload.file_format);
-      if (payload.file_size_bytes) formData.append('file_size_bytes', String(payload.file_size_bytes));
-      if (payload.requirements) formData.append('requirements', JSON.stringify(payload.requirements));
-
-      const content = payload.file_content ?? payload.raw_text ?? '';
-      const blob = content instanceof Blob
-        ? content
-        : new Blob([content], { type: 'text/plain' });
-      formData.append('file', blob, fileName);
-
-      // Note: when sending FormData, omit 'Content-Type' so fetch generates multipart boundary
-      const headers: Record<string, string> = {
-        'Accept': 'application/json',
-        'Authorization': `Bearer ${this.authToken}`
-      };
-      if (actorEmail) headers['X-Actor-Email'] = actorEmail;
-
-      const res = await this.fetchWithTimeout(url, {
-        method: 'POST',
-        headers,
-        body: formData
-      });
-
-      if (res.status === 413) {
-        return {
-          status: 'too_large',
-          error: 'Fichier trop volumineux (taille maximale autorisée : 20 Mo)'
-        };
-      }
-
-      if (res.ok) {
-        this.invalidateCache();
-        const body = await res.json();
-        const payload = body.data || body;
-        return {
-          status: 'ok',
-          data: normalizeFrameworkIngestion(payload)
-        };
-      }
-
-      const body = await res.json().catch(() => ({}));
-      return {
-        status: 'error',
-        error: body.error || body.reason || `Erreur HTTP ${res.status} lors de l'ingestion`
-      };
-    } catch {
-      return {
-        status: 'unavailable',
-        error: 'Mode hors-ligne : ingestion de référentiel indisponible'
-      };
-    }
-  }
-
-  /**
-   * Revue unitaire d'une exigence réglementaire (PATCH /api/frameworks/ingestions/:id/rows/:reqId)
-   */
-  async reviewFrameworkRequirement(
-    ingestionId: string,
-    reqId: string,
-    review: {
+	reviewFrameworkRequirement(ingestionId: string, reqId: string, review: {
       status?: FrameworkRequirementStatus;
       decision?: 'accept' | 'amend' | 'reject' | '';
       links?: string[];
@@ -2608,718 +398,75 @@ export class LLMOpsClient {
       comment?: string;
       acceptance_criteria?: string | string[];
       title_fr?: string;
-    },
-    actorEmail?: string
-  ): Promise<{ status: 'ok' | 'error' | 'forbidden' | 'bad_request' | 'unavailable'; data?: FrameworkRequirement; error?: string }> {
-    try {
-      // Normaliser decision
-      let decision = review.decision;
-      if (!decision && review.status) {
-        if (review.status === 'accepted' || (review.status as any) === 'compliant') decision = 'accept';
-        else if (review.status === 'amended' || (review.status as any) === 'amendment_needed') decision = 'amend';
-        else if (review.status === 'rejected' || (review.status as any) === 'not_applicable') decision = 'reject';
-        else decision = review.status as any;
-      }
-      // Liens transmis seulement s'ils sont fournis : sinon LLMOps garde les liens proposés de la ligne.
-      const providedLinks = review.links ?? review.mapped_assets;
-      const links = providedLinks && providedLinks.length > 0 ? providedLinks : undefined;
-      const comment = review.comment ?? review.amendment_notes ?? review.rejection_reason;
-      const criteria = Array.isArray(review.acceptance_criteria)
-        ? review.acceptance_criteria
-        : typeof review.acceptance_criteria === 'string' && review.acceptance_criteria.trim()
-          ? [review.acceptance_criteria.trim()]
-          : undefined;
+    }, actorEmail?: string): Promise<{ status: 'ok' | 'error' | 'forbidden' | 'bad_request' | 'unavailable'; data?: FrameworkRequirement; error?: string }> {
+		return this.frameworks.reviewFrameworkRequirement(ingestionId, reqId, review, actorEmail);
+	}
 
-      const bodyToSend = {
-        decision: decision ?? '',
-        links,
-        comment,
-        acceptance_criteria: criteria,
-        ...(review.title_fr ? { title_fr: review.title_fr } : {}),
-        status: review.status,
-        mapped_assets: review.mapped_assets,
-        amendment_notes: review.amendment_notes,
-        rejection_reason: review.rejection_reason
-      };
+	suggestFrameworkRequirementLinks(ingestionId: string, reqId: string, actorEmail?: string): Promise<{ status: 'ok' | 'error' | 'unavailable'; data?: FrameworkLinkSuggestionResult; error?: string }> {
+		return this.frameworks.suggestFrameworkRequirementLinks(ingestionId, reqId, actorEmail);
+	}
 
-      // In LLMOps, the route is /api/frameworks/ingestions/:id/rows/:reqId
-      let url = `${this.baseUrl}/api/frameworks/ingestions/${encodeURIComponent(ingestionId)}/rows/${encodeURIComponent(reqId)}`;
-      let res = await this.fetchWithTimeout(url, {
-        method: 'PATCH',
-        headers: this.getHeaders(undefined, actorEmail),
-        body: JSON.stringify(bodyToSend)
-      });
+	declareFrameworkCoverage(frameworkId: string, actorEmail?: string): Promise<{ status: 'ok' | 'error' | 'conflict' | 'unavailable'; data?: CoverageDeclarationResult; error?: string; missing_requirements?: string[] }> {
+		return this.frameworks.declareFrameworkCoverage(frameworkId, actorEmail);
+	}
 
-      // Fallback to /requirements/:reqId if 404 (for legacy/fake compatibility)
-      if (res.status === 404) {
-        url = `${this.baseUrl}/api/frameworks/ingestions/${encodeURIComponent(ingestionId)}/requirements/${encodeURIComponent(reqId)}`;
-        res = await this.fetchWithTimeout(url, {
-          method: 'PATCH',
-          headers: this.getHeaders(undefined, actorEmail),
-          body: JSON.stringify(bodyToSend)
-        });
-      }
+	applyFrameworkIngestion(ingestionId: string | number, actorEmail?: string): Promise<{ status: 'ok' | 'error' | 'forbidden' | 'conflict' | 'unavailable'; data?: any; error?: string; code?: string }> {
+		return this.frameworks.applyFrameworkIngestion(ingestionId, actorEmail);
+	}
 
-      if (res.status === 403) {
-        const body = await res.json().catch(() => ({}));
-        return {
-          status: 'forbidden',
-          error: body.error || body.reason || 'Interdit : domaine non possédé'
-        };
-      }
+	addFrameworkLinkProposals(ingestionId: string | number, bodyData: { model?: string; proposals: Array<{ requirement_id: string; satisfied_by?: string[]; acceptance_criteria?: string[] }> }, actorEmail?: string): Promise<{ status: 'ok' | 'error' | 'forbidden' | 'unavailable'; data?: any; error?: string }> {
+		return this.frameworks.addFrameworkLinkProposals(ingestionId, bodyData, actorEmail);
+	}
 
-      if (res.status === 400) {
-        const body = await res.json().catch(() => ({}));
-        return {
-          status: 'bad_request',
-          error: body.error || body.reason || 'Requête invalide ou motif de rejet manquant'
-        };
-      }
+	getFrameworkLinkProposals(ingestionId: string | number, actorEmail?: string): Promise<{ status: 'ok' | 'error' | 'forbidden' | 'unavailable'; data?: any; error?: string }> {
+		return this.frameworks.getFrameworkLinkProposals(ingestionId, actorEmail);
+	}
 
-      if (res.ok) {
-        this.invalidateCache();
-        const body = await res.json();
-        return {
-          status: 'ok',
-          data: normalizeFrameworkRequirement(body.data || body, (body.data || body).framework || '')
-        };
-      }
+	getEvalDataset(datasetId: string = 'check_option_v1', actorEmail?: string): Promise<{ status: 'ok' | 'error' | 'unavailable'; data?: EvalDataset; error?: string }> {
+		return this.evaluations.getEvalDataset(datasetId, actorEmail);
+	}
 
-      const body = await res.json().catch(() => ({}));
-      return {
-        status: 'error',
-        error: body.error || body.reason || `Erreur HTTP ${res.status}`
-      };
-    } catch {
-      return {
-        status: 'unavailable',
-        error: 'Mode hors-ligne : revue d’exigence indisponible'
-      };
-    }
-  }
-
-  /**
-   * Suggestion assistée de correspondances doctrinales (POST .../suggest-links)
-   */
-  async suggestFrameworkRequirementLinks(
-    ingestionId: string,
-    reqId: string,
-    actorEmail?: string
-  ): Promise<{ status: 'ok' | 'error' | 'unavailable'; data?: FrameworkLinkSuggestionResult; error?: string }> {
-    try {
-      const url = `${this.baseUrl}/api/frameworks/ingestions/${encodeURIComponent(ingestionId)}/requirements/${encodeURIComponent(reqId)}/suggest-links`;
-      const res = await this.fetchWithTimeout(url, {
-        method: 'POST',
-        headers: this.getHeaders(undefined, actorEmail),
-        body: JSON.stringify({})
-      });
-
-      if (res.ok) {
-        this.invalidateCache();
-        const body = await res.json();
-        return {
-          status: 'ok',
-          data: body.data || body
-        };
-      }
-
-      return {
-        status: 'error',
-        error: `Erreur HTTP ${res.status}`
-      };
-    } catch {
-      return {
-        status: 'unavailable',
-        error: 'Mode hors-ligne : suggestion doctrinale indisponible'
-      };
-    }
-  }
-
-  /**
-   * Déclaration formelle de couverture d'un référentiel (POST /api/frameworks/:fw/coverage-declaration)
-   */
-  async declareFrameworkCoverage(
-    frameworkId: string,
-    actorEmail?: string
-  ): Promise<{ status: 'ok' | 'error' | 'conflict' | 'unavailable'; data?: CoverageDeclarationResult; error?: string; missing_requirements?: string[] }> {
-    try {
-      const url = `${this.baseUrl}/api/frameworks/${encodeURIComponent(frameworkId)}/coverage-declaration`;
-      const res = await this.fetchWithTimeout(url, {
-        method: 'POST',
-        headers: this.getHeaders(undefined, actorEmail),
-        body: JSON.stringify({})
-      });
-
-      if (res.status === 409) {
-        const body = await res.json().catch(() => ({}));
-        return {
-          status: 'conflict',
-          error: body.error || 'Des exigences non couvertes subsistent dans le référentiel',
-          missing_requirements: body.missing_requirements || []
-        };
-      }
-
-      if (res.ok) {
-        this.invalidateCache();
-        const body = await res.json();
-        return {
-          status: 'ok',
-          data: body.data || body
-        };
-      }
-
-      const body = await res.json().catch(() => ({}));
-      return {
-        status: 'error',
-        error: body.error || `Erreur HTTP ${res.status}`
-      };
-    } catch {
-      return {
-        status: 'unavailable',
-        error: 'Mode hors-ligne : déclaration de couverture indisponible'
-      };
-    }
-  }
-
-  /**
-   * Application de l'ingestion d'un référentiel (POST /api/frameworks/ingestions/:id/apply)
-   */
-  async applyFrameworkIngestion(
-    ingestionId: string | number,
-    actorEmail?: string
-  ): Promise<{ status: 'ok' | 'error' | 'forbidden' | 'conflict' | 'unavailable'; data?: any; error?: string; code?: string }> {
-    try {
-      const url = `${this.baseUrl}/api/frameworks/ingestions/${encodeURIComponent(String(ingestionId))}/apply`;
-      const res = await this.fetchWithTimeout(url, {
-        method: 'POST',
-        headers: this.getHeaders(undefined, actorEmail),
-        body: JSON.stringify({})
-      });
-
-      if (res.status === 403) {
-        const body = await res.json().catch(() => ({}));
-        return { status: 'forbidden', error: body.reason || body.error || 'Action réservée aux mainteneurs' };
-      }
-      if (res.status === 409) {
-        const body = await res.json().catch(() => ({}));
-        const reason = body.reason || body.error;
-        return {
-          status: 'conflict',
-          error: reason || 'Conflit lors de l’application',
-          code: typeof reason === 'string' && reason.startsWith('separation_of_duties') ? 'separation_of_duties' : undefined
-        };
-      }
-      if (res.ok) {
-        this.invalidateCache();
-        const body = await res.json();
-        return { status: 'ok', data: body.data || body };
-      }
-      const body = await res.json().catch(() => ({}));
-      return { status: 'error', error: body.reason || body.error || `Erreur HTTP ${res.status}` };
-    } catch {
-      return { status: 'unavailable', error: 'Mode hors-ligne : application d’ingestion indisponible' };
-    }
-  }
-
-  /**
-   * Ajout de propositions de liens IA sur un référentiel (POST /api/frameworks/ingestions/:id/link-proposals)
-   */
-  async addFrameworkLinkProposals(
-    ingestionId: string | number,
-    bodyData: { model?: string; proposals: Array<{ requirement_id: string; satisfied_by?: string[]; acceptance_criteria?: string[] }> },
-    actorEmail?: string
-  ): Promise<{ status: 'ok' | 'error' | 'forbidden' | 'unavailable'; data?: any; error?: string }> {
-    try {
-      const url = `${this.baseUrl}/api/frameworks/ingestions/${encodeURIComponent(String(ingestionId))}/link-proposals`;
-      const res = await this.fetchWithTimeout(url, {
-        method: 'POST',
-        headers: this.getHeaders(undefined, actorEmail),
-        body: JSON.stringify(bodyData)
-      });
-
-      if (res.status === 403) {
-        return { status: 'forbidden', error: 'Action réservée aux mainteneurs' };
-      }
-      if (res.ok) {
-        this.invalidateCache();
-        const body = await res.json();
-        return { status: 'ok', data: body.data || body };
-      }
-      const body = await res.json().catch(() => ({}));
-      return { status: 'error', error: body.error || `Erreur HTTP ${res.status}` };
-    } catch {
-      return { status: 'unavailable', error: 'Mode hors-ligne : propositions de liens indisponibles' };
-    }
-  }
-
-  async getFrameworkLinkProposals(
-    ingestionId: string | number,
-    actorEmail?: string
-  ): Promise<{ status: 'ok' | 'error' | 'forbidden' | 'unavailable'; data?: any; error?: string }> {
-    return this.addFrameworkLinkProposals(ingestionId, { proposals: [] }, actorEmail);
-  }
-
-  /**
-   * Consultation d'un jeu de test d'évaluation (GET /api/knowledge/evals/:datasetId)
-   */
-  async getEvalDataset(
-    datasetId: string = 'check_option_v1',
-    actorEmail?: string
-  ): Promise<{ status: 'ok' | 'error' | 'unavailable'; data?: EvalDataset; error?: string }> {
-    try {
-      const url = `${this.baseUrl}/api/knowledge/evals/${encodeURIComponent(datasetId)}`;
-      const res = await this.fetchWithTimeout(url, {
-        headers: this.getHeaders(undefined, actorEmail)
-      });
-      if (res.ok) {
-        this.invalidateCache();
-        const body = await res.json();
-        const raw = body.data || body;
-        const normalized: EvalDataset = {
-          total_cases: raw.total_cases ?? (raw.cases ? raw.cases.length : 0),
-          human_annotated_count: raw.human_annotated_count ?? (raw.cases ? raw.cases.filter((c: any) => c.annotation_status === 'validated').length : 0),
-          cases: raw.cases || [],
-          ...raw,
-          id: raw.id || raw.dataset_id || datasetId
-        };
-        return {
-          status: 'ok',
-          data: normalized
-        };
-      }
-      const body = await res.json().catch(() => ({}));
-      return {
-        status: 'error',
-        error: body.error || `Erreur HTTP ${res.status} lors de la consultation du jeu de test d'évaluation`
-      };
-    } catch {
-      return {
-        status: 'unavailable',
-        error: 'Mode hors-ligne : banc d’évaluation indisponible'
-      };
-    }
-  }
-
-  /**
-   * Annotation humaine d'un cas de test d'évaluation (PATCH /api/knowledge/evals/:datasetId/cases/:caseId)
-   */
-  async annotateEvalTestCase(
-    datasetId: string,
-    caseId: string,
-    payload: {
+	annotateEvalTestCase(datasetId: string, caseId: string, payload: {
       expected?: Record<string, 'violates' | 'supports'>;
       annotation_status?: 'proposed' | 'validated' | 'rejected';
       expected_status?: 'supports' | 'violates';
       notes?: string;
-    },
-    actorEmail?: string
-  ): Promise<{ status: 'ok' | 'error' | 'forbidden' | 'bad_request' | 'unavailable'; data?: EvalTestCase; error?: string }> {
-    try {
-      const url = `${this.baseUrl}/api/knowledge/evals/${encodeURIComponent(datasetId)}/cases/${encodeURIComponent(caseId)}`;
-      const res = await this.fetchWithTimeout(url, {
-        method: 'PATCH',
-        headers: this.getHeaders(undefined, actorEmail),
-        body: JSON.stringify(payload)
-      });
+    }, actorEmail?: string): Promise<{ status: 'ok' | 'error' | 'forbidden' | 'bad_request' | 'unavailable'; data?: EvalTestCase; error?: string }> {
+		return this.evaluations.annotateEvalTestCase(datasetId, caseId, payload, actorEmail);
+	}
 
-      const body = await res.json().catch(() => ({}));
+	runEvalBenchmark(datasetId: string = 'check_option_v1', actorEmail?: string): Promise<{ status: 'ok' | 'error' | 'forbidden' | 'unavailable'; data?: EvalBenchmarkRunResult; error?: string }> {
+		return this.evaluations.runEvalBenchmark(datasetId, actorEmail);
+	}
 
-      if (res.status === 403) {
-        return {
-          status: 'forbidden',
-          error: body.error || body.reason || "Interdit : rôle 'kb:evaluate' requis"
-        };
-      }
+	submitVerdictFeedback(feedback: VerdictFeedbackRequest, actorEmail?: string): Promise<{ status: 'ok' | 'error' | 'unavailable'; data?: VerdictFeedbackItem; error?: string }> {
+		return this.evaluations.submitVerdictFeedback(feedback, actorEmail);
+	}
 
-      if (res.status === 400) {
-        return {
-          status: 'bad_request',
-          error: body.error || body.reason || 'Requête invalide'
-        };
-      }
+	listVerdictFeedbacks(actorEmail?: string, status?: string): Promise<{ status: 'ok' | 'error' | 'unavailable'; data?: VerdictFeedbackItem[]; error?: string }> {
+		return this.evaluations.listVerdictFeedbacks(actorEmail, status);
+	}
 
-      if (res.ok) {
-        return {
-          status: 'ok',
-          data: body.data || body
-        };
-      }
-
-      return {
-        status: 'error',
-        error: body.error || body.reason || `Erreur HTTP ${res.status}`
-      };
-    } catch {
-      return {
-        status: 'unavailable',
-        error: 'Mode hors-ligne : annotation de cas d’évaluation indisponible'
-      };
-    }
-  }
-
-  /**
-   * Exécution du benchmark de rappel (POST /api/knowledge/evals/:datasetId/runs)
-   */
-  async runEvalBenchmark(
-    datasetId: string = 'check_option_v1',
-    actorEmail?: string
-  ): Promise<{ status: 'ok' | 'error' | 'forbidden' | 'unavailable'; data?: EvalBenchmarkRunResult; error?: string }> {
-    try {
-      const url = `${this.baseUrl}/api/knowledge/evals/${encodeURIComponent(datasetId)}/runs`;
-      const res = await this.fetchWithTimeout(url, {
-        method: 'POST',
-        headers: this.getHeaders(undefined, actorEmail),
-        body: JSON.stringify({})
-      });
-
-      if (res.ok) {
-        this.invalidateCache();
-        const body = await res.json();
-        const rawData = body.data || body;
-        const actualRecall = rawData.actual_recall ?? (typeof rawData.violation_recall === 'number' ? (rawData.violation_recall <= 1 ? Math.round(rawData.violation_recall * 100) : Math.round(rawData.violation_recall)) : 85);
-        const data: EvalBenchmarkRunResult = {
-          run_id: rawData.run_id || `run-${Date.now()}`,
-          dataset_id: rawData.dataset_id || datasetId,
-          executed_at: rawData.executed_at || new Date().toISOString(),
-          executed_by: rawData.executed_by || rawData.run_by || actorEmail || 'evaluator',
-          total_cases: rawData.total_cases ?? 30,
-          human_verified_cases: rawData.human_verified_cases ?? rawData.validated_cases ?? 5,
-          passed_cases: rawData.passed_cases ?? 28,
-          precision: rawData.precision ?? 95,
-          meets_target: rawData.meets_target ?? (actualRecall >= 80),
-          verdicts: rawData.verdicts || [],
-          ...rawData,
-          actual_recall: actualRecall
-        };
-        return {
-          status: 'ok',
-          data
-        };
-      }
-
-      const body = await res.json().catch(() => ({}));
-      if (res.status === 403) {
-        return {
-          status: 'forbidden',
-          error: body.reason || body.error || "Interdit : rôle 'kb:evaluate' ou 'kb:maintain' requis pour exécuter le benchmark"
-        };
-      }
-
-      return {
-        status: 'error',
-        error: body.reason || body.error || `Erreur HTTP ${res.status} lors de l'exécution du benchmark`
-      };
-    } catch {
-      return {
-        status: 'unavailable',
-        error: 'Mode hors-ligne : benchmark d’évaluation indisponible'
-      };
-    }
-  }
-
-  /**
-   * Signalement d'un désaccord sur verdict d'architecture (POST /api/knowledge/verdict-feedback)
-   */
-  async submitVerdictFeedback(
-    feedback: VerdictFeedbackRequest,
-    actorEmail?: string
-  ): Promise<{ status: 'ok' | 'error' | 'unavailable'; data?: VerdictFeedbackItem; error?: string }> {
-    try {
-      const url = `${this.baseUrl}/api/knowledge/verdict-feedback`;
-      const res = await this.fetchWithTimeout(url, {
-        method: 'POST',
-        headers: this.getHeaders(undefined, actorEmail),
-        body: JSON.stringify(feedback)
-      });
-
-      if (res.ok) {
-        this.invalidateCache();
-        const body = await res.json();
-        return {
-          status: 'ok',
-          data: body.data || body
-        };
-      }
-
-      const body = await res.json().catch(() => ({}));
-      return {
-        status: 'error',
-        error: body.error || `Erreur HTTP ${res.status}`
-      };
-    } catch {
-      return {
-        status: 'unavailable',
-        error: 'Mode hors-ligne : transmission de retour sur verdict indisponible'
-      };
-    }
-  }
-
-  /**
-   * Liste des retours sur verdicts enregistrés (GET /api/knowledge/verdict-feedback)
-   */
-  async listVerdictFeedbacks(
-    actorEmail?: string,
-    status?: string
-  ): Promise<{ status: 'ok' | 'error' | 'unavailable'; data?: VerdictFeedbackItem[]; error?: string }> {
-    try {
-      const query = status ? `?status=${encodeURIComponent(status)}` : '';
-      const url = `${this.baseUrl}/api/knowledge/verdict-feedback${query}`;
-      const res = await this.fetchWithTimeout(url, {
-        headers: this.getHeaders(undefined, actorEmail)
-      });
-      if (res.ok) {
-        this.invalidateCache();
-        const body = await res.json();
-        const raw = body.data || body;
-        const items = Array.isArray(raw) ? raw : (raw.items || []);
-        return {
-          status: 'ok',
-          data: items
-        };
-      }
-      const body = await res.json().catch(() => ({}));
-      return {
-        status: 'error',
-        error: body.error || body.reason || `Erreur HTTP ${res.status}`
-      };
-    } catch {
-      return {
-        status: 'unavailable',
-        error: 'Mode hors-ligne : liste des retours indisponible'
-      };
-    }
-  }
-
-  /**
-   * Convertit un retour de verdict (POST /api/knowledge/verdict-feedback/:id/convert)
-   */
-  async convertVerdictFeedback(
-    feedbackId: string | number,
-    payload: {
+	convertVerdictFeedback(feedbackId: string | number, payload: {
       to: 'eval_case' | 'amendment' | 'dismiss';
       dataset?: string;
       expected?: 'violates' | 'supports' | string;
       asset_type?: string;
       target_asset_id?: string;
       proposed_content?: string;
-    },
-    actorEmail?: string
-  ): Promise<{ status: 'ok' | 'forbidden' | 'conflict' | 'bad_request' | 'error' | 'unavailable'; data?: any; error?: string }> {
-    try {
-      const url = `${this.baseUrl}/api/knowledge/verdict-feedback/${encodeURIComponent(String(feedbackId))}/convert`;
-      const res = await this.fetchWithTimeout(url, {
-        method: 'POST',
-        headers: this.getHeaders(undefined, actorEmail),
-        body: JSON.stringify(payload)
-      });
+    }, actorEmail?: string): Promise<{ status: 'ok' | 'forbidden' | 'conflict' | 'bad_request' | 'error' | 'unavailable'; data?: any; error?: string }> {
+		return this.evaluations.convertVerdictFeedback(feedbackId, payload, actorEmail);
+	}
 
-      const body = await res.json().catch(() => ({}));
+	promoteKbCandidate(candidateId: string, actorEmail?: string): Promise<{ status: 'ok' | 'forbidden' | 'conflict' | 'error' | 'unavailable'; data?: any; warnings?: string[]; error?: string }> {
+		return this.knowledge.promoteKbCandidate(candidateId, actorEmail);
+	}
 
-      if (res.status === 403) {
-        return {
-          status: 'forbidden',
-          error: body.error || body.reason || 'Habilitation insuffisante : rôle kb:evaluate requis'
-        };
-      }
+	getKbHealth(actorEmail?: string, options: { bypassCache?: boolean } = {}): Promise<{ status: 'ok' | 'error' | 'unavailable'; data?: KbHealthMetrics; error?: string }> {
+		return this.knowledge.getKbHealth(actorEmail, options);
+	}
 
-      if (res.status === 409 || body.conflict) {
-        return {
-          status: 'conflict',
-          error: body.error || body.reason || 'Retour sur verdict déjà converti ou rejeté'
-        };
-      }
-
-      if (res.status === 400) {
-        return {
-          status: 'bad_request',
-          error: body.error || body.reason || 'Requête invalide'
-        };
-      }
-
-      if (res.ok) {
-        return {
-          status: 'ok',
-          data: body.data || body
-        };
-      }
-
-      return {
-        status: 'error',
-        error: body.error || body.reason || `Erreur HTTP ${res.status}`
-      };
-    } catch {
-      return {
-        status: 'unavailable',
-        error: 'Mode hors-ligne : conversion de retour sur verdict indisponible'
-      };
-    }
-  }
-
-  /**
-   * Promeut un candidat accepté vers l'état 'promoted' (POST /api/knowledge/candidates/:id/promote)
-   */
-  async promoteKbCandidate(
-    candidateId: string,
-    actorEmail?: string
-  ): Promise<{ status: 'ok' | 'forbidden' | 'conflict' | 'error' | 'unavailable'; data?: any; warnings?: string[]; error?: string }> {
-    try {
-      const url = `${this.baseUrl}/api/knowledge/candidates/${encodeURIComponent(candidateId)}/promote`;
-      const res = await this.fetchWithTimeout(url, {
-        method: 'POST',
-        headers: this.getHeaders(undefined, actorEmail),
-        body: JSON.stringify({})
-      });
-
-      const body = await res.json().catch(() => ({}));
-
-      if (res.status === 403) {
-        return {
-          status: 'forbidden',
-          error: body.error || body.reason || 'Habilitation insuffisante : rôle kb:maintain requis'
-        };
-      }
-
-      if (res.status === 409 || body.conflict) {
-        return {
-          status: 'conflict',
-          error: body.error || body.reason || 'Candidat non accepté ou déjà promu'
-        };
-      }
-
-      if (res.ok) {
-        const data = body.data || body;
-        return {
-          status: 'ok',
-          data,
-          warnings: body.warnings || data.warnings || []
-        };
-      }
-
-      return {
-        status: 'error',
-        error: body.error || body.reason || `Erreur HTTP ${res.status}`
-      };
-    } catch {
-      return {
-        status: 'unavailable',
-        error: 'Mode hors-ligne : promotion impossible'
-      };
-    }
-  }
-
-  // ─────────────────────────────────────────────────────────────────────────────
-  // TABLEAU DE BORD, PUBLICATION SCELLÉE & CAMPAGNES (Lot A11 - Porte G7)
-  // ─────────────────────────────────────────────────────────────────────────────
-
-  /**
-   * Récupère les métriques de santé consolidées du Knowledge Hub (GET /api/knowledge/health)
-   */
-  async getKbHealth(
-    actorEmail?: string,
-    options: { bypassCache?: boolean } = {}
-  ): Promise<{ status: 'ok' | 'error' | 'unavailable'; data?: KbHealthMetrics; error?: string }> {
-    const cacheKey = `kb:health:${this.baseUrl}:${actorEmail || ''}`;
-    if (options.bypassCache) this.invalidateCache(cacheKey);
-
-    return this.cachedFetch(cacheKey, async () => {
-      try {
-        const url = `${this.baseUrl}/api/knowledge/health`;
-        const res = await this.fetchWithTimeout(url, {
-          headers: this.getHeaders(undefined, actorEmail)
-        });
-        if (res.ok) {
-          const body = await res.json();
-          const raw = body.data || body;
-          const assets = raw.assets || {};
-          const byType = assets.by_type || {};
-          const queue = raw.queue || {};
-          const coverage = raw.coverage || {};
-          const evaluation = raw.evaluation || {};
-          const storage = raw.storage || { persistent: true, mode: 'normal' };
-
-          const covEntries = Object.entries(coverage);
-          const totalFw = covEntries.length;
-          let totalReqs = 0;
-          let coveredReqs = 0;
-          for (const [, cov] of covEntries as any) {
-            if (cov?.requirements) {
-              totalReqs += cov.requirements.total || 0;
-              coveredReqs += cov.requirements.covered || 0;
-            }
-          }
-          const covPct = totalReqs > 0 ? Math.round((coveredReqs / totalReqs) * 100) : 75;
-
-          const totalAssets = assets.active ?? raw.doctrine_health?.total_assets ?? 42;
-          const overdueCount = queue.overdue ? (Array.isArray(queue.overdue) ? queue.overdue.length : queue.overdue) : 0;
-          const pendingCount = queue.by_status?.in_review ?? queue.by_status?.submitted ?? 0;
-
-          const recall = evaluation.recall ?? evaluation.latest_recall ?? 0.85;
-          const gateG6 = recall >= 0.8;
-          const gateG7 = gateG6 && overdueCount === 0;
-
-          const data: KbHealthMetrics = {
-            ...raw,
-            doctrine_health: raw.doctrine_health || {
-              total_assets: totalAssets,
-              principles_count: byType.principle ?? 12,
-              patterns_count: byType.pattern ?? 24,
-              decisions_count: byType.decision ?? 14,
-              controls_count: byType.control ?? 10,
-              glossary_count: byType.glossary ?? 17
-            },
-            reviews_summary: raw.reviews_summary || {
-              pending_count: pendingCount,
-              overdue_count: overdueCount,
-              avg_review_duration_days: queue.avg_days ?? 2.4
-            },
-            regulatory_coverage: raw.regulatory_coverage || {
-              total_frameworks: totalFw || 1,
-              total_requirements: totalReqs || 19,
-              covered_requirements: coveredReqs || 14,
-              coverage_percentage: covPct
-            },
-            evals_summary: raw.evals_summary || {
-              latest_recall: recall,
-              gate_g6_passed: gateG6,
-              last_benchmark_at: evaluation.executed_at || new Date().toISOString()
-            },
-            storage: {
-              persistent: storage.persistent ?? true,
-              mode: storage.mode ?? 'normal',
-              provider: storage.provider || 'Local Persistent Store'
-            },
-            gate_g7_eligible: raw.gate_g7_eligible ?? gateG7,
-            gate_g7_blockers: raw.gate_g7_blockers || (gateG7 ? [] : ['Contrôles préalables en cours'])
-          };
-
-          return {
-            status: 'ok',
-            data
-          };
-        }
-        const body = await res.json().catch(() => ({}));
-        return {
-          status: 'error',
-          error: body.error || `Erreur HTTP ${res.status} lors de la récupération de la santé KB`
-        };
-      } catch (e: any) {
-        return {
-          status: 'unavailable',
-          error: e?.message || 'Serveur LLMOps inaccessible pour la santé KB'
-        };
-      }
-    });
-  }
-
-  private static campaignsStore: Map<string, KbCampaign> = new Map();
-
-  /**
-   * Liste l'historique des publications scellées de doctrine.
-   * Si la route GET /api/knowledge/publications existe (ex: fakeLlmops), elle est appelée.
-   * Sinon (LLMOps réel), l'historique est dérivé des candidats 'published' et de /health.
-   */
-  async listKbPublications(
-    optionsOrActorEmail?:
+	listKbPublications(optionsOrActorEmail?:
       | string
       | {
           entry_type?: string;
@@ -3327,1016 +474,178 @@ export class LLMOpsClient {
           framework?: string;
           actorEmail?: string;
           bypassCache?: boolean;
-        },
-    maybeActorEmail?: string
-  ): Promise<{ status: 'ok' | 'error' | 'unavailable'; data?: KbPublication[]; error?: string }> {
-    const isOptions = typeof optionsOrActorEmail === 'object' && optionsOrActorEmail !== null;
-    const actorEmail = isOptions
-      ? optionsOrActorEmail.actorEmail
-      : typeof optionsOrActorEmail === 'string'
-        ? optionsOrActorEmail
-        : maybeActorEmail;
-    const queryParams = new URLSearchParams();
-    if (isOptions) {
-      if (optionsOrActorEmail.entry_type) queryParams.set('entry_type', optionsOrActorEmail.entry_type);
-      if (optionsOrActorEmail.type) queryParams.set('type', optionsOrActorEmail.type);
-      if (optionsOrActorEmail.framework) queryParams.set('framework', optionsOrActorEmail.framework);
-    }
-    const queryString = queryParams.toString() ? `?${queryParams.toString()}` : '';
-    const cacheKey = `kb:pubs:${this.baseUrl}:${queryString}:${actorEmail || ''}`;
-    if (isOptions && optionsOrActorEmail.bypassCache) this.invalidateCache(cacheKey);
+        }, maybeActorEmail?: string): Promise<{ status: 'ok' | 'error' | 'unavailable'; data?: KbPublication[]; error?: string }> {
+		return this.knowledge.listKbPublications(optionsOrActorEmail, maybeActorEmail);
+	}
 
-    return this.cachedFetch(cacheKey, async () => {
-      try {
-        const url = `${this.baseUrl}/api/knowledge/publications${queryString}`;
-        const res = await this.fetchWithTimeout(url, {
-          headers: this.getHeaders(undefined, actorEmail)
-        });
-        if (res.ok) {
-          const body = await res.json();
-          const pubs = Array.isArray(body)
-            ? body
-            : Array.isArray(body.publications)
-              ? body.publications
-              : Array.isArray(body.data)
-                ? body.data
-                : [];
-          return {
-            status: 'ok',
-            data: pubs
-          };
-        }
-      } catch {
-        // Si la route n'existe pas ou erreur réseau, on bascule sur la dérivation contractuelle
-      }
+	getAssetHistory(assetId: string, actorEmail?: string): Promise<{ status: 'ok' | 'not_found' | 'error' | 'unavailable'; data?: AssetHistoryResponse; error?: string }> {
+		return this.doctrine.getAssetHistory(assetId, actorEmail);
+	}
 
-      try {
-        const candidatesRes = await this.listCandidates({ status: 'published' } as any, actorEmail);
-        const candidates = Array.isArray(candidatesRes) ? candidatesRes : [];
-
-        const bySnapshot = new Map<string, { snapshot_id: string; at: string; candidates: string[] }>();
-        for (const cand of candidates) {
-          const pub = (cand as any).published;
-          if (pub && pub.snapshot_id) {
-            const entry = bySnapshot.get(pub.snapshot_id) || {
-              snapshot_id: pub.snapshot_id,
-              at: pub.at || new Date().toISOString(),
-              candidates: [] as string[]
-            };
-            if (cand.id) {
-              entry.candidates.push(cand.id);
-            }
-            bySnapshot.set(pub.snapshot_id, entry);
-          }
-        }
-
-        const healthRes = await this.getKbHealth(actorEmail);
-        const health = healthRes.status === 'ok' ? (healthRes.data as any) : null;
-        if (health?.last_snapshot?.snapshot_id && !bySnapshot.has(health.last_snapshot.snapshot_id)) {
-          bySnapshot.set(health.last_snapshot.snapshot_id, {
-            snapshot_id: health.last_snapshot.snapshot_id,
-            at: health.last_snapshot.created_at || new Date().toISOString(),
-            candidates: []
-          });
-        }
-
-        const publications: KbPublication[] = [];
-        for (const [snapId, entry] of bySnapshot.entries()) {
-          publications.push({
-            id: snapId,
-            snapshot_id: snapId,
-            version: snapId.replace(/^snapshot-/, 'v'),
-            published_at: entry.at,
-            published_by: health?.last_snapshot?.published_by || 'maintainer',
-            sha256_checksum: health?.last_snapshot?.sha256 || '0000000000000000000000000000000000000000000000000000000000000000',
-            changelog: health?.last_snapshot?.changelog || `Publication de ${entry.candidates.length} candidat(s)`,
-            assets_count: health?.doctrine_health?.total_assets || health?.assets?.active || entry.candidates.length,
-            storage_persistent: health?.storage?.persistent ?? true,
-            published_candidates: entry.candidates
-          });
-        }
-
-        if (publications.length === 0 && (!health || healthRes.status !== 'ok')) {
-          return {
-            status: 'ok',
-            data: [
-              {
-                id: 'pub-2026-09-01-01',
-                snapshot_id: 'snapshot-2026-09-01-01',
-                version: 'v2.4.0',
-                published_at: '2026-09-01T10:00:00Z',
-                published_by: 'maint@archinex.fr',
-                sha256_checksum: 'e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855',
-                changelog: 'Alignement doctrine sécurité NIS2 & DORA',
-                assets_count: 58,
-                storage_persistent: true,
-                published_candidates: []
-              }
-            ]
-          };
-        }
-
-        return {
-          status: 'ok',
-          data: publications
-        };
-      } catch {
-        return {
-          status: 'unavailable',
-          error: 'Mode hors-ligne : historique des publications indisponible'
-        };
-      }
-    });
-  }
-
-  /**
-   * Récupère l'historique successif d'un actif (Contrat 1.27 / Archinex #95 / LLMOps #108).
-   * Appelle GET /api/knowledge/assets/{id}/history
-   */
-  async getAssetHistory(
-    assetId: string,
-    actorEmail?: string
-  ): Promise<{ status: 'ok' | 'not_found' | 'error' | 'unavailable'; data?: AssetHistoryResponse; error?: string }> {
-    try {
-      const url = `${this.baseUrl}/api/knowledge/assets/${encodeURIComponent(assetId)}/history`;
-      const res = await this.fetchWithTimeout(url, {
-        headers: this.getHeaders(undefined, actorEmail)
-      });
-      if (res.status === 404) {
-        const body = await res.json().catch(() => ({}));
-        return {
-          status: 'not_found',
-          error: body.detail || body.error || 'Actif introuvable'
-        };
-      }
-      if (res.ok) {
-        this.invalidateCache();
-        const body = await res.json();
-        return {
-          status: 'ok',
-          data: body.data || body
-        };
-      }
-      const body = await res.json().catch(() => ({}));
-      return {
-        status: 'error',
-        error: body.detail || body.error || `Erreur HTTP ${res.status}`
-      };
-    } catch (err: unknown) {
-      return {
-        status: 'unavailable',
-        error: err instanceof Error ? err.message : 'Service LLMOps indisponible'
-      };
-    }
-  }
-
-  /**
-   * Déclenche une publication scellée officielle (POST /api/knowledge/publications)
-   */
-  async publishKbDoctrine(
-    data: { changelog?: string } = {},
-    actorEmail?: string
-  ): Promise<{
+	publishKbDoctrine(data: { changelog?: string } = {}, actorEmail?: string): Promise<{
     status: 'ok' | 'forbidden' | 'conflict' | 'error' | 'unavailable';
     data?: KbPublication;
     error?: string;
     blockers?: string[];
     warnings?: string[];
   }> {
-    try {
-      const url = `${this.baseUrl}/api/knowledge/publications`;
-      const res = await this.fetchWithTimeout(url, {
-        method: 'POST',
-        headers: this.getHeaders(undefined, actorEmail),
-        body: JSON.stringify(data || {})
-      });
+		return this.doctrine.publishKbDoctrine(data, actorEmail);
+	}
 
-      const body = await res.json().catch(() => ({}));
+	listKbCampaigns(actorEmail?: string): Promise<{ status: 'ok' | 'error' | 'unavailable'; data?: KbCampaign[]; error?: string }> {
+		return this.knowledge.listKbCampaigns(actorEmail);
+	}
 
-      if (res.status === 403) {
-        return {
-          status: 'forbidden',
-          error: body.error || 'Habilitation insuffisante : rôle kb:admin ou kb:maintain requis'
-        };
-      }
-
-      if (res.status === 409) {
-        return {
-          status: 'conflict',
-          error: body.error || 'Conditions de la Porte G7 non remplies pour la publication',
-          blockers: body.blockers || []
-        };
-      }
-
-      if (res.ok) {
-        const rawData = body.data || body;
-        const pubData: any = {
-          id: rawData.id || rawData.snapshot_id || `pub-${Date.now()}`,
-          snapshot_id: rawData.snapshot_id,
-          version: rawData.version || (rawData.snapshot_id ? rawData.snapshot_id.replace(/^snapshot-/, 'v') : 'v1.0.0'),
-          published_at: rawData.published_at || new Date().toISOString(),
-          published_by: rawData.published_by || actorEmail || 'maintainer',
-          sha256_checksum: rawData.sha256_checksum || rawData.sha256 || '0000000000000000000000000000000000000000000000000000000000000000',
-          changelog: rawData.changelog || data?.changelog || 'Publication officielle de la doctrine',
-          assets_count: rawData.assets_count || (rawData.published ? rawData.published.length : 0),
-          storage_persistent: rawData.storage_persistent ?? true,
-          published: rawData.published || [],
-          published_candidates: rawData.published || rawData.published_candidates || [],
-          ...rawData
-        };
-        return {
-          status: 'ok',
-          data: pubData,
-          warnings: body.warnings || []
-        };
-      }
-
-      return {
-        status: 'error',
-        error: body.error || `Erreur HTTP ${res.status}`
-      };
-    } catch {
-      return {
-        status: 'unavailable',
-        error: 'Mode hors-ligne : publication impossible'
-      };
-    }
-  }
-
-  /**
-   * Liste les campagnes d'enrichissement de doctrine (gérées côté Archinex).
-   */
-  async listKbCampaigns(
-    actorEmail?: string
-  ): Promise<{ status: 'ok' | 'error' | 'unavailable'; data?: KbCampaign[]; error?: string }> {
-    return {
-      status: 'ok',
-      data: Array.from(LLMOpsClient.campaignsStore.values())
-    };
-  }
-
-  /**
-   * Crée une nouvelle campagne d'enrichissement (gérée côté Archinex).
-   */
-  async createKbCampaign(
-    campaign: {
+	createKbCampaign(campaign: {
       title: string;
       domain: string;
       target_asset_type?: string;
       target_count?: number;
       due_at?: string;
       description?: string;
-    },
-    actorEmail?: string
-  ): Promise<{ status: 'ok' | 'error' | 'unavailable'; data?: KbCampaign; error?: string }> {
-    const target = campaign.target_count || 1;
-    const newCamp: KbCampaign = {
-      id: `camp-${Date.now()}-${Math.random().toString(36).substring(2, 7)}`,
-      title: campaign.title,
-      domain: campaign.domain,
-      target_asset_type: campaign.target_asset_type,
-      target_count: target,
-      created_at: new Date().toISOString(),
-      created_by: actorEmail || 'system',
-      due_at: campaign.due_at,
-      status: 'active',
-      description: campaign.description,
-      progress: {
-        current: 0,
-        target: target
-      }
-    };
-    LLMOpsClient.campaignsStore.set(newCamp.id, newCamp);
-    return {
-      status: 'ok',
-      data: newCamp
-    };
-  }
+    }, actorEmail?: string): Promise<{ status: 'ok' | 'error' | 'unavailable'; data?: KbCampaign; error?: string }> {
+		return this.knowledge.createKbCampaign(campaign, actorEmail);
+	}
 
-  /**
-   * Met à jour une campagne (gérée côté Archinex).
-   */
-  async updateKbCampaign(
-    campaignId: string,
-    data: { status?: 'active' | 'completed' | 'cancelled'; progress_increment?: number },
-    actorEmail?: string
-  ): Promise<{ status: 'ok' | 'error' | 'unavailable'; data?: KbCampaign; error?: string }> {
-    const camp = LLMOpsClient.campaignsStore.get(campaignId);
-    if (!camp) {
-      return {
-        status: 'error',
-        error: 'Campagne introuvable'
-      };
-    }
-    if (data.status) {
-      camp.status = data.status;
-    }
-    if (data.progress_increment && camp.progress) {
-      camp.progress.current = Math.min(camp.progress.target, camp.progress.current + data.progress_increment);
-      if (camp.progress.current >= camp.progress.target) {
-        camp.status = 'completed';
-      }
-    }
-    return {
-      status: 'ok',
-      data: camp
-    };
-  }
+	updateKbCampaign(campaignId: string, data: { status?: 'active' | 'completed' | 'cancelled'; progress_increment?: number }, actorEmail?: string): Promise<{ status: 'ok' | 'error' | 'unavailable'; data?: KbCampaign; error?: string }> {
+		return this.knowledge.updateKbCampaign(campaignId, data, actorEmail);
+	}
 
-  /* ==========================================================================
-   * CONTRAT 1.9 : SIMILARITÉ SÉMANTIQUE & EMBEDDINGS (CALCULÉS PAR LE CLIENT)
-   * ========================================================================== */
+	getEmbeddingsPending(model: string = configuredModel(), actorEmail?: string): Promise<{ status: 'ok' | 'error' | 'unavailable'; pending: EmbeddingPendingItem[]; error?: string }> {
+		return this.knowledgeAdmin.getEmbeddingsPending(model, actorEmail);
+	}
 
-  /**
-   * Récupère la liste des actifs en attente d'embedding pour un modèle donné (Contrat 1.9).
-   */
-  async getEmbeddingsPending(
-    model: string = configuredModel(),
-    actorEmail?: string
-  ): Promise<{ status: 'ok' | 'error' | 'unavailable'; pending: EmbeddingPendingItem[]; error?: string }> {
-    try {
-      const url = `${this.baseUrl}/api/knowledge/embeddings/pending?model=${encodeURIComponent(model)}`;
-      const res = await this.fetchWithTimeout(url, {
-        method: 'GET',
-        headers: this.getHeaders(undefined, actorEmail)
-      });
-      if (res.ok) {
-        this.invalidateCache();
-        const body = await res.json();
-        return {
-          status: 'ok',
-          pending: body.data?.pending || []
-        };
-      }
-      const err = await res.json().catch(() => ({}));
-      return {
-        status: 'error',
-        pending: [],
-        error: err.error || `Erreur HTTP ${res.status}`
-      };
-    } catch (e: any) {
-      return {
-        status: 'unavailable',
-        pending: [],
-        error: e.message || 'Serveur LLMOps inaccessible'
-      };
-    }
-  }
+	depositEmbeddings(deposit: EmbeddingDeposit, actorEmail?: string): Promise<{ status: 'ok' | 'error' | 'unavailable'; dim?: number; count?: number; error?: string }> {
+		return this.knowledgeAdmin.depositEmbeddings(deposit, actorEmail);
+	}
 
-  /**
-   * Dépose un lot d'embeddings calculés localement par Archinex (Contrat 1.9).
-   */
-  async depositEmbeddings(
-    deposit: EmbeddingDeposit,
-    actorEmail?: string
-  ): Promise<{ status: 'ok' | 'error' | 'unavailable'; dim?: number; count?: number; error?: string }> {
-    try {
-      const url = `${this.baseUrl}/api/knowledge/embeddings`;
-      const res = await this.fetchWithTimeout(url, {
-        method: 'PUT',
-        headers: this.getHeaders(undefined, actorEmail),
-        body: JSON.stringify(deposit)
-      });
-      if (res.ok) {
-        this.invalidateCache();
-        const body = await res.json();
-        return {
-          status: 'ok',
-          dim: body.data?.dim,
-          count: body.data?.count ?? deposit.items.length
-        };
-      }
-      const err = await res.json().catch(() => ({}));
-      return {
-        status: 'error',
-        error: err.error || `Erreur HTTP ${res.status}`
-      };
-    } catch (e: any) {
-      return {
-        status: 'unavailable',
-        error: e.message || 'Serveur LLMOps inaccessible'
-      };
-    }
-  }
+	searchSimilarKnowledge(request: SimilarKnowledgeRequest, actorEmail?: string): Promise<{ status: 'ok' | 'error' | 'unavailable'; data?: SimilarKnowledgeResponse; error?: string }> {
+		return this.knowledgeAdmin.searchSimilarKnowledge(request, actorEmail);
+	}
 
-  /**
-   * Recherche sémantique de connaissances similaires (Contrat 1.9).
-   * Note : requires_confirmation est toujours vrai dans les résultats.
-   */
-  async searchSimilarKnowledge(
-    request: SimilarKnowledgeRequest,
-    actorEmail?: string
-  ): Promise<{ status: 'ok' | 'error' | 'unavailable'; data?: SimilarKnowledgeResponse; error?: string }> {
-    try {
-      const url = `${this.baseUrl}/api/knowledge/similar`;
-      const res = await this.fetchWithTimeout(url, {
-        method: 'POST',
-        headers: this.getHeaders(undefined, actorEmail),
-        body: JSON.stringify(request)
-      });
-      if (res.ok) {
-        this.invalidateCache();
-        const body = await res.json();
-        return {
-          status: 'ok',
-          data: body.data
-        };
-      }
-      const err = await res.json().catch(() => ({}));
-      return {
-        status: 'error',
-        error: err.error || `Erreur HTTP ${res.status}`
-      };
-    } catch (e: any) {
-      return {
-        status: 'unavailable',
-        error: e.message || 'Serveur LLMOps inaccessible'
-      };
-    }
-  }
+	postReuseConfirmation(confirmation: ReuseConfirmationRequest, actorEmail: string): Promise<{ status: 'ok' | 'error' | 'unavailable'; data?: ReuseConfirmation; error?: string }> {
+		return this.knowledgeAdmin.postReuseConfirmation(confirmation, actorEmail);
+	}
 
-  /* ==========================================================================
-   * CONTRAT 1.10 : RÉUTILISATION DES CONNAISSANCES VALIDÉES
-   * ========================================================================== */
+	getReuseConfirmations(params?: { subject_fingerprint?: string; matched_ref?: string }, actorEmail?: string): Promise<{ status: 'ok' | 'error' | 'unavailable'; data: ReuseConfirmation[]; error?: string }> {
+		return this.knowledgeAdmin.getReuseConfirmations(params, actorEmail);
+	}
 
-  /**
-   * Enregistre le jugement d'un architecte sur la réutilisation d'un actif validé (Contrat 1.10).
-   * Toutes les hypothèses documentées doivent être examinées.
-   */
-  async postReuseConfirmation(
-    confirmation: ReuseConfirmationRequest,
-    actorEmail: string
-  ): Promise<{ status: 'ok' | 'error' | 'unavailable'; data?: ReuseConfirmation; error?: string }> {
-    try {
-      const url = `${this.baseUrl}/api/knowledge/reuse-confirmations`;
-      const res = await this.fetchWithTimeout(url, {
-        method: 'POST',
-        headers: this.getHeaders(undefined, actorEmail),
-        body: JSON.stringify(confirmation)
-      });
-      if (res.status === 201 || res.ok) {
-        const body = await res.json();
-        return {
-          status: 'ok',
-          data: body.data
-        };
-      }
-      const err = await res.json().catch(() => ({}));
-      return {
-        status: 'error',
-        error: err.error || `Erreur HTTP ${res.status}`
-      };
-    } catch (e: any) {
-      return {
-        status: 'unavailable',
-        error: e.message || 'Serveur LLMOps inaccessible'
-      };
-    }
-  }
+	getSimilarityDataset(datasetName: string = 'similarity_v1', actorEmail?: string): Promise<{ status: 'ok' | 'error' | 'unavailable'; data?: { cases: SimilarityCase[]; validated: number }; error?: string }> {
+		return this.evaluations.getSimilarityDataset(datasetName, actorEmail);
+	}
 
-  /**
-   * Récupère l'historique des confirmations de réutilisation (Contrat 1.10).
-   */
-  async getReuseConfirmations(
-    params?: { subject_fingerprint?: string; matched_ref?: string },
-    actorEmail?: string
-  ): Promise<{ status: 'ok' | 'error' | 'unavailable'; data: ReuseConfirmation[]; error?: string }> {
-    try {
-      const query = new URLSearchParams();
-      if (params?.subject_fingerprint) query.set('subject_fingerprint', params.subject_fingerprint);
-      if (params?.matched_ref) query.set('matched_ref', params.matched_ref);
-      const url = `${this.baseUrl}/api/knowledge/reuse-confirmations${query.toString() ? `?${query.toString()}` : ''}`;
-      const res = await this.fetchWithTimeout(url, {
-        method: 'GET',
-        headers: this.getHeaders(undefined, actorEmail)
-      });
-      if (res.ok) {
-        this.invalidateCache();
-        const body = await res.json();
-        return {
-          status: 'ok',
-          data: body.data?.confirmations || body.data || []
-        };
-      }
-      const err = await res.json().catch(() => ({}));
-      return {
-        status: 'error',
-        data: [],
-        error: err.error || `Erreur HTTP ${res.status}`
-      };
-    } catch (e: any) {
-      return {
-        status: 'unavailable',
-        data: [],
-        error: e.message || 'Serveur LLMOps inaccessible'
-      };
-    }
-  }
+	patchSimilarityCase(datasetName: string, caseId: string, update: { annotation_status?: 'proposed' | 'validated' | 'rejected'; expected?: any[] }, actorEmail: string): Promise<{ status: 'ok' | 'error' | 'unavailable'; data?: SimilarityCase; error?: string }> {
+		return this.evaluations.patchSimilarityCase(datasetName, caseId, update, actorEmail);
+	}
 
-  /* ==========================================================================
-   * CONTRAT 1.11 : ÉVALUATION DE SIMILARITÉ FR/EN & CALIBRATION DES SEUILS
-   * ========================================================================== */
+	runSimilarityEvaluation(datasetName: string, req: { model: string; vectors: Record<string, number[]>; validated_only?: boolean }, actorEmail: string): Promise<{ status: 'ok' | 'error' | 'unavailable'; data?: SimilarityRun; error?: string }> {
+		return this.evaluations.runSimilarityEvaluation(datasetName, req, actorEmail);
+	}
 
-  /**
-   * Récupère les cas d'évaluation de similarité d'un jeu de données FR/EN (Contrat 1.11).
-   */
-  async getSimilarityDataset(
-    datasetName: string = 'similarity_v1',
-    actorEmail?: string
-  ): Promise<{ status: 'ok' | 'error' | 'unavailable'; data?: { cases: SimilarityCase[]; validated: number }; error?: string }> {
-    try {
-      const url = `${this.baseUrl}/api/knowledge/similarity-evals/${encodeURIComponent(datasetName)}`;
-      const res = await this.fetchWithTimeout(url, {
-        method: 'GET',
-        headers: this.getHeaders(undefined, actorEmail)
-      });
-      if (res.ok) {
-        this.invalidateCache();
-        const body = await res.json();
-        return {
-          status: 'ok',
-          data: body.data
-        };
-      }
-      const err = await res.json().catch(() => ({}));
-      return {
-        status: 'error',
-        error: err.error || `Erreur HTTP ${res.status}`
-      };
-    } catch (e: any) {
-      return {
-        status: 'unavailable',
-        error: e.message || 'Serveur LLMOps inaccessible'
-      };
-    }
-  }
+	getSimilarityRun(datasetName: string, runId: number, actorEmail?: string): Promise<{ status: 'ok' | 'error' | 'unavailable'; data?: SimilarityRun; error?: string }> {
+		return this.evaluations.getSimilarityRun(datasetName, runId, actorEmail);
+	}
 
-  /**
-   * Met à jour ou valide l'annotation d'un cas de test de similarité (Contrat 1.11).
-   */
-  async patchSimilarityCase(
-    datasetName: string,
-    caseId: string,
-    update: { annotation_status?: 'proposed' | 'validated' | 'rejected'; expected?: any[] },
-    actorEmail: string
-  ): Promise<{ status: 'ok' | 'error' | 'unavailable'; data?: SimilarityCase; error?: string }> {
-    try {
-      const url = `${this.baseUrl}/api/knowledge/similarity-evals/${encodeURIComponent(datasetName)}/cases/${encodeURIComponent(caseId)}`;
-      const res = await this.fetchWithTimeout(url, {
-        method: 'PATCH',
-        headers: this.getHeaders(undefined, actorEmail),
-        body: JSON.stringify(update)
-      });
-      if (res.ok) {
-        this.invalidateCache();
-        const body = await res.json();
-        return {
-          status: 'ok',
-          data: body.data
-        };
-      }
-      const err = await res.json().catch(() => ({}));
-      return {
-        status: 'error',
-        error: err.error || `Erreur HTTP ${res.status}`
-      };
-    } catch (e: any) {
-      return {
-        status: 'unavailable',
-        error: e.message || 'Serveur LLMOps inaccessible'
-      };
-    }
-  }
+	createManagedEngagement(params: { engagement: string; confidentiality: HubConfidentiality; admin_email: string; admin_handle: string }, actorEmail?: string): Promise<{ engagement: string; confidentiality: HubConfidentiality; members: HubPublicMember[] }> {
+		return this.engagements.createManagedEngagement(params, actorEmail);
+	}
 
-  /**
-   * Exécute un benchmark de similarité avec les vecteurs calculés par le client (Contrat 1.11).
-   */
-  async runSimilarityEvaluation(
-    datasetName: string,
-    req: { model: string; vectors: Record<string, number[]>; validated_only?: boolean },
-    actorEmail: string
-  ): Promise<{ status: 'ok' | 'error' | 'unavailable'; data?: SimilarityRun; error?: string }> {
-    try {
-      const url = `${this.baseUrl}/api/knowledge/similarity-evals/${encodeURIComponent(datasetName)}/runs`;
-      const res = await this.fetchWithTimeout(url, {
-        method: 'POST',
-        headers: this.getHeaders(undefined, actorEmail),
-        body: JSON.stringify(req)
-      });
-      if (res.status === 201 || res.ok) {
-        const body = await res.json();
-        return {
-          status: 'ok',
-          data: body.data
-        };
-      }
-      const err = await res.json().catch(() => ({}));
-      return {
-        status: 'error',
-        error: err.error || `Erreur HTTP ${res.status}`
-      };
-    } catch (e: any) {
-      return {
-        status: 'unavailable',
-        error: e.message || 'Serveur LLMOps inaccessible'
-      };
-    }
-  }
+	getEngagementMembers(engagementId: string, actorEmail?: string): Promise<HubMember[] | HubPublicMember[]> {
+		return this.engagements.getEngagementMembers(engagementId, actorEmail);
+	}
 
-  /**
-   * Récupère le résultat d'un run d'évaluation de similarité (Contrat 1.11).
-   */
-  async getSimilarityRun(
-    datasetName: string,
-    runId: number,
-    actorEmail?: string
-  ): Promise<{ status: 'ok' | 'error' | 'unavailable'; data?: SimilarityRun; error?: string }> {
-    try {
-      const url = `${this.baseUrl}/api/knowledge/similarity-evals/${encodeURIComponent(datasetName)}/runs/${runId}`;
-      const res = await this.fetchWithTimeout(url, {
-        method: 'GET',
-        headers: this.getHeaders(undefined, actorEmail)
-      });
-      if (res.ok) {
-        this.invalidateCache();
-        const body = await res.json();
-        return {
-          status: 'ok',
-          data: body.data
-        };
-      }
-      const err = await res.json().catch(() => ({}));
-      return {
-        status: 'error',
-        error: err.error || `Erreur HTTP ${res.status}`
-      };
-    } catch (e: any) {
-      return {
-        status: 'unavailable',
-        error: e.message || 'Serveur LLMOps inaccessible'
-      };
-    }
-  }
+	setEngagementMembers(engagementId: string, members: HubMember[], actorEmail?: string): Promise<HubMember[]> {
+		return this.engagements.setEngagementMembers(engagementId, members, actorEmail);
+	}
 
-  // --- K14: Managed Engagements (Contract 1.16) --------------------------------
+	getEngagementMe(engagementId: string, actorEmail?: string): Promise<HubEngagementMe> {
+		return this.engagements.getEngagementMe(engagementId, actorEmail);
+	}
 
-  async createManagedEngagement(
-    params: { engagement: string; confidentiality: HubConfidentiality; admin_email: string; admin_handle: string },
-    actorEmail?: string
-  ): Promise<{ engagement: string; confidentiality: HubConfidentiality; members: HubPublicMember[] }> {
-    const url = `${this.baseUrl}/api/engagements`;
-    const res = await this.fetchWithTimeout(url, {
-      method: 'POST',
-      headers: this.getHeaders(params.engagement, actorEmail),
-      body: JSON.stringify(params)
-    });
-    return this.parseOrThrow(res);
-  }
+	getEngagementAudit(engagementId: string, limit = 100, actorEmail?: string): Promise<HubAuditEvent[]> {
+		return this.engagements.getEngagementAudit(engagementId, limit, actorEmail);
+	}
 
-  async getEngagementMembers(engagementId: string, actorEmail?: string): Promise<HubMember[] | HubPublicMember[]> {
-    const url = `${this.baseUrl}/api/engagements/${encodeURIComponent(engagementId)}/members`;
-    const res = await this.fetchWithTimeout(url, {
-      method: 'GET',
-      headers: this.getHeaders(engagementId, actorEmail)
-    });
-    const data = await this.parseOrThrow<{ engagement: string; members: HubMember[] }>(res);
-    return data.members || [];
-  }
+	addSubject(engagementId: string, input: HubSubjectInput, actorEmail?: string): Promise<HubSubjectResult> {
+		return this.engagements.addSubject(engagementId, input, actorEmail);
+	}
 
-  async setEngagementMembers(engagementId: string, members: HubMember[], actorEmail?: string): Promise<HubMember[]> {
-    const url = `${this.baseUrl}/api/engagements/${encodeURIComponent(engagementId)}/members`;
-    const res = await this.fetchWithTimeout(url, {
-      method: 'PUT',
-      headers: this.getHeaders(engagementId, actorEmail),
-      body: JSON.stringify({ members })
-    });
-    const data = await this.parseOrThrow<{ engagement: string; members: HubMember[] }>(res);
-    return data.members || [];
-  }
+	advanceSubjectMaturity(engagementId: string, subjectName: string, level: HubMaturityInput['level'], actorEmail?: string): Promise<HubMaturityResult> {
+		return this.engagements.advanceSubjectMaturity(engagementId, subjectName, level, actorEmail);
+	}
 
-  async getEngagementMe(engagementId: string, actorEmail?: string): Promise<HubEngagementMe> {
-    const url = `${this.baseUrl}/api/engagements/${encodeURIComponent(engagementId)}/me`;
-    const res = await this.fetchWithTimeout(url, {
-      method: 'GET',
-      headers: this.getHeaders(engagementId, actorEmail)
-    });
-    return this.parseOrThrow<HubEngagementMe>(res);
-  }
+	addStatement(engagementId: string, input: HubStatementInput, actorEmail?: string, idempotencyKey?: string): Promise<HubAddStatementResponse> {
+		return this.engagements.addStatement(engagementId, input, actorEmail, idempotencyKey);
+	}
 
-  async getEngagementAudit(engagementId: string, limit = 100, actorEmail?: string): Promise<HubAuditEvent[]> {
-    const url = `${this.baseUrl}/api/engagements/${encodeURIComponent(engagementId)}/audit?limit=${limit}`;
-    const res = await this.fetchWithTimeout(url, {
-      method: 'GET',
-      headers: this.getHeaders(engagementId, actorEmail)
-    });
-    const data = await this.parseOrThrow<{ engagement: string; events: HubAuditEvent[] }>(res);
-    return data.events || [];
-  }
+	assertStatement(engagementId: string, statementId: string, actorEmail?: string): Promise<HubAssertStatementResponse> {
+		return this.engagements.assertStatement(engagementId, statementId, actorEmail);
+	}
 
-  // --- K15: Managed Engagement Writes (Contract 1.17) --------------------------
+	withdrawStatement(engagementId: string, statementId: string, actorEmail?: string): Promise<HubWithdrawStatementResponse> {
+		return this.engagements.withdrawStatement(engagementId, statementId, actorEmail);
+	}
 
-  async addSubject(engagementId: string, input: HubSubjectInput, actorEmail?: string): Promise<HubSubjectResult> {
-    const url = `${this.baseUrl}/api/engagements/${encodeURIComponent(engagementId)}/subjects`;
-    const res = await this.fetchWithTimeout(url, {
-      method: 'POST',
-      headers: this.getHeaders(engagementId, actorEmail),
-      body: JSON.stringify(input)
-    });
-    return this.parseOrThrow<HubSubjectResult>(res);
-  }
+	addQuestion(engagementId: string, input: HubQuestionInput, actorEmail?: string, idempotencyKey?: string): Promise<HubAddQuestionResponse> {
+		return this.engagements.addQuestion(engagementId, input, actorEmail, idempotencyKey);
+	}
 
-  async advanceSubjectMaturity(
-    engagementId: string,
-    subjectName: string,
-    level: HubMaturityInput['level'],
-    actorEmail?: string
-  ): Promise<HubMaturityResult> {
-    const url = `${this.baseUrl}/api/engagements/${encodeURIComponent(engagementId)}/subjects/${encodeURIComponent(subjectName)}/maturity`;
-    const res = await this.fetchWithTimeout(url, {
-      method: 'POST',
-      headers: this.getHeaders(engagementId, actorEmail),
-      body: JSON.stringify({ level })
-    });
-    return this.parseOrThrow<HubMaturityResult>(res);
-  }
+	answerQuestion(engagementId: string, questionId: string, input: HubAnswerInput, actorEmail?: string, idempotencyKey?: string): Promise<HubAddStatementResponse> {
+		return this.engagements.answerQuestion(engagementId, questionId, input, actorEmail, idempotencyKey);
+	}
 
-  async addStatement(
-    engagementId: string,
-    input: HubStatementInput,
-    actorEmail?: string,
-    idempotencyKey?: string
-  ): Promise<HubAddStatementResponse> {
-    const key = idempotencyKey || input.idempotency_key;
-    const url = `${this.baseUrl}/api/engagements/${encodeURIComponent(engagementId)}/statements`;
-    const res = await this.fetchWithTimeout(url, {
-      method: 'POST',
-      headers: this.getHeaders(engagementId, actorEmail, key),
-      body: JSON.stringify(input)
-    });
-    return this.parseOrThrow<HubAddStatementResponse>(res);
-  }
+	addRequirements(engagementId: string, input: HubRequirementsInput, actorEmail?: string): Promise<HubRequirementsResult> {
+		return this.engagements.addRequirements(engagementId, input, actorEmail);
+	}
 
-  async assertStatement(
-    engagementId: string,
-    statementId: string,
-    actorEmail?: string
-  ): Promise<HubAssertStatementResponse> {
-    const url = `${this.baseUrl}/api/engagements/${encodeURIComponent(engagementId)}/statements/${encodeURIComponent(statementId)}/assert`;
-    const res = await this.fetchWithTimeout(url, {
-      method: 'POST',
-      headers: this.getHeaders(engagementId, actorEmail)
-    });
-    return this.parseOrThrow<HubAssertStatementResponse>(res);
-  }
+	proposeRequirementDisposition(engagementId: string, requirementId: string, input: HubRequirementDispositionInput, actorEmail?: string): Promise<HubRequirementDecisionResult> {
+		return this.engagements.proposeRequirementDisposition(engagementId, requirementId, input, actorEmail);
+	}
 
-  async withdrawStatement(
-    engagementId: string,
-    statementId: string,
-    actorEmail?: string
-  ): Promise<HubWithdrawStatementResponse> {
-    const url = `${this.baseUrl}/api/engagements/${encodeURIComponent(engagementId)}/statements/${encodeURIComponent(statementId)}/withdraw`;
-    const res = await this.fetchWithTimeout(url, {
-      method: 'POST',
-      headers: this.getHeaders(engagementId, actorEmail)
-    });
-    return this.parseOrThrow<HubWithdrawStatementResponse>(res);
-  }
+	assertRequirementDisposition(engagementId: string, requirementId: string, actorEmail?: string): Promise<HubRequirementDecisionResult> {
+		return this.engagements.assertRequirementDisposition(engagementId, requirementId, actorEmail);
+	}
 
-  async addQuestion(
-    engagementId: string,
-    input: HubQuestionInput,
-    actorEmail?: string,
-    idempotencyKey?: string
-  ): Promise<HubAddQuestionResponse> {
-    const key = idempotencyKey || input.idempotency_key;
-    const url = `${this.baseUrl}/api/engagements/${encodeURIComponent(engagementId)}/questions`;
-    const res = await this.fetchWithTimeout(url, {
-      method: 'POST',
-      headers: this.getHeaders(engagementId, actorEmail, key),
-      body: JSON.stringify(input)
-    });
-    return this.parseOrThrow<HubAddQuestionResponse>(res);
-  }
+	withdrawRequirementDisposition(engagementId: string, requirementId: string, actorEmail?: string): Promise<HubRequirementDecisionResult> {
+		return this.engagements.withdrawRequirementDisposition(engagementId, requirementId, actorEmail);
+	}
 
-  async answerQuestion(
-    engagementId: string,
-    questionId: string,
-    input: HubAnswerInput,
-    actorEmail?: string,
-    idempotencyKey?: string
-  ): Promise<HubAddStatementResponse> {
-    const key = idempotencyKey || input.idempotency_key;
-    const url = `${this.baseUrl}/api/engagements/${encodeURIComponent(engagementId)}/questions/${encodeURIComponent(questionId)}/answers`;
-    const res = await this.fetchWithTimeout(url, {
-      method: 'POST',
-      headers: this.getHeaders(engagementId, actorEmail, key),
-      body: JSON.stringify(input)
-    });
-    return this.parseOrThrow<HubAddStatementResponse>(res);
-  }
+	carrySubjectRequirements(engagementId: string, subjectName: string, input: { add?: string[]; remove?: string[] }, actorEmail?: string): Promise<HubCarryRequirementsResult> {
+		return this.engagements.carrySubjectRequirements(engagementId, subjectName, input, actorEmail);
+	}
 
-  async addRequirements(
-    engagementId: string,
-    input: HubRequirementsInput,
-    actorEmail?: string
-  ): Promise<HubRequirementsResult> {
-    const url = `${this.baseUrl}/api/engagements/${encodeURIComponent(engagementId)}/requirements`;
-    const res = await this.fetchWithTimeout(url, {
-      method: 'POST',
-      headers: this.getHeaders(engagementId, actorEmail),
-      body: JSON.stringify(input)
-    });
-    return this.parseOrThrow<HubRequirementsResult>(res);
-  }
+	arbitrateConflict(engagementId: string, conflictId: string, input: HubArbitrateConflictInput, actorEmail?: string): Promise<HubConflictResult> {
+		return this.engagements.arbitrateConflict(engagementId, conflictId, input, actorEmail);
+	}
 
-  // --- Contract 1.27: decision on a requirement, requirements carried by a subject ---------------------
+	getFactVocabulary(): Promise<HubFactVocabulary> {
+		return this.engagements.getFactVocabulary();
+	}
 
-  async proposeRequirementDisposition(
-    engagementId: string,
-    requirementId: string,
-    input: HubRequirementDispositionInput,
-    actorEmail?: string
-  ): Promise<HubRequirementDecisionResult> {
-    const url = `${this.baseUrl}/api/engagements/${encodeURIComponent(engagementId)}/requirements/${encodeURIComponent(requirementId)}/disposition`;
-    const res = await this.fetchWithTimeout(url, {
-      method: 'POST',
-      headers: this.getHeaders(engagementId, actorEmail),
-      body: JSON.stringify(input)
-    });
-    return this.parseOrThrow<HubRequirementDecisionResult>(res);
-  }
+	addDecision(engagementId: string, input: HubDecisionInput, actorEmail?: string, idempotencyKey?: string): Promise<HubDecisionResult> {
+		return this.engagements.addDecision(engagementId, input, actorEmail, idempotencyKey);
+	}
 
-  async assertRequirementDisposition(
-    engagementId: string,
-    requirementId: string,
-    actorEmail?: string
-  ): Promise<HubRequirementDecisionResult> {
-    const url = `${this.baseUrl}/api/engagements/${encodeURIComponent(engagementId)}/requirements/${encodeURIComponent(requirementId)}/disposition/assert`;
-    const res = await this.fetchWithTimeout(url, {
-      method: 'POST',
-      headers: this.getHeaders(engagementId, actorEmail)
-    });
-    return this.parseOrThrow<HubRequirementDecisionResult>(res);
-  }
+	assertDecision(engagementId: string, decisionId: string, actorEmail?: string, idempotencyKey?: string): Promise<HubDecisionResult> {
+		return this.engagements.assertDecision(engagementId, decisionId, actorEmail, idempotencyKey);
+	}
 
-  async withdrawRequirementDisposition(
-    engagementId: string,
-    requirementId: string,
-    actorEmail?: string
-  ): Promise<HubRequirementDecisionResult> {
-    const url = `${this.baseUrl}/api/engagements/${encodeURIComponent(engagementId)}/requirements/${encodeURIComponent(requirementId)}/disposition/withdraw`;
-    const res = await this.fetchWithTimeout(url, {
-      method: 'POST',
-      headers: this.getHeaders(engagementId, actorEmail)
-    });
-    return this.parseOrThrow<HubRequirementDecisionResult>(res);
-  }
+	exportEngagementSnapshot(engagementId: string, actorEmail?: string): Promise<HubExportIssueResult> {
+		return this.engagements.exportEngagementSnapshot(engagementId, actorEmail);
+	}
 
-  async carrySubjectRequirements(
-    engagementId: string,
-    subjectName: string,
-    input: { add?: string[]; remove?: string[] },
-    actorEmail?: string
-  ): Promise<HubCarryRequirementsResult> {
-    const url = `${this.baseUrl}/api/engagements/${encodeURIComponent(engagementId)}/subjects/${encodeURIComponent(subjectName)}/requirements`;
-    const res = await this.fetchWithTimeout(url, {
-      method: 'POST',
-      headers: this.getHeaders(engagementId, actorEmail),
-      body: JSON.stringify(input)
-    });
-    return this.parseOrThrow<HubCarryRequirementsResult>(res);
-  }
+	listEngagementExports(engagementId: string, actorEmail?: string): Promise<HubExportListingItem[]> {
+		return this.engagements.listEngagementExports(engagementId, actorEmail);
+	}
 
-  async arbitrateConflict(
-    engagementId: string,
-    conflictId: string,
-    input: HubArbitrateConflictInput,
-    actorEmail?: string
-  ): Promise<HubConflictResult> {
-    const url = `${this.baseUrl}/api/engagements/${encodeURIComponent(engagementId)}/conflicts/${encodeURIComponent(conflictId)}/arbitrate`;
-    const res = await this.fetchWithTimeout(url, {
-      method: 'POST',
-      headers: this.getHeaders(engagementId, actorEmail),
-      body: JSON.stringify(input)
-    });
-    return this.parseOrThrow<HubConflictResult>(res);
-  }
+	getEngagementExport(engagementId: string, snapshotId: string, actorEmail?: string): Promise<HubExportEnvelope> {
+		return this.engagements.getEngagementExport(engagementId, snapshotId, actorEmail);
+	}
 
-  // --- Decisions & Machine-Readable Facts (K16 & K18) -----------------------
-
-  /** Vocabulaire des faits du Hub (K18), tel que le porte son instantané de connaissance scellé. */
-  async getFactVocabulary(): Promise<HubFactVocabulary> {
-    const { data } = await this.getLatestSnapshot();
-    return parseHubFactVocabulary(data);
-  }
-
-  async addDecision(
-    engagementId: string,
-    input: HubDecisionInput,
-    actorEmail?: string,
-    idempotencyKey?: string
-  ): Promise<HubDecisionResult> {
-    const key = idempotencyKey || input.idempotency_key;
-    const url = `${this.baseUrl}/api/engagements/${encodeURIComponent(engagementId)}/decisions`;
-    const res = await this.fetchWithTimeout(url, {
-      method: 'POST',
-      headers: this.getHeaders(engagementId, actorEmail, key),
-      body: JSON.stringify(input)
-    });
-    return this.parseOrThrow<HubDecisionResult>(res);
-  }
-
-  async assertDecision(
-    engagementId: string,
-    decisionId: string,
-    actorEmail?: string,
-    idempotencyKey?: string
-  ): Promise<HubDecisionResult> {
-    const url = `${this.baseUrl}/api/engagements/${encodeURIComponent(engagementId)}/decisions/${encodeURIComponent(decisionId)}/assert`;
-    const res = await this.fetchWithTimeout(url, {
-      method: 'POST',
-      headers: this.getHeaders(engagementId, actorEmail, idempotencyKey)
-    });
-    return this.parseOrThrow<HubDecisionResult>(res);
-  }
-
-  // --- K11: Sealed Engagement Snapshot (Contract 1.18) -----------------------
-
-  async exportEngagementSnapshot(engagementId: string, actorEmail?: string): Promise<HubExportIssueResult> {
-    const url = `${this.baseUrl}/api/engagements/${encodeURIComponent(engagementId)}/exports`;
-    const res = await this.fetchWithTimeout(url, {
-      method: 'POST',
-      headers: this.getHeaders(engagementId, actorEmail)
-    });
-    return this.parseOrThrow<HubExportIssueResult>(res);
-  }
-
-  async listEngagementExports(engagementId: string, actorEmail?: string): Promise<HubExportListingItem[]> {
-    const url = `${this.baseUrl}/api/engagements/${encodeURIComponent(engagementId)}/exports`;
-    const res = await this.fetchWithTimeout(url, {
-      method: 'GET',
-      headers: this.getHeaders(engagementId, actorEmail)
-    });
-    const data = await this.parseOrThrow<{ engagement: string; exports: HubExportListingItem[] }>(res);
-    return data.exports || [];
-  }
-
-  async getEngagementExport(engagementId: string, snapshotId: string, actorEmail?: string): Promise<HubExportEnvelope> {
-    const url = `${this.baseUrl}/api/engagements/${encodeURIComponent(engagementId)}/exports/${encodeURIComponent(snapshotId)}`;
-    const res = await this.fetchWithTimeout(url, {
-      method: 'GET',
-      headers: this.getHeaders(engagementId, actorEmail)
-    });
-    if (!res.ok) {
-      const errBody = await res.json().catch(() => ({}));
-      const code = errBody.error || errBody.status || `HTTP_${res.status}`;
-      const reason = errBody.reason || errBody.message || `Erreur HTTP ${res.status}`;
-      throw new HubApiError(res.status, code, reason, errBody);
-    }
-    return (await res.json()) as HubExportEnvelope;
-  }
-
-  /**
-   * Synchronisation globale composite (Board + Statements + Conflicts + Health)
-   * Bascule automatiquement en local si offline
-   */
-  async syncEngagement(engagement?: string): Promise<LLMOpsSyncPayload> {
-    const localEng = engagement || this.defaultEngagement;
-    const remoteEng = this.resolveRemoteEngagement(localEng);
-
-    // Fast-fail health check : si Cloud Run / serveur est injoignable, on bascule immédiatement en local sans attendre
-    const healthRes = await this.getHealth();
-    if (healthRes.source !== 'live') {
-      return {
-        source: 'offline-fallback',
-        engagement: localEng,
-        syncedAt: new Date().toISOString(),
-        health: healthRes.data,
-        board: [],
-        statements: [],
-        conflicts: []
-      };
-    }
-
-    const [boardRes, statementsRes, conflictsRes] = await Promise.all([
-      this.getBoard(remoteEng),
-      this.getStatements(remoteEng),
-      this.getConflicts(remoteEng)
-    ]);
-
-    const isLive = healthRes.source === 'live';
-
-    return {
-      source: isLive ? 'live' : 'offline-fallback',
-      engagement: localEng,
-      syncedAt: new Date().toISOString(),
-      health: healthRes.data,
-      board: boardRes.data,
-      statements: statementsRes.data,
-      conflicts: conflictsRes.data,
-      snapshotMeta: healthRes.data.kb
-    };
-  }
+	syncEngagement(engagement?: string): Promise<LLMOpsSyncPayload> {
+		return this.engagements.syncEngagement(engagement);
+	}
 }
 
 export const llmopsClient = new LLMOpsClient();

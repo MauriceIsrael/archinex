@@ -1,6 +1,5 @@
 export * from './adapterTypes.js';
-export * from './nautobotAdapter.js';
-export * from './sylvaAdapter.js';
+export * from './writeBackContract.js';
 export * from './batfishAdapter.js';
 export * from './openbaoAdapter.js';
 export * from './keycloakAdapter.js';

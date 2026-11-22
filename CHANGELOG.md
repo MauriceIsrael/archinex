@@ -8,6 +8,26 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Fiabilisation du vérificateur, réserves de couverture au scellement, provenance Oracle OPA et import unifié des sujets (#384, #385, #380, #58)
+- **Verdict structuré du vérificateur (`src/lib/server/agents/verifier.ts`, `src/lib/domain/maturityRules.ts`, `src/lib/domain/maturityCriteria.ts`, `prisma/schema.prisma`, `src/lib/server/projects/debateDb.ts`)** (#384) :
+  - Ajout de la colonne `Argument.verdict` (`compliant` | `violates` | `not_applicable` | `unknown`) et suppression de la propriété fantôme `violationDetected`.
+  - Le blocage `UNRESOLVED_VIOLATION` s'appuie uniquement sur le verdict structuré `violates` (et sur `checkOption` validé) ; un verdict `unknown` ou absent émet un avertissement `VERIFICATION_VERDICT_UNKNOWN` et ne vaut jamais « conforme ».
+  - En cas de sortie JSON invalide ou de modèle hors ligne, `runVerifierAgentWithStatus` renvoie un état `not_evaluated` sans fabriquer d'argument fictif.
+- **Réserves de couverture réglementaire au scellement (`src/lib/domain/options.ts`, `src/lib/server/projects/arbitrationDb.ts`, `src/lib/domain/freezeExport.ts`, `src/lib/server/edp/decisionSlotRegistry.ts`, `src/lib/domain/bundleAssembly.ts`, `src/lib/domain/complianceMatrix.ts`)** (#385) :
+  - Enregistrement des `coverageReserves` sur `Decision.complianceCheck` lors de l'arbitrage, et report systématique dans le dossier HLD (`bundleAssembly`) et la matrice RTM (`complianceMatrix`).
+  - Refus du scellement (`canFreezeSection` avec `COVERAGE_RESERVE_UNACCEPTED` et `generateArchitectureLockManifest`) si un référentiel applicable est `missing` ou `unknown` sans acceptation explicite tracée.
+  - Alignement de `ARCHITECTURE.md` §3 sur la règle réelle (alerte à l'arbitrage, opposable au scellement).
+- **Provenance du verdict Oracle OPA et garde Phase 4 (`src/lib/server/edp/refinementCoverage.ts`, `src/lib/server/edp/decisionSlotRegistry.ts`, `src/lib/components/deliberation/Phase4RefinementHub.svelte`)** (#380) :
+  - Ajout de `source` (`defaults` | `catalogue` | `inventaire_reel`), `evaluatedAt` et `ontologyRevision` sur `MultiAxisOracleEvaluationResult`.
+  - Refus de `generateArchitectureLockManifest` lorsque `source === 'defaults'` (simulation non opposable).
+  - En Phase 4, affichage d'un bandeau « Mode Exploration / Simulation » et du libellé « SIMULATION, NON OPPOSABLE » (jamais « CONFORME ») avant `L3_decided` ou sur `defaults`, avec désactivation des actions opposables de ratification avant `L3_decided`.
+  - Correction du nommage généré des hôtes/clusters via `sanitizeHostnameSegment` (élimine les doubles tirets tels que `srv--proposes-89-01`).
+- **Import unifié des sujets (`src/lib/domain/engagements.ts`, `src/lib/components/deliberation/CorpusAppropriationHub.svelte`)** (#58) :
+  - Préservation de `coveredClauseRefs` même sans `requirementAudit` (passe directe / dépouillement clause par clause).
+  - Chemin d'import commun `buildImportedSubjects` préservant `problemStatement`, `expertQuestions`, `proposal`, `nature` et `dependsOn`, avec identifiants de sujets uniques préfixés par le projet (`generateProjectScopedSubjectId`).
+- **Tests** :
+  - Ajout de `tests/contract/issues-384-385-380-58.test.ts` et mise à jour des suites `verifier-agent.test.ts`, `maturity-rules.test.ts`, `maturity-criteria.test.ts` et `wave1-semantic-matching.test.ts`.
+
 ### Réconciliation périodique Nautobot & Vue « Dérive » (#379)
 
 - **Job de réconciliation périodique par projet** (`src/lib/server/edp/reconciliationJob.ts`, modèles Prisma `ProjectReconciliationState` et `ReconciliationRun`) : intervalle et seuil de péremption configurables, verrou atomique anti-concurrence, idempotence stricte avec auto-résolution des écarts disparus, reprise après panne Nautobot en conservant `lastSuccessAt`.

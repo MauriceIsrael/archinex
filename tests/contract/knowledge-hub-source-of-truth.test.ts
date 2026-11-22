@@ -121,7 +121,8 @@ describe('Knowledge Hub Source of Truth & Stateless Engine Contract (Issue #253,
 
 	describe('1. Ontologie SI : Priorité Knowledge Hub et Fallback propre hors-ligne', () => {
 		it('interroge en priorité le Knowledge Hub LLMOps lorsque celui-ci est accessible', async () => {
-			const catalog = await loadOntologyCatalog({ hubUrl });
+			// Hub simulé minimal : l'extension de projet du scénario (qui cible des entités absentes de ce Hub) est désactivée.
+			const catalog = await loadOntologyCatalog({ hubUrl, projectOverlayPath: '' });
 			expect(catalog.catalog_version).toBe('2.0-sovereign');
 			expect(catalog.entities['urn:archinex:ontology:infrastructure:cloud:k8s']).toBeDefined();
 			expect(catalog.entities['urn:archinex:ontology:infrastructure:cloud:k8s'].title).toContain('from Remote Hub');

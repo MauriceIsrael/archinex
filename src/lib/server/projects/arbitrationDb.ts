@@ -74,6 +74,26 @@ export function parseDecisionComplianceCheck(raw: string | null | undefined): De
 			frameworks: Array.isArray(parsed.frameworks)
 				? parsed.frameworks.filter((fw: unknown): fw is string => typeof fw === 'string')
 				: [],
+			...(Array.isArray(parsed.coverageReserves) && parsed.coverageReserves.length > 0
+				? {
+						coverageReserves: parsed.coverageReserves
+							.filter(
+								(r: any) =>
+									r &&
+									typeof r === 'object' &&
+									typeof r.frameworkId === 'string' &&
+									['partial', 'missing', 'unknown'].includes(r.status)
+							)
+							.map((r: any) => ({
+								frameworkId: r.frameworkId,
+								...(typeof r.name === 'string' ? { name: r.name } : {}),
+								status: r.status as 'partial' | 'missing' | 'unknown',
+								...(typeof r.validatedCount === 'number' ? { validatedCount: r.validatedCount } : {}),
+								...(typeof r.expectedCount === 'number' ? { expectedCount: r.expectedCount } : {}),
+								hubRevision: typeof r.hubRevision === 'string' ? r.hubRevision : null
+							}))
+					}
+				: {}),
 			...(parsed.derogation && typeof parsed.derogation === 'object' && typeof parsed.derogation.reason === 'string'
 				? {
 						derogation: {
@@ -293,6 +313,7 @@ export async function getSubjectArbitrationContext(subjectId: string): Promise<{
 		optionId: a.optionId,
 		targetArgumentId: a.targetArgumentId,
 		stance: a.stance as any,
+		verdict: (a.verdict as any) ?? null,
 		claim: a.claim,
 		grounds: a.grounds,
 		kbRefs: JSON.parse(a.kbRefs || '[]'),
@@ -373,6 +394,7 @@ export async function recordArbitrationDecision(
 	}
 
 	// Évaluation de l'arbitrabilité avec les dispenses de violations soumises
+	const projectFrameworks = (await getProjectFrameworks(subject.projectId)).frameworks;
 	const readinessWithViolations = computeMaturity({
 		subject: {
 			id: subject.id,
@@ -386,7 +408,7 @@ export async function recordArbitrationDecision(
 		evaluations: ctx.evaluations,
 		arguments: ctx.arguments,
 		acceptedViolations: data.acceptedViolations || [],
-		requiredFrameworks: (await getProjectFrameworks(subject.projectId)).frameworks,
+		requiredFrameworks: projectFrameworks,
 		allowRevision: true,
 		semanticClassification: ctx.semanticClassification
 	});
@@ -436,12 +458,24 @@ export async function recordArbitrationDecision(
 	}
 
 	const decidedAt = new Date();
+	const coverageReserves = projectFrameworks
+		.filter((fw): fw is typeof fw & { status: 'partial' | 'missing' | 'unknown' } => fw.status !== 'covered')
+		.map((fw) => ({
+			frameworkId: fw.frameworkId,
+			...(fw.name ? { name: fw.name } : {}),
+			status: fw.status,
+			...(fw.validatedCount !== undefined ? { validatedCount: fw.validatedCount } : {}),
+			...(fw.expectedCount !== undefined ? { expectedCount: fw.expectedCount } : {}),
+			hubRevision: compliance.hubRevision
+		}));
+
 	const complianceCheckRecord: DecisionComplianceCheck = {
 		status: compliance.checkStatus,
 		hubRevision: compliance.hubRevision,
 		checkedAt: compliance.checkedAt,
 		unassessedRuleIds: compliance.unassessedRuleIds,
-		frameworks: compliance.frameworks
+		frameworks: compliance.frameworks,
+		...(coverageReserves.length > 0 ? { coverageReserves } : {})
 	};
 
 	if (complianceCheckRecord.status === 'not_checked' || complianceCheckRecord.status === 'partial') {

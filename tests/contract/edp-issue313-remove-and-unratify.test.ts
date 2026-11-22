@@ -10,10 +10,9 @@ import {
 	resetProjectSlotRegistry,
 	revokeProjectSlotRatification
 } from '$lib/server/edp/decisionSlotRegistry';
+import { readFixtureCatalog } from '../helpers/ontologyFixture';
 
-const fixtureCatalog = JSON.parse(
-	readFileSync(resolve(process.cwd(), 'tests/fixtures/edp/ontology_export.json'), 'utf8')
-) as OntologyCatalog;
+const fixtureCatalog = readFixtureCatalog() as OntologyCatalog;
 
 describe('Issue #313 : Retrait de feuille ontologique (excludedLeafUrns) & Révocation de ratification (unratify)', () => {
 	const testProjectId = 'proj-test-issue313';

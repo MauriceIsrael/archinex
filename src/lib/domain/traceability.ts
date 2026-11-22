@@ -8,6 +8,7 @@
 import type { EngagementBundle } from './engagementBundle';
 import type { HubEngagementSnapshot } from './hubSnapshot';
 import { cell } from './requirementsAuditReport';
+import { coverageFromBundle, type CoverageReport } from './coverageModel';
 
 export interface TraceRow {
 	id: string;
@@ -41,6 +42,8 @@ export interface TraceabilityView {
 	provisionalDetail: string | null;
 	blockingGaps: string[];
 	groups: TraceGroup[];
+	/** Modèle unique de complétude de la couverture (Issue #401). */
+	coverage?: CoverageReport;
 }
 
 /** Ce que le Hub DÉCLARE d'un contrôle visé par une exigence : une couverture par décision, jamais une vérification. */
@@ -101,6 +104,11 @@ export function renderTraceabilityView(view: TraceabilityView): string {
 	out.push(
 		`- ${rows.filter((r) => r.assertionLevel === 'asserted').length} décidée(s) par une personne, ${rows.filter((r) => r.assertionLevel === 'proposed').length} proposée(s)`
 	);
+	if (view.coverage) {
+		const ind = view.coverage.indicators;
+		out.push(`- Couverture complète : ${ind.headline} (${ind.overallDecided.label}, ${ind.overallPlanned.label}, ${ind.overallRealizedProven.label})`);
+		out.push(`- Trous de couverture : ${view.coverage.gaps.length} dont ${view.coverage.blockingGaps.length} bloquant(s)`);
+	}
 	out.push('');
 	return out.join('\n');
 }
@@ -161,7 +169,8 @@ export function viewFromBundle(bundle: EngagementBundle): TraceabilityView {
 		blockingGaps: d.gaps
 			.filter((g) => g.blocking)
 			.map((g) => `- \`${g.kind}\` ${g.requirement_id ? `(${g.requirement_id}) ` : g.subject_id ? `(${g.subject_id}) ` : ''}: ${cell(g.description, 240)}`),
-		groups
+		groups,
+		coverage: coverageFromBundle(bundle)
 	};
 }
 

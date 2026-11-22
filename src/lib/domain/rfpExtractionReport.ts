@@ -41,7 +41,8 @@ export interface ExtractionReport {
 	clauseCount: number;
 	totalCharacters: number;
 	extractedCharacters: number;
-	coverageRate: number; // 0 à 100 (%)
+	/** Couverture d'extraction en caractères (0 à 100 %) — distincte de la couverture de délibération des exigences (`coverageModel.ts`). */
+	extractionCharCoverage: number;
 	detectedPatterns: DetectedPatternSummary[];
 	gaps: NumberingGap[];
 	duplicates: Array<{ baseRef: string; count: number; refs: string[] }>;
@@ -84,7 +85,7 @@ export interface HumanExtractionValidation {
 	reportSummary: {
 		pageCount: number;
 		clauseCount: number;
-		coverageRate: number;
+		extractionCharCoverage: number;
 		anomaliesCount: number;
 	};
 }
@@ -319,7 +320,7 @@ export function computeExtractionReport(
 	}
 
 	const rawCoverage = (extractedCharacters / totalCharacters) * 100;
-	const coverageRate = Math.min(100, Math.round(rawCoverage * 10) / 10);
+	const extractionCharCoverage = Math.min(100, Math.round(rawCoverage * 10) / 10);
 
 	// Analyse des motifs et détection du préfixe dominant
 	const detectedPatterns = detectReferencePatterns(clauses);
@@ -447,13 +448,13 @@ export function computeExtractionReport(
 		});
 	}
 
-	if (coverageRate < 60) {
+	if (extractionCharCoverage < 60) {
 		anomalies.push({
 			id: `low-coverage`,
 			type: 'low_coverage',
 			severity: 'warning',
-			label: `Faible couverture textuelle (${coverageRate} %)`,
-			details: `Seulement ${coverageRate} % du texte du document est rattaché à une exigence. Des sections importantes risquent d'être ignorées lors de l'audit.`
+			label: `Faible couverture textuelle (${extractionCharCoverage} %)`,
+			details: `Seulement ${extractionCharCoverage} % du texte du document est rattaché à une exigence. Des sections importantes risquent d'être ignorées lors de l'audit.`
 		});
 	}
 
@@ -462,7 +463,7 @@ export function computeExtractionReport(
 	if (gaps.length > 0) qualityScore -= Math.min(25, gaps.length * 5);
 	if (duplicates.length > 0) qualityScore -= Math.min(20, duplicates.length * 5);
 	if (unnumbered.length > 0) qualityScore -= Math.min(15, unnumbered.length * 5);
-	if (coverageRate < 70) qualityScore -= Math.round((70 - coverageRate) * 0.8);
+	if (extractionCharCoverage < 70) qualityScore -= Math.round((70 - extractionCharCoverage) * 0.8);
 	if (abnormallyShortClauses.length > 10) qualityScore -= 10;
 	if (abnormallyLongClauses.length > 5) qualityScore -= 10;
 	qualityScore = Math.max(0, Math.min(100, qualityScore));
@@ -472,7 +473,7 @@ export function computeExtractionReport(
 		clauseCount,
 		totalCharacters,
 		extractedCharacters,
-		coverageRate,
+		extractionCharCoverage,
 		detectedPatterns,
 		gaps,
 		duplicates,
@@ -633,7 +634,7 @@ export function createHumanValidationRecord(params: {
 		reportSummary: {
 			pageCount: params.report.pageCount,
 			clauseCount: params.report.clauseCount,
-			coverageRate: params.report.coverageRate,
+			extractionCharCoverage: params.report.extractionCharCoverage,
 			anomaliesCount: params.report.anomalies.length
 		}
 	};

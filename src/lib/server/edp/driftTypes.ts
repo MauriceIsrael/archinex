@@ -53,6 +53,8 @@ export interface DriftFindingDraft {
   severity: DriftSeverity;
   sourceEvent: string;
   summary?: string;
+  /** Délai estimé en ms entre la modification réelle dans Nautobot et sa première détection (#379). */
+  detectedDelayMs?: number | null;
 }
 
 /**
@@ -74,6 +76,8 @@ export interface DriftFindingRecord {
   severity: DriftSeverity;
   firstSeenAt: string;
   lastSeenAt: string;
+  resolvedAt?: string | null;
+  detectedDelayMs?: number | null;
   state: DriftState;
   sourceEvent: string;
 }

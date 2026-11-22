@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest';
-import { runVerifierAgent } from '$lib/server/agents/verifier';
+import { runVerifierAgent, runVerifierAgentWithStatus } from '$lib/server/agents/verifier';
 import { runProposerWithProposal } from '$lib/server/agents/proposer';
 import { localLlmClient } from '$lib/server/llm/localLlmClient';
 import { FALLBACK_PREFIX, INTERACTIVE_AGENT_TIMEOUT_MS } from '$lib/server/agents/agentConfig';
@@ -117,13 +117,45 @@ describe('Agents interactifs : Verifier & Proposer (repli déterministe, résolu
 		expect(res[0].optionId).toBe('opt-mesh');
 	});
 
-	it('runVerifierAgent bascule sur le repli déterministe si le filtrage optionId/kbRefs élimine tous les items LLM', async () => {
+	it('runVerifierAgent renvoie un verdict structuré (compliant/violates/not_applicable/unknown) et supporte ruleId/evidence (#384)', async () => {
+		vi.spyOn(localLlmClient, 'chat').mockResolvedValue(
+			JSON.stringify({
+				verifications: [
+					{
+						optionId: 'opt-gateway',
+						stance: 'verification',
+						verdict: 'violates',
+						ruleId: 'SEC-01',
+						evidence: 'Absence de chiffrement mTLS est-ouest entre microservices.',
+						claim: 'Non-conformité SEC-01',
+						confidence: 'designed'
+					}
+				]
+			})
+		);
+
+		const res = await runVerifierAgentWithStatus({
+			subject: { id: 'sub-1', name: 'Cloisonnement', sectionRef: '§3.1' },
+			options: sampleOptions,
+			allowedKbRefs: ['SEC-01'],
+			round: 1
+		});
+
+		expect(res.status).toBe('evaluated');
+		expect(res.arguments).toHaveLength(1);
+		expect(res.arguments[0].verdict).toBe('violates');
+		expect(res.arguments[0].kbRefs).toEqual(['SEC-01']);
+		expect(res.arguments[0].grounds).toContain('mTLS');
+	});
+
+	it('runVerifierAgent émet un état not_evaluated (aucun argument fabriqué) si le filtrage élimine tous les items LLM (#384)', async () => {
 		vi.spyOn(localLlmClient, 'chat').mockResolvedValue(
 			JSON.stringify({
 				verifications: [
 					{
 						optionId: 'opt-inconnue',
 						stance: 'verification',
+						verdict: 'compliant',
 						claim: 'Constat invalide',
 						grounds: 'Référence hallucinée non présente dans allowedKbRefs.',
 						kbRefs: ['RULE-HALLUCINEE'],
@@ -133,16 +165,37 @@ describe('Agents interactifs : Verifier & Proposer (repli déterministe, résolu
 			})
 		);
 
-		const res = await runVerifierAgent({
+		const statusRes = await runVerifierAgentWithStatus({
 			subject: { id: 'sub-1', name: 'Cloisonnement', sectionRef: '§3.1' },
 			options: sampleOptions,
 			allowedKbRefs: ['SEC-01'],
 			round: 1
 		});
 
-		expect(res.length).toBeGreaterThan(0);
-		expect(res[0].claim.startsWith(FALLBACK_PREFIX)).toBe(true);
-		expect(res[0].kbRefs).toEqual(['SEC-01']);
+		expect(statusRes.status).toBe('not_evaluated');
+		expect(statusRes.arguments).toEqual([]);
+	});
+
+	it('runVerifierAgent émet not_evaluated sans argument sur sortie JSON invalide ou modèle indisponible (#384)', async () => {
+		vi.spyOn(localLlmClient, 'chat').mockResolvedValue('not-json-at-all');
+		const invalidJsonRes = await runVerifierAgentWithStatus({
+			subject: { id: 'sub-1', name: 'Cloisonnement', sectionRef: '§3.1' },
+			options: sampleOptions,
+			allowedKbRefs: ['SEC-01'],
+			round: 1
+		});
+		expect(invalidJsonRes.status).toBe('not_evaluated');
+		expect(invalidJsonRes.arguments).toEqual([]);
+
+		vi.spyOn(localLlmClient, 'chat').mockRejectedValue(new Error('ECONNREFUSED'));
+		const offlineRes = await runVerifierAgentWithStatus({
+			subject: { id: 'sub-1', name: 'Cloisonnement', sectionRef: '§3.1' },
+			options: sampleOptions,
+			allowedKbRefs: ['SEC-01'],
+			round: 1
+		});
+		expect(offlineRes.status).toBe('not_evaluated');
+		expect(offlineRes.arguments).toEqual([]);
 	});
 
 	it('runProposerWithProposal bascule sur le repli déterministe si tous les optionId LLM sont inconnus', async () => {

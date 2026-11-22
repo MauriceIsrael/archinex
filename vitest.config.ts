@@ -15,7 +15,11 @@ export default defineConfig({
 		// Les tests ne parlent jamais au LLMOps de développement (127.0.0.1:8000) : adresse injoignable, comme en CI.
 		// Les tests « réels » se lancent explicitement contre un serveur dédié (LLMOPS_LIVE_URL).
 		env: {
-			LLMOPS_BASE_URL: 'http://127.0.0.1:1'
+			LLMOPS_BASE_URL: 'http://127.0.0.1:1',
+			// L'ontologie de test = copie de l'export du Hub (fixture générée) + l'extension du scénario « Lulu » (données de
+			// projet) + les écarts de doctrine non encore tranchés dans le Hub (à supprimer au fur et à mesure, Archinex#417).
+			ARCHINEX_ONTOLOGY_PROJECT_OVERLAY:
+				'tests/fixtures/edp/ontology_project_overlay.lulu.json,tests/fixtures/edp/ontology_pending_conflicts.json'
 		}
 	},
 	resolve: {

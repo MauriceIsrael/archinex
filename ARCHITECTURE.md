@@ -107,15 +107,18 @@ Un tour d'orchestration (3 tours maximum) enchaîne 4 agents spécialisés :
 Toute objection doit être résolue (`answered` ou `accepted_risk`) par un expert humain habilité avant l'arbitrage.
 
 ### Étape 4 : Calcul Dynamique de la Maturité (`computeMaturity`)
-La maturité d'un sujet n'est plus fixée manuellement : elle est calculée par une fonction pure qui évalue 8 codes de blocage :
-- `MISSING_PROBLEM_STATEMENT` : Problème non formulé.
-- `MISSING_CRITERIA` : Moins de 2 critères définis.
-- `INSUFFICIENT_OPTIONS` : Moins de 2 options formulées.
-- `UNEVALUATED_OPTION` : Option non évaluée sur tous les critères.
-- `OPEN_OBJECTION` : Objection ouverte non résolue dans le débat.
-- `UNRESOLVED_VIOLATION` : Règle doctrinale violée sans dérogation justifiée.
-- `OPEN_BLOCKING_QUESTION` : Question bloquante sans réponse.
-- `COVERAGE_INCOMPLETE` : Référentiel réglementaire projet (`NIS2`, `SecNumCloud`...) non couvert.
+La maturité d'un sujet n'est plus fixée manuellement : elle est calculée par une fonction pure qui distingue **codes bloquants à l'arbitrage** et **alertes / réserves tracées** :
+- **Codes bloquants (`blockers`)** :
+  - `MISSING_PROBLEM_STATEMENT` : Problème non formulé.
+  - `MISSING_CRITERIA` : Moins de 2 critères définis (1 suffit si option unique justifiée).
+  - `INSUFFICIENT_OPTIONS` : Moins de 2 options formulées (sauf option unique justifiée).
+  - `UNEVALUATED_OPTION` : Option non évaluée sur tous les critères.
+  - `OPEN_OBJECTION` : Objection ouverte non résolue dans le débat.
+  - `UNRESOLVED_VIOLATION` : Règle doctrinale violée (`verdict: 'violates'` ou `checkOption` validé) sans dérogation justifiée.
+  - `OPEN_BLOCKING_QUESTION` : Question bloquante sans réponse.
+- **Alertes non bloquantes à l'arbitrage (`warnings`), opposables au scellement** :
+  - `COVERAGE_INCOMPLETE` : Référentiel réglementaire projet (`NIS2`, `SecNumCloud`...) en statut `partial`, `missing` ou `unknown`. Non bloquant à l'arbitrage (la maintenance KB relève de LLMOps), mais enregistré en **réserve de couverture** (`coverageReserves`) sur la décision, reporté dans le HLD/bundle et la RTM, et **bloquant au scellement** (`freezeExport` et `generateArchitectureLockManifest`) pour les statuts `missing`/`unknown` sans acceptation explicite tracée.
+  - `VERIFICATION_VERDICT_UNKNOWN` : Verdict de vérification `unknown` ou non structuré (ne vaut jamais « conforme »).
 
 ### Étape 5 : Arbitrage Humain Opposable (Porte G3)
 Seul un `lead_architect` ou un `domain_expert` habilité sur le domaine du sujet peut prononcer l'arbitrage :
@@ -508,8 +511,8 @@ Archinex associe à chaque décision d'architecture arbitrée un **Paquet de Dé
    - Modèle Prisma `ExecutableDecisionPackage` avec application directe de l'Invariant II (interdiction absolue de valider automatiquement un EDP produit par LLM sans validation humaine tracée et signée) et Invariant VI (rétractation vers `stale` lors de la caducité d'un antécédent).
 6. **Service d'Évaluation `edp verify` & Adaptateurs LLD** :
    - Moteur central `edpVerify.ts` émettant un lot de preuves cryptographique (`EvidenceBundle`) avec codes de sortie standardisés (0, 1, 2, 3).
-   - Adaptateur Helm Sylva/CAPI (`sylvaAdapter.ts`) avec sanitization automatique des secrets.
-   - Adaptateur Nautobot Planned (`nautobotAdapter.ts`) normalisant les équipements physiques et interfaces.
+   - Module neutre d'assainissement Helm Sylva/CAPI (`manifestSanitizer.ts`) avec sanitization automatique des secrets.
+   - Module de lecture Nautobot Planned (`nautobotPlannedExtract.ts`) normalisant les équipements physiques et interfaces.
 7. **Chaîne de Rédaction Assistée LLM & Composant IHM Workbench** :
    - Pipeline de garde `edpDrafting.ts` filtrant les propositions d'IA par l'ensemble des contrôles déterministes avant toute présentation humaine.
    - Composant UI `EdpCard.svelte`, permettant aux architectes habilités de visualiser les verdicts, scores de mutation et de valider ou contester formellement l'EDP.
@@ -565,7 +568,7 @@ flowchart LR
 
 | Module / Fichier | Responsabilité Architecturale |
 | :--- | :--- |
-| [`tests/fixtures/edp/ontology_export.json`](tests/fixtures/edp/ontology_export.json) | **Socle Ontologique SI & Telco** : définit les **6 Concepts HLD** (`telco_cloud_platform`, `interconnection_gateway`, `storage_data_persistence`, `iam_security_zerotrust`, `observability_noc_soc`, `resilience_drp_continuity`), leurs **18 Axes de Raffinement obligatoires** (`kind: "axis"`), les **21 Feuilles d'Implémentation** (`kind: "leaf"`, incluant leurs `projections` pour `data.ontology`, leurs `oracle_rules` et leur `hydration_template`) ainsi que les triplets relationnels (`requires_aspect`, `implemented_by`, `depends_on`, `constrains`, `conflicts_with`). |
+| [`tests/fixtures/edp/ontology_export.json`](tests/fixtures/edp/ontology_export.json) | **Socle Ontologique SI & Telco** (copie générée de l'export du Knowledge Hub, jamais retouchée à la main : [`docs/edp/ontology-source.md`](docs/edp/ontology-source.md)) : définit les **6 Concepts HLD** (`telco_cloud_platform`, `interconnection_gateway`, `storage_data_persistence`, `iam_security_zerotrust`, `observability_noc_soc`, `resilience_drp_continuity`), leurs **18 Axes de Raffinement obligatoires** (`kind: "axis"`), les **21 Feuilles d'Implémentation** (`kind: "leaf"`, incluant leurs `projections` pour `data.ontology`, leurs `oracle_rules` et leur `hydration_template`) ainsi que les triplets relationnels (`requires_aspect`, `implemented_by`, `depends_on`, `constrains`, `conflicts_with`). |
 | [`src/lib/server/edp/ontologyClient.ts`](src/lib/server/edp/ontologyClient.ts) | **Moteur de Requêtage & Édition de Triplets `{ Sujet, Verbe, Complément }`** : expose `queryOntologyTriplets`, `addOntologyTriplet` et `removeOntologyTriplet` avec persistance dans une surcouche runtime (`data/ontology_runtime_overlay.json`), permettant d'étendre les axes de couverture sans toucher au code. |
 | [`src/lib/server/edp/refinementCoverage.ts`](src/lib/server/edp/refinementCoverage.ts) | **Moteur KAOS de Couverture, Composition & Hydratation Multi-Axes** : <br/>• `resolveSubjectConcepts` : sélectionne les concepts HLD pertinents par propagation ascendante sur le graphe.<br/>• `computeRefinementCoverage` : calcule la matrice de complétude KAOS (`covered_executable` 🟢, `covered_no_oracle` 🟡, `missing_refinement` 🔴), auto-lie les feuilles standards par défaut (`is_default_standard`) et supporte le **cumul de variantes (OU inclusif)** sur un même axe.<br/>• `composeMultiAxisHydration` : synthétise l'inventaire LLD multi-axes (`nautobot_planned_devices`, `sylva_workload_cluster_values`, `k8s_manifests`, `security_zones`, `environments`, `power_feeds`) et le **Graphe de Réconciliation à 7 classes d'objets (`reconciliation_graph`)**.<br/>• `evaluateMultiAxisOracle` : invoque le binaire OPA sur `edp/policies/multi_axis_refinement.rego`. |
 | [`src/lib/server/edp/projectionCompiler.ts`](src/lib/server/edp/projectionCompiler.ts) | **Compilateur de Projections `data.ontology`** : compile les `projections` des feuilles liées en un document JSON déterministe injecté dans OPA (`--data`), calcule son empreinte canonique SHA-256 et vérifie l'absence de littéraux métier dupliqués en dur dans les règles Rego (`detectDuplicateLiterals`). |
@@ -922,7 +925,7 @@ Décision formalisée dans l'[ADR-017](docs/adr/ADR-017-nautobot-point-unique-re
 2. **Archinex se concentre sur la délibération, la complétude de la couverture des exigences et la justification visuelle** (épique #400).
 3. **Ordre de réalisation** : sécurité et intégrité (P0) → fiabilité de la décision (#373) → tranche minimale de réconciliation Nautobot puis cadre des connecteurs (#372) → couverture et visuels (#400) → généralisation (#374, prérequis du push générique).
 4. **Gel** : aucun nouvel appel d'écriture d'Archinex vers un outil d'implémentation, et aucun nouveau connecteur direct, tant que la tranche minimale (Tenant ; Device + statut ; Prefix/VLAN/IP) n'est pas en production sur un projet réel.
-5. Les adaptateurs existants (`src/lib/server/edp/adapters/`) ne sont pas câblés dans l'application ; leur relocalisation est suivie dans #411.
+5. Les 6 adaptateurs Port/Adapter ont été relocalisés hors du cœur vers `connectors/` (#411) avec leur tableau de classement ([`docs/edp/connectors-classification.md`](docs/edp/connectors-classification.md)) et le contrat de write-back Nautobot (`connectors/writeBackContract.ts`). Le cœur `src/` ne conserve que les modules neutres `manifestSanitizer.ts` et `nautobotPlannedExtract.ts`.
 
 Les horizons 1 à 3 ci-dessous décrivent l'intention d'origine : les éléments qui parlent directement à un outil (export GitOps vers une forge, Batfish, Prometheus, Nephio) sont **à re-cadrer derrière Nautobot** et **gelés** jusqu'à la clôture de la tranche minimale.
 
@@ -1010,7 +1013,7 @@ flowchart TD
 - **Rôle** : Autorité doctrinale souveraine et registre patrimonial de l'architecture d'entreprise.
 - **Support** : Dépôt dédié [`MauriceIsrael/LLMOps`](https://github.com/MauriceIsrael/LLMOps) et service Knowledge Graph servi par MCP / API REST.
 - **Consommation dynamique & Priorité souveraine (#253)** :
-  - **Ontologie SI (`src/lib/server/edp/ontologyClient.ts`)** : Interroge en priorité absolue le service LLMOps via son API REST (`GET /api/knowledge/ontology/export`). En environnement hors-ligne ou de test déconnecté, bascule de manière transparente sur les fixtures scellées (`tests/fixtures/edp/ontology_export.json`). En environnement de production (`NODE_ENV=production`), tout repli silencieux est strictement interdit afin de garantir l'authenticité des contrôles d'architecture.
+  - **Ontologie SI (`src/lib/server/edp/ontologyClient.ts`)** : Interroge en priorité absolue le service LLMOps via son API REST (`GET /api/knowledge/ontology/export`). En environnement hors-ligne ou de test déconnecté, bascule de manière transparente sur les fixtures scellées (`tests/fixtures/edp/ontology_export.json`, copie générée de l'export du Hub ; la donnée de projet s'ajoute par-dessus via une extension, voir `docs/edp/ontology-source.md`). En environnement de production (`NODE_ENV=production`), tout repli silencieux est strictement interdit afin de garantir l'authenticité des contrôles d'architecture.
   - **Doctrine & Règles de Conformité (`src/lib/server/doctrine/doctrineService.ts`)** : Interroge en priorité absolue le Knowledge Hub (`GET /api/knowledge/context`). En mode hors-ligne/test déconnecté, active un repli propre sur les fixtures doctrinales scellées (`llmops-sealed-snapshot.json`) en filtrant par domaines et sujets. En production, le statut hors-ligne (`offline: true`) est propagé sans aucune invention de règles.
   - **Porte G4 — Capitalisation Souveraine (`src/lib/server/projects/capitalizationDb.ts`)** : Les nouveaux patterns architecturaux (`new_asset`) et amendements/dérogations (`amendment`) sont transmis directement vers l'API du Knowledge Hub (`POST /api/knowledge/candidates`) par requêtes HTTP sécurisées avec propagation de l'identité d'acteur (`X-Actor-Email`). L'ensemble de la Porte G4 fonctionne de manière strictement *stateless*, sans aucune écriture ni lecture de fichiers locaux sur le système de fichiers.
 

@@ -6,7 +6,7 @@ import {
   OciSupplyChainAdapter,
   DdiDnsAdapter,
   GitopsForgeAdapter
-} from '../../src/lib/server/edp/adapters/index.js';
+} from '../../connectors/index.js';
 
 const LIVE_MODE = process.env.SYLVA_STACK_LIVE === '1';
 

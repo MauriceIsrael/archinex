@@ -74,12 +74,30 @@ export interface ComplianceCheckDerogation {
 	acknowledgedBy?: string;
 }
 
+export interface CoverageReserve {
+	frameworkId: string;
+	name?: string;
+	status: 'partial' | 'missing' | 'unknown';
+	validatedCount?: number;
+	expectedCount?: number;
+	hubRevision: string | null;
+}
+
+export interface AcceptedCoverageReserve {
+	frameworkId: string;
+	justification: string;
+	acceptedBy?: string;
+	acceptedAt?: string;
+}
+
 export interface DecisionComplianceCheck {
 	status: ComplianceCheckStatus;
 	hubRevision: string | null;
 	checkedAt: string; // ISO date
 	unassessedRuleIds: string[];
 	frameworks: string[];
+	/** Réserves de couverture réglementaire enregistrées à l'arbitrage (issue #385). */
+	coverageReserves?: CoverageReserve[];
 	derogation?: ComplianceCheckDerogation;
 }
 

@@ -1,6 +1,7 @@
 import type { Statement, ArchitectRole } from '$lib/types/epistemic';
 import type { MaturitySubject } from '$lib/domain/maturityBoard';
 import type { TelegraphicDraft } from '$lib/domain/telegraphic';
+import type { CoverageReserve, AcceptedCoverageReserve } from '$lib/domain/options';
 import { universalSha256 } from '$lib/validation/epistemicEnvelope';
 import { canonicalJson } from '$lib/domain/canonicalJson';
 import {
@@ -41,6 +42,9 @@ export interface SealedSnapshot {
 	sealProfile?: 'canonical-json-v1';
 	externalRefs: ExternalRef[];
 	statements: Statement[];
+	/** Réserves de couverture réglementaire portées au scellement (issue #385). */
+	coverageReserves?: CoverageReserve[];
+	acceptedCoverageReserves?: AcceptedCoverageReserve[];
 	projections: {
 		mermaid: string;
 		structurizrDSL: string;
@@ -54,12 +58,18 @@ export type FreezeGatingViolationCode =
 	| 'MATURITY_INSUFFICIENT'
 	| 'OPEN_CONFLICT_GATING_VIOLATION'
 	| 'UNPROVEN_HYPOTHESIS_PRESENT'
+	| 'COVERAGE_RESERVE_UNACCEPTED'
 	| 'ROLE_NOT_AUTHORIZED';
 
 export interface FreezeGatingResult {
 	allowed: boolean;
 	code?: FreezeGatingViolationCode | 'SUCCESS';
 	reason?: string;
+}
+
+export interface FreezeCoverageOptions {
+	coverageReserves?: CoverageReserve[];
+	acceptedCoverageReserves?: AcceptedCoverageReserve[];
 }
 
 import { explainActionRefusal } from '$lib/domain/spaceActor';
@@ -70,12 +80,14 @@ import { explainActionRefusal } from '$lib/domain/spaceActor';
  * 2. Zéro conflit d'architecture ouvert.
  * 3. Zéro hypothèse 'assumed' non justifiée.
  * 4. Rôle Lead Architect requis pour scellement officiel.
+ * 5. Référentiels applicables en statut `missing` ou `unknown` refusés sans acceptation explicite tracée (#385).
  */
 export function canFreezeSection(
 	subject: MaturitySubject,
 	draft: TelegraphicDraft,
 	statements: Statement[],
-	actorRole: ArchitectRole
+	actorRole: ArchitectRole,
+	coverageOptions?: FreezeCoverageOptions
 ): FreezeGatingResult {
 	if (actorRole !== 'lead_architect' && actorRole !== 'Lead Architect') {
 		return {
@@ -117,6 +129,26 @@ export function canFreezeSection(
 		};
 	}
 
+	const blockingReserves = (coverageOptions?.coverageReserves ?? []).filter(
+		(r) => r.status === 'missing' || r.status === 'unknown'
+	);
+	if (blockingReserves.length > 0) {
+		const acceptedSet = new Set(
+			(coverageOptions?.acceptedCoverageReserves ?? [])
+				.filter((a) => a.justification && a.justification.trim().length > 0)
+				.map((a) => a.frameworkId)
+		);
+		const unaccepted = blockingReserves.filter((r) => !acceptedSet.has(r.frameworkId));
+		if (unaccepted.length > 0) {
+			const list = unaccepted.map((r) => `${r.name || r.frameworkId} (${r.status})`).join(', ');
+			return {
+				allowed: false,
+				code: 'COVERAGE_RESERVE_UNACCEPTED',
+				reason: `Scellement refusé : référentiel(s) applicable(s) non couvert(s) sans acceptation explicite tracée : ${list}.`
+			};
+		}
+	}
+
 	return { allowed: true, code: 'SUCCESS' };
 }
 
@@ -153,6 +185,8 @@ export function freezeSectionAndGenerateSnapshot(params: {
 	/** Horodatage du scellement (injectable pour les tests) ; par défaut l'instant courant. */
 	now?: Date;
 	context?: ProjectionContext;
+	coverageReserves?: CoverageReserve[];
+	acceptedCoverageReserves?: AcceptedCoverageReserve[];
 }): SealedSnapshot {
 	const externalRefs = convertRefsToImmutable(params.draft.retenu || []);
 
@@ -204,6 +238,12 @@ export function freezeSectionAndGenerateSnapshot(params: {
 		sealProfile: 'canonical-json-v1',
 		externalRefs,
 		statements: sectionStatements,
+		...(params.coverageReserves && params.coverageReserves.length > 0
+			? { coverageReserves: params.coverageReserves }
+			: {}),
+		...(params.acceptedCoverageReserves && params.acceptedCoverageReserves.length > 0
+			? { acceptedCoverageReserves: params.acceptedCoverageReserves }
+			: {}),
 		projections
 	};
 }

@@ -57,6 +57,7 @@ describe('seedDemo — Démonstration Autonome (§14 Lulu Lot 3 ↔ Lot 1) sur B
     expect(result).toBeDefined();
     expect(result.projectId).toBe(PROJECT_ID);
     expect(result.subjectId).toBe(SUBJECT_ID);
+    expect(result.oracleEval.violations, JSON.stringify(result.oracleEval.violations)).toEqual([]);
     expect(result.oracleEval.verdict).toBe('compliant');
     expect(result.coverage.metrics.axisCoveragePercent).toBe(100);
 

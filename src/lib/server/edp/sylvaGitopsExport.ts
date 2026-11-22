@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { sanitizeManifests } from './adapters/sylvaAdapter.js';
+import { sanitizeManifests } from './manifestSanitizer.js';
 import type { MultiAxisHydratedInventory } from './refinementCoverage.js';
 import type { ResolvedComponentInstance } from '../../domain/edp/refResolver.js';
 

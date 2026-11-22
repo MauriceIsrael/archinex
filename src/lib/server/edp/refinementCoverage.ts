@@ -402,14 +402,52 @@ export interface MultiAxisOracleViolation {
   violated_requirement_id?: string;
 }
 
+export type OracleVerdictSource = 'defaults' | 'catalogue' | 'inventaire_reel';
+
 export interface MultiAxisOracleEvaluationResult {
   verdict: 'compliant' | 'violated' | 'insufficient_input';
+  /** Provenance du verdict : valeurs par défaut (simulation non opposable), catalogue ratifié ou inventaire réel Nautobot (#380). */
+  source: OracleVerdictSource;
+  /** Horodatage ISO-8601 de l'évaluation de l'oracle. */
+  evaluatedAt: string;
+  /** Révision ou empreinte de l'ontologie utilisée pour l'évaluation. */
+  ontologyRevision: string;
   violations: MultiAxisOracleViolation[];
   violationMessages: string[];
   insufficientInputReasons?: string[];
   evaluatedAxesCount: number;
   ontologyFingerprint: string;
   durationMs: number;
+}
+
+export function inferOracleVerdictSource(
+  bindings: Array<OntologyBindingItem & { source?: string; ratificationStatus?: string }>,
+  options?: { source?: OracleVerdictSource; hasRealInventory?: boolean; allRatified?: boolean }
+): OracleVerdictSource {
+  if (options?.source) return options.source;
+  if (options?.hasRealInventory) return 'inventaire_reel';
+  if (options?.allRatified && bindings.length > 0) return 'catalogue';
+  if (
+    bindings.length > 0 &&
+    bindings.every(
+      (b) =>
+        b.source !== 'default' &&
+        b.ratificationStatus !== 'default_proposed' &&
+        (b.source !== undefined || b.ratificationStatus !== undefined)
+    )
+  ) {
+    return 'catalogue';
+  }
+  return 'defaults';
+}
+
+export function sanitizeHostnameSegment(raw: string): string {
+  const cleaned = raw
+    .replace(/[^a-zA-Z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    .toLowerCase();
+  const tail = cleaned.slice(-12).replace(/^-+|-+$/g, '');
+  return tail || 'edge';
 }
 
 /**
@@ -1338,6 +1376,10 @@ export function computeRefinementCoverage(
       }
 
       const semanticScore = shouldAutoBind ? leafMatchDetails.score : 0;
+      // Liaison automatique sur un MOT-CLÉ de la feuille, jamais sur un simple mot de son titre : le titre est un libellé
+      // éditorial du Knowledge Hub (il change sans que le sens change) et un seul mot courant (« alimentation ») liait
+      // une variante concurrente (UPS N+1) en plus de la feuille 2N, qui en écrasait l'hydratation.
+      const hasKeywordHit = shouldAutoBind && leafMatchDetails.directKeywordScore > 0;
       const isDefaultStandard =
         shouldAutoBind && !isExcluded && leafEntity.is_default_standard === true;
 
@@ -1352,7 +1394,7 @@ export function computeRefinementCoverage(
         if (combinedScore > 0 && (!bestAutoAppCandidate || combinedScore > bestAutoAppCandidate.score)) {
           bestAutoAppCandidate = { summary, score: combinedScore };
         }
-      } else if (hasStrongLinkInCorpus || semanticScore > 0 || isDefaultStandard) {
+      } else if (hasStrongLinkInCorpus || hasKeywordHit || isDefaultStandard) {
         boundLeafUrns.add(leafEntity.urn);
         boundLeaves.push(summary);
         if (hasStrongLinkInCorpus) {
@@ -1820,8 +1862,8 @@ export function composeMultiAxisHydration(
   catalog: OntologyCatalog,
   overrides: LldHydrationOverrides = {}
 ): MultiAxisHydratedInventory {
-  const cleanSubj = subjectId.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase();
-  const hostname = `srv-${cleanSubj.slice(-12) || 'edge'}-01`;
+  const hostSlug = sanitizeHostnameSegment(subjectId);
+  const hostname = `srv-${hostSlug}-01`;
 
   const nautobotDevices: Array<Record<string, unknown>> = [];
   const k8sManifests: Array<Record<string, unknown>> = [];
@@ -2123,7 +2165,7 @@ export function composeMultiAxisHydration(
       const nodeHostname =
         idx === 0
           ? hostname
-          : `srv-${cleanSubj.slice(-12) || 'edge'}-0${idx + 1}`;
+          : `srv-${hostSlug}-0${idx + 1}`;
       const nodeType = overrides.deviceType !== undefined ? overrides.deviceType : prof.deviceType;
       const nodeRole = overrides.nodeRole !== undefined ? overrides.nodeRole : prof.role;
       const nodeOobIp =
@@ -2169,7 +2211,7 @@ export function composeMultiAxisHydration(
           namespace: 'sylva-system',
           labels: {
             'app.kubernetes.io/managed-by': 'sylva-units-operator',
-            'sylva.org/workload-cluster': `wc-${cleanSubj.slice(-12) || 'workload'}`,
+            'sylva.org/workload-cluster': `wc-${hostSlug}`,
             'sylva.org/machine-deployment-pool': prof.clusterPool,
             'sylva.org/device-type': nodeType,
             'sylva.org/security-zones': securityZones.map((z) => z.zone_id).join('-') || 'default'
@@ -2292,10 +2334,10 @@ export function composeMultiAxisHydration(
     apiVersion: 'workloadclusteroperator.sylva/v1alpha1',
     kind: 'SylvaWorkloadCluster',
     metadata: {
-      name: `wc-${cleanSubj.slice(-12) || 'workload'}`,
+      name: `wc-${hostSlug}`,
       namespace: 'sylva-workload-clusters',
       annotations: {
-        'archinex.io/gitops-target': `workload-clusters/wc-${cleanSubj.slice(-12) || 'workload'}`,
+        'archinex.io/gitops-target': `workload-clusters/wc-${hostSlug}`,
         'archinex.io/source-subject': subjectId,
         'archinex.io/satisfied-clauses': satisfiedClauses.join(','),
         'archinex.io/evaluated-triplets': evaluatedTriplets.join(',')
@@ -2495,11 +2537,22 @@ export function composeMultiAxisHydration(
  */
 export async function evaluateMultiAxisOracle(
   hydratedInventory: MultiAxisHydratedInventory,
-  bindings: OntologyBindingItem[],
-  catalog: OntologyCatalog
+  bindings: Array<OntologyBindingItem & { source?: string; ratificationStatus?: string }>,
+  catalog: OntologyCatalog,
+  options?: {
+    source?: OracleVerdictSource;
+    hasRealInventory?: boolean;
+    allRatified?: boolean;
+    ontologyRevision?: string;
+    now?: Date;
+  }
 ): Promise<MultiAxisOracleEvaluationResult> {
   const compiled = compileOntologyProjections(bindings, catalog);
   const policyPath = resolve(process.cwd(), 'edp/policies/multi_axis_refinement.rego');
+  const source = inferOracleVerdictSource(bindings, options);
+  const evaluatedAt = (options?.now ?? new Date()).toISOString();
+  const ontologyRevision =
+    options?.ontologyRevision ?? catalog.catalog_version ?? compiled.fingerprint.slice(0, 12);
 
   const opaRes = await runOpaEval<{
     verdict: 'compliant' | 'violated' | 'insufficient_input';
@@ -2550,6 +2603,9 @@ export async function evaluateMultiAxisOracle(
 
     return {
       verdict,
+      source,
+      evaluatedAt,
+      ontologyRevision,
       violations,
       violationMessages,
       ...(insufficientInputReasons.length > 0 ? { insufficientInputReasons } : {}),
@@ -2561,6 +2617,9 @@ export async function evaluateMultiAxisOracle(
 
   return {
     verdict: 'violated',
+    source,
+    evaluatedAt,
+    ontologyRevision,
     violations: [
       {
         rule: 'data.archinex.edp.multiaxis.opa_runtime_error',

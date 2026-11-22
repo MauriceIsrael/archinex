@@ -27,10 +27,9 @@ import {
 } from '$lib/server/ingest/arckitRequirementsPipeline';
 import { buildDocumentEnginePayload } from '$lib/server/projects/documentEngineBridge';
 import type { ProjectHldDossier } from '$lib/server/projects/hldFragmentDb';
+import { readFixtureCatalog } from '../helpers/ontologyFixture';
 
-const fixtureCatalog = JSON.parse(
-  readFileSync(resolve(process.cwd(), 'tests/fixtures/edp/ontology_export.json'), 'utf8')
-) as OntologyCatalog;
+const fixtureCatalog = readFixtureCatalog() as OntologyCatalog;
 
 const TEST_PROJECT_ID = 'proj-lot3-lot4-contract';
 

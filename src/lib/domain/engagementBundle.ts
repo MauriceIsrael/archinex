@@ -115,12 +115,22 @@ export interface BundleSubject {
 	projections?: SubjectProjections;
 }
 
+export interface BundleCoverageReserve {
+	framework_id: string;
+	name?: string;
+	status: 'partial' | 'missing' | 'unknown';
+	validated_count?: number;
+	expected_count?: number;
+	hub_revision: string | null;
+}
+
 export interface BundleComplianceCheck {
 	status: 'checked' | 'partial' | 'not_checked';
 	hub_revision: string | null;
 	checked_at: string;
 	unassessed_rule_ids: string[];
 	frameworks: string[];
+	coverage_reserves?: BundleCoverageReserve[];
 	derogation?: {
 		reason: string;
 		acknowledged_at: string;

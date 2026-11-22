@@ -3,8 +3,10 @@
 	import MermaidViewer from './MermaidViewer.svelte';
 	import LiveArchitectureLockView from './LiveArchitectureLockView.svelte';
 	import ImpactGraphExplorer from './ImpactGraphExplorer.svelte';
+	import Phase5DriftView from './Phase5DriftView.svelte';
 	import ComponentCatalogEditor from '$lib/components/edp/ComponentCatalogEditor.svelte';
-	import { Layers, ShieldCheck, Lock, GitBranch, Network, FileCode2, Table2 } from 'lucide-svelte';
+	import Phase5RealizationPanel from './Phase5RealizationPanel.svelte';
+	import { Layers, ShieldCheck, Lock, GitBranch, Network, FileCode2, Table2, Activity } from 'lucide-svelte';
 
 	const projectId = $derived(
 		deliberationStore.activeEngagement?.id || deliberationStore.activeEngagementId || 'default'
@@ -63,6 +65,14 @@
 		if (typeof document !== 'undefined') {
 			document
 				.getElementById('phase5-impact-graph')
+				?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+		}
+	}
+
+	function focusDriftView() {
+		if (typeof document !== 'undefined') {
+			document
+				.getElementById('phase5-drift-view')
 				?.scrollIntoView({ behavior: 'smooth', block: 'start' });
 		}
 	}
@@ -276,10 +286,10 @@
 			<div class="flex items-center gap-2 flex-wrap">
 				<span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-indigo-600 text-white">
 					<Layers class="h-3.5 w-3.5" />
-					Phase 5 · Consolidation Projet & Jumeau Sylva
+					Phase 5 · Réalisation & dérive (Consolidation)
 				</span>
 				<span class="text-xs font-mono text-muted-foreground">
-					Base × Overlay × Datacenter · Multi-sujets · Cible Sylva LATEST
+					Lecture seule Nautobot · Écarts ouverts · Remédier / Amender / Déroger
 				</span>
 			</div>
 			<h2 class="text-base font-bold text-foreground">
@@ -290,7 +300,16 @@
 				(<code class="font-mono">ref()</code>), simule la survie aux pannes du Jumeau Numérique de Sylva (3 DCs par défaut vs 2 DCs + Témoin vs 2 DCs secs) et génère le bouchon Redfish <code class="font-mono">sushy-emulator</code>.
 			</p>
 		</div>
-		<div class="flex items-center gap-2 shrink-0">
+		<div class="flex items-center gap-2 shrink-0 flex-wrap">
+			<button
+				type="button"
+				onclick={focusDriftView}
+				data-testid="phase5-jump-drift-view-btn"
+				class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-indigo-500/30 bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-800 dark:text-indigo-200 text-xs font-semibold transition-colors cursor-pointer"
+			>
+				<Activity class="h-3.5 w-3.5 shrink-0" />
+				<span>Vue Dérive</span>
+			</button>
 			<button
 				type="button"
 				onclick={focusImpactGraph}
@@ -305,6 +324,9 @@
 			</button>
 		</div>
 	</div>
+
+	<!-- Lecture seule de la réalisation Nautobot & actions de dérive (Issue #405) -->
+	<Phase5RealizationPanel />
 
 	<!-- Plan structuré par 4 Piliers Transverses (Socle, Sécurité, Gestion, GitOps) -->
 	<section
@@ -525,6 +547,9 @@
 			</div>
 		</div>
 	</section>
+
+	<!-- Vue « Dérive » & État de Réalisation Nautobot (#379, #399) -->
+	<Phase5DriftView {projectId} />
 
 	<!-- Cockpit Interactif : Vue de l'Architecture Lockée en Direct (Instant t), Allocation des Composants & Scellement architecture.lock -->
 	<div id="phase5-lock-cockpit">

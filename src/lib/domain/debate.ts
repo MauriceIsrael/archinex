@@ -2,6 +2,7 @@ import type { ProductionMode, EpistemicConfidence } from '$lib/types/epistemic';
 
 export type Stance = 'support' | 'objection' | 'question' | 'verification' | 'synthesis';
 export type ArgumentResolution = 'open' | 'answered' | 'accepted_risk' | 'withdrawn';
+export type VerificationVerdict = 'compliant' | 'violates' | 'not_applicable' | 'unknown';
 
 export interface Argument {
 	id: string;
@@ -9,6 +10,8 @@ export interface Argument {
 	optionId?: string | null;
 	targetArgumentId?: string | null;
 	stance: Stance;
+	/** Verdict structuré pour les arguments de vérification (`stance === 'verification'`). */
+	verdict?: VerificationVerdict | null;
 	claim: string;
 	grounds: string;
 	kbRefs: string[];

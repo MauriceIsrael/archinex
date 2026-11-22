@@ -4,11 +4,13 @@
 
 ## Positionnement
 
-Archinex est une **couche d'assurance de décision** : il capture la délibération, vérifie les décisions contre une base de connaissances (réglementaire et doctrinale), mesure la **complétude de la couverture des exigences** et rend les justifications **lisibles par des schémas déterministes**. Il ne pilote pas les outils d'implémentation.
+Archinex est une **couche d'assurance de décision** : il capture la délibération, vérifie les décisions contre une base de connaissances (réglementaire et doctrinale, en échec fermé), mesure la **complétude de la couverture des exigences** et rend les justifications **lisibles par des schémas déterministes**. Il ne pilote pas les outils d'implémentation.
 
-La dérive apparaît surtout **après** le HLD. Archinex boucle donc la boucle avec **un seul point de réconciliation bidirectionnel : Nautobot**. Archinex y crée les objets au statut *Planned* ; les connecteurs et l'enforcement dans les systèmes réels les font évoluer et y écrivent leur preuve ; Archinex lit cet état, détecte les écarts avec les décisions et les ramène en délibération. Voir l'orientation révisée dans [`docs/roadmap.md`](docs/roadmap.md) et l'[ADR-017](docs/adr/ADR-017-nautobot-point-unique-reconciliation.md).
+Dans cette architecture, l'hydratation est une **interface** assortie de **garanties explicites sur la provenance** des données évaluées (**défaut** / **catalogue** / **réel**) : un verdict produit sur des valeurs par défaut n'est jamais présenté comme opposable, et une annotation déclarative (`archinex.io/satisfied-clauses`) offre une **traçabilité vérifiable**, pas une preuve d'exécution.
 
-Archinex outille le *modèle de délibération* entre architectes experts et agents IA. Plutôt que de concurrencer les outils de modélisation système (Structurizr, SysML v2, Enterprise Architect, Mermaid), Archinex capture les controverses, maintient la cohérence de vérité logique par graphe causal, chasse le blabla par des brouillons-appâts percutants et projette de façon déterministe les énoncés prouvés vers les outils cibles sans dérive documentaire.
+La dérive apparaît surtout **après** le HLD. Archinex boucle donc la boucle avec **un seul point de réconciliation bidirectionnel : Nautobot**. Archinex y crée les objets au statut *Planned* ; les connecteurs et l'enforcement dans les systèmes réels (derrière Nautobot) les font évoluer et y écrivent leur preuve ; Archinex lit cet état, détecte les écarts avec les décisions et les ramène en délibération. Tout nouveau connecteur direct est **gelé** tant que la tranche minimale Nautobot n'est pas en production sur un projet réel. Voir la feuille de route réordonnée et la revue trimestrielle du périmètre dans [`docs/roadmap.md`](docs/roadmap.md) et l'[ADR-017](docs/adr/ADR-017-nautobot-point-unique-reconciliation.md).
+
+Archinex outille le *modèle de délibération* entre architectes experts et agents IA. Plutôt que de concurrencer les outils de modélisation système (Structurizr, SysML v2, Enterprise Architect, Mermaid), Archinex capture les controverses, maintient la cohérence de vérité logique par graphe causal, chasse le blabla par des brouillons-appâts percutants et projette de façon déterministe les énoncés arbitrés et traçables vers les outils cibles sans dérive documentaire.
 
 ---
 
@@ -59,7 +61,7 @@ flowchart LR
 - **Condensat d'homologation SHA-256** scellant l'ensemble du livrable et ses références externes immuables (`KH:AssetId@vVersion`).
 - **Hub de régénération multi-système déterministe** :
   - Diagrammes d'architecture **Mermaid**.
-  - Modèles de conteneurs **Structurizr DSL** (`.dsl`).
+  - Modèles de conteneurs **C4X** (`.c4x`) & **Structurizr DSL** (`.dsl`).
   - Définitions d'ingénierie système **SysML v2**.
   - Profils de configuration réseau **PTP ITU-T G.8275.1 (JSON)**.
 
@@ -67,29 +69,30 @@ flowchart LR
 
 ## 🧭 Modèle Unique de Parcours : Les 5 Phases
 
-Tout engagement dans Archinex suit un **modèle unique en 5 phases**, non linéaire et asynchrone par sujet (détaillé avec les niveaux de maturité, les portes G3–G7, les invariants et le glossaire dans **[`docs/concepts.md`](docs/concepts.md)**) :
+Tout engagement dans Archinex suit un **modèle unique en 5 phases**, non linéaire et asynchrone par sujet (détaillé avec les modèles canoniques de couverture, la Carte de décision, les niveaux de maturité, les portes G3–G7, les invariants et le glossaire dans **[`docs/concepts.md`](docs/concepts.md)**) :
 
 1. **Phase 1 · Corpus & Règles** *(Projet)* : ingestion CCTP/RFP, référentiels réglementaires, triage en 4 compartiments et factorisation des sujets.
 2. **Phase 2 · Délibération** *(Sujet, via Board)* : cadrage, critères/options, débat multi-agents borné, maturité calculée, arbitrage humain opposable (**Porte G3 → `L3_decided`**) et capitalisation vers le Knowledge Hub (**Porte G4**).
 3. **Phase 3 · Rendu HLD** *(Sujet)* : spécification HLD, barrière d'homologation, scellement SHA-256 et projections déterministes (Mermaid, C4X, Structurizr DSL, SysML v2, JSON, Petites Briques, Document Engine).
-4. **Phase 4 · Raffinement** *(Sujet)* : ontologie KAOS multi-axes, Paquet de Décision Exécutable (EDP), oracles OPA/Rego, pré-hydratation Nautobot *Planned* et détection de dérive.
-5. **Phase 5 · Consolidation** *(Projet)* : 4 piliers transverses, registre d'emplacements TOGAF, catalogue logique `Base × Overlay × DC`, 3 vues synchronisées et manifeste `architecture.lock`.
+4. **Phase 4 · Raffinement** *(Sujet)* : intention & planification (ontologie KAOS multi-axes, prévisualisation `dry-run` Nautobot *Planned*, EDP, oracles OPA/Rego).
+5. **Phase 5 · Consolidation** *(Projet)* : réalisation & dérive Nautobot (`Planifié`, `Réalisé prouvé`, `Non vérifié`), 4 piliers transverses, registre d'emplacements TOGAF, catalogue logique `Base × Overlay × DC` et manifeste `architecture.lock`.
 
 ---
 
-## 🔄 Le Moteur Fondamental : De la Règle Doctrinale au Déploiement GitOps en Boucle Fermée
+## 🔄 Le Moteur Fondamental : De la Règle Doctrinale à la Réconciliation en Boucle Fermée
 
-Archinex ne se contente pas d'être un carnet de délibération : il matérialise une **boucle fermée d'apprentissage architectural** entre les projets de terrain, le référentiel de doctrine d'entreprise (**Knowledge Hub LLMOps**) et les usines de déploiement d'infrastructure (**Sylva Telco Cloud GitOps & SSoT Nautobot**).
+Archinex ne se contente pas d'être un carnet de délibération : il matérialise une **boucle fermée d'assurance de décision** entre les projets de terrain, le référentiel de doctrine d'entreprise (**Knowledge Hub LLMOps**) et le point unique de réconciliation bidirectionnel (**Nautobot**), derrière lequel opèrent les connecteurs vers les systèmes réels (ex. **Sylva Telco Cloud GitOps**).
 
 ```mermaid
 sequenceDiagram
     autonumber
     actor ArchX as 1. Architecte Projet X
-    participant ARC as Archinex (Phase 1 → 4)
+    participant ARC as Archinex (Phases 1 → 5)
     participant G4 as Porte G4 (Capitalisation)
     participant LLM as Knowledge Hub (LLMOps)
     actor ArchY as 4. Architecte Projet Y
-    participant OPA as Oracle OPA & Sylva GitOps
+    participant NB as Nautobot (SSoT Planned / Réel)
+    participant CONN as Connecteurs Aval (ex. Sylva GitOps)
 
     Note over ArchX,ARC: Émergence & Arbitrage Terrain
     ArchX->>ARC: Résout un problème d'architecture (ex: Sécurité NIS2 + Dataplane SR-IOV)
@@ -102,12 +105,13 @@ sequenceDiagram
     Note over LLM: Incarnation par le Triplet Ontologique
     LLM->>LLM: Associe la Règle à un Triplet & une Feuille d'Ontologie Technique
 
-    Note over ArchY,OPA: Réutilisation & Enforcement Automatique
+    Note over ArchY,CONN: Réutilisation, Interface d'Hydratation & Boucle de Dérive
     ArchY->>ARC: Nouveau Projet Y mobilisant cette intention
     LLM-->>ARC: Synchronisation continue (/api/knowledge/ontology/export)
-    ARC->>ARC: Raffinement KAOS : l'Axe et la Feuille sont automatiquement suggérés/liés
-    ARC->>OPA: Hydratation : génère SylvaWorkloadCluster (KRM) + Nautobot DCIM/IPAM
-    OPA-->>ARC: Oracle OPA (15 règles d'or Sylva) : conformité validée face à la Règle Globale
+    ARC->>ARC: Raffinement KAOS & Oracle OPA (provenance : défaut / catalogue / réel)
+    ARC->>NB: Interface d'hydratation : pousse les objets d'intention (statut Planned)
+    CONN->>NB: Lit les objets Planned, applique dans le réel et écrit statut + preuve
+    NB-->>ARC: Lecture live / Webhook HMAC : détection de dérive (DriftFinding)
 ```
 
 ### Comment une Règle Globale prend « Corps » grâce au Triplet Ontologique
@@ -116,15 +120,15 @@ Lorsqu'une règle générale est capitalisée dans LLMOps (ex: *« Tout cluster 
 $$\text{(Axe\_Obligatoire, implemented\_by, Feuille\_Technique)} \quad \text{et} \quad \text{(Feuille\_Technique, satisfies\_clause, Règle\_Globale)}$$
 l'architecture lui confère immédiatement **3 corps concrets** dans Archinex :
 
-1. **Un Corps d'Exécution (Le Template d'Hydratation) :**
-   * La feuille d'ontologie embarque son `hydration_template` (gabarit KRM et DCIM).
-   * Sur le Projet Y, l'appui sur « Hydrater » génère automatiquement les manifests Kubernetes [`SylvaWorkloadCluster`](https://gitlab.com/sylva-projects) durcis (unités `vault: { enabled: true }`, CNI Cilium, images `sle-micro` durcies, hugepages 1Gi, pinning NUMA) et les équipements `dcim.Device` dans Nautobot. L'architecte n'a plus à réinventer l'ingénierie d'infrastructure.
+1. **Un Corps d'Interface (L'Hydratation avec Provenance Explicite) :**
+   * La feuille d'ontologie embarque son `hydration_template` (gabarit d'intention DCIM/IPAM et descripteur cible).
+   * Sur le Projet Y, l'interface d'hydratation projette les objets d'intention au statut *Planned* dans **Nautobot** (et les bundles locaux d'intention) en qualifiant explicitement la **provenance** de chaque donnée (`défaut` / `catalogue` / `réel`). Les connecteurs derrière Nautobot (ex. Sylva GitOps) consomment ensuite cet état pour exécuter dans le réel.
 2. **Un Corps de Contrôle (L'Oracle OPA Rego) :**
    * La feuille lie des contraintes formelles (`projections`) et des règles de vérification (`oracle_rules`).
-   * L'Oracle OPA évalue automatiquement l'inventaire face aux règles d'or Sylva (`npm run check:sylva` ; nombre exact de règles généré dans [`docs/metrics.md`](docs/metrics.md)). Toute tentative de contournement (ex: serveur non homologué, Vault désactivé sous NIS2) est immédiatement bloquée en citant la clause réglementaire violée.
+   * L'Oracle OPA évalue de manière déterministe l'intention et l'instantané lu de Nautobot face aux règles d'or Sylva (`npm run check:sylva`) et aux règles multi-axes (compteurs générés dans [`docs/metrics.md`](docs/metrics.md)). Toute violation cite la clause réglementaire concernée ; les verdicts portent toujours leur provenance afin de ne jamais présenter un contrôle sur valeurs par défaut comme opposable.
 3. **Un Corps de Traçabilité & d'Audit (Le Lien Fort) :**
-   * Le descripteur KRM généré et l'inventaire Nautobot reçoivent dans leurs métadonnées les annotations immuables `archinex.io/satisfied-clauses`.
-   * Une **traçabilité vérifiable** relie le texte de doctrine au code GitOps déployé. Aujourd'hui, les annotations `archinex.io/satisfied-clauses` déclarent cette liaison ; **une annotation n'est pas une preuve**. La cible (en cours : #398, #399) est qu'un objet ne soit dit « réalisé » que si une preuve d'exécution écrite par le connecteur est présente.
+   * Le descripteur généré et l'inventaire Nautobot reçoivent dans leurs métadonnées les marqueurs de traçabilité (`archinex_*`, `archinex.io/satisfied-clauses`).
+   * Une **traçabilité vérifiable** relie le texte de doctrine aux objets d'intention puis aux preuves d'exécution. Aujourd'hui, les annotations `archinex.io/satisfied-clauses` déclarent cette liaison ; **une annotation n'est pas une preuve**. Un objet n'est considéré « réalisé » que si une preuve d'exécution écrite par un connecteur est présente dans Nautobot (#398, #399).
 
 ---
 
@@ -226,25 +230,14 @@ archinex/
 ├── .arckit/                        # Référentiel de gouvernance d'architecture d'entreprise
 │   ├── references/                 # Checklists de qualité, conventions d'identification
 │   └── templates/                  # Modèles d'artefacts (ADR, REQ, SOBC, Wardley)
+├── connectors/                     # Adaptateurs aval relocalisés hors cœur (derrière Nautobot)
 ├── openspec/                       # Spécifications exécutables et propositions d'évolution
 │   └── changes/
 │       └── archinex-deliberation-workbench/ # Carnet de spécification & tâches (Lots 1 à 6)
 ├── src/
 │   ├── lib/
 │   │   ├── components/deliberation/ # Composants Svelte 5 du Workbench
-│   │   │   ├── MaturityBoardTable.svelte        # Table 6 cols triée par déblocages
-│   │   │   ├── TelegraphicDraftView.svelte      # Brouillon-appât & Diff sensor
-│   │   │   ├── WhyInspector.svelte              # Inspecteur 5 facettes & DAG
-│   │   │   ├── FreezeSectionDialog.svelte       # Scellement SHA-256 de section
-│   │   │   └── ArtifactRegenerationHub.svelte   # Projections déterministes (No Doc Drift)
 │   │   ├── domain/                  # Logique métier pure (indépendante de la vue)
-│   │   │   ├── telegraphic.ts       # Rendu télégraphique & filtre anti-blabla
-│   │   │   ├── maturityBoard.ts     # Tri par déblocages & calcul de stagnation
-│   │   │   ├── diffSensor.ts        # Détection de diffs & règle du silence
-│   │   │   ├── dialectic.ts         # Moteur de rappel proactif de doctrines
-│   │   │   ├── retractation.ts      # DAG causal & invalidation de clôture logique
-│   │   │   ├── freezeExport.ts      # Barrière d'homologation & scellement
-│   │   │   ├── artifactProjections.ts # Projections Mermaid, DSL, SysML, JSON
 │   │   ├── stores/
 │   │   │   └── deliberationStore.svelte.ts # Machine à états réactive Svelte 5
 │   │   └── types/
@@ -252,8 +245,8 @@ archinex/
 │   └── routes/
 │       └── deliberation/            # Route principale du Workbench
 └── tests/
-    ├── contract/                    # Tests de contrats unitaires (Lots 1 à 6)
-    └── integration/                 # Scénario d'intégration bout-en-bout
+    ├── contract/                    # Tests de contrats unitaires
+    └── integration/                 # Scénarios d'intégration bout-en-bout
 ```
 
 ---

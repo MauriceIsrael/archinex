@@ -44,9 +44,11 @@ import {
   type ConscientiousCoverageMetrics,
   type DecisionSlotItem,
   type LldHydrationOverrides,
+  type OracleVerdictSource,
   type RefinementCoverageReport,
   type SubjectRefinementInput
 } from './refinementCoverage.js';
+import type { AcceptedCoverageReserve, CoverageReserve } from '../../domain/options.js';
 
 const STORAGE_DIR = resolve(process.cwd(), '.archinex-catalogs');
 
@@ -139,7 +141,10 @@ export interface ArchitectureLockManifest {
   sealedBy: string;
   sealedByRole: string;
   ontologyFingerprint: string;
+  ontologyRevision?: string;
   oracleVerdict: 'compliant';
+  oracleSource?: OracleVerdictSource;
+  oracleEvaluatedAt?: string;
   evaluatedAxesCount: number;
   phantomOracleCount: number;
   boundBindings: OntologyBindingItem[];
@@ -148,6 +153,8 @@ export interface ArchitectureLockManifest {
   instantiatedComponents: string[];
   danglingReferences: CatalogDanglingReferenceReport;
   blindSpotCoveragePercent: number;
+  coverageReserves?: CoverageReserve[];
+  acceptedCoverageReserves?: AcceptedCoverageReserve[];
   integritySha256: string;
 }
 
@@ -1170,10 +1177,36 @@ export async function generateArchitectureLockManifest(
     sealedBy: string;
     sealedByRole: string;
     coverageInput?: Omit<ProjectCompletenessInput, 'projectId'>;
+    /** Provenance explicite de l'inventaire soumis à l'oracle (issue #380). */
+    oracleSource?: OracleVerdictSource;
+    /** Réserves de couverture réglementaire applicables au projet (issue #385). */
+    coverageReserves?: CoverageReserve[];
+    /** Acceptations explicites tracées des réserves bloquantes (`missing`/`unknown`). */
+    acceptedCoverageReserves?: AcceptedCoverageReserve[];
   },
   catalog?: OntologyCatalog
 ): Promise<ArchitectureLockManifest> {
   assertAuthorizedSlotActor(options.sealedBy, options.sealedByRole);
+
+  // Garde-fou #385 : un référentiel applicable en statut missing/unknown bloque le scellement sans acceptation tracée.
+  const blockingReserves = (options.coverageReserves ?? []).filter(
+    (r) => r.status === 'missing' || r.status === 'unknown'
+  );
+  if (blockingReserves.length > 0) {
+    const acceptedIds = new Set(
+      (options.acceptedCoverageReserves ?? [])
+        .filter((a) => a.justification && a.justification.trim().length > 0)
+        .map((a) => a.frameworkId)
+    );
+    const unaccepted = blockingReserves.filter((r) => !acceptedIds.has(r.frameworkId));
+    if (unaccepted.length > 0) {
+      const list = unaccepted.map((r) => `${r.name || r.frameworkId} (${r.status})`).join(', ');
+      throw new InvariantViolationError(
+        `Scellement architecture.lock refusé : référentiel(s) applicable(s) non couvert(s) sans acceptation explicite tracée : ${list}`
+      );
+    }
+  }
+
   const resolvedCatalog = catalog ?? (await loadOntologyCatalog());
   const state = loadProjectSlotState(options.projectId);
 
@@ -1200,12 +1233,25 @@ export async function generateArchitectureLockManifest(
   const oracleEval = await evaluateMultiAxisOracle(
     hydratedInventory,
     ledger.composedBindings,
-    resolvedCatalog
+    resolvedCatalog,
+    {
+      source: options.oracleSource,
+      allRatified: ledger.conscientiousMetrics.defaultProposedSlots === 0
+    }
   );
+
+  // Garde-fou #380 : un verdict calculé sur valeurs par défaut est une simulation non opposable.
+  if (oracleEval.source === 'defaults') {
+    throw new InvariantViolationError(
+      `Scellement architecture.lock refusé : le verdict Oracle provient de valeurs par défaut (source=defaults — simulation non opposable). Un inventaire réel (inventaire_reel) ou un catalogue ratifié (catalogue) est requis.`
+    );
+  }
 
   if (oracleEval.verdict !== 'compliant') {
     throw new InvariantViolationError(
-      `Scellement architecture.lock refusé : ${oracleEval.violations.length} violation(s) de politique OPA détectée(s) — ${oracleEval.violationMessages.join(' | ')}`
+      oracleEval.verdict === 'insufficient_input'
+        ? `Scellement architecture.lock refusé (données insuffisantes) : ${(oracleEval.insufficientInputReasons || []).join(' | ')}`
+        : `Scellement architecture.lock refusé : ${oracleEval.violations.length} violation(s) de politique OPA détectée(s) — ${oracleEval.violationMessages.join(' | ')}`
     );
   }
 
@@ -1223,7 +1269,10 @@ export async function generateArchitectureLockManifest(
     sealedBy: options.sealedBy,
     sealedByRole: options.sealedByRole,
     ontologyFingerprint: oracleEval.ontologyFingerprint,
+    ontologyRevision: oracleEval.ontologyRevision,
     oracleVerdict: 'compliant' as const,
+    oracleSource: oracleEval.source,
+    oracleEvaluatedAt: oracleEval.evaluatedAt,
     evaluatedAxesCount: oracleEval.evaluatedAxesCount,
     phantomOracleCount: ledger.conscientiousMetrics.phantomOracleCount,
     boundBindings: ledger.composedBindings,
@@ -1231,7 +1280,13 @@ export async function generateArchitectureLockManifest(
     promotedSubjects: ledger.promotedSubjects,
     instantiatedComponents: ledger.instantiatedComponents,
     danglingReferences: ledger.danglingReferences,
-    blindSpotCoveragePercent: ledger.blindSpots.coveragePercent
+    blindSpotCoveragePercent: ledger.blindSpots.coveragePercent,
+    ...(options.coverageReserves && options.coverageReserves.length > 0
+      ? { coverageReserves: options.coverageReserves }
+      : {}),
+    ...(options.acceptedCoverageReserves && options.acceptedCoverageReserves.length > 0
+      ? { acceptedCoverageReserves: options.acceptedCoverageReserves }
+      : {})
   };
 
   const integritySha256 = createHash('sha256')

@@ -8,6 +8,84 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+- **Source projet du graphe de réconciliation — Modèle (Hub) × Instances (Projet) (#414)** :
+  - Séparation formelle entre le **modèle** porté par la feuille d'ontologie (`hydration_template.reconciliation_model` : classes requises, relations référentielles, standards normatifs, zéro identifiant concret) et les **instances** fournies par le projet (`lldOverrides.reconciliationInstances` / `composeReconciliationGraph(..., { instances })`). Le fragment historique `hydration_template.reconciliation_graph` reste accepté pour la compatibilité et les fixtures de test.
+  - Validation d'intégrité stricte (`validateReconciliationInstances` / `ReconciliationIntegrityError`) vérifiant l'unicité des identifiants (par classe et inter-nœuds), la présence et la résolution de `pivot_tenant_id`, les classes requises par le modèle et la résolution de toutes les références (`tenant_ref`, extrémités des liens, tunnels, bonds de médiation, contrats SLA).
+  - Garde anti-vacuité (`insufficient_input`) dans `evaluateMultiAxisOracle()` et `edp/policies/multi_axis_refinement.rego` : un projet sans instance lié à une feuille exigeant un graphe de réconciliation n'obtient jamais `compliant` par vacuité ; `insufficient_input` bloque également le scellement `architecture.lock` et l'export GitOps.
+  - Contrat JSON Schema (`src/lib/schemas/reconciliation-graph.schema.json`) et documentation complète avec exemple hors télécom (Santé / HDS) dans `docs/edp/reconciliation-graph-contract.md`.
+
+### Feuille de route réordonnée, gel des connecteurs directs et recadrage du positionnement (#397)
+- **Documentation d'architecture (`ARCHITECTURE.md` §16)** :
+  - Réécriture complète de la section §16 selon l'ordre de priorité : P0 sécurité/intégrité → épique « Décision éclairée » (#373) → réconciliation Nautobot (#372 : tranche minimale puis cadre des connecteurs) → cœur Archinex couverture & visuels (#400, en parallèle) → généralisation (#374) → extensions aval derrière Nautobot (gelées).
+  - Formalisation de la politique de gel des connecteurs directs et des appels d'écriture directe vers les outils d'implémentation jusqu'à mise en production de la tranche minimale Nautobot sur un projet réel, avec renvoi au re-cadrage des issues #351–#358 (ADR-017 / #375).
+  - Ajout de la gouvernance par **revue trimestrielle du périmètre** avec liste fermée « Dans le périmètre / Hors périmètre » et reclassement des anciens Horizons 1 à 3 (retrait des formulations de « preuve mathématique »).
+- **Positionnement et promesses (`README.md`)** :
+  - Clarification du positionnement comme **couche d'assurance de décision**, de l'hydratation comme **interface** avec garanties explicites sur la provenance (`défaut` / `catalogue` / `réel`), et de Nautobot comme unique point de réconciliation bidirectionnel.
+  - Reformulation des promesses (« énoncés arbitrés et traçables », « traçabilité vérifiable », « une annotation n'est pas une preuve ») et alignement du diagramme de boucle fermée.
+
+### Relocalisation des 6 adaptateurs Port/Adapter hors du cœur d'Archinex (#411)
+- **Connecteurs derrière Nautobot (`connectors/`)** :
+  - Relocalisation des 6 adaptateurs (`batfishAdapter.ts`, `openbaoAdapter.ts`, `keycloakAdapter.ts`, `ociSupplyChainAdapter.ts`, `ddiDnsAdapter.ts`, `gitopsForgeAdapter.ts`) et de `adapterTypes.ts` hors de `src/lib/server/edp/adapters/` vers `connectors/`, sans aucun import depuis `src/`.
+  - Ajout du contrat de write-back Nautobot (`connectors/writeBackContract.ts`, aligné #399) et implémentation sur le socle GitOps Forgejo (`GitopsForgeAdapter.buildWriteBackPayload` / `reportRealizationToNautobot`).
+- **Modules neutres conservés dans le cœur (`src/lib/server/edp/`)** :
+  - Déplacement de `sanitizeManifests` et `transformSylvaManifestsToRefinedInput` vers `src/lib/server/edp/manifestSanitizer.ts`.
+  - Déplacement de l'extraction GraphQL en lecture seule vers `src/lib/server/edp/nautobotPlannedExtract.ts` (+ `nautobot_planned_extract.graphql`), avec paramétrage de `$site_slug: [String]` (suppression du site par défaut codé en dur).
+  - Suppression complète du répertoire `src/lib/server/edp/adapters/`.
+- **Tests & Documentation** :
+  - Migration des suites `tests/contract/edp-sylva-stack-adapters.test.ts` et `tests/integration/edp-sylva-docker-stack.test.ts` vers `connectors/`, avec ajout des tests de contrat du write-back et de l'invariant d'isolation de `src/`.
+  - Publication du tableau de classement des 6 adaptateurs dans `docs/edp/connectors-classification.md`, `docs/adr/ADR-017-nautobot-point-unique-reconciliation.md`, `connectors/README.md` et mise à jour de `ARCHITECTURE.md` et `docs/edp/integrator-guide.md`.
+
+### Recentrage Archinex : délibération, complétude de couverture et justification visuelle (#400, #401, #402, #403, #404, #405)
+- **Modèle unique de complétude de couverture (`src/lib/domain/coverageModel.ts`, `GET /api/projects/[projectId]/coverage`)** :
+  - Calcul déterministe et monotone des 6 étapes de couverture (`non qualifiée` → `qualifiée` → `rattachée` → `décidée` → `planifiée` → `réalisée prouvée`) avec dénominateurs explicites ventilés par criticité, domaine et sujet.
+  - Renommage de `coverageRate` en `extractionCharCoverage` dans `src/lib/domain/rfpExtractionReport.ts` et `RfpExtractionVerification.svelte`.
+  - Garde-fou de scellement dans `POST /api/projects/[projectId]/subjects/[subjectId]/freeze` (refus HTTP 409 si une exigence bloquante n'est pas décidée sans acceptation tracée, ou en cas d'évacuation sans motif) et synchronisation avec la RTM exportée (`src/lib/domain/traceability.ts`).
+- **Vue de couverture visuelle (`CoverageMatrixView.svelte`, `src/lib/domain/coverageExport.ts`)** :
+  - Matrice exigences × étapes accessible (icône + texte, clavier, repli liste 390 px), filtres, regroupements, fenêtrage performant pour 1 000+ exigences, fraîcheur de réconciliation Nautobot et exports SVG / PNG / CSV.
+- **Carte de décision sur un seul écran (`DecisionCard.svelte`, `src/lib/domain/decisionCard.ts`)** :
+  - Synthèse déterministe de ce que l'arbitre signe (sources, contraintes KB avec distinction `non vérifié` / `inconnu` / `brouillon`, matrice thermique options × critères, arguments humain/agent, écarts acceptés, plan dry-run Nautobot) avec exports SVG, Markdown et impression.
+- **Schémas dérivés d'un modèle de décision unique (`src/lib/domain/decisionDiagramModel.ts`)** :
+  - Projections Mermaid, Structurizr DSL, C4X DSL et Graphe d'impact générées d'un modèle unique avec provenance obligatoire par élément, liens cliquables vers la source, empreinte anti-dérive et validation syntaxique CI. Retrait du diagramme de scénario codé en dur dans `src/lib/domain/artifactProjections.ts`.
+- **Recentrage Phases 4 et 5 (`Phase4RefinementHub.svelte`, `Phase4NautobotPlanPreview.svelte`, `Phase4DriftDemoDrawer.svelte`, `Phase5ConsolidationHub.svelte`, `Phase5RealizationPanel.svelte`)** :
+  - Phase 4 recentrée sur l'intention et le plan dry-run Nautobot (retrait des actions d'hydratation multi-outils et raccourcis directs, lien unique vers Nautobot, simulateur de dérive isolé dans un tiroir de démonstration replié).
+  - Phase 5 enrichie d'une vue en lecture seule de la réalisation Nautobot (`Planifié`, `Réalisé prouvé`, `Non vérifié`) avec actions limitées à *Remédier / Amender / Déroger*.
+- **Tests & Documentation** :
+  - Ajout de `docs/concepts.md`, mise à jour de `USER_GUIDE.md` et `docs/user-guide.md`, et ajout des suites de contrat `coverage-model.test.ts`, `coverage-matrix-view.test.ts`, `decision-card.test.ts`, `decision-diagram-model.test.ts` et `phase4-phase5-refocus.test.ts`.
+
+### Fiabilisation du vérificateur, réserves de couverture au scellement, provenance Oracle OPA et import unifié des sujets (#384, #385, #380, #58)
+- **Verdict structuré du vérificateur (`src/lib/server/agents/verifier.ts`, `src/lib/domain/maturityRules.ts`, `src/lib/domain/maturityCriteria.ts`, `prisma/schema.prisma`, `src/lib/server/projects/debateDb.ts`)** (#384) :
+  - Ajout de la colonne `Argument.verdict` (`compliant` | `violates` | `not_applicable` | `unknown`) et suppression de la propriété fantôme `violationDetected`.
+  - Le blocage `UNRESOLVED_VIOLATION` s'appuie uniquement sur le verdict structuré `violates` (et sur `checkOption` validé) ; un verdict `unknown` ou absent émet un avertissement `VERIFICATION_VERDICT_UNKNOWN` et ne vaut jamais « conforme ».
+  - En cas de sortie JSON invalide ou de modèle hors ligne, `runVerifierAgentWithStatus` renvoie un état `not_evaluated` sans fabriquer d'argument fictif.
+- **Réserves de couverture réglementaire au scellement (`src/lib/domain/options.ts`, `src/lib/server/projects/arbitrationDb.ts`, `src/lib/domain/freezeExport.ts`, `src/lib/server/edp/decisionSlotRegistry.ts`, `src/lib/domain/bundleAssembly.ts`, `src/lib/domain/complianceMatrix.ts`)** (#385) :
+  - Enregistrement des `coverageReserves` sur `Decision.complianceCheck` lors de l'arbitrage, et report systématique dans le dossier HLD (`bundleAssembly`) et la matrice RTM (`complianceMatrix`).
+  - Refus du scellement (`canFreezeSection` avec `COVERAGE_RESERVE_UNACCEPTED` et `generateArchitectureLockManifest`) si un référentiel applicable est `missing` ou `unknown` sans acceptation explicite tracée.
+  - Alignement de `ARCHITECTURE.md` §3 sur la règle réelle (alerte à l'arbitrage, opposable au scellement).
+- **Provenance du verdict Oracle OPA et garde Phase 4 (`src/lib/server/edp/refinementCoverage.ts`, `src/lib/server/edp/decisionSlotRegistry.ts`, `src/lib/components/deliberation/Phase4RefinementHub.svelte`)** (#380) :
+  - Ajout de `source` (`defaults` | `catalogue` | `inventaire_reel`), `evaluatedAt` et `ontologyRevision` sur `MultiAxisOracleEvaluationResult`.
+  - Refus de `generateArchitectureLockManifest` lorsque `source === 'defaults'` (simulation non opposable).
+  - En Phase 4, affichage d'un bandeau « Mode Exploration / Simulation » et du libellé « SIMULATION, NON OPPOSABLE » (jamais « CONFORME ») avant `L3_decided` ou sur `defaults`, avec désactivation des actions opposables de ratification avant `L3_decided`.
+  - Correction du nommage généré des hôtes/clusters via `sanitizeHostnameSegment` (élimine les doubles tirets tels que `srv--proposes-89-01`).
+- **Import unifié des sujets (`src/lib/domain/engagements.ts`, `src/lib/components/deliberation/CorpusAppropriationHub.svelte`)** (#58) :
+  - Préservation de `coveredClauseRefs` même sans `requirementAudit` (passe directe / dépouillement clause par clause).
+  - Chemin d'import commun `buildImportedSubjects` préservant `problemStatement`, `expertQuestions`, `proposal`, `nature` et `dependsOn`, avec identifiants de sujets uniques préfixés par le projet (`generateProjectScopedSubjectId`).
+- **Tests** :
+  - Ajout de `tests/contract/issues-384-385-380-58.test.ts` et mise à jour des suites `verifier-agent.test.ts`, `maturity-rules.test.ts`, `maturity-criteria.test.ts` et `wave1-semantic-matching.test.ts`.
+
+### Réconciliation périodique Nautobot & Vue « Dérive » (#379)
+
+- **Job de réconciliation périodique par projet** (`src/lib/server/edp/reconciliationJob.ts`, modèles Prisma `ProjectReconciliationState` et `ReconciliationRun`) : intervalle et seuil de péremption configurables, verrou atomique anti-concurrence, idempotence stricte avec auto-résolution des écarts disparus, reprise après panne Nautobot en conservant `lastSuccessAt`.
+- **Distinction stricte « Non vérifié » vs « Aucune dérive »** (`src/lib/domain/edp/driftMetrics.ts`) : une panne Nautobot, une absence de réconciliation ou une donnée périmée produit systématiquement l'état `unverified` (jamais vert).
+- **État de réalisation (#399) et socle de couverture (#402)** (`src/lib/domain/edp/realizationStatus.ts`, `getProjectRealizationCoverage`) : lecture et validation des preuves `realized_revision` + `evidence_ref` (`planifié`, `réalisé prouvé`, `déclaré non prouvé`, `non vérifié`).
+- **Vue « Dérive » & pastille d'en-tête** (`Phase5DriftView.svelte`, `ProjectEngagementHeader.svelte`, API `GET /api/projects/[projectId]/drift` et `POST /api/projects/[projectId]/drift/reconcile`) : indicateurs (sévérités, âge, délai moyen de détection/résolution, ratio hors décision), décisions `stale`, ancienneté de dernière réconciliation, liens directs vers les objets Nautobot, et test d'accessibilité `axe-core` (`tests/e2e/browser/drift-view-a11y.spec.ts`).
+
+### L'ontologie vient du Knowledge Hub : fixture générée, extensions de projet, oracle OPA corrigé (LLMOps#192, #417)
+- **Fixture d'ontologie (`tests/fixtures/edp/ontology_export.json`, `scripts/sync-ontology-fixture.mjs`)** : n'est plus écrite à la main ; copie générée de l'export du Hub (114 entités, 205 triplets), avec fichier de provenance et empreinte. Test de provenance hors-ligne (retouche à la main) et en ligne dans `hub-live` (fixture périmée si le Hub change). Doc : `docs/edp/ontology-source.md`.
+- **Extensions de projet (`ontologyClient.ts`, `OntologyProjectOverlay`)** : la donnée de projet (identifiants `REQ-…`, graphe de réconciliation du scénario) n'est plus dans l'ontologie commune ; elle se déclare dans un fichier appliqué par-dessus (`ARCHINEX_ONTOLOGY_PROJECT_OVERLAY`), fusion explicite, `$replace`, erreur si l'entité ciblée a disparu du Hub. Les écarts de doctrine non tranchés (`oob`, `oam`) sont isolés dans un fichier à part.
+- **Oracle OPA (`edp/policies/multi_axis_refinement.rego`)** : `get_clause_urn` et `get_req_id` plantaient (`eval_conflict_error`, donc `opa_runtime_error` et verdict « violated » pour tout projet) dès qu'une feuille cite plusieurs clauses, cas normal des feuilles du Hub. Sélection déterministe du premier élément.
+- **Raffinement (`refinementCoverage.ts`)** : une feuille n'est plus liée automatiquement sur un simple mot de son titre (libellé éditorial du Hub) mais sur un mot-clé, un lien fort ou un standard par défaut.
+- **Démo et tests** : les liaisons d'ontologie lisent la révision courante du catalogue au lieu de figer des numéros.
+
 ### Finalisation des Vues Éditoriales SVG & Directeur Éditorial LLM (#421, #423, #424, #427)
 - Ajout de la vue **Architecture Delta** (`Before · Changes · After` sur grille `4px` synchronisée, stabilité des coordonnées `unchanged` et registre central `ADDED/REMOVED/CHANGED/MOVED/REWIRED`, #421), intégrée en parallèle de Mermaid dans `ImpactGraphExplorer.svelte`.
 - Ajout des vues de délibération & conformité KB (#423) : **Traces KB Appariées** (avec marqueur de 1re divergence et distinction explicite de `UNVERIFIED`), **Couches Compensatoires** (avec risque résiduel explicite), **Matrice Thermique de Décision** pondérée et **Radar Multi-Critères** (`decisionRadar.ts`), intégrées dans `ArtifactRegenerationHub.svelte`.

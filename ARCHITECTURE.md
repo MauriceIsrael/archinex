@@ -1,10 +1,10 @@
 # Archinex · Documentation d'Architecture Système
 
 > **Vue d'ensemble de l'architecture logicielle du moteur de délibération, de vérification doctrinale et de réconciliation Archinex.**
-> - Parcours unifié (5 phases), invariants et glossaire : [`docs/concepts.md`](docs/concepts.md)
+> - Parcours unifié (5 phases), modèles canoniques (#400), invariants et glossaire : [`docs/concepts.md`](docs/concepts.md)
 > - Contrats détaillés par lot et sous-système : [`docs/architecture-contracts.md`](docs/architecture-contracts.md)
 > - Décisions d'architecture (ADR) : [`docs/adr/README.md`](docs/adr/README.md)
-> - Feuille de route : [`docs/roadmap.md`](docs/roadmap.md)
+> - Feuille de route & gouvernance du périmètre : [`docs/roadmap.md`](docs/roadmap.md)
 > - Métriques générées (tests, règles OPA, ADR) : [`docs/metrics.md`](docs/metrics.md)
 
 ---
@@ -34,7 +34,7 @@ flowchart TD
 
     subgraph Reconciliation["4. Point Unique de Réconciliation (ADR-017)"]
         Nautobot["Nautobot 2.x SSoT (Planned ↔ Observé)"]
-        Connectors["Connecteurs derrière Nautobot (GitOps Sylva, DNS, Vault, IdP...)"]
+        Connectors["Connecteurs derrière Nautobot (connectors/ : GitOps Sylva, DNS, Vault, IdP...)"]
     end
 
     UI --> Domain
@@ -48,7 +48,7 @@ flowchart TD
     Nautobot <--> Connectors
 ```
 
-1. **Dépôt applicatif `archinex` (*Stateless Engine*)** : moteur d'exécution SvelteKit 2 / Svelte 5, domaine métier pur TypeScript, oracles OPA/Rego et fixtures anonymisées pour la CI. Aucun fichier `*.db`, `eval-results/` ni projet utilisateur n'est suivi dans Git.
+1. **Dépôt applicatif `archinex` (*Stateless Engine*)** : moteur d'exécution SvelteKit 2 / Svelte 5, domaine métier pur TypeScript, oracles OPA/Rego et fixtures anonymisées pour la CI (l'ontologie fixture est générée depuis le Hub, voir [`docs/edp/ontology-source.md`](docs/edp/ontology-source.md)). Aucun fichier `*.db`, `eval-results/` ni projet utilisateur n'est suivi dans Git.
 2. **Couche de persistance runtime (Prisma ORM)** : stocke l'état vivant des projets, utilisateurs, habilitations Casbin ABAC/RBAC, délibérations, arbitrages, EDP et `DriftFinding`.
 3. **Knowledge Hub souverain (`LLMOps`)** : dépôt et service dédiés (`MauriceIsrael/LLMOps`) portant la doctrine, les référentiels réglementaires et l'ontologie. Toute interaction experte propage `X-Actor-Email` ; aucun repli silencieux vers des fixtures n'est autorisé en production ([ADR-020](docs/adr/ADR-020-interdiction-repli-silencieux-production.md)).
 
@@ -59,10 +59,10 @@ flowchart TD
 ### 2.1 Parcours Unique en 5 Phases
 Tout engagement suit le **modèle unique en 5 phases** défini dans [`docs/concepts.md`](docs/concepts.md) :
 1. **Phase 1 · Corpus & Règles** *(Projet)* : ingestion CCTP/RFP, référentiels, triage 4 compartiments, commodités et factorisation des sujets.
-2. **Phase 2 · Délibération** *(Sujet, via Board)* : cycle interne en 6 temps (cadrage → critères/options → débat multi-agents borné → maturité calculée `computeMaturity` → arbitrage humain Porte G3 `L3_decided` → capitalisation Porte G4).
-3. **Phase 3 · Rendu HLD** *(Sujet)* : spécification HLD, barrière d'homologation, gel SHA-256 et projections déterministes multi-modèles.
-4. **Phase 4 · Raffinement** *(Sujet)* : ontologie KAOS multi-axes, Paquet de Décision Exécutable (EDP), oracles OPA/Rego, pré-hydratation Nautobot *Planned* et détection de dérive.
-5. **Phase 5 · Consolidation** *(Projet)* : 4 piliers transverses, registre d'emplacements TOGAF, catalogue logique `Base × Overlay × DC`, 3 vues synchronisées et manifeste `architecture.lock`.
+2. **Phase 2 · Délibération** *(Sujet, via Board)* : cycle interne en 6 temps (cadrage → critères/options → débat multi-agents borné → maturité calculée `computeMaturity` → arbitrage humain Porte G3 `L3_decided` avec `DecisionCard` → capitalisation Porte G4).
+3. **Phase 3 · Rendu HLD** *(Sujet)* : spécification HLD, barrière d'homologation, gel SHA-256 et projections déterministes multi-modèles via `DecisionDiagramModel`.
+4. **Phase 4 · Raffinement** *(Sujet)* : intention & planification (ontologie KAOS multi-axes, prévisualisation `dry-run` Nautobot *Planned*, EDP, oracles OPA/Rego avec provenance explicite `default`/`catalog`/`real`).
+5. **Phase 5 · Consolidation** *(Projet)* : réalisation & dérive Nautobot (`Planifié`, `Réalisé prouvé`, `Non vérifié`), 4 piliers transverses, registre d'emplacements TOGAF, catalogue logique `Base × Overlay × DC` et manifeste `architecture.lock`.
 
 ### 2.2 Invariants Épistémiques & Politique Fail-Closed
 Tout énoncé (`Statement`) ou argument (`Argument`) obéit à [`openspec/constitution.md`](openspec/constitution.md) :
@@ -91,9 +91,9 @@ Archinex interface les quatre espaces de gouvernance doctrinale adossés au Know
 ## 4. EDP, Raffinement KAOS, Réconciliation Nautobot & Consolidation
 
 Les contrats complets d'exécution (Phase 4 & Phase 5) sont détaillés dans [`docs/architecture-contracts.md`](docs/architecture-contracts.md) §6 à §11 :
-- **Paquet de Décision Exécutable (EDP) & OPA/Rego** ([ADR-016](docs/adr/ADR-016-promotion-edp-experimental.md), [ADR-019](docs/adr/ADR-019-edp-oracles-opa-rego-deterministes.md)) : séparation intension/extension (`intentionPurity.ts`), prévention de la vacuité (`insufficient_input`), binaire OPA v1.21.4 épinglé SHA-256 (`opaRunner.ts`), projections `data.ontology` (`projectionCompiler.ts`) et garde de mutation 100 % (`scripts/edp-mutation-gate.ts`).
-- **Raffinement Multi-Axes KAOS** (`src/lib/server/edp/refinementCoverage.ts`) : composition algébrique de Batory sur les concepts HLD, axes obligatoires et feuilles techniques, lien fort `governed_by_clauses` / `satisfies_clause` et rétro-traçabilité OPA.
-- **Nautobot, Point Unique de Réconciliation** ([ADR-017](docs/adr/ADR-017-nautobot-point-unique-reconciliation.md)) : Archinex écrit les objets au statut *Planned* (`src/lib/server/edp/nautobotSync.ts`) et lit l'état réalisé pour persister les écarts (`src/lib/server/edp/driftService.ts`, `DriftFinding`). Les connecteurs vers les outils d'implémentation vivent derrière Nautobot.
+- **Paquet de Décision Exécutable (EDP) & OPA/Rego** ([ADR-016](docs/adr/ADR-016-promotion-edp-experimental.md), [ADR-019](docs/adr/ADR-019-edp-oracles-opa-rego-deterministes.md)) : séparation intension/extension (`intentionPurity.ts`), prévention de la vacuité (`insufficient_input`), binaire OPA v1.21.4 épinglé SHA-256 (`opaRunner.ts`), projections `data.ontology` (`projectionCompiler.ts`), modules neutres `manifestSanitizer.ts` & `nautobotPlannedExtract.ts`, et garde de mutation 100 % (`scripts/edp-mutation-gate.ts`).
+- **Raffinement Multi-Axes KAOS** (`src/lib/server/edp/refinementCoverage.ts`) : composition algébrique de Batory sur les concepts HLD, axes obligatoires et feuilles techniques, graphe de réconciliation projet ([`docs/edp/reconciliation-graph-contract.md`](docs/edp/reconciliation-graph-contract.md)), lien fort `governed_by_clauses` / `satisfies_clause` et rétro-traçabilité OPA.
+- **Nautobot, Point Unique de Réconciliation** ([ADR-017](docs/adr/ADR-017-nautobot-point-unique-reconciliation.md)) : Archinex écrit les objets au statut *Planned* (`src/lib/server/edp/nautobotSync.ts`) et lit l'état réalisé pour persister les écarts (`src/lib/server/edp/driftService.ts`, `DriftFinding`, réconciliation périodique [`docs/edp/reconciliation-and-drift.md`](docs/edp/reconciliation-and-drift.md)). Les 6 adaptateurs Port/Adapter ont été relocalisés hors cœur vers `connectors/` ([`docs/edp/connectors-classification.md`](docs/edp/connectors-classification.md)).
 - **Consolidation Projet & Taxonomie TOGAF (Phase 5)** : catalogue logique `Base × Overlay × DC` (`src/lib/domain/edp/componentCatalog.ts`, `src/lib/domain/edp/refResolver.ts`), 7 domaines TOGAF (`src/lib/domain/edp/togafTaxonomy.ts`), registre d'emplacements (`src/lib/server/edp/decisionSlotRegistry.ts`) et manifeste scellé `architecture.lock`.
 
 ---
@@ -101,7 +101,7 @@ Les contrats complets d'exécution (Phase 4 & Phase 5) sont détaillés dans [`d
 ## 5. Projections Déterministes & Architecture de Performance
 
 ### 5.1 Projections Multi-Modèles (*Zero-Drift*)
-Depuis `src/lib/components/deliberation/ArtifactRegenerationHub.svelte` et `src/lib/domain/artifactProjections.ts`, toute décision arbitrée (L3/L4) est projetée de façon **100 % déterministe sans LLM** vers :
+Depuis `src/lib/domain/decisionDiagramModel.ts`, `src/lib/components/deliberation/ArtifactRegenerationHub.svelte` et `src/lib/domain/artifactProjections.ts`, toute décision arbitrée (L3/L4) est projetée de façon **100 % déterministe sans LLM** vers :
 - **Mermaid** (topologie, déploiement, vues éditoriales — voir [`docs/EDITORIAL_DIAGRAMS.md`](docs/EDITORIAL_DIAGRAMS.md)) ;
 - **C4X** (`.c4x`, `src/lib/domain/c4xDsl.ts`) & **Structurizr DSL** (`.dsl`, `src/lib/domain/structurizrDsl.ts`) ;
 - **SysML v2 (BDD)** et **JSON technique** (ex. profil PTP ITU-T G.8275.1) ;
@@ -131,9 +131,9 @@ La porte qualité unique est exécutée en local et en CI (`.github/workflows/ve
 
 ## 7. Index de la Documentation d'Architecture
 
-- [`docs/concepts.md`](docs/concepts.md) : modèle unique en 5 phases, maturité, portes G3–G7, invariants et glossaire.
+- [`docs/concepts.md`](docs/concepts.md) : modèle unique en 5 phases, modèles canoniques (#400), maturité, portes G3–G7, invariants et glossaire.
 - [`docs/architecture-contracts.md`](docs/architecture-contracts.md) : contrats détaillés par lot (A6–A11, EDP, Phase 4 KAOS, Sylva/Nautobot, Jumeau Numérique, Phase 5, TOGAF).
 - [`docs/adr/README.md`](docs/adr/README.md) : index des Architecture Decision Records (ADR-016 à ADR-020).
-- [`docs/roadmap.md`](docs/roadmap.md) : orientation révisée ADR-017 et horizons 1–3.
+- [`docs/roadmap.md`](docs/roadmap.md) : feuille de route réordonnée (#397), gel des connecteurs directs et revue trimestrielle du périmètre.
 - [`docs/metrics.md`](docs/metrics.md) : chiffres générés automatiquement (tests, règles OPA, ontologie, ADR).
-- [`docs/edp/field-ownership.md`](docs/edp/field-ownership.md) & [`docs/edp/nautobot-trace-markers.md`](docs/edp/nautobot-trace-markers.md) : propriété des champs et marqueurs de traçabilité Nautobot.
+- [`docs/edp/field-ownership.md`](docs/edp/field-ownership.md), [`docs/edp/nautobot-trace-markers.md`](docs/edp/nautobot-trace-markers.md), [`docs/edp/reconciliation-and-drift.md`](docs/edp/reconciliation-and-drift.md), [`docs/edp/connectors-classification.md`](docs/edp/connectors-classification.md), [`docs/edp/ontology-source.md`](docs/edp/ontology-source.md) : contrats d'intégration Nautobot, connecteurs et ontologie Hub.

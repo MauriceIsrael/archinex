@@ -135,10 +135,11 @@ export function checkMarkdownContent({ filePath, content, rootDir }) {
 			}
 		}
 
-		// 3. Validate backticked repository source paths
+		// 3. Validate backticked repository source paths (ignoring struck-through historical paths ~~`...`~~)
+		const lineWithoutStrikethrough = line.replace(/~~[^~]*~~/g, '');
 		let btMatch;
 		backtickRe.lastIndex = 0;
-		while ((btMatch = backtickRe.exec(line)) !== null) {
+		while ((btMatch = backtickRe.exec(lineWithoutStrikethrough)) !== null) {
 			const token = btMatch[1].trim();
 			if (/\s/.test(token)) continue;
 			if (!SOURCE_PREFIXES.some((prefix) => token.startsWith(prefix))) continue;

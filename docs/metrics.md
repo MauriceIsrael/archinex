@@ -9,10 +9,10 @@
 
 | Indicateur | Valeur mesurée | Source |
 | :--- | ---: | :--- |
-| Fichiers de tests Vitest (unitaires, contrat, intégration, API) | **217** | `tests/` (hors `tests/e2e/browser/`) |
-| Cas de tests Vitest (`it` / `test`) | **1481** | `tests/` (hors `tests/e2e/browser/`) |
-| Fichiers de parcours E2E Playwright | **5** | `tests/e2e/browser/` |
-| Cas de tests E2E Playwright | **23** | `tests/e2e/browser/` |
+| Fichiers de tests Vitest (unitaires, contrat, intégration, API) | **229** | `tests/` (hors `tests/e2e/browser/`) |
+| Cas de tests Vitest (`it` / `test`) | **1552** | `tests/` (hors `tests/e2e/browser/`) |
+| Fichiers de parcours E2E Playwright | **6** | `tests/e2e/browser/` |
+| Cas de tests E2E Playwright | **24** | `tests/e2e/browser/` |
 | Politiques OPA / Rego v1 | **3** | `edp/policies/` |
 | Règles d'évaluation OPA (`deny` / `violation` / `warn`) | **82** | `edp/policies/` |
 | Décisions d'Architecture (ADR) | **5** | `docs/adr/` |
@@ -35,4 +35,4 @@ Mesuré sur `tests/fixtures/edp/ontology_export.json` :
 - **Concepts HLD** : 0
 - **Axes de raffinement (`kind: "axis"`)** : 0
 - **Feuilles d'implémentation (`kind: "leaf"`)** : 0
-- **Relations / Triplets** : 154
+- **Relations / Triplets** : 205

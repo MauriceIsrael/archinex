@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import type { RefinedInputPayload } from '../../../domain/edp/validateRefinedInput.js';
+import type { RefinedInputPayload } from '../../domain/edp/validateRefinedInput.js';
 
 export interface NautobotDeviceInput {
   name: string;
@@ -15,7 +15,11 @@ export interface NautobotDeviceInput {
   [key: string]: unknown;
 }
 
-export const NAUTOBOT_PLANNED_EXTRACT_QUERY = `query ExtractPlannedTelcoInventory($site_slug: [String] = ["pop-valmondois"]) {
+/**
+ * Requête GraphQL paramétrée d'extraction de l'inventaire planifié Nautobot (lecture seule).
+ * La variable `$site_slug` est fournie à l'exécution (aucun site codé en dur, ADR-017 / #411).
+ */
+export const NAUTOBOT_PLANNED_EXTRACT_QUERY = `query ExtractPlannedTelcoInventory($site_slug: [String]) {
   devices(location: $site_slug, status: "planned") {
     name
     status {
@@ -43,6 +47,20 @@ export const NAUTOBOT_PLANNED_EXTRACT_QUERY = `query ExtractPlannedTelcoInventor
     }
   }
 }`;
+
+/**
+ * Construit le couple `{ query, variables }` pour exécuter l'extraction Nautobot Planned
+ * sur un ou plusieurs sites donnés (ou tous les sites si `siteSlugs` est omis).
+ */
+export function buildNautobotPlannedExtractRequest(siteSlugs?: string[]): {
+  query: string;
+  variables: { site_slug?: string[] };
+} {
+  return {
+    query: NAUTOBOT_PLANNED_EXTRACT_QUERY,
+    variables: siteSlugs && siteSlugs.length > 0 ? { site_slug: siteSlugs } : {}
+  };
+}
 
 /**
  * Transforme le résultat brut d'une requête GraphQL Nautobot en liste de NautobotDeviceInput.

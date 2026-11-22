@@ -1,7 +1,7 @@
 import type { MaturityLevel } from '$lib/types/epistemic';
 import type { Argument } from './debate';
 import { canDecideAlone } from './options';
-import { isViolationVerificationArgument } from './maturityRules';
+import { isViolationVerificationArgument, isUnknownVerificationVerdict } from './maturityRules';
 
 export interface MaturityCriterion {
 	id: string;
@@ -148,8 +148,11 @@ export function hasVerifierPassed(
 	);
 	if (activeVerifications.length === 0) return false;
 
+	const isUnresolvedOrUnknown = (a: Argument) =>
+		a.resolution === 'open' && (isViolationVerificationArgument(a) || isUnknownVerificationVerdict(a));
+
 	const hasOpenSubjectViolation = activeVerifications.some(
-		(a) => !a.optionId && a.resolution === 'open' && isViolationVerificationArgument(a)
+		(a) => !a.optionId && isUnresolvedOrUnknown(a)
 	);
 	if (hasOpenSubjectViolation) return false;
 
@@ -164,7 +167,7 @@ export function hasVerifierPassed(
 	if (byOption.size === 0) return true;
 
 	const optionHasOpenViolation = (optArgs: Argument[]) =>
-		optArgs.some((a) => a.resolution === 'open' && isViolationVerificationArgument(a));
+		optArgs.some((a) => isUnresolvedOrUnknown(a));
 
 	if (context?.retainedOptionId) {
 		const retainedArgs = byOption.get(context.retainedOptionId);

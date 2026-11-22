@@ -1,4 +1,6 @@
 import { describe, it, expect } from 'vitest';
+import { existsSync, readdirSync, readFileSync } from 'node:fs';
+import { join, resolve } from 'node:path';
 import {
   BatfishAdapter,
   buildBatfishOpaInput,
@@ -6,8 +8,13 @@ import {
   KeycloakAdapter,
   OciSupplyChainAdapter,
   DdiDnsAdapter,
-  GitopsForgeAdapter
-} from '../../src/lib/server/edp/adapters/index.js';
+  GitopsForgeAdapter,
+  buildConnectorWriteBackPayload,
+  validateWriteBackPayload,
+  toNautobotPatchBody,
+  writeBackToNautobot,
+  WRITE_BACK_CONTRACT_VERSION
+} from '../../connectors/index.js';
 import type { SylvaGitopsExportResult } from '../../src/lib/server/edp/sylvaGitopsExport.js';
 
 function createFailingFetch(message = 'connect ECONNREFUSED 127.0.0.1'): typeof fetch {
@@ -595,6 +602,152 @@ describe('EDP Sylva Stack Adapters Contract (Issue #362)', () => {
       expect(res.pushedFiles).toHaveLength(3);
       expect(res.pullRequestNumber).toBe(7);
       expect(res.pullRequestUrl).toBe('http://127.0.0.1:3001/archinex/sylva-gitops/pulls/7');
+
+      // Vérifie le contrat de write-back Nautobot (#399 / #381 / #411)
+      const wbPayload = adapter.buildWriteBackPayload(res, sampleBundle.provenance.revision);
+      expect(wbPayload.schema_version).toBe(WRITE_BACK_CONTRACT_VERSION);
+      expect(wbPayload.realized_status).toBe('staged');
+      expect(wbPayload.realized_revision).toBe(sampleBundle.provenance.revision);
+      expect(wbPayload.evidence_ref).toBe('http://127.0.0.1:3001/archinex/sylva-gitops/pulls/7');
+
+      const validation = validateWriteBackPayload(wbPayload, sampleBundle.provenance.revision);
+      expect(validation.valid).toBe(true);
+      expect(validation.proven).toBe(true);
+      expect(validation.errors).toEqual([]);
+    });
+
+    it('remonte le statut réalisé et la preuve dans Nautobot sans toucher aux champs d intention (#399 / #411)', async () => {
+      const captured: { url?: string; method?: string; auth?: string | null; body?: any } = {};
+      const mockNautobotFetch = (async (input: RequestInfo | URL, init?: RequestInit) => {
+        captured.url = String(input);
+        captured.method = init?.method;
+        const headers = new Headers(init?.headers);
+        captured.auth = headers.get('Authorization');
+        captured.body = JSON.parse(String(init?.body || '{}'));
+        return createMockResponse({ id: 'dev-1', status: { name: 'Staged' } }, { status: 200 });
+      }) as unknown as typeof fetch;
+
+      const adapter = new GitopsForgeAdapter();
+      const wbResult = await adapter.reportRealizationToNautobot(
+        {
+          baseUrl: 'http://127.0.0.1:8080',
+          nautobotToken: 'connector-least-privilege-token',
+          objectPath: '/api/dcim/devices/dev-1/',
+          fetchImpl: mockNautobotFetch
+        },
+        {
+          reachable: true,
+          mode: 'forgejo_pr',
+          baseUrl: 'http://127.0.0.1:3001',
+          owner: 'archinex',
+          repo: 'sylva-gitops',
+          branchName: 'archinex/wc-telco-edge-01',
+          baseBranch: 'main',
+          branchCreated: true,
+          pushedFiles: ['workload-clusters/wc-telco-edge-01/values.yaml'],
+          pullRequestUrl: 'http://127.0.0.1:3001/archinex/sylva-gitops/pulls/7',
+          pullRequestNumber: 7,
+          checkedAt: '2026-11-22T10:00:00.000Z',
+          errors: []
+        },
+        3
+      );
+
+      expect(wbResult.reachable).toBe(true);
+      expect(wbResult.applied).toBe(true);
+      expect(wbResult.mode).toBe('live');
+      expect(captured.method).toBe('PATCH');
+      expect(captured.url).toBe('http://127.0.0.1:8080/api/dcim/devices/dev-1/');
+      expect(captured.auth).toBe('Token connector-least-privilege-token');
+      expect(captured.body.status).toBe('Staged');
+      expect(captured.body.custom_fields).toEqual({
+        realized_status: 'staged',
+        realized_at: '2026-11-22T10:00:00.000Z',
+        realized_revision: '3',
+        realized_by: 'gitops-forge-connector@1.0.0',
+        evidence_ref: 'http://127.0.0.1:3001/archinex/sylva-gitops/pulls/7'
+      });
+      // Aucun champ d'intention archinex_* ne doit être touché par le connecteur
+      expect(Object.keys(captured.body.custom_fields).some((k) => k.startsWith('archinex_'))).toBe(false);
+    });
+  });
+
+  describe('7. Contrat de write-back Nautobot (#399) et isolation du cœur (#411)', () => {
+    it('refuse un payload sans evidence_ref et marque non prouvé si la révision diverge', () => {
+      const missingEvidence = buildConnectorWriteBackPayload({
+        realizedStatus: 'active',
+        realizedRevision: 2,
+        connectorName: 'gitops-forge-connector',
+        connectorVersion: '1.0.0',
+        evidenceRef: '   '
+      });
+      const vMissing = validateWriteBackPayload(missingEvidence, 2);
+      expect(vMissing.valid).toBe(false);
+      expect(vMissing.proven).toBe(false);
+
+      const wrongRev = buildConnectorWriteBackPayload({
+        realizedStatus: 'active',
+        realizedRevision: 1,
+        connectorName: 'gitops-forge-connector',
+        connectorVersion: '1.0.0',
+        evidenceRef: 'https://forge.example/org/repo/pulls/12'
+      });
+      const vWrongRev = validateWriteBackPayload(wrongRev, 2);
+      expect(vWrongRev.valid).toBe(true);
+      expect(vWrongRev.proven).toBe(false);
+
+      const patch = toNautobotPatchBody(wrongRev);
+      expect(patch.status).toBeUndefined();
+      expect((patch.custom_fields as Record<string, unknown>).evidence_ref).toBe(
+        'https://forge.example/org/repo/pulls/12'
+      );
+    });
+
+    it('dégrade proprement le write-back lorsque Nautobot est injoignable', async () => {
+      const payload = buildConnectorWriteBackPayload({
+        realizedStatus: 'active',
+        realizedRevision: 4,
+        connectorName: 'gitops-forge-connector',
+        connectorVersion: '1.0.0',
+        evidenceRef: 'https://forge.example/org/repo/pulls/14'
+      });
+      const res = await writeBackToNautobot(
+        {
+          baseUrl: 'http://127.0.0.1:8080',
+          nautobotToken: 'tok',
+          objectPath: '/api/dcim/devices/dev-4/',
+          fetchImpl: createFailingFetch('connect ECONNREFUSED 127.0.0.1:8080')
+        },
+        payload
+      );
+      expect(res.reachable).toBe(false);
+      expect(res.applied).toBe(false);
+      expect(res.mode).toBe('degraded');
+      expect(res.errors[0]).toContain('ECONNREFUSED');
+    });
+
+    it('garantit que src/ ne contient plus edp/adapters/ ni aucun import vers edp/adapters ou connectors/', () => {
+      const root = process.cwd();
+      expect(existsSync(resolve(root, 'src/lib/server/edp/adapters'))).toBe(false);
+
+      const walk = (dir: string): string[] =>
+        readdirSync(dir, { withFileTypes: true }).flatMap((entry) => {
+          const full = join(dir, entry.name);
+          if (entry.isDirectory()) {
+            return entry.name === 'generated' ? [] : walk(full);
+          }
+          return /\.(ts|js|svelte)$/.test(entry.name) ? [full] : [];
+        });
+
+      const srcFiles = walk(resolve(root, 'src'));
+      const offenders: string[] = [];
+      for (const file of srcFiles) {
+        const content = readFileSync(file, 'utf-8');
+        if (/from\s+['"][^'"]*(?:edp\/adapters|\/adapters\/|connectors\/)/m.test(content)) {
+          offenders.push(file);
+        }
+      }
+      expect(offenders).toEqual([]);
     });
   });
 });

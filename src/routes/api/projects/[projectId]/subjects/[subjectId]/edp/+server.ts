@@ -1221,7 +1221,9 @@ export const POST: RequestHandler = async (event) => {
 
       // Si action === 'verify' et qu'aucune surcharge de simulation locale n'est active,
       // tenter une collecte temps réel (Pull SSoT — Issue #239 / #377) depuis Nautobot 2.x.
-      const hasLocalDriftOverrides = Object.keys(activeOverrides).length > 0;
+      const hasLocalDriftOverrides = Object.keys(activeOverrides).some(
+        (k) => k !== 'reconciliationInstances' && k !== 'projectRequirementRefs'
+      );
       let observedInventory = baselineInventory;
       let evaluationSource: 'nautobot_live' | 'local_simulated' | 'local_fallback' =
         hasLocalDriftOverrides ? 'local_simulated' : 'local_fallback';
@@ -1413,8 +1415,12 @@ export const POST: RequestHandler = async (event) => {
         activeOverrides
       );
 
-      const currentVerdict: 'compliant' | 'violated' =
-        parsedDb?.lastVerdict?.verdict === 'violated' ? 'violated' : 'compliant';
+      const currentVerdict: 'compliant' | 'violated' | 'insufficient_input' =
+        parsedDb?.lastVerdict?.verdict === 'violated'
+          ? 'violated'
+          : parsedDb?.lastVerdict?.verdict === 'insufficient_input'
+            ? 'insufficient_input'
+            : 'compliant';
 
       // Si aucun verdict n'était encore calculé, évaluer OPA avant d'autoriser l'export
       const evalRes = await evaluateMultiAxisOracle(
@@ -1422,10 +1428,12 @@ export const POST: RequestHandler = async (event) => {
         coverage.composedBindings,
         catalog
       );
-      const effectiveVerdict =
+      const effectiveVerdict: 'compliant' | 'violated' | 'insufficient_input' =
         currentVerdict === 'violated' || evalRes.verdict === 'violated'
           ? 'violated'
-          : 'compliant';
+          : currentVerdict === 'insufficient_input' || evalRes.verdict === 'insufficient_input'
+            ? 'insufficient_input'
+            : 'compliant';
 
       const gitopsExport = await exportSylvaWorkloadClusterGitops({
         edpId: parsedDb?.metadata?.id || ctx.edpPrimaryKey,

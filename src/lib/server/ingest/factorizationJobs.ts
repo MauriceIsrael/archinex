@@ -212,7 +212,7 @@ function execute(runId: string | null, req: FactorizeRequest, model: string, kb:
 				reportSummary: {
 					pageCount: 1,
 					clauseCount: req.clauses.length,
-					coverageRate: 0,
+					extractionCharCoverage: 0,
 					anomaliesCount: 0
 				}
 			};

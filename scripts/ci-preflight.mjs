@@ -144,6 +144,50 @@ function getChangedFilesVsBase(baseSha) {
 	}
 }
 
+const ONTOLOGY_PROVENANCE_PATH = 'tests/fixtures/edp/ontology_export.provenance.json';
+
+/**
+ * Résout la référence du dépôt LLMOps à cloner par `hub-live`.
+ * Ordre de priorité :
+ * 1. `explicitRef` (ex. `inputs.llmops_ref` d'un `workflow_dispatch`) si non vide ;
+ * 2. Si le fichier `ontology_export.provenance.json` a été modifié par la PR par rapport à la branche de base,
+ *    son champ `llmops_ref` (permet d'éprouver une PR couplée Archinex ↔ LLMOps contre le commit exact du Hub
+ *    d'où provient la fixture, avant fusion de la PR côté Hub) ;
+ * 3. `'main'` par défaut (comportement continu : éprouver Archinex contre la tête de `main` du Hub).
+ *
+ * @param {{ explicitRef?: string, changedFilesVsBase?: string[], provenanceContent?: string }} [params]
+ * @returns {string}
+ */
+export function resolveHubLiveRef({
+	explicitRef = '',
+	changedFilesVsBase = [],
+	provenanceContent
+} = {}) {
+	const trimmedExplicit = String(explicitRef || '').trim();
+	if (trimmedExplicit) return trimmedExplicit;
+
+	const normalizedChanged = Array.isArray(changedFilesVsBase)
+		? changedFilesVsBase.map((f) => normalizeRepoPath(f))
+		: [];
+	if (!normalizedChanged.includes(ONTOLOGY_PROVENANCE_PATH)) {
+		return 'main';
+	}
+
+	try {
+		const raw =
+			typeof provenanceContent === 'string'
+				? provenanceContent
+				: fs.readFileSync(path.resolve(process.cwd(), ONTOLOGY_PROVENANCE_PATH), 'utf-8');
+		const parsed = JSON.parse(raw);
+		const ref = typeof parsed?.llmops_ref === 'string' ? parsed.llmops_ref.trim() : '';
+		if (ref) return ref;
+	} catch {
+		// Repli sûr sur main si le fichier est absent ou illisible
+	}
+
+	return 'main';
+}
+
 /**
  * @param {string[]} argv
  * @returns {{ mode: string, workflow: string }}
@@ -188,12 +232,18 @@ function runCli() {
 			workflow
 		});
 
+		const llmopsRef = resolveHubLiveRef({
+			explicitRef: process.env.INPUT_LLMOPS_REF || '',
+			changedFilesVsBase
+		});
+
 		appendGithubOutputs({
 			should_run: decision.shouldRun ? 'true' : 'false',
-			reason: decision.reason
+			reason: decision.reason,
+			llmops_ref: llmopsRef
 		});
 		console.log(
-			`[ci-preflight:${workflow}] should_run=${decision.shouldRun} — ${decision.reason}`
+			`[ci-preflight:${workflow}] should_run=${decision.shouldRun} llmops_ref=${llmopsRef} — ${decision.reason}`
 		);
 		return;
 	}

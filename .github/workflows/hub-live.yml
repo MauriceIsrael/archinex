@@ -71,6 +71,7 @@ jobs:
         env:
           BASE_SHA: ${{ github.event.pull_request.base.sha }}
           CACHE_HIT: ${{ steps.ci_cache.outputs.cache-hit }}
+          INPUT_LLMOPS_REF: ${{ inputs.llmops_ref }}
         run: node scripts/ci-preflight.mjs --mode eval --workflow hub-live
 
       - name: Récupérer le Hub (dépôt public)
@@ -78,7 +79,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           repository: MauriceIsrael/LLMOps
-          ref: ${{ inputs.llmops_ref || 'main' }}
+          ref: ${{ steps.preflight_eval.outputs.llmops_ref || inputs.llmops_ref || 'main' }}
           path: llmops
 
       # La même version de Poetry que celle qui a écrit llmops/poetry.lock (docs/TESTING.md du Hub).

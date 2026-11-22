@@ -170,6 +170,7 @@
         <Button
           variant="outline"
           size="sm"
+          aria-label="Notifications"
           class="relative gap-2"
           onclick={() => (showNotifications = !showNotifications)}
         >
@@ -312,6 +313,7 @@
 
         <!-- Filtre Domaine -->
         <select
+          aria-label="Filtrer par domaine"
           bind:value={selectedDomain}
           class="h-8 rounded-md border border-input bg-background px-2.5 py-1 text-xs focus:ring-1 focus:ring-primary"
         >
@@ -327,6 +329,7 @@
 
         <!-- Filtre Type d'actif -->
         <select
+          aria-label="Filtrer par type d'actif"
           bind:value={selectedKind}
           class="h-8 rounded-md border border-input bg-background px-2.5 py-1 text-xs focus:ring-1 focus:ring-primary"
         >

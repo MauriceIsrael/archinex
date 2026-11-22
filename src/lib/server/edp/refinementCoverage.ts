@@ -28,6 +28,7 @@ import {
   type ReferenceGraph,
   type ResolvedComponentInstance
 } from '../../domain/edp/refResolver.js';
+import { buildResourceName } from '../../domain/edp/resourceNaming.js';
 import {
   detectEmergentCapabilityNeed,
   resolveTogafDomain,
@@ -1796,8 +1797,13 @@ export function composeMultiAxisHydration(
   catalog: OntologyCatalog,
   overrides: LldHydrationOverrides = {}
 ): MultiAxisHydratedInventory {
-  const cleanSubj = subjectId.replace(/[^a-zA-Z0-9]/g, '-').toLowerCase();
-  const hostname = `srv-${cleanSubj.slice(-12) || 'edge'}-01`;
+  const hostname = buildResourceName('srv', subjectId, 'edge', {
+    maxSegmentLen: 12,
+    suffix: '01'
+  });
+  const workloadClusterName = buildResourceName('wc', subjectId, 'workload', {
+    maxSegmentLen: 12
+  });
 
   const nautobotDevices: Array<Record<string, unknown>> = [];
   const k8sManifests: Array<Record<string, unknown>> = [];
@@ -2099,7 +2105,10 @@ export function composeMultiAxisHydration(
       const nodeHostname =
         idx === 0
           ? hostname
-          : `srv-${cleanSubj.slice(-12) || 'edge'}-0${idx + 1}`;
+          : buildResourceName('srv', subjectId, 'edge', {
+              maxSegmentLen: 12,
+              suffix: String(idx + 1).padStart(2, '0')
+            });
       const nodeType = overrides.deviceType !== undefined ? overrides.deviceType : prof.deviceType;
       const nodeRole = overrides.nodeRole !== undefined ? overrides.nodeRole : prof.role;
       const nodeOobIp =
@@ -2145,7 +2154,7 @@ export function composeMultiAxisHydration(
           namespace: 'sylva-system',
           labels: {
             'app.kubernetes.io/managed-by': 'sylva-units-operator',
-            'sylva.org/workload-cluster': `wc-${cleanSubj.slice(-12) || 'workload'}`,
+            'sylva.org/workload-cluster': workloadClusterName,
             'sylva.org/machine-deployment-pool': prof.clusterPool,
             'sylva.org/device-type': nodeType,
             'sylva.org/security-zones': securityZones.map((z) => z.zone_id).join('-') || 'default'
@@ -2268,10 +2277,10 @@ export function composeMultiAxisHydration(
     apiVersion: 'workloadclusteroperator.sylva/v1alpha1',
     kind: 'SylvaWorkloadCluster',
     metadata: {
-      name: `wc-${cleanSubj.slice(-12) || 'workload'}`,
+      name: workloadClusterName,
       namespace: 'sylva-workload-clusters',
       annotations: {
-        'archinex.io/gitops-target': `workload-clusters/wc-${cleanSubj.slice(-12) || 'workload'}`,
+        'archinex.io/gitops-target': `workload-clusters/${workloadClusterName}`,
         'archinex.io/source-subject': subjectId,
         'archinex.io/satisfied-clauses': satisfiedClauses.join(','),
         'archinex.io/evaluated-triplets': evaluatedTriplets.join(',')

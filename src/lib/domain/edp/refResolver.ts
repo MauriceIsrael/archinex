@@ -14,6 +14,7 @@ import type {
   NicSpec,
   ValueCatalogs
 } from './componentCatalog.js';
+import { sanitizeResourceSegment } from './resourceNaming.js';
 import { DEFAULT_VALUE_CATALOGS } from './componentCatalog.js';
 
 export interface ReferenceEdge {
@@ -207,7 +208,7 @@ export function generateImplicitFlows(
     for (const grant of exp.access) {
       if (grant.rights === 'none') continue;
       pushIfNew({
-        id: `auto-nfs-${compName}-${exp.name}-${grant.grant.replace(/[^a-zA-Z0-9-]/g, '-')}`,
+        id: `auto-nfs-${sanitizeResourceSegment(compName, 'comp')}-${sanitizeResourceSegment(exp.name, 'export')}-${sanitizeResourceSegment(grant.grant, 'grant')}`,
         from: grant.grant,
         to: `svm:${exp.svm}`,
         proto: 'tcp',

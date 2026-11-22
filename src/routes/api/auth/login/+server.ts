@@ -12,7 +12,7 @@ export const POST: RequestHandler = async ({ request, cookies, url }) => {
     const { email, password } = await request.json();
 
     if (!email || !password) {
-      return json({ message: 'Email and password are required' }, { status: 400 });
+      return json({ message: 'Adresse e-mail et mot de passe requis' }, { status: 400 });
     }
 
     // 1. Find user in DB
@@ -21,12 +21,12 @@ export const POST: RequestHandler = async ({ request, cookies, url }) => {
     });
 
     if (!user) {
-      return json({ message: 'Invalid email or password' }, { status: 401 });
+      return json({ message: 'Adresse e-mail ou mot de passe incorrect' }, { status: 401 });
     }
 
     // 2. Check credentials with bcrypt (no plain-text fallback: archinex#137)
     if (!(await verifyPassword(password, user.passwordHash))) {
-      return json({ message: 'Invalid email or password' }, { status: 401 });
+      return json({ message: 'Adresse e-mail ou mot de passe incorrect' }, { status: 401 });
     }
 
     // 3. Create tokens
@@ -68,6 +68,6 @@ export const POST: RequestHandler = async ({ request, cookies, url }) => {
     });
   } catch (err) {
     console.error('[Login Error]', err);
-    return json({ message: 'Internal server error' }, { status: 500 });
+    return json({ message: 'Erreur interne du serveur' }, { status: 500 });
   }
 };

@@ -1,6 +1,11 @@
 <script lang="ts">
 	import { deliberationStore } from '$lib/stores/deliberationStore.svelte';
 	import {
+		computePhaseNavigation,
+		type PhaseStatus,
+		type NextAction
+	} from '$lib/domain/phaseNavigation';
+	import {
 		BookOpen,
 		MessagesSquare,
 		CheckCircle2,
@@ -10,7 +15,11 @@
 		RotateCcw,
 		Target,
 		Bot,
-		Lock
+		Lock,
+		ArrowRight,
+		Circle,
+		Clock,
+		AlertCircle
 	} from 'lucide-svelte';
 
 	interface Props {
@@ -30,6 +39,17 @@
 		(activePosture === 'deliberation' && viewMode === 'conversation') ||
 			activePosture === 'rendu' ||
 			activePosture === 'refinement'
+	);
+
+	// État calculé de chaque phase + prochaine action unique
+	const nav = $derived(
+		computePhaseNavigation({
+			corpusCount: deliberationStore.corpusDocuments.length,
+			subjects: deliberationStore.subjects,
+			activeSubject,
+			frozenSnapshotIds: Object.keys(deliberationStore.frozenSnapshots),
+			isArchived: activeEngagement.status === 'archived'
+		})
 	);
 
 	function openProjectAppropriation() {
@@ -57,7 +77,66 @@
 	function openProjectConsolidation() {
 		deliberationStore.setPosture('consolidation');
 	}
+
+	function runNextAction(action: NextAction) {
+		if (action.phaseId === 'appropriation') {
+			openProjectAppropriation();
+		} else if (action.phaseId === 'deliberation') {
+			if (action.viewMode === 'board') {
+				openProjectBoard();
+			} else {
+				openSubjectDeliberation();
+			}
+		} else if (action.phaseId === 'rendu') {
+			openSubjectRendu();
+		} else if (action.phaseId === 'refinement') {
+			openSubjectRefinement();
+		} else if (action.phaseId === 'consolidation') {
+			openProjectConsolidation();
+		}
+	}
+
+	function statusDotClass(status: PhaseStatus, isActive: boolean): string {
+		if (isActive) {
+			if (status === 'ready') return 'text-emerald-200';
+			if (status === 'blocked') return 'text-amber-200';
+			if (status === 'in_progress') return 'text-sky-200';
+			return 'text-primary-foreground/70';
+		}
+		if (status === 'ready') return 'text-emerald-600 dark:text-emerald-400';
+		if (status === 'blocked') return 'text-amber-600 dark:text-amber-400';
+		if (status === 'in_progress') return 'text-sky-600 dark:text-sky-400';
+		return 'text-muted-foreground/70';
+	}
+
+	function stepButtonClass(status: PhaseStatus, isActive: boolean): string {
+		if (isActive) {
+			return 'bg-primary text-primary-foreground font-bold shadow-xs border border-primary';
+		}
+		if (status === 'ready') {
+			return 'bg-emerald-500/8 hover:bg-emerald-500/15 text-foreground font-medium border border-emerald-500/25';
+		}
+		if (status === 'blocked') {
+			return 'bg-muted/30 hover:bg-muted/60 text-muted-foreground hover:text-foreground font-medium border border-dashed border-amber-500/35';
+		}
+		if (status === 'in_progress') {
+			return 'bg-sky-500/8 hover:bg-sky-500/15 text-foreground font-medium border border-sky-500/25';
+		}
+		return 'bg-muted/40 hover:bg-muted text-foreground/80 hover:text-foreground font-medium border border-transparent';
+	}
 </script>
+
+{#snippet statusIcon(status: PhaseStatus, isActive: boolean)}
+	{#if status === 'ready'}
+		<CheckCircle2 class="h-3 w-3 shrink-0 {statusDotClass(status, isActive)}" aria-hidden="true" />
+	{:else if status === 'in_progress'}
+		<Clock class="h-3 w-3 shrink-0 {statusDotClass(status, isActive)}" aria-hidden="true" />
+	{:else if status === 'blocked'}
+		<AlertCircle class="h-3 w-3 shrink-0 {statusDotClass(status, isActive)}" aria-hidden="true" />
+	{:else}
+		<Circle class="h-3 w-3 shrink-0 {statusDotClass(status, isActive)}" aria-hidden="true" />
+	{/if}
+{/snippet}
 
 <div class="space-y-2.5" data-testid="project-engagement-header">
 	<!-- Alerte si l'espace actif est archivé (lecture seule) -->
@@ -96,86 +175,112 @@
 	{/if}
 
 	<!-- ═════════════════════════════════════════════════════════════════════════ -->
-	<!-- HIÉRARCHIE ERGONOMIQUE À 2 NIVEAUX (PROJET VS SUJET - PATTERN A)         -->
+	<!-- STEPPER À ÉTATS PAR PHASE + PROCHAINE ACTION UNIQUE                       -->
 	<!-- ═════════════════════════════════════════════════════════════════════════ -->
-	<div class="rounded-xl border bg-card p-2 shadow-2xs flex flex-col xl:flex-row xl:items-center justify-between gap-2">
-		<!-- NIVEAU 1 : ÉCHELLE PROJET (CADRAGE & PILOTAGE GLOBAL) -->
-		<div class="flex items-center gap-1.5 flex-wrap xl:flex-1">
-			<span
-				class="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground font-mono flex items-center gap-1 shrink-0"
-				title={`Périmètre Projet : ${activeEngagement.title}`}
-			>
-				<Layers class="h-3.5 w-3.5 text-primary shrink-0" />
-				<span>Projet :</span>
-			</span>
-
-			<!-- Phase 1 : Corpus & Règles (Appropriation Documentaire) -->
-			<button
-				type="button"
-				data-testid="phase-tab-appropriation"
-				onclick={openProjectAppropriation}
-				class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs transition-all cursor-pointer {activePosture ===
-				'appropriation'
-					? 'bg-primary text-primary-foreground font-bold shadow-xs'
-					: 'bg-muted/40 hover:bg-muted text-foreground/80 hover:text-foreground font-medium'}"
-			>
-				<BookOpen class="h-3.5 w-3.5 shrink-0" />
-				<span>Phase 1 · Corpus & Règles</span>
+	<nav
+		aria-label="Navigation par phase du projet"
+		class="rounded-xl border bg-card p-2 shadow-2xs flex flex-col gap-2"
+	>
+		<div class="flex flex-col xl:flex-row xl:items-center justify-between gap-2">
+			<!-- NIVEAU 1 : ÉCHELLE PROJET (CADRAGE & PILOTAGE GLOBAL) -->
+			<div class="flex items-center gap-1.5 flex-wrap">
 				<span
-					class="font-mono text-[10px] px-1.5 py-0.2 rounded {activePosture === 'appropriation'
-						? 'bg-primary-foreground/20 text-primary-foreground'
-						: 'bg-background text-muted-foreground'}"
+					class="px-2 py-1 text-[10px] font-bold uppercase tracking-wider text-muted-foreground font-mono flex items-center gap-1 shrink-0"
+					title={`Périmètre Projet : ${activeEngagement.title}`}
 				>
-					{deliberationStore.corpusDocuments.length} docs
+					<Layers class="h-3.5 w-3.5 text-primary shrink-0" />
+					<span>Projet :</span>
 				</span>
-			</button>
 
-			<!-- Vue d'ensemble : Tableau des Sujets (Matrice de maturité globale) -->
-			<button
-				type="button"
-				data-testid="project-board-tab"
-				onclick={openProjectBoard}
-				class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs transition-all cursor-pointer {activePosture ===
-					'deliberation' && viewMode === 'board'
-					? 'bg-primary text-primary-foreground font-bold shadow-xs'
-					: 'bg-muted/40 hover:bg-muted text-foreground/80 hover:text-foreground font-medium'}"
-			>
-				<Layers class="h-3.5 w-3.5 shrink-0" />
-				<span>Tableau des Sujets</span>
-				<span
-					class="font-mono text-[10px] px-1.5 py-0.2 rounded {activePosture === 'deliberation' &&
-					viewMode === 'board'
-						? 'bg-primary-foreground/20 text-primary-foreground'
-						: 'bg-background text-muted-foreground'}"
-				>
-					{deliberationStore.subjects.length}
-				</span>
-			</button>
-		</div>
-
-		<!-- CENTRE : CHATBOT ASSISTANT EXIGENCES (PÉRIMÈTRE CLAUSES RFP / CCTP) -->
-		{#if onOpenQuickAsk}
-			<div class="flex items-center justify-center shrink-0 xl:px-2 xl:border-x xl:border-border">
+				<!-- Phase 1 : Corpus & Règles (Appropriation Documentaire) -->
 				<button
 					type="button"
-					data-testid="quick-ask-trigger"
-					onclick={onOpenQuickAsk}
-					title="Ouvrir l'Assistant Exigences : chatbot sourcé sur les clauses RFP/CCTP du projet (Alt+/ ou Ctrl+K)"
-					class="inline-flex items-center gap-2 px-3 py-1.5 rounded-lg text-xs bg-primary/10 hover:bg-primary/20 text-primary font-semibold border border-primary/30 shadow-2xs transition-all cursor-pointer"
+					data-testid="phase-tab-appropriation"
+					data-phase-status={nav.phases.appropriation.status}
+					aria-current={activePosture === 'appropriation' ? 'step' : undefined}
+					aria-label={`Phase 1 · Corpus & Règles — ${nav.phases.appropriation.statusLabel} : ${nav.phases.appropriation.reason}`}
+					title={`${nav.phases.appropriation.statusLabel} — ${nav.phases.appropriation.reason}`}
+					onclick={openProjectAppropriation}
+					class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs transition-all cursor-pointer {stepButtonClass(
+						nav.phases.appropriation.status,
+						activePosture === 'appropriation'
+					)}"
 				>
-					<Bot class="h-3.5 w-3.5 shrink-0" />
-					<span>Assistant Exigences</span>
-					<kbd class="hidden sm:inline-block rounded border border-primary/25 bg-background/80 px-1 py-0.2 font-mono text-[10px] text-primary/80">
-						Alt+/
-					</kbd>
+					{@render statusIcon(nav.phases.appropriation.status, activePosture === 'appropriation')}
+					<BookOpen class="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+					<span>Phase 1 · Corpus</span>
+					<span
+						class="font-mono text-[10px] px-1.5 py-0.2 rounded {activePosture === 'appropriation'
+							? 'bg-primary-foreground/20 text-primary-foreground'
+							: 'bg-background text-muted-foreground'}"
+					>
+						{deliberationStore.corpusDocuments.length} docs
+					</span>
+				</button>
+
+				<!-- Vue d'ensemble : Tableau des Sujets (Matrice de maturité globale) -->
+				<button
+					type="button"
+					data-testid="project-board-tab"
+					aria-current={activePosture === 'deliberation' && viewMode === 'board' ? 'page' : undefined}
+					title="Afficher le tableau de maturité global de tous les sujets du projet"
+					onclick={openProjectBoard}
+					class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs transition-all cursor-pointer {activePosture ===
+						'deliberation' && viewMode === 'board'
+						? 'bg-primary text-primary-foreground font-bold shadow-xs border border-primary'
+						: 'bg-muted/40 hover:bg-muted text-foreground/80 hover:text-foreground font-medium border border-transparent'}"
+				>
+					<Layers class="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+					<span>Tableau des Sujets</span>
+					<span
+						class="font-mono text-[10px] px-1.5 py-0.2 rounded {activePosture === 'deliberation' &&
+						viewMode === 'board'
+							? 'bg-primary-foreground/20 text-primary-foreground'
+							: 'bg-background text-muted-foreground'}"
+					>
+						{deliberationStore.subjects.length}
+					</span>
+				</button>
+
+				<!-- Outil secondaire : Assistant Exigences (poids visuel réduit) -->
+				{#if onOpenQuickAsk}
+					<button
+						type="button"
+						data-testid="quick-ask-trigger"
+						onclick={onOpenQuickAsk}
+						title="Ouvrir l'Assistant Exigences : chatbot sourcé sur les clauses RFP/CCTP du projet (Alt+/ ou Ctrl+K)"
+						class="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-[11px] text-muted-foreground hover:text-primary hover:bg-primary/10 font-medium border border-border/70 transition-all cursor-pointer"
+					>
+						<Bot class="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+						<span>Assistant Exigences</span>
+						<kbd
+							class="hidden md:inline-block rounded border border-border bg-muted/60 px-1 py-0.2 font-mono text-[10px] text-muted-foreground"
+						>
+							Alt+/
+						</kbd>
+					</button>
+				{/if}
+			</div>
+
+			<!-- PROCHAINE ACTION UNIQUE (CTA principal) -->
+			<div class="flex items-center gap-2 shrink-0">
+				<button
+					type="button"
+					data-testid="next-action-cta"
+					onclick={() => runNextAction(nav.nextAction)}
+					title={`Prochaine action recommandée — ${nav.nextAction.reason}`}
+					class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold bg-primary text-primary-foreground hover:bg-primary/90 shadow-xs transition-all cursor-pointer max-w-full"
+				>
+					<span class="truncate">Prochaine action : {nav.nextAction.label}</span>
+					<ArrowRight class="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
 				</button>
 			</div>
-		{:else}
-			<div class="hidden xl:block h-6 w-px bg-border"></div>
-		{/if}
+		</div>
 
-		<!-- NIVEAU 2 : ÉCHELLE SUJET (INGÉNIERIE D'UNE SECTION : DÉLIBÉRATION -> RENDU -> RAFFINEMENT) -->
-		<div class="flex items-center justify-between xl:justify-end gap-1.5 flex-wrap xl:flex-1">
+		<!-- NIVEAU 2 : STEPPER SUJET & CONSOLIDATION (Phase 2 -> Phase 3 -> Phase 4 -> Phase 5) -->
+		<div
+			class="flex items-center justify-between gap-1.5 flex-wrap pt-1.5 border-t border-border/60"
+		>
 			<div class="flex items-center gap-1.5 flex-wrap">
 				<span
 					class="px-2 py-1 text-[10px] font-bold uppercase tracking-wider font-mono flex items-center gap-1 shrink-0 {isInSubjectScope
@@ -183,7 +288,7 @@
 						: 'text-muted-foreground'}"
 					title="Vues d'instruction focalisées sur le sujet actif"
 				>
-					<Target class="h-3.5 w-3.5" />
+					<Target class="h-3.5 w-3.5" aria-hidden="true" />
 					<span>Sujet {activeSubject ? activeSubject.section_ref : ''} :</span>
 				</span>
 
@@ -191,29 +296,45 @@
 				<button
 					type="button"
 					data-testid="phase-tab-deliberation"
+					data-phase-status={nav.phases.deliberation.status}
+					aria-current={activePosture === 'deliberation' && viewMode === 'conversation'
+						? 'step'
+						: undefined}
+					aria-label={`Phase 2 · Délibération — ${nav.phases.deliberation.statusLabel} : ${nav.phases.deliberation.reason}`}
+					title={`${nav.phases.deliberation.statusLabel} — ${nav.phases.deliberation.reason}`}
 					onclick={openSubjectDeliberation}
-					class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-all cursor-pointer {activePosture ===
-						'deliberation' && viewMode === 'conversation'
-						? 'bg-primary text-primary-foreground font-bold shadow-xs'
-						: 'bg-muted/40 hover:bg-muted text-foreground/80 hover:text-foreground font-medium'}"
+					class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs transition-all cursor-pointer {stepButtonClass(
+						nav.phases.deliberation.status,
+						activePosture === 'deliberation' && viewMode === 'conversation'
+					)}"
 				>
-					<MessagesSquare class="h-3.5 w-3.5 shrink-0" />
+					{@render statusIcon(
+						nav.phases.deliberation.status,
+						activePosture === 'deliberation' && viewMode === 'conversation'
+					)}
+					<MessagesSquare class="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
 					<span>Phase 2 · Délibération</span>
 				</button>
 
-				<span class="text-muted-foreground/40 text-xs select-none hidden sm:inline">→</span>
+				<span class="text-muted-foreground/40 text-xs select-none hidden sm:inline" aria-hidden="true"
+					>→</span
+				>
 
 				<!-- Phase 3 : Rendu HLD & Scellement du Sujet -->
 				<button
 					type="button"
 					data-testid="phase-tab-rendu"
+					data-phase-status={nav.phases.rendu.status}
+					aria-current={activePosture === 'rendu' ? 'step' : undefined}
+					aria-label={`Phase 3 · Rendu HLD — ${nav.phases.rendu.statusLabel} : ${nav.phases.rendu.reason}`}
+					title={`${nav.phases.rendu.statusLabel} — ${nav.phases.rendu.reason}`}
 					onclick={openSubjectRendu}
-					class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-all cursor-pointer {activePosture ===
-					'rendu'
-						? 'bg-primary text-primary-foreground font-bold shadow-xs'
-						: 'bg-muted/40 hover:bg-muted text-foreground/80 hover:text-foreground font-medium'}"
+					class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs transition-all cursor-pointer {stepButtonClass(
+						nav.phases.rendu.status,
+						activePosture === 'rendu'
+					)}"
 				>
-					<CheckCircle2 class="h-3.5 w-3.5 shrink-0" />
+					{@render statusIcon(nav.phases.rendu.status, activePosture === 'rendu')}
 					<span>Phase 3 · Rendu HLD</span>
 					{#if Object.keys(deliberationStore.frozenSnapshots).length > 0}
 						<span
@@ -226,51 +347,66 @@
 					{/if}
 				</button>
 
-					<span class="text-muted-foreground/40 text-xs select-none hidden sm:inline">→</span>
+				<span class="text-muted-foreground/40 text-xs select-none hidden sm:inline" aria-hidden="true"
+					>→</span
+				>
 
-					<!-- Phase 4 : Raffinement & Hydratation du Sujet -->
-					<button
-						type="button"
-						data-testid="phase-tab-refinement"
-						onclick={openSubjectRefinement}
-						class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-all cursor-pointer {activePosture ===
-						'refinement'
-							? 'bg-indigo-600 text-white font-bold shadow-xs'
-							: 'bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 font-medium border border-indigo-500/20'}"
-					>
-						<Cpu class="h-3.5 w-3.5 shrink-0" />
-						<span>Phase 4 · Raffinement</span>
-					</button>
+				<!-- Phase 4 : Raffinement & Hydratation du Sujet -->
+				<button
+					type="button"
+					data-testid="phase-tab-refinement"
+					data-phase-status={nav.phases.refinement.status}
+					aria-current={activePosture === 'refinement' ? 'step' : undefined}
+					aria-label={`Phase 4 · Raffinement — ${nav.phases.refinement.statusLabel} : ${nav.phases.refinement.reason}`}
+					title={`${nav.phases.refinement.statusLabel} — ${nav.phases.refinement.reason}`}
+					onclick={openSubjectRefinement}
+					class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs transition-all cursor-pointer {stepButtonClass(
+						nav.phases.refinement.status,
+						activePosture === 'refinement'
+					)}"
+				>
+					{@render statusIcon(nav.phases.refinement.status, activePosture === 'refinement')}
+					<Cpu class="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+					<span>Phase 4 · Raffinement</span>
+				</button>
 
-					<span class="text-muted-foreground/40 text-xs select-none hidden sm:inline">→</span>
+				<span class="text-muted-foreground/40 text-xs select-none hidden sm:inline" aria-hidden="true"
+					>→</span
+				>
 
-					<!-- Phase 5 : Consolidation Projet (transversale multi-sujets) -->
-					<button
-						type="button"
-						data-testid="phase-tab-consolidation"
-						onclick={openProjectConsolidation}
-						class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-all cursor-pointer {activePosture ===
-						'consolidation'
-							? 'bg-indigo-600 text-white font-bold shadow-xs'
-							: 'bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 font-medium border border-indigo-500/20'}"
-					>
-						<Layers class="h-3.5 w-3.5 shrink-0" />
-						<span>Phase 5 · Consolidation</span>
-					</button>
-
-					{#if onOpenLiveLock}
-						<button
-							type="button"
-							data-testid="live-lock-quick-open-btn"
-							onclick={onOpenLiveLock}
-							title="Inspecter à tout instant l'architecture verrouillée en direct (Cartographie, Matrice des emplacements & architecture.lock)"
-							class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs bg-emerald-500/10 hover:bg-emerald-500/20 text-emerald-800 dark:text-emerald-200 font-semibold border border-emerald-500/30 transition-all cursor-pointer"
-						>
-							<Lock class="h-3.5 w-3.5 shrink-0" />
-							<span>Architecture Lockée</span>
-						</button>
-					{/if}
+				<!-- Phase 5 : Consolidation Projet (transversale multi-sujets) -->
+				<button
+					type="button"
+					data-testid="phase-tab-consolidation"
+					data-phase-status={nav.phases.consolidation.status}
+					aria-current={activePosture === 'consolidation' ? 'step' : undefined}
+					aria-label={`Phase 5 · Consolidation — ${nav.phases.consolidation.statusLabel} : ${nav.phases.consolidation.reason}`}
+					title={`${nav.phases.consolidation.statusLabel} — ${nav.phases.consolidation.reason}`}
+					onclick={openProjectConsolidation}
+					class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs transition-all cursor-pointer {stepButtonClass(
+						nav.phases.consolidation.status,
+						activePosture === 'consolidation'
+					)}"
+				>
+					{@render statusIcon(nav.phases.consolidation.status, activePosture === 'consolidation')}
+					<Layers class="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+					<span>Phase 5 · Consolidation</span>
+				</button>
 			</div>
+
+			<!-- Outil secondaire : Architecture Lockée (poids visuel réduit) -->
+			{#if onOpenLiveLock}
+				<button
+					type="button"
+					data-testid="live-lock-quick-open-btn"
+					onclick={onOpenLiveLock}
+					title="Inspecter à tout instant l'architecture verrouillée en direct (Cartographie, Matrice des emplacements & architecture.lock)"
+					class="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg text-[11px] text-muted-foreground hover:text-emerald-700 dark:hover:text-emerald-300 hover:bg-emerald-500/10 font-medium border border-border/70 transition-all cursor-pointer"
+				>
+					<Lock class="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+					<span>Architecture Lockée</span>
+				</button>
+			{/if}
 		</div>
-	</div>
+	</nav>
 </div>

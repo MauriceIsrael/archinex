@@ -2,8 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { resolve } from 'node:path';
 import { readFileSync } from 'node:fs';
 import { verifyEdp } from '../../src/lib/server/edp/edpVerify.js';
-import { sanitizeManifests, transformSylvaManifestsToRefinedInput } from '../../src/lib/server/edp/adapters/sylvaAdapter.js';
-import { normalizeNautobotDevice, transformNautobotExportToRefinedInput, parseNautobotGraphqlResponse, NAUTOBOT_PLANNED_EXTRACT_QUERY } from '../../src/lib/server/edp/adapters/nautobotAdapter.js';
+import { sanitizeManifests, transformSylvaManifestsToRefinedInput } from '../../src/lib/server/edp/manifestSanitizer.js';
+import { normalizeNautobotDevice, transformNautobotExportToRefinedInput, parseNautobotGraphqlResponse, NAUTOBOT_PLANNED_EXTRACT_QUERY } from '../../src/lib/server/edp/nautobotPlannedExtract.js';
 import { runEdpArchitectureGate } from '../../scripts/edp-gate.js';
 import { validateRefinedInput } from '../../src/lib/domain/edp/validateRefinedInput.js';
 

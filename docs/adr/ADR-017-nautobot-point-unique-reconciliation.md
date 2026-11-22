@@ -96,10 +96,23 @@ Nautobot devient un **point critique de la boucle** (pas de l'application : la d
 |---|---|---|---|
 | `nautobotSync.ts` (écriture *Planned*, lecture live) | cœur du dispositif | **Garder** ; étendre seulement la tranche minimale ; circuits/VPN conservés et **gelés** | #376, #398 |
 | `driftService.ts`, webhook Nautobot, `DriftFinding` | livrés par #377 | **Garder** | #378, #379 |
-| `adapters/nautobotAdapter.ts` (extraction GraphQL des objets *Planned*) | lecture de Nautobot | **Garder** (lecture) ; son site par défaut est codé en dur dans la requête, à paramétrer | #411 |
-| `adapters/sylvaAdapter.ts` (`sanitizeManifests`) | utilitaire utilisé par l'export | **Garder**, déplacer dans un module neutre | #411 |
+| `nautobotPlannedExtract.ts` (ex-`adapters/nautobotAdapter.ts`) | lecture de Nautobot | **Gardé** (module neutre de lecture) ; requête GraphQL paramétrée par `$site_slug` (site codé en dur supprimé) | #411 (fait) |
+| `manifestSanitizer.ts` (ex-`adapters/sylvaAdapter.ts`, `sanitizeManifests`) | utilitaire utilisé par l'export | **Gardé**, déplacé dans un module neutre hors `adapters/` | #411 (fait) |
 | `sylvaGitopsExport.ts` : ouverture directe de PR/MR | **écriture directe** vers une forge | **Déplacer** derrière Nautobot (connecteur de référence) ; garder `local_bundle` ; ouverture directe derrière un drapeau de dépréciation jusqu'à parité | #381 |
-| `adapters/` Batfish, OpenBao, Keycloak, OCI, DNS/DDI, forge Git | non câblés ; écritures directes (`provision`, POST/PUT) | **Relocaliser** hors du cœur ; lecture seule ou derrière Nautobot ; retirer le chemin d'écriture directe | #411 |
+| 6 adaptateurs (`connectors/` : Forgejo, OCI/Trivy, Batfish, OpenBao, Keycloak, DNS/DDI) | relocalisés hors `src/lib/server/edp/adapters/` | **Relocalisés dans `connectors/`** ; aucun import depuis `src/` ; write-back #399 implémenté sur le socle GitOps Forgejo, autres documentés « à reprendre » | #411 (fait) |
+
+### 7.1 Tableau de classement des 6 adaptateurs relocalisés (#411)
+
+Voir le détail complet dans [`docs/edp/connectors-classification.md`](../edp/connectors-classification.md).
+
+| Adaptateur | Emplacement | Classement | Statut write-back (#399) |
+|---|---|---|---|
+| Forge Git / GitOps (Forgejo) | `connectors/gitopsForgeAdapter.ts` | Connecteur derrière Nautobot *(socle référence #381)* | Implémenté (`reportRealizationToNautobot`) |
+| Registre OCI + Cosign + Trivy | `connectors/ociSupplyChainAdapter.ts` | Connecteur derrière Nautobot *(contrôle lecture seule)* | À reprendre |
+| Batfish (analyse réseau) | `connectors/batfishAdapter.ts` | Connecteur derrière Nautobot | À reprendre |
+| OpenBao / Vault / PKI | `connectors/openbaoAdapter.ts` | Connecteur derrière Nautobot | À reprendre |
+| Keycloak (IdP) | `connectors/keycloakAdapter.ts` | Connecteur derrière Nautobot | À reprendre |
+| DNS / DDI (Technitium) | `connectors/ddiDnsAdapter.ts` | Connecteur derrière Nautobot | À reprendre |
 | `opaRunner.ts`, oracles Rego de décision, `edp verify` | évaluation déterministe | **Garder** (voir §4) | #380 |
 | Jumeau numérique Sylva (`sylvaTwin.ts`, sushy, KWOK ; #292 à #294) | vérification pré-déploiement, sans écriture | **Garder** comme analyse hors ligne lisant l'intention ; exécution en CI ; ne pas l'étendre avant clôture de la tranche minimale | à confirmer |
 | Registre d'état IMP V2 (#307 : snapshots, quarantaine, CMDB) | **chevauche** Nautobot comme registre d'état | **Re-cadrer** : Nautobot est le registre d'état ; ne pas créer un second registre | à confirmer |

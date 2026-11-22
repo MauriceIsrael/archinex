@@ -26,7 +26,7 @@
         variant="ghost"
         size="icon"
         {...props}
-        aria-label={$t('themeSelector.title', { default: 'Toggle theme' })}
+        aria-label={$t('themeSelector.title', { default: 'Changer le thème' })}
       >
         {#if preferences.themeOverride === 'light'}
           <Sun class="h-5 w-5" />
@@ -39,15 +39,15 @@
   <DropdownMenu.Content align="end">
     <DropdownMenu.Item onclick={() => setTheme('light')}>
       <Sun class="mr-2 h-4 w-4" />
-      <span>{$t('themeSelector.light', { default: 'Light' })}</span>
+      <span>{$t('themeSelector.light', { default: 'Clair' })}</span>
     </DropdownMenu.Item>
     <DropdownMenu.Item onclick={() => setTheme('dark')}>
       <Moon class="mr-2 h-4 w-4" />
-      <span>{$t('themeSelector.dark', { default: 'Dark' })}</span>
+      <span>{$t('themeSelector.dark', { default: 'Sombre' })}</span>
     </DropdownMenu.Item>
     <DropdownMenu.Item onclick={() => setTheme('system')}>
       <Laptop class="mr-2 h-4 w-4" />
-      <span>{$t('themeSelector.system', { default: 'System' })}</span>
+      <span>{$t('themeSelector.system', { default: 'Système' })}</span>
     </DropdownMenu.Item>
   </DropdownMenu.Content>
 </DropdownMenu.Root>

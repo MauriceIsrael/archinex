@@ -7,14 +7,19 @@ describe('EDP UI & API Integration Contract', () => {
 
   it('fournit la route API pour les EDP par sujet et projet', () => {
     const apiRoute = resolve(rootDir, 'src/routes/api/projects/[projectId]/subjects/[subjectId]/edp/+server.ts');
+    const verifyRoute = resolve(rootDir, 'src/routes/api/projects/[projectId]/subjects/[subjectId]/edp/verify/+server.ts');
     expect(existsSync(apiRoute)).toBe(true);
+    expect(existsSync(verifyRoute)).toBe(true);
 
     const content = readFileSync(apiRoute, 'utf-8');
     expect(content).toContain('export const GET: RequestHandler');
     expect(content).toContain('export const POST: RequestHandler');
     expect(content).not.toContain('isEdpFeatureEnabled');
     expect(content).not.toContain('isExperimentalEnabled');
-    expect(content).toContain('verifyEdp');
+    expect(content).toContain('dispatchEdpAction');
+
+    const verifyContent = readFileSync(verifyRoute, 'utf-8');
+    expect(verifyContent).toContain('handleVerifyEdp');
   });
 
   it('n\'a plus aucun drapeau expérimental : ni dans la page, ni dans l\'en-tête, ni dans la carte EDP', () => {

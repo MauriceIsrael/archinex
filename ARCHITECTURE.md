@@ -114,6 +114,7 @@ Depuis `src/lib/domain/decisionDiagramModel.ts`, `src/lib/components/deliberatio
 - **Allégement des payloads (`includeKeyClauses: false`, `stripSubjectProposals: true`)** : réduction > 97 % de la charge utile initiale sur le Dashboard et les listes d'engagements.
 - **Optimisation icônes (`vite.config.ts`)** : plugin `lucideOptimizePlugin` réécrivant les imports barils en imports granulaires.
 - **Changement de sujet fluide (`DeliberationWorkbench.svelte`, `SubjectThreadView.svelte`)** : montage unique responsive (`matchMedia`), endpoint agrégé SQLite `/api/projects/[projectId]/subjects/[subjectId]/workbench`, annulation par `AbortController` et cache client SWR.
+- **Modularisation des couches clés (#396)** : routes et actions EDP modulaires validées par Zod (`src/lib/server/edp/actions/`), client LLMOps découpé par domaine (`src/lib/server/llmops/domains/`, `transport.ts`, types générés `contract/generated-types.ts`) et sous-composants de délibération sujet (`src/lib/components/deliberation/thread/`).
 
 ---
 
@@ -122,7 +123,7 @@ Depuis `src/lib/domain/decisionDiagramModel.ts`, `src/lib/components/deliberatio
 La porte qualité unique est exécutée en local et en CI (`.github/workflows/verify.yml`) via `npm run verify` (`scripts/verify.mjs`) :
 1. **Denylist & Couplage Scénario** (`scripts/check-no-project-names.mjs`, `scripts/check-scenario-coupling.mjs`) : zéro nom de projet ou fournisseur interdit dans `src/`.
 2. **Fragments Changelog** (`scripts/consolidate-changelog.mjs --check`) : conformité de `changelog.d/`.
-3. **Vérification des Liens Documentation** (`scripts/check-doc-links.mjs`) : zéro lien `file:///`, zéro lien relatif ou chemin source cassé.
+3. **Vérification des Liens Documentation, Taille des Routes & Contrat Hub** (`scripts/check-doc-links.mjs`, `scripts/check-file-size.mjs`, `scripts/generate-llmops-types.mjs --check`) : zéro lien `file:///`, zéro lien relatif ou chemin source cassé, routes serveur ≤ 300 lignes sans chaîne `if (action === ...)` et types du contrat Hub synchronisés.
 4. **Sylva CRD & Règles d'Or OPA** (`scripts/check-sylva-golden-rules.ts`) : validation Ajv + évaluation OPA Rego.
 5. **Suites Vitest** (`npm run test`) : tests de contrat et d'intégration (voir les chiffres à jour dans [`docs/metrics.md`](docs/metrics.md)).
 6. **Typage Strict Svelte 5 / TypeScript** (`npm run check`) : 0 erreur, 0 avertissement.

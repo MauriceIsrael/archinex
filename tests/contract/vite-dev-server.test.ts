@@ -48,7 +48,7 @@ describe('Vite Dev Server Configuration & Prisma Resolution Contract (Issue #144
 			const html = await response.text();
 			expect(html.toLowerCase()).toContain('<!doctype html>');
 			expect(html).toContain('admin@archinex.local');
-			expect(html).toContain('Sign In');
+			expect(html).toContain('Connexion');
 		},
 		30000
 	);

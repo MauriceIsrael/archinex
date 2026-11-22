@@ -1,5 +1,5 @@
 <script lang="ts">
-	import { requirementIdsOf } from '$lib/domain/engagements';
+	import { buildImportedSubjects } from '$lib/domain/engagements';
 	import type { RequirementAuditInput } from '$lib/domain/requirementAudit';
 	import { deliberationStore } from '$lib/stores/deliberationStore.svelte';
 	import {
@@ -68,27 +68,34 @@
 		});
 
 		if (result.initialSubjects && result.initialSubjects.length > 0) {
-			const generatedIds = result.initialSubjects.map(
-				(subj, idx) => subj.id || `sub_${Date.now()}_${idx + 1}_${Math.random().toString(36).slice(2, 6)}`
-			);
-			const idByFactorization = new Map(
-				result.initialSubjects.flatMap((subj, idx) =>
-					subj.factorizationId ? [[subj.factorizationId, generatedIds[idx]] as const] : []
-				)
-			);
+			const projectId = deliberationStore.activeEngagementId || 'default';
+			const { subjects: importedSubjects, drafts: importedDrafts } = buildImportedSubjects({
+				projectId,
+				subjects: result.initialSubjects,
+				requirementAudit: result.requirementAudit,
+				existingSubjectCount: deliberationStore.subjects.length
+			});
 
-			result.initialSubjects.forEach((subj, idx) => {
-				const assignedId = generatedIds[idx];
-				const deps = (subj.dependsOn || [])
-					.map((d) => idByFactorization.get(d))
-					.filter((d): d is string => Boolean(d) && d !== assignedId);
-
+			importedSubjects.forEach((imported, idx) => {
+				const raw = result.initialSubjects![idx];
+				const draft = importedDrafts[imported.id];
 				deliberationStore.addMaturitySubject({
-					...subj,
-					id: assignedId,
-					dependsOnSubjectIds: deps.length > 0 ? [...new Set(deps)] : undefined,
-					requirementIds: requirementIdsOf(subj, result.requirementAudit).requirement_ids,
-					skipPersist: idx < result.initialSubjects.length - 1
+					id: imported.id,
+					sectionRef: imported.section_ref,
+					name: imported.name,
+					waitingForRole: imported.waiting_for_role,
+					effort: raw?.effort,
+					initialRetenu: draft?.retenu,
+					initialHypothesis: raw?.initialHypothesis,
+					initialConflict: raw?.initialConflict,
+					initialQuestion: raw?.initialQuestion,
+					expertQuestions: draft?.expertQuestions,
+					problemStatement: imported.problem_statement,
+					nature: imported.nature,
+					proposal: imported.proposal,
+					dependsOnSubjectIds: imported.depends_on_subject_ids,
+					requirementIds: imported.requirement_ids,
+					skipPersist: idx < importedSubjects.length - 1
 				});
 			});
 		}

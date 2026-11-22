@@ -439,6 +439,7 @@ model Argument {
   optionId         String?
   targetArgumentId String?
   stance           String    // support, objection, question, verification, synthesis
+  verdict          String?   // compliant, violates, not_applicable, unknown (stance=verification)
   claim            String    // Assertion télégraphique courte
   grounds          String    // Fondement factuel, calcul ou référence (REQUIS)
   kbRefs           String    @default("[]") // JSON array d'identifiants doctrine

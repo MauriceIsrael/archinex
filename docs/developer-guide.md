@@ -25,7 +25,7 @@ npm install
 ```
 
 ### 2.2 Configuration Locale (`.env`)
-Consultez le guide dédié [Guide d'Installation & Initialisation (`docs/fresh-install.md`)](file:///c:/Users/Momo/Documents/Dev/archinex/docs/fresh-install.md) pour le détail complet de chaque variable.
+Consultez le guide dédié [Guide d'Installation & Initialisation (`docs/fresh-install.md`)](fresh-install.md) pour le détail complet de chaque variable et l'installation du prérequis OPA (`scripts/install-opa.sh` / `scripts/install-opa.ps1`).
 
 ```bash
 DATABASE_URL="file:./dev.db"
@@ -46,7 +46,7 @@ npx prisma db push
 npx prisma db seed
 # Ou réinitialisation complète : npm run db:reset
 ```
-Pour la restauration d'une ancienne base SQLite (`.db` ou `.bak`) et la récupération des comptes utilisateurs associés, consultez le [Guide de Restauration de la Base de Données (`docs/backup-restore.md`)](file:///c:/Users/Momo/Documents/Dev/archinex/docs/backup-restore.md).
+Pour la restauration d'une ancienne base SQLite (`.db` ou `.bak`) et la récupération des comptes utilisateurs associés, consultez le [Guide de Restauration de la Base de Données (`docs/backup-restore.md`)](backup-restore.md).
 
 ### 2.4 Lancement du Serveur de Développement
 ```bash
@@ -114,7 +114,8 @@ Pour ajouter un nouveau format cible de projection (ex: Terraform ou PlantUML C4
 
 ## 5. Intégration continue & Journal des modifications (`changelog.d/`)
 
-- `.github/workflows/verify.yml` exécute `npm run verify` (6 portes : denylist, `changelog:check`, Sylva/OPA, Vitest, Svelte check, build) sur un clone propre à chaque push sur `main` et pull request. Une PR rouge ne se fusionne pas. Pour reproduire localement : `cp .env.example .env && npx prisma generate && npx prisma db push && npm run verify`.
+- `.github/workflows/verify.yml` exécute `npm run verify` (7 portes : denylist, `changelog:check`, `check:docs`, Sylva/OPA, Vitest, Svelte check, build) sur un clone propre à chaque push sur `main` et pull request. Le vérificateur de liens `npm run check:docs` s'exécute également systématiquement sur les PR purement documentaires. Une PR rouge ne se fusionne pas. Pour reproduire localement : `cp .env.example .env && npx prisma generate && npx prisma db push && npm run verify`.
+- **Métriques générées (`docs/metrics.md`)** : ne pas écrire les compteurs de tests ou de règles OPA à la main ; exécuter `npm run docs:metrics` (`scripts/generate-doc-metrics.mjs`).
 - **Pré-vol CI (`scripts/ci-preflight.mjs`)** : sur `pull_request`, si une PR ne modifie que de la documentation / `changelog.d/` (hors docs vérifiées par contrat) ou si l'arbre de code hors documentation est identique à un run déjà vert mémorisé en cache sur la même PR, les étapes lourdes de `verify.yml` et `hub-live.yml` sont court-circuitées en quelques secondes tout en rapportant un statut vert.
 - **Fragments de Changelog (`changelog.d/`)** : pour éviter tout conflit de fusion sur `CHANGELOG.md` entre PRs parallèles, ne modifiez pas `CHANGELOG.md` directement dans vos PRs. Ajoutez un fichier `changelog.d/<nom-de-branche>.md` (validé par `npm run changelog:check`). Le workflow `.github/workflows/changelog-consolidate.yml` consolide automatiquement les fragments sous `## Non publié` lors de la fusion sur `main`.
 

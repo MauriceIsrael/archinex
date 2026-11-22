@@ -8,8 +8,8 @@ const steps = [
 	},
 	{ name: '2/7 Changelog Fragments Check', cmd: 'node scripts/consolidate-changelog.mjs --check' },
 	{
-		name: '3/7 File Size & Route Lint + Hub Contract Types',
-		cmd: 'node scripts/check-file-size.mjs && node scripts/generate-llmops-types.mjs --check'
+		name: '3/7 Documentation Links, File Size & Route Lint + Hub Contract Types',
+		cmd: 'node scripts/check-doc-links.mjs && node scripts/check-file-size.mjs && node scripts/generate-llmops-types.mjs --check'
 	},
 	{
 		name: '4/7 Bootstrap Test Env (OPA, Prisma, SvelteKit) & Sylva OPA Golden Rules',

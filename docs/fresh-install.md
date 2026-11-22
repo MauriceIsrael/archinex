@@ -6,7 +6,11 @@
 
 ## 1. Vue d'ensemble du processus d'installation
 
-L'installation complète d'Archinex s'effectue en 4 étapes ordonnées :
+### Prérequis
+- **Node.js** $\ge$ 20.x et **npm** $\ge$ 10.x
+- **Open Policy Agent (OPA v1.21.4)** : requis pour exécuter les oracles Rego (`npm run check:sylva`, `npm run verify` et la Phase 4 EDP). Les scripts d'installation vérifient l'empreinte SHA-256 du binaire et l'installent dans `tools/bin/`.
+
+L'installation complète d'Archinex s'effectue en 5 étapes ordonnées :
 
 ```bash
 # 1. Cloner le dépôt et installer les dépendances Node.js
@@ -14,15 +18,21 @@ git clone https://github.com/votre-orga/archinex.git
 cd archinex
 npm install
 
-# 2. Configurer le fichier d'environnement
+# 2. Installer Open Policy Agent (OPA v1.21.4 épinglé SHA-256)
+# Linux / macOS :
+bash scripts/install-opa.sh
+# Windows (PowerShell) :
+# pwsh -File scripts/install-opa.ps1
+
+# 3. Configurer le fichier d'environnement
 cp .env.example .env
 
-# 3. Initialiser le schéma puis injecter les données initiales
+# 4. Initialiser le schéma puis injecter les données initiales
 npx prisma generate
 npx prisma db push
 npx prisma db seed
 
-# 4. Lancer le serveur de développement
+# 5. Lancer le serveur de développement
 npm run dev
 ```
 
@@ -77,7 +87,7 @@ Les développeurs se demandent souvent pourquoi deux commandes sont nécessaires
 > ```
 > Cette commande vide la base de données, réapplique le schéma et relance l'ensemble du seed.
 >
-> Pour restaurer une ancienne base de données (`.db` ou `.bak`) existante avec ses comptes utilisateurs, reportez-vous au [Guide de Restauration (`docs/backup-restore.md`)](file:///c:/Users/Momo/Documents/Dev/archinex/docs/backup-restore.md).
+> Pour restaurer une ancienne base de données (`.db` ou `.bak`) existante avec ses comptes utilisateurs, reportez-vous au [Guide de Restauration (`docs/backup-restore.md`)](backup-restore.md).
 
 ---
 

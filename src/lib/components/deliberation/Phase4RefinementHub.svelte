@@ -40,6 +40,12 @@
 	let showOutOfScopeAxes = $state(false);
 	let activeDriftScenario = $state<string>('reset_clean');
 	let selectedConceptUrn = $state<string>('AUTO');
+	let lastHydrationStatus = $state<{
+		nautobotSynced: boolean;
+		baseUrl?: string;
+		errors: string[];
+		message: string;
+	} | null>(null);
 
 	const coverage = $derived(currentEdp?.refinementCoverage || null);
 	const hydrated = $derived(currentEdp?.hydratedInventory || null);
@@ -94,6 +100,7 @@
 	$effect(() => {
 		if (subjectId && projectId) {
 			selectedConceptUrn = 'AUTO';
+			lastHydrationStatus = null;
 			void loadEdpData(subjectId, projectId, 'AUTO');
 		}
 	});
@@ -140,9 +147,25 @@
 				} else {
 					await loadEdpData(subjectId, projectId);
 				}
+				if (payload.action === 'hydrate') {
+					lastHydrationStatus = {
+						nautobotSynced: Boolean(data.nautobotSynced),
+						baseUrl: data.nautobotSyncSummary?.baseUrl,
+						errors: Array.isArray(data.nautobotSyncSummary?.errors)
+							? data.nautobotSyncSummary.errors
+							: [],
+						message: data.message || ''
+					};
+				}
+				const notifType =
+					data.notificationType === 'warning' ||
+					data.verdict === 'violated' ||
+					(payload.action === 'hydrate' && data.nautobotSynced === false)
+						? 'warning'
+						: 'success';
 				deliberationStore.logNotification(
 					data.message || successToast || 'Opération exécutée avec succès.',
-					data.verdict === 'violated' ? 'warning' : 'success'
+					notifType
 				);
 			} else {
 				deliberationStore.logNotification(data.error || 'Erreur lors de l’opération.', 'warning');
@@ -830,6 +853,44 @@
 				bind:showAllResolvedComponents
 				edpStatus={currentEdp?.metadata?.status || 'proposed'}
 			/>
+
+			{#if lastHydrationStatus}
+				{#if !lastHydrationStatus.nautobotSynced}
+					<div
+						class="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-800 dark:text-amber-200 flex items-start gap-2"
+						data-testid="phase4-nautobot-sync-warning"
+					>
+						<AlertTriangle class="h-4 w-4 shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
+						<div class="space-y-0.5">
+							<div class="font-semibold">
+								Nautobot injoignable ({lastHydrationStatus.baseUrl || 'http://localhost:8080'}) — synchronisation SSoT non effectuée
+							</div>
+							<div class="text-[11px] opacity-90">
+								Les objets planned ont été générés localement, mais rien n'a été poussé dans Nautobot. Démarrez Nautobot puis relancez l'hydratation.
+							</div>
+						</div>
+					</div>
+				{:else if lastHydrationStatus.errors.length > 0}
+					<div
+						class="rounded-lg border border-amber-500/40 bg-amber-500/10 px-3 py-2 text-xs text-amber-800 dark:text-amber-200 flex items-start gap-2"
+						data-testid="phase4-nautobot-sync-warning"
+					>
+						<AlertTriangle class="h-4 w-4 shrink-0 mt-0.5 text-amber-600 dark:text-amber-400" />
+						<div>
+							<span class="font-semibold">Synchronisation Nautobot partielle ({lastHydrationStatus.errors.length} erreur(s)) :</span>
+							<span class="text-[11px] ml-1">{lastHydrationStatus.errors[0]}</span>
+						</div>
+					</div>
+				{:else}
+					<div
+						class="rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 text-xs text-emerald-800 dark:text-emerald-200 flex items-center gap-2"
+						data-testid="phase4-nautobot-sync-ok"
+					>
+						<CheckCircle2 class="h-4 w-4 shrink-0 text-emerald-600 dark:text-emerald-400" />
+						<span class="font-medium">Synchronisation SSoT Nautobot confirmée ({lastHydrationStatus.baseUrl || 'http://localhost:8080'}).</span>
+					</div>
+				{/if}
+			{/if}
 
 			<!-- BLOC B : Vérification d'intention OPA & Ratification -->
 			<div class="rounded-xl border bg-card p-5 shadow-xs space-y-4">

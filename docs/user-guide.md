@@ -10,7 +10,7 @@ Le **Workbench de Délibération Archinex** permet à une équipe d'ingénierie 
 
 L'interface est structurée autour de zones opérationnelles claires :
 1. **En-tête supérieur global** : Présent sur toutes les pages de l'application, il regroupe la **pastille de connectivité LLMOps** (mode live ou local souverain, avec resynchronisation à la demande), le **menu d'aide méthodologique** (accès direct au guide « Comment décider ? »), ainsi que les sélecteurs de langue et de thème.
-2. **En-tête de Projet & Sélecteur de Posture** : Dédié au cadrage opérationnel, il affiche les espaces de travail actifs (Blueprint, RFP, projets) et permet de basculer instantanément entre les 3 phases de travail (*Phase 1 : Appropriation*, *Phase 2 : Délibération*, *Phase 3 : Rendu*).
+2. **En-tête de Projet & Sélecteur de Phase** : Dédié au cadrage opérationnel, il affiche les espaces de travail actifs (Blueprint, RFP, projets) et permet de naviguer librement entre les **5 phases** du parcours unifié (*Phase 1 · Corpus & Règles*, *Phase 2 · Délibération*, *Phase 3 · Rendu HLD*, *Phase 4 · Raffinement*, *Phase 5 · Consolidation* — voir [`docs/concepts.md`](concepts.md)).
 3. **Tableau de Maturité (Vue d'ensemble)** : Priorisation stricte par le nombre de sujets débloqués en aval et état d'avancement L0→L5.
 4. **Workbench de Délibération (Un sujet = Une conversation)** : Disposition sur 3 colonnes :
    - À gauche : **Liste des Sujets**, navigation fluide de type messagerie/conversations.
@@ -30,7 +30,9 @@ L'interface est structurée autour de zones opérationnelles claires :
 
 ---
 
-## 3. Guide Pas-à-Pas des 3 Postures Contextuelles
+## 3. Guide Pas-à-Pas des 5 Phases du Parcours
+
+> Pour la définition canonique des 5 phases, des niveaux de maturité (`L0`→`L5`), des portes `G3`→`G7` et du glossaire, voir [`docs/concepts.md`](concepts.md).
 
 ### 1.1 Initialisation Guidée d'un Espace de Travail (5 Étapes)
 L'assistant de création d'espace (`/workspaces/new` ou modale du bandeau de projet) guide l'équipe à travers 5 étapes épurées :
@@ -44,12 +46,12 @@ L'assistant de création d'espace (`/workspaces/new` ou modale du bandeau de pro
 4. **Participants & Équipe Habilitée** : Affectation des Lead Architects, Experts et Sachants Métier.
 5. **Lancement & Scellement Initial** : Création de l'espace et transition vers la phase d'appropriation.
 
-### Posture 1 : Appropriation & Cadrage Pédagogique
+### Phase 1 · Corpus & Règles (Appropriation)
 - **Quand l'activer ?** Lors de l'ingestion initiale d'un dossier, à l'arrivée d'un nouvel intervenant, ou lorsqu'un doute subsiste sur une contrainte normative.
 - **Ce que vous voyez** : Les fiches de synthèse vulgarisées des standards régissant la section (ex: 3GPP Release 17 pour la radio 5G, Directive NIS2 pour la continuité d'activité, Uptime Institute pour les datacenters).
 - **Action** : Prenez connaissance des exigences clés puis cliquez sur **« Passer en Délibération »** dès que le périmètre est clair.
 
-### Posture 2 : Délibération & Cristallisation (Cœur Dialectique)
+### Phase 2 · Délibération (Cœur Dialectique)
 - **Explorer le Board de Maturité & Ouvrir un Sujet** :
   - Les sujets en haut du tableau sont ceux qui possèdent le plus fort effet multiplicateur (`Débloque`).
   - Un simple clic sur une ligne du tableau ouvre directement le **Fil de Délibération du sujet** dans le Workbench 3 colonnes sans changer d'écran.
@@ -83,7 +85,7 @@ L'assistant de création d'espace (`/workspaces/new` ou modale du bandeau de pro
   - Une fois le sujet arbitré, l'onglet « Arbitrage G3 & Capitalisation G4 » prépare des candidats anonymisés (décision, dérogations, retour d'expérience).
   - Vous les relisez, les modifiez au besoin, puis les transmettez au Knowledge Hub : rien n'est envoyé sans cette action explicite.
 
-### Posture 3 : Rendu & Homologation
+### Phase 3 · Rendu HLD (Homologation & Projections)
 - **Vérifier la barrière de certification** :
   - Cliquez sur **« Sceller Section »**.
   - Le système contrôle automatiquement les 4 critères bloquants (Maturité $\ge$ L3, Zéro conflit, Zéro hypothèse non justifiée, Rôle Lead Architect).

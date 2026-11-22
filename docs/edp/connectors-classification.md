@@ -27,8 +27,8 @@ Les deux modules sans écriture vers un outil tiers ont été sortis de `adapter
 
 | Ancien fichier | Nouveau chemin | Rôle | Changements #411 |
 |---|---|---|---|
-| `src/lib/server/edp/adapters/sylvaAdapter.ts` | `src/lib/server/edp/manifestSanitizer.ts` | Assainissement anti-secrets (`sanitizeManifests`) et transformation `refined_input` | Déplacé en module neutre ; aucun appel réseau |
-| `src/lib/server/edp/adapters/nautobotAdapter.ts` + `.graphql` | `src/lib/server/edp/nautobotPlannedExtract.ts` + `nautobot_planned_extract.graphql` | Lecture seule GraphQL de l'inventaire Nautobot *Planned* | Déplacé en module neutre ; variable `$site_slug: [String]` paramétrée (suppression du site par défaut codé en dur) |
+| ~~`src/lib/server/edp/adapters/sylvaAdapter.ts`~~ | `src/lib/server/edp/manifestSanitizer.ts` | Assainissement anti-secrets (`sanitizeManifests`) et transformation `refined_input` | Déplacé en module neutre ; aucun appel réseau |
+| ~~`src/lib/server/edp/adapters/nautobotAdapter.ts`~~ + `.graphql` | `src/lib/server/edp/nautobotPlannedExtract.ts` + `nautobot_planned_extract.graphql` | Lecture seule GraphQL de l'inventaire Nautobot *Planned* | Déplacé en module neutre ; variable `$site_slug: [String]` paramétrée (suppression du site par défaut codé en dur) |
 
 ## Contrat de write-back (`connectors/writeBackContract.ts`)
 

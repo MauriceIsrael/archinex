@@ -1,15 +1,7 @@
 <script lang="ts">
-
 	import { deliberationStore } from '$lib/stores/deliberationStore.svelte';
 	import type { Argument, ArgumentResolution, Stance } from '$lib/domain/debate';
-	import {
-		countOpenObjections,
-		formatMaturityMilestoneSeparator,
-		formatMaturityLevel,
-		getMaturityBadgeClass,
-		computeResumeSummary,
-		type ResumeSummary
-	} from '$lib/domain/debate';
+	import { countOpenObjections, computeResumeSummary, type ResumeSummary } from '$lib/domain/debate';
 	import type {
 		Criterion,
 		Option,
@@ -17,20 +9,24 @@
 		TradeOff,
 		Decision
 	} from '$lib/domain/options';
-	import SubjectMessageBubble from './SubjectMessageBubble.svelte';
-	import PinnedObjections from './PinnedObjections.svelte';
-	import StructuredComposer from './StructuredComposer.svelte';
 	import MaturityStepper from './MaturityStepper.svelte';
-	import DecisionSurveyCard from './DecisionSurveyCard.svelte';
-	import CascadeQuestionsCard from './CascadeQuestionsCard.svelte';
-	import SubjectProblemCard from './SubjectProblemCard.svelte';
-	import SubjectRequirementsDrawer, { type SubjectRequirementItem } from './SubjectRequirementsDrawer.svelte';
 	import SplitSubjectDialog from './SplitSubjectDialog.svelte';
-	import OptionsMatrix from './OptionsMatrix.svelte';
-	import TelegraphicDraftView from './TelegraphicDraftView.svelte';
-	import CapitalizationPanel from './CapitalizationPanel.svelte';
-	import ProjectRulesPanel from './ProjectRulesPanel.svelte';
-	import DiscoveryTreeView from './DiscoveryTreeView.svelte';
+	import type { SubjectRequirementItem } from './SubjectRequirementsDrawer.svelte';
+	import SubjectThreadHeader from './thread/SubjectThreadHeader.svelte';
+	import SubjectDiscussionPane from './thread/SubjectDiscussionPane.svelte';
+	import SubjectMatrixPane from './thread/SubjectMatrixPane.svelte';
+	import SubjectDoctrinePane from './thread/SubjectDoctrinePane.svelte';
+	import SubjectCascadePane from './thread/SubjectCascadePane.svelte';
+	import {
+		buildDetailedSpecTemplate,
+		patchSubjectWithRetry,
+		type CachedCascade,
+		type CachedDoctrine,
+		type CachedWorkbench,
+		type SubjectDoctrineItem,
+		type SubjectSessionUser,
+		type UnifiedWorkspaceTab
+	} from './thread/types';
 	import type { CascadeResult, DiscoveryTreeData } from '$lib/domain/cascade';
 	import {
 		computeMaturityCriteria,
@@ -39,37 +35,7 @@
 		type MilestoneContextualAction
 	} from '$lib/domain/maturityCriteria';
 	import type { MaturityLevel } from '$lib/types/epistemic';
-	import {
-		Bot,
-		AlertTriangle,
-		ArrowLeft,
-		Sparkles,
-		RotateCcw,
-		ArrowDown,
-		Clock,
-		X,
-		ChevronDown,
-		ChevronUp,
-		Check,
-		Gavel,
-		RefreshCw,
-		MessagesSquare,
-		Scale,
-		BookOpen,
-		GitFork,
-		ShieldAlert,
-		Columns2,
-		Maximize2,
-		ExternalLink,
-		FileText,
-		PanelLeftOpen,
-		Database,
-		CheckCircle2,
-		Compass,
-		HelpCircle,
-		Lightbulb,
-		Split
-	} from 'lucide-svelte';
+	import { BookOpen, GitFork, MessagesSquare, Scale } from 'lucide-svelte';
 
 	let {
 		subjectId = '',
@@ -89,7 +55,7 @@
 		subjectId: string;
 		projectId: string;
 		userRole?: string;
-		sessionUser?: { id: string; email: string; name?: string; role?: string } | null;
+		sessionUser?: SubjectSessionUser | null;
 		isHumanUser?: boolean;
 		isSidebarCollapsed?: boolean;
 		onToggleSidebar?: () => void;
@@ -101,11 +67,8 @@
 		initialRequirements?: SubjectRequirementItem[];
 	} = $props();
 
-	// ─── État de navigation unifié (Onglets pleine largeur par défaut + Mode Split optionnel) ───
-	type UnifiedWorkspaceTab = 'thread' | 'matrix' | 'kb' | 'cascade';
 	let activeWorkspaceTab = $state<UnifiedWorkspaceTab>(initialActiveWorkspaceTab);
 	let isSplitView = $state(false);
-	// En mode Split, la colonne de gauche affiche le fil ('thread') et la colonne de droite affiche l'un des 3 volets d'analyse :
 	let splitRightTab = $derived<Exclude<UnifiedWorkspaceTab, 'thread'>>(
 		activeWorkspaceTab === 'thread' ? 'matrix' : activeWorkspaceTab
 	);
@@ -130,45 +93,21 @@
 	let isLoadingMatrix = $state(false);
 	let isDebating = $state(false);
 	let invokingAgentRole = $state<string | null>(null);
-	let isAgentMenuOpen = $state(false);
 	let replyingTo = $state<Argument | null>(null);
 
-	// Doctrine & Arbre cascade (fusionnés depuis l'ancien SubjectDossierView)
-	interface DoctrineItem {
-		id: string;
-		type: string;
-		title: string;
-		status?: string;
-		confidence?: string;
-		excerpt?: string;
-		source_ref?: string;
-		relevance?: number;
-		framework?: string;
-		required?: boolean;
-		relevant?: boolean;
-		relevance_method?: string;
-	}
-	let doctrineItems = $state<DoctrineItem[]>([]);
+	let doctrineItems = $state<SubjectDoctrineItem[]>([]);
 	let isLoadingDoctrine = $state(false);
 	let treeSeries = $state<any[]>([]);
 	let discoveryTree = $state<DiscoveryTreeData | null>(null);
 	let isLoadingTree = $state(false);
 	let isProposingAnglesMorts = $state(false);
 
-	// Filtre de posture dans le fil
 	let postureFilter = $state<Stance | 'all'>('all');
 	let selectedComposerOptionId = $state<string>('');
-
-	// Résumé de reprise après absence
 	let dismissResumeBanner = $state(false);
 	let lastVisitedTimestamp = $state<number>(Date.now() - 90_000_000);
-
 	let isSplitDialogOpen = $state(false);
 	let isForceEditingQuestion = $state(false);
-
-	// État de l'atelier de spécification détaillée (Jalon L4) et tiroir doctrine
-	let isDoctrineDrawerOpen = $state(false);
-	let showLegacyTelegraphic = $state(false);
 	let detailedSpecText = $state('');
 
 	$effect(() => {
@@ -189,32 +128,8 @@
 	});
 
 	function handleGenerateSpecFromDecision() {
-		const retainedOpt = subjectOptions.find((o) => o.id === subjectDecision?.retainedOptionId);
-		const optTitle = retainedOpt?.title || subjectDecision?.retainedOptionId || 'Option d\'architecture retenue';
-		const optSummary = retainedOpt?.summary || '';
-		const rationale = subjectDecision?.rationale || '';
-		const reversibility = subjectDecision?.reversibility || 'reversible';
-		const compliance = subjectDecision?.complianceStatus || 'Compliant';
-
-		detailedSpecText = `## 1. Contexte & Choix d'Architecture Validé (Socle L3)
-- **Option retenue** : ${optTitle}
-- **Motivation d'arbitrage** : ${rationale}
-- **Réversibilité & Conformité** : ${reversibility} · ${compliance}
-
-## 2. Décomposition des Composants & Architecture Cible
-- **Composant principal** : ${optTitle}
-- **Rôle fonctionnel & principes clés** : ${optSummary}
-
-## 3. Interfaces, Protocoles & Matrice de Flux
-- **Chiffrement & Sécurité** : Chiffrement matériel / logique de bout en bout (suites cryptographiques fortes).
-- **Médiation & Contrôle** : Passerelle dédiée de médiation pour l'isolation et la conformité aux exigences réglementaires.
-- **Séparation des zones** : Cloisonnement strict entre le périmètre du projet et les tiers.
-
-## 4. Exploitation, Supervision & Points de Vigilance
-- **Supervision NOC** : Sondes de télémétrie temps réel et alertes d'intégrité opérationnelle.
-- **Haute Disponibilité** : Résilience et bascule automatique sans rupture de service.
-`;
-		handleSaveDetailedSpec();
+		detailedSpecText = buildDetailedSpecTemplate(subjectDecision, subjectOptions);
+		void handleSaveDetailedSpec();
 	}
 
 	async function handleSaveDetailedSpec() {
@@ -228,11 +143,16 @@
 		}
 		if (projectId && subjectId && detailedSpecText && detailedSpecText.trim().length > 0) {
 			try {
-				const res = await patchSubject({ deliberationStatus: 'specified' });
+				const res = await patchSubjectWithRetry(projectId, subjectId, {
+					deliberationStatus: 'specified'
+				});
 				if (!res.ok) {
 					const err = await res.json().catch(() => ({}));
 					deliberationStore.logNotification(
-						err.error || (res.status === 401 ? 'Non authentifié : veuillez vous connecter pour enregistrer.' : 'Échec de sauvegarde'),
+						err.error ||
+							(res.status === 401
+								? 'Non authentifié : veuillez vous connecter pour enregistrer.'
+								: 'Échec de sauvegarde'),
 						'warning'
 					);
 					return false;
@@ -249,12 +169,18 @@
 		await handleSaveDetailedSpec();
 		if (projectId && subjectId) {
 			try {
-				const res = await patchSubject({ maturityLevel: 'L4_specified', deliberationStatus: 'specified' });
+				const res = await patchSubjectWithRetry(projectId, subjectId, {
+					maturityLevel: 'L4_specified',
+					deliberationStatus: 'specified'
+				});
 				if (!res.ok) {
 					const err = await res.json().catch(() => ({}));
 					console.warn('[Homologation L4] Erreur backend :', err);
 					deliberationStore.logNotification(
-						err.error || (res.status === 401 ? 'Non authentifié : veuillez vous connecter en Lead Architect pour homologuer le jalon L4.' : "Échec de l'homologation L4"),
+						err.error ||
+							(res.status === 401
+								? 'Non authentifié : veuillez vous connecter en Lead Architect pour homologuer le jalon L4.'
+								: "Échec de l'homologation L4"),
 						'warning'
 					);
 					await loadArgumentsAndContext();
@@ -264,18 +190,24 @@
 				await loadArgumentsAndContext();
 			} catch (err) {
 				console.warn('[Homologation L4] Erreur backend :', err);
-				deliberationStore.logNotification("Erreur de communication lors de l'homologation L4", 'warning');
+				deliberationStore.logNotification(
+					"Erreur de communication lors de l'homologation L4",
+					'warning'
+				);
 				return;
 			}
 		} else {
 			deliberationStore.setSubjectLevel(subjectId, 'L4_specified');
 		}
-		deliberationStore.logNotification('✅ Spécification technique homologuée ! Le sujet franchit le jalon L4 (Spécifié).', 'success');
+		deliberationStore.logNotification(
+			'✅ Spécification technique homologuée ! Le sujet franchit le jalon L4 (Spécifié).',
+			'success'
+		);
 	}
+
 	const activeSubject = $derived(deliberationStore.activeSubject);
 	const activeDraft = $derived(deliberationStore.activeDraft);
 
-	// Raccourci externe vers l'arbitrage formel (ex: clic depuis un autre composant)
 	$effect(() => {
 		if (deliberationStore.pendingDecisionSubjectId) {
 			activeWorkspaceTab = 'matrix';
@@ -283,7 +215,6 @@
 		}
 	});
 
-	// Compteurs synthétiques unifiés
 	const openObjectionsCount = $derived(countOpenObjections(argumentsList));
 	const totalObjectionsCount = $derived(
 		argumentsList.filter((a) => a.stance === 'objection').length
@@ -305,9 +236,8 @@
 			typeof i.relevant === 'boolean' ? i.relevant : !i.required || (i.relevance ?? 0) > 0.1
 		)
 	);
-	const searchMethod = $derived(doctrineItems.find((i) => i.relevance_method)?.relevance_method);
 	const requiredByFramework = $derived.by(() => {
-		const groups = new Map<string, DoctrineItem[]>();
+		const groups = new Map<string, SubjectDoctrineItem[]>();
 		for (const i of doctrineItems.filter((x) => x.required && !relevantDoctrine.includes(x))) {
 			const key = i.framework || 'Référentiel';
 			groups.set(key, [...(groups.get(key) ?? []), i]);
@@ -315,7 +245,6 @@
 		return [...groups.entries()];
 	});
 
-	// Calcul réactif du rapport de maturité
 	const computedReport = $derived.by<MaturityTransitionsReport | null>(() => {
 		if (!activeSubject) return null;
 		const problem = activeDraft?.manque?.[0]?.question || activeSubject.name;
@@ -352,7 +281,7 @@
 						authorRole: subjectDecision.arbiterRole,
 						affirmedBy: subjectDecision.validatedBy,
 						status: subjectDecision.validatedBy ? 'active' : 'proposed'
-				  }
+					}
 				: null,
 			actor: {
 				userId: sessionUser?.id || 'current-user',
@@ -365,9 +294,7 @@
 	const effectiveReport = $derived.by<MaturityTransitionsReport | null>(() => {
 		const base = computedReport || criteriaReport;
 		if (!base) return null;
-		if (!detailedSpecText || detailedSpecText.trim().length === 0) {
-			return base;
-		}
+		if (!detailedSpecText || detailedSpecText.trim().length === 0) return base;
 		const l4 = base.transitions?.L4_specified;
 		if (!l4) return base;
 		const specCrit = l4.criteria.find((c) => c.id === 'specification_drafted');
@@ -379,7 +306,6 @@
 		const updatedMissing = l4.missingReasons.filter(
 			(r) => !r.includes('Spécification technique rédigée')
 		);
-
 		return {
 			...base,
 			transitions: {
@@ -394,12 +320,9 @@
 		};
 	});
 
-	// Objections ouvertes (épinglées en haut)
 	const openObjections = $derived(
 		argumentsList.filter((a) => a.stance === 'objection' && a.resolution === 'open')
 	);
-
-	// Résumé de reprise calculé
 	const resumeSummary = $derived.by<ResumeSummary | null>(() => {
 		if (dismissResumeBanner || argumentsList.length === 0) return null;
 		return computeResumeSummary(
@@ -409,37 +332,10 @@
 			'L1_framed'
 		);
 	});
-
-	// Messages filtrés selon le filtre de posture
 	const displayedArguments = $derived.by(() => {
 		if (postureFilter === 'all') return argumentsList;
 		return argumentsList.filter((a) => a.stance === postureFilter);
 	});
-
-	interface CachedWorkbench {
-		singleOptionRationale: string | null;
-		arguments: Argument[];
-		options: Option[];
-		criteria: Criterion[];
-		evaluations: OptionEvaluation[];
-		tradeOffs: TradeOff[];
-		decision: Decision | null;
-		criteriaReport: MaturityTransitionsReport | null;
-		requirements: SubjectRequirementItem[];
-		requirementsUnresolvedRefs: string[];
-		requirementsDossierPresent: boolean;
-	}
-	interface CachedCascade {
-		cascade: CascadeResult | null;
-		treeSeries: any[];
-		discoveryTree: DiscoveryTreeData | null;
-		foundationContested: boolean;
-		contestationReason?: string;
-	}
-	interface CachedDoctrine {
-		allowedKbRefs: string[];
-		items: DoctrineItem[];
-	}
 
 	const workbenchCache = new Map<string, CachedWorkbench>();
 	const cascadeCache = new Map<string, CachedCascade>();
@@ -503,7 +399,6 @@
 			requirementsDossierPresent = cachedWb.requirementsDossierPresent;
 			isLoadingArguments = false;
 		} else if (!force) {
-			// Réinitialise immédiatement les données de l'ancien sujet pour éviter les appels fantômes (ex: /compliance sur anciennes options)
 			argumentsList = [];
 			subjectOptions = [];
 			matrixCriteria = [];
@@ -540,7 +435,6 @@
 			doctrineItems = [];
 		}
 
-		// Chargements non bloquants en arrière-plan (cascade locale + contexte doctrinal LLMOps)
 		const cascadePromise = fetch(
 			`/api/projects/${targetProjectId}/subjects/${targetSubjectId}/cascade`,
 			{ signal: controller.signal }
@@ -661,19 +555,19 @@
 			]);
 			if (cRes.ok) {
 				const cData = await cRes.json();
-				matrixCriteria = Array.isArray(cData) ? cData : (cData.criteria || []);
+				matrixCriteria = Array.isArray(cData) ? cData : cData.criteria || [];
 			}
 			if (oRes.ok) {
 				const oData = await oRes.json();
-				subjectOptions = Array.isArray(oData) ? oData : (oData.options || []);
+				subjectOptions = Array.isArray(oData) ? oData : oData.options || [];
 			}
 			if (eRes.ok) {
 				const eData = await eRes.json();
-				matrixEvaluations = Array.isArray(eData) ? eData : (eData.evaluations || []);
+				matrixEvaluations = Array.isArray(eData) ? eData : eData.evaluations || [];
 			}
 			if (tRes.ok) {
 				const tData = await tRes.json();
-				matrixTradeOffs = Array.isArray(tData) ? tData : (tData.tradeOffs || []);
+				matrixTradeOffs = Array.isArray(tData) ? tData : tData.tradeOffs || [];
 			}
 			if (dRes.ok) {
 				const dData = await dRes.json();
@@ -713,31 +607,12 @@
 				headers: { 'Content-Type': 'application/json' },
 				body: '{}'
 			});
-			if (res.ok) {
-				await loadArgumentsAndContext();
-			}
+			if (res.ok) await loadArgumentsAndContext();
 		} catch (err) {
 			console.warn('[Cascade] Erreur agent proposeur :', err);
 		} finally {
 			isProposingAnglesMorts = false;
 		}
-	}
-
-	async function patchSubject(payload: Record<string, unknown>): Promise<Response> {
-		const url = `/api/projects/${projectId}/subjects/${subjectId}`;
-		const current = await fetch(url).then((r) => (r.ok ? r.json() : null)).catch(() => null);
-		const send = (expectedVersion: number) =>
-			fetch(url, {
-				method: 'PATCH',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ ...payload, expectedVersion })
-			});
-		let res = await send(current?.subject?.version ?? 1);
-		if (res.status === 409) {
-			const conflict = await res.clone().json().catch(() => ({}));
-			if (typeof conflict.currentVersion === 'number') res = await send(conflict.currentVersion);
-		}
-		return res;
 	}
 
 	async function handleTransitionMaturity(targetLevel: MaturityLevel) {
@@ -757,12 +632,16 @@
 		}
 
 		try {
-			const res = await patchSubject({ maturityLevel: targetLevel });
+			const res = await patchSubjectWithRetry(projectId, subjectId, {
+				maturityLevel: targetLevel
+			});
 			if (!res.ok) {
 				const err = await res.json().catch(() => ({}));
-				console.warn('[Espace Sujet] Transition backend non persistée:', err);
 				deliberationStore.logNotification(
-					err.error || (res.status === 401 ? 'Non authentifié : veuillez vous connecter pour valider ce jalon.' : `Échec de validation du jalon ${targetLevel}`),
+					err.error ||
+						(res.status === 401
+							? 'Non authentifié : veuillez vous connecter pour valider ce jalon.'
+							: `Échec de validation du jalon ${targetLevel}`),
 					'warning'
 				);
 				await loadArgumentsAndContext();
@@ -772,18 +651,18 @@
 			await loadArgumentsAndContext();
 			deliberationStore.logNotification(`Jalon ${targetLevel} validé avec succès !`, 'success');
 		} catch {
-			deliberationStore.logNotification(`Erreur de communication pour le jalon ${targetLevel}.`, 'warning');
+			deliberationStore.logNotification(
+				`Erreur de communication pour le jalon ${targetLevel}.`,
+				'warning'
+			);
 		}
 	}
 
 	async function handleAdoptHypothesis() {
 		if (!activeSubject) return;
 		const hyp = activeDraft?.suppose?.[0]?.text || `Hypothèse validée pour ${activeSubject.name}`;
-
-		if (activeDraft) {
-			if (!activeDraft.retenu.includes(hyp)) {
-				activeDraft.retenu = [hyp, ...activeDraft.retenu];
-			}
+		if (activeDraft && !activeDraft.retenu.includes(hyp)) {
+			activeDraft.retenu = [hyp, ...activeDraft.retenu];
 		}
 
 		let nextLevel: MaturityLevel = 'L1_framed';
@@ -812,8 +691,7 @@
 					})
 				});
 				if (res.ok) {
-					const created = await res.json();
-					handleArgumentCreated(created);
+					handleArgumentCreated(await res.json());
 				} else {
 					const err = await res.json().catch(() => ({}));
 					const msg = err.reason || err.error || err.message;
@@ -830,34 +708,6 @@
 			`Hypothèse retenue ! Le sujet progresse vers ${nextLevel}.`,
 			'success'
 		);
-	}
-
-	async function handleDecomposeSubject() {
-		if (!projectId || !subjectId) return;
-		try {
-			const res = await fetch(`/api/projects/${projectId}/subjects/${subjectId}/arguments`, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({
-					stance: 'question',
-					claim: 'Proposition de découpage du sujet pour lever la stagnation',
-					grounds:
-						'Ce sujet stagne depuis plus de 14 jours. Il est recommandé de le découper en 2 sous-sujets distincts : 1) Spécification du cœur fonctionnel, 2) Interfaces et adaptateurs techniques.',
-					kbRefs: []
-				})
-			});
-
-			if (res.ok) {
-				const created = await res.json();
-				handleArgumentCreated(created);
-				deliberationStore.logNotification(
-					'Relance postée par l’agent : proposition de découpage.',
-					'info'
-				);
-			}
-		} catch (err: any) {
-			deliberationStore.logNotification(err.message, 'warning');
-		}
 	}
 
 	function handleCriterionAction(crit: MaturityCriterion) {
@@ -911,7 +761,7 @@
 				break;
 			}
 			case 'add_option':
-				handleInvokeAgent('proposer');
+				void handleInvokeAgent('proposer');
 				break;
 			case 'define_criteria':
 				activeWorkspaceTab = 'matrix';
@@ -928,7 +778,7 @@
 					deliberationStore.requestFormalDecision(subjectId);
 				} else {
 					deliberationStore.logNotification(
-						'Consultez la carte de co-signature et les faits d\'architecture dans le volet Options, Matrice & Arbitrage.',
+						"Consultez la carte de co-signature et les faits d'architecture dans le volet Options, Matrice & Arbitrage.",
 						'info'
 					);
 				}
@@ -955,7 +805,9 @@
 				void refreshMatrixData();
 				if (act.id === 'l3_prepare_kb' || act.id === 'l4_prepare_kb') {
 					setTimeout(() => {
-						document.getElementById('capitalization-section')?.scrollIntoView({ behavior: 'smooth' });
+						document
+							.getElementById('capitalization-section')
+							?.scrollIntoView({ behavior: 'smooth' });
 					}, 80);
 				}
 			}
@@ -982,12 +834,10 @@
 				headers: { 'Content-Type': 'application/json' },
 				body: JSON.stringify({ maxRounds: 3 })
 			});
-
 			if (!res.ok) {
 				const err = await res.json().catch(() => ({}));
 				throw new Error(err.message || 'Erreur lors du lancement du débat multi-agents');
 			}
-
 			await loadArgumentsAndContext();
 			deliberationStore.logNotification('Débat contradictoire multi-agents exécuté.', 'success');
 		} catch (err: any) {
@@ -1005,27 +855,17 @@
 				{
 					method: 'PATCH',
 					headers: { 'Content-Type': 'application/json' },
-					body: JSON.stringify({
-						resolution,
-						expectedVersion: arg.version
-					})
+					body: JSON.stringify({ resolution, expectedVersion: arg.version })
 				}
 			);
-
 			if (!res.ok) {
 				const err = await res.json().catch(() => ({}));
 				throw new Error(err.message || "Erreur lors de la résolution de l'argument");
 			}
-
 			const updated = await res.json();
 			const idx = argumentsList.findIndex((a) => a.id === arg.id);
-			if (idx !== -1) {
-				argumentsList[idx] = updated;
-			}
-			deliberationStore.logNotification(
-				`Statut de l'objection mis à jour : ${resolution}`,
-				'success'
-			);
+			if (idx !== -1) argumentsList[idx] = updated;
+			deliberationStore.logNotification(`Statut de l'objection mis à jour : ${resolution}`, 'success');
 		} catch (err: any) {
 			deliberationStore.logNotification(err.message, 'warning');
 		}
@@ -1065,26 +905,24 @@
 		const controller = new AbortController();
 		const timeoutTimer = setTimeout(() => controller.abort(), 135_000);
 		try {
-			const res = await fetch(`/api/projects/${targetProjectId}/subjects/${targetSubjectId}/debate`, {
-				method: 'POST',
-				headers: { 'Content-Type': 'application/json' },
-				body: JSON.stringify({ agentRole: role }),
-				signal: controller.signal
-			});
-
+			const res = await fetch(
+				`/api/projects/${targetProjectId}/subjects/${targetSubjectId}/debate`,
+				{
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({ agentRole: role }),
+					signal: controller.signal
+				}
+			);
 			if (!res.ok) {
 				const err = await res.json().catch(() => ({}));
 				throw new Error(err.message || `Erreur lors de la sollicitation de l'agent @${role}`);
 			}
-
 			const data = await res.json();
 			const producedCount = Array.isArray(data.arguments) ? data.arguments.length : 0;
-
-			// Ne pas écraser l'état si l'utilisateur a changé de sujet pendant l'attente
 			if (projectId === targetProjectId && subjectId === targetSubjectId) {
 				await loadArgumentsAndContext();
 			}
-
 			if (producedCount === 0) {
 				deliberationStore.logNotification(
 					data.message || `L'agent @${role} n'a produit aucune contribution sur ce sujet.`,
@@ -1115,7 +953,7 @@
 		deliberationStore.updateDraftQuestion(subjectId, newQ);
 		if (projectId && subjectId) {
 			try {
-				await patchSubject({ problemStatement: newQ });
+				await patchSubjectWithRetry(projectId, subjectId, { problemStatement: newQ });
 			} catch {}
 		}
 		deliberationStore.logNotification('Problème d’architecture reformulé et enregistré.', 'success');
@@ -1140,10 +978,7 @@
 					kbRefs: []
 				})
 			});
-			if (res.ok) {
-				const created = await res.json();
-				handleArgumentCreated(created);
-			}
+			if (res.ok) handleArgumentCreated(await res.json());
 		} catch {}
 		await loadArgumentsAndContext();
 		deliberationStore.logNotification(
@@ -1155,28 +990,28 @@
 	function handleSelectOptionForDiscussion(opt: any) {
 		activeWorkspaceTab = 'thread';
 		selectedComposerOptionId = opt.id;
-		const composerElem = document.getElementById('compose-claim');
-		composerElem?.focus();
+		document.getElementById('compose-claim')?.focus();
 		deliberationStore.logNotification(
 			`Option « ${opt.title} » sélectionnée pour discussion.`,
 			'info'
 		);
 	}
 
-	function handleArbitrateOption(_opt?: any) {
+	function handleOpenMatrix(scrollToCapitalization = false) {
 		activeWorkspaceTab = 'matrix';
 		void refreshMatrixData();
+		if (scrollToCapitalization) {
+			setTimeout(() => {
+				document.getElementById('capitalization-section')?.scrollIntoView({ behavior: 'smooth' });
+			}, 80);
+		}
 	}
 
 	function handleChallengeArgument(arg: Argument) {
 		activeWorkspaceTab = 'thread';
 		replyingTo = arg;
-		const composerElem = document.getElementById('compose-claim');
-		composerElem?.focus();
-		deliberationStore.logNotification(
-			`Réfutation ciblée sur l'argument de ${arg.author}.`,
-			'info'
-		);
+		document.getElementById('compose-claim')?.focus();
+		deliberationStore.logNotification(`Réfutation ciblée sur l'argument de ${arg.author}.`, 'info');
 	}
 
 	function scrollToNextUnresolvedObjection() {
@@ -1188,1007 +1023,135 @@
 				break;
 			}
 		}
-		if (!targetElem && openEls.length > 0) {
-			targetElem = openEls[0] as HTMLElement;
-		}
-
+		if (!targetElem && openEls.length > 0) targetElem = openEls[0] as HTMLElement;
 		if (targetElem) {
 			targetElem.scrollIntoView({ behavior: 'smooth', block: 'center' });
 			targetElem.classList.add('ring-2', 'ring-rose-500', 'transition-all');
-			setTimeout(() => {
-				targetElem?.classList.remove('ring-2', 'ring-rose-500');
-			}, 2000);
+			setTimeout(() => targetElem?.classList.remove('ring-2', 'ring-rose-500'), 2000);
 		} else {
 			deliberationStore.logNotification('Aucune objection ouverte trouvée dans le fil.', 'info');
 		}
 	}
 </script>
 
-<!-- ═════════════════════════════════════════════════════════════════════════ -->
-<!-- SNIPPETS DE RENDU DES VOLETS UNIFIÉS (ZÉRO DOUBLON)                       -->
-<!-- ═════════════════════════════════════════════════════════════════════════ -->
-
 {#snippet renderThreadPane()}
-	<div class="flex flex-col h-full min-h-0">
-		<!-- Barre de filtre rapide du fil -->
-		<div class="px-4 py-2 border-b bg-muted/10 flex items-center justify-between gap-2 flex-wrap text-xs shrink-0">
-			<div class="flex items-center gap-1 text-[11px]">
-				<span class="text-muted-foreground font-medium mr-1">Filtrer le fil :</span>
-				<button
-					type="button"
-					onclick={() => (postureFilter = 'all')}
-					class="px-2 py-0.5 rounded font-medium cursor-pointer {postureFilter === 'all'
-						? 'bg-primary text-primary-foreground font-semibold'
-						: 'bg-muted text-muted-foreground hover:text-foreground'}"
-				>
-					Tous ({argumentsList.length})
-				</button>
-				<button
-					type="button"
-					onclick={() => (postureFilter = 'objection')}
-					class="px-2 py-0.5 rounded font-medium cursor-pointer {postureFilter === 'objection'
-						? 'bg-rose-600 text-white font-semibold'
-						: 'bg-muted text-muted-foreground hover:text-foreground'}"
-				>
-					Objections ({totalObjectionsCount})
-				</button>
-				<button
-					type="button"
-					onclick={() => (postureFilter = 'synthesis')}
-					class="px-2 py-0.5 rounded font-medium cursor-pointer {postureFilter === 'synthesis'
-						? 'bg-indigo-600 text-white font-semibold'
-						: 'bg-muted text-muted-foreground hover:text-foreground'}"
-				>
-					Synthèses ({argumentsList.filter((a) => a.stance === 'synthesis').length})
-				</button>
-			</div>
-
-			{#if openObjections.length > 0}
-				<button
-					type="button"
-					onclick={scrollToNextUnresolvedObjection}
-					class="inline-flex items-center gap-1 px-2 py-0.5 rounded-md bg-rose-500/10 text-rose-700 dark:text-rose-300 border border-rose-500/25 hover:bg-rose-500/20 text-[10px] font-bold transition-colors cursor-pointer"
-					title="Scroller vers la prochaine objection non résolue"
-				>
-					<ArrowDown class="h-3 w-3" />
-					<span>Prochaine objection ↓</span>
-				</button>
-			{/if}
-		</div>
-
-		<!-- Corps scrollable du fil -->
-		<div class="flex-1 overflow-y-auto p-4 space-y-3.5">
-			{#if activeSubject && (activeSubject.nature || activeSubject.depends_on_subject_ids?.length)}
-				<div class="flex flex-wrap items-center gap-2 text-[11px]">
-					{#if activeSubject.nature && activeSubject.nature !== 'architecture'}
-						<span class="px-2 py-0.5 rounded-full font-bold border bg-violet-500/10 text-violet-700 dark:text-violet-300 border-violet-500/20">
-							{activeSubject.nature === 'contractuel' ? 'Sujet contractuel' : 'Sujet organisationnel'}
-						</span>
-					{/if}
-					{#if activeSubject.depends_on_subject_ids?.length}
-						<span class="text-muted-foreground"><strong>À trancher après :</strong></span>
-						{#each activeSubject.depends_on_subject_ids as depId (depId)}
-							{@const dep = deliberationStore.activeEngagement?.subjects.find((s) => s.id === depId)}
-							<button
-								type="button"
-								onclick={() => deliberationStore.selectSubject(depId)}
-								class="px-2 py-0.5 rounded-md border hover:bg-muted/40 cursor-pointer {dep && ['L3_decided', 'L4_specified', 'L5_archived'].includes(dep.level) ? 'text-emerald-700 dark:text-emerald-300 border-emerald-500/30' : 'text-amber-700 dark:text-amber-300 border-amber-500/30'}"
-							>
-								{dep?.name ?? depId}
-							</button>
-						{/each}
-					{/if}
-				</div>
-			{/if}
-
-			<!-- Bandeau Cadrage compact (2 lignes par défaut, dépliable, sans doublon d'options) -->
-			{#if activeSubject}
-				<SubjectProblemCard
-					subject={activeSubject}
-					draft={activeDraft}
-					options={subjectOptions}
-					isInvokingAgent={invokingAgentRole !== null}
-					onInvokeProposer={() => handleInvokeAgent('proposer')}
-					onSplit={() => (isSplitDialogOpen = true)}
-					onUpdateQuestion={handleUpdateDraftQuestion}
-					onUpdateHypothesis={handleUpdateDraftHypothesis}
-					onAdoptHypothesis={handleAdoptHypothesis}
-					onSelectOption={handleSelectOptionForDiscussion}
-					onArbitrateOption={handleArbitrateOption}
-					{isForceEditingQuestion}
-				/>
-				<SubjectRequirementsDrawer
-					requirements={subjectRequirements}
-					unresolvedRefs={requirementsUnresolvedRefs}
-					dossierPresent={requirementsDossierPresent}
-					isLoading={isLoadingArguments}
-				/>
-			{/if}
-
-			{#if resumeSummary}
-				<div class="rounded-xl border border-blue-500/30 bg-blue-500/10 p-3 flex items-center justify-between gap-3 text-xs shadow-2xs">
-					<div class="flex items-center gap-2">
-						<Clock class="h-4 w-4 text-blue-600 shrink-0" />
-						<div>
-							<strong class="text-blue-900 dark:text-blue-200">Résumé de reprise :</strong>
-							<span class="text-blue-800 dark:text-blue-300 ml-1">{resumeSummary.summaryText}</span>
-						</div>
-					</div>
-					<button
-						type="button"
-						onclick={() => (dismissResumeBanner = true)}
-						class="p-1 text-blue-700 hover:text-blue-950 dark:hover:text-blue-100 transition-colors cursor-pointer"
-						title="Masquer le résumé"
-					>
-						<X class="h-3.5 w-3.5" />
-					</button>
-				</div>
-			{/if}
-
-			{#if foundationContested}
-				<div
-					class="rounded-xl border border-rose-500/40 bg-rose-500/10 p-3.5 flex items-start gap-3 text-xs shadow-2xs"
-					data-testid="foundation-contested-banner"
-				>
-					<AlertTriangle class="h-5 w-5 text-rose-600 shrink-0 mt-0.5" />
-					<div class="space-y-1">
-						<h4 class="font-bold text-rose-900 dark:text-rose-200">
-							⚠️ Fondement du sujet remis en cause
-						</h4>
-						<p class="text-rose-800 dark:text-rose-300 leading-relaxed">
-							{contestationReason ||
-								'La décision parente ayant engendré ce sujet a été modifiée ou remplacée. Le périmètre de cette délibération doit être réévalué.'}
-						</p>
-					</div>
-				</div>
-			{/if}
-
-			{#if openObjections.length > 0}
-				<PinnedObjections
-					objections={openObjections}
-					{userRole}
-					{isHumanUser}
-					currentUserId={sessionUser?.id}
-					currentUserName={sessionUser?.name || sessionUser?.email}
-					onResolve={handleResolveArgument}
-				/>
-			{/if}
-
-			{#if activeSubject}
-				<div class="flex items-center justify-center my-2">
-					<span class="px-3 py-1 rounded-full bg-muted/80 text-[11px] font-mono font-medium text-muted-foreground border border-border/60">
-						{formatMaturityMilestoneSeparator(activeSubject.level)}
-					</span>
-				</div>
-			{/if}
-
-			<!-- Bannière synthétique de décision actée (renvoie vers le volet Matrice & Arbitrage) -->
-			{#if subjectDecision}
-				{@const retainedOpt = subjectOptions.find((o) => o.id === subjectDecision?.retainedOptionId)}
-				<div class="rounded-xl border-2 border-emerald-500/40 bg-gradient-to-r from-emerald-500/15 via-emerald-500/5 to-card p-3 flex items-center justify-between gap-3 shadow-2xs">
-					<div class="flex items-center gap-2.5">
-						<div class="p-2 rounded-lg bg-emerald-500/20 text-emerald-700 dark:text-emerald-300">
-							<Gavel class="h-4 w-4" />
-						</div>
-						<div>
-							<div class="flex items-center gap-2">
-								<span class="text-xs font-bold text-foreground">Décision d'architecture actée</span>
-								<span class="px-1.5 py-0.2 rounded text-[10px] font-mono font-bold bg-emerald-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30">
-									L3 · Décidé
-								</span>
-							</div>
-							<p class="text-xs text-muted-foreground mt-0.5">
-								Option retenue : <strong class="text-foreground">{retainedOpt?.title || subjectDecision.retainedOptionId}</strong>
-								{#if (subjectDecision as any).validatedBy} · Affirmée par <strong>{(subjectDecision as any).validatedBy}</strong>{/if}
-							</p>
-						</div>
-					</div>
-
-					<div class="flex items-center gap-2 shrink-0">
-						<button
-							type="button"
-							data-testid="thread-banner-kb-candidates-btn"
-							onclick={() => {
-								activeWorkspaceTab = 'matrix';
-								void refreshMatrixData();
-								setTimeout(() => {
-									document.getElementById('capitalization-section')?.scrollIntoView({ behavior: 'smooth' });
-								}, 80);
-							}}
-							class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-semibold transition-colors cursor-pointer shadow-2xs"
-							title="Préparer et transmettre les candidats de capitalisation au Knowledge Hub"
-						>
-							<Database class="h-3.5 w-3.5" />
-							<span>Capitaliser</span>
-						</button>
-
-						<button
-							type="button"
-							onclick={() => {
-								activeWorkspaceTab = 'matrix';
-								void refreshMatrixData();
-							}}
-							class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-emerald-500/35 bg-background text-emerald-700 dark:text-emerald-300 hover:bg-emerald-500/15 text-xs font-semibold transition-colors cursor-pointer shadow-2xs"
-						>
-							<span>Matrice & Faits →</span>
-						</button>
-					</div>
-				</div>
-			{/if}
-
-			<!-- Liste des messages -->
-			{#if isLoadingArguments}
-				<div class="p-8 text-center text-xs text-muted-foreground animate-pulse">
-					Chargement de la conversation...
-				</div>
-			{:else if argumentsList.length === 0}
-				<div class="p-6 text-center border-2 border-dashed rounded-xl space-y-3 bg-muted/5 max-w-lg mx-auto my-4">
-					<div class="p-2.5 rounded-full bg-primary/10 text-primary w-fit mx-auto">
-						<Sparkles class="h-5 w-5" />
-					</div>
-					<div class="space-y-1">
-						<h4 class="text-sm font-bold text-foreground">Délibération ouverte</h4>
-						<p class="text-xs text-muted-foreground leading-relaxed">
-							Initiez le débat ci-dessous ou utilisez les actions contextualisées du jalon en haut de l'écran.
-						</p>
-					</div>
-				</div>
-			{:else if displayedArguments.length === 0}
-				<div class="p-8 text-center border-2 border-dashed rounded-xl space-y-2 bg-muted/10">
-					<Bot class="h-8 w-8 text-muted-foreground/60 mx-auto" />
-					<h4 class="text-xs font-bold text-foreground">Aucun argument affiché pour ce filtre</h4>
-					<p class="text-xs text-muted-foreground max-w-sm mx-auto">
-						Basculez sur « Tous » pour afficher l'ensemble des échanges ({argumentsList.length} arguments).
-					</p>
-				</div>
-			{:else}
-				{#each displayedArguments as arg (arg.id)}
-					{@const targetArg = arg.targetArgumentId
-						? argumentsList.find((a) => a.id === arg.targetArgumentId) || null
-						: null}
-
-					<SubjectMessageBubble
-						argument={arg}
-						targetArgument={targetArg}
-						{userRole}
-						{isHumanUser}
-						{sessionUser}
-						onResolve={handleResolveArgument}
-						onChallenge={handleChallengeArgument}
-						onArbitrateOption={handleArbitrateOption}
-						onSplit={() => (isSplitDialogOpen = true)}
-						onReply={(target) => {
-							replyingTo = target;
-							const composerElem = document.getElementById('compose-claim');
-							composerElem?.focus();
-						}}
-					/>
-				{/each}
-
-				{#if !subjectDecision && argumentsList.length > 0}
-					<div class="rounded-xl border border-dashed border-primary/30 bg-muted/10 p-3 flex items-center justify-between gap-3 text-xs mt-2 flex-wrap">
-						<div class="flex items-center gap-2 text-muted-foreground">
-							<Sparkles class="h-4 w-4 text-primary shrink-0" />
-							<span>Prêt à évaluer les alternatives ou trancher la décision ?</span>
-						</div>
-						<div class="flex items-center gap-2">
-							<button
-								type="button"
-								onclick={() => handleInvokeAgent('synthesizer')}
-								disabled={invokingAgentRole !== null}
-								class="px-2.5 py-1 rounded-md bg-purple-500/10 text-purple-700 dark:text-purple-300 border border-purple-500/25 hover:bg-purple-500/20 text-[11px] font-semibold transition-colors cursor-pointer"
-							>
-								⚖️ @synthesizer
-							</button>
-							<button
-								type="button"
-								onclick={() => {
-									activeWorkspaceTab = 'matrix';
-									void refreshMatrixData();
-								}}
-								class="px-2.5 py-1 rounded-md bg-primary text-primary-foreground text-[11px] font-semibold hover:bg-primary/90 transition-colors cursor-pointer shadow-2xs"
-							>
-								Ouvrir Matrice & Arbitrer →
-							</button>
-						</div>
-					</div>
-				{/if}
-			{/if}
-		</div>
-
-		<!-- Composeur structuré épinglé en bas du fil -->
-		<div class="p-3 border-t bg-muted/20 shrink-0">
-			<StructuredComposer
-				{subjectId}
-				{projectId}
-				options={subjectOptions}
-				bind:selectedOptionId={selectedComposerOptionId}
-				{allowedKbRefs}
-				{replyingTo}
-				{sessionUser}
-				onCancelReply={() => (replyingTo = null)}
-				onArgumentCreated={handleArgumentCreated}
-				onError={(msg) => deliberationStore.logNotification(msg, 'warning')}
-			/>
-		</div>
-	</div>
+	<SubjectDiscussionPane
+		{projectId}
+		{subjectId}
+		{activeSubject}
+		{activeDraft}
+		{userRole}
+		{isHumanUser}
+		{sessionUser}
+		{argumentsList}
+		{displayedArguments}
+		{openObjections}
+		{totalObjectionsCount}
+		{subjectOptions}
+		{subjectDecision}
+		{subjectRequirements}
+		{requirementsUnresolvedRefs}
+		{requirementsDossierPresent}
+		{allowedKbRefs}
+		{resumeSummary}
+		{foundationContested}
+		{contestationReason}
+		{isLoadingArguments}
+		{invokingAgentRole}
+		{isForceEditingQuestion}
+		bind:postureFilter
+		bind:selectedComposerOptionId
+		bind:replyingTo
+		onDismissResumeBanner={() => (dismissResumeBanner = true)}
+		onScrollToNextObjection={scrollToNextUnresolvedObjection}
+		onInvokeAgent={(role) => void handleInvokeAgent(role)}
+		onOpenSplitDialog={() => (isSplitDialogOpen = true)}
+		onUpdateDraftQuestion={handleUpdateDraftQuestion}
+		onUpdateDraftHypothesis={handleUpdateDraftHypothesis}
+		onAdoptHypothesis={handleAdoptHypothesis}
+		onSelectOptionForDiscussion={handleSelectOptionForDiscussion}
+		onArbitrateOption={() => handleOpenMatrix(false)}
+		onResolveArgument={handleResolveArgument}
+		onChallengeArgument={handleChallengeArgument}
+		onArgumentCreated={handleArgumentCreated}
+		onOpenMatrix={handleOpenMatrix}
+	/>
 {/snippet}
 
 {#snippet renderMatrixPane()}
-	<div class="h-full overflow-y-auto p-4 space-y-5" data-testid="unified-matrix-pane">
-		<!-- 1. Matrice Multicritères, Propositions d'Options & Arbitrage Formel L3 -->
-		<div class="space-y-3">
-			{#if isLoadingMatrix}
-				<div class="text-xs font-mono text-muted-foreground animate-pulse">
-					Synchronisation de la matrice...
-				</div>
-			{/if}
-			<OptionsMatrix
-				{projectId}
-				{subjectId}
-				bind:criteria={matrixCriteria}
-				bind:options={subjectOptions}
-				bind:evaluations={matrixEvaluations}
-				bind:tradeOffs={matrixTradeOffs}
-				bind:decision={subjectDecision}
-				userRole={deliberationStore.currentRole}
-				initialSingleOptionRationale={singleOptionRationale}
-				onCriteriaChanged={(newCrit) => {
-					matrixCriteria = [...newCrit];
-					syncWorkbenchCache();
-				}}
-				onOptionsChanged={(newOpts) => {
-					subjectOptions = [...newOpts];
-					syncWorkbenchCache();
-				}}
-				onEvaluationsChanged={(newEvals) => {
-					matrixEvaluations = [...newEvals];
-					syncWorkbenchCache();
-				}}
-				onDecisionMade={() => {
-					void loadArgumentsAndContext();
-					deliberationStore.refreshSubjectFromServer(subjectId, projectId);
-				}}
-				onInvokeProposer={() => handleInvokeAgent('proposer')}
-				isProposing={invokingAgentRole === 'proposer'}
-				onError={(msg) => deliberationStore.logNotification(msg, 'warning')}
-			/>
-		</div>
-
-		<!-- 2. Affirmation Collégiale (K16) & Extraction des Faits Machine-Lisibles (K18) -->
-		<div class="pt-4 border-t border-border/60">
-			<DecisionSurveyCard
-				{projectId}
-				{subjectId}
-				decision={subjectDecision}
-				options={subjectOptions}
-				sessionUser={sessionUser
-					? { id: sessionUser.id, email: sessionUser.email, role: sessionUser.role || userRole }
-					: { id: 'anonymous', email: '', role: userRole }}
-				isHubCutover={effectiveReport?.sourceOfRecord === 'hub'}
-				onAffirmed={async () => {
-					await loadArgumentsAndContext();
-					deliberationStore.logNotification(
-						'Décision d’architecture et faits machine-lisibles affirmés !',
-						'success'
-					);
-				}}
-			/>
-		</div>
-	</div>
+	<SubjectMatrixPane
+		{projectId}
+		{subjectId}
+		{userRole}
+		{sessionUser}
+		{isLoadingMatrix}
+		bind:criteria={matrixCriteria}
+		bind:options={subjectOptions}
+		bind:evaluations={matrixEvaluations}
+		bind:tradeOffs={matrixTradeOffs}
+		bind:decision={subjectDecision}
+		{singleOptionRationale}
+		{effectiveReport}
+		{invokingAgentRole}
+		onSyncCache={syncWorkbenchCache}
+		onReloadContext={() => loadArgumentsAndContext()}
+		onInvokeProposer={() => void handleInvokeAgent('proposer')}
+	/>
 {/snippet}
 
 {#snippet renderDoctrinesAndDraftPane()}
-	{@const retainedOpt = subjectOptions.find((o) => o.id === subjectDecision?.retainedOptionId)}
-	<div class="h-full overflow-y-auto p-4 space-y-4 text-xs" data-testid="unified-doctrines-pane">
-		<!-- 1. SPÉCIFICATION HAUT NIVEAU : Décision L3 Opposable (Socle structurant de départ) -->
-		{#if subjectDecision}
-			<div class="rounded-xl border-2 border-emerald-500/40 bg-gradient-to-r from-emerald-500/15 via-emerald-500/5 to-card p-4 space-y-3 shadow-2xs">
-				<div class="flex items-center justify-between flex-wrap gap-2">
-					<div class="flex items-center gap-2">
-						<div class="p-1.5 rounded-lg bg-emerald-500/20 text-emerald-700 dark:text-emerald-300">
-							<Gavel class="h-4 w-4" />
-						</div>
-						<div>
-							<div class="flex items-center gap-2">
-								<span class="text-xs font-bold text-foreground">Spécification Haut Niveau : Décision L3 Opposable</span>
-								<span class="px-1.5 py-0.2 rounded text-[10px] font-mono font-bold bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 border border-emerald-500/30">
-									L3 · Décidé
-								</span>
-							</div>
-							<p class="text-[11px] text-muted-foreground mt-0.5">La spécification d'ingénierie détaillée (DLD) ci-dessous découle obligatoirement de cette option retenue.</p>
-						</div>
-					</div>
-					<div class="flex items-center gap-2 flex-wrap">
-						<span class="px-2 py-0.5 rounded-full text-[10px] font-bold uppercase tracking-wider bg-emerald-500/20 text-emerald-800 dark:text-emerald-300 border border-emerald-500/30">
-							Option Retenue
-						</span>
-						<span class="px-2 py-0.5 rounded-full text-[10px] font-mono font-bold bg-muted text-foreground border border-border">
-							{subjectDecision.reversibility === 'reversible' ? 'Réversible' : subjectDecision.reversibility === 'costly' ? 'Coûteux' : 'Irréversible'}
-						</span>
-					</div>
-				</div>
-
-				<div class="rounded-lg bg-background/80 border border-border/60 p-3 space-y-1.5">
-					<strong class="text-xs font-bold text-foreground block">
-						{retainedOpt?.title || subjectDecision.retainedOptionId}
-					</strong>
-					{#if retainedOpt?.summary}
-						<p class="text-muted-foreground text-[11px] leading-relaxed">
-							{retainedOpt.summary}
-						</p>
-					{/if}
-					<div class="pt-1.5 border-t border-border/40 text-[11px] text-muted-foreground">
-						<strong class="text-foreground">Motivation d'arbitrage (Rationale) :</strong> « {subjectDecision.rationale} »
-					</div>
-				</div>
-			</div>
-		{:else}
-			<div class="rounded-xl border border-amber-500/30 bg-amber-500/5 p-3.5 flex items-center justify-between gap-3 text-xs">
-				<div class="flex items-center gap-2 text-amber-800 dark:text-amber-300">
-					<ShieldAlert class="h-4 w-4 shrink-0 text-amber-600" />
-					<span>
-						<strong>Aucun arbitrage L3 n'est encore acté sur ce sujet.</strong> Vous pouvez préparer une ébauche technique, mais la décision finale doit être prononcée dans la Matrice pour figer le socle.
-					</span>
-				</div>
-				<button
-					type="button"
-					onclick={() => {
-						activeWorkspaceTab = 'matrix';
-						void refreshMatrixData();
-					}}
-					class="px-2.5 py-1 rounded-lg bg-amber-600 hover:bg-amber-700 text-white font-semibold shrink-0 cursor-pointer text-[11px]"
-				>
-					Aller à la Matrice →
-				</button>
-			</div>
-		{/if}
-
-		<div class="rounded-xl border border-indigo-500/25 bg-card/60 overflow-hidden shadow-2xs">
-			<button
-				type="button"
-				data-testid="toggle-doctrine-drawer-btn"
-				onclick={() => (isDoctrineDrawerOpen = !isDoctrineDrawerOpen)}
-				class="w-full flex items-center justify-between p-3 bg-indigo-500/5 hover:bg-indigo-500/10 transition-colors text-left cursor-pointer"
-			>
-				<div class="flex items-center gap-2">
-					<BookOpen class="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
-					<span class="font-bold text-foreground text-xs">
-						Doctrines applicables & Règles (#base)
-					</span>
-					<span class="font-mono text-[10px] px-1.5 py-0.2 rounded bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-500/20">
-						{doctrineItems.length} doctrines · {citedKbRefs.length} citées
-					</span>
-				</div>
-				<div class="flex items-center gap-2 text-[11px] text-muted-foreground">
-					<span>{isDoctrineDrawerOpen ? '▲ Masquer la doctrine' : '▼ Déplier la doctrine'}</span>
-					{#if isDoctrineDrawerOpen}
-						<ChevronUp class="h-4 w-4" />
-					{:else}
-						<ChevronDown class="h-4 w-4" />
-					{/if}
-				</div>
-			</button>
-
-			{#if isDoctrineDrawerOpen}
-				<div class="p-3.5 border-t border-indigo-500/20 space-y-3 bg-background/50 animate-in fade-in duration-150">
-					{#if !isLoadingDoctrine && doctrineItems.length === 0}
-						<p class="text-muted-foreground italic">Aucune doctrine applicable renvoyée par LLMOps pour ce sujet.</p>
-					{/if}
-
-					{#if relevantDoctrine.length}
-						<div class="space-y-1.5">
-							<p class="text-[11px] font-semibold text-foreground">Doctrines hautement pertinentes pour ce sujet :</p>
-							<div class="grid grid-cols-1 md:grid-cols-2 gap-2">
-								{#each relevantDoctrine as item (item.id)}
-									<div class="rounded-lg border bg-card p-2 space-y-0.5">
-										<div class="flex items-center gap-2">
-											<span class="font-mono font-bold text-indigo-600 dark:text-indigo-400 text-[10px]">{item.id}</span>
-											<span class="text-[9px] text-muted-foreground uppercase">{item.type}</span>
-										</div>
-										<p class="text-foreground text-[11px] font-medium leading-tight">{item.title}</p>
-									</div>
-								{/each}
-							</div>
-						</div>
-					{/if}
-
-					{#each requiredByFramework as [framework, items] (framework)}
-						<details class="rounded-lg border bg-muted/20 p-2">
-							<summary class="cursor-pointer font-semibold text-[11px]">
-								Contrôles {framework} imposés par les référentiels déclarés ({items.length})
-							</summary>
-							<ul class="mt-2 space-y-1 pl-2">
-								{#each items as item (item.id)}
-									<li><span class="font-mono font-semibold">{item.id}</span> — {item.title}</li>
-								{/each}
-							</ul>
-						</details>
-					{/each}
-				</div>
-			{/if}
-		</div>
-
-		<!-- 3. ATELIER DE SPÉCIFICATION TECHNIQUE DÉTAILLÉE (DLD) -->
-		<div class="rounded-xl border bg-card p-4 space-y-4 shadow-2xs">
-			<div class="flex items-center justify-between pb-3 border-b flex-wrap gap-2">
-				<div class="flex items-center gap-2">
-					<FileText class="h-4 w-4 text-primary" />
-					<div>
-						<h4 class="font-bold text-foreground text-xs">Spécification Technique & Déclinaison d'Ingénierie (DLD)</h4>
-						<p class="text-[11px] text-muted-foreground">Formalisation des composants cibles, protocoles, interfaces, matrice de flux et exigences de mise en œuvre.</p>
-					</div>
-				</div>
-
-				<div class="flex items-center gap-2 flex-wrap">
-					<!-- Bouton Assistant IA -->
-					{#if subjectDecision}
-						<button
-							type="button"
-							data-testid="bootstrap-spec-ai-btn"
-							onclick={handleGenerateSpecFromDecision}
-							class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg bg-purple-600 hover:bg-purple-700 text-white font-semibold text-xs shadow-2xs transition-colors cursor-pointer"
-							title="Pré-remplir la spécification technique détaillée à partir de la décision L3"
-						>
-							<Sparkles class="h-3.5 w-3.5 text-amber-300" />
-							<span>✨ Pré-remplir avec l'IA</span>
-						</button>
-					{/if}
-
-					<!-- Bouton Sauvegarder -->
-					<button
-						type="button"
-						data-testid="save-detailed-spec-btn"
-						onclick={handleSaveDetailedSpec}
-						class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border bg-card hover:bg-muted font-semibold text-xs transition-colors cursor-pointer"
-					>
-						<Check class="h-3.5 w-3.5 text-emerald-600" />
-						<span>Enregistrer</span>
-					</button>
-
-					<!-- Bouton Homologation L4 (Lead Architect) -->
-					<button
-						type="button"
-						data-testid="validate-l4-spec-btn"
-						onclick={handleApproveSpecL4}
-						class="inline-flex items-center gap-1.5 px-3 py-1 rounded-lg bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-xs shadow-2xs transition-colors cursor-pointer"
-						title="Valider la spécification technique et acter le jalon L4"
-					>
-						<CheckCircle2 class="h-3.5 w-3.5" />
-						<span>✅ Homologuer Spécification (L4)</span>
-					</button>
-				</div>
-			</div>
-
-			<!-- RAPPELS STRUCTURANTS : Les 5 Piliers de la Délibération d'Architecture -->
-			<div class="rounded-xl border border-border/80 bg-background/60 p-3.5 space-y-3 shadow-2xs">
-				<div class="flex items-center justify-between flex-wrap gap-2">
-					<div class="flex items-center gap-2">
-						<Compass class="h-4 w-4 text-primary" />
-						<h5 class="text-xs font-bold text-foreground">
-							Fil Directeur : Les 5 Piliers Structurants de la Délibération
-						</h5>
-					</div>
-					<button
-						type="button"
-						data-testid="toggle-pillars-btn"
-						onclick={() => (showLegacyTelegraphic = !showLegacyTelegraphic)}
-						class="text-[11px] text-primary hover:underline font-semibold cursor-pointer"
-					>
-						{showLegacyTelegraphic ? 'Masquer les notes télégraphiques brutes' : 'Consulter les notes télégraphiques brutes (5 colonnes) →'}
-					</button>
-				</div>
-
-				<p class="text-[11px] text-muted-foreground leading-relaxed">
-					Cette spécification détaillée formalise les engagements d'ingénierie qui découlent de l'enchaînement méthodique ci-dessous :
-				</p>
-
-				<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-2 pt-1">
-					<!-- Pilier 1 : Question d'architecture -->
-					<div class="rounded-lg border border-blue-500/30 bg-blue-500/5 p-2.5 space-y-1">
-						<div class="flex items-center gap-1.5 text-blue-700 dark:text-blue-300 font-bold text-[10px] uppercase tracking-wide">
-							<HelpCircle class="h-3.5 w-3.5 shrink-0" />
-							<span>1. Question (Problème)</span>
-						</div>
-						<p class="text-[11px] font-semibold text-foreground line-clamp-2" title={activeDraft?.manque?.[0]?.question || activeSubject?.name || "Question d'architecture"}>
-							{activeDraft?.manque?.[0]?.question || activeSubject?.name || "Question d'architecture"}
-						</p>
-						<p class="text-[10px] text-muted-foreground italic">« Quel problème résout-on ? »</p>
-					</div>
-
-					<!-- Pilier 2 : Hypothèse de cadrage -->
-					<div class="rounded-lg border border-indigo-500/30 bg-indigo-500/5 p-2.5 space-y-1">
-						<div class="flex items-center gap-1.5 text-indigo-700 dark:text-indigo-300 font-bold text-[10px] uppercase tracking-wide">
-							<Lightbulb class="h-3.5 w-3.5 shrink-0" />
-							<span>2. Cadrage & Hypothèse</span>
-						</div>
-						<p class="text-[11px] font-semibold text-foreground line-clamp-2" title={activeDraft?.suppose?.[0]?.text || activeSubject?.name || "Hypothèse de cadrage"}>
-							{activeDraft?.suppose?.[0]?.text || 'Recommandation initiale de référence'}
-						</p>
-						<p class="text-[10px] text-muted-foreground italic">« Quelle est la cible initiale ? »</p>
-					</div>
-
-					<!-- Pilier 3 : Options & Variantes -->
-					<div class="rounded-lg border border-purple-500/30 bg-purple-500/5 p-2.5 space-y-1">
-						<div class="flex items-center justify-between gap-1">
-							<div class="flex items-center gap-1.5 text-purple-700 dark:text-purple-300 font-bold text-[10px] uppercase tracking-wide">
-								<Split class="h-3.5 w-3.5 shrink-0" />
-								<span>3. Options & Variantes</span>
-							</div>
-							<span class="text-[9px] font-mono px-1.5 py-0.2 rounded bg-purple-500/10 text-purple-700 font-bold">
-								{subjectOptions.length}
-							</span>
-						</div>
-						<p class="text-[11px] font-semibold text-foreground">
-							{subjectOptions.length > 0 ? `${subjectOptions.length} alternatives explorées` : 'Alternatives en cours'}
-						</p>
-						<p class="text-[10px] text-muted-foreground italic">« Quelles alternatives comparées ? »</p>
-					</div>
-
-					<!-- Pilier 4 : Critères & Conformité -->
-					<div class="rounded-lg border border-amber-500/30 bg-amber-500/5 p-2.5 space-y-1">
-						<div class="flex items-center justify-between gap-1">
-							<div class="flex items-center gap-1.5 text-amber-700 dark:text-amber-300 font-bold text-[10px] uppercase tracking-wide">
-								<Scale class="h-3.5 w-3.5 shrink-0" />
-								<span>4. Critères & Conformité</span>
-							</div>
-							<span class="text-[9px] font-mono px-1.5 py-0.2 rounded bg-amber-500/10 text-amber-700 font-bold">
-								{matrixCriteria.length}
-							</span>
-						</div>
-						<p class="text-[11px] font-semibold text-foreground">
-							{matrixCriteria.length > 0 ? `${matrixCriteria.length} critères opposables` : 'Grille en cours'}
-						</p>
-						<p class="text-[10px] text-muted-foreground italic">« Sur quoi juge-t-on le choix ? »</p>
-					</div>
-
-					<!-- Pilier 5 : Arbitrage & Décision -->
-					<div class="rounded-lg border border-emerald-500/40 bg-emerald-500/10 p-2.5 space-y-1 shadow-2xs">
-						<div class="flex items-center gap-1.5 text-emerald-800 dark:text-emerald-300 font-bold text-[10px] uppercase tracking-wide">
-							<Gavel class="h-3.5 w-3.5 shrink-0 text-emerald-600" />
-							<span>5. Arbitrage L3 Acté</span>
-						</div>
-						<p class="text-[11px] font-bold text-foreground line-clamp-2" title={retainedOpt?.title || subjectDecision?.retainedOptionId || 'En attente'}>
-							{retainedOpt?.title || subjectDecision?.retainedOptionId || 'Arbitrage en attente'}
-						</p>
-						<p class="text-[10px] text-muted-foreground italic">« Quelle option retenue et pourquoi ? »</p>
-					</div>
-				</div>
-
-				{#if showLegacyTelegraphic}
-					<div class="pt-3 border-t space-y-2 animate-in fade-in duration-150">
-						<span class="text-[11px] font-bold text-foreground">Notes télégraphiques brutes :</span>
-						<TelegraphicDraftView readOnlyMode={true} />
-					</div>
-				{/if}
-			</div>
-
-			<!-- Éditeur de la Spécification Détaillée -->
-			<div class="space-y-2">
-				<div class="flex items-center justify-between text-[11px] text-muted-foreground">
-					<span class="font-semibold text-foreground">Rédigez ou affinez la spécification d'ingénierie (Markdown supporté) :</span>
-					<span class="italic text-[10px]">Persistance automatique locale</span>
-				</div>
-				<textarea
-					data-testid="detailed-spec-textarea"
-					bind:value={detailedSpecText}
-					oninput={() => deliberationStore.setDetailedSpec(subjectId, detailedSpecText)}
-					rows={14}
-					placeholder="1. Architecture Cible & Composants :&#10;• Passerelle DEA : ...&#10;• Chiffrement IPsec ESP : ...&#10;&#10;2. Interfaces, Protocoles & Flux :&#10;• Protocoles : IKEv2, AES-256-GCM...&#10;• Ports et liaisons sécurisées : ...&#10;&#10;3. Exploitation & Supervision :&#10;• Intégration NOC et supervision : ...&#10;&#10;4. Points de mise en œuvre résiduels :&#10;• ..."
-					class="w-full rounded-lg border bg-background px-3 py-2.5 text-xs text-foreground font-mono leading-relaxed placeholder:text-muted-foreground/60 focus:ring-1 focus:ring-primary shadow-inner"
-				></textarea>
-			</div>
-
-			<!-- Vue Télégraphique d'appoint (si demandée) -->
-			{#if showLegacyTelegraphic}
-				<div class="pt-3 border-t space-y-2">
-					<span class="text-[11px] font-bold text-foreground">Repères d'affirmation télégraphique :</span>
-					<TelegraphicDraftView readOnlyMode={true} />
-				</div>
-			{/if}
-		</div>
-	</div>
+	<SubjectDoctrinePane
+		{subjectId}
+		{activeSubject}
+		{activeDraft}
+		{subjectDecision}
+		{subjectOptions}
+		{matrixCriteria}
+		{doctrineItems}
+		{citedKbRefs}
+		{relevantDoctrine}
+		{requiredByFramework}
+		{isLoadingDoctrine}
+		bind:detailedSpecText
+		onOpenMatrix={() => handleOpenMatrix(false)}
+		onGenerateSpecFromDecision={handleGenerateSpecFromDecision}
+		onSaveDetailedSpec={handleSaveDetailedSpec}
+		onApproveSpecL4={handleApproveSpecL4}
+	/>
 {/snippet}
 
 {#snippet renderCascadeAndRulesPane()}
-	<div class="h-full overflow-y-auto p-4 space-y-5 text-xs" data-testid="unified-cascade-pane">
-		<!-- 1. Questions en cascade générées post-décision (A28) -->
-		{#if cascadeResult && cascadeResult.questions && cascadeResult.questions.length > 0}
-			<CascadeQuestionsCard
-				{projectId}
-				{subjectId}
-				cascade={cascadeResult}
-				onNavigateToChild={(childId) => {
-					deliberationStore.selectSubject(childId);
-				}}
-				onQuestionUpdated={async () => {
-					await loadArgumentsAndContext();
-				}}
-			/>
-		{/if}
-
-		<!-- 2. Arbre de découverte (Généalogie cascade) & Règles du projet -->
-		<div class="grid grid-cols-1 xl:grid-cols-2 gap-4 items-start">
-			<div class="space-y-3 rounded-xl border bg-card/50 p-3.5" data-testid="dossier-discovery-tree">
-				<div class="flex items-center justify-between pb-2 border-b text-foreground font-bold">
-					<span class="flex items-center gap-1.5">
-						<GitFork class="h-4 w-4 text-primary" />
-						<span>Arbre de découverte (Parents → Décision → Enfants)</span>
-					</span>
-				</div>
-				<DiscoveryTreeView
-					{discoveryTree}
-					{treeSeries}
-					isLoading={isLoadingTree}
-					{isProposingAnglesMorts}
-					onSelectSubject={(targetSubjectId) => {
-						deliberationStore.selectSubject(targetSubjectId);
-					}}
-					onOpenMatrix={() => {
-						activeWorkspaceTab = 'matrix';
-						void refreshMatrixData();
-					}}
-					onProposeAnglesMorts={handleProposeAnglesMortsFromTree}
-				/>
-			</div>
-
-			<div class="space-y-3 rounded-xl border bg-card/50 p-3.5" data-testid="dossier-project-rules">
-				<ProjectRulesPanel
-					{projectId}
-					{subjectId}
-					onRuleChanged={() => {
-						void refreshTreeData();
-					}}
-				/>
-			</div>
-		</div>
-	</div>
+	<SubjectCascadePane
+		{projectId}
+		{subjectId}
+		{cascadeResult}
+		{discoveryTree}
+		{treeSeries}
+		{isLoadingTree}
+		{isProposingAnglesMorts}
+		onReloadContext={() => loadArgumentsAndContext()}
+		onOpenMatrix={() => handleOpenMatrix(false)}
+		onProposeAnglesMorts={handleProposeAnglesMortsFromTree}
+		onRefreshTree={() => void refreshTreeData()}
+	/>
 {/snippet}
 
-<!-- ═════════════════════════════════════════════════════════════════════════ -->
-<!-- CONTENEUR PRINCIPAL UNIFIÉ DU SUJET (PANNEAU DROIT FUSIONNÉ)              -->
-<!-- ═════════════════════════════════════════════════════════════════════════ -->
 <div class="flex flex-col h-full bg-card rounded-xl border shadow-xs overflow-hidden" data-testid="unified-subject-workbench">
-	<!-- ─────────────────────────────────────────────────────────────────────── -->
-	<!-- 1. EN-TÊTE UNIQUE DU SUJET                                              -->
-	<!-- ─────────────────────────────────────────────────────────────────────── -->
-	<div class="px-3.5 py-2.5 border-b bg-muted/20 flex items-center justify-between gap-3 flex-wrap shrink-0">
-		<div class="flex items-center gap-2">
-			<button
-				type="button"
-				onclick={onBackToBoard}
-				class="inline-flex items-center gap-1.5 px-2 py-1 rounded-md text-xs font-semibold bg-muted/60 hover:bg-muted text-muted-foreground hover:text-foreground transition-colors cursor-pointer"
-				title="Revenir au tableau de maturité"
-			>
-				<ArrowLeft class="h-3.5 w-3.5" />
-				<span>Tableau</span>
-				{#if deliberationStore.activeEngagement?.title}
-					<span class="text-[10px] font-mono px-1.5 py-0.5 rounded bg-background text-primary border border-primary/30 font-bold">
-						{deliberationStore.activeEngagement.shortName || deliberationStore.activeEngagement.title}
-					</span>
-				{/if}
-			</button>
+	<SubjectThreadHeader
+		{activeSubject}
+		{isSidebarCollapsed}
+		{openObjectionsCount}
+		{totalObjectionsCount}
+		citedKbRefsCount={citedKbRefs.length}
+		{isDebating}
+		{invokingAgentRole}
+		bind:isSplitView
+		{onBackToBoard}
+		{onToggleSidebar}
+		onInvokeAgent={(role) => void handleInvokeAgent(role)}
+		onLaunchDebate={() => void handleLaunchDebate()}
+	/>
 
-			{#if isSidebarCollapsed}
-				<button
-					type="button"
-					data-testid="expand-subject-list-btn"
-					onclick={onToggleSidebar}
-					class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border bg-card hover:bg-muted text-xs font-semibold text-foreground transition-colors cursor-pointer shadow-2xs"
-					title="Déplier la liste des sujets"
-				>
-					<PanelLeftOpen class="h-3.5 w-3.5 text-primary" />
-					<span class="hidden sm:inline">Sujets</span>
-					<span class="text-[10px] font-mono px-1 rounded bg-primary/10 text-primary font-bold">
-						{deliberationStore.sortedSubjects.length}
-					</span>
-				</button>
-			{/if}
-
-			<div>
-				<div class="flex items-center gap-2 flex-wrap">
-					<span class="font-mono text-xs font-bold text-primary">
-						{activeSubject?.section_ref || '§'}
-					</span>
-					<h2 class="text-sm font-bold text-foreground leading-none">
-						{activeSubject?.name || 'Sujet non sélectionné'}
-					</h2>
-					{#if activeSubject}
-						<span class="inline-flex items-center rounded-md px-2 py-0.5 font-mono text-[10px] font-bold border {getMaturityBadgeClass(activeSubject.level)}">
-							{formatMaturityLevel(activeSubject.level)}
-						</span>
-					{/if}
-				</div>
-				<div class="text-[11px] text-muted-foreground mt-0.5">
-					Attente : <strong class="text-foreground">{activeSubject?.waiting_for_role || '—'}</strong> · Effort : <span class="font-mono">{activeSubject?.relative_effort || 'M'}</span>
-				</div>
-			</div>
-		</div>
-
-		<!-- Compteurs synthétiques, LLMOps, Menu Agents & Bascule Split -->
-		<div class="flex items-center gap-1.5 flex-wrap">
-			<!-- Badges Objections & Doctrines (fusionnés depuis l'ancien en-tête Dossier) -->
-			<span
-				class="inline-flex items-center gap-1 px-2 py-1 rounded-lg font-mono text-[10px] font-bold border {openObjectionsCount > 0
-					? 'bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-500/25'
-					: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/25'}"
-				title="Objections ouvertes sur le total des objections du sujet"
-			>
-				<ShieldAlert class="h-3 w-3" />
-				<span>{openObjectionsCount} obj. ouverte(s) / {totalObjectionsCount}</span>
-			</span>
-
-			<span
-				class="inline-flex items-center gap-1 px-2 py-1 rounded-lg font-mono text-[10px] font-bold bg-indigo-500/10 text-indigo-700 dark:text-indigo-300 border border-indigo-500/25"
-				title="Références doctrinales mobilisées dans la délibération"
-			>
-				<BookOpen class="h-3 w-3" />
-				<span>{citedKbRefs.length} ref(s) base</span>
-			</span>
-
-			<!-- Indicateur LLMOps -->
-			{#if deliberationStore.llmopsStatus === 'connected'}
-				<button
-					type="button"
-					onclick={() => deliberationStore.syncWithLLMOps(undefined, undefined, { silent: false })}
-					disabled={deliberationStore.isSyncingLLMOps}
-					class="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg border text-xs font-medium bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-500/30 hover:bg-emerald-500/20 transition-colors cursor-pointer"
-					title="Connecté au Knowledge Hub LLMOps · Cliquez pour resynchroniser"
-				>
-					<span class="inline-block h-2 w-2 rounded-full bg-emerald-500"></span>
-					<span class="opacity-80">LLMOps :</span>
-					<strong class="font-mono">En ligne</strong>
-					{#if deliberationStore.isSyncingLLMOps}
-						<RefreshCw class="h-3 w-3 animate-spin ml-0.5" />
-					{/if}
-				</button>
-			{:else}
-				<button
-					type="button"
-					onclick={() => deliberationStore.syncWithLLMOps(undefined, undefined, { silent: false })}
-					disabled={deliberationStore.isSyncingLLMOps}
-					class="inline-flex items-center gap-1.5 px-2 py-1 rounded-lg border text-xs font-medium bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-500/30 hover:bg-rose-500/20 transition-colors cursor-pointer"
-					title="Non connecté à LLMOps · Cliquez pour tester la connexion"
-				>
-					<span class="inline-block h-2 w-2 rounded-full bg-rose-500"></span>
-					<span class="opacity-80">LLMOps :</span>
-					<strong class="font-mono">Non connecté</strong>
-					{#if deliberationStore.isSyncingLLMOps}
-						<RefreshCw class="h-3 w-3 animate-spin ml-0.5" />
-					{/if}
-				</button>
-			{/if}
-
-			<!-- Menu Solliciter un agent -->
-			<div class="relative">
-				<button
-					type="button"
-					disabled={isDebating || invokingAgentRole !== null}
-					onclick={() => (isAgentMenuOpen = !isAgentMenuOpen)}
-					class="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border bg-background hover:bg-muted/70 disabled:opacity-50 text-xs font-semibold shadow-2xs transition-colors cursor-pointer"
-				>
-					{#if isDebating}
-						<RotateCcw class="h-3.5 w-3.5 animate-spin text-primary" />
-						<span>Débat...</span>
-					{:else if invokingAgentRole}
-						<RotateCcw class="h-3.5 w-3.5 animate-spin text-purple-600" />
-						<span>@{invokingAgentRole}...</span>
-					{:else}
-						<Sparkles class="h-3.5 w-3.5 text-purple-600" />
-						<span>Agents IA</span>
-						<ChevronDown class="h-3 w-3 text-muted-foreground transition-transform {isAgentMenuOpen ? 'rotate-180' : ''}" />
-					{/if}
-				</button>
-
-				{#if isAgentMenuOpen}
-					<div
-						class="absolute right-0 mt-1 w-56 rounded-xl border bg-popover text-popover-foreground shadow-lg z-30 p-1.5 space-y-1 text-xs"
-						role="menu"
-					>
-						<div class="px-2 py-1 text-[10px] font-bold text-muted-foreground uppercase tracking-wider border-b mb-1">
-							Interpeller un agent IA
-						</div>
-						<button
-							type="button"
-							onclick={() => {
-								isAgentMenuOpen = false;
-								handleInvokeAgent('challenger');
-							}}
-							class="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-rose-500/10 text-rose-700 dark:text-rose-400 font-semibold cursor-pointer transition-colors text-left"
-						>
-							<span>⚔️</span>
-							<div>
-								<div class="leading-none">@challenger</div>
-								<div class="text-[10px] font-normal text-muted-foreground mt-0.5">Trouver failles & objections</div>
-							</div>
-						</button>
-						<button
-							type="button"
-							onclick={() => {
-								isAgentMenuOpen = false;
-								handleInvokeAgent('proposer');
-							}}
-							class="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-blue-500/10 text-blue-700 dark:text-blue-400 font-semibold cursor-pointer transition-colors text-left"
-						>
-							<span>💡</span>
-							<div>
-								<div class="leading-none">@proposer</div>
-								<div class="text-[10px] font-normal text-muted-foreground mt-0.5">Suggérer une nouvelle option</div>
-							</div>
-						</button>
-						<button
-							type="button"
-							onclick={() => {
-								isAgentMenuOpen = false;
-								handleInvokeAgent('verifier');
-							}}
-							class="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-cyan-500/10 text-cyan-700 dark:text-cyan-400 font-semibold cursor-pointer transition-colors text-left"
-						>
-							<span>🛡️</span>
-							<div>
-								<div class="leading-none">@verifier</div>
-								<div class="text-[10px] font-normal text-muted-foreground mt-0.5">Contrôler conformité doctrine</div>
-							</div>
-						</button>
-						<button
-							type="button"
-							onclick={() => {
-								isAgentMenuOpen = false;
-								handleInvokeAgent('synthesizer');
-							}}
-							class="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg hover:bg-purple-500/10 text-purple-700 dark:text-purple-400 font-semibold cursor-pointer transition-colors text-left"
-						>
-							<span>⚖️</span>
-							<div>
-								<div class="leading-none">@synthesizer</div>
-								<div class="text-[10px] font-normal text-muted-foreground mt-0.5">Résumer et arbitrer</div>
-							</div>
-						</button>
-						<div class="border-t my-1"></div>
-						<button
-							type="button"
-							onclick={() => {
-								isAgentMenuOpen = false;
-								handleLaunchDebate();
-							}}
-							class="w-full flex items-center gap-2 px-2 py-1.5 rounded-lg bg-primary/10 text-primary hover:bg-primary/20 font-semibold cursor-pointer transition-colors text-left"
-						>
-							<span>⚡</span>
-							<div>
-								<div class="leading-none">Débat complet</div>
-								<div class="text-[10px] font-normal text-muted-foreground mt-0.5">Tour contradictoire automatisé</div>
-							</div>
-						</button>
-					</div>
-				{/if}
-			</div>
-
-			<!-- Bascule Mode Onglets Pleine Largeur vs Mode Split Côte-à-côte (sur grand écran) -->
-			<button
-				type="button"
-				data-testid="btn-toggle-split"
-				onclick={() => (isSplitView = !isSplitView)}
-				class="hidden xl:inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg border text-xs font-semibold transition-colors cursor-pointer {isSplitView
-					? 'bg-primary text-primary-foreground border-primary shadow-2xs'
-					: 'bg-background text-muted-foreground hover:text-foreground hover:bg-muted/60'}"
-				title={isSplitView
-					? 'Revenir aux onglets unifiés pleine largeur'
-					: 'Afficher le Fil et la Matrice côte à côte sur grand écran'}
-			>
-				{#if isSplitView}
-					<Maximize2 class="h-3.5 w-3.5" />
-					<span>Pleine largeur</span>
-				{:else}
-					<Columns2 class="h-3.5 w-3.5" />
-					<span>Vue Split (Fil + Matrice)</span>
-				{/if}
-			</button>
-		</div>
-	</div>
-
-	<!-- ─────────────────────────────────────────────────────────────────────── -->
-	<!-- 2. TIMELINE HORIZONTALE DE MATURATION + CRITÈRES & ACTIONS EN HAUT      -->
-	<!-- ─────────────────────────────────────────────────────────────────────── -->
 	<div class="shrink-0">
 		<MaturityStepper
 			report={effectiveReport}
@@ -2201,9 +1164,6 @@
 		/>
 	</div>
 
-	<!-- ─────────────────────────────────────────────────────────────────────── -->
-	<!-- 3. BARRE D'ONGLETS UNIFIÉS DU SUJET (Remplace Fil + Dossier séparés)    -->
-	<!-- ─────────────────────────────────────────────────────────────────────── -->
 	<div
 		class="px-3.5 py-1.5 border-b bg-muted/30 flex items-center justify-between gap-2 flex-wrap shrink-0"
 		data-testid="unified-workspace-tabs"
@@ -2230,10 +1190,7 @@
 			<button
 				type="button"
 				data-testid="tab-unified-matrix"
-				onclick={() => {
-					activeWorkspaceTab = 'matrix';
-					void refreshMatrixData();
-				}}
+				onclick={() => handleOpenMatrix(false)}
 				class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold transition-all cursor-pointer whitespace-nowrap {(isSplitView ? splitRightTab === 'matrix' : activeWorkspaceTab === 'matrix')
 					? 'bg-background text-foreground shadow-2xs border'
 					: 'text-muted-foreground hover:text-foreground hover:bg-background/50'}"
@@ -2282,9 +1239,6 @@
 		</div>
 	</div>
 
-	<!-- ─────────────────────────────────────────────────────────────────────── -->
-	<!-- 4. CORPS DE L'ESPACE UNIFIÉ (ONGLETS PLEINE LARGEUR OU VUE SPLIT)       -->
-	<!-- ─────────────────────────────────────────────────────────────────────── -->
 	<div class="flex-1 min-h-0 overflow-hidden">
 		{#if isSplitView}
 			<div class="grid grid-cols-1 xl:grid-cols-12 h-full divide-y xl:divide-y-0 xl:divide-x divide-border">

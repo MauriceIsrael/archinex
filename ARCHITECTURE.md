@@ -144,11 +144,19 @@ Chaque arbitrage produit automatiquement des candidats à la Knowledge Base :
 
 ## 4. Pipeline de Validation et d'Assurance Qualité
 
-La qualité et l'étanchéité du système sont garanties par le script unifié `node scripts/verify.mjs` validant 4 portes d'acceptation :
-1. **Denylist Check** : 0 terme projet ou fournisseur interdit dans `src/`.
-2. **Vitest Test Suites** : tests unitaires, contractuels et d'intégration (les tests « live » exigent un serveur LLMOps réel et sont ignorés sinon).
-3. **Svelte Check** : 0 erreur, 0 avertissement de typage strict TypeScript / Svelte 5.
-4. **Production Build** : Compilation complète des bundles client et serveur SSR.
+La qualité et l'étanchéité du système sont garanties par le script unifié `node scripts/verify.mjs` validant 7 portes d'acceptation :
+1. **Denylist & Couplage Scénario** : 0 terme projet ou fournisseur interdit dans `src/`.
+2. **Changelog Fragments Check** : validation des fragments dans `changelog.d/`.
+3. **File Size & Route Lint + Hub Contract Types (`lint:size`, `llmops:check-types`)** : aucune route serveur > 300 lignes, aucune chaîne `if (action === ...)` dans les routes API, avertissement sur les fichiers > 600 lignes, et synchronisation des types générés depuis `src/lib/server/llmops/contract/hub-openapi.json`.
+4. **Sylva CRD & OPA Golden Rules** : validation des règles OPA et schémas Sylva.
+5. **Vitest Test Suites** : tests unitaires, contractuels et d'intégration (les tests « live » exigent un serveur LLMOps réel et sont ignorés sinon).
+6. **Svelte Check** : 0 erreur, 0 avertissement de typage strict TypeScript / Svelte 5.
+7. **Production Build** : Compilation complète des bundles client et serveur SSR.
+
+### Modularisation des couches clés (#396)
+- **Routes & service EDP (`src/lib/server/edp/actions/` & `src/routes/api/projects/[projectId]/subjects/[subjectId]/edp/<action>/+server.ts`)** : 11 endpoints dédiés par action (`validate`, `challenge`, `bind-aspect`, `unratify`, `dismiss-axis`, `restore-axis`, `hydrate`, `synthesize`, `verify`, `simulate-drift`, `export-sylva-gitops`) validés par Zod et adossés à une couche service testable ; la route racine `/edp` conserve la compatibilité ascendante via une table de dispatch typée.
+- **Client LLMOps modulaire (`src/lib/server/llmops/`)** : transport & négociation de version (`transport.ts`, en-tête `X-Hub-Contract-Version`), types générés depuis le contrat OpenAPI du Hub (`contract/hub-openapi.json` → `contract/generated-types.ts` via `npm run llmops:gen-types`), et 6 modules métier par domaine (`domains/doctrine.ts`, `frameworks.ts`, `knowledge.ts`, `knowledgeAdmin.ts`, `evaluations.ts`, `engagements.ts`) composés par la façade `LLMOpsClient` (`client.ts`).
+- **Espace de délibération sujet (`src/lib/components/deliberation/thread/`)** : `SubjectThreadView.svelte` orchestrant les sous-composants spécialisés `SubjectThreadHeader`, `SubjectDiscussionPane` (fil), `SubjectMatrixPane` (matrice), `SubjectDoctrinePane` (doctrine/DLD) et `SubjectCascadePane` (cascade).
 
 ---
 

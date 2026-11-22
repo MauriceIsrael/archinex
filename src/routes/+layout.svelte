@@ -30,7 +30,6 @@
   import * as Sheet from '$lib/components/ui/sheet';
   import * as Avatar from '$lib/components/ui/avatar';
   import * as DropdownMenu from '$lib/components/ui/dropdown-menu';
-  import LanguageSwitcher from '$lib/components/LanguageSwitcher.svelte';
   import ThemeSelector from '$lib/components/ThemeSelector.svelte';
   import LLMOpsStatusBadge from '$lib/components/LLMOpsStatusBadge.svelte';
   import DocumentEngineStatusBadge from '$lib/components/DocumentEngineStatusBadge.svelte';
@@ -231,7 +230,7 @@
       <Sheet.Trigger>
         {#snippet child({ props })}
           <Button variant="ghost" size="icon" class="md:hidden shrink-0" {...props}
-            aria-label={$t('sidebar.expand', { default: 'Open menu' })}>
+            aria-label={$t('sidebar.expand', { default: 'Ouvrir le menu' })}>
             <Menu class="h-5 w-5" />
           </Button>
         {/snippet}
@@ -349,8 +348,8 @@
     <!-- Desktop: sidebar collapse toggle -->
     <Button variant="ghost" size="icon" class="hidden md:flex shrink-0" onclick={toggleSidebar}
       aria-label={sidebarCollapsed
-        ? $t('sidebar.expand', { default: 'Expand sidebar' })
-        : $t('sidebar.collapse', { default: 'Collapse sidebar' })}>
+        ? $t('sidebar.expand', { default: 'Développer le menu' })
+        : $t('sidebar.collapse', { default: 'Réduire le menu' })}>
       {#if sidebarCollapsed}
         <PanelLeftOpen class="h-5 w-5" />
       {:else}
@@ -420,7 +419,6 @@
         </DropdownMenu.Root>
       {/if}
       <HelpMenu />
-      <LanguageSwitcher />
       <ThemeSelector />
 
       {#if session}

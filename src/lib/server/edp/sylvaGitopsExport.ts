@@ -2,6 +2,7 @@ import { createHash } from 'node:crypto';
 import { sanitizeManifests } from './manifestSanitizer.js';
 import type { MultiAxisHydratedInventory } from './refinementCoverage.js';
 import type { ResolvedComponentInstance } from '../../domain/edp/refResolver.js';
+import { sanitizeResourceSegment } from '../../domain/edp/resourceNaming.js';
 
 export interface SylvaGitopsExportInput {
   edpId: string;
@@ -148,7 +149,7 @@ export function buildSylvaTenantWorkloadManifests(
       apiVersion: 'cilium.io/v2',
       kind: 'CiliumNetworkPolicy',
       metadata: {
-        name: rule.id.toLowerCase().replace(/[^a-z0-9-]/g, '-'),
+        name: sanitizeResourceSegment(rule.id, 'rule'),
         namespace: resolved.tenant,
         labels: {
           ...commonLabels,

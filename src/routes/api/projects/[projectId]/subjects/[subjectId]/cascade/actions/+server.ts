@@ -5,25 +5,17 @@ import { llmopsClient } from '$lib/server/llmops/client';
 import { prisma } from '$lib/server/prisma';
 import { authorizeProjectAccess } from '$lib/server/projects/projectAccess';
 
-export const POST: RequestHandler = async (event) => {
-	const { projectId, subjectId } = event.params;
-	const auth = await authorizeProjectAccess(event, projectId);
-	if (auth.error) return auth.error;
-	let body: any = {};
-	try {
-		body = await event.request.json();
-	} catch {
-		return json({ error: 'Corps JSON invalide' }, { status: 400 });
-	}
+type CascadeActionCtx = {
+	projectId: string;
+	subjectId: string;
+	userId: string;
+	userEmail: string;
+	body: any;
+};
 
-	const { action, question, justification, assignedTo, mergedWithSubjectId, candidateTitle, candidateSummary, candidateRationale } = body;
-
-	if (!action || !question) {
-		return json({ error: 'Action et question sont requises' }, { status: 400 });
-	}
-
-	if (action === 'close') {
-		const result = closeCascadeQuestion(question as CascadeQuestion, justification);
+const CASCADE_ACTION_HANDLERS: Record<string, (ctx: CascadeActionCtx) => Promise<Response> | Response> = {
+	close: ({ body }) => {
+		const result = closeCascadeQuestion(body.question as CascadeQuestion, body.justification);
 		if (!result.success) {
 			return json(
 				{
@@ -34,52 +26,50 @@ export const POST: RequestHandler = async (event) => {
 			);
 		}
 		return json({ status: 'ok', question: result.question });
-	}
-
-	if (action === 'assign') {
+	},
+	assign: ({ body }) => {
 		const updated: CascadeQuestion = {
-			...(question as CascadeQuestion),
+			...(body.question as CascadeQuestion),
 			status: 'assigned',
-			assignedTo: assignedTo || 'Non assigné'
+			assignedTo: body.assignedTo || 'Non assigné'
 		};
 		return json({ status: 'ok', question: updated });
-	}
-
-	if (action === 'merge') {
+	},
+	merge: async ({ projectId, userId, body }) => {
+		const { question, mergedWithSubjectId } = body;
 		const updated: CascadeQuestion = {
 			...(question as CascadeQuestion),
 			status: 'merged',
 			mergedWithSubjectId: mergedWithSubjectId || null
 		};
-
-		// Persistance de l'événement de fusion
-		await prisma.domainEvent.create({
-			data: {
-				projectId,
-				entityType: 'cascade_question',
-				entityId: question.id,
-				type: 'CASCADE_QUESTION_MERGED',
-				actorId: event.locals?.session?.user?.id || 'lead_architect',
-				actorRole: 'lead_architect',
-				productionMode: 'human-authored',
-				payload: JSON.stringify({
-					questionId: question.id,
-					mergedWithSubjectId
-				})
-			}
-		}).catch(() => null);
-
+		await prisma.domainEvent
+			.create({
+				data: {
+					projectId,
+					entityType: 'cascade_question',
+					entityId: question.id,
+					type: 'CASCADE_QUESTION_MERGED',
+					actorId: userId,
+					actorRole: 'lead_architect',
+					productionMode: 'human-authored',
+					payload: JSON.stringify({ questionId: question.id, mergedWithSubjectId })
+				}
+			})
+			.catch(() => null);
 		return json({ status: 'ok', question: updated });
-	}
-
-	if (action === 'capitalize') {
+	},
+	capitalize: async ({ projectId, subjectId, userId, userEmail, body }) => {
+		const { question, candidateTitle, candidateSummary, candidateRationale } = body;
 		try {
 			const candidate = {
 				kind: 'new_asset' as const,
 				title: candidateTitle || `Règle candidate issue de la question : ${question.subjectName}`,
 				summary: candidateSummary || question.text,
-				rationale: candidateRationale || question.grounds || 'Suggestion récurrente issue du moteur de cascade.',
-				author: event.locals?.session?.user?.email || 'lead_architect',
+				rationale:
+					candidateRationale ||
+					question.grounds ||
+					'Suggestion récurrente issue du moteur de cascade.',
+				author: userEmail,
 				production_mode: 'llm-derived' as const,
 				source: {
 					system: 'archinex' as const,
@@ -88,26 +78,24 @@ export const POST: RequestHandler = async (event) => {
 					decision_id: question.lineage?.parentDecisionId
 				}
 			};
-
 			const candidateRes = await llmopsClient.submitCandidate(candidate);
-
-			// Persistance de l'événement de capitalisation
-			await prisma.domainEvent.create({
-				data: {
-					projectId,
-					entityType: 'cascade_question',
-					entityId: question.id,
-					type: 'CASCADE_QUESTION_CAPITALIZED',
-					actorId: event.locals?.session?.user?.id || 'lead_architect',
-					actorRole: 'lead_architect',
-					productionMode: 'human-authored',
-					payload: JSON.stringify({
-						candidateId: candidateRes.candidate_id,
-						questionId: question.id
-					})
-				}
-			}).catch(() => null);
-
+			await prisma.domainEvent
+				.create({
+					data: {
+						projectId,
+						entityType: 'cascade_question',
+						entityId: question.id,
+						type: 'CASCADE_QUESTION_CAPITALIZED',
+						actorId: userId,
+						actorRole: 'lead_architect',
+						productionMode: 'human-authored',
+						payload: JSON.stringify({
+							candidateId: candidateRes.candidate_id,
+							questionId: question.id
+						})
+					}
+				})
+				.catch(() => null);
 			return json({ status: 'ok', candidateId: candidateRes.candidate_id });
 		} catch (err: any) {
 			return json(
@@ -119,6 +107,34 @@ export const POST: RequestHandler = async (event) => {
 			);
 		}
 	}
+};
 
-	return json({ error: `Action inconnue : ${action}` }, { status: 400 });
+export const POST: RequestHandler = async (event) => {
+	const { projectId, subjectId } = event.params;
+	const auth = await authorizeProjectAccess(event, projectId);
+	if (auth.error) return auth.error;
+	let body: any = {};
+	try {
+		body = await event.request.json();
+	} catch {
+		return json({ error: 'Corps JSON invalide' }, { status: 400 });
+	}
+
+	const { action, question } = body;
+	if (!action || !question) {
+		return json({ error: 'Action et question sont requises' }, { status: 400 });
+	}
+
+	const handler = CASCADE_ACTION_HANDLERS[String(action)];
+	if (!handler) {
+		return json({ error: `Action inconnue : ${action}` }, { status: 400 });
+	}
+
+	return handler({
+		projectId,
+		subjectId,
+		userId: event.locals?.session?.user?.id || 'lead_architect',
+		userEmail: event.locals?.session?.user?.email || 'lead_architect',
+		body
+	});
 };

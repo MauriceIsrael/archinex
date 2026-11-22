@@ -41,6 +41,68 @@ export const GET: RequestHandler = async () => {
   }
 };
 
+const ONTOLOGY_POST_HANDLERS: Record<string, (body: any) => Promise<Response>> = {
+  add_triplet: async (body) => {
+    const { subject, predicate, object, rationale, subjectTitle, objectTitle } = body;
+    if (!subject || !predicate || !object) {
+      return json(
+        { error: 'Les champs subject (Sujet), predicate (Verbe) et object (Complément) sont requis.' },
+        { status: 400 }
+      );
+    }
+    if (!ALLOWED_PREDICATES.includes(predicate)) {
+      return json(
+        { error: `Verbe de relation invalide : ${predicate}. Valeurs autorisées : ${ALLOWED_PREDICATES.join(', ')}` },
+        { status: 400 }
+      );
+    }
+    const { triplet, catalog } = await addOntologyTriplet({
+      subject,
+      predicate,
+      object,
+      rationale,
+      subjectTitle,
+      objectTitle
+    });
+    return json({
+      success: true,
+      triplet,
+      catalog,
+      message: `Triplet { ${subject}, ${predicate}, ${object} } enregistré dans l'ontologie.`
+    });
+  },
+  upsert_entity: async (body) => {
+    const { urn, title, kind, domain, keywords, oracle_rules, projections } = body;
+    if (!urn) {
+      return json({ error: 'Le champ urn est obligatoire.' }, { status: 400 });
+    }
+    const catalog = await upsertOntologyEntity({
+      urn,
+      revision: body.revision ?? 1,
+      kind: kind || 'leaf',
+      title: title || urn,
+      domain: domain || 'architecture',
+      keywords: Array.isArray(keywords) ? keywords : [],
+      oracle_rules: Array.isArray(oracle_rules) ? oracle_rules : [],
+      projections: projections || {}
+    });
+    return json({
+      success: true,
+      catalog,
+      message: `Entité d'ontologie ${urn} mise à jour.`
+    });
+  },
+  reset_overlay: async () => {
+    resetRuntimeOntologyOverlay();
+    const catalog = await loadOntologyCatalog({ includeRuntimeOverlay: true });
+    return json({
+      success: true,
+      catalog,
+      message: 'Modifications dynamiques réinitialisées.'
+    });
+  }
+};
+
 export const POST: RequestHandler = async ({ request }) => {
   let body: any;
   try {
@@ -49,75 +111,14 @@ export const POST: RequestHandler = async ({ request }) => {
     return json({ error: 'Corps JSON invalide.' }, { status: 400 });
   }
 
-  const action = body.action || 'add_triplet';
+  const action = String(body.action || 'add_triplet');
+  const handler = ONTOLOGY_POST_HANDLERS[action];
+  if (!handler) {
+    return json({ error: `Action non reconnue : ${action}` }, { status: 400 });
+  }
 
   try {
-    if (action === 'add_triplet') {
-      const { subject, predicate, object, rationale, subjectTitle, objectTitle } = body;
-      if (!subject || !predicate || !object) {
-        return json(
-          { error: 'Les champs subject (Sujet), predicate (Verbe) et object (Complément) sont requis.' },
-          { status: 400 }
-        );
-      }
-      if (!ALLOWED_PREDICATES.includes(predicate)) {
-        return json(
-          { error: `Verbe de relation invalide : ${predicate}. Valeurs autorisées : ${ALLOWED_PREDICATES.join(', ')}` },
-          { status: 400 }
-        );
-      }
-
-      const { triplet, catalog } = await addOntologyTriplet({
-        subject,
-        predicate,
-        object,
-        rationale,
-        subjectTitle,
-        objectTitle
-      });
-
-      return json({
-        success: true,
-        triplet,
-        catalog,
-        message: `Triplet { ${subject}, ${predicate}, ${object} } enregistré dans l'ontologie.`
-      });
-    }
-
-    if (action === 'upsert_entity') {
-      const { urn, title, kind, domain, keywords, oracle_rules, projections } = body;
-      if (!urn) {
-        return json({ error: 'Le champ urn est obligatoire.' }, { status: 400 });
-      }
-      const catalog = await upsertOntologyEntity({
-        urn,
-        revision: body.revision ?? 1,
-        kind: kind || 'leaf',
-        title: title || urn,
-        domain: domain || 'architecture',
-        keywords: Array.isArray(keywords) ? keywords : [],
-        oracle_rules: Array.isArray(oracle_rules) ? oracle_rules : [],
-        projections: projections || {}
-      });
-
-      return json({
-        success: true,
-        catalog,
-        message: `Entité d'ontologie ${urn} mise à jour.`
-      });
-    }
-
-    if (action === 'reset_overlay') {
-      resetRuntimeOntologyOverlay();
-      const catalog = await loadOntologyCatalog({ includeRuntimeOverlay: true });
-      return json({
-        success: true,
-        catalog,
-        message: 'Modifications dynamiques réinitialisées.'
-      });
-    }
-
-    return json({ error: `Action non reconnue : ${action}` }, { status: 400 });
+    return await handler(body);
   } catch (err: any) {
     return json({ error: err.message }, { status: 500 });
   }

@@ -3,21 +3,25 @@ import * as fs from 'fs';
 
 const steps = [
 	{
-		name: '1/6 Denylist & Couplage Scénario',
+		name: '1/7 Denylist & Couplage Scénario',
 		cmd: 'node scripts/check-no-project-names.mjs && node scripts/check-scenario-coupling.mjs'
 	},
-	{ name: '2/6 Changelog Fragments Check', cmd: 'node scripts/consolidate-changelog.mjs --check' },
+	{ name: '2/7 Changelog Fragments Check', cmd: 'node scripts/consolidate-changelog.mjs --check' },
 	{
-		name: '3/6 Bootstrap Test Env (OPA, Prisma, SvelteKit) & Sylva OPA Golden Rules',
+		name: '3/7 File Size & Route Lint + Hub Contract Types',
+		cmd: 'node scripts/check-file-size.mjs && node scripts/generate-llmops-types.mjs --check'
+	},
+	{
+		name: '4/7 Bootstrap Test Env (OPA, Prisma, SvelteKit) & Sylva OPA Golden Rules',
 		cmd: 'node scripts/ensure-test-env.mjs && npx tsx scripts/check-sylva-golden-rules.ts'
 	},
 	{
-		name: '4/6 Vitest Tests & Coverage (v8)',
+		name: '5/7 Vitest Tests & Coverage (v8)',
 		cmd: 'npx vitest run --coverage --reporter=default --reporter=json --outputFile=test-results/vitest-report.json'
 	},
-	{ name: '5/6 Svelte Check', cmd: 'npx svelte-kit sync && npx svelte-check --tsconfig ./tsconfig.json' },
+	{ name: '6/7 Svelte Check', cmd: 'npx svelte-kit sync && npx svelte-check --tsconfig ./tsconfig.json' },
 	{
-		name: '6/6 Production Build',
+		name: '7/7 Production Build',
 		cmd: 'npx vite build',
 		checkSuccess: () => fs.existsSync('.svelte-kit/output/server/index.js')
 	}
@@ -30,7 +34,7 @@ for (const step of steps) {
 	try {
 		execSync(step.cmd, { stdio: 'inherit', env: process.env });
 		console.log(`✓ ${step.name} passed.\n`);
-		if (step.name.startsWith('4/6')) {
+		if (step.name.startsWith('5/7')) {
 			execSync('node scripts/ci-test-summary.mjs', { stdio: 'inherit', env: process.env });
 		}
 	} catch (err) {
@@ -45,7 +49,7 @@ for (const step of steps) {
 			);
 			continue;
 		}
-		if (step.name.startsWith('4/6')) {
+		if (step.name.startsWith('5/7')) {
 			try {
 				execSync('node scripts/ci-test-summary.mjs', { stdio: 'inherit', env: process.env });
 			} catch {
@@ -59,5 +63,5 @@ for (const step of steps) {
 	}
 }
 
-console.log('🎉 All 6 verification gates passed successfully!');
+console.log('🎉 All 7 verification gates passed successfully!');
 process.exit(0);

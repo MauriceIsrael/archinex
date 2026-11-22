@@ -124,15 +124,11 @@ export const GET: RequestHandler = async (event) => {
   });
 };
 
-export const POST: RequestHandler = async (event) => {
-  const { params, request } = event;
-  const projectId = params.projectId || 'default';
-  const auth = await authorizeProjectAccess(event, projectId);
-  if (auth.error) return auth.error;
-  const body = (await request.json()) as Record<string, any>;
-  const action = String(body.action || '');
-
-  if (action === 'upsert_component') {
+const CATALOG_POST_HANDLERS: Record<
+  string,
+  (projectId: string, body: Record<string, any>) => Response
+> = {
+  upsert_component: (projectId, body) => {
     const component = body.component as LogicalComponent;
     if (!component?.metadata?.name) {
       return json({ success: false, error: 'Composant invalide : metadata.name requis.' }, { status: 400 });
@@ -147,9 +143,8 @@ export const POST: RequestHandler = async (event) => {
     }
     const updated = upsertCatalogComponent(projectId, component);
     return json({ success: true, bundle: updated });
-  }
-
-  if (action === 'instantiate_emergent_component') {
+  },
+  instantiate_emergent_component: (projectId, body) => {
     const rawName = String(body.name || '').trim();
     if (!rawName) {
       return json({ success: false, error: 'Nom du composant émergent requis.' }, { status: 400 });
@@ -157,18 +152,16 @@ export const POST: RequestHandler = async (event) => {
     const comp = createEmergentLogicalComponent(rawName, body.displayName ? String(body.displayName) : undefined);
     const updated = upsertCatalogComponent(projectId, comp);
     return json({ success: true, component: comp, bundle: updated });
-  }
-
-  if (action === 'upsert_overlay') {
+  },
+  upsert_overlay: (projectId, body) => {
     const overlay = body.overlay as EnvironmentOverlay;
     if (!overlay?.metadata?.environment) {
       return json({ success: false, error: 'Overlay invalide : metadata.environment requis.' }, { status: 400 });
     }
     const updated = upsertEnvironmentOverlay(projectId, overlay);
     return json({ success: true, bundle: updated });
-  }
-
-  if (action === 'import_bundle') {
+  },
+  import_bundle: (projectId, body) => {
     if (!body.bundle?.components || !body.bundle?.overlays) {
       return json({ success: false, error: 'Bundle JSON invalide (components et overlays requis).' }, { status: 400 });
     }
@@ -180,6 +173,18 @@ export const POST: RequestHandler = async (event) => {
     });
     return json({ success: true, bundle: saved });
   }
+};
 
-  return json({ success: false, error: `Action catalogue inconnue : '${action}'` }, { status: 400 });
+export const POST: RequestHandler = async (event) => {
+  const { params, request } = event;
+  const projectId = params.projectId || 'default';
+  const auth = await authorizeProjectAccess(event, projectId);
+  if (auth.error) return auth.error;
+  const body = (await request.json()) as Record<string, any>;
+  const action = String(body.action || '');
+  const handler = CATALOG_POST_HANDLERS[action];
+  if (!handler) {
+    return json({ success: false, error: `Action catalogue inconnue : '${action}'` }, { status: 400 });
+  }
+  return handler(projectId, body);
 };

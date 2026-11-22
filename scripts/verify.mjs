@@ -4,7 +4,10 @@ import * as fs from 'fs';
 const steps = [
 	{ name: '1/7 Denylist & Couplage Scénario', cmd: 'node scripts/check-no-project-names.mjs && node scripts/check-scenario-coupling.mjs' },
 	{ name: '2/7 Changelog Fragments Check', cmd: 'node scripts/consolidate-changelog.mjs --check' },
-	{ name: '3/7 File Size & Route Lint + Hub Contract Types', cmd: 'node scripts/check-file-size.mjs && node scripts/generate-llmops-types.mjs --check' },
+	{
+		name: '3/7 Documentation Links, File Size & Route Lint + Hub Contract Types',
+		cmd: 'node scripts/check-doc-links.mjs && node scripts/check-file-size.mjs && node scripts/generate-llmops-types.mjs --check'
+	},
 	{ name: '4/7 Sylva CRD & OPA Golden Rules', cmd: 'npx tsx scripts/check-sylva-golden-rules.ts' },
 	{ name: '5/7 Vitest Tests', cmd: 'npx svelte-kit sync && npx vitest run' },
 	{ name: '6/7 Svelte Check', cmd: 'npx svelte-kit sync && npx svelte-check --tsconfig ./tsconfig.json' },

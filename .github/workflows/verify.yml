@@ -47,6 +47,9 @@ jobs:
       - name: Valider les fragments changelog.d/
         run: node scripts/consolidate-changelog.mjs --check
 
+      - name: Vérifier les liens et chemins source de la documentation
+        run: node scripts/check-doc-links.mjs
+
       - name: Calculer l'empreinte de l'arbre de code
         id: preflight_hash
         run: node scripts/ci-preflight.mjs --mode hash --workflow verify

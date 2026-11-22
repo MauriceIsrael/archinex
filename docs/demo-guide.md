@@ -68,14 +68,14 @@ Lors de l'évaluation rigoureuse en boîte noire du Jalon J0 contre la vérité 
   - *Pourquoi ?* Sur un réseau 5G critique de sécurité civile (PPDR), l'automatisation en boucle fermée de création d'incidents présente un risque vital d'avalanche de tickets paralysant les équipes de garde lors d'une tempête réseau, et engage la responsabilité juridique sur les SLAs de disponibilité.
 - **Résolution dans Archinex** :
   1. *Prompting renforcé* : Injonction explicite ordonnant de classer toute clause touchant à l'auto-remédiation, la boucle fermée ou l'action autonome en `deliberate`.
-  2. *Invariant déterministe* ([`automationMarkers.ts`](file:///c:/Users/Momo/Documents/Dev/archinex/src/lib/server/arckit/automationMarkers.ts)) : Un filtre de règles formelles intercepte toute clause contenant des marqueurs d'automatisation critique et refuse catégoriquement son évacuation.
+  2. *Invariant déterministe* ([`automationMarkers.ts`](../src/lib/domain/automationMarkers.ts)) : Un filtre de règles formelles intercepte toute clause contenant des marqueurs d'automatisation critique et refuse catégoriquement son évacuation.
 
 ---
 
 ## 4. Les Projections Déterministes d'Artefacts (Zéro Dérive)
 
 Archinex applique le principe de **génération sans LLM** pour les livrables d'ingénierie :
-Une fois les décisions arrêtées et scellées dans l'engagement (empreinte SHA-256), les artefacts techniques sont projetés de façon 100 % déterministe par [`artifactProjections.ts`](file:///c:/Users/Momo/Documents/Dev/archinex/src/lib/server/export/artifactProjections.ts) :
+Une fois les décisions arrêtées et scellées dans l'engagement (empreinte SHA-256), les artefacts techniques sont projetés de façon 100 % déterministe par [`artifactProjections.ts`](../src/lib/domain/artifactProjections.ts) :
 
 1. **Diagramme Mermaid C4** : Conteneurs et flux réseau réels déduits des énoncés retenus.
 2. **Structurizr DSL** : Modèle formel importable dans les outils de modélisation d'entreprise.

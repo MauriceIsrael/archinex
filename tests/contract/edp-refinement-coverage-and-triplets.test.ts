@@ -183,7 +183,7 @@ describe('EDP Phase 4 : Ontology Triplets, KAOS Multi-Axis Coverage & Real OPA D
     });
     const evalOam = await evaluateMultiAxisOracle(driftOam, bindings, catalog);
     expect(evalOam.verdict).toBe('violated');
-    expect(evalOam.violations.some((v) => v.rule.includes('deny_unproxied_oam_access'))).toBe(true);
+    expect(evalOam.violations.some((v) => v.rule.includes('deny_oam_without_bastion_requirement'))).toBe(true);
 
     // 5. Drift Axe 4 (Recette passée en non Iso-Prod)
     const driftEnv = composeMultiAxisHydration('sub_lulu_40', bindings, catalog, {

@@ -209,7 +209,7 @@ violations contains v if {
 	z.urn == oam_proj.urn
 	z.bastion_required != oam_proj.bastion_required
 	v := {
-		"rule": "data.archinex.edp.multiaxis.deny_unproxied_oam_access",
+		"rule": "data.archinex.edp.multiaxis.deny_oam_without_bastion_requirement",
 		"axis": "urn:archinex:ontology:axis:security_zoning",
 		"message": sprintf("La zone OAM '%v' doit imposer un bastion pour l'accès d'administration (bastion_required=%v)", [z.zone_id, oam_proj.bastion_required]),
 		"violated_clause_urn": get_clause_urn(oam_proj, "urn:archinex:kb:clause:nis2:oam_strict_bastion"),
@@ -408,7 +408,7 @@ violations contains v if {
 	tc := object.get(input, "trust_chain", {})
 	tc.oam_session_recording != bastion_proj.bastion_session_recording
 	v := {
-		"rule": "data.archinex.edp.multiaxis.deny_direct_oam_without_bastion",
+		"rule": "data.archinex.edp.multiaxis.deny_bastion_session_not_recorded",
 		"axis": "urn:archinex:ontology:axis:pam_admin_bastion",
 		"message": sprintf("Enregistrement de session bastion PAM requis sur la zone OAM (attendu: %v)", [bastion_proj.bastion_session_recording]),
 		"violated_clause_urn": get_clause_urn(bastion_proj, "urn:archinex:kb:clause:nis2:oam_strict_bastion"),

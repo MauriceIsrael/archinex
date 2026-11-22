@@ -217,7 +217,7 @@ describe('Taxonomie TOGAF unifiée, routage commodités, conscientisation & cha�
     expect(implemented.has('data.archinex.edp.multiaxis.deny_unsealed_vault_without_hsm')).toBe(
       true
     );
-    expect(implemented.has('data.archinex.edp.multiaxis.deny_direct_oam_without_bastion')).toBe(
+    expect(implemented.has('data.archinex.edp.multiaxis.deny_bastion_session_not_recorded')).toBe(
       true
     );
     expect(implemented.has('data.archinex.edp.multiaxis.deny_unfiltered_internet_egress')).toBe(
@@ -396,7 +396,7 @@ describe('Taxonomie TOGAF unifiée, routage commodités, conscientisation & cha�
       },
       {
         override: { oamSessionRecording: false },
-        expectedRule: 'data.archinex.edp.multiaxis.deny_direct_oam_without_bastion'
+        expectedRule: 'data.archinex.edp.multiaxis.deny_bastion_session_not_recorded'
       },
       {
         override: { egressMode: 'direct_unfiltered' },

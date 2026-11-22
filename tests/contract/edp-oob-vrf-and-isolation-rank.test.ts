@@ -125,7 +125,7 @@ describe('D4 : l’isolement se compare par rang sur l’échelle du Hub', () =>
     const { catalog, bindings } = await setup();
     const inv = composeMultiAxisHydration('s-bastion', bindings, catalog, { oamBastionRequired: false });
     const res = await evaluateMultiAxisOracle(inv, bindings, catalog);
-    expect(res.violations.some((x) => x.rule.endsWith('deny_unproxied_oam_access') && x.message.includes('bastion_required'))).toBe(true);
+    expect(res.violations.some((x) => x.rule.endsWith('deny_oam_without_bastion_requirement') && x.message.includes('bastion_required'))).toBe(true);
   });
 });
 

@@ -105,12 +105,29 @@
 		}
 	});
 
+	const EDP_ACTION_ENDPOINTS: Record<string, string> = {
+		validate: 'validate',
+		challenge: 'challenge',
+		bind_aspect: 'bind-aspect',
+		unratify: 'unratify',
+		dismiss_axis: 'dismiss-axis',
+		restore_axis: 'restore-axis',
+		hydrate: 'hydrate',
+		synthesize: 'synthesize',
+		verify: 'verify',
+		simulate_drift: 'simulate-drift',
+		export_sylva_gitops: 'export-sylva-gitops'
+	};
+
 	async function triggerEdpAction(payload: Record<string, unknown>, successToast?: string) {
 		if (!subjectId || !projectId) return;
 		isActionRunning = true;
 		try {
+			const actionKey = typeof payload.action === 'string' ? payload.action : '';
+			const actionSlug = EDP_ACTION_ENDPOINTS[actionKey];
+			const endpointSuffix = actionSlug ? `/edp/${actionSlug}` : '/edp';
 			const res = await fetch(
-				`/api/projects/${encodeURIComponent(projectId)}/subjects/${encodeURIComponent(subjectId)}/edp?edp=1`,
+				`/api/projects/${encodeURIComponent(projectId)}/subjects/${encodeURIComponent(subjectId)}${endpointSuffix}?edp=1`,
 				{
 					method: 'POST',
 					headers: { 'Content-Type': 'application/json' },

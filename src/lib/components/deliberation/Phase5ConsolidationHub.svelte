@@ -576,6 +576,7 @@
 			<div class="flex items-center gap-2 flex-wrap text-xs">
 				<select
 					bind:value={selectedViewEnv}
+					aria-label="Environnement cible des vues logiques"
 					class="rounded border bg-background px-2 py-1 font-mono text-xs"
 					data-testid="logical-views-env-select"
 				>
@@ -585,6 +586,7 @@
 				</select>
 				<select
 					bind:value={twinArbitrationMode}
+					aria-label="Mode d'arbitrage du jumeau numérique"
 					class="rounded border bg-background px-2 py-1 font-semibold text-xs"
 					data-testid="twin-arbitration-mode-select"
 				>

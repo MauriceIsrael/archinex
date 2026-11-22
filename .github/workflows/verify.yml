@@ -84,6 +84,18 @@ jobs:
         if: steps.preflight_eval.outputs.should_run == 'true'
         run: npm run verify
 
+      - name: Installer Chromium Playwright (audit accessibilité)
+        if: steps.preflight_eval.outputs.should_run == 'true'
+        run: npx playwright install --with-deps chromium
+
+      - name: Initialiser les comptes de démonstration pour l'audit accessibilité
+        if: steps.preflight_eval.outputs.should_run == 'true'
+        run: npx tsx prisma/seed-dev.ts
+
+      - name: Audit accessibilité (axe-core pages clés & 390 px)
+        if: steps.preflight_eval.outputs.should_run == 'true'
+        run: npm run test:a11y
+
       - name: Mémoriser la validation verte pour cette empreinte
         if: success() && steps.preflight_eval.outputs.should_run == 'true' && github.event_name == 'pull_request'
         run: echo "${{ steps.preflight_hash.outputs.code_hash }}" > .ci-pass-marker

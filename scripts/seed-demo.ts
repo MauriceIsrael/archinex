@@ -291,9 +291,8 @@ export async function seedDemo(client?: any) {
   // 4. Phase 4 : Raffinement Ontologique Multi-Axes, Hydratation Exhaustive (7 classes d'objets) & Oracle OPA
   // Le scénario « Lulu » est de la donnée de projet : elle ne vit pas dans l'ontologie du Hub mais dans une extension
   // appliquée par-dessus (identifiants d'exigences, graphe de réconciliation). Sans extension désignée, la démo prend
-  // celle du scénario, plus les écarts de doctrine non encore tranchés dans le Hub (Archinex#417).
-  process.env.ARCHINEX_ONTOLOGY_PROJECT_OVERLAY ??=
-    'tests/fixtures/edp/ontology_project_overlay.lulu.json,tests/fixtures/edp/ontology_pending_conflicts.json';
+  // celle du scénario.
+  process.env.ARCHINEX_ONTOLOGY_PROJECT_OVERLAY ??= 'tests/fixtures/edp/ontology_project_overlay.lulu.json';
   const catalog = await loadOntologyCatalog({ includeRuntimeOverlay: true });
 
   // Liaisons de la démo sur la révision COURANTE de chaque entité du catalogue (le Hub fait évoluer les révisions).

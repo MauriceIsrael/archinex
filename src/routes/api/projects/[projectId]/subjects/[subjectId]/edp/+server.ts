@@ -1185,7 +1185,7 @@ export const POST: RequestHandler = async (event) => {
             bmcAddress: 'redfish+http://198.51.100.254/redfish/v1/Systems/1'
           };
         } else if (driftScenario === 'unproxied_oam') {
-          activeOverrides = { ...activeOverrides, oamProxyRequired: false };
+          activeOverrides = { ...activeOverrides, oamBastionRequired: false };
         } else if (driftScenario === 'non_isoprod_staging') {
           activeOverrides = { ...activeOverrides, stagingIsoprod: false };
         } else if (driftScenario === 'single_power_feed') {

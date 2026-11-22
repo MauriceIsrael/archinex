@@ -229,7 +229,9 @@ export interface LldHydrationOverrides {
   bmcAddress?: string;
   interfacesCount?: number;
   oamIsolationLevel?: string;
-  oamProxyRequired?: boolean;
+  oamBastionRequired?: boolean;
+  /** Simule un plan OOB qui partage le réseau des données (interface de gestion hors de la VRF OOB dédiée). */
+  oobSharedNetwork?: boolean;
   stagingIsoprod?: boolean;
   powerFeedsCount?: number;
   s6aDirectBypassDea?: boolean;
@@ -286,6 +288,8 @@ export interface MultiAxisHydratedInventory {
   k8s_manifests: Array<Record<string, unknown>>;
   sylva_workload_cluster_values?: Record<string, unknown>;
   security_zones: Array<Record<string, unknown>>;
+  /** Segments OOB (VRF dédiée au plan hors-bande) déclarés par la feuille OOB ; vide si la feuille n'est pas liée. */
+  oob_segments: Array<{ name: string; vrf: string; dhcp_isolated: boolean }>;
   environments: Array<Record<string, unknown>>;
   power_feeds: string[];
   coveredDomains: string[];
@@ -1860,10 +1864,12 @@ export function composeMultiAxisHydration(
     clusterPool: string;
     dataplaneProfile: string;
   }> = [];
-  let interfaces: Array<{ name: string; type: string; ip?: string }> = [
+  let interfaces: Array<{ name: string; type: string; ip?: string; vrf?: string }> = [
     { name: 'oob0', type: 'management', ip: '192.0.2.10/24' },
     { name: 'eth0', type: 'data', ip: '10.20.0.10/24' }
   ];
+  // Segments OOB déclarés par la feuille (gabarit `network_segment`) : une VRF dédiée au plan hors-bande.
+  const oobSegments: Array<{ name: string; vrf: string; dhcp_isolated: boolean }> = [];
   let rootCaKeyCustody = 'unspecified';
   let vaultUnsealMode = 'unspecified';
   let oamSessionRecording = false;
@@ -2062,21 +2068,29 @@ export function composeMultiAxisHydration(
       interfaces = tpl.nautobot_interfaces;
     }
 
+    if (tpl.network_segment && typeof tpl.network_segment.name === 'string') {
+      oobSegments.push({
+        name: tpl.network_segment.name,
+        vrf: tpl.network_segment.name,
+        dhcp_isolated: Boolean(tpl.network_segment.dhcp_isolated)
+      });
+    }
+
     if (tpl.security_zone || entity.domain === 'security') {
       const isOam = entity.urn.endsWith(':oam');
       securityZones.push({
         urn: entity.urn,
-        zone_id: tpl.security_zone?.zone_id || entity.urn.split(':').pop()?.toUpperCase(),
+        zone_id: tpl.security_zone?.zone_id || tpl.security_zone?.name || entity.urn.split(':').pop()?.toUpperCase(),
         title: entity.title,
         status: 'planned',
         isolation_level:
           isOam && overrides.oamIsolationLevel !== undefined
             ? overrides.oamIsolationLevel
             : proj.isolation_level || tpl.security_zone?.isolation_level || 'strict',
-        proxy_required:
-          isOam && overrides.oamProxyRequired !== undefined
-            ? overrides.oamProxyRequired
-            : (proj.proxy_required ?? tpl.security_zone?.proxy_required ?? false)
+        bastion_required:
+          isOam && overrides.oamBastionRequired !== undefined
+            ? overrides.oamBastionRequired
+            : (proj.bastion_required ?? tpl.security_zone?.bastion_required ?? false)
       });
     }
 
@@ -2114,6 +2128,16 @@ export function composeMultiAxisHydration(
   }
   if (overrides.powerFeedsCount !== undefined) {
     powerFeeds = ['PDU-A', 'PDU-B', 'PDU-C'].slice(0, Math.max(0, overrides.powerFeedsCount));
+  }
+  // Rattachement des interfaces à leur VRF quand la feuille OOB déclare un segment dédié : le plan de gestion vit dans la
+  // VRF OOB, les interfaces de données restent dans la table de routage par défaut. `oobSharedNetwork` simule la dérive
+  // d'un plan OOB qui partage le réseau des données.
+  if (oobSegments.length > 0) {
+    const oobVrf = oobSegments[0].vrf;
+    interfaces = interfaces.map((iface) => ({
+      ...iface,
+      vrf: iface.type === 'management' ? (overrides.oobSharedNetwork ? 'default' : oobVrf) : 'default'
+    }));
   }
 
   const oobIp = overrides.oobIp !== undefined ? overrides.oobIp : '192.0.2.10';
@@ -2486,6 +2510,7 @@ export function composeMultiAxisHydration(
 
   return {
     nautobot_planned_devices: nautobotDevices,
+    oob_segments: oobSegments,
     k8s_manifests: k8sManifests,
     sylva_workload_cluster_values: sylvaWorkloadClusterValues,
     security_zones: securityZones,
@@ -2537,7 +2562,7 @@ export async function evaluateMultiAxisOracle(
   }>({
     query: 'data.archinex.edp.multiaxis.evaluation',
     policyFiles: [policyPath],
-    data: { ontology: compiled.ontology },
+    data: { ontology: compiled.ontology, enumerations: compiled.enumerations },
     input: hydratedInventory
   });
 

@@ -5,10 +5,10 @@
     "kind": "file",
     "path": "data/snapshots/ontology_export.json"
   },
-  "llmops_ref": "cdf1a3b47d984da6fff34e043fc0cac1d9402780",
+  "llmops_ref": "9c8d89ab37ad5c91e14528ddf958a492ccf8b3b4",
   "catalog_version": "1.0",
   "generated_at": "2026-11-21T00:00:00Z",
   "entities": 114,
-  "triplets": 205,
-  "sha256": "fc8b10797fb567c564af44e208275b3a4eac0b67d97aedd4b7de820d479815ce"
+  "triplets": 207,
+  "sha256": "a7da81e1bd1a6c0ebce12a7e159311a5b5b965e635093832aa573910cc2c8282"
 }

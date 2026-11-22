@@ -40,9 +40,22 @@ Sans variable, aucune extension n'est appliquée : la production ne voit que le 
 | Fichier | Contenu | Utilisé par |
 |---|---|---|
 | `tests/fixtures/edp/ontology_project_overlay.lulu.json` | donnée du scénario « Lulu » (exigences, graphe de réconciliation) | tests, démo (`scripts/seed-demo.ts`) |
-| `tests/fixtures/edp/ontology_pending_conflicts.json` | **écarts de doctrine non tranchés** entre l'ancienne ontologie d'Archinex et celle du Hub (règles d'oracle et paramètres de `oob` et `oam`) : à supprimer, entité par entité, dès que les experts ont tranché dans le Hub | tests, démo |
 
-Le second fichier n'est **pas** de la donnée de projet : c'est une dette visible. Le Hub et Archinex y décrivent des contrôles différents pour le même plan (le Hub : VRF dédié, latence, isolement « air-gap-logical » ; Archinex : statut Nautobot, nombre d'interfaces, IP hors-bande). Tant que ce n'est pas tranché, Archinex garde ses règles, que son Rego implémente ; les deux règles du Hub n'ont pas d'implémentation Rego.
+Il n'existe plus d'extension pour des « écarts de doctrine » : les paramètres et règles des feuilles `oob` et `oam` sont ceux du Hub (LLMOps#201), et Archinex implémente en Rego les règles que le Hub nomme.
+
+## Échelles ordonnées du Hub
+
+Le catalogue du Hub porte des **énumérations ordonnées** (`enumerations`), aujourd'hui `isolation_level` : `shared` < `segmented` < `strict` < `air-gap-logical` < `air-gap-physical`. Archinex :
+
+- les passe à OPA (`data.enumerations`) et compare **par rang** : une zone plus isolée que l'exigence est conforme (`deny_weak_oam_isolation`, `deny_user_plane_management_leak`) ;
+- refuse à l'ingestion une exigence hors échelle (`compileOntologyProjections`) ; une valeur observée hors échelle a le rang -1 et est donc signalée ;
+- inclut l'échelle dans l'empreinte de l'ontologie compilée, puisqu'elle change le verdict.
+
+## Isolement du plan OOB
+
+`deny_shared_oob_network` (fiche dans `rule_cards` du Hub) vérifie, à la planification, que les interfaces de type `management` sont dans la VRF OOB dédiée déclarée par le gabarit `network_segment` de la feuille, que cette VRF ne porte aucune interface de données, et qu'une VRF OOB est déclarée. L'inventaire hydraté porte pour cela `oob_segments` et `interfaces[*].vrf`. La règle est inerte si `requires_dedicated_vrf` est faux ou si la feuille OOB n'est pas liée.
+
+**Pas encore fait** : la preuve en **dérive** (lecture réelle de la VRF des interfaces dans Nautobot) et la création de la VRF OOB en statut planifié par `nautobotSync` ; comment Nautobot porte ce rattachement (adresse IP, préfixe ou interface) reste à confirmer.
 
 ## Surcharges d'exécution
 

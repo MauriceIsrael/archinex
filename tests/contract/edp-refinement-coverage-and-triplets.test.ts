@@ -179,7 +179,7 @@ describe('EDP Phase 4 : Ontology Triplets, KAOS Multi-Axis Coverage & Real OPA D
 
     // 4. Drift Axe 3 (Suppression du Proxy Zone OAM)
     const driftOam = composeMultiAxisHydration('sub_lulu_40', bindings, catalog, {
-      oamProxyRequired: false
+      oamBastionRequired: false
     });
     const evalOam = await evaluateMultiAxisOracle(driftOam, bindings, catalog);
     expect(evalOam.verdict).toBe('violated');

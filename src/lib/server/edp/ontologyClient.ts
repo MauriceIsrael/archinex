@@ -48,11 +48,32 @@ export interface OntologyEntity {
   [key: string]: unknown;
 }
 
+/** Énumération ordonnée portée par le Hub (valeurs de la plus faible à la plus forte). */
+export interface OntologyEnumeration {
+  ordered: boolean;
+  description?: string;
+  values: Array<{ value: string; definition: string }>;
+}
+
+/** Fiche d'une règle d'oracle nommée par une feuille (objet vérifié, paramètres, preuve, clauses). */
+export interface OntologyRuleCard {
+  object: string;
+  violation: string;
+  parameters: string[];
+  evidence_plan: string;
+  evidence_drift?: string | null;
+  clauses: string[];
+}
+
 export interface OntologyCatalog {
   catalog_version: string;
   generated_at: string;
   entities: Record<string, OntologyEntity>;
   triplets?: OntologyTriplet[];
+  /** Énumérations ordonnées (ex. `isolation_level`) : un consommateur compare par rang, jamais par égalité de texte. */
+  enumerations?: Record<string, OntologyEnumeration>;
+  /** Fiches des règles d'oracle, indexées par l'identifiant de la règle. */
+  rule_cards?: Record<string, OntologyRuleCard>;
 }
 
 export interface OntologyBindingItem {

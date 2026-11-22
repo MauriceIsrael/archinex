@@ -319,7 +319,7 @@ export async function exportSylvaWorkloadClusterGitops(
     security_zones: (input.hydratedInventory.security_zones || []).map((z: any) => ({
       zone_id: z.zone_id,
       isolation_level: z.isolation_level,
-      proxy_required: z.proxy_required
+      bastion_required: z.bastion_required
     })),
     // Pivot émis seulement si le graphe de réconciliation en déclare un (aucune valeur par défaut).
     ...(input.hydratedInventory.reconciliation_graph?.pivot_tenant_id

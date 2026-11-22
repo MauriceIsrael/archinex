@@ -2,7 +2,8 @@ import { describe, it, expect } from 'vitest';
 import {
 	isDocOrChangelogOnlyPath,
 	computeCodeTreeSignature,
-	evaluatePreflightDecision
+	evaluatePreflightDecision,
+	resolveHubLiveRef
 } from '../../scripts/ci-preflight.mjs';
 
 describe('Contract: Pré-vol CI (ci-preflight.mjs)', () => {
@@ -105,5 +106,40 @@ describe('Contract: Pré-vol CI (ci-preflight.mjs)', () => {
 				workflow: 'verify'
 			}).shouldRun
 		).toBe(true);
+	});
+
+	it('résout llmops_ref pour hub-live depuis la provenance quand la PR met à jour la fixture d\'ontologie', () => {
+		const provenanceJson = JSON.stringify({
+			source: 'MauriceIsrael/LLMOps',
+			llmops_ref: 'bd403aabe34808b8027611b9b374cc8bebaccd54'
+		});
+
+		// PR normale sans toucher à la provenance -> main
+		expect(
+			resolveHubLiveRef({
+				changedFilesVsBase: ['src/lib/domain/cascade.ts'],
+				provenanceContent: provenanceJson
+			})
+		).toBe('main');
+
+		// PR couplée qui met à jour la provenance -> commit exact du Hub
+		expect(
+			resolveHubLiveRef({
+				changedFilesVsBase: [
+					'tests/fixtures/edp/ontology_export.json',
+					'tests/fixtures/edp/ontology_export.provenance.json'
+				],
+				provenanceContent: provenanceJson
+			})
+		).toBe('bd403aabe34808b8027611b9b374cc8bebaccd54');
+
+		// workflow_dispatch explicite prime toujours
+		expect(
+			resolveHubLiveRef({
+				explicitRef: 'custom-branch',
+				changedFilesVsBase: ['tests/fixtures/edp/ontology_export.provenance.json'],
+				provenanceContent: provenanceJson
+			})
+		).toBe('custom-branch');
 	});
 });

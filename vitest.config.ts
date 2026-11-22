@@ -20,9 +20,8 @@ export default defineConfig({
 			LLMOPS_BASE_URL: 'http://127.0.0.1:1',
 			DATABASE_URL: process.env.DATABASE_URL || 'file:./dev.db',
 			// L'ontologie de test = copie de l'export du Hub (fixture générée) + l'extension du scénario « Lulu » (données de
-			// projet) + les écarts de doctrine non encore tranchés dans le Hub (à supprimer au fur et à mesure, Archinex#417).
-			ARCHINEX_ONTOLOGY_PROJECT_OVERLAY:
-				'tests/fixtures/edp/ontology_project_overlay.lulu.json,tests/fixtures/edp/ontology_pending_conflicts.json'
+			// projet : identifiants d'exigences, graphe de réconciliation). Plus aucun écart de doctrine local (Archinex#417).
+			ARCHINEX_ONTOLOGY_PROJECT_OVERLAY: 'tests/fixtures/edp/ontology_project_overlay.lulu.json'
 		},
 		coverage: {
 			provider: 'v8',

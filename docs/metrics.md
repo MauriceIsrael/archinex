@@ -9,12 +9,12 @@
 
 | Indicateur | Valeur mesurée | Source |
 | :--- | ---: | :--- |
-| Fichiers de tests Vitest (unitaires, contrat, intégration, API) | **237** | `tests/` (hors `tests/e2e/browser/`) |
-| Cas de tests Vitest (`it` / `test`) | **1586** | `tests/` (hors `tests/e2e/browser/`) |
+| Fichiers de tests Vitest (unitaires, contrat, intégration, API) | **238** | `tests/` (hors `tests/e2e/browser/`) |
+| Cas de tests Vitest (`it` / `test`) | **1599** | `tests/` (hors `tests/e2e/browser/`) |
 | Fichiers de parcours E2E Playwright | **7** | `tests/e2e/browser/` |
 | Cas de tests E2E Playwright | **28** | `tests/e2e/browser/` |
 | Politiques OPA / Rego v1 | **3** | `edp/policies/` |
-| Règles d'évaluation OPA (`deny` / `violation` / `warn`) | **82** | `edp/policies/` |
+| Règles d'évaluation OPA (`deny` / `violation` / `warn`) | **85** | `edp/policies/` |
 | Décisions d'Architecture (ADR) | **5** | `docs/adr/` |
 
 ---
@@ -23,7 +23,7 @@
 
 | Fichier de politique | Règles détectées |
 | :--- | ---: |
-| `edp/policies/multi_axis_refinement.rego` | 57 |
+| `edp/policies/multi_axis_refinement.rego` | 60 |
 | `edp/policies/sylva_golden_rules.rego` | 18 |
 | `edp/policies/twin_resilience.rego` | 7 |
 
@@ -35,4 +35,4 @@ Mesuré sur `tests/fixtures/edp/ontology_export.json` :
 - **Concepts HLD** : 0
 - **Axes de raffinement (`kind: "axis"`)** : 0
 - **Feuilles d'implémentation (`kind: "leaf"`)** : 0
-- **Relations / Triplets** : 205
+- **Relations / Triplets** : 207

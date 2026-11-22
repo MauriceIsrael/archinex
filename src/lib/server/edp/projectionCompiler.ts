@@ -3,6 +3,8 @@ import type { OntologyCatalog, OntologyBindingItem } from './ontologyClient.js';
 
 export interface CompiledProjections {
   ontology: Record<string, unknown>;
+  /** Énumérations ordonnées du Hub (nom -> valeurs de la plus faible à la plus forte), pour comparer par rang en Rego. */
+  enumerations: Record<string, string[]>;
   fingerprint: string;
   metadata: {
     compiled_at: string;
@@ -34,6 +36,38 @@ export function canonicalJsonStringify(obj: unknown): string {
   const sortedKeys = Object.keys(record).sort();
   const entries = sortedKeys.map((key) => `${JSON.stringify(key)}:${canonicalJsonStringify(record[key])}`);
   return `{${entries.join(',')}}`;
+}
+
+/** Valeurs de chaque énumération ordonnée du catalogue, de la plus faible à la plus forte. */
+export function compileEnumerations(catalog: OntologyCatalog): Record<string, string[]> {
+  const out: Record<string, string[]> = {};
+  for (const [name, enumeration] of Object.entries(catalog.enumerations ?? {})) {
+    out[name] = (enumeration.values ?? []).map((v) => v.value);
+  }
+  return out;
+}
+
+/**
+ * Refuse à l'ingestion une valeur hors échelle (ex. `isolation_level: high_throughput`) plutôt que de la comparer :
+ * une exigence hors énumération rendrait la comparaison par rang silencieusement vraie.
+ */
+function assertValuesInEnumerations(ontologyData: Record<string, unknown>, enumerations: Record<string, string[]>): void {
+  const walk = (value: unknown, path: string): void => {
+    if (Array.isArray(value)) {
+      value.forEach((v, i) => walk(v, `${path}[${i}]`));
+    } else if (value && typeof value === 'object') {
+      for (const [k, v] of Object.entries(value as Record<string, unknown>)) {
+        const allowed = enumerations[k];
+        if (allowed && typeof v === 'string' && !allowed.includes(v)) {
+          throw new Error(
+            `[Ontology] ${path}.${k} = '${v}' est hors de l'énumération '${k}' du catalogue (${allowed.join(' < ')}).`
+          );
+        }
+        walk(v, `${path}.${k}`);
+      }
+    }
+  };
+  walk(ontologyData, 'data.ontology');
 }
 
 /**
@@ -98,12 +132,19 @@ export function compileOntologyProjections(
     }
   }
 
-  // Calcul de l'empreinte SHA-256 canonique
-  const canonicalRepresentation = canonicalJsonStringify(ontologyData);
+  const enumerations = compileEnumerations(catalog);
+  assertValuesInEnumerations(ontologyData, enumerations);
+
+  // Calcul de l'empreinte SHA-256 canonique (les énumérations en font partie : elles changent le verdict)
+  const canonicalRepresentation =
+    Object.keys(enumerations).length > 0
+      ? canonicalJsonStringify({ ontology: ontologyData, enumerations })
+      : canonicalJsonStringify(ontologyData);
   const fingerprint = createHash('sha256').update(canonicalRepresentation, 'utf-8').digest('hex');
 
   return {
     ontology: ontologyData,
+    enumerations,
     fingerprint,
     metadata: {
       compiled_at: '2026-10-29T10:00:00Z', // Date figée ou stable pour déterminisme

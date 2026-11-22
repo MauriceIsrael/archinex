@@ -24,6 +24,14 @@ get_req_id(proj, fallback) := reqs[0] if {
 	count(reqs) > 0
 } else := fallback
 
+# Rang d'une valeur dans une énumération ORDONNÉE du Hub (data.enumerations, du plus faible au plus fort).
+# Une valeur hors échelle a le rang -1 : elle est plus faible que toute exigence. L'exigence, elle, est refusée à l'ingestion
+# si elle est hors échelle (projectionCompiler) ; une comparaison par rang n'est donc jamais vraie par défaut.
+isolation_rank(level) := rank if {
+	some rank, candidate in data.enumerations.isolation_level
+	candidate == level
+} else := -1
+
 # ==============================================================================
 # AXE 1 : SUBSTRAT COMPUTE BARE-METAL (data.ontology.infrastructure_server_baremetal)
 # ==============================================================================
@@ -113,6 +121,57 @@ violations contains v if {
 	}
 }
 
+# Isolement du plan OOB (fiche du Hub : deny_shared_oob_network). Objet : les interfaces de type management et la VRF qui
+# les porte. Inerte si requires_dedicated_vrf est faux. La preuve à la planification est l'inventaire hydraté
+# (oob_segments + interfaces[*].vrf) ; la preuve en dérive (lecture réelle des VRF dans Nautobot) reste à écrire.
+violations contains v if {
+	oob_proj := data.ontology.telecom_network_oob
+	oob_proj.requires_dedicated_vrf == true
+	count(object.get(input, "oob_segments", [])) == 0
+	v := {
+		"rule": "data.archinex.edp.multiaxis.deny_shared_oob_network",
+		"axis": "urn:archinex:ontology:axis:oob_management",
+		"message": "Aucune VRF OOB dédiée n'est déclarée dans l'inventaire alors que la feuille OOB l'exige (requires_dedicated_vrf=true)",
+		"violated_clause_urn": get_clause_urn(oob_proj, "urn:archinex:kb:clause:telecom:oob_isolation"),
+		"violated_requirement_id": get_req_id(oob_proj, ""),
+	}
+}
+
+violations contains v if {
+	oob_proj := data.ontology.telecom_network_oob
+	oob_proj.requires_dedicated_vrf == true
+	oob_vrfs := {s.vrf | some s in object.get(input, "oob_segments", [])}
+	count(oob_vrfs) > 0
+	some dev in input.nautobot_planned_devices
+	some iface in dev.interfaces
+	iface.type == "management"
+	not iface.vrf in oob_vrfs
+	v := {
+		"rule": "data.archinex.edp.multiaxis.deny_shared_oob_network",
+		"axis": "urn:archinex:ontology:axis:oob_management",
+		"message": sprintf("L'interface de gestion '%v' de '%v' n'est pas dans la VRF OOB dédiée (%v) : le plan OOB partage son réseau", [iface.name, dev.name, concat(", ", oob_vrfs)]),
+		"violated_clause_urn": get_clause_urn(oob_proj, "urn:archinex:kb:clause:telecom:oob_isolation"),
+		"violated_requirement_id": get_req_id(oob_proj, ""),
+	}
+}
+
+violations contains v if {
+	oob_proj := data.ontology.telecom_network_oob
+	oob_proj.requires_dedicated_vrf == true
+	oob_vrfs := {s.vrf | some s in object.get(input, "oob_segments", [])}
+	some dev in input.nautobot_planned_devices
+	some iface in dev.interfaces
+	iface.type == "data"
+	iface.vrf in oob_vrfs
+	v := {
+		"rule": "data.archinex.edp.multiaxis.deny_shared_oob_network",
+		"axis": "urn:archinex:ontology:axis:oob_management",
+		"message": sprintf("La VRF OOB dédiée porte aussi l'interface de données '%v' de '%v'", [iface.name, dev.name]),
+		"violated_clause_urn": get_clause_urn(oob_proj, "urn:archinex:kb:clause:telecom:oob_isolation"),
+		"violated_requirement_id": get_req_id(oob_proj, ""),
+	}
+}
+
 # ==============================================================================
 # AXE 3 : ZONAGE DE SÉCURITÉ & CLOISONNEMENT NIS2 (data.ontology.security_zone_*)
 # ==============================================================================
@@ -134,11 +193,11 @@ violations contains v if {
 	oam_proj := data.ontology.security_zone_oam
 	some z in input.security_zones
 	z.urn == oam_proj.urn
-	z.isolation_level != oam_proj.isolation_level
+	isolation_rank(z.isolation_level) < isolation_rank(oam_proj.isolation_level)
 	v := {
 		"rule": "data.archinex.edp.multiaxis.deny_weak_oam_isolation",
 		"axis": "urn:archinex:ontology:axis:security_zoning",
-		"message": sprintf("Niveau d'isolation de la zone '%v' ('%v') inférieur à l'exigence data.ontology ('%v')", [z.zone_id, z.isolation_level, oam_proj.isolation_level]),
+		"message": sprintf("Niveau d'isolation de la zone '%v' ('%v') inférieur à l'exigence data.ontology ('%v') sur l'échelle du Hub", [z.zone_id, z.isolation_level, oam_proj.isolation_level]),
 		"violated_clause_urn": get_clause_urn(oam_proj, "urn:archinex:kb:clause:nis2:oam_strict_bastion"),
 		"violated_requirement_id": get_req_id(oam_proj, "REQ-Lot1-SecZone-01"),
 	}
@@ -148,11 +207,11 @@ violations contains v if {
 	oam_proj := data.ontology.security_zone_oam
 	some z in input.security_zones
 	z.urn == oam_proj.urn
-	z.proxy_required != oam_proj.proxy_required
+	z.bastion_required != oam_proj.bastion_required
 	v := {
-		"rule": "data.archinex.edp.multiaxis.deny_unproxied_oam_access",
+		"rule": "data.archinex.edp.multiaxis.deny_oam_without_bastion_requirement",
 		"axis": "urn:archinex:ontology:axis:security_zoning",
-		"message": sprintf("La zone OAM '%v' doit imposer un bastion/proxy obligatoire (proxy_required=%v)", [z.zone_id, oam_proj.proxy_required]),
+		"message": sprintf("La zone OAM '%v' doit imposer un bastion pour l'accès d'administration (bastion_required=%v)", [z.zone_id, oam_proj.bastion_required]),
 		"violated_clause_urn": get_clause_urn(oam_proj, "urn:archinex:kb:clause:nis2:oam_strict_bastion"),
 		"violated_requirement_id": get_req_id(oam_proj, "REQ-Lot1-SecZone-01"),
 	}
@@ -349,7 +408,7 @@ violations contains v if {
 	tc := object.get(input, "trust_chain", {})
 	tc.oam_session_recording != bastion_proj.bastion_session_recording
 	v := {
-		"rule": "data.archinex.edp.multiaxis.deny_direct_oam_without_bastion",
+		"rule": "data.archinex.edp.multiaxis.deny_bastion_session_not_recorded",
 		"axis": "urn:archinex:ontology:axis:pam_admin_bastion",
 		"message": sprintf("Enregistrement de session bastion PAM requis sur la zone OAM (attendu: %v)", [bastion_proj.bastion_session_recording]),
 		"violated_clause_urn": get_clause_urn(bastion_proj, "urn:archinex:kb:clause:nis2:oam_strict_bastion"),
@@ -418,7 +477,7 @@ violations contains v if {
 	up_proj != null
 	ed := object.get(input, "extended_domains", {})
 	up := object.get(ed, "user_plane_zone", {})
-	up.isolation_level != up_proj.isolation_level
+	isolation_rank(up.isolation_level) < isolation_rank(up_proj.isolation_level)
 	v := {
 		"rule": "data.archinex.edp.adr015.deny_user_plane_management_leak",
 		"axis": "urn:archinex:ontology:axis:security_zoning",

@@ -785,7 +785,7 @@ export async function syncHydratedInventoryToNautobot(
         const vrfPayload: Record<string, unknown> = {
           name: vrfName,
           rd: `65001:${100 + zIdx}`,
-          description: `VRF Zone ${zoneId} | Isolation : ${zone.isolation_level || 'strict'} | Proxy : ${zone.proxy_required ? 'requis' : 'direct'}`
+          description: `VRF Zone ${zoneId} | Isolation : ${zone.isolation_level || 'strict'} | Bastion : ${zone.bastion_required ? 'requis' : 'direct'}`
         };
         if (defaultNamespaceId) vrfPayload.namespace = defaultNamespaceId;
         if (pivotTenantUuid) vrfPayload.tenant = pivotTenantUuid;

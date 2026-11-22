@@ -164,6 +164,7 @@ export async function verifyEdp(options: VerifyEdpOptions): Promise<VerifyEdpRes
   const bindings = edpObj.decision_context?.ontology_bindings || [];
   let ontologyFingerprint = '0'.repeat(64);
   let compiledOntologyData: Record<string, unknown> = {};
+  let compiledEnumerations: Record<string, string[]> = {};
 
   if (bindings.length > 0) {
     const catalog = await loadOntologyCatalog({ fixturePath: options.ontologyFixturePath });
@@ -179,6 +180,7 @@ export async function verifyEdp(options: VerifyEdpOptions): Promise<VerifyEdpRes
     const compiled = compileOntologyProjections(bindings, catalog);
     ontologyFingerprint = compiled.fingerprint;
     compiledOntologyData = compiled.ontology;
+    compiledEnumerations = compiled.enumerations;
   }
 
   // 5. Exécution de l'Oracle Rego via OPA (#171 & #175)
@@ -202,7 +204,8 @@ export async function verifyEdp(options: VerifyEdpOptions): Promise<VerifyEdpRes
 
   const entrypoint = oracle.entrypoint; // ex: data.archinex.edp.adr012.status
   const opaData = {
-    ontology: compiledOntologyData
+    ontology: compiledOntologyData,
+    enumerations: compiledEnumerations
   };
 
   const evalRes = await runOpaEval<{

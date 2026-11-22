@@ -33,7 +33,7 @@ const DRIFT_SCENARIO_OVERRIDES: Record<string, (base: LldHydrationOverrides) => 
 		...base,
 		bmcAddress: 'redfish+http://198.51.100.254/redfish/v1/Systems/1'
 	}),
-	unproxied_oam: (base) => ({ ...base, oamProxyRequired: false }),
+	unproxied_oam: (base) => ({ ...base, oamBastionRequired: false }),
 	non_isoprod_staging: (base) => ({ ...base, stagingIsoprod: false }),
 	single_power_feed: (base) => ({ ...base, powerFeedsCount: 1 }),
 	s6a_direct_bypass_dea: (base) => ({ ...base, s6aDirectBypassDea: true }),

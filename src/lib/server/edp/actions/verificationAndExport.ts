@@ -106,7 +106,9 @@ async function runOracleVerification(
 			activeOverrides
 		);
 
-		const hasLocalDriftOverrides = Object.keys(activeOverrides).length > 0;
+		const hasLocalDriftOverrides = Object.keys(activeOverrides).some(
+			(k) => k !== 'reconciliationInstances' && k !== 'projectRequirementRefs'
+		);
 		let observedInventory = baselineInventory;
 		let evaluationSource: 'nautobot_live' | 'local_simulated' | 'local_fallback' =
 			hasLocalDriftOverrides ? 'local_simulated' : 'local_fallback';
@@ -301,18 +303,24 @@ export async function handleExportSylvaGitops(
 			activeOverrides
 		);
 
-		const currentVerdict: 'compliant' | 'violated' =
-			snapshot.parsedDb?.lastVerdict?.verdict === 'violated' ? 'violated' : 'compliant';
+		const currentVerdict: 'compliant' | 'violated' | 'insufficient_input' =
+			snapshot.parsedDb?.lastVerdict?.verdict === 'violated'
+				? 'violated'
+				: snapshot.parsedDb?.lastVerdict?.verdict === 'insufficient_input'
+					? 'insufficient_input'
+					: 'compliant';
 
 		const evalRes = await evaluateMultiAxisOracle(
 			hydratedInventory,
 			coverage.composedBindings,
 			catalog
 		);
-		const effectiveVerdict =
+		const effectiveVerdict: 'compliant' | 'violated' | 'insufficient_input' =
 			currentVerdict === 'violated' || evalRes.verdict === 'violated'
 				? 'violated'
-				: 'compliant';
+				: currentVerdict === 'insufficient_input' || evalRes.verdict === 'insufficient_input'
+					? 'insufficient_input'
+					: 'compliant';
 
 		const gitopsExport = await exportSylvaWorkloadClusterGitops({
 			edpId: snapshot.parsedDb?.metadata?.id || ctx.edpPrimaryKey,

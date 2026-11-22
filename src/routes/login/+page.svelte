@@ -14,7 +14,7 @@
 
   let { data }: { data: PageData } = $props();
 
-  // Redirect if already logged in (client-side)
+  // Redirection si déjà connecté (côté client)
   if (browser && data.session) {
     goto('/');
   }
@@ -27,9 +27,9 @@
   const demoUsers = !import.meta.env.DEV ? [] : [
     // Comptes créés par `npm run db:reset` (prisma/seed-dev.ts) : affichés en développement seulement
     // (mots de passe publics, jamais proposés sur une instance construite).
-    { label: 'Admin', email: 'admin@archinex.local', password: 'admin123', role: 'admin' },
-    { label: 'Architecte', email: 'architect@archinex.local', password: 'user123', role: 'user' },
-    { label: 'Expert', email: 'expert@archinex.local', password: 'user123', role: 'user' },
+    { label: 'Admin', email: 'admin@archinex.local', password: 'admin123', role: 'admin', roleLabel: 'admin' },
+    { label: 'Architecte', email: 'architect@archinex.local', password: 'user123', role: 'user', roleLabel: 'utilisateur' },
+    { label: 'Expert', email: 'expert@archinex.local', password: 'user123', role: 'user', roleLabel: 'utilisateur' },
   ];
 
   async function handleLogin(e: Event) {
@@ -37,7 +37,7 @@
     if (loading) return;
 
     loading = true;
-    const { data: session, error } = await apiFetch<{ user: unknown; expires: string }>(
+    const { error } = await apiFetch<{ user: unknown; expires: string }>(
       '/api/auth/login',
       { method: 'POST', body: { email, password } }
     );
@@ -48,7 +48,7 @@
       return;
     }
 
-    toast('Welcome back!', { variant: 'success' });
+    toast('Connexion réussie !', { variant: 'success' });
     const urlParams = new URLSearchParams(window.location.search);
     const target = urlParams.get('redirectTo');
     const redirectTo = target && target.startsWith('/') && !target.startsWith('//') ? target : '/';
@@ -62,51 +62,52 @@
 </script>
 
 <svelte:head>
-  <title>Sign In — Archinex</title>
+  <title>Connexion — Archinex</title>
 </svelte:head>
 
 <div class="min-h-screen flex items-center justify-center bg-muted/30 p-4">
   <div class="w-full max-w-md space-y-6">
 
-    <!-- Header -->
+    <!-- En-tête -->
     <div class="text-center">
       <div class="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-        <LogIn class="h-6 w-6" />
+        <LogIn class="h-6 w-6" aria-hidden="true" />
       </div>
-      <h1 class="text-2xl font-bold tracking-tight">Sign In</h1>
-      <p class="mt-1 text-sm text-muted-foreground">Enter your credentials to access the app</p>
+      <h1 class="text-2xl font-bold tracking-tight">Connexion</h1>
+      <p class="mt-1 text-sm text-muted-foreground">Saisissez vos identifiants pour accéder à l'application</p>
     </div>
 
-    <!-- Demo accounts quick-fill (développement seulement) -->
+    <!-- Comptes de démonstration (développement seulement) -->
     {#if import.meta.env.DEV}
     <Card.Root>
       <Card.Header class="pb-3">
-        <Card.Title class="text-sm font-medium text-muted-foreground">Demo accounts</Card.Title>
+        <Card.Title class="text-sm font-medium text-muted-foreground">Comptes de démonstration</Card.Title>
       </Card.Header>
-      <Card.Content class="flex gap-2">
+      <Card.Content class="flex flex-col sm:flex-row gap-2">
         {#each demoUsers as user}
           <button
+            type="button"
             onclick={() => fillDemo(user)}
-            class="flex-1 rounded-lg border px-3 py-2 text-left text-sm transition-colors hover:bg-muted"
+            class="flex-1 rounded-lg border px-3 py-2 text-left text-sm transition-colors hover:bg-muted cursor-pointer"
           >
             <span class="font-medium">{user.label}</span>
             <span class="ml-2 inline-flex items-center rounded-full px-1.5 py-0.5 text-xs
               {user.role === 'admin' ? 'bg-primary/10 text-primary' : 'bg-muted text-muted-foreground'}">
-              {user.role}
+              {user.roleLabel}
             </span>
-            <div class="mt-0.5 text-xs text-muted-foreground">{user.email}</div>
+            <div class="mt-0.5 text-xs text-muted-foreground truncate">{user.email}</div>
           </button>
         {/each}
       </Card.Content>
     </Card.Root>
     {/if}
 
-    <!-- Login form -->
+    <!-- Formulaire de connexion -->
     <Card.Root>
       <Card.Content class="pt-6">
         <form onsubmit={handleLogin} class="space-y-4">
           <div class="space-y-2">
-            <label for="email" class="text-sm font-medium">Email</label>
+            <label for="email" class="text-sm font-medium">Adresse e-mail</label>
             <input
               id="email"
               type="email"
@@ -120,7 +121,7 @@
           </div>
 
           <div class="space-y-2">
-            <label for="password" class="text-sm font-medium">Password</label>
+            <label for="password" class="text-sm font-medium">Mot de passe</label>
             <div class="relative">
               <input
                 id="password"
@@ -135,13 +136,13 @@
               <button
                 type="button"
                 onclick={() => (showPassword = !showPassword)}
-                aria-label={showPassword ? 'Hide password' : 'Show password'}
-                class="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground hover:text-foreground"
+                aria-label={showPassword ? 'Masquer le mot de passe' : 'Afficher le mot de passe'}
+                class="absolute right-2 top-1/2 -translate-y-1/2 rounded p-1 text-muted-foreground hover:text-foreground cursor-pointer"
               >
                 {#if showPassword}
-                  <EyeOff class="h-4 w-4" />
+                  <EyeOff class="h-4 w-4" aria-hidden="true" />
                 {:else}
-                  <Eye class="h-4 w-4" />
+                  <Eye class="h-4 w-4" aria-hidden="true" />
                 {/if}
               </button>
             </div>
@@ -150,9 +151,9 @@
           <Button type="submit" class="w-full" disabled={loading}>
             {#if loading}
               <span class="mr-2 h-4 w-4 animate-spin rounded-full border-2 border-current border-t-transparent"></span>
-              Signing in…
+              Connexion en cours…
             {:else}
-              Sign In
+              Se connecter
             {/if}
           </Button>
         </form>

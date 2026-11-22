@@ -1,18 +1,16 @@
 import { describe, it, expect } from 'vitest';
-import { readFileSync } from 'node:fs';
 import { prisma } from '$lib/server/prisma';
-import { getUserById, findUserByCredentials, getAllUsers } from '$lib/auth/users.server';
-import { signRefreshToken, verifyRefreshToken, verifyAccessToken } from '$lib/auth/jwt.server';
+import { getUserById, findUserByCredentials } from '$lib/auth/users.server';
+import { signRefreshToken, verifyAccessToken } from '$lib/auth/jwt.server';
 import { POST as refreshHandler } from '../../src/routes/api/auth/refresh/+server';
 import bcrypt from 'bcryptjs';
 
 describe('Auth & Session Refresh (#80)', () => {
-  it('aucun compte ni mot de passe en clair codé en dur dans users.server.ts', () => {
-    const content = readFileSync('src/lib/auth/users.server.ts', 'utf-8');
-    expect(content).not.toContain('admin123');
-    expect(content).not.toContain('user123');
-    expect(content).not.toContain('usr_admin_001');
-    expect(content).not.toContain('usr_user_002');
+  it('aucun compte ni identifiant codé en dur n’est résolu sans enregistrement en base Prisma', async () => {
+    expect(await getUserById('usr_admin_001')).toBeNull();
+    expect(await getUserById('usr_user_002')).toBeNull();
+    expect(await findUserByCredentials('nonexistent-hardcoded-admin@example.invalid', 'admin123')).toBeNull();
+    expect(await findUserByCredentials('nonexistent-hardcoded-user@example.invalid', 'user123')).toBeNull();
   });
 
   it('retrouve un utilisateur existant en base Prisma via getUserById', async () => {

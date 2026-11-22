@@ -2,7 +2,11 @@ import { describe, it, expect } from 'vitest';
 import { load as deliberationLoad } from '../../src/routes/deliberation/+page.server';
 import { load as workspacesLayoutLoad } from '../../src/routes/workspaces/+layout.server';
 import { load as knowledgeLayoutLoad } from '../../src/routes/knowledge/+layout.server';
-import { readFileSync } from 'node:fs';
+import {
+	MAIN_MENU_ITEMS,
+	filterMenuItemsForSession,
+	sanitizeRedirectTarget
+} from '$lib/domain/navigation';
 
 describe('Garde d\'Accès Anonyme & Affichage du Dashboard Seul (#GardeAnonyme)', () => {
 	it('1. /deliberation redirige immédiatement un visiteur anonyme vers la mire de connexion avec redirectTo', async () => {
@@ -72,32 +76,26 @@ describe('Garde d\'Accès Anonyme & Affichage du Dashboard Seul (#GardeAnonyme)'
 		}
 	});
 
-	it('5. Le menu de navigation principal (+layout.svelte) filtre les entrées métier pour les anonymes', () => {
-		const layoutContent = readFileSync('src/routes/+layout.svelte', 'utf-8');
-		expect(layoutContent).toContain('authOnly: false');
-		expect(layoutContent).toContain('authOnly: true');
-		expect(layoutContent).toContain('displayedMenuItems');
-
-		// Simule la logique du store dérivé de +layout.svelte
-		const menuItems = [
-			{ href: '/', authOnly: false },
-			{ href: '/workspaces', authOnly: true },
-			{ href: '/deliberation', authOnly: true },
-			{ href: '/knowledge', authOnly: true },
-			{ href: '/users', authOnly: true }
-		];
-
-		const anonymousMenu = menuItems.filter((i) => !i.authOnly || Boolean(null));
+	it('5. Le menu de navigation principal filtre les entrées métier pour les anonymes', () => {
+		const anonymousMenu = filterMenuItemsForSession(MAIN_MENU_ITEMS, null);
 		expect(anonymousMenu).toHaveLength(1);
 		expect(anonymousMenu[0].href).toBe('/');
+		expect(anonymousMenu.every((item) => !item.authOnly)).toBe(true);
 
-		const authenticatedMenu = menuItems.filter((i) => !i.authOnly || Boolean({ user: { id: 'u1' } }));
-		expect(authenticatedMenu).toHaveLength(5);
+		const authenticatedMenu = filterMenuItemsForSession(MAIN_MENU_ITEMS, { user: { id: 'u1' } });
+		expect(authenticatedMenu).toHaveLength(MAIN_MENU_ITEMS.length);
+		expect(authenticatedMenu.map((i) => i.href)).toEqual(
+			expect.arrayContaining(['/', '/workspaces', '/deliberation', '/knowledge', '/users'])
+		);
 	});
 
-	it('6. La page de connexion (+page.svelte) préserve et assainit le paramètre redirectTo', () => {
-		const loginContent = readFileSync('src/routes/login/+page.svelte', 'utf-8');
-		expect(loginContent).toContain('redirectTo');
-		expect(loginContent).toContain("target.startsWith('/') && !target.startsWith('//')");
+	it('6. L’assainissement redirectTo préserve les chemins internes et bloque les redirections externes', () => {
+		expect(sanitizeRedirectTarget('/deliberation')).toBe('/deliberation');
+		expect(sanitizeRedirectTarget('/knowledge?tab=controls')).toBe('/knowledge?tab=controls');
+		expect(sanitizeRedirectTarget('//evil.example/phish')).toBe('/');
+		expect(sanitizeRedirectTarget('https://evil.example')).toBe('/');
+		expect(sanitizeRedirectTarget('')).toBe('/');
+		expect(sanitizeRedirectTarget(null)).toBe('/');
+		expect(sanitizeRedirectTarget(undefined)).toBe('/');
 	});
 });

@@ -1,62 +1,143 @@
-# Concepts Fondamentaux d'Archinex
+# Concepts Fondamentaux, Parcours & Glossaire — Archinex
 
-Ce document définit les modèles canoniques qui structurent la délibération, la complétude de couverture des exigences et la justification visuelle dans Archinex (Épique #400).
+> **Référence unique du modèle de parcours, de la complétude de couverture, des modèles canoniques de décision/schémas, des niveaux de maturité, des portes de gouvernance, des invariants et du vocabulaire d'Archinex.**
+> Les autres documents (`README.md`, `ARCHITECTURE.md`, `docs/user-guide.md`, `docs/architecture-contracts.md`) renvoient vers cette page pour éviter toute divergence terminologique.
 
-## 1. Modèle unique de complétude de la couverture des exigences (#401)
+---
+
+## 1. Un Seul Modèle de Parcours : Les 5 Phases d'un Engagement
+
+Un projet (ou engagement) dans Archinex suit un **modèle unique en 5 phases**, directement reflété dans la barre de navigation de l'interface (`src/lib/components/deliberation/ProjectEngagementHeader.svelte`).
+
+```mermaid
+flowchart LR
+    P1["Phase 1 · Corpus & Règles\n(Niveau Projet)\nIngestion RFP, triage,\ncommodités, sujets"] --> B["Board des Sujets\n(Tri par déblocages\n& stagnation)"]
+    B --> P2["Phase 2 · Délibération\n(Niveau Sujet)\nCycle en 6 temps :\ncadrage → arbitrage G3 → G4"]
+    P2 --> P3["Phase 3 · Rendu HLD\n(Niveau Sujet)\nSpec HLD, gel SHA-256,\nprojections déterministes"]
+    P3 --> P4["Phase 4 · Raffinement\n(Niveau Sujet)\nIntention, planification Nautobot,\noracles OPA, ratification"]
+    P4 --> P5["Phase 5 · Consolidation\n(Niveau Projet)\nRéalisation & dérive, 4 piliers,\ncatalogue logique, architecture.lock"]
+    P5 -. "Dérive / rétractation" .-> P2
+```
+
+| Phase | Portée | Onglet IHM (`activePosture`) | Objectif & Livrable Principal |
+| :--- | :--- | :--- | :--- |
+| **Phase 1 · Corpus & Règles** | Projet | `appropriation` | Ingérer les pièces contractuelles (CCTP/RFP) et référentiels normatifs, trier les clauses en 4 compartiments (`deliberate`, `evacuate`, `clarify`, `transversal`), routage des commodités vers des emplacements de décision et factorisation en sujets d'architecture. |
+| **Phase 2 · Délibération** | Sujet *(via Board)* | `deliberation` | Faire converger l'équipe sur chaque sujet par un **cycle interne en 6 temps**, appuyé sur la **Carte de décision** (`DecisionCard.svelte`), jusqu'à l'arbitrage humain opposable (**Porte G3 → `L3_decided`**) et la capitalisation souveraine vers le Knowledge Hub (**Porte G4**). |
+| **Phase 3 · Rendu HLD** | Sujet | `rendu` | Formaliser la spécification HLD structurée (`L4_specified`), franchir la barrière d'homologation, sceller cryptographiquement (SHA-256) et régénérer de façon **100 % déterministe** les projections depuis `DecisionDiagramModel` (Mermaid, C4X, Structurizr DSL, SysML v2, JSON, Petites Briques, Document Engine). |
+| **Phase 4 · Raffinement** | Sujet | `refinement` | **Intention & planification (#405)** : liens ontologie KAOS ↔ exigences, prévisualisation `dry-run` du plan Nautobot (`Phase4NautobotPlanPreview.svelte`), lien unique vers Nautobot ([ADR-017](adr/ADR-017-nautobot-point-unique-reconciliation.md)), vérification d'intention OPA et ratification. Le simulateur de dérive est relégué dans un tiroir de démonstration replié hors parcours principal (`Phase4DriftDemoDrawer.svelte`). |
+| **Phase 5 · Consolidation** | Projet | `consolidation` | **Réalisation & dérive (#405) + vue transversale projet** : lecture seule de l'état Nautobot (`Planifié`, `Réalisé prouvé`, `Non vérifié`), écarts ouverts et décisions caduques (`Phase5RealizationPanel.svelte`, actions strictement limitées à **Remédier**, **Amender**, **Déroger**), 4 piliers transverses, registre d'emplacements TOGAF, catalogue logique (`Base × Overlay × DC`) et manifeste scellé `architecture.lock`. |
+
+### 1.1 Le Cycle Interne de la Phase 2 (Délibération en 6 Temps)
+
+À l'intérieur de la **Phase 2 · Délibération**, chaque sujet parcourt 6 temps opérationnels :
+
+1. **Cadrage du sujet** : énonciation du `problemStatement` et ancrage des clauses RFP/normatives (`L0_named` → `L1_framed`).
+2. **Critères & options contrastées** : au moins 2 critères pondérés et 2 options viables évaluées de `-2` à `+2` avec justification obligatoire (ou option unique explicitement justifiée).
+3. **Débat multi-agents borné** : orchestration bornée (3 tours max) enchaînant **Proposer**, **Challenger**, **Verifier** (contrôle doctrinal Knowledge Hub) et **Synthesizer**. Toute objection ouverte doit être résolue (`answered` ou `accepted_risk`) par un expert humain habilité.
+4. **Maturité calculée (`computeMaturity`)** : évaluation déterministe distinguant les **codes bloquants à l'arbitrage** (`MISSING_PROBLEM_STATEMENT`, `MISSING_CRITERIA`, `INSUFFICIENT_OPTIONS`, `UNEVALUATED_OPTION`, `OPEN_OBJECTION`, `UNRESOLVED_VIOLATION`, `OPEN_BLOCKING_QUESTION`) et les **alertes / réserves tracées** opposables au scellement (`COVERAGE_INCOMPLETE`, `VERIFICATION_VERDICT_UNKNOWN`).
+5. **Arbitrage humain opposable (Porte G3)** : sélection de l'option retenue, motifs d'écartement, réversibilité, dérogations et vérification réglementaire KB en échec fermé (*fail-closed*) → passage à `L3_decided`.
+6. **Capitalisation souveraine (Porte G4)** : préparation de candidats anonymisés (`new_asset`, `amendment`, `rex`) relus et transmis explicitement par un humain vers le Knowledge Hub LLMOps.
+
+### 1.2 Non-Linéarité et Asynchronisme
+
+Les 5 phases ne constituent **pas un tunnel séquentiel bloquant** :
+- **Granularité par sujet** : un sujet peut être en Phase 4 (Raffinement) pendant qu'un autre est encore en Phase 2 (Délibération).
+- **Retour en Phase 1 à tout instant** : un nouvel arrivant ou un expert domaine peut consulter le corpus et les référentiels (Phase 1) sans bloquer le reste de l'équipe.
+- **Boucle de retour** : une rétractation causale (DAG) ou une dérive détectée dans Nautobot (Phase 5) rouvre automatiquement le sujet en Phase 2.
+
+---
+
+## 2. Niveaux de Maturité (`L0` → `L5`) & Portes de Gouvernance (`G3` → `G7`)
+
+### 2.1 Niveaux de Maturité d'un Sujet
+
+| Niveau | Signification | Condition d'atteinte |
+| :--- | :--- | :--- |
+| `L0_named` | Sujet identifié | Titre et périmètre initial créés. |
+| `L1_framed` | Sujet cadré | `problemStatement` formulé et exigences sources rattachées. |
+| `L2_debated` | Débat engagé | Critères, options et évaluations posés ; objections ou vérifications en cours. |
+| `L3_decided` | Décision arbitrée | Porte G3 franchie par un arbitre habilité (`lead_architect` ou `domain_expert`), 0 code bloquant ouvert. |
+| `L4_specified` | Spécifié & scellé HLD | Spécification HLD rédigée, barrière d'homologation franchie, condensat SHA-256 émis. |
+| `L5_archived` | Archivé / Homologué | Section gelée définitivement pour référence d'audit. |
+
+### 2.2 Portes de Gouvernance
+
+| Porte | Où | Rôle habilité | Objet |
+| :--- | :--- | :--- | :--- |
+| **G3 · Arbitrage** | Archinex (Phase 2) | `lead_architect` / `domain_expert` | Trancher entre les options, consigner dérogations et motifs, promouvoir à `L3_decided`. |
+| **G4 · Capitalisation** | Archinex → LLMOps (Phase 2) | Architecte projet | Prévisualiser, anonymiser et soumettre explicitement les candidats (`new_asset`, `amendment`, `rex`) au Knowledge Hub. |
+| **G5 · Revue Experte** | Archinex (`/kb/reviews`) & LLMOps | `kb:review` (propriétaire du domaine, hors auteur) | Examiner les candidats soumis avec les 7 contrôles automatiques et double-avis collégial pour les `principle`. |
+| **G6 · Évaluation Doctrinale** | Archinex (`/kb/evals`) & LLMOps | `kb:evaluate` | Annoter la vérité terrain et valider un rappel réel vérifié par l'humain $\ge 80\,\%$ avec 0 régression. |
+| **G7 · Publication & Scellement** | Archinex (`/kb/dashboard`) & LLMOps | `kb:maintain` / `kb:admin` | Sceller une version officielle de la doctrine sous empreinte SHA-256 après franchissement de G5 et G6. |
+
+---
+
+## 3. Modèles Canoniques de Couverture, Décision et Schémas (Épique #400)
+
+### 3.1 Modèle unique de complétude de la couverture des exigences (#401)
 
 Module de domaine pur : `src/lib/domain/coverageModel.ts`.
 
-La couverture se mesure toujours sur une **liste explicite d'exigences** (dénominateur connu), jamais sur un pourcentage de caractères extraits (celui-ci est nommé `extractionCharCoverage` dans `rfpExtractionReport.ts`).
+La couverture se mesure toujours sur une **liste explicite d'exigences** (dénominateur connu), jamais sur un pourcentage de caractères extraits (celui-ci est nommé `extractionCharCoverage` dans `src/lib/domain/rfpExtractionReport.ts`).
 
-### Chaîne monotone d'étapes calculées (jamais saisies)
-
-Chaque exigence progresse selon 6 états strictement ordonnés :
-
+Chaque exigence progresse selon **6 étapes strictement ordonnées et calculées (jamais saisies)** :
 1. **`unqualified` (Non qualifiée)** : exigence importée mais non encore qualifiée.
 2. **`qualified` (Qualifiée)** : disposition établie (`deliberated`, `evacuated` avec motif explicite d'au moins 5 caractères, ou `clarification_needed` avec question/motif). Une évacuation sans motif est interdite et lève un trou bloquant (`EVACUATION_WITHOUT_MOTIVE`).
 3. **`attached` (Rattachée)** : exigence reliée à au moins un sujet de délibération.
 4. **`decided` (Décidée)** : le sujet rattaché dispose d'une décision active portant une justification suffisante **et** une vérification KB tracée (`checked` ou dérogation motivée `derogated`).
 5. **`planned` (Planifiée)** : au moins un objet Nautobot est planifié et marqué pour cette exigence.
-6. **`realized_proven` (Réalisée prouvée)** : preuve d'exécution (write-back) confirmée depuis Nautobot ou un connecteur aval.
+6. **`realized_proven` (Réalisée prouvée)** : preuve d'exécution (*write-back*) confirmée depuis Nautobot ou un connecteur aval.
 
-### Propriété de monotonie et règle de scellement
+- **Monotonie** : une étape ne régresse jamais sans événement explicite (`retraction`, `decision_invalidated`, `subject_detached`, `nautobot_unlinked`, `drift_detected`, `disposition_reset`).
+- **Scellement (`evaluateSealingReadiness`)** : refusé si une exigence bloquante reste en deçà de `decided` sans acceptation explicite tracée (`acceptedDeviations`), ou si une évacuation sans motif existe.
+- **Source de vérité unique** : l'API (`GET /api/projects/[projectId]/coverage`), la vue visuelle (`src/lib/components/deliberation/CoverageMatrixView.svelte`, exporteurs `src/lib/domain/coverageExport.ts` en SVG/PNG/CSV avec accessibilité icône+texte et pagination par 60 lignes) et la matrice de traçabilité (`src/lib/domain/traceability.ts`) consomment toutes `coverageModel.ts`.
 
-- Une étape ne régresse jamais sans événement explicite (`retraction`, `decision_invalidated`, `subject_detached`, `nautobot_unlinked`, `drift_detected`, `disposition_reset`).
-- **Scellement (`evaluateSealingReadiness`)** : le scellement d'une section ou d'un dossier est refusé si une exigence bloquante reste en deçà de `decided` sans acceptation explicite tracée (`acceptedDeviations`), ou si une évacuation sans motif existe.
-- **Source de vérité unique** : l'API (`GET /api/projects/[projectId]/coverage`), la vue de couverture visuelle (`CoverageMatrixView.svelte`) et la matrice de traçabilité exportée (`traceability.ts`) consomment toutes `coverageModel.ts` et affichent les mêmes chiffres.
-
-## 2. Vue de couverture visuelle (#402)
-
-Composant : `src/lib/components/deliberation/CoverageMatrixView.svelte` et exporteurs `src/lib/domain/coverageExport.ts`.
-
-- Matrice **exigences × étapes** regroupable par section, domaine ou criticité, filtrable par criticité, domaine, état et responsable.
-- Accessibilité : chaque cellule porte une **icône et un texte explicite** (jamais la couleur seule), une navigation clavier et un repli en liste à 390 px.
-- Performance : fenêtrage / pagination par tranches de 60 lignes permettant d'afficher 1 000+ exigences sans blocage.
-- Exports déterministes : SVG, PNG et CSV.
-
-## 3. Carte de décision (#403)
+### 3.2 Carte de décision (#403)
 
 Modèle : `src/lib/domain/decisionCard.ts` · Composant : `src/lib/components/deliberation/DecisionCard.svelte`.
 
-Avant de trancher, l'arbitre dispose sur un seul écran de **ce qu'il signe** :
-- Exigences sources couvertes et leur criticité ;
-- Contraintes KB applicables et leur verdict (`conforme`, `viole`, `inconnu`, `non_verifie` lorsque le Hub est injoignable — jamais affichés comme « conforme »), avec distinction règles validées vs brouillon ;
-- Matrice thermique options × critères pondérés avec score et décomposition ;
-- Arguments (pour, contre, objections) avec statut et origine (humain / agent) ;
-- Décision, réversibilité, motifs d'écartement et écarts acceptés ;
-- Conséquences planifiées en mode `dry-run` dans Nautobot ;
-- Export imprimable (SVG et Markdown) pour le dossier HLD.
+Avant de trancher, l'arbitre dispose sur un seul écran de **ce qu'il signe** : exigences sources et criticité, contraintes KB et leur verdict (`conforme`, `viole`, `inconnu`, `non_verifie` — jamais « conforme » si le Hub est injoignable), matrice thermique options × critères pondérés, arguments (pour/contre/objections) avec origine humain/agent, décision/réversibilité/motifs d'écartement, conséquences planifiées en mode `dry-run` dans Nautobot, et export imprimable (SVG et Markdown).
 
-## 4. Modèle de décision unique pour les schémas (#404)
+### 3.3 Modèle de décision unique pour les schémas (#404)
 
 Module : `src/lib/domain/decisionDiagramModel.ts`.
 
 - Toutes les représentations (Mermaid, Structurizr DSL, C4X DSL, Graphe d'impact) dérivent d'un **modèle intermédiaire unique** (`DecisionDiagramModel`).
 - **Provenance par élément** : chaque nœud et chaque arête porte une référence source (`requirement`, `statement`, `clause`, `decision`, `option` ou `hypothesis`). Tout élément sans provenance est rejeté.
 - **Empreinte anti-dérive** : `modelFingerprint` et `sourceFingerprint` (SHA-256 canonique) garantissent que toute modification d'une décision modifie le schéma correspondant.
-- **Validation syntaxique** automatique des sorties Mermaid, Structurizr DSL et C4X en CI.
 
-## 5. Recentrage des Phases 4 et 5 (#405)
+---
 
-- **Phase 4 — Intention & planification** : liens ontologie ↔ exigences, prévisualisation `dry-run` du plan Nautobot (`Phase4NautobotPlanPreview.svelte`), lien unique vers Nautobot, vérification d'intention OPA et ratification. Le simulateur de dérive est relégué dans un tiroir de démonstration replié hors parcours principal (`Phase4DriftDemoDrawer.svelte`).
-- **Phase 5 — Réalisation & dérive** : lecture seule de l'état Nautobot (`Planifié`, `Réalisé prouvé`, `Non vérifié`), écarts ouverts et décisions caduques (`Phase5RealizationPanel.svelte`). Les actions de résolution sont strictement limitées à **Remédier**, **Amender** et **Déroger**.
+## 4. Invariants Constitutionnels Clés
+
+La constitution complète réside dans [`openspec/constitution.md`](../openspec/constitution.md). Les invariants structurants sont :
+
+1. **Énoncé à 5 facettes** : tout énoncé porte Contenu (triplet), Justification (`basedOn`), Autorité (auteur, rôle, mode de production), Maturité (niveau + confiance) et Révisabilité (antécédents).
+2. **Interdiction absolue `verified × llm-derived`** : aucun énoncé ni argument généré par un LLM sans validation humaine ne peut porter le statut `verified` (verrouillé en validation, en domaine et en base Prisma).
+3. **Règle du silence** : l'absence de contestation ou de réaction ne vaut jamais approbation.
+4. **Brouillon télégraphique (anti-blabla)** : syntaxe dense orientée arbitrage (`retenu`, `supposé`, `conflit`, `manque`, chiffrage CAPEX/OPEX), sans formules creuses.
+5. **Deux portes humaines infranchissables** : l'arbitrage (Porte G3) et la capitalisation en doctrine (Porte G4) exigent toujours une action humaine explicite.
+6. **Rétractation causale par défaut (DAG)** : la contestation d'un antécédent rétrograde automatiquement tous ses descendants au statut `assumed` et marque les EDP affectés `stale`.
+7. **Échec fermé (*fail-closed*) en production** : aucun repli silencieux vers des fixtures ou un statut « conforme » lorsque le Knowledge Hub, OPA ou Nautobot est indisponible ([ADR-020](adr/ADR-020-interdiction-repli-silencieux-production.md)).
+8. **Séparation Intension (HLD) vs Extension (LLD)** : les décisions HLD et EDP ne contiennent aucune adresse IP/MAC ou nom d'hôte codé en dur ; toute réconciliation vers le réel passe par Nautobot ([ADR-017](adr/ADR-017-nautobot-point-unique-reconciliation.md), [ADR-019](adr/ADR-019-edp-oracles-opa-rego-deterministes.md)).
+
+---
+
+## 5. Glossaire
+
+| Terme | Définition |
+| :--- | :--- |
+| **Board de Maturité** | Vue globale des sujets d'un projet triés par effet multiplicateur (`unlocks_count`) et alertes de stagnation (> 14 jours). |
+| **Carte de Décision** | Vue synthétique (`DecisionCard.svelte`) réunissant sur un seul écran tout ce que l'arbitre signe en Porte G3 (exigences, verdicts KB, matrice MCDA, arguments, conséquences Nautobot `dry-run`). |
+| **Commodité (Type 2)** | Exigence standardisée ne nécessitant pas de débat contradictoire complet, routée vers un emplacement de décision TOGAF pour ratification rapide (promouvable en sujet Type 1 à tout moment). |
+| **DriftFinding** | Écart persisté entre l'intention figée d'un EDP et l'état réel observé dans Nautobot (`missing`, `unexpected`, `attribute_mismatch`, `status_regression`, ou objet « hors décision »). |
+| **EDP** (*Executable Decision Package*) | Paquet de Décision Exécutable liant une décision arbitrée G3 à des oracles OPA/Rego déterministes, des entrées attendues prouvées et un verdict à 4 états (`compliant`, `violated`, `not_applicable`, `insufficient_input`). |
+| **Emplacement de Décision** (*Decision Slot*) | Point d'ancrage d'un axe ontologique ou d'une brique TOGAF permettant de suivre explicitement le statut de couverture (`open`, `default_proposed`, `bound_unverified`, `bound_verified`, `waived`). |
+| **Énoncé** (*Statement*) | Atome épistémique à 5 facettes manipulé par Archinex. |
+| **KAOS** | Méthode d'ingénierie des exigences orientée buts (*AND-Refinement* vers des axes obligatoires, *OR-Refinement* vers des feuilles d'implémentation vérifiables par oracle). |
+| **Knowledge Hub (LLMOps)** | Service souverain séparé hébergeant la doctrine d'entreprise, les référentiels réglementaires, l'ontologie SI/Telco et le circuit de revue G5–G7 ([ADR-018](adr/ADR-018-knowledge-hub-souverain-decouplage-3-tiers.md)). |
+| **Nautobot (SSoT)** | Unique point de réconciliation bidirectionnel entre Archinex (qui y écrit les objets *Planned*) et les connecteurs d'implémentation (qui y écrivent statut et preuves réalisées) ([ADR-017](adr/ADR-017-nautobot-point-unique-reconciliation.md)). |
+| **Oracle OPA / Rego** | Règle déterministe évaluée par le binaire Open Policy Agent épinglé sur les projections `data.ontology` et l'inventaire réel ou pré-hydraté ([ADR-019](adr/ADR-019-edp-oracles-opa-rego-deterministes.md)). |
+| **Projection Déterministe** | Transformation sans LLM d'une décision scellée via `DecisionDiagramModel` vers un artefact technique cible (Mermaid, C4X, Structurizr DSL, SysML v2, JSON, Petites Briques, Document Engine) garantissant zéro dérive documentaire. |
+| **Sujet** (*Subject*) | Unité de délibération regroupant un ensemble cohérent d'exigences porteuses d'un arbitrage d'architecture (Type 1). |
+| **Triplet Ontologique** | Relation `{ Sujet, Prédicat, Objet }` reliant concepts HLD, axes obligatoires, feuilles techniques, clauses réglementaires et règles d'oracle. |

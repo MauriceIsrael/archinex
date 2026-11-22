@@ -8,6 +8,38 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Durcissement de la suite de tests : couverture v8, tests par propriétés, bootstrap OPA et résumé CI (#394)
+- **Bootstrap automatique `pretest` & OPA (`scripts/ensure-test-env.mjs`, `package.json`, `scripts/verify.mjs`, `vitest.config.ts`)** :
+  - `npm test` et `npm run verify` fonctionnent désormais sur un clone propre sans étape manuelle préalable : installation automatique d'OPA v1.21.4 (avec vérification SHA-256) ou échec explicite et lisible, génération du client Prisma, création de `prisma/dev.db` si absent (`DATABASE_URL=file:./dev.db` par défaut dans `vitest.config.ts`) et `svelte-kit sync`.
+- **Couverture v8 & comptage explicite des tests ignorés en CI (`vitest.config.ts`, `scripts/ci-test-summary.mjs`, `.github/workflows/verify.yml`)** :
+  - Activation de `@vitest/coverage-v8` avec seuils progressifs sur `src/lib/domain/**`, publication du rapport en artefact CI (`vitest-coverage-report`) et affichage systématique dans `$GITHUB_STEP_SUMMARY` du nombre de tests passés, échoués et **ignorés** (par fichier).
+- **Tests par propriétés (`fast-check`) & correction d'un bogue de rétractation (`tests/property/*.property.test.ts`, `src/lib/domain/retractation.ts`)** :
+  - Ajout de 4 suites `fast-check` sur le DAG de rétractation causale, `computeMaturity`, l'unicité/bornes IPv4 (`refResolver`) et l'idempotence du push Nautobot (`traceMarkers` / `nautobotSync`).
+  - Correction du faux positif préfixe dans `executeRetractionCascade` découvert par `fast-check` (`SUBJ-1` ne rétrograde plus `SUBJ-12`).
+- **Playwright nocturne & tests comportementaux (`.github/workflows/playwright-nightly.yml`, `src/lib/domain/navigation.ts`, `tests/contract/*.test.ts`)** :
+  - Ajout du workflow nocturne Playwright exécutant deux parcours complets avec LLM simulé (`USE_FAKE_LLMOPS=1`, `FAKE_LLM_DETERMINISTIC=1`).
+  - Remplacement des tests de contrat qui lisaient le code source `.svelte`/`.ts` comme du texte par des tests de comportement (rendu SSR `svelte/server` et fonctions pures extraites dans `src/lib/domain/navigation.ts`).
+- **Documentation (`docs/testing.md`)** :
+  - Suppression de la contradiction sur l'exécution CI des tests live et documentation complète de la couverture, des tests par propriétés, du bootstrap clone propre et du workflow Playwright nocturne.
+
+### Correctif du statut d'hydratation Nautobot lorsque l'instance est arrêtée
+- **Client Nautobot (`src/lib/server/edp/nautobotSync.ts`)** :
+  - Enregistrement explicite de l'erreur de connexion dans `errors` (`Nautobot injoignable (...)`) lors de l'échec du probe `/api/status/` dans `syncHydratedInventoryToNautobot` et `pullLiveInventoryFromNautobot`.
+- **Endpoint EDP (`src/routes/api/projects/[projectId]/subjects/[subjectId]/edp/+server.ts`)** :
+  - Pour `action === 'hydrate'`, retourne `success: false`, `notificationType: 'warning'` et un message explicite (`Nautobot injoignable (...) — synchronisation SSoT non effectuée`) lorsque Nautobot est inaccessible ou en erreur partielle, au lieu d'un faux message de succès.
+- **Atelier Phase 4 (`src/lib/components/deliberation/Phase4RefinementHub.svelte`)** :
+  - Utilisation du niveau de notification `'warning'` dans `triggerEdpAction` lorsque `nautobotSynced === false` ou `notificationType === 'warning'`, et affichage d'un bandeau d'état persistant (`phase4-nautobot-sync-warning` / `phase4-nautobot-sync-ok`) dans le bloc d'hydratation LLD.
+- **Tests** :
+  - Ajout de `tests/contract/edp-nautobot-hydration-status.test.ts` couvrant l'indisponibilité Nautobot sur le client et l'API EDP.
+
+### Documentation & Qualité (#395)
+- **Modèle unique de parcours (`docs/concepts.md`)** : création de la page de référence unique pour les 5 phases d'un engagement (alignée sur l'IHM), les niveaux de maturité (`L0`–`L5`), les portes de gouvernance (`G3`–`G7`), les invariants constitutionnels et le glossaire ; `README.md`, `ARCHITECTURE.md` et `docs/user-guide.md` y renvoient.
+- **Scission d'`ARCHITECTURE.md`** : séparation en vue d'ensemble (`ARCHITECTURE.md`, numérotation corrigée sans doublon), contrats détaillés par lot (`docs/architecture-contracts.md`) et feuille de route (`docs/roadmap.md`).
+- **ADRs structurants (`docs/adr/`)** : ajout de `ADR-018` (Knowledge Hub souverain & découplage 3 tiers), `ADR-019` (oracles déterministes EDP sur OPA/Rego), `ADR-020` (politique fail-closed sans repli silencieux en production) et de l'index `docs/adr/README.md` (5 ADRs au total avec `ADR-016` et `ADR-017`).
+- **Vérificateur de liens CI (`scripts/check-doc-links.mjs`)** : suppression de tous les liens absolus `file:///` et correction des chemins source cassés (`automationMarkers.ts`, `artifactProjections.ts`, `EdpCard.svelte`, `OntologyTripletsEditor.svelte`) ; intégration dans `npm run check:docs`, `npm run verify` et `.github/workflows/verify.yml`.
+- **Métriques générées (`scripts/generate-doc-metrics.mjs` → `docs/metrics.md`)** : génération automatique des compteurs de tests Vitest/Playwright, règles OPA/Rego, ADRs et ontologie en remplacement des chiffres écrits à la main.
+- **Démarrage rapide** : ajout du prérequis Open Policy Agent (OPA v1.21.4) et de ses scripts d'installation (`install-opa.sh` / `install-opa.ps1`) dans `README.md` et `docs/fresh-install.md`.
+
 ### Navigation à états par phase, i18n française cohérente, libellés normalisés et audit accessibilité (#393)
 - **Stepper à états par phase (`src/lib/domain/phaseNavigation.ts`, `src/lib/components/deliberation/ProjectEngagementHeader.svelte`)** :
   - Chaque phase (Phase 1 à Phase 5) calcule et affiche un état explicite (`not_started` / `in_progress` / `ready` / `blocked`) assorti d'une infobulle explicative et d'un `aria-label` décrivant la raison.

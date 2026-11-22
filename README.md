@@ -6,7 +6,7 @@
 
 Archinex est une **couche d'assurance de décision** : il capture la délibération, vérifie les décisions contre une base de connaissances (réglementaire et doctrinale), mesure la **complétude de la couverture des exigences** et rend les justifications **lisibles par des schémas déterministes**. Il ne pilote pas les outils d'implémentation.
 
-La dérive apparaît surtout **après** le HLD. Archinex boucle donc la boucle avec **un seul point de réconciliation bidirectionnel : Nautobot**. Archinex y crée les objets au statut *Planned* ; les connecteurs et l'enforcement dans les systèmes réels les font évoluer et y écrivent leur preuve ; Archinex lit cet état, détecte les écarts avec les décisions et les ramène en délibération. Voir l'orientation révisée dans [`ARCHITECTURE.md` §16](ARCHITECTURE.md).
+La dérive apparaît surtout **après** le HLD. Archinex boucle donc la boucle avec **un seul point de réconciliation bidirectionnel : Nautobot**. Archinex y crée les objets au statut *Planned* ; les connecteurs et l'enforcement dans les systèmes réels les font évoluer et y écrivent leur preuve ; Archinex lit cet état, détecte les écarts avec les décisions et les ramène en délibération. Voir l'orientation révisée dans [`docs/roadmap.md`](docs/roadmap.md) et l'[ADR-017](docs/adr/ADR-017-nautobot-point-unique-reconciliation.md).
 
 Archinex outille le *modèle de délibération* entre architectes experts et agents IA. Plutôt que de concurrencer les outils de modélisation système (Structurizr, SysML v2, Enterprise Architect, Mermaid), Archinex capture les controverses, maintient la cohérence de vérité logique par graphe causal, chasse le blabla par des brouillons-appâts percutants et projette de façon déterministe les énoncés prouvés vers les outils cibles sans dérive documentaire.
 
@@ -65,13 +65,15 @@ flowchart LR
 
 ---
 
-## 🧭 Les 3 Postures Contextuelles Non-Linéaires
+## 🧭 Modèle Unique de Parcours : Les 5 Phases
 
-Chaque architecte évolue à son rythme sur chaque section sans bloquer le reste de l'équipe :
+Tout engagement dans Archinex suit un **modèle unique en 5 phases**, non linéaire et asynchrone par sujet (détaillé avec les niveaux de maturité, les portes G3–G7, les invariants et le glossaire dans **[`docs/concepts.md`](docs/concepts.md)**) :
 
-1. **Posture 1 : Appropriation & Cadrage Pédagogique** : Acculturation aux normes et synthèses des standards CCTP (3GPP Release 17 / TS 38.300, Directive NIS2 / Doctrine ANSSI, Tier Standards).
-2. **Posture 2 : Délibération & Cristallisation** : Cœur dialectique, confrontation d'hypothèses, arbitrage des variantes divergentes et détection des diffs.
-3. **Posture 3 : Rendu & Homologation** : Scellement cryptographique SHA-256 et projection instantanée vers les outils de modélisation système.
+1. **Phase 1 · Corpus & Règles** *(Projet)* : ingestion CCTP/RFP, référentiels réglementaires, triage en 4 compartiments et factorisation des sujets.
+2. **Phase 2 · Délibération** *(Sujet, via Board)* : cadrage, critères/options, débat multi-agents borné, maturité calculée, arbitrage humain opposable (**Porte G3 → `L3_decided`**) et capitalisation vers le Knowledge Hub (**Porte G4**).
+3. **Phase 3 · Rendu HLD** *(Sujet)* : spécification HLD, barrière d'homologation, scellement SHA-256 et projections déterministes (Mermaid, C4X, Structurizr DSL, SysML v2, JSON, Petites Briques, Document Engine).
+4. **Phase 4 · Raffinement** *(Sujet)* : ontologie KAOS multi-axes, Paquet de Décision Exécutable (EDP), oracles OPA/Rego, pré-hydratation Nautobot *Planned* et détection de dérive.
+5. **Phase 5 · Consolidation** *(Projet)* : 4 piliers transverses, registre d'emplacements TOGAF, catalogue logique `Base × Overlay × DC`, 3 vues synchronisées et manifeste `architecture.lock`.
 
 ---
 
@@ -119,7 +121,7 @@ l'architecture lui confère immédiatement **3 corps concrets** dans Archinex :
    * Sur le Projet Y, l'appui sur « Hydrater » génère automatiquement les manifests Kubernetes [`SylvaWorkloadCluster`](https://gitlab.com/sylva-projects) durcis (unités `vault: { enabled: true }`, CNI Cilium, images `sle-micro` durcies, hugepages 1Gi, pinning NUMA) et les équipements `dcim.Device` dans Nautobot. L'architecte n'a plus à réinventer l'ingénierie d'infrastructure.
 2. **Un Corps de Contrôle (L'Oracle OPA Rego) :**
    * La feuille lie des contraintes formelles (`projections`) et des règles de vérification (`oracle_rules`).
-   * L'Oracle OPA évalue automatiquement l'inventaire face aux **15 règles d'or de Sylva** (`npm run check:sylva` en < 60ms). Toute tentative de contournement (ex: serveur non homologué, Vault désactivé sous NIS2) est immédiatement bloquée en citant la clause réglementaire violée.
+   * L'Oracle OPA évalue automatiquement l'inventaire face aux règles d'or Sylva (`npm run check:sylva` ; nombre exact de règles généré dans [`docs/metrics.md`](docs/metrics.md)). Toute tentative de contournement (ex: serveur non homologué, Vault désactivé sous NIS2) est immédiatement bloquée en citant la clause réglementaire violée.
 3. **Un Corps de Traçabilité & d'Audit (Le Lien Fort) :**
    * Le descripteur KRM généré et l'inventaire Nautobot reçoivent dans leurs métadonnées les annotations immuables `archinex.io/satisfied-clauses`.
    * Une **traçabilité vérifiable** relie le texte de doctrine au code GitOps déployé. Aujourd'hui, les annotations `archinex.io/satisfied-clauses` déclarent cette liaison ; **une annotation n'est pas une preuve**. La cible (en cours : #398, #399) est qu'un objet ne soit dit « réalisé » que si une preuve d'exécution écrite par le connecteur est présente.
@@ -141,6 +143,9 @@ l'architecture lui confère immédiatement **3 corps concrets** dans Archinex :
 ### Prérequis
 - Node.js $\ge$ 20.x
 - npm $\ge$ 10.x
+- **Open Policy Agent (OPA v1.21.4)** : requis pour les oracles Rego (`npm run check:sylva`, `npm run verify`, Phase 4 EDP). Installation automatisée avec contrôle SHA-256 :
+  - Linux / macOS : `bash scripts/install-opa.sh`
+  - Windows (PowerShell) : `pwsh -File scripts/install-opa.ps1`
 
 ### Installation
 ```bash
@@ -149,17 +154,21 @@ git clone https://github.com/votre-orga/archinex.git
 cd archinex
 npm install
 
-# 2. Configurer les variables d'environnement
+# 2. Installer Open Policy Agent (OPA v1.21.4) dans tools/bin/
+bash scripts/install-opa.sh
+# (Sous Windows : pwsh -File scripts/install-opa.ps1)
+
+# 3. Configurer les variables d'environnement
 cp .env.example .env
 
-# 3. Initialiser le schéma SQLite puis charger les données initiales (comptes démo & exemples)
+# 4. Initialiser le schéma SQLite puis charger les données initiales (comptes démo & exemples)
 npx prisma generate
 npx prisma db push
 npx prisma db seed
 # Astuce : `npm run db:reset` permet de réinitialiser complètement la base à tout moment
 # (développement local : le conteneur, lui, ne sème pas ces comptes, voir docs/fresh-install.md § 3 bis)
 
-# 4. Lancer le serveur de développement
+# 5. Lancer le serveur de développement
 npm run dev
 ```
 
@@ -168,7 +177,7 @@ Rendez-vous sur [http://localhost:5173/login](http://localhost:5173/login) pour 
 - **Architecte Domaine** : `architect@archinex.local` / `user123`
 - **Expert Sécurité & Cloud** : `expert@archinex.local` / `user123`
 
-Consultez le **[Guide d'Installation & Initialisation (`docs/fresh-install.md`)](file:///c:/Users/Momo/Documents/Dev/archinex/docs/fresh-install.md)** pour le détail complet des variables d'environnement (`.env`), l'introspection dynamique des modèles LLM et la configuration de l'API Anthropic Messages.
+Consultez le **[Guide d'Installation & Initialisation (`docs/fresh-install.md`)](docs/fresh-install.md)** pour le détail complet des variables d'environnement (`.env`), l'introspection dynamique des modèles LLM et la configuration de l'API Anthropic Messages.
 
 Accédez directement au Workbench : [http://localhost:5173/deliberation](http://localhost:5173/deliberation).
 
@@ -176,13 +185,16 @@ Accédez directement au Workbench : [http://localhost:5173/deliberation](http://
 
 ## 🧪 Tests & Vérification Qualité
 
-Le projet maintient une politique stricte de zéro régression et zéro avertissement :
+Le projet maintient une politique stricte de zéro régression et zéro avertissement. Les métriques à jour (nombre de tests, règles OPA, ADR) sont générées automatiquement dans **[`docs/metrics.md`](docs/metrics.md)** (`npm run docs:metrics`) :
 
 ```bash
-# Vérifier la conformité KRM CRD et évaluer les 15 règles d'or Sylva via OPA (< 60ms)
+# Vérifier les liens et chemins source dans la documentation
+npm run check:docs
+
+# Vérifier la conformité KRM CRD et évaluer les règles d'or Sylva via OPA
 npm run check:sylva
 
-# Lancer l'intégralité de la suite de tests Vitest (1 100+ tests de contrat et d'intégration)
+# Lancer l'intégralité de la suite de tests Vitest (voir docs/metrics.md)
 npm run test
 
 # Vérifier le typage strict TypeScript et les Runes Svelte 5 (0 erreur, 0 avertissement)
@@ -191,9 +203,19 @@ npm run check
 # Compiler l'application pour la production avec l'adaptateur Node
 npm run build
 
-# Porte qualité unique Smart-Light : Denylist + Sylva OPA Gate + Tests + Check + Build (< 3 min)
+# Porte qualité unique : Denylist + Changelog + Doc Links + Sylva OPA + Tests + Check + Build
 npm run verify
 ```
+
+---
+
+## 📚 Documentation
+
+- **[Concepts, Parcours 5 Phases & Glossaire (`docs/concepts.md`)](docs/concepts.md)** — point d'entrée recommandé pour un nouveau lecteur.
+- **[Architecture Système (`ARCHITECTURE.md`)](ARCHITECTURE.md)** & **[Contrats Détaillés (`docs/architecture-contracts.md`)](docs/architecture-contracts.md)**.
+- **[Décisions d'Architecture (`docs/adr/README.md`)](docs/adr/README.md)** — ADR-016 à ADR-020.
+- **[Feuille de Route (`docs/roadmap.md`)](docs/roadmap.md)** & **[Métriques Générées (`docs/metrics.md`)](docs/metrics.md)**.
+- **[Guide Utilisateur (`docs/user-guide.md`)](docs/user-guide.md)** & **[Guide Développeur (`docs/developer-guide.md`)](docs/developer-guide.md)**.
 
 ---
 

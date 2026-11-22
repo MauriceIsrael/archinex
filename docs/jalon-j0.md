@@ -102,7 +102,7 @@ Motif en trois lignes : …
 Le piège à éviter : trouver l'outil « intéressant » et continuer sans chiffre. Un GO se justifie par des critères écrits avant, pas par une impression.
 
 > **Exécution réelle du Jalon J0 (18/10/2026)** :
-> Consultez la fiche de décision remplie et scellée : [`eval-results/decision-j0.md`](file:///c:/Users/Momo/Documents/Dev/archinex/eval-results/decision-j0.md).
+> La fiche de décision locale est archivée hors Git dans `eval-results/decision-j0.md` (dossier ignoré par `.gitignore`).
 > Verdict obtenu : **CORRIGER puis rejouer** (1 faux négatif dangereux `REQ-Lot1-216` à corriger, rappel 87-89 %, 4/4 angles ratés retrouvés). Les chiffres non sourcés (« 89 % » ou « 100 % de rappel ») sont officiellement rejetés au profit de ces mesures factuelles.
 
 ## Et les clauses qui ne deviennent pas des sujets ?

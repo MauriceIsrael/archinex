@@ -2,6 +2,7 @@ import { prisma } from '../prisma';
 import { llmopsClient } from '../llmops/client';
 import { getProjectFrameworks } from '../projects/frameworksDb';
 import { coverageWarnings } from '$lib/domain/maturityRules';
+import type { ComplianceCheckStatus } from '$lib/domain/options';
 
 /**
  * Conformité réglementaire des options d'un sujet, jugée par LLMOps (POST /api/knowledge/check) contre les
@@ -26,18 +27,38 @@ export interface SubjectCompliance {
 	violations: ComplianceViolation[];
 	/** Règles applicables que LLMOps ne sait pas juger automatiquement (à vérifier par l'architecte). */
 	unassessedCount: number;
+	/** Identifiants dédupliqués des règles non évaluées automatiquement. */
+	unassessedRuleIds: string[];
+	/** Révision de la base de connaissances retournée par le Hub (si fournie). */
+	hubRevision: string | null;
+	/** Horodatage ISO de la vérification KB. */
+	checkedAt: string;
+	/** Statut synthétique du contrôle réglementaire KB. */
+	checkStatus: ComplianceCheckStatus;
 	/** Référentiels applicables pas encore couverts par la base : alerte, jamais blocage. */
 	coverageWarnings: string[];
 }
 
 interface RawVerdict {
 	typed_id?: string;
+	rule_id?: string;
 	check_id?: string | null;
 	verdict?: string;
+	status?: string;
 	message?: string | null;
 	matched_terms?: string[];
 	source_ref?: string | null;
 	check_status?: string | null;
+}
+
+interface RawCheckResponse {
+	verdicts?: RawVerdict[];
+	offline?: boolean;
+	hub_revision?: string | null;
+	hubRevision?: string | null;
+	kb_revision?: string | null;
+	kbRevision?: string | null;
+	revision?: string | number | null;
 }
 
 /** Référentiels déclarés applicables à l'espace (stratégie de l'engagement, confirmée à la création). */
@@ -83,7 +104,10 @@ export async function checkSubjectCompliance(projectId: string, subjectId: strin
 	const options = subject.options.filter((o) => !optionIds || optionIds.includes(o.id));
 	let offline = false;
 	let unassessedCount = 0;
+	let hubRevision: string | null = null;
+	const unassessedRuleIdSet = new Set<string>();
 	const violations: ComplianceViolation[] = [];
+	const checkedAt = new Date().toISOString();
 
 	const [optionResults, coverage] = await Promise.all([
 		Promise.all(
@@ -93,7 +117,7 @@ export async function checkSubjectCompliance(projectId: string, subjectId: strin
 					subject: subject.name,
 					domain: subject.domain || undefined,
 					frameworks
-				})) as unknown as { verdicts?: RawVerdict[]; offline?: boolean };
+				})) as unknown as RawCheckResponse;
 				return { optionId: option.id, result };
 			})
 		),
@@ -101,14 +125,42 @@ export async function checkSubjectCompliance(projectId: string, subjectId: strin
 	]);
 
 	for (const { optionId, result } of optionResults) {
-		if (result.offline) {
+		if (!result || result.offline) {
 			offline = true;
 			continue;
 		}
+		const rev = result.hub_revision ?? result.hubRevision ?? result.kb_revision ?? result.kbRevision ?? result.revision;
+		if (rev !== undefined && rev !== null && String(rev).trim() !== '' && hubRevision === null) {
+			hubRevision = String(rev).trim();
+		}
 		const verdicts = result.verdicts ?? [];
-		unassessedCount = Math.max(unassessedCount, verdicts.filter((v) => v.verdict === 'unassessed').length);
+		const unassessedVerdicts = verdicts.filter((v) => v.verdict === 'unassessed' || v.status === 'unassessed');
+		unassessedCount = Math.max(unassessedCount, unassessedVerdicts.length);
+		for (const v of unassessedVerdicts) {
+			const ruleId = v.typed_id || v.rule_id || v.check_id;
+			if (ruleId) {
+				unassessedRuleIdSet.add(ruleId);
+			}
+		}
 		violations.push(...toViolations(optionId, verdicts));
 	}
 
-	return { frameworks, offline, violations, unassessedCount, coverageWarnings: coverageWarnings(coverage.frameworks).map((w) => w.message) };
+	const unassessedRuleIds = [...unassessedRuleIdSet].sort();
+	const checkStatus: ComplianceCheckStatus = offline
+		? 'not_checked'
+		: unassessedCount > 0 || unassessedRuleIds.length > 0
+			? 'partial'
+			: 'checked';
+
+	return {
+		frameworks,
+		offline,
+		violations,
+		unassessedCount,
+		unassessedRuleIds,
+		hubRevision,
+		checkedAt,
+		checkStatus,
+		coverageWarnings: coverageWarnings(coverage.frameworks).map((w) => w.message)
+	};
 }

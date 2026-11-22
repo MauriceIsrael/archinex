@@ -128,7 +128,7 @@ services:
     volumes:
       - ./sushy-emulator.conf:/etc/sushy/sushy-emulator.conf:ro
     ports:
-      - "127.0.0.1:8000:8000"
+      - "127.0.0.1:8001:8000"
     healthcheck:
       test: ["CMD-SHELL", "python3 -c 'import urllib.request; urllib.request.urlopen(\"http://127.0.0.1:8000/redfish/v1/Systems\")' || exit 1"]
       interval: 10s
@@ -192,8 +192,8 @@ services:
       DNS_SERVER_ADMIN_PASSWORD: adminpassword
     ports:
       - "127.0.0.1:5380:5380"
-      - "127.0.0.1:5353:53/udp"
-      - "127.0.0.1:5353:53/tcp"
+      - "127.0.0.1:15353:53/udp"
+      - "127.0.0.1:15353:53/tcp"
     volumes:
       - dns-data:/etc/dns
     restart: unless-stopped

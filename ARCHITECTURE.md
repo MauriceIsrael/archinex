@@ -72,7 +72,9 @@ Tout énoncé, option, argument ou décision manipulé par Archinex obéit aux i
 
 ### Invariants Inviolables
 1. **Énoncé à 5 facettes** : Contenu (triplet ontologique), Justification (antécédents), Autorité (auteur, rôle, mode de production), Maturité (niveau, confiance), Révisabilité.
-2. **Règle Bloquante `verified × llm-derived`** : Aucun énoncé ni argument ne peut être promu au statut de confiance `verified` s'il est produit en mode `llm-derived`. La vérification et la décision requièrent formellement l'intervention humaine d'un architecte qualifié (`human-authored` ou `llm-proposed-human-approved`).
+2. **Règle Bloquante `verified × llm-derived` (énoncés et arguments)** : Cet invariant constitutionnel couvre **à la fois les énoncés (`Statement`) et les arguments de débat (`Argument`)**. Aucun énoncé ni aucun argument produit en mode `llm-derived` ne peut être promu ou stocké au statut de confiance `verified` sans validation humaine préalable (`human-authored` ou `llm-proposed-human-approved`).
+   - **Énoncés** : rejetés au portier d'enveloppe (`src/lib/validation/epistemicEnvelope.ts`) et en persistance (`src/lib/server/projects/projectsDb.ts`).
+   - **Arguments** : confiance plafonnée à `designed` avec avertissement journalisé dans `createArgument` (`src/lib/server/projects/debateDb.ts`), combinaison rejetée dans `validateArgument` (`src/lib/domain/debate.ts`), et verrouillée en base par le garde-fou Prisma (`src/lib/server/prismaFactory.ts`) sur tous les chemins d'écriture (`create`, `createMany`, `update`, `updateMany`, `upsert`).
 3. **Règle du Silence** : Une hypothèse, objection ou dilemme non contesté n'est **jamais** considéré comme approuvé tacitement. L'approbation doit résulter d'un acte formel d'arbitrage.
 4. **Brouillon Télégraphique** : Style télégraphique dense, sans jargon creux ni verbiage IA non vérifié.
 
@@ -105,15 +107,18 @@ Un tour d'orchestration (3 tours maximum) enchaîne 4 agents spécialisés :
 Toute objection doit être résolue (`answered` ou `accepted_risk`) par un expert humain habilité avant l'arbitrage.
 
 ### Étape 4 : Calcul Dynamique de la Maturité (`computeMaturity`)
-La maturité d'un sujet n'est plus fixée manuellement : elle est calculée par une fonction pure qui évalue 8 codes de blocage :
-- `MISSING_PROBLEM_STATEMENT` : Problème non formulé.
-- `MISSING_CRITERIA` : Moins de 2 critères définis.
-- `INSUFFICIENT_OPTIONS` : Moins de 2 options formulées.
-- `UNEVALUATED_OPTION` : Option non évaluée sur tous les critères.
-- `OPEN_OBJECTION` : Objection ouverte non résolue dans le débat.
-- `UNRESOLVED_VIOLATION` : Règle doctrinale violée sans dérogation justifiée.
-- `OPEN_BLOCKING_QUESTION` : Question bloquante sans réponse.
-- `COVERAGE_INCOMPLETE` : Référentiel réglementaire projet (`NIS2`, `SecNumCloud`...) non couvert.
+La maturité d'un sujet n'est plus fixée manuellement : elle est calculée par une fonction pure qui distingue **codes bloquants à l'arbitrage** et **alertes / réserves tracées** :
+- **Codes bloquants (`blockers`)** :
+  - `MISSING_PROBLEM_STATEMENT` : Problème non formulé.
+  - `MISSING_CRITERIA` : Moins de 2 critères définis (1 suffit si option unique justifiée).
+  - `INSUFFICIENT_OPTIONS` : Moins de 2 options formulées (sauf option unique justifiée).
+  - `UNEVALUATED_OPTION` : Option non évaluée sur tous les critères.
+  - `OPEN_OBJECTION` : Objection ouverte non résolue dans le débat.
+  - `UNRESOLVED_VIOLATION` : Règle doctrinale violée (`verdict: 'violates'` ou `checkOption` validé) sans dérogation justifiée.
+  - `OPEN_BLOCKING_QUESTION` : Question bloquante sans réponse.
+- **Alertes non bloquantes à l'arbitrage (`warnings`), opposables au scellement** :
+  - `COVERAGE_INCOMPLETE` : Référentiel réglementaire projet (`NIS2`, `SecNumCloud`...) en statut `partial`, `missing` ou `unknown`. Non bloquant à l'arbitrage (la maintenance KB relève de LLMOps), mais enregistré en **réserve de couverture** (`coverageReserves`) sur la décision, reporté dans le HLD/bundle et la RTM, et **bloquant au scellement** (`freezeExport` et `generateArchitectureLockManifest`) pour les statuts `missing`/`unknown` sans acceptation explicite tracée.
+  - `VERIFICATION_VERDICT_UNKNOWN` : Verdict de vérification `unknown` ou non structuré (ne vaut jamais « conforme »).
 
 ### Étape 5 : Arbitrage Humain Opposable (Porte G3)
 Seul un `lead_architect` ou un `domain_expert` habilité sur le domaine du sujet peut prononcer l'arbitrage :
@@ -121,6 +126,7 @@ Seul un `lead_architect` ou un `domain_expert` habilité sur le domaine du sujet
 - Enregistrement des motifs d'écartement pour chaque alternative ;
 - Évaluation de la réversibilité (`reversible`, `costly`, `irreversible`) ;
 - Enregistrement des dérogations acceptées avec justification opposable ;
+- **Vérification réglementaire KB en échec fermé (*fail-closed*)** : chaque arbitrage persiste un bloc opposable `complianceCheck` (`checked` | `partial` | `not_checked`, `hubRevision`, `checkedAt`, `unassessedRuleIds[]`, `frameworks[]`). Si le Hub KB est injoignable (`not_checked`) ou laisse des règles non évaluées (`partial`), la décision est refusée sauf dérogation explicite motivée (« décision sans vérification KB complète »), tracée dans le bundle (`compliance_check` + lacune dédiée) et classée `Provisional` dans la matrice de conformité ;
 - Promotion formelle à `L3_decided` et transformation des énoncés dérivés en `llm-proposed-human-approved`.
 
 ### Étape 6 : Capitalisation Souveraine vers LLMOps (Porte G4)
@@ -480,9 +486,11 @@ Dans l'onglet de délibération et de rendu (`ArtifactRegenerationHub.svelte`), 
 
 ---
 
-## 12. Paquet de Décision Exécutable (EDP) & Oracles OPA/Rego (Expérimental)
+## 12. Paquet de Décision Exécutable (EDP) & Oracles OPA/Rego
 
-Dans le cadre de l'initiative expérimentale (`ARCHINEX_EXPERIMENTAL_EDP=1`), Archinex associe à chaque décision d'architecture arbitrée un **Paquet de Décision Exécutable** (EDP) assurant l'opposabilité et la vérifiabilité continue du HLD face aux instanciations LLD réelles ou simulées :
+> **Orientation (ADR-017)** : toute écriture vers un outil d'implémentation passe par Nautobot, seul point de réconciliation bidirectionnel d'Archinex ; les connecteurs sont derrière Nautobot. Voir [`docs/adr/ADR-017-nautobot-point-unique-reconciliation.md`](docs/adr/ADR-017-nautobot-point-unique-reconciliation.md).
+
+Archinex associe à chaque décision d'architecture arbitrée un **Paquet de Décision Exécutable** (EDP) assurant l'opposabilité et la vérifiabilité continue du HLD face aux instanciations LLD réelles ou simulées :
 
 1. **Séparation Stricte Intension (HLD) vs Extension (LLD)** :
    - Le contexte de décision (`decision_context`) exprime des règles pures sur l'ontologie d'entreprise sans aucune valeur d'instanciation. Le module `intentionPurity.ts` filtre rigoureusement toute adresse IPv4, IPv6, CIDR, adresse MAC ou nom d'hôte physique ou logique avec une liste blanche stricte de standards et versions autorisées (Invariant X).
@@ -503,11 +511,11 @@ Dans le cadre de l'initiative expérimentale (`ARCHINEX_EXPERIMENTAL_EDP=1`), Ar
    - Modèle Prisma `ExecutableDecisionPackage` avec application directe de l'Invariant II (interdiction absolue de valider automatiquement un EDP produit par LLM sans validation humaine tracée et signée) et Invariant VI (rétractation vers `stale` lors de la caducité d'un antécédent).
 6. **Service d'Évaluation `edp verify` & Adaptateurs LLD** :
    - Moteur central `edpVerify.ts` émettant un lot de preuves cryptographique (`EvidenceBundle`) avec codes de sortie standardisés (0, 1, 2, 3).
-   - Adaptateur Helm Sylva/CAPI (`sylvaAdapter.ts`) avec sanitization automatique des secrets.
-   - Adaptateur Nautobot Planned (`nautobotAdapter.ts`) normalisant les équipements physiques et interfaces.
+   - Module neutre d'assainissement Helm Sylva/CAPI (`manifestSanitizer.ts`) avec sanitization automatique des secrets.
+   - Module de lecture Nautobot Planned (`nautobotPlannedExtract.ts`) normalisant les équipements physiques et interfaces.
 7. **Chaîne de Rédaction Assistée LLM & Composant IHM Workbench** :
    - Pipeline de garde `edpDrafting.ts` filtrant les propositions d'IA par l'ensemble des contrôles déterministes avant toute présentation humaine.
-   - Composant UI `EdpCard.svelte` sous drapeau `ARCHINEX_EXPERIMENTAL_EDP`, permettant aux architectes habilités de visualiser les verdicts, scores de mutation et de valider ou contester formellement l'EDP.
+   - Composant UI `EdpCard.svelte`, permettant aux architectes habilités de visualiser les verdicts, scores de mutation et de valider ou contester formellement l'EDP.
 8. **Paquets de Référence & Promotion** :
    - Deux références complètes : `adr012-baremetal` (infrastructure Telco Cloud) et `adr015-security-zones` (cloisonnement de zones NIS2), atteignant chacune 100 % de score de mutation.
    - Document de promotion formel : [ADR-016](docs/adr/ADR-016-promotion-edp-experimental.md).
@@ -515,6 +523,8 @@ Dans le cadre de l'initiative expérimentale (`ARCHINEX_EXPERIMENTAL_EDP=1`), Ar
 ---
 
 ## 13. Architecture Logicielle de la Phase 4 : Raffinement Ontologique Multi-Axes, Hydratation Exhaustive & Réconciliation (`Phase4RefinementHub`)
+
+> **Orientation (ADR-017)** : toute écriture vers un outil d'implémentation passe par Nautobot, seul point de réconciliation bidirectionnel d'Archinex ; les connecteurs sont derrière Nautobot. Voir [`docs/adr/ADR-017-nautobot-point-unique-reconciliation.md`](docs/adr/ADR-017-nautobot-point-unique-reconciliation.md).
 
 Pour éviter l'écueil classique des architectures où le document de spécification (HLD) et l'ingénierie d'exécution (LLD / CMDB / GitOps) divergent sitôt l'arbitrage rendu, Archinex structure le cycle de vie d'un sujet d'architecture en **4 phases continues** et ajoute en Phase 4 un moteur formel de **raffinement piloté par l'ontologie**, d'**hydratation multi-objets** et de **réconciliation inter-domaines**.
 
@@ -558,7 +568,7 @@ flowchart LR
 
 | Module / Fichier | Responsabilité Architecturale |
 | :--- | :--- |
-| [`tests/fixtures/edp/ontology_export.json`](tests/fixtures/edp/ontology_export.json) | **Socle Ontologique SI & Telco** : définit les **6 Concepts HLD** (`telco_cloud_platform`, `interconnection_gateway`, `storage_data_persistence`, `iam_security_zerotrust`, `observability_noc_soc`, `resilience_drp_continuity`), leurs **18 Axes de Raffinement obligatoires** (`kind: "axis"`), les **21 Feuilles d'Implémentation** (`kind: "leaf"`, incluant leurs `projections` pour `data.ontology`, leurs `oracle_rules` et leur `hydration_template`) ainsi que les triplets relationnels (`requires_aspect`, `implemented_by`, `depends_on`, `constrains`, `conflicts_with`). |
+| [`tests/fixtures/edp/ontology_export.json`](tests/fixtures/edp/ontology_export.json) | **Socle Ontologique SI & Telco** (copie générée de l'export du Knowledge Hub, jamais retouchée à la main : [`docs/edp/ontology-source.md`](docs/edp/ontology-source.md)) : définit les **6 Concepts HLD** (`telco_cloud_platform`, `interconnection_gateway`, `storage_data_persistence`, `iam_security_zerotrust`, `observability_noc_soc`, `resilience_drp_continuity`), leurs **18 Axes de Raffinement obligatoires** (`kind: "axis"`), les **21 Feuilles d'Implémentation** (`kind: "leaf"`, incluant leurs `projections` pour `data.ontology`, leurs `oracle_rules` et leur `hydration_template`) ainsi que les triplets relationnels (`requires_aspect`, `implemented_by`, `depends_on`, `constrains`, `conflicts_with`). |
 | [`src/lib/server/edp/ontologyClient.ts`](src/lib/server/edp/ontologyClient.ts) | **Moteur de Requêtage & Édition de Triplets `{ Sujet, Verbe, Complément }`** : expose `queryOntologyTriplets`, `addOntologyTriplet` et `removeOntologyTriplet` avec persistance dans une surcouche runtime (`data/ontology_runtime_overlay.json`), permettant d'étendre les axes de couverture sans toucher au code. |
 | [`src/lib/server/edp/refinementCoverage.ts`](src/lib/server/edp/refinementCoverage.ts) | **Moteur KAOS de Couverture, Composition & Hydratation Multi-Axes** : <br/>• `resolveSubjectConcepts` : sélectionne les concepts HLD pertinents par propagation ascendante sur le graphe.<br/>• `computeRefinementCoverage` : calcule la matrice de complétude KAOS (`covered_executable` 🟢, `covered_no_oracle` 🟡, `missing_refinement` 🔴), auto-lie les feuilles standards par défaut (`is_default_standard`) et supporte le **cumul de variantes (OU inclusif)** sur un même axe.<br/>• `composeMultiAxisHydration` : synthétise l'inventaire LLD multi-axes (`nautobot_planned_devices`, `sylva_workload_cluster_values`, `k8s_manifests`, `security_zones`, `environments`, `power_feeds`) et le **Graphe de Réconciliation à 7 classes d'objets (`reconciliation_graph`)**.<br/>• `evaluateMultiAxisOracle` : invoque le binaire OPA sur `edp/policies/multi_axis_refinement.rego`. |
 | [`src/lib/server/edp/projectionCompiler.ts`](src/lib/server/edp/projectionCompiler.ts) | **Compilateur de Projections `data.ontology`** : compile les `projections` des feuilles liées en un document JSON déterministe injecté dans OPA (`--data`), calcule son empreinte canonique SHA-256 et vérifie l'absence de littéraux métier dupliqués en dur dans les règles Rego (`detectDuplicateLiterals`). |
@@ -600,6 +610,8 @@ La conception de la Phase 4 d'Archinex s'appuie sur **4 travaux académiques fon
 
 ## 15. Vues d'Intégration Détaillées (Sylva, FluxCD GitOps, Nautobot 2.x SSoT & 3GPP/TMF)
 
+> **Orientation (ADR-017)** : toute écriture vers un outil d'implémentation passe par Nautobot, seul point de réconciliation bidirectionnel d'Archinex ; les connecteurs sont derrière Nautobot. Voir [`docs/adr/ADR-017-nautobot-point-unique-reconciliation.md`](docs/adr/ADR-017-nautobot-point-unique-reconciliation.md).
+
 ### 15.1 Principe Directeur vis-à-vis de Sylva : Ne Jamais Réinventer `sylva-core` / `sylva-units` ni Introduire de Couche Intermédiaire Nephio
 
 > [!IMPORTANT]
@@ -608,7 +620,7 @@ La conception de la Phase 4 d'Archinex s'appuie sur **4 travaux académiques fon
 > **Archinex n'intègre pas Nephio / Porch et ne réinvente jamais `sylva-units`** : Archinex agit directement comme **compilateur d'intention déterministe** en amont de FluxCD et Nautobot pour produire :
 > 1. Le descripteur d'entrée natif **`SylvaWorkloadCluster` (`workloadclusteroperator.sylva/v1alpha1`)** et ses valeurs `sylva-units` (`capi_providers`, `baremetal_hosts`, `machine_deployments`, `units`).
 > 2. L'inventaire SSoT **Nautobot 2.x** correspondant (`Tenants`, `Circuits`, `VLAN`, `Prefixes`, `Devices`).
-> 3. La preuve formelle **OPA Rego** que l'inventaire Nautobot et le descripteur Sylva sont mutuellement cohérents et respectent les décisions HLD.
+> 3. La vérification déterministe **OPA Rego** que l'inventaire Nautobot et le descripteur Sylva sont mutuellement cohérents et respectent les décisions HLD.
 
 ```mermaid
 flowchart TB
@@ -901,43 +913,76 @@ Pour dépasser le simple comptage multiplicatif What-If (« 2 vs 3 DCs »), Arch
 
 ---
 
-## 16. Feuille de Route (Roadmap) Archinex : De l'Hydratation SSoT à l'Orchestration en Boucle Fermée
+## 16. Feuille de Route (Roadmap) & Gouvernance du Périmètre
 
-La feuille de route ci-dessous détaille les prochaines étapes d'évolution d'Archinex pour industrialiser la chaîne **Décision HLD $\rightarrow$ Ontologie KAOS $\rightarrow$ SSoT Nautobot & Clusters Sylva** sans jamais dupliquer les briques existantes de l'écosystème.
+> **Décision de cadrage ([ADR-017](docs/adr/ADR-017-nautobot-point-unique-reconciliation.md), issue #397)** : Archinex est une **couche d'assurance de décision** centrée sur la délibération, la complétude de la couverture des exigences et la justification visuelle. **Nautobot est l'unique point de réconciliation bidirectionnel** entre l'intention arbitrée dans Archinex et les systèmes réels ; les connecteurs d'implémentation vivent **derrière Nautobot**.
 
-### Horizon 1 — Court Terme (Implémenté — Épique #241) : GitOps Sylva Natif & Synchronisation Bidirectionnelle `DiffSync`
-1. **Export GitOps Direct vers un Dépôt `sylva-core` (`workload-clusters/`) — #238 (`src/lib/server/edp/sylvaGitopsExport.ts`)** :
-   - Permet depuis la Phase 4 (`action: 'export_sylva_gitops'`) de sérialiser le fichier `workload-clusters/<cluster-name>/values.yaml` (assaini de tout secret via `sanitizeManifests()`) et d'ouvrir automatiquement une Merge Request (GitLab API v4) ou Pull Request (GitHub REST API) vers un dépôt `sylva-core`, consommable par FluxCD dans un cluster de management Sylva. L'export est formellement bloqué (`HTTP 409`) si le verdict de l'Oracle OPA est `violated`.
-2. **Collecte Temps Réel (Pull / Webhook) depuis Nautobot 2.x vers l'Oracle OPA — #239 (`pullLiveInventoryFromNautobot` & `POST /api/webhooks/nautobot`)** :
-   - Lors du clic sur **« Exécuter l'Oracle OPA »** (`action: 'verify'`), Archinex interroge directement l'état courant des objets dans Nautobot (`GET /api/dcim/devices/`, `/api/circuits/circuits/`, `/api/tenancy/tenants/`, `/api/vpn/ipsec-proposals/`, `/api/vpn/vpn-tunnels/`). Toute modification manuelle effectuée par un opérateur dans l'interface web de Nautobot (`http://localhost:8080`) ou reçue sur `POST /api/webhooks/nautobot` déclenche immédiatement le verdict `VIOLATED` dans Archinex.
-3. **Modélisation Native des Tunnels IPsec dans le Module VPN de Nautobot 2.2+ — #240 (`syncHydratedInventoryToNautobot`)** :
-   - En complément du `circuits.Circuit` (`link-ip-lot3-secgw1`), l'hydratation instancie de manière idempotente via `/api/vpn/` les objets `vpn.IKEProposal` (`ike-prop-lot3-aes256gcm-dh20`), `vpn.IPSecProposal` (`ipsec-prop-lot3-esp-aes256gcm`), `vpn.VPNProfile` (`vpn-prof-interco-lot3-s6a`) et `vpn.VPNTunnel` (`tun-ipsec-esp-lot3-secgw1`).
+### 16.1 Ordre de réalisation
 
-### Horizon 2 — Moyen Terme : Compilation GitOps des Workloads CNF Multi-DC (Overlays Kustomize) & Preuve Formelle du Plan de Routage par Batfish
-*(Là où l'Horizon 1 livre le substrat cluster `SylvaWorkloadCluster` (`workload-clusters/`) et vérifie la conformité déclarative SSoT dans Nautobot, l'Horizon 2 compile directement — **sans brique intermédiaire Nephio** — les charges utiles CNF multi-sites et prouve mathématiquement l'étanchéité des tables de routage et de filtrage effectives avant tout merge GitOps).*
+La feuille de route privilégie l'**amont de la décision** (sécurité, intégrité, fiabilité doctrinale) et la **boucle de dérive minimale** avant toute extension aval :
 
-4. **Compilation GitOps Directe des Workloads CNF 3GPP & CNI Secondaires (`workloads/cnfs/base` & `overlays/dc1`, `overlays/dc2`)** :
-   - Sans dupliquer l'opérateur `sylva-units` (qui provisionne déjà les politiques SR-IOV des nœuds en Horizon 1) et sans dépendre de Nephio, Archinex agit comme compilateur GitOps pour les 2 DC à partir de `service_mediation_flows` et `ip_underlay_links` :
-     - Génération des CRD `NetworkAttachmentDefinition` (`k8s.cni.cncf.io`) spécifiques aux réseaux secondaires des fonctions réseau (mappings précis du VLAN `1403`, des plages CIDR et des pools de Virtual Functions SR-IOV `intel.com/sriov_vf_lot1` alloués dans Nautobot IPAM).
-     - Génération des patches Kustomize / `values.yaml` des pods CNF (`SecGW-Lot1`, `DEA-Lot1`, `HSS-Lot1` / `UPF`) injectant les annotations d'interfaces secondaires (`k8s.v1.cni.cncf.io/networks`) avec les adresses IP statiques résolues (`100.64.14.0/30`), produisant une arborescence FluxCD complète (`base/`, `overlays/dc1`, `overlays/dc2`).
-5. **Preuve Formelle du Plan de Routage & Filtrage par Couplage Batfish (`http://localhost:9997`) → Verrou OPA (§14)** :
-   - En complément de la vérification topologique sur le graphe déclaratif (Horizon 1), soumettre les configurations réseau générées (tables de routage BGP/OSPF, VRF, ACLs, règles pare-feu des passerelles) au moteur d'analyse symbolique Batfish avant d'autoriser le push GitOps :
-     - **Preuve d'inaccessibilité directe (`Reachability Query`)** : vérification mathématique dans Batfish qu'aucun paquet `SCTP/3868` (Diameter S6a) émis depuis `ZONE-PARTNER-LOT3-UNTRUSTED` (`172.16.30.0/24`) ne peut atteindre `hss-lot1-01` en direct.
-     - **Preuve de transit obligatoire (`Service Chaining / Waypointing Invariant`)** : validation formelle que 100 % des chemins admissibles dans la RIB/FIB traversent séquentiellement l'équipement d'inspection amont `secgw-lot1-01`, puis le mandataire de signalisation `dea-lot1-01` avant d'atteindre `hss-lot1-01`.
-     - **Alimentation du Verrou OPA (`Policy Gate`)** : injection du rapport d'assertion Batfish (`input.batfish_verification`) dans `multi_axis_refinement.rego` afin que le garde-fou GitOps bloque net la génération du paquet de livraison si une route ou une ACL permet un contournement.
+```mermaid
+flowchart LR
+    P1["1. P0 Sécurité\n& Intégrité"] --> P2["2. Décision éclairée\n(#373)"]
+    P2 --> P3["3. Réconciliation Nautobot\n(#372 : tranche min. puis connecteurs)"]
+    P3 --> P5["4. Généralisation\n(#374 : 0 couplage exemple)"]
+    P5 --> P6["5. Extensions aval\nderrière Nautobot (gelées)"]
+    P2 -.->|"En parallèle"| P4["Cœur Archinex (#400)\nCouverture & Visuels"]
+```
 
-### Horizon 3 — Long Terme : Gouvernance Vivante en Boucle Fermée (NOC / SOC $\rightarrow$ Réévaluation d'Architecture) & Cas d'Ouverture Edge Hétérogène à Grande Échelle (Nephio)
-6. **Génération Automatique des Règles Prometheus `PrometheusRule` & Alertmanager (`REQ-Lot1-1274` & `REQ-Lot1-1343`)** :
-   - Compiler les objets `sla_and_monitoring_contracts` (`probe-noc-s6a-lot3`, `sla-lot3-hosting-s6a`) en manifestes `PrometheusRule` (calcul de burn-rate SLO par `tenant_ref="org-lot3-mno"` et règle d'inhibition Alertmanager pour les cellules mobiles intermittentes du Lot 2).
-7. **Rétroaction Continue Observabilité $\rightarrow$ Statut Épistémique de la Décision** :
-   - En cas de violation répétée d'un SLO ou de dérive persistante détectée en production sur un axe ontologique, marquer automatiquement le Paquet de Décision Exécutable comme `stale` (Invariant VI) et notifier l'architecte responsable dans le fil de délibération du sujet.
-8. **Cas d'Usage Pertinent pour l'Introduction Optionnelle de Nephio (`PackageVariantSet` / Porch) : Déploiement & Mise à Jour à l'Échelle d'une Flotte Edge / Far-Edge Hétérogène** :
-   - **Pourquoi Nephio est superflu sur le Cœur 2-DC (Horizons 1 & 2)** : Pour 2 datacenters Cœur (`dc1`, `dc2`) relativement homogènes, la compilation GitOps directe par Archinex vers **FluxCD / Kustomize** (`base/` + `overlays/dc1`, `overlays/dc2`) et **Sylva** est plus simple, déterministe et évite d'opérer un plan de contrôle Kubernetes intermédiaire supplémentaire (Porch + contrôleurs KRM).
-   - **Quand Nephio devient pertinent (Flotte Edge / Cellules Mobiles / RAN distribué à $N \ge 50\text{–}1000$ sites hétérogènes)** :
-     - Si le périmètre s'étend au déploiement et au maintien en condition opérationnelle (MCO / Day-2) d'une **flotte massive de nœuds Edge / Far-Edge hétérogènes** (ex. cellules mobiles tactiques, sites radio déportés, micro-DC régionaux combinant architectures `x86_64` et `ARM64`, cartes d'accélération NIC/FEC différentes selon les fournisseurs, topologies réseau locales variables et connectivité intermittente) :
-     - Maintenir statiquement $N$ répertoires `overlays/site-001` … `overlays/site-500` devient ingérable lors des montées de version globales.
-     - Dans ce scénario, Archinex conserve son rôle de **gouvernance amont et d'oracle formel (KAOS + OPA)** mais publie un **Package KRM amont unique (*Blueprint*)** accompagné d'un descripteur **`PackageVariantSet` Nephio**.
-     - Les contrôleurs Nephio / Porch prennent alors le relais pour le **fan-out dynamique par sélecteurs de labels** (instanciation et spécialisation automatique de chaque variante site par site selon les capacités matérielles locales déclarées dans l'inventaire Nautobot, injection des IP/VLAN locaux et déploiement progressif par vagues *Canary / Ring Deployment*).
+1. **Priorité 1 — Sécurité et intégrité (P0)** :
+   - Durcissement du socle (authentification, autorisation Casbin par domaine/projet, étanchéité des secrets, signature HMAC des webhooks, application stricte des invariants constitutionnels `verified × llm-derived` en persistance).
+2. **Priorité 2 — Épique « Décision éclairée » (#373)** :
+   - Contraintes KB évaluées en **échec fermé (*fail-closed*)** lors de l'arbitrage (aucune décision réputée conforme si le Knowledge Hub est indisponible ou partiel).
+   - Verdicts structurés (#384), gestion explicite des réserves au scellement (#385), source de vérité unique entre délibération et artefacts.
+   - **Provenance explicite** sur chaque évaluation d'oracle (#380) : distinction obligatoire entre valeurs par **défaut** (`default`), issues du **catalogue** (`catalog`) ou observées dans le **réel** (`real`). Un verdict évalué sur des valeurs par défaut n'est jamais présenté comme opposable.
+3. **Priorité 3 — Épique réconciliation Nautobot (#372)** :
+   - **Phase 3a — Tranche minimale en production sur un projet réel** :
+     - Périmètre strictement borné à 3 familles d'objets (**Tenant** ; **Device + statut** ; **Prefix / VLAN / IP**) et 4 types d'écart (`missing`, `unexpected`, `attribute_mismatch`, `status_regression`).
+     - Statuts et propriété des champs intention / réalisé / opérationnel (#398, [`docs/edp/field-ownership.md`](docs/edp/field-ownership.md)).
+     - Marquage de traçabilité `archinex_*` et push idempotent au statut *Planned* (#376, [`docs/edp/nautobot-trace-markers.md`](docs/edp/nautobot-trace-markers.md)).
+     - Détection de dérive persistée (`DriftFinding`), webhook HMAC (#377), cycle de vie des écarts (#378) et réconciliation périodique (#379, [`docs/edp/reconciliation-and-drift.md`](docs/edp/reconciliation-and-drift.md)).
+     - Règle d'honnêteté : Nautobot injoignable, connecteur muet ou donnée périmée produisent l'état **non vérifié**, jamais « conforme ».
+   - **Phase 3b — Cadre des connecteurs derrière Nautobot** :
+     - Contrat de *write-back* des connecteurs (preuve d'exécution) et kit de conformité (#399) : un objet n'est affiché « réalisé » que si une preuve écrite par un connecteur est présente ; une annotation `archinex.io/satisfied-clauses` déclare une traçabilité vérifiable, **elle ne constitue pas une preuve**.
+     - Relocalisation hors cœur des 6 adaptateurs Port/Adapter vers `connectors/` (#411, livré) avec leur tableau de classement ([`docs/edp/connectors-classification.md`](docs/edp/connectors-classification.md)) et le contrat de *write-back* Nautobot (`connectors/writeBackContract.ts`) ; le cœur `src/` ne conserve que les modules neutres `manifestSanitizer.ts` et `nautobotPlannedExtract.ts`.
+     - Cadre des connecteurs et connecteur de référence **Sylva GitOps** consommateur de Nautobot (#381), remplaçant l'ouverture directe de PR/MR depuis `sylvaGitopsExport.ts` (conservée derrière un drapeau de dépréciation jusqu'à parité).
+4. **En parallèle — Cœur de valeur Archinex : couverture et justification visuelle (#400)** :
+   - Délibération outillée, matrice de complétude de la couverture des exigences, fiches de décision opposables et schémas déterministes rendant chaque arbitrage auditable.
+5. **Priorité 4 — Généralisation (#374)** :
+   - Zéro couplage au scénario d'exemple dans `src/` : hydratation générique dérivée dynamiquement de l'ontologie active et du catalogue projet. Prérequis indispensable au push générique multi-projets vers Nautobot.
+6. **Priorité 5 — Nouveaux outils et extensions aval (gelés)** :
+   - Ouverture conditionnée à la mise en production de la tranche minimale Nautobot sur un projet réel et à la validation d'au moins un connecteur de référence conforme à #399.
+   - Tous les outils aval (compilation GitOps multi-DC / Kustomize, analyse de routage Batfish, règles Prometheus/Alertmanager, orchestration Edge/Nephio, DNS/DDI, Vault/PKI, IdP, registre OCI/Trivy, ITSM) opèrent **derrière Nautobot** et remontent leurs verdicts via le contrat de *write-back*.
+
+### 16.2 Politique de gel des connecteurs directs
+
+Tant que la **tranche minimale Nautobot** (Tenant ; Device + statut ; Prefix / VLAN / IP) n'est pas en production sur un projet réel :
+
+- **Gel des écritures directes** : aucun nouvel appel d'écriture d'Archinex vers un outil d'implémentation.
+- **Gel des connecteurs directs** : aucun nouveau connecteur direct ajouté dans le cœur d'Archinex.
+- **Gel des extensions hors tranche minimale** : les capacités déjà présentes (ex. synchronisation de circuits/tunnels VPN dans `nautobotSync.ts`, jumeau numérique Sylva hors ligne en CI) sont **conservées mais gelées** (non étendues).
+- **Re-cadrage des issues #351–#358** : suivi par les mainteneurs selon [ADR-017 §8](docs/adr/ADR-017-nautobot-point-unique-reconciliation.md#8-sort-des-issues-de-connecteurs) (#375) :
+  - `#352`–`#357` (adaptateurs livrés en PR #363) : relocalisés hors cœur vers `connectors/` avec retrait des chemins d'écriture directe (#411, [`docs/edp/connectors-classification.md`](docs/edp/connectors-classification.md)).
+  - `#351` (allocation IP) : re-cadrée sur l'IPAM natif de Nautobot.
+  - `#358` : scindée entre connecteur ITSM (derrière Nautobot) et chiffrage FinOps (délibération, côté Archinex).
+
+### 16.3 Revue trimestrielle du périmètre (liste fermée)
+
+Le périmètre d'Archinex fait l'objet d'une **revue trimestrielle** par les mainteneurs autour d'une **liste fermée** « Dans le périmètre / Hors périmètre ». Aucune nouvelle brique n'entre dans le périmètre sans passage en revue trimestrielle et sans satisfaction du critère de sortie du gel (tranche minimale Nautobot en production sur un projet réel + au moins un connecteur de référence conforme à #399).
+
+| Statut | Capacités |
+| :--- | :--- |
+| **Dans le périmètre (cœur Archinex)** | Appropriation RFP et couverture des exigences ; délibération contradictoire et arbitrage humain opposable (G3) ; vérification doctrinale KB en échec fermé et capitalisation (G4–G7) ; justification visuelle déterministe (diagrammes, fiches de décision, exports scellés) ; interface d'hydratation *Planned* vers Nautobot avec provenance explicite (`default` / `catalog` / `real`) ; détection et suivi de dérive (`DriftFinding`) depuis Nautobot ; oracles Rego de décision sur l'intention et les instantanés Nautobot. |
+| **Hors périmètre (derrière Nautobot ou gelé)** | Écriture directe vers une forge Git, un cluster Kubernetes, un DDI/DNS, un coffre Vault/PKI, un IdP, un registre OCI ou un outil ITSM ; compilation GitOps CNF multi-DC / overlays Kustomize ; analyse de routage Batfish comme étape bloquante directe ; génération de règles Prometheus / Alertmanager ; orchestration de flotte Edge par Nephio / Porch ; extension des objets Nautobot hors tranche minimale (circuits, tunnels VPN, pare-feu) ; second registre d'état concurrent de Nautobot. |
+
+### 16.4 Historique et devenir des anciens Horizons 1 à 3
+
+Les éléments issus de l'ancienne feuille de route sont reclassés comme suit :
+
+- **Déjà livrés et conservés dans le socle** : collecte live et webhook HMAC Nautobot, détection de dérive persistée `DriftFinding` (#239 / #377), synchronisation idempotente Nautobot (`nautobotSync.ts`, étendue uniquement sur la tranche minimale).
+- **Livrés et gelés / en cours de migration** : export GitOps Sylva (`sylvaGitopsExport.ts`, #238 — mode `local_bundle` conservé, ouverture directe de PR/MR à déplacer derrière Nautobot via #381) ; modélisation des tunnels IPsec Nautobot (`#240`, conservée et gelée).
+- **Anciens Horizons 2 et 3 (gelés et re-cadrés derrière Nautobot)** : compilation d'overlays Kustomize multi-DC, analyse symbolique du plan de routage par Batfish (vérification de joignabilité remontée via *write-back*, jamais vendue comme « preuve mathématique » globale de conformité), génération de règles `PrometheusRule` / Alertmanager et délégation *Blueprint* / `PackageVariantSet` vers Nephio pour les flottes Edge hétérogènes à grande échelle. Ces pistes ne seront réévaluées qu'en **Priorité 5**, lors d'une revue trimestrielle post-mise en production de la tranche minimale.
 
 
 ---
@@ -987,7 +1032,7 @@ flowchart TD
 - **Rôle** : Autorité doctrinale souveraine et registre patrimonial de l'architecture d'entreprise.
 - **Support** : Dépôt dédié [`MauriceIsrael/LLMOps`](https://github.com/MauriceIsrael/LLMOps) et service Knowledge Graph servi par MCP / API REST.
 - **Consommation dynamique & Priorité souveraine (#253)** :
-  - **Ontologie SI (`src/lib/server/edp/ontologyClient.ts`)** : Interroge en priorité absolue le service LLMOps via son API REST (`GET /api/knowledge/ontology/export`). En environnement hors-ligne ou de test déconnecté, bascule de manière transparente sur les fixtures scellées (`tests/fixtures/edp/ontology_export.json`). En environnement de production (`NODE_ENV=production`), tout repli silencieux est strictement interdit afin de garantir l'authenticité des contrôles d'architecture.
+  - **Ontologie SI (`src/lib/server/edp/ontologyClient.ts`)** : Interroge en priorité absolue le service LLMOps via son API REST (`GET /api/knowledge/ontology/export`). En environnement hors-ligne ou de test déconnecté, bascule de manière transparente sur les fixtures scellées (`tests/fixtures/edp/ontology_export.json`, copie générée de l'export du Hub ; la donnée de projet s'ajoute par-dessus via une extension, voir `docs/edp/ontology-source.md`). En environnement de production (`NODE_ENV=production`), tout repli silencieux est strictement interdit afin de garantir l'authenticité des contrôles d'architecture.
   - **Doctrine & Règles de Conformité (`src/lib/server/doctrine/doctrineService.ts`)** : Interroge en priorité absolue le Knowledge Hub (`GET /api/knowledge/context`). En mode hors-ligne/test déconnecté, active un repli propre sur les fixtures doctrinales scellées (`llmops-sealed-snapshot.json`) en filtrant par domaines et sujets. En production, le statut hors-ligne (`offline: true`) est propagé sans aucune invention de règles.
   - **Porte G4 — Capitalisation Souveraine (`src/lib/server/projects/capitalizationDb.ts`)** : Les nouveaux patterns architecturaux (`new_asset`) et amendements/dérogations (`amendment`) sont transmis directement vers l'API du Knowledge Hub (`POST /api/knowledge/candidates`) par requêtes HTTP sécurisées avec propagation de l'identité d'acteur (`X-Actor-Email`). L'ensemble de la Porte G4 fonctionne de manière strictement *stateless*, sans aucune écriture ni lecture de fichiers locaux sur le système de fichiers.
 

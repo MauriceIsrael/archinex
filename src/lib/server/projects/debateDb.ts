@@ -2,9 +2,11 @@ import { prisma } from '../prisma';
 import { ConcurrencyConflictError, type ActorInfo } from './projectsDb';
 import {
 	validateArgument,
+	capArgumentConfidence,
 	canCloseObjection,
 	canResolveSpecificObjection,
 	type Stance,
+	type VerificationVerdict,
 	type ArgumentResolution,
 	type Argument,
 	type DebateRun
@@ -16,6 +18,7 @@ export interface CreateArgumentData {
 	optionId?: string | null;
 	targetArgumentId?: string | null;
 	stance: Stance;
+	verdict?: VerificationVerdict | null;
 	claim: string;
 	grounds: string;
 	kbRefs?: string[];
@@ -67,6 +70,7 @@ export async function listArguments(
 		author: authorMap.get(a.author) || a.author,
 		authorId: a.author,
 		stance: a.stance as Stance,
+		verdict: (a.verdict as VerificationVerdict | null) ?? null,
 		confidence: a.confidence as EpistemicConfidence,
 		productionMode: a.productionMode as ProductionMode,
 		resolution: a.resolution as ArgumentResolution,
@@ -87,11 +91,20 @@ export async function createArgument(
 	const productionMode: ProductionMode = isAgent ? 'llm-derived' : 'human-authored';
 	const authorKind = data.authorKind || (isAgent ? 'agent:proposer' : 'human');
 
+	const confidenceResult = capArgumentConfidence(data.confidence, productionMode);
+	if (confidenceResult.capped) {
+		console.warn(
+			`[EpistemicGuard] Plafonnement de confiance sur argument llm-derived (subjectId=${subjectId}, authorKind=${authorKind}) : '${confidenceResult.originalConfidence}' → '${confidenceResult.confidence}' (invariant verified × llm-derived).`
+		);
+	}
+	const effectiveConfidence = confidenceResult.confidence;
+
 	const validation = validateArgument(
 		{
 			claim: data.claim,
 			grounds: data.grounds,
 			kbRefs: data.kbRefs || [],
+			confidence: effectiveConfidence,
 			authorKind,
 			productionMode
 		},
@@ -194,10 +207,11 @@ export async function createArgument(
 				optionId: data.optionId || null,
 				targetArgumentId: data.targetArgumentId || null,
 				stance: data.stance,
+				verdict: data.stance === 'verification' ? (data.verdict ?? 'unknown') : (data.verdict ?? null),
 				claim: data.claim.trim(),
 				grounds: data.grounds.trim(),
 				kbRefs: JSON.stringify(data.kbRefs || []),
-				confidence: data.confidence || 'assumed',
+				confidence: effectiveConfidence,
 				author: effectiveAuthor,
 				authorKind,
 				productionMode,
@@ -230,6 +244,7 @@ export async function createArgument(
 		return {
 			...created,
 			stance: created.stance as Stance,
+			verdict: (created.verdict as VerificationVerdict | null) ?? null,
 			confidence: created.confidence as EpistemicConfidence,
 			productionMode: created.productionMode as ProductionMode,
 			resolution: created.resolution as ArgumentResolution,
@@ -323,6 +338,7 @@ export async function resolveArgument(
 			...updated,
 			authorId: updated.author,
 			stance: updated.stance as Stance,
+			verdict: (updated.verdict as VerificationVerdict | null) ?? null,
 			confidence: updated.confidence as EpistemicConfidence,
 			productionMode: updated.productionMode as ProductionMode,
 			resolution: updated.resolution as ArgumentResolution,

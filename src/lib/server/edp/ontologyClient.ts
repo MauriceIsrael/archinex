@@ -80,6 +80,30 @@ export interface LoadOntologyOptions {
   authToken?: string;
   includeRuntimeOverlay?: boolean;
   fallbackToFixture?: boolean;
+  /**
+   * Extension de projet : fichier JSON appliqué PAR-DESSUS l'ontologie du Hub (voir `OntologyProjectOverlay`).
+   * Plusieurs fichiers possibles, séparés par des virgules, appliqués dans l'ordre.
+   * Par défaut, la variable d'environnement ARCHINEX_ONTOLOGY_PROJECT_OVERLAY ; absente, aucune extension.
+   * Avec `fixturePath` (mode isolé), seule l'option explicite s'applique.
+   */
+  projectOverlayPath?: string;
+}
+
+/**
+ * Extension de PROJET de l'ontologie. L'ontologie commune appartient au Knowledge Hub (LLMOps#192) : tout ce qui
+ * est propre à un projet (identifiants d'exigences, mots-clés de scénario, instances d'un graphe de réconciliation)
+ * n'y a pas sa place et se déclare ici, par-dessus.
+ *
+ * - `entityPatches` : par URN d'une entité EXISTANTE du Hub ; les objets sont fusionnés récursivement, les tableaux
+ *   réunis (sans doublon), les scalaires remplacés ; `{ "$replace": valeur }` remplace explicitement la valeur du Hub
+ *   (utile pour un lot « règles d'oracle + paramètres », qui ne se mélange pas). Une URN absente du Hub est une
+ *   erreur (pas d'ajout silencieux quand le Hub retire ou renomme une entité) ;
+ * - `addedTriplets` : relations propres au projet (ex. feuille → exigence).
+ */
+export interface OntologyProjectOverlay {
+  description?: string;
+  entityPatches?: Record<string, Record<string, unknown>>;
+  addedTriplets?: OntologyTriplet[];
 }
 
 const DEFAULT_FIXTURE_PATH = resolve(process.cwd(), 'tests/fixtures/edp/ontology_export.json');
@@ -148,12 +172,75 @@ function applyRuntimeOverlay(catalog: OntologyCatalog): OntologyCatalog {
   };
 }
 
+function isPlainObject(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null && !Array.isArray(v);
+}
+
+function mergePatchValue(base: unknown, patch: unknown): unknown {
+  // `{ "$replace": valeur }` : remplace la valeur du Hub au lieu de la fusionner (lot règles d'oracle + paramètres).
+  if (isPlainObject(patch) && Object.keys(patch).length === 1 && '$replace' in patch) return patch.$replace;
+  if (Array.isArray(patch)) {
+    const baseArr = Array.isArray(base) ? base : [];
+    const seen = new Set(baseArr.map((x) => JSON.stringify(x)));
+    return [...baseArr, ...patch.filter((x) => !seen.has(JSON.stringify(x)))];
+  }
+  if (isPlainObject(patch)) {
+    const out: Record<string, unknown> = isPlainObject(base) ? { ...base } : {};
+    for (const [k, v] of Object.entries(patch)) out[k] = mergePatchValue(out[k], v);
+    return out;
+  }
+  return patch;
+}
+
+/** Applique une extension de projet à un catalogue (sans le modifier). Erreur si une URN ciblée n'existe pas. */
+export function applyProjectOverlay(catalog: OntologyCatalog, overlay: OntologyProjectOverlay): OntologyCatalog {
+  const entities = { ...catalog.entities };
+  for (const [urn, patch] of Object.entries(overlay.entityPatches ?? {})) {
+    const target = entities[urn];
+    if (!target) {
+      throw new Error(
+        `[OntologyClient] L'extension de projet cible une entité absente de l'ontologie du Hub : ${urn}. ` +
+          `Le Hub l'a retirée ou renommée : mettre l'extension à jour.`
+      );
+    }
+    entities[urn] = mergePatchValue(target, patch) as OntologyEntity;
+  }
+  const baseTriplets = Array.isArray(catalog.triplets) ? catalog.triplets : [];
+  const known = new Set(baseTriplets.map((t) => t.id));
+  const added = (overlay.addedTriplets ?? []).filter((t) => !known.has(t.id));
+  return { ...catalog, entities, triplets: [...baseTriplets, ...added] };
+}
+
+export function loadProjectOverlays(paths: string | undefined): OntologyProjectOverlay[] {
+  return (paths ?? '')
+    .split(',')
+    .map((p) => p.trim())
+    .filter(Boolean)
+    .map((path) => {
+      const abs = resolve(process.cwd(), path);
+      if (!existsSync(abs)) {
+        throw new Error(`[OntologyClient] Extension de projet introuvable : ${abs}`);
+      }
+      const parsed = JSON.parse(readFileSync(abs, 'utf-8')) as OntologyProjectOverlay;
+      if (!isPlainObject(parsed)) throw new Error(`[OntologyClient] Extension de projet invalide : ${abs}`);
+      return parsed;
+    });
+}
+
 /**
  * Charge le catalogue d'ontologie en interrogeant en priorité le Knowledge Hub LLMOps (REST / MCP),
  * avec repli propre sur les fixtures en environnement hors-ligne ou de test (Issue #253).
  * En production (NODE_ENV=production), tout repli est strictement interdit si le Hub est injoignable.
  */
 export async function loadOntologyCatalog(options: LoadOntologyOptions = {}): Promise<OntologyCatalog> {
+  const base = await loadBaseOntologyCatalog(options);
+  // Mode isolé (fixture explicite) : aucune extension implicite, seule l'option explicite s'applique.
+  const overlayPath = options.projectOverlayPath ?? (options.fixturePath ? undefined : process.env.ARCHINEX_ONTOLOGY_PROJECT_OVERLAY);
+  const withProject = loadProjectOverlays(overlayPath).reduce(applyProjectOverlay, base);
+  return options.includeRuntimeOverlay ? applyRuntimeOverlay(withProject) : withProject;
+}
+
+async function loadBaseOntologyCatalog(options: LoadOntologyOptions): Promise<OntologyCatalog> {
   // 1. Mode Fixture explicite (tests contractuels isolés avec fixture dédiée passée en paramètre)
   if (options.fixturePath) {
     if (!existsSync(options.fixturePath)) {
@@ -164,7 +251,7 @@ export async function loadOntologyCatalog(options: LoadOntologyOptions = {}): Pr
     if (!parsed || typeof parsed !== 'object' || !parsed.entities) {
       throw new Error('[OntologyClient] Structure d\'ontologie invalide (champ "entities" requis).');
     }
-    return options.includeRuntimeOverlay ? applyRuntimeOverlay(parsed) : parsed;
+    return parsed;
   }
 
   const isVitestTest = Boolean(process.env.VITEST) || process.env.NODE_ENV === 'test';
@@ -192,7 +279,7 @@ export async function loadOntologyCatalog(options: LoadOntologyOptions = {}): Pr
       if (!payload || typeof payload !== 'object' || !payload.entities) {
         throw new Error("champ 'entities' manquant");
       }
-      return options.includeRuntimeOverlay ? applyRuntimeOverlay(payload as OntologyCatalog) : (payload as OntologyCatalog);
+      return payload as OntologyCatalog;
     } catch (err: any) {
       // Si une URL spécifique de Hub a été exigée par l'appelant sans autoriser le fallback, on propage l'erreur
       if (options.hubUrl && !options.fallbackToFixture) {
@@ -210,7 +297,7 @@ export async function loadOntologyCatalog(options: LoadOntologyOptions = {}): Pr
 
       // En mode hors-ligne / test / dev : repli propre sur les fixtures
       console.warn(
-        `[OntologyClient] Knowledge Hub distant injoignable (${url}), bascule propre sur les fixtures hors-ligne scellées.`
+        `[OntologyClient] Knowledge Hub distant injoignable ou en erreur (${url} — ${err.message}), bascule propre sur les fixtures hors-ligne scellées.`
       );
     }
   }
@@ -232,10 +319,6 @@ export async function loadOntologyCatalog(options: LoadOntologyOptions = {}): Pr
   const parsed = JSON.parse(raw) as OntologyCatalog;
   if (!parsed || typeof parsed !== 'object' || !parsed.entities) {
     throw new Error('[OntologyClient] Structure d\'ontologie invalide (champ "entities" requis).');
-  }
-
-  if (options.includeRuntimeOverlay) {
-    return applyRuntimeOverlay(parsed);
   }
 
   return parsed;

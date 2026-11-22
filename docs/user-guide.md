@@ -111,7 +111,7 @@ Avant de lancer l'audit ou la factorisation sémantique d'un RFP, Archinex propo
   - Le rapport de contrôle et l'échantillon ne s'activent qu'une fois un document réel chargé ou collé, évitant la surcharge visuelle à l'ouverture de la boîte de dialogue.
 
 - **Rapport d'extraction automatique** :
-  - **Statistiques globales** : nombre d'exigences extraites, nombre de pages du document source, taux de couverture textuelle effective du document (`coverageRate`) avec seuil d'alerte si la couverture est inférieure à 60 %.
+  - **Statistiques globales** : nombre d'exigences extraites, nombre de pages du document source, taux de couverture d'extraction en caractères (`extractionCharCoverage`, distinct de la couverture de délibération mesurée dans `coverageModel.ts`) avec seuil d'alerte si la couverture est inférieure à 60 %.
   - **Motifs de référence** : identification des préfixes récurrents (`REQ-Lot1-*`, `Art. *`, `Clause *`, etc.) et mise en évidence du motif dominant.
   - **Anomalies de découpage explicitement listées** :
     - *Trous dans la numérotation séquentielle* (ex: saut de `REQ-Lot1-12` à `REQ-Lot1-15`, indiquant les numéros manquants `13` et `14`).

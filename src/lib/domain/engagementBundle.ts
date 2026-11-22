@@ -115,6 +115,29 @@ export interface BundleSubject {
 	projections?: SubjectProjections;
 }
 
+export interface BundleCoverageReserve {
+	framework_id: string;
+	name?: string;
+	status: 'partial' | 'missing' | 'unknown';
+	validated_count?: number;
+	expected_count?: number;
+	hub_revision: string | null;
+}
+
+export interface BundleComplianceCheck {
+	status: 'checked' | 'partial' | 'not_checked';
+	hub_revision: string | null;
+	checked_at: string;
+	unassessed_rule_ids: string[];
+	frameworks: string[];
+	coverage_reserves?: BundleCoverageReserve[];
+	derogation?: {
+		reason: string;
+		acknowledged_at: string;
+		acknowledged_by?: string;
+	};
+}
+
 export interface BundleDecision {
 	id: string;
 	subject_id: string;
@@ -126,6 +149,7 @@ export interface BundleDecision {
 	rationale: string;
 	compliance_status?: 'Compliant' | 'Partially compliant' | 'Non-compliant' | 'Provisional';
 	compliance_rationale?: string;
+	compliance_check?: BundleComplianceCheck;
 	alternatives?: Array<{ title: string; rejected_because?: string }>;
 	consequences?: string[];
 	provenance: ProvenanceInfo;

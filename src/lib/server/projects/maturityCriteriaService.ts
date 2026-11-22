@@ -1,6 +1,6 @@
 import type { RequestEvent } from '@sveltejs/kit';
 import { prisma } from '$lib/server/prisma';
-import { computeMaturityCriteria } from '$lib/domain/maturityCriteria';
+import { computeMaturityCriteria, hasVerifierPassed } from '$lib/domain/maturityCriteria';
 import { isProjectCutOverToHub } from '$lib/server/projects/hubMigrationService';
 import { getActorFromEvent } from '$lib/server/projects/actorHelper';
 import { ensureSubjectExists } from '$lib/server/projects/projectsDb';
@@ -110,18 +110,20 @@ export async function computeSubjectMaturityReport(params: {
 			stall_days: actualStallDays
 		},
 		criteria: subject.criteria.map((c) => ({ id: c.id, name: c.name })),
-		options: subject.options.map((o) => ({ id: o.id, title: o.title })),
+		options: subject.options.map((o) => ({ id: o.id, title: o.title, status: o.status })),
 		arguments: mappedArguments,
 		doctrineConstraintsCount: Math.max(
 			mappedArguments.reduce((acc, a) => acc + (a.kbRefs?.length || 0), 0),
 			subject.sectionRef ? 1 : 0
 		),
 		openQuestionsCount: subject.questions.filter((q) => q.status === 'open').length,
-		verifierPassed: mappedArguments.some(
-			(a) => a.stance === 'verification' && a.resolution !== 'open'
-		),
+		verifierPassed: hasVerifierPassed(mappedArguments, {
+			options: subject.options.map((o) => ({ id: o.id, status: o.status })),
+			retainedOptionId: subject.decision?.retainedOptionId
+		}),
 		decision: subject.decision
 			? {
+					retainedOptionId: subject.decision.retainedOptionId,
 					authorId: subject.decision.arbiterId,
 					authorRole: subject.decision.arbiterRole,
 					affirmedBy: affirmedBy || undefined,

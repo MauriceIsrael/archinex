@@ -75,7 +75,8 @@ Dès que tous les blocages sont levés :
 1. Sélectionnez l'option retenue.
 2. Renseignez le motif d'écartement pour chaque alternative rejetée.
 3. Exposez la motivation d'arbitrage et qualifiez sa réversibilité (*réversible*, *coûteuse*, *structurante/irréversible*).
-4. Cliquez sur **Prononcer l'arbitrage opposable**. Le sujet passe au niveau scellé `L3_decided`.
+4. Vérifiez le bandeau **Contrôle réglementaire KB** affiché avant de trancher : l'interface distingue explicitement *Hub KB connecté · aucune violation* de *Hub KB non connecté* ou *Vérification KB incomplète*. Si le Hub est injoignable ou si des règles restent non évaluées, l'arbitrage est bloqué par défaut (*fail-closed*) ; vous pouvez toutefois acter une **dérogation explicite motivée** (« décision sans vérification KB complète »), qui sera tracée en statut `Provisional` dans la matrice de conformité et le dossier exporté.
+5. Cliquez sur **Prononcer l'arbitrage opposable**. Le sujet passe au niveau scellé `L3_decided`.
 
 ### Étape 5 bis : Extraction des faits, Arbre de découverte & Diagnostic des règles (Onglet 4 « Cascade & Règles »)
 1. **Extraction & affirmation des faits (`K18`)** : dans l'onglet **Options, Matrice & Arbitrage**, les faits machine-lisibles (ex. `resilience_mode=actif/actif`, `site_count=2`, `sovereignty_level=secnumcloud`) sont extraits de votre motivation et validés lors de l'affirmation L3. Ces faits alimentent le moteur de cascade, l'agent Proposeur (*Angles morts*), la détection de remise en cause et l'export/synchronisation Hub LLMOps.
@@ -207,7 +208,7 @@ Seules les issues de réutilisation marquent la clause « Conforme (Réutilisé)
 Avant d'exécuter l'audit ou la factorisation sémantique d'un document, Archinex affiche un rapport d'extraction synthétique avec contrôle de cohérence :
 1. **Rapport d'extraction & Taux de couverture** :
    - Indication du nombre de pages et du nombre d'exigences découpées.
-   - Calcul de la couverture textuelle (`coverageRate`) avec seuil d'avertissement si elle est inférieure à 60 %.
+   - Calcul de la couverture d'extraction en caractères (`extractionCharCoverage`, distinct de la couverture de délibération des exigences définie dans `docs/concepts.md`) avec seuil d'avertissement si elle est inférieure à 60 %.
    - Synthèse des motifs détectés (`REQ-Lot1-*`, `Art. *`, `Clause *`, `§*`) et mise en évidence du motif dominant.
 2. **Détection explicite des anomalies** :
    - Trous dans la numérotation séquentielle avec affichage des plages manquantes (ex: `REQ-Lot1-13 .. REQ-Lot1-14`).
@@ -455,22 +456,15 @@ Cette commande réinitialise l'espace projet `lulu-lot1-noc` dans la base SQLite
 
 ---
 
-## 13. Paquets de Décision Exécutables (EDP) & Oracles OPA [Expérimental]
+## 13. Paquets de Décision Exécutables (EDP) & Oracles OPA
 
-Dans le cadre du lot expérimental (`ARCHINEX_EXPERIMENTAL_EDP=1`), Archinex permet de lier à chaque décision d'architecture arbitrée un **Paquet de Décision Exécutable** (EDP). Ce paquet permet de confronter automatiquement les décisions d'architecture de haut niveau (HLD) aux configurations et manifestes techniques réels ou planifiés (LLD).
+Archinex permet de lier à chaque décision d'architecture arbitrée un **Paquet de Décision Exécutable** (EDP). Ce paquet permet de confronter automatiquement les décisions d'architecture de haut niveau (HLD) aux configurations et manifestes techniques réels ou planifiés (LLD).
 
-### 13.1 Activation du Mode Expérimental
-Le sous-système EDP est strictement hermétique et n'altère en rien le fonctionnement standard d'Archinex s'il n'est pas activé :
-```bash
-# Activation via variable d'environnement (Linux / macOS)
-export ARCHINEX_EXPERIMENTAL_EDP=1
-
-# Activation sous Windows PowerShell
-$env:ARCHINEX_EXPERIMENTAL_EDP="1"
-```
+### 13.1 Disponibilité
+Le sous-système EDP est **toujours actif** : il n'existe ni mode expérimental ni variable d'environnement d'activation. Les prérequis techniques (binaire OPA) sont décrits dans `docs/fresh-install.md`.
 
 ### 13.2 Visualisation dans l'IHM Workbench (`EdpCard`)
-Lorsque le drapeau est actif, la fiche de chaque décision affiche un panneau dédié **Paquet de Décision Exécutable** :
+La fiche de chaque décision affiche un panneau dédié **Paquet de Décision Exécutable** :
 - **Badge d'état** : `PROPOSÉ`, `VALIDÉ` ou `⚠️ STALE (CADUC)`.
 - **Mode de production** : `human-authored` (rédigé par l'architecte) ou `llm-proposed-human-approved` (assisté par l'IA sous chaîne déterministe).
 - **Validateur humain (Invariant II)** : Nom et rôle de l'architecte ayant formellement homologué le paquet.
@@ -513,20 +507,21 @@ Pour tester les décisions et oracles dans un environnement d'intégration repr�
 - **Démarrage de la stack d'outils** :
   ```powershell
   cd deploy\integrator-tools
-  .\tools.ps1 up      # Démarre la pile complète, attend Nautobot et injecte le seed
-  .\tools.ps1 status  # Affiche les URLs d'accès et l'état des conteneurs
-  .\tools.ps1 test    # Valide la connectivité des services exposés
+  .\tools.ps1 up              # Démarre la pile complète, attend Nautobot et injecte le seed
+  .\tools.ps1 status          # Affiche les URLs d'accès et l'état des conteneurs
+  .\tools.ps1 test            # Valide la connectivité des services exposés
+  .\tools.ps1 reset-nautobot  # Vide uniquement la base Nautobot (prête à ré-hydrater)
   ```
 - **Points d'accès fournis** :
   - **Nautobot Web UI & GraphQL** : `http://localhost:8080` (`admin` / `adminpassword` / Token `0123456789abcdef0123456789abcdef01234567`) — `http://localhost:8080/api/graphql/`
   - **Batfish API** : `http://localhost:9997`
   - **OPA Server REST** : `http://localhost:8181/v1/data`
-  - **sushy-emulator Redfish** : `http://localhost:8000/redfish/v1/Systems`
+  - **sushy-emulator Redfish** : `http://localhost:8001/redfish/v1/Systems`
   - **OpenBao (Secrets & PKI)** : `http://localhost:8200` (Token dev : `archinex-bao-dev-token`)
   - **Keycloak (IdP / OIDC)** : `http://localhost:8085` (`admin` / `adminpassword`)
   - **Zot OCI Registry** : `http://localhost:5000/v2/`
   - **Trivy Server (CVE / SBOM)** : `http://localhost:4954`
-  - **Technitium DDI / DNS** : `http://localhost:5380` (`admin` / `adminpassword`, DNS UDP/TCP : `5353`)
+  - **Technitium DDI / DNS** : `http://localhost:5380` (`admin` / `adminpassword`, DNS UDP/TCP : `15353`)
   - **Forgejo (GitOps PR/CI)** : `http://localhost:3001` (SSH : `2222`)
 - **Persistance des données** :
   - **Persistés** (volumes Docker nommés, conservés entre `down`/`up` et effacés uniquement via `.\tools.ps1 reset`) : `nautobot-db`, `zot`, `trivy` (cache CVE), `dns` (Technitium), `forgejo`.

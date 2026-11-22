@@ -1,5 +1,46 @@
 import { json, type RequestEvent } from '@sveltejs/kit';
 import { prisma } from '../prisma';
+import type { Session } from '../../../app.d.ts';
+
+/**
+ * Retourne l'ensemble des identifiants de projets/engagements accessibles par l'utilisateur connecté,
+ * ou `null` si l'utilisateur est administrateur (accès complet à tous les projets).
+ * Même règle que `authorizeProjectAccess` : admin, membre `ProjectMember` ou participant par e-mail.
+ */
+export async function getAccessibleProjectIds(session: Session): Promise<Set<string> | null> {
+	if (session.user.role === 'admin') {
+		return null;
+	}
+
+	const [memberships, engagements] = await Promise.all([
+		prisma.projectMember.findMany({
+			where: { userId: session.user.id },
+			select: { projectId: true }
+		}),
+		prisma.engagement.findMany({
+			select: { id: true, participants: true }
+		})
+	]);
+
+	const allowed = new Set<string>(memberships.map((m) => m.projectId));
+	const email = session.user.email?.toLowerCase();
+
+	if (email) {
+		for (const eng of engagements) {
+			if (!eng.participants) continue;
+			try {
+				const participants = JSON.parse(eng.participants) as Array<{ email?: string }>;
+				if (Array.isArray(participants) && participants.some((p) => p.email?.toLowerCase() === email)) {
+					allowed.add(eng.id);
+				}
+			} catch {
+				// participants illisibles : ignoré
+			}
+		}
+	}
+
+	return allowed;
+}
 
 /**
  * Accès d'un utilisateur connecté à un projet : admin, membre (compte rattaché au projet) ou participant de

@@ -3,7 +3,7 @@ import { localLlmClient } from '../llm/localLlmClient';
 import type { Option, Criterion } from '$lib/domain/options';
 import type { Argument } from '$lib/domain/debate';
 import type { CreateArgumentData } from '../projects/debateDb';
-import { AGENT_TIMEOUT_MS, FALLBACK_PREFIX } from './agentConfig';
+import { INTERACTIVE_AGENT_TIMEOUT_MS, FALLBACK_PREFIX } from './agentConfig';
 
 const ChallengerOutputSchema = z.object({
 	objections: z.array(
@@ -47,7 +47,7 @@ ${input.existingArguments.slice(-6).map((a) => `[ID: ${a.id}, Auteur: ${a.author
 Génère les objections critiques :`;
 
 	try {
-		const timeoutMs = AGENT_TIMEOUT_MS;
+		const timeoutMs = INTERACTIVE_AGENT_TIMEOUT_MS;
 		const response = await localLlmClient.chat({
 			messages: [
 				{ role: 'system', content: systemPrompt },
@@ -55,6 +55,7 @@ Génère les objections critiques :`;
 			],
 			temperature: 0.2,
 			format: 'json',
+			effort: 'medium',
 			timeoutMs
 		});
 

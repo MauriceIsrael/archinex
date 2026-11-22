@@ -43,6 +43,87 @@ export interface OrchestrationResult {
 /** Règles transmises au vérificateur : de quoi couvrir tous les contrôles des référentiels déclarés (CRA + NIS2 = 48). */
 const VERIFIER_MAX_RULES = 120;
 
+type DoctrineRuleItem = {
+	id: string;
+	title?: string;
+	excerpt?: string;
+	relevant?: boolean;
+	required?: boolean;
+};
+
+/**
+ * Charge le contexte doctrinal applicable au sujet (LLMOps + règles locales du corpus en complément)
+ * afin que le vérificateur dispose toujours des règles opposables disponibles.
+ */
+async function loadSubjectDoctrineContext(subject: {
+	name: string;
+	domain?: string | null;
+	projectId: string;
+}): Promise<{ allowedKbRefs: string[]; doctrine: DoctrineRuleItem[] }> {
+	const byId = new Map<string, DoctrineRuleItem>();
+	try {
+		const docCtx = await doctrineService.getDoctrineContext({
+			topics: [subject.name],
+			domains: subject.domain ? [subject.domain] : [],
+			frameworks: await getApplicableFrameworks(subject.projectId),
+			// Le vérificateur lit TOUS les contrôles imposés : un contrôle mal classé par la recherche ne doit pas lui échapper
+			maxItems: VERIFIER_MAX_RULES,
+			maxChars: VERIFIER_MAX_RULES * 400
+		});
+		if (docCtx && Array.isArray(docCtx.items)) {
+			for (const item of docCtx.items as DoctrineRuleItem[]) {
+				if (item?.id && !byId.has(item.id)) {
+					byId.set(item.id, item);
+				}
+			}
+		}
+	} catch (err) {
+		console.warn('[Orchestrator] Doctrine indisponible :', (err as any).message);
+	}
+
+	// Compléter avec les règles induites des documents locaux du corpus si LLMOps n'a rien remonté
+	if (byId.size === 0) {
+		try {
+			const corpusDocs = await prisma.corpusDocument.findMany({
+				select: { id: true, title: true, summary: true, inducedRules: true }
+			});
+			for (const doc of corpusDocs) {
+				let parsedRules: Array<{ id?: string; title?: string; text?: string; summary?: string }> = [];
+				try {
+					parsedRules = JSON.parse(doc.inducedRules || '[]');
+				} catch {
+					parsedRules = [];
+				}
+				if (Array.isArray(parsedRules) && parsedRules.length > 0) {
+					for (const r of parsedRules) {
+						if (r?.id && !byId.has(r.id)) {
+							byId.set(r.id, {
+								id: r.id,
+								title: r.title || doc.title,
+								excerpt: r.text || r.summary || doc.summary
+							});
+						}
+					}
+				} else if (doc.id && !byId.has(doc.id)) {
+					byId.set(doc.id, {
+						id: doc.id,
+						title: doc.title,
+						excerpt: doc.summary
+					});
+				}
+			}
+		} catch {
+			// Corpus local facultatif
+		}
+	}
+
+	const doctrine = Array.from(byId.values());
+	return {
+		allowedKbRefs: doctrine.map((r) => r.id),
+		doctrine
+	};
+}
+
 export async function orchestrateDebate(
 	subjectId: string,
 	options: {
@@ -72,24 +153,7 @@ export async function orchestrateDebate(
 	}
 
 	// Récupération de la doctrine autorisée pour ce sujet
-	let allowedKbRefs: string[] = [];
-	let doctrine: Array<{ id: string; title?: string; excerpt?: string; relevant?: boolean; required?: boolean }> = [];
-	try {
-		const docCtx = await doctrineService.getDoctrineContext({
-			topics: [subject.name],
-			domains: subject.domain ? [subject.domain] : [],
-			frameworks: await getApplicableFrameworks(subject.projectId),
-			// Le vérificateur lit TOUS les contrôles imposés : un contrôle mal classé par la recherche ne doit pas lui échapper
-			maxItems: VERIFIER_MAX_RULES,
-			maxChars: VERIFIER_MAX_RULES * 400
-		});
-		if (docCtx && docCtx.items) {
-			allowedKbRefs = docCtx.items.map((r) => r.id);
-			doctrine = docCtx.items as typeof doctrine;
-		}
-	} catch (err) {
-		console.warn('[Orchestrator] Doctrine indisponible :', (err as any).message);
-	}
+	const { allowedKbRefs, doctrine } = await loadSubjectDoctrineContext(subject);
 
 	// Création du run de débat
 	const run = await createDebateRun(subjectId, maxRounds);
@@ -281,24 +345,7 @@ export async function invokeSpecificAgent(
 	]);
 
 	// Récupération de la doctrine autorisée pour ce sujet
-	let allowedKbRefs: string[] = [];
-	let doctrine: Array<{ id: string; title?: string; excerpt?: string; relevant?: boolean; required?: boolean }> = [];
-	try {
-		const docCtx = await doctrineService.getDoctrineContext({
-			topics: [subject.name],
-			domains: subject.domain ? [subject.domain] : [],
-			frameworks: await getApplicableFrameworks(subject.projectId),
-			// Le vérificateur lit TOUS les contrôles imposés : un contrôle mal classé par la recherche ne doit pas lui échapper
-			maxItems: VERIFIER_MAX_RULES,
-			maxChars: VERIFIER_MAX_RULES * 400
-		});
-		if (docCtx && docCtx.items) {
-			allowedKbRefs = docCtx.items.map((r) => r.id);
-			doctrine = docCtx.items as typeof doctrine;
-		}
-	} catch (err) {
-		console.warn('[Orchestrator] Doctrine indisponible :', (err as any).message);
-	}
+	const { allowedKbRefs, doctrine } = await loadSubjectDoctrineContext(subject);
 
 	const createdArgs: Argument[] = [];
 	const currentRound = existingArgs.length > 0 ? Math.max(...existingArgs.map((a) => a.round)) : 1;

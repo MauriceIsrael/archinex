@@ -11,7 +11,11 @@ import { doctrineService } from '$lib/server/doctrine/doctrineService';
 import { extractMentions } from '$lib/domain/debate';
 import { invokeSpecificAgent } from '$lib/server/agents/debateOrchestrator';
 
-export const GET: RequestHandler = async ({ params, url }) => {
+export const GET: RequestHandler = async (event) => {
+	const auth = await authorizeProjectAccess(event, event.params.projectId);
+	if (auth.error) return auth.error;
+	const { params, url } = event;
+
 	const { subjectId } = params;
 	const optionId = url.searchParams.get('optionId');
 

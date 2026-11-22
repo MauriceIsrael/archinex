@@ -1,6 +1,6 @@
 # Extraction GraphQL de l'inventaire planifié Nautobot (Statut: planned)
-# Adaptateur Archinex EDP -> Nautobot DCIM (Issue #179 / ADR-012)
-query ExtractPlannedTelcoInventory($site_slug: [String] = ["pop-valmondois"]) {
+# Module de lecture Archinex EDP -> Nautobot DCIM (Issue #179 / ADR-012 / ADR-017 / #411)
+query ExtractPlannedTelcoInventory($site_slug: [String]) {
   devices(location: $site_slug, status: "planned") {
     name
     status {

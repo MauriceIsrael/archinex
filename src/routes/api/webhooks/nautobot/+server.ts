@@ -1,183 +1,60 @@
 import { json } from '@sveltejs/kit';
 import type { RequestHandler } from './$types';
-import { prisma } from '$lib/server/prisma';
-import { loadOntologyCatalog } from '$lib/server/edp/ontologyClient';
-import {
-  computeRefinementCoverage,
-  composeMultiAxisHydration,
-  evaluateMultiAxisOracle,
-  type LldHydrationOverrides
-} from '$lib/server/edp/refinementCoverage';
-import {
-  pullLiveInventoryFromNautobot,
-  resolveProjectNautobotOptions
-} from '$lib/server/edp/nautobotSync';
+import { verifyNautobotWebhookHmac } from '$lib/server/edp/nautobotWebhookAuth';
+import { processAuthenticatedNautobotWebhook } from '$lib/server/edp/nautobotWebhookProcessor';
 
 /**
- * Récepteur Webhook Nautobot 2.x (Issue #239) :
- * Lorsqu'un opérateur modifie manuellement un équipement (`dcim.device`), un circuit (`circuits.circuit`),
- * un tenant (`tenancy.tenant`) ou un tunnel VPN (`vpn.vpntunnel` / `vpn.ipsecproposal`) dans Nautobot,
- * ce webhook déclenche la collecte de l'état courant et réévalue l'Oracle OPA sur le sujet cible.
+ * Récepteur Webhook Nautobot 2.x authentifié par HMAC par projet (Issue #377) :
+ * - Rejette (401) toute requête non signée ou dont la signature HMAC échoue, sans aucun effet de bord.
+ * - Rattache le sujet/décision exclusivement par les marqueurs `archinex_*` de l'objet Nautobot
+ *   (jamais par un identifiant de sujet libre dans le corps du message). Un objet non marqué produit un écart « hors décision » distinct.
+ * - Ne modifie jamais l'EDP d'origine (`executable_decision_packages`).
+ * - Assure l'idempotence par identifiant d'événement (`webhook_event_receipts`) et la déduplication
+ *   des `DriftFinding` par `(projectId, fingerprint)`.
+ * - Répond rapidement (202 Accepted) et exécute l'évaluation oracle en asynchrone.
+ * - Remonte explicitement les erreurs de persistance (journal + 500).
  */
-export const POST: RequestHandler = async ({ request }) => {
-  let payload: any;
+export const POST: RequestHandler = async ({ request, url }) => {
+  const rawBody = await request.text();
+
+  const auth = await verifyNautobotWebhookHmac({
+    headers: request.headers,
+    url,
+    rawBody
+  });
+  if (!auth.ok || !auth.projectId) {
+    return json(
+      { accepted: false, error: auth.error || 'Signature HMAC webhook invalide.' },
+      { status: 401 }
+    );
+  }
+
+  let payload: Record<string, any>;
   try {
-    payload = await request.json();
+    const parsed = JSON.parse(rawBody);
+    if (!parsed || typeof parsed !== 'object' || Array.isArray(parsed)) {
+      return json(
+        { accepted: false, error: 'Payload JSON Webhook Nautobot invalide (objet attendu).' },
+        { status: 400 }
+      );
+    }
+    payload = parsed;
   } catch {
-    return json({ error: 'Payload JSON Webhook Nautobot invalide.' }, { status: 400 });
+    return json(
+      { accepted: false, error: 'Payload JSON Webhook Nautobot invalide.' },
+      { status: 400 }
+    );
   }
 
-  const eventType = String(payload.event || payload.action || 'updated');
-  const modelName = String(payload.model || payload.content_type || 'dcim.device');
-  const subjectId = String(payload.subjectId || 'sub_default');
-  const dataSnapshot = payload.data || {};
+  const sync = url.searchParams.get('sync') === 'true';
 
-  try {
-    const catalog = await loadOntologyCatalog({ includeRuntimeOverlay: true });
+  const result = await processAuthenticatedNautobotWebhook({
+    projectId: auth.projectId,
+    headers: request.headers,
+    rawBody,
+    payload,
+    sync
+  });
 
-    const fromDb = await (prisma as any).executableDecisionPackage?.findFirst({
-      where: { subjectId },
-      orderBy: { revision: 'desc' }
-    });
-
-    const parsedDb = fromDb ? JSON.parse(fromDb.content) : null;
-    const explicitBindings = parsedDb?.decision_context?.ontology_bindings || [];
-    const activeConcept = parsedDb?.selectedConceptUrn || 'AUTO';
-
-    const coverage = computeRefinementCoverage(
-      {
-        subjectId,
-        title: parsedDb?.metadata?.title || 'Plateforme Cloud & Interconnexion Sécurisée',
-        problem: parsedDb?.decision_context?.problem || '',
-        decisionText: parsedDb?.decision_context?.decision || '',
-        explicitBindings,
-        autoBindFromText: true,
-        selectedConceptUrn: activeConcept
-      },
-      catalog
-    );
-
-    const webhookOverrides: LldHydrationOverrides = { ...(parsedDb?.lldOverrides || {}) };
-
-    // Traduction directe de la charge utile du webhook Nautobot si fournie
-    if (modelName.includes('device') && dataSnapshot) {
-      const devModel =
-        dataSnapshot.device_type?.model ||
-        dataSnapshot.device_type?.display ||
-        dataSnapshot.device_type;
-      if (typeof devModel === 'string' && devModel.trim().length > 0) {
-        webhookOverrides.deviceType = devModel;
-      }
-      const devStatus =
-        dataSnapshot.status?.value || dataSnapshot.status?.name || dataSnapshot.status;
-      if (typeof devStatus === 'string' && devStatus.trim().length > 0) {
-        webhookOverrides.deviceStatus = devStatus.toLowerCase();
-      }
-    } else if (modelName.includes('tenant') && eventType === 'deleted') {
-      webhookOverrides.orphanPartnerTenant = true;
-    }
-
-    const effectiveBindings = [...coverage.composedBindings];
-    if (
-      (webhookOverrides.s6aDirectBypassDea || webhookOverrides.orphanPartnerTenant) &&
-      !effectiveBindings.some(
-        (b) => b.urn === 'urn:archinex:ontology:security:crypto:ipsec_ikev2_aes256'
-      )
-    ) {
-      effectiveBindings.push({
-        urn: 'urn:archinex:ontology:security:crypto:ipsec_ikev2_aes256',
-        revision: 1
-      });
-    }
-
-    let inventory = composeMultiAxisHydration(
-      subjectId,
-      effectiveBindings,
-      catalog,
-      webhookOverrides
-    );
-
-    // Résoudre le scope / instance Nautobot du projet associé au sujet (si disponible)
-    const subjectRow = await (prisma as any).subject?.findUnique({
-      where: { id: subjectId },
-      select: { project: { select: { id: true, shortName: true, strategy: true } } }
-    });
-    const nautobotOpts = subjectRow?.project
-      ? resolveProjectNautobotOptions(subjectRow.project)
-      : payload.projectId
-        ? resolveProjectNautobotOptions({ id: String(payload.projectId) })
-        : {};
-
-    // Tenter également un Pull Live complet si Nautobot est joignable
-    const livePull = await pullLiveInventoryFromNautobot(inventory, nautobotOpts);
-    if (livePull.reachable) {
-      inventory = livePull.inventory;
-    }
-
-    // Si le webhook signale une dégradation d'algorithme IPsec sur vpn.ipsecproposal / vpn.vpntunnel
-    if (modelName.includes('vpn') || modelName.includes('ipsec')) {
-      const algo =
-        dataSnapshot.encryption_algorithm?.value ||
-        dataSnapshot.encryption_algorithm?.name ||
-        dataSnapshot.encryption_algorithm ||
-        dataSnapshot.cipher_suite;
-      if (typeof algo === 'string' && inventory.reconciliation_graph?.ipsec_tunnels?.[0]) {
-        inventory.reconciliation_graph.ipsec_tunnels[0].cipher_suite = algo;
-      }
-      if (
-        !effectiveBindings.some(
-          (b) => b.urn === 'urn:archinex:ontology:security:crypto:ipsec_ikev2_aes256'
-        )
-      ) {
-        effectiveBindings.push({
-          urn: 'urn:archinex:ontology:security:crypto:ipsec_ikev2_aes256',
-          revision: 1
-        });
-      }
-    }
-
-    const evalRes = await evaluateMultiAxisOracle(inventory, effectiveBindings, catalog);
-
-    const lastVerdict = {
-      verdict: evalRes.verdict,
-      verified_at: new Date().toISOString(),
-      source: 'nautobot_webhook',
-      webhook_event: `${modelName}:${eventType}`,
-      violations: evalRes.violationMessages,
-      detailedViolations: evalRes.violations,
-      ontologyFingerprint: evalRes.ontologyFingerprint,
-      mutation_score: 100
-    };
-
-    if (fromDb && parsedDb) {
-      const updatedEdp = {
-        ...parsedDb,
-        hydratedInventory: inventory,
-        lastVerdict
-      };
-      try {
-        await (prisma as any).executableDecisionPackage?.update({
-          where: { id: fromDb.id },
-          data: {
-            content: JSON.stringify(updatedEdp)
-          }
-        });
-      } catch {
-        // Ignorer si base en lecture seule
-      }
-    }
-
-    return json({
-      success: true,
-      source: 'nautobot_webhook',
-      event: eventType,
-      model: modelName,
-      verdict: evalRes.verdict,
-      violations: evalRes.violationMessages,
-      detailedViolations: evalRes.violations,
-      ontologyFingerprint: evalRes.ontologyFingerprint
-    });
-  } catch (err: any) {
-    return json({ success: false, error: err.message }, { status: 500 });
-  }
+  return json(result.body, { status: result.status });
 };

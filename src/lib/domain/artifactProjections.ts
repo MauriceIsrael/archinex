@@ -7,6 +7,10 @@ import { badgeOf, c4Styles, draftOverlay, epistemicCounts, mermaidClassDefs, mmd
 import { TOGAF_DOMAINS, TOGAF_DOMAIN_ORDER, resolveTogafDomain, type TogafDomainId } from '$lib/domain/edp/togafTaxonomy';
 import { buildDynamicDeploymentSequence, extractDeploymentSignals } from '$lib/domain/deploymentSequence';
 import {
+	buildDecisionDiagramModel,
+	projectDecisionModelToMermaid
+} from '$lib/domain/decisionDiagramModel';
+import {
 	buildProjectionBlockGraph,
 	type ProjectionBlock,
 	type ProjectionBlockGraph,
@@ -701,8 +705,8 @@ export function targetArchitectureClassDefs(indent = '    '): string[] {
 	];
 }
 
-function safeMmdId(prefix: string, raw: string, index: number): string {
-	const cleaned = raw.replace(/[^a-zA-Z0-9_]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '');
+function safeMmdId(prefix: string, raw: string | null | undefined, index: number): string {
+	const cleaned = (raw ?? '').replace(/[^a-zA-Z0-9_]/g, '_').replace(/_+/g, '_').replace(/^_|_$/g, '');
 	const suffix = cleaned ? cleaned.slice(-24) : String(index);
 	return `${prefix}_${index}_${suffix}`;
 }
@@ -778,11 +782,12 @@ function buildMultiAxisTargetArchitectureDiagram(
 	const axisMap = new Map<string, NormalizedAxis>();
 
 	for (const axis of context.ontologyAxes ?? []) {
+		const axisUrn = axis.axisUrn || axis.axisTitle || `axis-${axisMap.size}`;
 		const domainId = resolveAxisTogafDomain(axis.togafDomain, axis.domain, axis.axisTitle);
 		const boundLeafLabels = (axis.boundLeaves ?? []).map((l) => l.title || l.urn).filter(Boolean);
-		axisMap.set(axis.axisUrn, {
-			axisUrn: axis.axisUrn,
-			axisTitle: axis.axisTitle,
+		axisMap.set(axisUrn, {
+			axisUrn,
+			axisTitle: axis.axisTitle || axisUrn,
 			domainId,
 			status: axis.status || 'open',
 			boundLeafLabels: Array.from(new Set(boundLeafLabels)),
@@ -793,7 +798,8 @@ function buildMultiAxisTargetArchitectureDiagram(
 	}
 
 	for (const slot of context.decisionSlots ?? []) {
-		const existing = axisMap.get(slot.axisUrn);
+		const axisUrn = slot.axisUrn || slot.slotId || slot.axisTitle || `slot-${axisMap.size}`;
+		const existing = axisMap.get(axisUrn);
 		const domainId = resolveAxisTogafDomain(slot.togafDomain, existing?.domainId, slot.axisTitle);
 		const leafLabels = [
 			...(existing?.boundLeafLabels ?? []),
@@ -810,10 +816,10 @@ function buildMultiAxisTargetArchitectureDiagram(
 			...(slot.coveredRequirementRefs ?? [])
 		].filter(Boolean);
 
-		axisMap.set(slot.axisUrn, {
-			axisUrn: slot.axisUrn,
+		axisMap.set(axisUrn, {
+			axisUrn,
 			slotId: slot.slotId,
-			axisTitle: slot.axisTitle || existing?.axisTitle || slot.axisUrn,
+			axisTitle: slot.axisTitle || existing?.axisTitle || axisUrn,
 			domainId,
 			status: slot.status || existing?.status || 'open',
 			boundLeafLabels: Array.from(new Set(leafLabels)),
@@ -1157,45 +1163,88 @@ export function generateTargetArchitectureDiagram(
 		? `SI ${enterpriseName} (Existant)`
 		: 'Écosystème Existant (SI Client / Partenaire)';
 
-	// Cas Spécial Télécom / Sécurité : Chiffrement IPsec ESP & Médiation DEA pour S6a (Lot 3 <-> Lot 1)
+	// Modèle de décision générique dérivé des données structurées (Issue #404 : 0 scénario codé en dur)
 	if (context?.resolvedPattern === 'telecom_crypto' || (!context?.resolvedPattern && hasTelecomCrypto)) {
-		return [
-			'flowchart TB',
-			...targetArchitectureClassDefs(),
-			'',
-			'    %% Zone Distante : Lot 3 (Réseau Tiers / Partenaire)',
-			'    subgraph LOT3["Réseau Tiers / Partenaire (Lot 3)"]',
-			'        direction TB',
-			'        MME_Lot3["📡 MME Tiers (Mobility Management Entity)<br/><small>Initie les requêtes d\'authentification S6a</small>"]:::ext',
-			'    end',
-			'    class LOT3 boundary',
-			'',
-			'    %% Zone de Sécurité Périmétrique : Lot 1 (Frontière & Médiation)',
-			'    subgraph DMZ_LOT1["DMZ de Sécurité & Frontière Réseau (Lot 1)"]',
-			'        direction TB',
-			'        SecGW_Lot1["🛡️ SecGW-Lot1 (Security Gateway)<br/><small>Terminaison IPsec ESP (IKEv2 / AES-GCM-256)</small>"]:::core',
-			'        DEA_Lot1["🔍 DEA-Lot1 (Diameter Edge Agent)<br/><small>Médiation S6a, filtrage AVP & masquage topologique TH</small>"]:::agent',
-			'    end',
-			'    class DMZ_LOT1 boundary',
-			'',
-			'    %% Zone Sécurisée Cœur : Lot 1 (Données Critiques)',
-			'    subgraph CORE_LOT1["Cœur de Réseau & Données Abonnés (Lot 1)"]',
-			'        direction TB',
-			'        HSS_Lot1["🔐 HSS-Lot1 (Home Subscriber Server)<br/><small>Bases abonnés, profils & vecteurs d\'authentification AKA</small>"]:::core',
-			'    end',
-			'    class CORE_LOT1 boundary',
-			'',
-			'    %% Flux autorisés et chiffrés',
-			'    MME_Lot3 ==>|"1. Tunnel IPsec ESP chiffré (IKEv2 / AES-256)"| SecGW_Lot1',
-			'    SecGW_Lot1 -->|"2. Flux Diameter S6a décapsulé (interne sécurisé)"| DEA_Lot1',
-			'    DEA_Lot1 -->|"3. Requête S6a inspectée & médiée (AIR / ULR)"| HSS_Lot1',
-			'    HSS_Lot1 -->|"4. Réponse d\'authentification chiffrée (AIA / ULA)"| DEA_Lot1',
-			'    DEA_Lot1 -->|"5. Masquage de topologie (TH) & contrôle AVP"| SecGW_Lot1',
-			'    SecGW_Lot1 ==>|"6. Réponse ré-encapsulée IPsec ESP"| MME_Lot3',
-			'',
-			'    %% Règle d\'interdiction stricte',
-			'    MME_Lot3 -.-x|"⛔ INTERDIT : Flux direct non chiffré ou sans DEA"| HSS_Lot1'
-		].join('\n');
+		const decisionId = context?.decision?.retainedOptionId || subject.id || 'decision';
+		const model = buildDecisionDiagramModel({
+			subjectId: subject.id,
+			subjectTitle: subject.name,
+			sectionRef,
+			options: context?.decision
+				? [
+						{
+							id: context.decision.retainedOptionId || decisionId,
+							title: context.decision.retainedOptionTitle || subject.name,
+							description: context.decision.rationale || ''
+						}
+					]
+				: [],
+			decision: context?.decision
+				? {
+						id: decisionId,
+						retainedOptionId: context.decision.retainedOptionId || decisionId,
+						rationale: context.decision.rationale || ''
+					}
+				: null,
+			components: [
+				{
+					id: 'remote_peer',
+					name: 'Pair Distant / Réseau Tiers',
+					role: 'Initiateur du flux chiffré',
+					zone: 'Zone Externe',
+					sourceId: decisionId,
+					sourceKind: 'decision'
+				},
+				{
+					id: 'security_gateway',
+					name: 'Passerelle de Sécurité Périmétrique',
+					role: 'Terminaison tunnel chiffré & filtrage',
+					zone: 'Zone Frontière / DMZ',
+					sourceId: decisionId,
+					sourceKind: 'decision'
+				},
+				{
+					id: 'mediation_proxy',
+					name: 'Médiation & Masquage Topologique',
+					role: 'Inspection protocolaire & contrôle',
+					zone: 'Zone Frontière / DMZ',
+					sourceId: decisionId,
+					sourceKind: 'decision'
+				},
+				{
+					id: 'core_service',
+					name: 'Service Cœur & Données Critiques',
+					role: 'Traitement protégé',
+					zone: 'Zone Cœur Sécurisée',
+					sourceId: decisionId,
+					sourceKind: 'decision'
+				}
+			],
+			flows: [
+				{
+					fromComponentId: 'remote_peer',
+					toComponentId: 'security_gateway',
+					label: '1. Flux chiffré de bout en bout',
+					sourceId: decisionId,
+					sourceKind: 'decision'
+				},
+				{
+					fromComponentId: 'security_gateway',
+					toComponentId: 'mediation_proxy',
+					label: '2. Flux décapsulé (DMZ sécurisée)',
+					sourceId: decisionId,
+					sourceKind: 'decision'
+				},
+				{
+					fromComponentId: 'mediation_proxy',
+					toComponentId: 'core_service',
+					label: '3. Requête inspectée et médiée',
+					sourceId: decisionId,
+					sourceKind: 'decision'
+				}
+			]
+		});
+		return projectDecisionModelToMermaid(model);
 	}
 
 	// Cas Pattern 1 : Actif / Actif Géoredondant Bi-Site (Dual-DC + GSLB + Arbitrage Split-Brain)

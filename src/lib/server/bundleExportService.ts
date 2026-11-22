@@ -5,6 +5,7 @@ import { assembleEngagementBundle, sanitizeHandle, type AssemblyInput, type Asse
 import type { SnapshotRef } from '$lib/domain/freezeExport';
 import { listRequirementSources, toAssemblySources } from '$lib/server/projects/requirementsDb';
 import { loadProjectComponentCatalog } from '$lib/server/edp/componentCatalogRepository';
+import { parseDecisionComplianceCheck } from '$lib/server/projects/arbitrationDb';
 
 export interface ExportBundleResult {
 	bundle: EngagementBundle;
@@ -124,6 +125,7 @@ export async function exportEngagementBundle(
 						rationale: s.decision.rationale,
 						complianceStatus: extractCompliancePosition(s.decision.acceptedViolations).status,
 						complianceRationale: extractCompliancePosition(s.decision.acceptedViolations).rationale,
+						complianceCheck: parseDecisionComplianceCheck(s.decision.complianceCheck) ?? null,
 						arbiterId: s.decision.arbiterId,
 						decidedAt: s.decision.decidedAt
 					}

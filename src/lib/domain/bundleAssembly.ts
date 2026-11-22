@@ -13,6 +13,7 @@ import {
 	buildEngagementBundle,
 	type BundleArchitecture,
 	type BundleArchitectureProjections,
+	type BundleComplianceCheck,
 	type BundleDecision,
 	type BundleElement,
 	type BundleGap,
@@ -95,6 +96,26 @@ export interface AssemblySubject {
 		rationale: string;
 		complianceStatus?: 'Compliant' | 'Partially compliant' | 'Non-compliant' | 'Provisional';
 		complianceRationale?: string;
+		complianceCheck?: {
+			status: 'checked' | 'partial' | 'not_checked';
+			hubRevision: string | null;
+			checkedAt: string;
+			unassessedRuleIds: string[];
+			frameworks: string[];
+			coverageReserves?: Array<{
+				frameworkId: string;
+				name?: string;
+				status: 'partial' | 'missing' | 'unknown';
+				validatedCount?: number;
+				expectedCount?: number;
+				hubRevision: string | null;
+			}>;
+			derogation?: {
+				reason: string;
+				acknowledgedAt: string;
+				acknowledgedBy?: string;
+			};
+		} | null;
 		arbiterId: string;
 		decidedAt: Date;
 	} | null;
@@ -477,11 +498,83 @@ export function assembleEngagementBundle(input: AssemblyInput): EngagementBundle
 			const d = sub.decision;
 			const title = (id: string) => sub.options.find((o) => o.id === id)?.title ?? id;
 			const consequences: string[] = [];
-			if (d.complianceStatus) {
-				consequences.push(`compliance_status:${d.complianceStatus}`);
+			const isIncompleteKbCheck =
+				d.complianceCheck?.status === 'not_checked' || d.complianceCheck?.status === 'partial';
+			const effectiveComplianceStatus = isIncompleteKbCheck ? 'Provisional' : d.complianceStatus;
+
+			if (effectiveComplianceStatus) {
+				consequences.push(`compliance_status:${effectiveComplianceStatus}`);
 			}
 			if (d.complianceRationale) {
 				consequences.push(`compliance_rationale:${d.complianceRationale}`);
+			}
+
+			let complianceCheckBundle: BundleComplianceCheck | undefined;
+			if (d.complianceCheck) {
+				const cc = d.complianceCheck;
+				const sortedReserves = [...(cc.coverageReserves || [])]
+					.sort((a, b) => cmp(a.frameworkId, b.frameworkId))
+					.map((r) => ({
+						framework_id: r.frameworkId,
+						...(r.name ? { name: r.name } : {}),
+						status: r.status,
+						...(r.validatedCount !== undefined ? { validated_count: r.validatedCount } : {}),
+						...(r.expectedCount !== undefined ? { expected_count: r.expectedCount } : {}),
+						hub_revision: r.hubRevision ?? null
+					}));
+
+				complianceCheckBundle = {
+					status: cc.status,
+					hub_revision: cc.hubRevision ?? null,
+					checked_at: cc.checkedAt,
+					unassessed_rule_ids: [...(cc.unassessedRuleIds || [])].sort(),
+					frameworks: [...(cc.frameworks || [])].sort(),
+					...(sortedReserves.length > 0 ? { coverage_reserves: sortedReserves } : {}),
+					...(cc.derogation
+						? {
+								derogation: {
+									reason: cc.derogation.reason,
+									acknowledged_at: cc.derogation.acknowledgedAt,
+									...(cc.derogation.acknowledgedBy
+										? { acknowledged_by: sanitizeHandle(cc.derogation.acknowledgedBy) }
+										: {})
+								}
+							}
+						: {})
+				};
+
+				for (const reserve of sortedReserves) {
+					const ratio =
+						reserve.expected_count !== undefined
+							? ` (${reserve.validated_count ?? 0}/${reserve.expected_count})`
+							: '';
+					const label = `${reserve.name || reserve.framework_id} [${reserve.status}]${ratio}`;
+					consequences.push(`coverage_reserve:${label}`);
+					gaps.push({
+						id: `GAP-COVERAGE-${sub.id}-${reserve.framework_id}`,
+						kind: 'other',
+						subject_id: sub.id,
+						description: `Réserve de couverture réglementaire sur « ${sub.name} » : ${label}.`,
+						blocking: reserve.status === 'missing' || reserve.status === 'unknown'
+					});
+				}
+
+				if (isIncompleteKbCheck) {
+					const detail =
+						cc.status === 'not_checked'
+							? 'Hub KB injoignable / vérification non effectuée'
+							: `${cc.unassessedRuleIds.length} règle(s) non évaluée(s)${cc.unassessedRuleIds.length > 0 ? ` (${cc.unassessedRuleIds.join(', ')})` : ''}`;
+					const derogText = cc.derogation?.reason ? ` — Dérogation : ${cc.derogation.reason}` : '';
+					consequences.push(`compliance_check_status:${cc.status}`);
+					consequences.push(`compliance_check_warning:Vérification KB incomplète (${detail})${derogText}`);
+					gaps.push({
+						id: `GAP-KBCHECK-${sub.id}`,
+						kind: 'other',
+						subject_id: sub.id,
+						description: `Vérification KB incomplète sur « ${sub.name} » (${detail})${derogText}.`,
+						blocking: false
+					});
+				}
 			}
 
 			decisions.push({
@@ -493,6 +586,7 @@ export function assembleEngagementBundle(input: AssemblyInput): EngagementBundle
 				decision: `Option retenue : ${title(d.retainedOptionId)}`,
 				title: title(d.retainedOptionId),
 				rationale: d.rationale,
+				...(complianceCheckBundle ? { compliance_check: complianceCheckBundle } : {}),
 				...(consequences.length > 0 ? { consequences } : {}),
 				alternatives: [...d.rejected]
 					.sort((x, y) => cmp(x.optionId, y.optionId))

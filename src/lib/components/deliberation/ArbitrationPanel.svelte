@@ -18,6 +18,10 @@
 	import type { MaturityComputationResult, MaturityBlocker } from '$lib/domain/maturityRules';
 	import type { Argument } from '$lib/domain/debate';
 	import CapitalizationPanel from './CapitalizationPanel.svelte';
+	import ComplianceCheckBanner, { type UiCompliancePayload } from './ComplianceCheckBanner.svelte';
+	import DecisionCard from './DecisionCard.svelte';
+	import { buildDecisionCardModel } from '$lib/domain/decisionCard';
+	import { deliberationStore } from '$lib/stores/deliberationStore.svelte';
 
 	let {
 		projectId = '',
@@ -49,6 +53,11 @@
 	let isSubmitting = $state(false);
 	let errorMessage = $state('');
 	let successMessage = $state('');
+	let compliance = $state<UiCompliancePayload | null>(null);
+	let complianceLoading = $state(false);
+	let violationJustifications = $state<Record<string, string>>({});
+	let derogationAcknowledged = $state(false);
+	let derogationReason = $state('');
 
 	// Normalisation défensive des options (tableau direct ou enveloppé { options: [...] })
 	const safeOptions = $derived<Option[]>(
@@ -57,6 +66,42 @@
 			: Array.isArray((options as any)?.options)
 				? (options as any).options
 				: []
+	);
+
+	// Pré-vérification réglementaire KB avant de trancher
+	$effect(() => {
+		if (!projectId || !subjectId || safeOptions.length === 0 || decision) {
+			compliance = null;
+			complianceLoading = false;
+			return;
+		}
+		const controller = new AbortController();
+		complianceLoading = true;
+		fetch(`/api/projects/${projectId}/subjects/${subjectId}/compliance`, { signal: controller.signal })
+			.then((r) => (r.ok ? r.json() : null))
+			.then((data) => {
+				if (controller.signal.aborted) return;
+				compliance = data?.status === 'ok' ? data : { frameworks: [], offline: true, violations: [], unassessedCount: 0, checkStatus: 'not_checked' };
+			})
+			.catch(() => {
+				if (!controller.signal.aborted) {
+					compliance = { frameworks: [], offline: true, violations: [], unassessedCount: 0, checkStatus: 'not_checked' };
+				}
+			})
+			.finally(() => {
+				if (!controller.signal.aborted) complianceLoading = false;
+			});
+		return () => controller.abort();
+	});
+
+	const needsComplianceDerogation = $derived(
+		!complianceLoading &&
+			(!compliance ||
+				compliance.offline ||
+				compliance.checkStatus === 'not_checked' ||
+				compliance.checkStatus === 'partial' ||
+				(compliance.unassessedRuleIds?.length ?? 0) > 0 ||
+				compliance.unassessedCount > 0)
 	);
 
 	// Initialisation de la sélection par défaut
@@ -76,6 +121,41 @@
 	const retainedOption = $derived(safeOptions.find((o: Option) => o.id === selectedOptionId));
 	const otherOptions = $derived(safeOptions.filter((o: Option) => o.id !== selectedOptionId));
 
+	const decisionCardModel = $derived(
+		buildDecisionCardModel({
+			subjectId: subjectId || 'subject',
+			subjectTitle: deliberationStore.activeSubject?.name || 'Sujet en arbitrage',
+			sectionRef: deliberationStore.activeSubject?.section_ref || subjectId,
+			requirements: (deliberationStore.activeSubject?.requirement_ids ?? []).map((ref: string) => ({
+				id: ref,
+				clauseRef: ref,
+				title: ref,
+				criticality: 'bloquant'
+			})),
+			kbCompliance: compliance
+				? {
+						offline: compliance.offline,
+						checkStatus: compliance.checkStatus,
+						frameworks: compliance.frameworks,
+						violations: compliance.violations,
+						unassessedRuleIds: compliance.unassessedRuleIds
+					}
+				: null,
+			options: safeOptions,
+			criteria,
+			argumentsList,
+			decision,
+			draftSelection: {
+				retainedOptionId: selectedOptionId,
+				rationale,
+				reversibility,
+				rejectionReasons,
+				violationJustifications,
+				derogationReason
+			}
+		})
+	);
+
 	async function submitArbitration() {
 		if (!selectedOptionId) {
 			errorMessage = 'Veuillez sélectionner une option à retenir.';
@@ -93,6 +173,11 @@
 				'Une justification ou réserve explicite (au moins 5 caractères) est obligatoire lorsque vous retenez « Partially compliant » ou « Non-compliant ».';
 			return;
 		}
+		if (needsComplianceDerogation && (!derogationAcknowledged || derogationReason.trim().length < 5)) {
+			errorMessage =
+				'La vérification réglementaire KB est incomplète : cochez la dérogation explicite et saisissez un motif (au moins 5 caractères) pour trancher.';
+			return;
+		}
 
 		errorMessage = '';
 		isSubmitting = true;
@@ -101,6 +186,10 @@
 			optionId: opt.id,
 			reason: rejectionReasons[opt.id]?.trim() || `Écartée au profit de l'option retenue ${retainedOption?.title}`
 		}));
+
+		const acceptedViolations = (compliance?.violations ?? [])
+			.filter((v) => v.optionId === selectedOptionId && v.validated && violationJustifications[v.typedId]?.trim())
+			.map((v) => ({ typedId: v.typedId, justification: violationJustifications[v.typedId].trim() }));
 
 		try {
 			const res = await fetch(`/api/projects/${projectId}/subjects/${subjectId}/decision`, {
@@ -114,7 +203,15 @@
 					complianceStatus,
 					complianceRationale: complianceRationale.trim() || undefined,
 					portability,
-					acceptedViolations: []
+					acceptedViolations,
+					...(derogationAcknowledged
+						? {
+								complianceCheckDerogation: {
+									acknowledged: true,
+									reason: derogationReason.trim()
+								}
+							}
+						: {})
 				})
 			});
 
@@ -176,6 +273,11 @@
 			</div>
 		</div>
 	</div>
+
+	<!-- Carte de décision synthétique : ce que l'arbitre signe, sur un seul écran (Issue #403) -->
+	{#if safeOptions.length > 0 || decision}
+		<DecisionCard card={decisionCardModel} />
+	{/if}
 
 	<!-- Blocages actifs si non mûr -->
 	{#if !decision && maturityResult && !maturityResult.readyForArbitration}
@@ -241,6 +343,25 @@
 						<p class="text-xs text-amber-800 dark:text-amber-200 bg-amber-500/10 p-2 rounded border border-amber-500/20 mt-1">
 							<strong>Réserve de conformité :</strong> {decision.complianceRationale}
 						</p>
+					{/if}
+					{#if decision.complianceCheck}
+						<div class="mt-2 pt-2 border-t border-border/50 text-[11px]" data-testid="decision-compliance-check-trace">
+							{#if decision.complianceCheck.status === 'checked'}
+								<span class="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-500/30 font-semibold">
+									<ShieldCheck class="w-3 h-3" />
+									Contrôle KB complet{#if decision.complianceCheck.hubRevision} · rev {decision.complianceCheck.hubRevision}{/if}
+								</span>
+							{:else}
+								<div class="rounded-md border border-amber-500/30 bg-amber-500/10 p-2 text-amber-800 dark:text-amber-200 space-y-0.5">
+									<p class="font-semibold">
+										Vérification KB incomplète ({decision.complianceCheck.status === 'not_checked' ? 'Hub injoignable' : `${decision.complianceCheck.unassessedRuleIds.length} règle(s) non évaluée(s)`})
+									</p>
+									{#if decision.complianceCheck.derogation?.reason}
+										<p><strong>Dérogation :</strong> {decision.complianceCheck.derogation.reason}</p>
+									{/if}
+								</div>
+							{/if}
+						</div>
 					{/if}
 				</div>
 			</div>
@@ -449,6 +570,21 @@
 						</div>
 					</label>
 				</div>
+			</div>
+
+			<!-- 6. État de la vérification réglementaire KB (affiché avant de trancher) -->
+			<div class="space-y-2">
+				<div class="block text-xs font-semibold text-foreground uppercase tracking-wider">
+					6. Contrôle réglementaire KB (avant arbitrage)
+				</div>
+				<ComplianceCheckBanner
+					{compliance}
+					loading={complianceLoading}
+					{selectedOptionId}
+					bind:violationJustifications
+					bind:derogationAcknowledged
+					bind:derogationReason
+				/>
 			</div>
 
 			{#if errorMessage}

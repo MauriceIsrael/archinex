@@ -1,5 +1,6 @@
-import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { describe, it, expect, beforeAll, afterAll, vi } from 'vitest';
 import { prisma } from '$lib/server/prisma';
+import { llmopsClient } from '$lib/server/llmops/client';
 import { CreateDecisionSchema } from '$lib/schemas/decisionApiSchemas';
 import { recordDecisionInHub, type DecisionRow } from '$lib/server/projects/hubDecisions';
 import type { LLMOpsClient } from '$lib/server/llmops/client';
@@ -126,9 +127,11 @@ describe('Portabilité des Décisions & Filtrage du Moissonnage (#120)', () => {
 					version: 1
 				}
 			});
+			vi.spyOn(llmopsClient, 'checkOption').mockResolvedValue({ verdicts: [], offline: false } as never);
 		});
 
 		afterAll(async () => {
+			vi.restoreAllMocks();
 			await prisma.project.deleteMany({ where: { id: testProjectId } });
 		});
 

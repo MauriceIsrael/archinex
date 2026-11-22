@@ -5,12 +5,31 @@ import {
 	computeTopFrugalityOpportunities,
 	type SubjectMatrixInput
 } from '$lib/domain/frugalityScoring';
+import {
+	authorizeProjectAccess,
+	getAccessibleProjectIds
+} from '$lib/server/projects/projectAccess';
 
-export const GET: RequestHandler = async ({ url, locals }) => {
-	const projectId = url.searchParams.get('projectId');
+export const GET: RequestHandler = async (event) => {
+	const session = event.locals.session;
+	if (!session?.user) {
+		return json({ status: 'error', error: 'Non authentifié : session requise' }, { status: 401 });
+	}
+
+	const projectId = event.url.searchParams.get('projectId');
 
 	try {
-		const whereClause = projectId ? { projectId } : {};
+		let whereClause: Record<string, unknown> = {};
+		if (projectId) {
+			const auth = await authorizeProjectAccess(event, projectId);
+			if (auth.error) return auth.error;
+			whereClause = { projectId };
+		} else {
+			const allowedIds = await getAccessibleProjectIds(session);
+			if (allowedIds) {
+				whereClause = { projectId: { in: [...allowedIds] } };
+			}
+		}
 
 		const subjects = await prisma.subject.findMany({
 			where: whereClause,

@@ -10,6 +10,8 @@
 		Info,
 		HelpCircle,
 		ShieldAlert,
+		ShieldCheck,
+		WifiOff,
 		Award,
 		Sliders,
 		Check,
@@ -30,6 +32,7 @@
 	import OptionEditor from './OptionEditor.svelte';
 	import TradeOffList from './TradeOffList.svelte';
 	import CapitalizationPanel from './CapitalizationPanel.svelte';
+	import ComplianceCheckBanner, { type UiCompliancePayload } from './ComplianceCheckBanner.svelte';
 
 	let {
 		projectId = '',
@@ -97,9 +100,12 @@
 	}
 
 	// Conformité réglementaire des options (LLMOps, contre les référentiels de l'espace)
-	interface ComplianceViolation { optionId: string; typedId: string; message: string; validated: boolean; matchedTerms: string[] }
-	let compliance = $state<{ frameworks: string[]; offline: boolean; violations: ComplianceViolation[]; unassessedCount: number; coverageWarnings?: string[] } | null>(null);
+	interface ComplianceViolation { optionId: string; typedId: string; message: string; validated: boolean; matchedTerms?: string[] }
+	let compliance = $state<UiCompliancePayload | null>(null);
+	let complianceLoading = $state(false);
 	let violationJustifications = $state<Record<string, string>>({});
+	let derogationAcknowledged = $state(false);
+	let derogationReason = $state('');
 	const violationsOf = (optionId: string) => (compliance?.violations ?? []).filter((v) => v.optionId === optionId);
 
 	function formatViolationTooltip(v: ComplianceViolation): string {
@@ -110,23 +116,28 @@
 		return base;
 	}
 
-	type CompliancePayload = { frameworks: string[]; offline: boolean; violations: ComplianceViolation[]; unassessedCount: number; coverageWarnings?: string[] };
+	type CompliancePayload = UiCompliancePayload;
 	const complianceCache = new Map<string, CompliancePayload>();
 
 	$effect(() => {
 		const subjectOwnedOptions = options.filter((o) => !o.subjectId || o.subjectId === subjectId);
 		if (!projectId || !subjectId || subjectOwnedOptions.length === 0) {
 			compliance = null;
+			complianceLoading = false;
 			return;
 		}
 		const cacheKey = `${projectId}:${subjectId}:${subjectOwnedOptions.map((o) => `${o.id}:${o.version}:${o.title}`).join('|')}`;
 		const cached = complianceCache.get(cacheKey);
 		if (cached) {
 			compliance = cached;
-			if (!cached.offline) return;
+			if (!cached.offline) {
+				complianceLoading = false;
+				return;
+			}
 		}
 
 		const controller = new AbortController();
+		complianceLoading = true;
 		fetch(`/api/projects/${projectId}/subjects/${subjectId}/compliance`, { signal: controller.signal })
 			.then((r) => (r.ok ? r.json() : null))
 			.then((data) => {
@@ -135,11 +146,16 @@
 					compliance = data;
 					complianceCache.set(cacheKey, data);
 				} else {
-					compliance = null;
+					compliance = { frameworks: [], offline: true, violations: [], unassessedCount: 0, checkStatus: 'not_checked' };
 				}
 			})
 			.catch(() => {
-				if (!controller.signal.aborted) compliance = null;
+				if (!controller.signal.aborted) {
+					compliance = { frameworks: [], offline: true, violations: [], unassessedCount: 0, checkStatus: 'not_checked' };
+				}
+			})
+			.finally(() => {
+				if (!controller.signal.aborted) complianceLoading = false;
 			});
 
 		return () => controller.abort();
@@ -434,6 +450,8 @@
 		selectedRetainedOptionId = decision?.retainedOptionId || options[0]?.id || '';
 		decisionRationale = decision?.rationale || '';
 		decisionReversibility = (decision?.reversibility as any) || 'reversible';
+		derogationAcknowledged = false;
+		derogationReason = '';
 		decisionError = null;
 		isDeciding = true;
 	}
@@ -445,6 +463,18 @@
 		}
 		if (!decisionRationale.trim()) {
 			decisionError = 'La justification formelle (rationale) de l\'arbitrage est obligatoire.';
+			return;
+		}
+		const needsDerogation =
+			!compliance ||
+			compliance.offline ||
+			compliance.checkStatus === 'not_checked' ||
+			compliance.checkStatus === 'partial' ||
+			(compliance.unassessedRuleIds?.length ?? 0) > 0 ||
+			compliance.unassessedCount > 0;
+		if (needsDerogation && (!derogationAcknowledged || derogationReason.trim().length < 5)) {
+			decisionError =
+				'Vérification réglementaire KB incomplète : cochez la dérogation explicite et saisissez un motif (min. 5 caractères) pour trancher.';
 			return;
 		}
 
@@ -466,7 +496,15 @@
 					// Écarts réglementaires acceptés et justifiés par l'arbitre (règles validées seulement)
 					acceptedViolations: violationsOf(selectedRetainedOptionId)
 						.filter((v) => v.validated && violationJustifications[v.typedId]?.trim())
-						.map((v) => ({ typedId: v.typedId, justification: violationJustifications[v.typedId].trim() }))
+						.map((v) => ({ typedId: v.typedId, justification: violationJustifications[v.typedId].trim() })),
+					...(derogationAcknowledged
+						? {
+								complianceCheckDerogation: {
+									acknowledged: true,
+									reason: derogationReason.trim()
+								}
+							}
+						: {})
 				})
 			});
 
@@ -495,11 +533,39 @@
 <div class="space-y-4">
 	<!-- Barre d'actions et Synthèse de Décision -->
 	<div class="flex items-center justify-between gap-3 flex-wrap">
-		<div class="flex items-center gap-2">
+		<div class="flex items-center gap-2 flex-wrap">
 			<Scale class="h-4 w-4 text-primary" />
 			<h4 class="text-xs font-bold uppercase tracking-wider text-foreground">
 				Matrice Multi-Critères & Alternatives ({options.length} options, {criteria.length} critères)
 			</h4>
+			{#if options.length > 0 && !complianceLoading}
+				{#if !compliance || compliance.offline || compliance.checkStatus === 'not_checked'}
+					<span
+						class="inline-flex items-center gap-1 rounded-full border border-rose-500/40 bg-rose-500/10 px-2 py-0.5 text-[10px] font-semibold text-rose-700 dark:text-rose-300"
+						title="Le Hub KB est injoignable : l'absence de violation affichée ne garantit pas la conformité réglementaire."
+						data-testid="matrix-kb-status-offline"
+					>
+						<WifiOff class="h-3 w-3" />
+						Hub KB non connecté
+					</span>
+				{:else if compliance.checkStatus === 'partial' || (compliance.unassessedRuleIds?.length ?? 0) > 0 || compliance.unassessedCount > 0}
+					<span
+						class="inline-flex items-center gap-1 rounded-full border border-amber-500/40 bg-amber-500/10 px-2 py-0.5 text-[10px] font-semibold text-amber-800 dark:text-amber-200"
+						data-testid="matrix-kb-status-partial"
+					>
+						<AlertTriangle class="h-3 w-3" />
+						Vérification KB partielle ({compliance.unassessedRuleIds?.length || compliance.unassessedCount} non évaluée(s))
+					</span>
+				{:else if compliance.violations.length === 0}
+					<span
+						class="inline-flex items-center gap-1 rounded-full border border-emerald-500/30 bg-emerald-500/10 px-2 py-0.5 text-[10px] font-semibold text-emerald-700 dark:text-emerald-300"
+						data-testid="matrix-kb-status-checked"
+					>
+						<ShieldCheck class="h-3 w-3" />
+						Hub KB connecté · aucune violation
+					</span>
+				{/if}
+			{/if}
 		</div>
 
 		<div class="flex items-center gap-2 flex-wrap">
@@ -1055,6 +1121,15 @@
 						class="w-full rounded-md border bg-background px-3 py-1.5 text-xs text-foreground placeholder:text-muted-foreground"
 					></textarea>
 				</div>
+
+				<ComplianceCheckBanner
+					{compliance}
+					loading={complianceLoading}
+					selectedOptionId={selectedRetainedOptionId}
+					bind:violationJustifications
+					bind:derogationAcknowledged
+					bind:derogationReason
+				/>
 			</div>
 
 			<div class="flex justify-end gap-2 border-t pt-3">

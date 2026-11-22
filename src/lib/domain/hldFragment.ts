@@ -186,7 +186,7 @@ export function buildHldFragment(input: HldFragmentInput): HldFragment {
 						(topDrivers.length ? `Face à ${topDrivers.join(', ')}, nous` : 'Nous') +
 						` avons retenu « ${retained.title} »` +
 						(others.length ? ` plutôt que ${others.map((t) => `« ${t} »`).join(', ')}` : '') +
-						`, pour la raison suivante : ${decision.rationale.trim().replace(/\.$/, '')}` +
+						`, pour la raison suivante : ${(decision.rationale ?? '').trim().replace(/\.$/, '')}` +
 						(violations.length > 0 || acceptedRisks.length > 0
 							? `, en acceptant ${[...violations.map((v) => `l'écart au ${humanizeTypedId(v.typedId)}`), ...acceptedRisks.map((r) => `le risque « ${r} »`)].join(', ')}.`
 							: '.')
@@ -294,7 +294,7 @@ export function buildHldFragment(input: HldFragmentInput): HldFragment {
 }
 
 const scoreLabel = (s: number) => (s > 0 ? `+${s}` : String(s));
-const cell = (s: string) => s.replace(/\|/g, '\\|').replace(/\n+/g, ' ');
+const cell = (s: string | null | undefined) => (s ?? '').replace(/\|/g, '\\|').replace(/\n+/g, ' ');
 
 /** Rendu Markdown du fragment, pour l'insérer dans le dossier de conception. */
 export function renderHldFragmentMarkdown(f: HldFragment): string {

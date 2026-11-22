@@ -9,6 +9,9 @@ import { computeKbClausesHealth } from '$lib/domain/kbClausesHealth';
 
 /** Référentiels déclarés pour l'espace, et ceux que cite le dossier d'exigences enregistré (proposition). */
 export const GET: RequestHandler = async (event) => {
+	const auth = await authorizeProjectAccess(event, event.params.projectId);
+	if (auth.error) return auth.error;
+
 	const projectId = event.params.projectId!;
 	const userEmail = event.locals.session?.user?.email;
 

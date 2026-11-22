@@ -6,7 +6,11 @@ import { StartDebateSchema } from '$lib/schemas/debateApiSchemas';
 import { getActorInfo } from '$lib/server/projects/actorHelper';
 import { authorizeProjectAccess } from '$lib/server/projects/projectAccess';
 
-export const GET: RequestHandler = async ({ params }) => {
+export const GET: RequestHandler = async (event) => {
+	const auth = await authorizeProjectAccess(event, event.params.projectId);
+	if (auth.error) return auth.error;
+	const { params } = event;
+
 	const { subjectId } = params;
 
 	try {
@@ -49,7 +53,20 @@ export const POST: RequestHandler = async (event) => {
 				body.prompt || '',
 				actor
 			);
-			return json({ status: 'ok', arguments: agentArgs }, { status: 201 });
+			const message =
+				agentArgs.length === 0
+					? body.agentRole === 'verifier'
+						? "Le vérificateur n'a produit aucun constat : vérifiez que le sujet comporte au moins une option d'architecture et une règle doctrinale applicable (#base)."
+						: `L'agent @${body.agentRole} n'a produit aucune contribution sur ce sujet.`
+					: undefined;
+			return json(
+				{
+					status: 'ok',
+					arguments: agentArgs,
+					...(message ? { message } : {})
+				},
+				{ status: 201 }
+			);
 		} catch (err: any) {
 			return json({ message: err.message }, { status: 400 });
 		}

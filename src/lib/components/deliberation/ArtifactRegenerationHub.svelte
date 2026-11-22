@@ -1,13 +1,37 @@
 <script lang="ts">
 	import { deliberationStore } from '$lib/stores/deliberationStore.svelte';
 	import { wrapC4xMarkdown } from '$lib/domain/c4xDsl';
+	import {
+		DEFAULT_EDITORIAL_DIALS,
+		recommendEditorialViews,
+		renderCompensatingLayers,
+		renderCoverageUnitGrid,
+		renderDecisionHeatmap,
+		renderDecisionRadar,
+		renderDeploymentSequenceSvg,
+		renderLifecyclePhaseMap,
+		renderPairedPolicyTraces,
+		renderRequirementTraceability,
+		renderTraceableBlockTree,
+		type EditorialDiagramTypeId,
+		type EditorialDials,
+		type EditorialViewRecommendation,
+		type PairedPolicyRuleRow,
+		type TraceabilityRowInput
+	} from '$lib/domain/editorialSvg';
 	import MermaidViewer from './MermaidViewer.svelte';
-	import { RefreshCw, Download, Copy, Check, Terminal, FileCode, Layers, Cpu, ShieldCheck, Scale, FileSpreadsheet, Boxes, ExternalLink } from 'lucide-svelte';
+	import EditorialDiagramViewer from './EditorialDiagramViewer.svelte';
+	import { RefreshCw, Download, Copy, Check, Terminal, FileCode, Layers, Cpu, ShieldCheck, Scale, FileSpreadsheet, Boxes, ExternalLink, Sparkles } from 'lucide-svelte';
 
-	type TabType = 'mermaid' | 'structurizr' | 'sysml' | 'config' | 'compliance' | 'petites-briques';
+	type TabType = 'mermaid' | 'editorial' | 'structurizr' | 'sysml' | 'config' | 'compliance' | 'petites-briques';
 
 	let activeTab = $state<TabType>('mermaid');
 	let mermaidSubView = $state<'target' | 'sequence' | 'causal'>('target');
+	let editorialSubView = $state<EditorialDiagramTypeId>('traceable-blocks');
+	let editorialDials = $state<EditorialDials>({ ...DEFAULT_EDITORIAL_DIALS });
+	let llmEditorialRecs = $state<EditorialViewRecommendation[] | null>(null);
+	let llmCalloutText = $state<string | undefined>(undefined);
+	let isAskingEditorialLlm = $state(false);
 	let c4SubView = $state<'c4x' | 'structurizr'>('c4x');
 	let petitesBriquesSubView = $state<'visual' | 'yaml' | 'json'>('visual');
 	let selectedBlockAxisId = $state<string | null>(null);
@@ -21,6 +45,289 @@
 	const projections = $derived(
 		activeSubject ? deliberationStore.getProjections(activeSubject.id) : null
 	);
+
+	const editorialTraceRows = $derived.by((): TraceabilityRowInput[] => {
+		if (!activeSubject || !projections?.projectionBlocks) return [];
+		const blockGraph = projections.projectionBlocks;
+		const decisionCtx = deliberationStore.decisionContexts[activeSubject.id];
+		const retainedOption = decisionCtx?.decision?.retainedOptionId
+			? decisionCtx.options.find((o) => o.id === decisionCtx.decision?.retainedOptionId)
+			: null;
+		const isFrozen = Boolean(deliberationStore.frozenSnapshots[activeSubject.id]);
+
+		return blockGraph.requirements.map((req) => {
+			const block = req.targetAxisId
+				? blockGraph.blocks.find((b) => b.axisId === req.targetAxisId)
+				: null;
+			const settledItem = block?.items.find((i) => i.badge.tag === 'Verified' || i.badge.tag === 'Designed');
+			return {
+				requirementId: req.clauseRef,
+				sourceRef: activeSubject.section_ref || 'RFP',
+				sourceLabel: activeSubject.name,
+				requirementTitle: req.title,
+				designElementId: block ? block.safeId.toUpperCase() : retainedOption ? 'DEC-OPT' : null,
+				designElementLabel: block ? block.label : retainedOption ? retainedOption.title : null,
+				verificationId: settledItem ? settledItem.statement.id : isFrozen ? 'SEAL-L5' : null,
+				verificationLabel: settledItem
+					? `${settledItem.badge.label} · ${settledItem.componentName}`
+					: isFrozen
+						? 'Section scellée (L5)'
+						: null
+			};
+		});
+	});
+
+	const editorialSignals = $derived.by(() => {
+		const blockGraph = projections?.projectionBlocks;
+		const decisionCtx = activeSubject ? deliberationStore.decisionContexts[activeSubject.id] : undefined;
+		const totalStatements = blockGraph ? blockGraph.blocks.reduce((acc, b) => acc + b.items.length, 0) : 0;
+		const unsettledCount = blockGraph ? blockGraph.blocks.reduce((acc, b) => acc + b.unsettledCount, 0) : 0;
+		const missingVerificationCount = editorialTraceRows.filter((r) => !r.verificationId).length;
+		const acceptedViolations = decisionCtx?.decision?.acceptedViolations;
+		return {
+			blockCount: blockGraph?.blocks.length ?? 0,
+			statementCount: totalStatements,
+			unsettledCount,
+			requirementCount: blockGraph?.requirements.length ?? 0,
+			missingVerificationCount,
+			optionCount: decisionCtx?.options?.length ?? activeSubject?.proposal?.options?.length ?? 0,
+			criteriaCount: activeSubject?.proposal?.criteria?.length ?? 0,
+			hasRetainedDecision: Boolean(decisionCtx?.decision?.retainedOptionId),
+			hasAcceptedViolations: Boolean(acceptedViolations && acceptedViolations.length > 0)
+		};
+	});
+
+	const editorialRecommendations = $derived.by(() => {
+		if (llmEditorialRecs && llmEditorialRecs.length > 0) return llmEditorialRecs;
+		return recommendEditorialViews(editorialSignals);
+	});
+
+	async function askEditorialDirector() {
+		const pId = deliberationStore.activeEngagement?.id || deliberationStore.activeEngagementId;
+		if (!pId || !activeSubject) return;
+		isAskingEditorialLlm = true;
+		try {
+			const blockGraph = projections?.projectionBlocks;
+			const validIds = [
+				...(blockGraph?.blocks.map((b) => b.axisId) ?? []),
+				...(blockGraph?.requirements.map((r) => r.clauseRef) ?? [])
+			];
+			const res = await fetch(
+				`/api/projects/${encodeURIComponent(pId)}/subjects/${encodeURIComponent(activeSubject.id)}/editorial-recommendations`,
+				{
+					method: 'POST',
+					headers: { 'Content-Type': 'application/json' },
+					body: JSON.stringify({
+						subjectName: activeSubject.name,
+						sectionRef: activeSubject.section_ref,
+						signals: editorialSignals,
+						validEntityIds: validIds
+					})
+				}
+			);
+			if (res.ok) {
+				const data = await res.json();
+				if (Array.isArray(data.recommendations) && data.recommendations.length > 0) {
+					llmEditorialRecs = data.recommendations;
+					llmCalloutText = data.calloutText;
+				}
+			}
+		} catch {
+			// Repli silencieux sur les recommandations déterministes
+		} finally {
+			isAskingEditorialLlm = false;
+		}
+	}
+
+	const activeEditorialDiagram = $derived.by(() => {
+		const blockGraph = projections?.projectionBlocks;
+		if (!activeSubject || !blockGraph) return null;
+		const decisionCtx = deliberationStore.decisionContexts[activeSubject.id];
+		const retainedOption = decisionCtx?.decision?.retainedOptionId
+			? decisionCtx.options.find((o) => o.id === decisionCtx.decision?.retainedOptionId)
+			: null;
+
+		if (editorialSubView === 'requirement-traceability') {
+			return renderRequirementTraceability({
+				subjectId: activeSubject.id,
+				sectionRef: activeSubject.section_ref,
+				subjectName: activeSubject.name,
+				rows: editorialTraceRows,
+				dials: editorialDials
+			});
+		}
+
+		if (editorialSubView === 'paired-policy-traces') {
+			const opts = decisionCtx?.options ?? [];
+			const optA = retainedOption ?? opts[0];
+			const optB = opts.find((o) => o.id !== optA?.id) ?? opts[1];
+			const rules: PairedPolicyRuleRow[] = blockGraph.requirements.slice(0, 6).map((req) => {
+				const block = req.targetAxisId ? blockGraph.blocks.find((b) => b.axisId === req.targetAxisId) : null;
+				const hasVerified = Boolean(block?.items.some((i) => i.badge.tag === 'Verified' || i.badge.tag === 'Designed'));
+				return {
+					ruleId: req.clauseRef,
+					ruleTitle: req.title,
+					optionAStatus: hasVerified ? 'PASS' : 'UNVERIFIED',
+					optionBStatus: block ? (block.unsettledCount > 0 ? 'FAIL' : 'PASS') : 'SKIPPED'
+				};
+			});
+			return renderPairedPolicyTraces({
+				subjectId: activeSubject.id,
+				sectionRef: activeSubject.section_ref,
+				subjectName: activeSubject.name,
+				optionALabel: optA?.title || 'Option retenue',
+				optionBLabel: optB?.title || 'Option alternative',
+				rules,
+				dials: editorialDials
+			});
+		}
+
+		if (editorialSubView === 'decision-heatmap') {
+			const criteria = (activeSubject.proposal?.criteria ?? []).map((c, idx) => ({
+				id: `crit-${idx}`,
+				name: c.name,
+				weight: c.weight
+			}));
+			const evals = activeSubject.proposal?.evaluations ?? [];
+			const rawOptions =
+				decisionCtx?.options && decisionCtx.options.length > 0
+					? decisionCtx.options.map((o) => ({ id: o.id, title: o.title }))
+					: (activeSubject.proposal?.options ?? []).map((o, idx) => ({ id: `opt-${idx}`, title: o.title }));
+			const options = rawOptions.map((o) => {
+				const scores: Record<string, number | null> = {};
+				for (const c of criteria) {
+					const found = evals.find((e) => e.option === o.title && e.criterion === c.name);
+					scores[c.id] = found ? found.score : null;
+				}
+				return {
+					id: o.id,
+					title: o.title,
+					retained: decisionCtx?.decision?.retainedOptionId === o.id,
+					scores
+				};
+			});
+			return renderDecisionHeatmap({
+				subjectId: activeSubject.id,
+				sectionRef: activeSubject.section_ref,
+				subjectName: activeSubject.name,
+				criteria,
+				options,
+				calloutText: llmCalloutText || decisionCtx?.decision?.reversibility,
+				dials: editorialDials
+			});
+		}
+
+		if (editorialSubView === 'compensating-layers') {
+			const layers = blockGraph.blocks.slice(0, 4).map((b, idx) => ({
+				id: `LAY-${idx + 1}`,
+				surface: b.togafRef || b.label,
+				controlName: b.components[0] || b.label,
+				actor: (idx === 0 ? 'human' : idx === 1 ? 'code' : 'platform') as 'human' | 'code' | 'platform',
+				timing: (idx === 0 ? 'write' : idx === 1 ? 'merge' : 'run') as 'write' | 'merge' | 'run',
+				coverageNote: `${b.settledCount}/${b.items.length} consolidé(s) · ${b.requirementRefs.length} req`,
+				isGap: b.unsettledCount > 0
+			}));
+			const unsettledTotal = blockGraph.blocks.reduce((acc, b) => acc + b.unsettledCount, 0);
+			return renderCompensatingLayers({
+				subjectId: activeSubject.id,
+				sectionRef: activeSubject.section_ref,
+				subjectName: activeSubject.name,
+				layers,
+				residualRiskSummary:
+					unsettledTotal > 0
+						? `${unsettledTotal} énoncé(s) non consolidé(s) restant(s) à arbitrer ou couvrir avant scellement.`
+						: 'Tous les énoncés actifs de cette section sont consolidés ; surveillance continue via Nautobot.',
+				dials: editorialDials
+			});
+		}
+
+		if (editorialSubView === 'coverage-unit-grid') {
+			return renderCoverageUnitGrid({
+				subjectId: activeSubject.id,
+				sectionRef: activeSubject.section_ref,
+				subjectName: activeSubject.name,
+				rows: editorialTraceRows,
+				dials: editorialDials
+			});
+		}
+
+		if (editorialSubView === 'decision-radar') {
+			const criteria = (activeSubject.proposal?.criteria ?? []).map((c, idx) => ({
+				id: `crit-${idx}`,
+				name: c.name,
+				weight: c.weight
+			}));
+			const evals = activeSubject.proposal?.evaluations ?? [];
+			const rawOptions =
+				decisionCtx?.options && decisionCtx.options.length > 0
+					? decisionCtx.options.map((o) => ({ id: o.id, title: o.title }))
+					: (activeSubject.proposal?.options ?? []).map((o, idx) => ({ id: `opt-${idx}`, title: o.title }));
+			const options = rawOptions.map((o) => {
+				const scores: Record<string, number | null> = {};
+				for (const c of criteria) {
+					const found = evals.find((e) => e.option === o.title && e.criterion === c.name);
+					scores[c.id] = found ? found.score : null;
+				}
+				return {
+					id: o.id,
+					title: o.title,
+					retained: decisionCtx?.decision?.retainedOptionId === o.id,
+					scores
+				};
+			});
+			return renderDecisionRadar({
+				subjectId: activeSubject.id,
+				sectionRef: activeSubject.section_ref,
+				subjectName: activeSubject.name,
+				criteria,
+				options,
+				dials: editorialDials
+			});
+		}
+
+		if (editorialSubView === 'lifecycle-phase-map') {
+			const unsettledTotal = blockGraph.blocks.reduce((acc, b) => acc + b.unsettledCount, 0);
+			return renderLifecyclePhaseMap({
+				subjectId: activeSubject.id,
+				sectionRef: activeSubject.section_ref,
+				subjectName: activeSubject.name,
+				currentLevel: Number(String(activeSubject.level || '0').replace(/[^0-9]/g, '')) || 0,
+				unsettledCount: unsettledTotal,
+				hasRetainedDecision: Boolean(decisionCtx?.decision?.retainedOptionId),
+				isFrozen: Boolean(deliberationStore.frozenSnapshots[activeSubject.id]),
+				hasAcceptedViolations: Boolean(decisionCtx?.decision?.acceptedViolations?.length),
+				dials: editorialDials
+			});
+		}
+
+		if (editorialSubView === 'deployment-sequence') {
+			return renderDeploymentSequenceSvg({
+				subjectId: activeSubject.id,
+				sectionRef: activeSubject.section_ref,
+				subjectName: activeSubject.name,
+				actors: ['Arbitre', 'Archinex', 'KB / OPA', 'Nautobot'],
+				steps: [
+					{ id: 'S1', fromActorIndex: 0, toActorIndex: 1, label: 'Arbitre option retenue', isFocal: true },
+					{ id: 'S2', fromActorIndex: 1, toActorIndex: 2, label: 'Évalue clauses KB / Rego' },
+					{ id: 'S3', fromActorIndex: 2, toActorIndex: 1, label: 'Verdict structuré', isReturn: true },
+					{ id: 'S4', fromActorIndex: 1, toActorIndex: 3, label: 'Push intention (dry-run / plan)', isFocal: true },
+					{ id: 'S5', fromActorIndex: 3, toActorIndex: 1, label: 'Preuve exécution & dérive', isReturn: true }
+				],
+				altBranchPrimary: 'Planification Nautobot validée · Section scellée (L5)',
+				altBranchFallback: 'Dérive ou réserve → Remédier / Amender / Déroger',
+				dials: editorialDials
+			});
+		}
+
+		return renderTraceableBlockTree({
+			subjectId: activeSubject.id,
+			sectionRef: activeSubject.section_ref,
+			subjectName: activeSubject.name,
+			retainedOptionTitle: retainedOption?.title,
+			graph: blockGraph,
+			dials: editorialDials
+		});
+	});
 
 	$effect(() => {
 		if (activeSubject?.id) {
@@ -85,6 +392,8 @@
 				if (mermaidSubView === 'sequence') return (projections as any).deploymentSequenceMermaid || projections.mermaid;
 				if (mermaidSubView === 'causal') return projections.mermaid;
 				return (projections as any).targetArchitectureMermaid || projections.mermaid;
+			case 'editorial':
+				return activeEditorialDiagram?.svg || '';
 			case 'structurizr':
 				return c4SubView === 'c4x' ? (projections.c4xDSL || '') : projections.structurizrDSL;
 			case 'sysml':
@@ -119,6 +428,10 @@
 				if (mermaidSubView === 'sequence') filename = `${activeSubject?.id || 'arch'}_deployment_sequence.mmd`;
 				else if (mermaidSubView === 'causal') filename = `${activeSubject?.id || 'arch'}_causal_graph.mmd`;
 				else filename = `${activeSubject?.id || 'arch'}_target_architecture.mmd`;
+				break;
+			case 'editorial':
+				filename = `${activeEditorialDiagram?.slug || activeSubject?.id || 'arch'}.svg`;
+				mimeType = 'image/svg+xml;charset=utf-8';
 				break;
 			case 'structurizr':
 				filename = c4SubView === 'c4x'
@@ -222,13 +535,26 @@
 
 			<button
 				type="button"
+				onclick={() => (activeTab = 'editorial')}
+				class="px-3 py-1.5 font-semibold rounded-lg transition-colors flex items-center gap-1.5 whitespace-nowrap {activeTab === 'editorial'
+					? 'bg-primary text-primary-foreground shadow-2xs'
+					: 'text-muted-foreground hover:text-foreground hover:bg-muted/60'}"
+				data-testid="tab-editorial-svg"
+			>
+				<Sparkles class="h-3.5 w-3.5" />
+				<span>Vues Éditoriales (SVG)</span>
+			</button>
+
+			<button
+				type="button"
 				onclick={() => (activeTab = 'structurizr')}
 				class="px-3 py-1.5 font-semibold rounded-lg transition-colors flex items-center gap-1.5 whitespace-nowrap {activeTab === 'structurizr'
 					? 'bg-primary text-primary-foreground shadow-2xs'
 					: 'text-muted-foreground hover:text-foreground hover:bg-muted/60'}"
+				data-testid="tab-c4-model"
 			>
 				<FileCode class="h-3.5 w-3.5" />
-				<span>Modèle C4 Structurizr (Interprété)</span>
+				<span>Modèle C4 (C4X & Structurizr)</span>
 			</button>
 
 			<button
@@ -371,6 +697,90 @@
 						defaultView="visual"
 					/>
 				{/if}
+			{:else if activeTab === 'editorial' && activeEditorialDiagram}
+				<div class="flex flex-wrap items-center gap-1.5 p-1 rounded-lg bg-muted/60 border border-border/40 w-fit text-xs" data-testid="editorial-view-switcher">
+					<button
+						type="button"
+						onclick={() => (editorialSubView = 'traceable-blocks')}
+						class="px-2.5 py-1 rounded-md font-medium transition-colors {editorialSubView === 'traceable-blocks' ? 'bg-background shadow-xs text-foreground font-bold' : 'text-muted-foreground hover:text-foreground'}"
+						data-testid="editorial-subtab-blocks"
+					>
+						Blocs TOGAF
+					</button>
+					<button
+						type="button"
+						onclick={() => (editorialSubView = 'requirement-traceability')}
+						class="px-2.5 py-1 rounded-md font-medium transition-colors {editorialSubView === 'requirement-traceability' ? 'bg-background shadow-xs text-foreground font-bold' : 'text-muted-foreground hover:text-foreground'}"
+						data-testid="editorial-subtab-traceability"
+					>
+						Traçabilité Exigences
+					</button>
+					<button
+						type="button"
+						onclick={() => (editorialSubView = 'paired-policy-traces')}
+						class="px-2.5 py-1 rounded-md font-medium transition-colors {editorialSubView === 'paired-policy-traces' ? 'bg-background shadow-xs text-foreground font-bold' : 'text-muted-foreground hover:text-foreground'}"
+						data-testid="editorial-subtab-policy"
+					>
+						Traces KB Appariées
+					</button>
+					<button
+						type="button"
+						onclick={() => (editorialSubView = 'decision-heatmap')}
+						class="px-2.5 py-1 rounded-md font-medium transition-colors {editorialSubView === 'decision-heatmap' ? 'bg-background shadow-xs text-foreground font-bold' : 'text-muted-foreground hover:text-foreground'}"
+						data-testid="editorial-subtab-heatmap"
+					>
+						Matrice Décision
+					</button>
+					<button
+						type="button"
+						onclick={() => (editorialSubView = 'compensating-layers')}
+						class="px-2.5 py-1 rounded-md font-medium transition-colors {editorialSubView === 'compensating-layers' ? 'bg-background shadow-xs text-foreground font-bold' : 'text-muted-foreground hover:text-foreground'}"
+						data-testid="editorial-subtab-layers"
+					>
+						Couches Compensatoires
+					</button>
+					<button
+						type="button"
+						onclick={() => (editorialSubView = 'coverage-unit-grid')}
+						class="px-2.5 py-1 rounded-md font-medium transition-colors {editorialSubView === 'coverage-unit-grid' ? 'bg-background shadow-xs text-foreground font-bold' : 'text-muted-foreground hover:text-foreground'}"
+						data-testid="editorial-subtab-unit-grid"
+					>
+						Grille Couverture
+					</button>
+					<button
+						type="button"
+						onclick={() => (editorialSubView = 'decision-radar')}
+						class="px-2.5 py-1 rounded-md font-medium transition-colors {editorialSubView === 'decision-radar' ? 'bg-background shadow-xs text-foreground font-bold' : 'text-muted-foreground hover:text-foreground'}"
+						data-testid="editorial-subtab-radar"
+					>
+						Radar Critères
+					</button>
+					<button
+						type="button"
+						onclick={() => (editorialSubView = 'lifecycle-phase-map')}
+						class="px-2.5 py-1 rounded-md font-medium transition-colors {editorialSubView === 'lifecycle-phase-map' ? 'bg-background shadow-xs text-foreground font-bold' : 'text-muted-foreground hover:text-foreground'}"
+						data-testid="editorial-subtab-lifecycle"
+					>
+						Cycle de Vie (L0–L5)
+					</button>
+					<button
+						type="button"
+						onclick={() => (editorialSubView = 'deployment-sequence')}
+						class="px-2.5 py-1 rounded-md font-medium transition-colors {editorialSubView === 'deployment-sequence' ? 'bg-background shadow-xs text-foreground font-bold' : 'text-muted-foreground hover:text-foreground'}"
+						data-testid="editorial-subtab-sequence"
+					>
+						Séquence &amp; Homologation
+					</button>
+				</div>
+
+				<EditorialDiagramViewer
+					diagram={activeEditorialDiagram}
+					recommendations={editorialRecommendations}
+					bind:dials={editorialDials}
+					onSelectView={(viewId) => (editorialSubView = viewId)}
+					onAskLlmAdvice={askEditorialDirector}
+					isAskingLlm={isAskingEditorialLlm}
+				/>
 			{:else if activeTab === 'structurizr' || activeTab === 'sysml'}
 				{@const blockGraph = projections.projectionBlocks}
 				{@const activeBlock = selectedBlockAxisId ? blockGraph?.blocks.find((b) => b.axisId === selectedBlockAxisId) : null}
@@ -470,112 +880,124 @@
 							</button>
 						</div>
 
-						<MermaidViewer
-							code={focusedMermaid || projections.structurizrVisual}
-							title="Architecture C4 (Interprétation Graphique du Modèle {c4SubView === 'c4x' ? 'C4X' : 'Structurizr'}){activeBlock ? ` · ${activeBlock.label}` : ''}"
-							defaultView="visual"
-						/>
+						<div class="grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch">
+							<div class="lg:col-span-4 flex flex-col">
+								<MermaidViewer
+									code={focusedMermaid || projections.structurizrVisual}
+									title="Aperçu C4 ({c4SubView === 'c4x' ? 'C4X' : 'Structurizr'}){activeBlock ? ` · ${activeBlock.label}` : ''}"
+									defaultView="visual"
+									compact={true}
+								/>
+							</div>
 
-						{#if c4SubView === 'c4x'}
-							<div class="rounded-lg border bg-muted/20 p-3 space-y-2" data-testid="c4x-code-panel">
-								<div class="flex flex-wrap items-center justify-between gap-2 text-xs">
-									<span class="font-bold text-muted-foreground">Code Source C4X (.c4x / bloc Markdown) :</span>
-									<div class="flex flex-wrap items-center gap-2">
-										<button
-											type="button"
-											onclick={() => {
-												navigator.clipboard.writeText(wrapC4xMarkdown(projections.c4xDSL || '', activeSubject?.name));
-												copied = true;
-												setTimeout(() => (copied = false), 2000);
-											}}
-											class="inline-flex items-center gap-1 rounded border border-indigo-500/30 bg-indigo-500/10 px-2 py-1 text-[11px] font-medium text-indigo-700 dark:text-indigo-300 hover:bg-indigo-500/20 transition-colors"
-											data-testid="copy-c4x-markdown-btn"
-										>
-											<Copy class="h-3 w-3" />
-											<span>Copier bloc Markdown ```c4x</span>
-										</button>
-										<button
-											type="button"
-											onclick={downloadArtifact}
-											class="inline-flex items-center gap-1 rounded border border-input bg-background px-2 py-1 text-[11px] font-medium hover:bg-muted transition-colors"
-											data-testid="download-c4x-btn"
-										>
-											<Download class="h-3 w-3" />
-											<span>Télécharger .c4x</span>
-										</button>
-										<button
-											type="button"
-											onclick={() => {
-												navigator.clipboard.writeText(projections.c4xDSL || '');
-												copied = true;
-												setTimeout(() => (copied = false), 2000);
-											}}
-											class="text-[11px] font-semibold text-primary hover:underline"
-											data-testid="copy-c4x-btn"
-										>
-											Copier C4X
-										</button>
+							<div class="lg:col-span-8 flex flex-col">
+								{#if c4SubView === 'c4x'}
+									<div class="rounded-xl border bg-muted/20 p-3 space-y-2 flex-1 flex flex-col" data-testid="c4x-code-panel">
+										<div class="flex flex-wrap items-center justify-between gap-2 text-xs">
+											<span class="font-bold text-muted-foreground">Code Source C4X (.c4x / bloc Markdown) :</span>
+											<div class="flex flex-wrap items-center gap-2">
+												<button
+													type="button"
+													onclick={() => {
+														navigator.clipboard.writeText(wrapC4xMarkdown(projections.c4xDSL || '', activeSubject?.name));
+														copied = true;
+														setTimeout(() => (copied = false), 2000);
+													}}
+													class="inline-flex items-center gap-1 rounded border border-indigo-500/30 bg-indigo-500/10 px-2 py-1 text-[11px] font-medium text-indigo-700 dark:text-indigo-300 hover:bg-indigo-500/20 transition-colors"
+													data-testid="copy-c4x-markdown-btn"
+												>
+													<Copy class="h-3 w-3" />
+													<span>Copier bloc Markdown ```c4x</span>
+												</button>
+												<button
+													type="button"
+													onclick={downloadArtifact}
+													class="inline-flex items-center gap-1 rounded border border-input bg-background px-2 py-1 text-[11px] font-medium hover:bg-muted transition-colors"
+													data-testid="download-c4x-btn"
+												>
+													<Download class="h-3 w-3" />
+													<span>Télécharger .c4x</span>
+												</button>
+												<button
+													type="button"
+													onclick={() => {
+														navigator.clipboard.writeText(projections.c4xDSL || '');
+														copied = true;
+														setTimeout(() => (copied = false), 2000);
+													}}
+													class="text-[11px] font-semibold text-primary hover:underline"
+													data-testid="copy-c4x-btn"
+												>
+													Copier C4X
+												</button>
+											</div>
+										</div>
+										<pre class="rounded bg-muted/80 p-3 font-mono text-[11px] text-foreground overflow-auto flex-1 max-h-[340px] border">{projections.c4xDSL}</pre>
 									</div>
-								</div>
-								<pre class="rounded bg-muted/80 p-3 font-mono text-[11px] text-foreground overflow-x-auto max-h-48 border">{projections.c4xDSL}</pre>
-							</div>
-						{:else}
-							<div class="rounded-lg border bg-muted/20 p-3 space-y-2">
-								<div class="flex flex-wrap items-center justify-between gap-2 text-xs">
-									<span class="font-bold text-muted-foreground">Code Source Structurizr DSL (.dsl) :</span>
-									<div class="flex flex-wrap items-center gap-2">
-										<a
-											href="https://structurizr.com/dsl"
-											target="_blank"
-											rel="noopener noreferrer"
-											class="inline-flex items-center gap-1 rounded border border-indigo-500/30 bg-indigo-500/10 px-2 py-1 text-[11px] font-medium text-indigo-700 dark:text-indigo-300 hover:bg-indigo-500/20 transition-colors"
-											data-testid="structurizr-playground-link"
-										>
-											<ExternalLink class="h-3 w-3" />
-											<span>Structurizr DSL Playground</span>
-										</a>
-										<button
-											type="button"
-											onclick={() => {
-												navigator.clipboard.writeText('docker run -it --rm -p 8080:8080 -v "$PWD:/usr/local/structurizr" structurizr/lite');
-												copied = true;
-												setTimeout(() => (copied = false), 2000);
-											}}
-											class="inline-flex items-center gap-1 rounded border border-input bg-background px-2 py-1 text-[11px] font-medium hover:bg-muted transition-colors"
-										>
-											<span>Commande Structurizr Lite</span>
-										</button>
-										<button
-											type="button"
-											onclick={downloadArtifact}
-											class="inline-flex items-center gap-1 rounded border border-input bg-background px-2 py-1 text-[11px] font-medium hover:bg-muted transition-colors"
-										>
-											<Download class="h-3 w-3" />
-											<span>Télécharger .dsl</span>
-										</button>
-										<button
-											type="button"
-											onclick={() => {
-												navigator.clipboard.writeText(projections.structurizrDSL);
-												copied = true;
-												setTimeout(() => (copied = false), 2000);
-											}}
-											class="text-[11px] font-semibold text-primary hover:underline"
-										>
-											Copier DSL
-										</button>
+								{:else}
+									<div class="rounded-xl border bg-muted/20 p-3 space-y-2 flex-1 flex flex-col">
+										<div class="flex flex-wrap items-center justify-between gap-2 text-xs">
+											<span class="font-bold text-muted-foreground">Code Source Structurizr DSL (.dsl) :</span>
+											<div class="flex flex-wrap items-center gap-2">
+												<a
+													href="https://structurizr.com/dsl"
+													target="_blank"
+													rel="noopener noreferrer"
+													class="inline-flex items-center gap-1 rounded border border-indigo-500/30 bg-indigo-500/10 px-2 py-1 text-[11px] font-medium text-indigo-700 dark:text-indigo-300 hover:bg-indigo-500/20 transition-colors"
+													data-testid="structurizr-playground-link"
+												>
+													<ExternalLink class="h-3 w-3" />
+													<span>Structurizr DSL Playground</span>
+												</a>
+												<button
+													type="button"
+													onclick={() => {
+														navigator.clipboard.writeText('docker run -it --rm -p 8080:8080 -v "$PWD:/usr/local/structurizr" structurizr/lite');
+														copied = true;
+														setTimeout(() => (copied = false), 2000);
+													}}
+													class="inline-flex items-center gap-1 rounded border border-input bg-background px-2 py-1 text-[11px] font-medium hover:bg-muted transition-colors"
+												>
+													<span>Commande Structurizr Lite</span>
+												</button>
+												<button
+													type="button"
+													onclick={downloadArtifact}
+													class="inline-flex items-center gap-1 rounded border border-input bg-background px-2 py-1 text-[11px] font-medium hover:bg-muted transition-colors"
+												>
+													<Download class="h-3 w-3" />
+													<span>Télécharger .dsl</span>
+												</button>
+												<button
+													type="button"
+													onclick={() => {
+														navigator.clipboard.writeText(projections.structurizrDSL);
+														copied = true;
+														setTimeout(() => (copied = false), 2000);
+													}}
+													class="text-[11px] font-semibold text-primary hover:underline"
+												>
+													Copier DSL
+												</button>
+											</div>
+										</div>
+										<pre class="rounded bg-muted/80 p-3 font-mono text-[11px] text-foreground overflow-auto flex-1 max-h-[340px] border">{projections.structurizrDSL}</pre>
 									</div>
-								</div>
-								<pre class="rounded bg-muted/80 p-3 font-mono text-[11px] text-foreground overflow-x-auto max-h-48 border">{projections.structurizrDSL}</pre>
+								{/if}
 							</div>
-						{/if}
+						</div>
 					{:else}
-						<MermaidViewer
-							code={focusedMermaid || projections.sysmlVisual}
-							title="Diagramme de Définition de Blocs SysML v2 (BDD Interprété){activeBlock ? ` · ${activeBlock.label}` : ''}"
-							defaultView="visual"
-						/>
-						<div class="rounded-lg border bg-muted/20 p-3 space-y-2">
+						<div class="grid grid-cols-1 lg:grid-cols-12 gap-4 items-stretch">
+							<div class="lg:col-span-4 flex flex-col">
+								<MermaidViewer
+									code={focusedMermaid || projections.sysmlVisual}
+									title="Aperçu SysML v2 (BDD){activeBlock ? ` · ${activeBlock.label}` : ''}"
+									defaultView="visual"
+									compact={true}
+								/>
+							</div>
+							<div class="lg:col-span-8 flex flex-col">
+								<div class="rounded-xl border bg-muted/20 p-3 space-y-2 flex-1 flex flex-col">
 							<div class="flex flex-wrap items-center justify-between gap-2 text-xs">
 								<span class="font-bold text-muted-foreground">Spécification SysML v2 (.sysml) :</span>
 								<div class="flex flex-wrap items-center gap-2">
@@ -610,7 +1032,9 @@
 									</button>
 								</div>
 							</div>
-							<pre class="rounded bg-muted/80 p-3 font-mono text-[11px] text-foreground overflow-x-auto max-h-48 border">{projections.sysmlV2}</pre>
+							<pre class="rounded bg-muted/80 p-3 font-mono text-[11px] text-foreground overflow-auto flex-1 max-h-[340px] border">{projections.sysmlV2}</pre>
+								</div>
+							</div>
 						</div>
 					{/if}
 				</div>

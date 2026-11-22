@@ -66,6 +66,41 @@ export interface AcceptedViolation {
 	justification: string;
 }
 
+export type ComplianceCheckStatus = 'checked' | 'partial' | 'not_checked';
+
+export interface ComplianceCheckDerogation {
+	reason: string;
+	acknowledgedAt: string; // ISO date
+	acknowledgedBy?: string;
+}
+
+export interface CoverageReserve {
+	frameworkId: string;
+	name?: string;
+	status: 'partial' | 'missing' | 'unknown';
+	validatedCount?: number;
+	expectedCount?: number;
+	hubRevision: string | null;
+}
+
+export interface AcceptedCoverageReserve {
+	frameworkId: string;
+	justification: string;
+	acceptedBy?: string;
+	acceptedAt?: string;
+}
+
+export interface DecisionComplianceCheck {
+	status: ComplianceCheckStatus;
+	hubRevision: string | null;
+	checkedAt: string; // ISO date
+	unassessedRuleIds: string[];
+	frameworks: string[];
+	/** Réserves de couverture réglementaire enregistrées à l'arbitrage (issue #385). */
+	coverageReserves?: CoverageReserve[];
+	derogation?: ComplianceCheckDerogation;
+}
+
 export interface Decision {
 	id: string;
 	subjectId: string;
@@ -80,6 +115,7 @@ export interface Decision {
 	arbiterRole: string;
 	decidedAt: string; // ISO date
 	acceptedViolations: AcceptedViolation[];
+	complianceCheck?: DecisionComplianceCheck;
 	kbCandidateIds: string[];
 	validatedBy?: string;
 	version?: number;

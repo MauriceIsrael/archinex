@@ -8,6 +8,33 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+- **Source projet du graphe de réconciliation — Modèle (Hub) × Instances (Projet) (#414)** :
+  - Séparation formelle entre le **modèle** porté par la feuille d'ontologie (`hydration_template.reconciliation_model` : classes requises, relations référentielles, standards normatifs, zéro identifiant concret) et les **instances** fournies par le projet (`lldOverrides.reconciliationInstances` / `composeReconciliationGraph(..., { instances })`). Le fragment historique `hydration_template.reconciliation_graph` reste accepté pour la compatibilité et les fixtures de test.
+  - Validation d'intégrité stricte (`validateReconciliationInstances` / `ReconciliationIntegrityError`) vérifiant l'unicité des identifiants (par classe et inter-nœuds), la présence et la résolution de `pivot_tenant_id`, les classes requises par le modèle et la résolution de toutes les références (`tenant_ref`, extrémités des liens, tunnels, bonds de médiation, contrats SLA).
+  - Garde anti-vacuité (`insufficient_input`) dans `evaluateMultiAxisOracle()` et `edp/policies/multi_axis_refinement.rego` : un projet sans instance lié à une feuille exigeant un graphe de réconciliation n'obtient jamais `compliant` par vacuité ; `insufficient_input` bloque également le scellement `architecture.lock` et l'export GitOps.
+  - Contrat JSON Schema (`src/lib/schemas/reconciliation-graph.schema.json`) et documentation complète avec exemple hors télécom (Santé / HDS) dans `docs/edp/reconciliation-graph-contract.md`.
+
+### Feuille de route réordonnée, gel des connecteurs directs et recadrage du positionnement (#397)
+- **Documentation d'architecture (`ARCHITECTURE.md` §16)** :
+  - Réécriture complète de la section §16 selon l'ordre de priorité : P0 sécurité/intégrité → épique « Décision éclairée » (#373) → réconciliation Nautobot (#372 : tranche minimale puis cadre des connecteurs) → cœur Archinex couverture & visuels (#400, en parallèle) → généralisation (#374) → extensions aval derrière Nautobot (gelées).
+  - Formalisation de la politique de gel des connecteurs directs et des appels d'écriture directe vers les outils d'implémentation jusqu'à mise en production de la tranche minimale Nautobot sur un projet réel, avec renvoi au re-cadrage des issues #351–#358 (ADR-017 / #375).
+  - Ajout de la gouvernance par **revue trimestrielle du périmètre** avec liste fermée « Dans le périmètre / Hors périmètre » et reclassement des anciens Horizons 1 à 3 (retrait des formulations de « preuve mathématique »).
+- **Positionnement et promesses (`README.md`)** :
+  - Clarification du positionnement comme **couche d'assurance de décision**, de l'hydratation comme **interface** avec garanties explicites sur la provenance (`défaut` / `catalogue` / `réel`), et de Nautobot comme unique point de réconciliation bidirectionnel.
+  - Reformulation des promesses (« énoncés arbitrés et traçables », « traçabilité vérifiable », « une annotation n'est pas une preuve ») et alignement du diagramme de boucle fermée.
+
+### Relocalisation des 6 adaptateurs Port/Adapter hors du cœur d'Archinex (#411)
+- **Connecteurs derrière Nautobot (`connectors/`)** :
+  - Relocalisation des 6 adaptateurs (`batfishAdapter.ts`, `openbaoAdapter.ts`, `keycloakAdapter.ts`, `ociSupplyChainAdapter.ts`, `ddiDnsAdapter.ts`, `gitopsForgeAdapter.ts`) et de `adapterTypes.ts` hors de `src/lib/server/edp/adapters/` vers `connectors/`, sans aucun import depuis `src/`.
+  - Ajout du contrat de write-back Nautobot (`connectors/writeBackContract.ts`, aligné #399) et implémentation sur le socle GitOps Forgejo (`GitopsForgeAdapter.buildWriteBackPayload` / `reportRealizationToNautobot`).
+- **Modules neutres conservés dans le cœur (`src/lib/server/edp/`)** :
+  - Déplacement de `sanitizeManifests` et `transformSylvaManifestsToRefinedInput` vers `src/lib/server/edp/manifestSanitizer.ts`.
+  - Déplacement de l'extraction GraphQL en lecture seule vers `src/lib/server/edp/nautobotPlannedExtract.ts` (+ `nautobot_planned_extract.graphql`), avec paramétrage de `$site_slug: [String]` (suppression du site par défaut codé en dur).
+  - Suppression complète du répertoire `src/lib/server/edp/adapters/`.
+- **Tests & Documentation** :
+  - Migration des suites `tests/contract/edp-sylva-stack-adapters.test.ts` et `tests/integration/edp-sylva-docker-stack.test.ts` vers `connectors/`, avec ajout des tests de contrat du write-back et de l'invariant d'isolation de `src/`.
+  - Publication du tableau de classement des 6 adaptateurs dans `docs/edp/connectors-classification.md`, `docs/adr/ADR-017-nautobot-point-unique-reconciliation.md`, `connectors/README.md` et mise à jour de `ARCHITECTURE.md` et `docs/edp/integrator-guide.md`.
+
 ### Recentrage Archinex : délibération, complétude de couverture et justification visuelle (#400, #401, #402, #403, #404, #405)
 - **Modèle unique de complétude de couverture (`src/lib/domain/coverageModel.ts`, `GET /api/projects/[projectId]/coverage`)** :
   - Calcul déterministe et monotone des 6 étapes de couverture (`non qualifiée` → `qualifiée` → `rattachée` → `décidée` → `planifiée` → `réalisée prouvée`) avec dénominateurs explicites ventilés par criticité, domaine et sujet.

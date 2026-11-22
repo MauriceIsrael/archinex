@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import { readFileSync, existsSync } from 'node:fs';
 import { resolve } from 'node:path';
-import { NAUTOBOT_PLANNED_EXTRACT_QUERY } from '../../src/lib/server/edp/adapters/nautobotAdapter.js';
+import { NAUTOBOT_PLANNED_EXTRACT_QUERY, buildNautobotPlannedExtractRequest } from '../../src/lib/server/edp/nautobotPlannedExtract.js';
 
 describe('EDP Integrator Tools Docker Stack Contract', () => {
   const deployDir = resolve(process.cwd(), 'deploy/integrator-tools');
@@ -57,8 +57,11 @@ describe('EDP Integrator Tools Docker Stack Contract', () => {
   it('configure le seed Nautobot pour respecter l extraction GraphQL et les IP RFC 5737', () => {
     const seedContent = readFileSync(resolve(deployDir, 'seed-nautobot.py'), 'utf-8');
 
-    // Doit correspondre au site interrogé par NAUTOBOT_PLANNED_EXTRACT_QUERY
-    expect(NAUTOBOT_PLANNED_EXTRACT_QUERY).toContain('pop-valmondois');
+    // La requête GraphQL doit être paramétrée par $site_slug sans aucun site codé en dur (ADR-017 / #411)
+    expect(NAUTOBOT_PLANNED_EXTRACT_QUERY).toContain('$site_slug: [String]');
+    expect(NAUTOBOT_PLANNED_EXTRACT_QUERY).not.toContain('pop-valmondois');
+    const req = buildNautobotPlannedExtractRequest(['pop-valmondois']);
+    expect(req.variables.site_slug).toEqual(['pop-valmondois']);
     expect(seedContent).toContain('pop-valmondois');
 
     // Doit déclarer le rôle et le statut Planned

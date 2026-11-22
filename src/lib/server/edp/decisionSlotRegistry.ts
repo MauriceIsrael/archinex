@@ -1249,7 +1249,9 @@ export async function generateArchitectureLockManifest(
 
   if (oracleEval.verdict !== 'compliant') {
     throw new InvariantViolationError(
-      `Scellement architecture.lock refusé : ${oracleEval.violations.length} violation(s) de politique OPA détectée(s) — ${oracleEval.violationMessages.join(' | ')}`
+      oracleEval.verdict === 'insufficient_input'
+        ? `Scellement architecture.lock refusé (données insuffisantes) : ${(oracleEval.insufficientInputReasons || []).join(' | ')}`
+        : `Scellement architecture.lock refusé : ${oracleEval.violations.length} violation(s) de politique OPA détectée(s) — ${oracleEval.violationMessages.join(' | ')}`
     );
   }
 

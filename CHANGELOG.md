@@ -8,6 +8,18 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Navigation à états par phase, i18n française cohérente, libellés normalisés et audit accessibilité (#393)
+- **Stepper à états par phase (`src/lib/domain/phaseNavigation.ts`, `src/lib/components/deliberation/ProjectEngagementHeader.svelte`)** :
+  - Chaque phase (Phase 1 à Phase 5) calcule et affiche un état explicite (`not_started` / `in_progress` / `ready` / `blocked`) assorti d'une infobulle explicative et d'un `aria-label` décrivant la raison.
+  - Ajout d'une « Prochaine action » unique (`data-testid="next-action-cta"`) guidant l'utilisateur vers l'étape recommandée, avec allègement visuel des outils secondaires (`Assistant Exigences`, `Architecture Lockée`).
+- **Cohérence linguistique française (`src/app.html`, `src/lib/i18n.ts`, `src/lib/stores/i18n.svelte.ts`, `src/routes/+layout.svelte`, `src/routes/login/+page.svelte`, `src/routes/api/auth/login/+server.ts`, `src/lib/components/ThemeSelector.svelte`, `src/lib/locales/fr-FR.json`)** :
+  - Retrait du sélecteur de langue (`LanguageSwitcher`) et verrouillage de l'interface en français (`fr-FR`, `<html lang="fr">`).
+  - Traduction complète de la page `/login`, des messages d'erreur de `/api/auth/login` et des libellés de repli de la navigation.
+- **Normalisation des noms générés (`src/lib/domain/edp/resourceNaming.ts`, `src/lib/server/edp/refinementCoverage.ts`, `src/lib/domain/edp/refResolver.ts`, `src/lib/server/edp/sylvaGitopsExport.ts`)** :
+  - Suppression des doubles tirets (`--`, ex. `srv--proposes-89-01` → `srv-proposes-89-01`) et garantie d'identifiants propres pour les hôtes, clusters et règles.
+- **Tests, Accessibilité & CI (`tests/contract/issue393-ux-navigation-i18n-naming.test.ts`, `tests/e2e/browser/accessibility.spec.ts`, `playwright.a11y.config.ts`, `.github/workflows/verify.yml`, `docs/testing.md`)** :
+  - Ajout de la suite d'audit `axe-core` autonome (`npm run test:a11y`) couvrant `/login`, `/`, `/deliberation` (Tableau, Phase 2, Phase 4, Phase 5), `/kb/dashboard`, `/kb/reviews` et le viewport mobile 390 px, intégrée au workflow CI `verify.yml`.
+
 ### Découpage modulaire du client LLMOps, de la route EDP et de SubjectThreadView (#396)
 - **Routes & service EDP (`src/lib/server/edp/actions/`, `src/routes/api/projects/[projectId]/subjects/[subjectId]/edp/`)** :
   - Extraction de toute la logique métier dans une couche service testable validée par Zod (`schemas.ts`, `context.ts`, `getEdpState.ts`, `validateAndChallenge.ts`, `bindingActions.ts`, `axisScopeActions.ts`, `hydrationAndSynthesis.ts`, `verificationAndExport.ts`).

@@ -8,6 +8,14 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### OOB et OAM : règles et vocabulaire du Hub, isolement comparé par rang (LLMOps#192, Archinex#417)
+- **Isolement du plan OOB (`edp/policies/multi_axis_refinement.rego`, `refinementCoverage.ts`)** : nouvelle règle `deny_shared_oob_network` (fiche du Hub). L'inventaire hydraté porte `oob_segments` et le rattachement de chaque interface à sa VRF ; une interface de gestion hors de la VRF OOB dédiée, une VRF OOB qui porte une interface de données, ou une VRF absente sont des violations. Avant, rien ne vérifiait l'isolement du plan lui-même.
+- **Niveau d'isolement comparé par rang** : le Hub porte une énumération ordonnée (`shared` < `segmented` < `strict` < `air-gap-logical` < `air-gap-physical`). `deny_weak_oam_isolation` et la règle ADR-015 du plan usager comparent par rang (plus isolé = conforme) au lieu de l'égalité de texte ; une exigence hors échelle est refusée à l'ingestion ; l'échelle entre dans l'empreinte compilée.
+- **Bastion** : le paramètre de zone `proxy_required` devient `bastion_required` (hydratation, export GitOps Sylva, description des VRF poussées vers Nautobot : l'empreinte d'intention de ces objets change). « Proxy » désignait aussi le proxy de sortie DMZ.
+- **Suppression de `ontology_pending_conflicts.json`** : les feuilles `oob` et `oam` n'ont plus qu'un seul jeu de règles, celui du Hub. Fixture resynchronisée.
+- **Hors périmètre, à faire** : preuve en dérive de la VRF OOB dans Nautobot et création de la VRF en statut planifié ; règle d'absence d'accès direct à la zone OAM hors bastion (suppose de représenter les chemins d'accès) ; rattachement des URN de clauses aux contrôles de la base de connaissance.
+- **D5, vocabulaire du bastion (commit séparable)** : `deny_unproxied_oam_access` devient `deny_oam_without_bastion_requirement` (la zone impose un bastion) et `deny_direct_oam_without_bastion` devient `deny_bastion_session_not_recorded` (ce que la règle vérifie : l'enregistrement des sessions du bastion). Le nom du bastion reste à confirmer par les experts.
+
 ### Durcissement de la suite de tests : couverture v8, tests par propriétés, bootstrap OPA et résumé CI (#394)
 - **Bootstrap automatique `pretest` & OPA (`scripts/ensure-test-env.mjs`, `package.json`, `scripts/verify.mjs`, `vitest.config.ts`)** :
   - `npm test` et `npm run verify` fonctionnent désormais sur un clone propre sans étape manuelle préalable : installation automatique d'OPA v1.21.4 (avec vérification SHA-256) ou échec explicite et lisible, génération du client Prisma, création de `prisma/dev.db` si absent (`DATABASE_URL=file:./dev.db` par défaut dans `vitest.config.ts`) et `svelte-kit sync`.

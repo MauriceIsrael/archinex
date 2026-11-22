@@ -58,10 +58,10 @@ flowchart TD
 
 ### 2.1 Parcours Unique en 5 Phases
 Tout engagement suit le **modèle unique en 5 phases** défini dans [`docs/concepts.md`](docs/concepts.md) :
-1. **Phase 1 · Corpus & Règles** *(Projet)* : ingestion CCTP/RFP, référentiels, triage 4 compartiments, commodités et factorisation des sujets.
+1. **Phase 1 · Corpus & Règles** *(Projet)* : ingestion CCTP/RFP, référentiels, triage 4 compartiments, vagues Q&R acheteur / errata CCTP avec propagation DAG `basedOn` et export Matrice de Conformité Contractuelle (`src/lib/domain/rfpErrata.ts`, #443), commodités et factorisation des sujets.
 2. **Phase 2 · Délibération** *(Sujet, via Board)* : cycle interne en 6 temps (cadrage → critères/options → débat multi-agents borné avec qualification de sévérité des objections `blocking`/`advisory` et acquittement motivé en lot #445 → maturité calculée `computeMaturity` avec mode **Fast-Track G3** pour les décisions directes motivées #442 → arbitrage humain Porte G3 `L3_decided` avec `DecisionCard` → capitalisation Porte G4).
-3. **Phase 3 · Rendu HLD** *(Sujet)* : spécification HLD, barrière d'homologation, gel SHA-256 et projections déterministes multi-modèles via `DecisionDiagramModel`.
-4. **Phase 4 · Raffinement** *(Sujet)* : intention & planification (ontologie KAOS multi-axes, prévisualisation `dry-run` Nautobot avec distinction **`Planned-Capacity`** en avant-vente RFP vs **`Planned-Allocated`** en LLD #447, EDP, oracles OPA/Rego avec provenance explicite `default`/`catalog`/`real`).
+3. **Phase 3 · Rendu HLD** *(Sujet)* : spécification HLD, barrière d'homologation, co-signature des contrats d'interface inter-lots (`src/lib/domain/interLotCollaboration.ts`) et assembleur narratif du mémoire technique RFP (`src/lib/domain/rfpNarrativeAssembler.ts`, #448), gel SHA-256 et projections déterministes multi-modèles via `DecisionDiagramModel`.
+4. **Phase 4 · Raffinement** *(Sujet)* : intention & planification (ontologie KAOS multi-axes, accompagnement Cold Start des briques émergentes avec 5 archétypes TOGAF et 6 garde-fous transverses `src/lib/domain/edp/emergentColdStart.ts` #444, valorisation BOM/BPU FinOps dynamique `src/lib/domain/edp/finopsBom.ts` #446, prévisualisation `dry-run` Nautobot avec distinction **`Planned-Capacity`** en avant-vente RFP vs **`Planned-Allocated`** en LLD #447, EDP, oracles OPA/Rego avec provenance explicite `default`/`catalog`/`real`).
 5. **Phase 5 · Consolidation** *(Projet)* : réalisation & dérive Nautobot (`Planifié`, `Réalisé prouvé`, `Non vérifié`), 4 piliers transverses, registre d'emplacements TOGAF, catalogue logique `Base × Overlay × DC` et manifeste `architecture.lock`.
 
 ### 2.2 Invariants Épistémiques & Politique Fail-Closed

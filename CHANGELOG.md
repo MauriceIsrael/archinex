@@ -8,6 +8,14 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Documentation & Qualité (#395)
+- **Modèle unique de parcours (`docs/concepts.md`)** : création de la page de référence unique pour les 5 phases d'un engagement (alignée sur l'IHM), les niveaux de maturité (`L0`–`L5`), les portes de gouvernance (`G3`–`G7`), les invariants constitutionnels et le glossaire ; `README.md`, `ARCHITECTURE.md` et `docs/user-guide.md` y renvoient.
+- **Scission d'`ARCHITECTURE.md`** : séparation en vue d'ensemble (`ARCHITECTURE.md`, numérotation corrigée sans doublon), contrats détaillés par lot (`docs/architecture-contracts.md`) et feuille de route (`docs/roadmap.md`).
+- **ADRs structurants (`docs/adr/`)** : ajout de `ADR-018` (Knowledge Hub souverain & découplage 3 tiers), `ADR-019` (oracles déterministes EDP sur OPA/Rego), `ADR-020` (politique fail-closed sans repli silencieux en production) et de l'index `docs/adr/README.md` (5 ADRs au total avec `ADR-016` et `ADR-017`).
+- **Vérificateur de liens CI (`scripts/check-doc-links.mjs`)** : suppression de tous les liens absolus `file:///` et correction des chemins source cassés (`automationMarkers.ts`, `artifactProjections.ts`, `EdpCard.svelte`, `OntologyTripletsEditor.svelte`) ; intégration dans `npm run check:docs`, `npm run verify` et `.github/workflows/verify.yml`.
+- **Métriques générées (`scripts/generate-doc-metrics.mjs` → `docs/metrics.md`)** : génération automatique des compteurs de tests Vitest/Playwright, règles OPA/Rego, ADRs et ontologie en remplacement des chiffres écrits à la main.
+- **Démarrage rapide** : ajout du prérequis Open Policy Agent (OPA v1.21.4) et de ses scripts d'installation (`install-opa.sh` / `install-opa.ps1`) dans `README.md` et `docs/fresh-install.md`.
+
 ### Navigation à états par phase, i18n française cohérente, libellés normalisés et audit accessibilité (#393)
 - **Stepper à états par phase (`src/lib/domain/phaseNavigation.ts`, `src/lib/components/deliberation/ProjectEngagementHeader.svelte`)** :
   - Chaque phase (Phase 1 à Phase 5) calcule et affiche un état explicite (`not_started` / `in_progress` / `ready` / `blocked`) assorti d'une infobulle explicative et d'un `aria-label` décrivant la raison.

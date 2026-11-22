@@ -511,8 +511,8 @@ Archinex associe à chaque décision d'architecture arbitrée un **Paquet de Dé
    - Modèle Prisma `ExecutableDecisionPackage` avec application directe de l'Invariant II (interdiction absolue de valider automatiquement un EDP produit par LLM sans validation humaine tracée et signée) et Invariant VI (rétractation vers `stale` lors de la caducité d'un antécédent).
 6. **Service d'Évaluation `edp verify` & Adaptateurs LLD** :
    - Moteur central `edpVerify.ts` émettant un lot de preuves cryptographique (`EvidenceBundle`) avec codes de sortie standardisés (0, 1, 2, 3).
-   - Adaptateur Helm Sylva/CAPI (`sylvaAdapter.ts`) avec sanitization automatique des secrets.
-   - Adaptateur Nautobot Planned (`nautobotAdapter.ts`) normalisant les équipements physiques et interfaces.
+   - Module neutre d'assainissement Helm Sylva/CAPI (`manifestSanitizer.ts`) avec sanitization automatique des secrets.
+   - Module de lecture Nautobot Planned (`nautobotPlannedExtract.ts`) normalisant les équipements physiques et interfaces.
 7. **Chaîne de Rédaction Assistée LLM & Composant IHM Workbench** :
    - Pipeline de garde `edpDrafting.ts` filtrant les propositions d'IA par l'ensemble des contrôles déterministes avant toute présentation humaine.
    - Composant UI `EdpCard.svelte`, permettant aux architectes habilités de visualiser les verdicts, scores de mutation et de valider ou contester formellement l'EDP.
@@ -925,7 +925,7 @@ Décision formalisée dans l'[ADR-017](docs/adr/ADR-017-nautobot-point-unique-re
 2. **Archinex se concentre sur la délibération, la complétude de la couverture des exigences et la justification visuelle** (épique #400).
 3. **Ordre de réalisation** : sécurité et intégrité (P0) → fiabilité de la décision (#373) → tranche minimale de réconciliation Nautobot puis cadre des connecteurs (#372) → couverture et visuels (#400) → généralisation (#374, prérequis du push générique).
 4. **Gel** : aucun nouvel appel d'écriture d'Archinex vers un outil d'implémentation, et aucun nouveau connecteur direct, tant que la tranche minimale (Tenant ; Device + statut ; Prefix/VLAN/IP) n'est pas en production sur un projet réel.
-5. Les adaptateurs existants (`src/lib/server/edp/adapters/`) ne sont pas câblés dans l'application ; leur relocalisation est suivie dans #411.
+5. Les 6 adaptateurs Port/Adapter ont été relocalisés hors du cœur vers `connectors/` (#411) avec leur tableau de classement ([`docs/edp/connectors-classification.md`](docs/edp/connectors-classification.md)) et le contrat de write-back Nautobot (`connectors/writeBackContract.ts`). Le cœur `src/` ne conserve que les modules neutres `manifestSanitizer.ts` et `nautobotPlannedExtract.ts`.
 
 Les horizons 1 à 3 ci-dessous décrivent l'intention d'origine : les éléments qui parlent directement à un outil (export GitOps vers une forge, Batfish, Prometheus, Nephio) sont **à re-cadrer derrière Nautobot** et **gelés** jusqu'à la clôture de la tranche minimale.
 

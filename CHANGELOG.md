@@ -8,6 +8,20 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Découpage modulaire du client LLMOps, de la route EDP et de SubjectThreadView (#396)
+- **Routes & service EDP (`src/lib/server/edp/actions/`, `src/routes/api/projects/[projectId]/subjects/[subjectId]/edp/`)** :
+  - Extraction de toute la logique métier dans une couche service testable validée par Zod (`schemas.ts`, `context.ts`, `getEdpState.ts`, `validateAndChallenge.ts`, `bindingActions.ts`, `axisScopeActions.ts`, `hydrationAndSynthesis.ts`, `verificationAndExport.ts`).
+  - Création de 11 endpoints dédiés par action (`/edp/validate`, `/edp/challenge`, `/edp/bind-aspect`, `/edp/unratify`, `/edp/dismiss-axis`, `/edp/restore-axis`, `/edp/hydrate`, `/edp/synthesize`, `/edp/verify`, `/edp/simulate-drift`, `/edp/export-sylva-gitops`) ; la route `/edp/+server.ts` (44 lignes) délègue via une table de dispatch typée sans aucune chaîne `if (action === ...)`.
+  - Remplacement des chaînes `if (action === ...)` restantes dans les routes API (`ontology`, `llmops`, `catalog`, `cascade/actions`) par des tables de handlers typées.
+- **Client LLMOps (`src/lib/server/llmops/`)** :
+  - Découpage de `client.ts` en une couche transport avec négociation de version (`transport.ts`, `X-Hub-Contract-Version`) et 6 modules de domaine (`domains/doctrine.ts`, `frameworks.ts`, `knowledge.ts`, `knowledgeAdmin.ts`, `evaluations.ts`, `engagements.ts`), composés par la façade `LLMOpsClient` à 100 % rétrocompatible.
+  - Ajout du contrat OpenAPI du Hub (`contract/hub-openapi.json`) et du générateur de types déterministe (`scripts/generate-llmops-types.mjs` / `npm run llmops:gen-types`).
+- **Vue délibération (`src/lib/components/deliberation/thread/`)** :
+  - Extraction des sous-composants `SubjectThreadHeader.svelte`, `SubjectDiscussionPane.svelte`, `SubjectMatrixPane.svelte`, `SubjectDoctrinePane.svelte` et `SubjectCascadePane.svelte` depuis `SubjectThreadView.svelte`.
+- **Garde-fou lint, tests & documentation** :
+  - Ajout de `scripts/check-file-size.mjs` (`npm run lint:size`, intégré à `npm run verify`) : erreur bloquante sur toute route serveur > 300 lignes ou contenant une chaîne `if (action === ...)`, avertissement sur les fichiers `src/` > 600 lignes.
+  - Ajout de `tests/contract/issue396-modularization.test.ts` et mise à jour de `ARCHITECTURE.md`.
+
 - **Source projet du graphe de réconciliation — Modèle (Hub) × Instances (Projet) (#414)** :
   - Séparation formelle entre le **modèle** porté par la feuille d'ontologie (`hydration_template.reconciliation_model` : classes requises, relations référentielles, standards normatifs, zéro identifiant concret) et les **instances** fournies par le projet (`lldOverrides.reconciliationInstances` / `composeReconciliationGraph(..., { instances })`). Le fragment historique `hydration_template.reconciliation_graph` reste accepté pour la compatibilité et les fixtures de test.
   - Validation d'intégrité stricte (`validateReconciliationInstances` / `ReconciliationIntegrityError`) vérifiant l'unicité des identifiants (par classe et inter-nœuds), la présence et la résolution de `pivot_tenant_id`, les classes requises par le modèle et la résolution de toutes les références (`tenant_ref`, extrémités des liens, tunnels, bonds de médiation, contrats SLA).

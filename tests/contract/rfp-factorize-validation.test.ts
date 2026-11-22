@@ -114,7 +114,7 @@ describe('Traçabilité de la validation humaine du découpage RFP (Issue #50)',
 			reportSummary: {
 				pageCount: 12,
 				clauseCount: 5,
-				coverageRate: 98,
+				extractionCharCoverage: 98,
 				anomaliesCount: 1
 			}
 		};

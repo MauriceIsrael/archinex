@@ -236,6 +236,24 @@
 					{deliberationStore.subjects.length}
 				</span>
 			</button>
+
+			<!-- Vue Couverture visuelle des exigences (Issue #402) -->
+			<button
+				type="button"
+				data-testid="project-coverage-tab"
+				onclick={() => {
+					deliberationStore.setPosture('deliberation');
+					deliberationStore.setDeliberationViewMode('coverage');
+				}}
+				class="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs transition-all cursor-pointer {activePosture ===
+					'deliberation' && viewMode === 'coverage'
+					? 'bg-primary text-primary-foreground font-bold shadow-xs'
+					: 'bg-muted/40 hover:bg-muted text-foreground/80 hover:text-foreground font-medium'}"
+				title="Matrice visuelle de complétude de la couverture des exigences"
+			>
+				<Layers class="h-3.5 w-3.5 shrink-0" />
+				<span>Couverture</span>
+			</button>
 		</div>
 
 		<!-- CENTRE : CHATBOT ASSISTANT EXIGENCES (PÉRIMÈTRE CLAUSES RFP / CCTP) -->
@@ -313,7 +331,7 @@
 
 					<span class="text-muted-foreground/40 text-xs select-none hidden sm:inline">→</span>
 
-					<!-- Phase 4 : Raffinement & Hydratation du Sujet -->
+					<!-- Phase 4 : Intention & planification (Issue #405) -->
 					<button
 						type="button"
 						data-testid="phase-tab-refinement"
@@ -324,12 +342,12 @@
 							: 'bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 font-medium border border-indigo-500/20'}"
 					>
 						<Cpu class="h-3.5 w-3.5 shrink-0" />
-						<span>Phase 4 · Raffinement</span>
+						<span>Phase 4 · Intention & planification</span>
 					</button>
 
 					<span class="text-muted-foreground/40 text-xs select-none hidden sm:inline">→</span>
 
-					<!-- Phase 5 : Consolidation Projet (transversale multi-sujets) -->
+					<!-- Phase 5 : Réalisation & dérive (Issue #405) -->
 					<button
 						type="button"
 						data-testid="phase-tab-consolidation"
@@ -340,7 +358,7 @@
 							: 'bg-indigo-500/10 hover:bg-indigo-500/20 text-indigo-700 dark:text-indigo-300 font-medium border border-indigo-500/20'}"
 					>
 						<Layers class="h-3.5 w-3.5 shrink-0" />
-						<span>Phase 5 · Consolidation</span>
+						<span>Phase 5 · Consolidation & dérive</span>
 					</button>
 
 					{#if onOpenLiveLock}

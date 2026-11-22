@@ -82,7 +82,7 @@ export type DeliberationPosture =
 	| 'rendu'
 	| 'refinement'
 	| 'consolidation';
-export type DeliberationViewMode = 'board' | 'conversation' | 'graph';
+export type DeliberationViewMode = 'board' | 'conversation' | 'graph' | 'coverage';
 
 class DeliberationStore {
 	engagements = $state<EngagementProfile[]>([]);
@@ -97,7 +97,7 @@ class DeliberationStore {
 				if (savedId) {
 					this.activeEngagementId = savedId;
 					const savedMode = localStorage.getItem(`archinex:deliberationViewMode:${savedId}`) as DeliberationViewMode | null;
-					if (savedMode === 'board' || savedMode === 'conversation' || savedMode === 'graph') {
+					if (savedMode === 'board' || savedMode === 'conversation' || savedMode === 'graph' || savedMode === 'coverage') {
 						this.deliberationViewMode = savedMode;
 					}
 					const savedPosture = localStorage.getItem(`archinex:activePosture:${savedId}`) as DeliberationPosture | null;

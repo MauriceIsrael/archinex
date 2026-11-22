@@ -5,6 +5,7 @@
 	import ImpactGraphExplorer from './ImpactGraphExplorer.svelte';
 	import Phase5DriftView from './Phase5DriftView.svelte';
 	import ComponentCatalogEditor from '$lib/components/edp/ComponentCatalogEditor.svelte';
+	import Phase5RealizationPanel from './Phase5RealizationPanel.svelte';
 	import { Layers, ShieldCheck, Lock, GitBranch, Network, FileCode2, Table2, Activity } from 'lucide-svelte';
 
 	const projectId = $derived(
@@ -285,10 +286,10 @@
 			<div class="flex items-center gap-2 flex-wrap">
 				<span class="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-indigo-600 text-white">
 					<Layers class="h-3.5 w-3.5" />
-					Phase 5 · Consolidation Projet & Jumeau Sylva
+					Phase 5 · Réalisation & dérive (Consolidation)
 				</span>
 				<span class="text-xs font-mono text-muted-foreground">
-					Base × Overlay × Datacenter · Multi-sujets · Cible Sylva LATEST
+					Lecture seule Nautobot · Écarts ouverts · Remédier / Amender / Déroger
 				</span>
 			</div>
 			<h2 class="text-base font-bold text-foreground">
@@ -323,6 +324,9 @@
 			</button>
 		</div>
 	</div>
+
+	<!-- Lecture seule de la réalisation Nautobot & actions de dérive (Issue #405) -->
+	<Phase5RealizationPanel />
 
 	<!-- Plan structuré par 4 Piliers Transverses (Socle, Sécurité, Gestion, GitOps) -->
 	<section

@@ -252,31 +252,35 @@ describe('Projections dynamiques d\'architecture (No Doc Drift - Issue #64)', ()
 		expect(diagram).toContain('flowchart TB');
 		expect(diagram).toContain('Architecture Cible en Attente d\'Arbitrage L3');
 	});
-	it('9. Génère la topologie de sécurité réseau pour flux S6a avec terminaison IPsec SecGW et médiation DEA', () => {
+	it('9. Génère une topologie périmétrique générique avec provenance et empreinte (sans scénario Lot 1/Lot 3 codé en dur, #404)', () => {
 		const s6aSubject = {
 			id: 'sub-s6a-crypto',
 			section_ref: '§4.1',
-			name: 'Sécurité des flux S6a inter-lots'
+			name: 'Sécurité des flux inter-zones'
 		};
 
 		const s6aContext: ProjectionContext = {
 			decision: {
 				retainedOptionId: 'opt-ipsec-dea',
-				retainedOptionTitle: 'Obligation de chiffrement IPsec ESP et médiation DEA pour les flux S6a Lot 3 ↔ Lot 1',
-				rationale: 'Tout échange S6a initié par un MME tiers doit obligatoirement terminer son tunnel IPsec sur le SecGW-Lot1, puis être inspecté par le DEA-Lot1. Tous les flux directs vers le HSS-Lot1 doivent être chiffrés.'
+				retainedOptionTitle: 'Obligation de chiffrement périmétrique et médiation protocolaire',
+				rationale: 'Tout échange externe doit terminer son tunnel chiffré sur la passerelle périmétrique puis être inspecté par le proxy de médiation.'
 			}
 		};
 
-		const diagram = generateTargetArchitectureDiagram(s6aSubject, null, [], s6aContext);
+		const diagram = generateTargetArchitectureDiagram(s6aSubject, null, [], {
+			...s6aContext,
+			resolvedPattern: 'telecom_crypto'
+		});
 
 		expect(diagram).toContain('flowchart TB');
-		expect(diagram).toContain('MME_Lot3');
-		expect(diagram).toContain('SecGW_Lot1');
-		expect(diagram).toContain('DEA_Lot1');
-		expect(diagram).toContain('HSS_Lot1');
-		expect(diagram).toContain('Tunnel IPsec ESP chiffré (IKEv2 / AES-256)');
-		expect(diagram).toContain('Médiation S6a, filtrage AVP & masquage topologique TH');
-		expect(diagram).toContain('INTERDIT : Flux direct non chiffré ou sans DEA');
+		expect(diagram).toContain('%% modelFingerprint:sha256:');
+		expect(diagram).toContain('click ');
+		expect(diagram).toContain('Passerelle de Sécurité Périmétrique');
+		expect(diagram).toContain('Médiation & Masquage Topologique');
+		expect(diagram).not.toContain('MME_Lot3');
+		expect(diagram).not.toContain('SecGW_Lot1');
+		expect(diagram).not.toContain('DEA_Lot1');
+		expect(diagram).not.toContain('HSS_Lot1');
 	});
 
 	it('10. Génère le diagramme de séquence télécom 3GPP pour la négociation IPsec ESP et médiation S6a', () => {
@@ -409,12 +413,13 @@ describe('Projections dynamiques d\'architecture (No Doc Drift - Issue #64)', ()
 		};
 
 		const liveDiagram = generateTargetArchitectureDiagram(subject, null, [], updatedContext);
-		// Le schéma doit immédiatement basculer vers la topologie télécom S6a sécurisée
-		expect(liveDiagram).toContain('SecGW-Lot1');
-		expect(liveDiagram).toContain('DEA-Lot1');
-		expect(liveDiagram).toContain('HSS-Lot1');
-		expect(liveDiagram).toContain('Tunnel IPsec ESP chiffré');
-		expect(liveDiagram).toContain('INTERDIT : Flux direct non chiffré');
+		// Le schéma bascule vers la topologie périmétrique générique avec empreinte et provenance (#404)
+		expect(liveDiagram).toContain('%% modelFingerprint:sha256:');
+		expect(liveDiagram).toContain('Passerelle de Sécurité Périmétrique');
+		expect(liveDiagram).toContain('Médiation & Masquage Topologique');
+		expect(liveDiagram).not.toContain('SecGW-Lot1');
+		expect(liveDiagram).not.toContain('DEA-Lot1');
+		expect(liveDiagram).not.toContain('HSS-Lot1');
 
 		const liveSeq = generateDeploymentSequenceDiagram(subject, null, [], updatedContext);
 		expect(liveSeq).toContain('sequenceDiagram');

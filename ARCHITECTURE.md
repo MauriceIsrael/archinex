@@ -511,8 +511,8 @@ Archinex associe à chaque décision d'architecture arbitrée un **Paquet de Dé
    - Modèle Prisma `ExecutableDecisionPackage` avec application directe de l'Invariant II (interdiction absolue de valider automatiquement un EDP produit par LLM sans validation humaine tracée et signée) et Invariant VI (rétractation vers `stale` lors de la caducité d'un antécédent).
 6. **Service d'Évaluation `edp verify` & Adaptateurs LLD** :
    - Moteur central `edpVerify.ts` émettant un lot de preuves cryptographique (`EvidenceBundle`) avec codes de sortie standardisés (0, 1, 2, 3).
-   - Adaptateur Helm Sylva/CAPI (`sylvaAdapter.ts`) avec sanitization automatique des secrets.
-   - Adaptateur Nautobot Planned (`nautobotAdapter.ts`) normalisant les équipements physiques et interfaces.
+   - Module neutre d'assainissement Helm Sylva/CAPI (`manifestSanitizer.ts`) avec sanitization automatique des secrets.
+   - Module de lecture Nautobot Planned (`nautobotPlannedExtract.ts`) normalisant les équipements physiques et interfaces.
 7. **Chaîne de Rédaction Assistée LLM & Composant IHM Workbench** :
    - Pipeline de garde `edpDrafting.ts` filtrant les propositions d'IA par l'ensemble des contrôles déterministes avant toute présentation humaine.
    - Composant UI `EdpCard.svelte`, permettant aux architectes habilités de visualiser les verdicts, scores de mutation et de valider ou contester formellement l'EDP.
@@ -945,7 +945,7 @@ flowchart LR
      - Règle d'honnêteté : Nautobot injoignable, connecteur muet ou donnée périmée produisent l'état **non vérifié**, jamais « conforme ».
    - **Phase 3b — Cadre des connecteurs derrière Nautobot** :
      - Contrat de *write-back* des connecteurs (preuve d'exécution) et kit de conformité (#399) : un objet n'est affiché « réalisé » que si une preuve écrite par un connecteur est présente ; une annotation `archinex.io/satisfied-clauses` déclare une traçabilité vérifiable, **elle ne constitue pas une preuve**.
-     - Relocalisation hors cœur des adaptateurs existants dans `src/lib/server/edp/adapters/` (#411).
+     - Relocalisation hors cœur des 6 adaptateurs Port/Adapter vers `connectors/` (#411, livré) avec leur tableau de classement ([`docs/edp/connectors-classification.md`](docs/edp/connectors-classification.md)) et le contrat de *write-back* Nautobot (`connectors/writeBackContract.ts`) ; le cœur `src/` ne conserve que les modules neutres `manifestSanitizer.ts` et `nautobotPlannedExtract.ts`.
      - Cadre des connecteurs et connecteur de référence **Sylva GitOps** consommateur de Nautobot (#381), remplaçant l'ouverture directe de PR/MR depuis `sylvaGitopsExport.ts` (conservée derrière un drapeau de dépréciation jusqu'à parité).
 4. **En parallèle — Cœur de valeur Archinex : couverture et justification visuelle (#400)** :
    - Délibération outillée, matrice de complétude de la couverture des exigences, fiches de décision opposables et schémas déterministes rendant chaque arbitrage auditable.
@@ -963,7 +963,7 @@ Tant que la **tranche minimale Nautobot** (Tenant ; Device + statut ; Prefix / V
 - **Gel des connecteurs directs** : aucun nouveau connecteur direct ajouté dans le cœur d'Archinex.
 - **Gel des extensions hors tranche minimale** : les capacités déjà présentes (ex. synchronisation de circuits/tunnels VPN dans `nautobotSync.ts`, jumeau numérique Sylva hors ligne en CI) sont **conservées mais gelées** (non étendues).
 - **Re-cadrage des issues #351–#358** : suivi par les mainteneurs selon [ADR-017 §8](docs/adr/ADR-017-nautobot-point-unique-reconciliation.md#8-sort-des-issues-de-connecteurs) (#375) :
-  - `#352`–`#357` (adaptateurs livrés en PR #363) : relocalisation hors cœur et retrait des chemins d'écriture directe suivis dans `#411`.
+  - `#352`–`#357` (adaptateurs livrés en PR #363) : relocalisés hors cœur vers `connectors/` avec retrait des chemins d'écriture directe (#411, [`docs/edp/connectors-classification.md`](docs/edp/connectors-classification.md)).
   - `#351` (allocation IP) : re-cadrée sur l'IPAM natif de Nautobot.
   - `#358` : scindée entre connecteur ITSM (derrière Nautobot) et chiffrage FinOps (délibération, côté Archinex).
 

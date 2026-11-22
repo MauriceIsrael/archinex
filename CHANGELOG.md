@@ -8,6 +8,18 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Relocalisation des 6 adaptateurs Port/Adapter hors du cœur d'Archinex (#411)
+- **Connecteurs derrière Nautobot (`connectors/`)** :
+  - Relocalisation des 6 adaptateurs (`batfishAdapter.ts`, `openbaoAdapter.ts`, `keycloakAdapter.ts`, `ociSupplyChainAdapter.ts`, `ddiDnsAdapter.ts`, `gitopsForgeAdapter.ts`) et de `adapterTypes.ts` hors de `src/lib/server/edp/adapters/` vers `connectors/`, sans aucun import depuis `src/`.
+  - Ajout du contrat de write-back Nautobot (`connectors/writeBackContract.ts`, aligné #399) et implémentation sur le socle GitOps Forgejo (`GitopsForgeAdapter.buildWriteBackPayload` / `reportRealizationToNautobot`).
+- **Modules neutres conservés dans le cœur (`src/lib/server/edp/`)** :
+  - Déplacement de `sanitizeManifests` et `transformSylvaManifestsToRefinedInput` vers `src/lib/server/edp/manifestSanitizer.ts`.
+  - Déplacement de l'extraction GraphQL en lecture seule vers `src/lib/server/edp/nautobotPlannedExtract.ts` (+ `nautobot_planned_extract.graphql`), avec paramétrage de `$site_slug: [String]` (suppression du site par défaut codé en dur).
+  - Suppression complète du répertoire `src/lib/server/edp/adapters/`.
+- **Tests & Documentation** :
+  - Migration des suites `tests/contract/edp-sylva-stack-adapters.test.ts` et `tests/integration/edp-sylva-docker-stack.test.ts` vers `connectors/`, avec ajout des tests de contrat du write-back et de l'invariant d'isolation de `src/`.
+  - Publication du tableau de classement des 6 adaptateurs dans `docs/edp/connectors-classification.md`, `docs/adr/ADR-017-nautobot-point-unique-reconciliation.md`, `connectors/README.md` et mise à jour de `ARCHITECTURE.md` et `docs/edp/integrator-guide.md`.
+
 ### Recentrage Archinex : délibération, complétude de couverture et justification visuelle (#400, #401, #402, #403, #404, #405)
 - **Modèle unique de complétude de couverture (`src/lib/domain/coverageModel.ts`, `GET /api/projects/[projectId]/coverage`)** :
   - Calcul déterministe et monotone des 6 étapes de couverture (`non qualifiée` → `qualifiée` → `rattachée` → `décidée` → `planifiée` → `réalisée prouvée`) avec dénominateurs explicites ventilés par criticité, domaine et sujet.

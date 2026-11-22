@@ -40,7 +40,7 @@ Un paquet de décision exécutable est livré avec :
 
 ### 2.2 Extraction Nautobot DCIM et Manifestes Sylva CAPI
 Pour les architectures télécoms basées sur Sylva et Nautobot :
-1. **Extraction Nautobot Planned** : Utilisez la requête GraphQL embarquée dans `src/lib/server/edp/adapters/nautobot_planned_extract.graphql` pour extraire les équipements au statut `planned` avec leurs interfaces BMC Redfish.
+1. **Extraction Nautobot Planned** : Utilisez la requête GraphQL embarquée dans `src/lib/server/edp/nautobot_planned_extract.graphql` (paramétrée par `$site_slug`) pour extraire les équipements au statut `planned` avec leurs interfaces BMC Redfish.
 2. **Génération Sylva CAPI** : Utilisez les valeurs de référence `tests/fixtures/edp/sylva/sylva_values_candidate.yaml` avec `helm template my-cluster sylva/sylva-capi-cluster -f sylva_values_candidate.yaml` pour produire les manifestes de contrôle (BareMetalHost, Metal3Cluster, RKE2ControlPlane).
 
 ### 2.1 Format de l'Entrée de Raffinement (`refined_input`)

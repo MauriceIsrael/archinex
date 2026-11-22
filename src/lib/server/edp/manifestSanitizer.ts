@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import type { RefinedInputPayload } from '../../../domain/edp/validateRefinedInput.js';
+import type { RefinedInputPayload } from '../../domain/edp/validateRefinedInput.js';
 
 export interface SylvaTransformOptions {
   manifests: Array<Record<string, unknown>>;
@@ -41,7 +41,8 @@ const FORBIDDEN_SECRET_PATTERNS = [
 ];
 
 /**
- * Nettoie récursivement un objet de tout secret (Issue #178).
+ * Nettoie récursivement un objet de tout secret (Issue #178 / #411).
+ * Module utilitaire neutre sans aucun appel réseau ni écriture vers un outil d'implémentation.
  */
 export function sanitizeManifests(data: unknown): unknown {
   if (data === null || data === undefined) return data;
@@ -50,7 +51,7 @@ export function sanitizeManifests(data: unknown): unknown {
     // Si un manifeste est de kind: Secret, on l'exclut intégralement
     return data
       .filter((item) => {
-        if (item && typeof item === 'object' && (item as any).kind === 'Secret') {
+        if (item && typeof item === 'object' && (item as Record<string, unknown>).kind === 'Secret') {
           return false;
         }
         return true;

@@ -20,7 +20,14 @@
 	} = $props();
 
 	let showRawPlanJson = $state(false);
+	let planningGranularity = $state<'capacity_sizing' | 'lld_allocated'>('capacity_sizing');
+	$effect(() => {
+		if (hydrated?.planning_granularity === 'capacity_sizing' || hydrated?.planning_granularity === 'lld_allocated') {
+			planningGranularity = hydrated.planning_granularity;
+		}
+	});
 	const plannedDevices = $derived<any[]>(hydrated?.nautobot_planned_devices || []);
+	const isCapacitySizing = $derived(planningGranularity === 'capacity_sizing');
 </script>
 
 <div class="rounded-xl border bg-card p-5 shadow-xs space-y-3.5" data-testid="phase4-nautobot-plan-preview">
@@ -49,19 +56,41 @@
 		</a>
 	</div>
 
-	<div class="flex items-center justify-between gap-2 text-xs rounded-lg border bg-muted/20 px-3 py-2">
+	<div class="flex items-center justify-between gap-2 text-xs rounded-lg border bg-muted/20 px-3 py-2 flex-wrap">
 		<span class="text-muted-foreground">
 			L'hydratation et l'exécution vivent derrière <strong class="text-foreground">Nautobot</strong>. Archinex présente ici l'intention en mode <code class="font-mono">dry-run</code>.
 		</span>
-		<span class="inline-flex items-center gap-1 rounded border px-2 py-0.5 text-[11px] font-semibold shrink-0 bg-background">
-			{#if edpStatus === 'validated'}
-				<CheckCircle2 class="h-3.5 w-3.5 text-emerald-600" aria-hidden="true" />
-				<span>Ratifié</span>
-			{:else}
-				<Clock class="h-3.5 w-3.5 text-amber-600" aria-hidden="true" />
-				<span>{edpStatus}</span>
-			{/if}
-		</span>
+		<div class="flex items-center gap-1.5 flex-wrap">
+			<div class="inline-flex items-center rounded-md border bg-background p-0.5 text-[10px]" data-testid="phase4-planning-granularity-toggle">
+				<button
+					type="button"
+					onclick={() => (planningGranularity = 'capacity_sizing')}
+					class="px-2 py-0.5 rounded font-semibold cursor-pointer transition-colors {isCapacitySizing ? 'bg-indigo-600 text-white' : 'text-muted-foreground hover:text-foreground'}"
+					data-testid="phase4-granularity-capacity-btn"
+					title="Dimensionnement Avant-Vente RFP : verrouille topologie, quantitatifs et capacités sans figer d'IP/MAC fictives"
+				>
+					Planned-Capacity (RFP)
+				</button>
+				<button
+					type="button"
+					onclick={() => (planningGranularity = 'lld_allocated')}
+					class="px-2 py-0.5 rounded font-semibold cursor-pointer transition-colors {!isCapacitySizing ? 'bg-sky-600 text-white' : 'text-muted-foreground hover:text-foreground'}"
+					data-testid="phase4-granularity-lld-btn"
+					title="Paramétrage LLD : alloue et synchronise les adresses IP, préfixes et attributs physiques nominaux"
+				>
+					Planned-Allocated (LLD)
+				</button>
+			</div>
+			<span class="inline-flex items-center gap-1 rounded border px-2 py-0.5 text-[11px] font-semibold shrink-0 bg-background">
+				{#if edpStatus === 'validated'}
+					<CheckCircle2 class="h-3.5 w-3.5 text-emerald-600" aria-hidden="true" />
+					<span>Ratifié</span>
+				{:else}
+					<Clock class="h-3.5 w-3.5 text-amber-600" aria-hidden="true" />
+					<span>{edpStatus}</span>
+				{/if}
+			</span>
+		</div>
 	</div>
 
 	{#if hydrated}
@@ -71,8 +100,8 @@
 					<div class="p-2.5 rounded-lg border bg-muted/20 space-y-1">
 						<div class="flex items-center justify-between gap-1">
 							<span class="text-[10px] font-bold uppercase text-muted-foreground">Objet planifié Nautobot</span>
-							<span class="font-mono text-[10px] px-1.5 py-0.2 rounded bg-sky-500/15 text-sky-700 dark:text-sky-300">
-								{dev.status || 'Planned'}
+							<span class="font-mono text-[10px] px-1.5 py-0.2 rounded {isCapacitySizing ? 'bg-indigo-500/15 text-indigo-700 dark:text-indigo-300' : 'bg-sky-500/15 text-sky-700 dark:text-sky-300'}" data-testid="phase4-planned-device-stage">
+								{isCapacitySizing ? 'Planned-Capacity' : dev.status || 'Planned-Allocated'}
 							</span>
 						</div>
 						<div class="font-mono font-bold text-foreground">{dev.name}</div>
@@ -86,6 +115,13 @@
 								Pool : {dev.cluster_pool}
 							</div>
 						{/if}
+						<div class="text-[10px] font-mono text-muted-foreground" data-testid="phase4-planned-device-ip-mode">
+							{#if isCapacitySizing}
+								Allocations IP/MAC : <span class="text-indigo-600 dark:text-indigo-400 font-semibold">Différées au LLD</span>
+							{:else if dev.oob_ip}
+								OOB nominal : <span class="text-foreground">{dev.oob_ip}</span>
+							{/if}
+						</div>
 					</div>
 				{/each}
 			</div>

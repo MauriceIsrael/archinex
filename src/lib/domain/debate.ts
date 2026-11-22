@@ -3,6 +3,7 @@ import type { ProductionMode, EpistemicConfidence } from '$lib/types/epistemic';
 export type Stance = 'support' | 'objection' | 'question' | 'verification' | 'synthesis';
 export type ArgumentResolution = 'open' | 'answered' | 'accepted_risk' | 'withdrawn';
 export type VerificationVerdict = 'compliant' | 'violates' | 'not_applicable' | 'unknown';
+export type ObjectionSeverity = 'blocking' | 'advisory';
 
 export interface Argument {
 	id: string;
@@ -12,6 +13,8 @@ export interface Argument {
 	stance: Stance;
 	/** Verdict structuré pour les arguments de vérification (`stance === 'verification'`). */
 	verdict?: VerificationVerdict | null;
+	/** Sévérité d'une objection (`blocking` par défaut, `advisory` pour les remarques consultatives non bloquantes, #445). */
+	severity?: ObjectionSeverity | null;
 	claim: string;
 	grounds: string;
 	kbRefs: string[];
@@ -150,11 +153,42 @@ export function groupArgumentsByOption(args: Argument[]): Map<string | null, Arg
 	return map;
 }
 
+const ADVISORY_OBJECTION_RX =
+	/(?:\[advisory\]|\[consultatif\]|\b(?:non[- ]bloquant\w*|sans\s+caract[èe]re\s+bloquant|remarque\s+consultative|point\s+d['’]attention\s+mineur)\b)/i;
+
 /**
- * Compte le nombre d'objections non résolues (bloquantes pour l'arbitrage en A4).
+ * Qualifie la sévérité d'une objection (#445) :
+ * - Si `arg.severity` est renseigné (`'blocking'` | `'advisory'`), il fait foi.
+ * - Une objection humaine est toujours `'blocking'` par défaut.
+ * - Une objection d'agent (`agent:*`) dépourvue de référence doctrinale (`kbRefs` vide) et formulée
+ *   explicitement comme non bloquante / consultative est qualifiée `'advisory'`.
+ */
+export function classifyObjectionSeverity(arg: Pick<Argument, 'severity' | 'authorKind' | 'kbRefs' | 'claim' | 'grounds'>): ObjectionSeverity {
+	if (arg.severity === 'advisory' || arg.severity === 'blocking') {
+		return arg.severity;
+	}
+	const isAgent = Boolean(arg.authorKind?.startsWith('agent:'));
+	const hasKbRefs = Array.isArray(arg.kbRefs) && arg.kbRefs.length > 0;
+	if (isAgent && !hasKbRefs && ADVISORY_OBJECTION_RX.test(`${arg.claim || ''} ${arg.grounds || ''}`)) {
+		return 'advisory';
+	}
+	return 'blocking';
+}
+
+/**
+ * Compte le nombre d'objections non résolues (toutes sévérités confondues).
  */
 export function countOpenObjections(args: Argument[]): number {
 	return args.filter((a) => a.stance === 'objection' && a.resolution === 'open').length;
+}
+
+/**
+ * Compte uniquement les objections ouvertes de sévérité bloquante (#445).
+ */
+export function countBlockingOpenObjections(args: Argument[]): number {
+	return args.filter(
+		(a) => a.stance === 'objection' && a.resolution === 'open' && classifyObjectionSeverity(a) === 'blocking'
+	).length;
 }
 
 /**

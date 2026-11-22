@@ -56,6 +56,10 @@ export interface CreateDecisionInput {
 		acknowledged: boolean;
 		reason: string;
 	};
+	/** Active le mode Fast-Track G3 (décision directe motivée sans option homme de paille ni matrice complète, #442). */
+	fastTrack?: boolean;
+	/** Justification explicite du recours au mode Fast-Track G3 (#442). */
+	fastTrackRationale?: string;
 }
 
 export function parseDecisionComplianceCheck(raw: string | null | undefined): DecisionComplianceCheck | undefined {
@@ -178,8 +182,14 @@ export async function parseSubjectDecision(
 	const portabilityEntry = acceptedViolationsFromDecision.find((v) =>
 		v.typedId.startsWith('PORTABILITY:')
 	);
+	const decisionModeEntry = acceptedViolationsFromDecision.find((v) =>
+		v.typedId.startsWith('DECISION_MODE:')
+	);
 	const realViolations = acceptedViolationsFromDecision.filter(
-		(v) => !v.typedId.startsWith('COMPLIANCE_STATUS:') && !v.typedId.startsWith('PORTABILITY:')
+		(v) =>
+			!v.typedId.startsWith('COMPLIANCE_STATUS:') &&
+			!v.typedId.startsWith('PORTABILITY:') &&
+			!v.typedId.startsWith('DECISION_MODE:')
 	);
 	const complianceStatus: 'Compliant' | 'Partially compliant' | 'Non-compliant' = complianceEntry
 		? (complianceEntry.typedId.replace('COMPLIANCE_STATUS:', '') as any)
@@ -191,6 +201,9 @@ export async function parseSubjectDecision(
 		portabilityEntry
 			? (portabilityEntry.typedId.replace('PORTABILITY:', '') as any)
 			: 'project_specific';
+	const decisionMode: 'standard' | 'fast_track' =
+		decisionModeEntry?.typedId === 'DECISION_MODE:fast_track' ? 'fast_track' : 'standard';
+	const fastTrackRationale = decisionModeEntry?.justification || undefined;
 
 	const assertedEvent =
 		assertionEventOverride !== undefined
@@ -219,6 +232,8 @@ export async function parseSubjectDecision(
 			complianceStatus,
 			complianceRationale,
 			portability,
+			decisionMode,
+			...(fastTrackRationale ? { fastTrackRationale } : {}),
 			arbiterId: rawDecision.arbiterId,
 			arbiterRole: rawDecision.arbiterRole,
 			decidedAt: rawDecision.decidedAt.toISOString(),
@@ -393,7 +408,10 @@ export async function recordArbitrationDecision(
 		);
 	}
 
-	// Évaluation de l'arbitrabilité avec les dispenses de violations soumises
+	// Évaluation de l'arbitrabilité avec les dispenses de violations soumises (et mode Fast-Track G3 éventuel, #442)
+	const effectiveFastTrackRationale = data.fastTrack
+		? (data.fastTrackRationale?.trim() || data.rationale.trim())
+		: undefined;
 	const projectFrameworks = (await getProjectFrameworks(subject.projectId)).frameworks;
 	const readinessWithViolations = computeMaturity({
 		subject: {
@@ -401,7 +419,8 @@ export async function recordArbitrationDecision(
 			name: subject.name,
 			problemStatement: subject.problemStatement,
 			maturityLevel: subject.maturityLevel as any,
-			singleOptionRationale: subject.singleOptionRationale
+			singleOptionRationale: subject.singleOptionRationale,
+			fastTrackRationale: effectiveFastTrackRationale
 		},
 		criteria: ctx.criteria,
 		options: ctx.options,
@@ -410,6 +429,8 @@ export async function recordArbitrationDecision(
 		acceptedViolations: data.acceptedViolations || [],
 		requiredFrameworks: projectFrameworks,
 		allowRevision: true,
+		fastTrack: Boolean(data.fastTrack),
+		fastTrackRationale: effectiveFastTrackRationale,
 		semanticClassification: ctx.semanticClassification
 	});
 
@@ -517,6 +538,12 @@ export async function recordArbitrationDecision(
 			justification: ''
 		});
 	}
+	if (data.fastTrack && effectiveFastTrackRationale) {
+		violationsToStore.push({
+			typedId: 'DECISION_MODE:fast_track',
+			justification: effectiveFastTrackRationale
+		});
+	}
 
 	const created = await prisma.$transaction(async (tx) => {
 		// 1. Enregistrement de la décision
@@ -576,9 +603,15 @@ export async function recordArbitrationDecision(
 		// 3. Maturité : le Lead Architect décide seul (L3) ; sinon la décision attend la revue d'un décideur distinct.
 		await tx.subject.update({
 			where: { id: subjectId },
-			data: decidesAlone
-				? { maturityLevel: 'L3_decided', deliberationStatus: 'arbitrated', version: { increment: 1 } }
-				: { maturityLevel: 'L2_decomposed', deliberationStatus: 'awaiting_review', version: { increment: 1 } }
+			data: {
+				...(decidesAlone
+					? { maturityLevel: 'L3_decided', deliberationStatus: 'arbitrated' }
+					: { maturityLevel: 'L2_decomposed', deliberationStatus: 'awaiting_review' }),
+				...(data.fastTrack && effectiveFastTrackRationale && !subject.singleOptionRationale
+					? { singleOptionRationale: effectiveFastTrackRationale }
+					: {}),
+				version: { increment: 1 }
+			}
 		});
 
 		// 4. Invariant II : un humain a tranché, les énoncés dérivés deviennent llm-proposed-human-approved
@@ -629,6 +662,8 @@ export async function recordArbitrationDecision(
 		complianceStatus: data.complianceStatus || 'Compliant',
 		complianceRationale: data.complianceRationale,
 		portability: data.portability || 'project_specific',
+		decisionMode: data.fastTrack ? 'fast_track' : 'standard',
+		...(effectiveFastTrackRationale ? { fastTrackRationale: effectiveFastTrackRationale } : {}),
 		arbiterId: created.arbiterId,
 		arbiterRole: created.arbiterRole,
 		decidedAt: created.decidedAt.toISOString(),

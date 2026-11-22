@@ -59,9 +59,9 @@ flowchart TD
 ### 2.1 Parcours Unique en 5 Phases
 Tout engagement suit le **modèle unique en 5 phases** défini dans [`docs/concepts.md`](docs/concepts.md) :
 1. **Phase 1 · Corpus & Règles** *(Projet)* : ingestion CCTP/RFP, référentiels, triage 4 compartiments, commodités et factorisation des sujets.
-2. **Phase 2 · Délibération** *(Sujet, via Board)* : cycle interne en 6 temps (cadrage → critères/options → débat multi-agents borné → maturité calculée `computeMaturity` → arbitrage humain Porte G3 `L3_decided` avec `DecisionCard` → capitalisation Porte G4).
+2. **Phase 2 · Délibération** *(Sujet, via Board)* : cycle interne en 6 temps (cadrage → critères/options → débat multi-agents borné avec qualification de sévérité des objections `blocking`/`advisory` et acquittement motivé en lot #445 → maturité calculée `computeMaturity` avec mode **Fast-Track G3** pour les décisions directes motivées #442 → arbitrage humain Porte G3 `L3_decided` avec `DecisionCard` → capitalisation Porte G4).
 3. **Phase 3 · Rendu HLD** *(Sujet)* : spécification HLD, barrière d'homologation, gel SHA-256 et projections déterministes multi-modèles via `DecisionDiagramModel`.
-4. **Phase 4 · Raffinement** *(Sujet)* : intention & planification (ontologie KAOS multi-axes, prévisualisation `dry-run` Nautobot *Planned*, EDP, oracles OPA/Rego avec provenance explicite `default`/`catalog`/`real`).
+4. **Phase 4 · Raffinement** *(Sujet)* : intention & planification (ontologie KAOS multi-axes, prévisualisation `dry-run` Nautobot avec distinction **`Planned-Capacity`** en avant-vente RFP vs **`Planned-Allocated`** en LLD #447, EDP, oracles OPA/Rego avec provenance explicite `default`/`catalog`/`real`).
 5. **Phase 5 · Consolidation** *(Projet)* : réalisation & dérive Nautobot (`Planifié`, `Réalisé prouvé`, `Non vérifié`), 4 piliers transverses, registre d'emplacements TOGAF, catalogue logique `Base × Overlay × DC` et manifeste `architecture.lock`.
 
 ### 2.2 Invariants Épistémiques & Politique Fail-Closed

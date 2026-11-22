@@ -96,8 +96,10 @@ const spec = JSON.parse(fs.readFileSync(SCHEMA_PATH, 'utf-8'));
 const generated = generate(spec);
 
 if (process.argv.includes('--check')) {
-	const current = fs.existsSync(OUTPUT_PATH) ? fs.readFileSync(OUTPUT_PATH, 'utf-8') : '';
-	if (current !== generated) {
+	const current = fs.existsSync(OUTPUT_PATH)
+		? fs.readFileSync(OUTPUT_PATH, 'utf-8').replace(/\r\n/g, '\n')
+		: '';
+	if (current !== generated.replace(/\r\n/g, '\n')) {
 		console.error(
 			'❌ Les types générés du contrat Hub LLMOps ne sont pas à jour. Exécutez `npm run llmops:gen-types`.'
 		);

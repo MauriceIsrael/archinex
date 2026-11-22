@@ -169,11 +169,21 @@ export function executeRetractionCascade(params: {
 	}
 
 	// 2. Rétrogradation des sujets sur le Board
+	const matchesSubjectToken = (haystack: string, needle: string): boolean => {
+		const trimmed = needle.trim();
+		if (!trimmed) return false;
+		const escaped = trimmed.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+		const tokenRx = new RegExp(`(^|[^a-z0-9_-])${escaped}($|[^a-z0-9_-])`, 'i');
+		return tokenRx.test(haystack);
+	};
+
 	const updatedSubjects = params.subjects.map((sub) => {
-		// Le sujet correspond soit à l'identifiant du triplet, soit à la référence de section
+		// Le sujet correspond soit à l'identifiant exact, soit à la référence de section exacte,
+		// soit à un jeton complet dans le nom (évite les faux positifs préfixe ex. SUBJ-1 vs SUBJ-12).
 		const isAffected =
 			impactedSubjectIds.has(sub.id) ||
-			Array.from(impactedSubjectIds).some((id) => sub.name.toLowerCase().includes(id.toLowerCase()));
+			(Boolean(sub.section_ref) && impactedSubjectIds.has(sub.section_ref)) ||
+			Array.from(impactedSubjectIds).some((id) => matchesSubjectToken(sub.name, id));
 
 		if (isAffected) {
 			const newLevel = demoteSubjectMaturity(sub.level);

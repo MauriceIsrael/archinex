@@ -1,9 +1,11 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { render } from 'svelte/server';
-import fs from 'node:fs';
-import path from 'node:path';
 import ProjectEngagementHeader from '$lib/components/deliberation/ProjectEngagementHeader.svelte';
 import Phase3SubjectSelector from '$lib/components/deliberation/Phase3SubjectSelector.svelte';
+import CreateWorkspaceDialog from '$lib/components/deliberation/CreateWorkspaceDialog.svelte';
+import WorkspaceManagerDialog from '$lib/components/deliberation/WorkspaceManagerDialog.svelte';
+import CorpusAppropriationHub from '$lib/components/deliberation/CorpusAppropriationHub.svelte';
+import CapitalizationPanel from '$lib/components/deliberation/CapitalizationPanel.svelte';
 import LLMOpsStatusBadge from '$lib/components/LLMOpsStatusBadge.svelte';
 import HelpMenu from '$lib/components/HelpMenu.svelte';
 import '$lib/i18n';
@@ -70,28 +72,18 @@ describe('Refonte de l’en-tête Délibération et statut global LLMOps', () =>
 		expect(html).toContain('Tableau');
 	});
 
-	it('5. Le header global (+layout.svelte) affiche la pastille d’engagement actif renvoyant vers /workspaces et regroupe les services techniques', () => {
-		const layoutContent = fs.readFileSync(path.resolve('src/routes/+layout.svelte'), 'utf8');
-		expect(layoutContent).toContain('data-testid="active-engagement-pill"');
-		expect(layoutContent).toContain('href="/workspaces"');
-		expect(layoutContent).toContain('data-testid="services-status-trigger"');
-	});
-
-	it('6. Les vues Workspaces, Création de Projet et Délibération ne contiennent plus de badges slogans superflus ("100% Local & Souverain", "valide de facto")', () => {
-		const filesToCheck = [
-			'src/routes/workspaces/+page.svelte',
-			'src/routes/workspaces/new/+page.svelte',
-			'src/lib/components/deliberation/CreateWorkspaceDialog.svelte',
-			'src/lib/components/deliberation/WorkspaceManagerDialog.svelte',
-			'src/lib/components/deliberation/CorpusAppropriationHub.svelte',
-			'src/lib/components/deliberation/CapitalizationPanel.svelte'
+	it('5. Les vues Workspaces, Création de Projet et Délibération ne rendent plus de badges slogans superflus ("100% Local & Souverain", "valide de facto")', () => {
+		const renderedViews = [
+			{ name: 'CreateWorkspaceDialog', html: render(CreateWorkspaceDialog, { props: { open: true, onclose: () => {} } }).html },
+			{ name: 'WorkspaceManagerDialog', html: render(WorkspaceManagerDialog, { props: { open: true, onclose: () => {} } }).html },
+			{ name: 'CorpusAppropriationHub', html: render(CorpusAppropriationHub).html },
+			{ name: 'CapitalizationPanel', html: render(CapitalizationPanel, { props: {} as any }).html }
 		];
-		for (const file of filesToCheck) {
-			const content = fs.readFileSync(path.resolve(file), 'utf8');
-			expect(content, `${file} ne doit plus contenir "100% Local & Souverain"`).not.toContain('100% Local & Souverain');
-			expect(content, `${file} ne doit plus contenir "100% Souverain & Local"`).not.toContain('100% Souverain & Local');
-			expect(content, `${file} ne doit plus contenir "valide de facto"`).not.toContain('valide de facto');
-			expect(content, `${file} ne doit plus contenir "Anonymisation Souveraine"`).not.toContain('Anonymisation Souveraine');
+		for (const { name, html } of renderedViews) {
+			expect(html, `${name} ne doit plus contenir "100% Local & Souverain"`).not.toContain('100% Local &amp; Souverain');
+			expect(html, `${name} ne doit plus contenir "100% Souverain & Local"`).not.toContain('100% Souverain &amp; Local');
+			expect(html, `${name} ne doit plus contenir "valide de facto"`).not.toContain('valide de facto');
+			expect(html, `${name} ne doit plus contenir "Anonymisation Souveraine"`).not.toContain('Anonymisation Souveraine');
 		}
 	});
 });

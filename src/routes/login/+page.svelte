@@ -3,6 +3,7 @@
   import { apiFetch } from '$lib/api/fetch';
   import { toast } from '$lib/toast/index.svelte';
   import { goto } from '$app/navigation';
+  import { sanitizeRedirectTarget } from '$lib/domain/navigation';
   import { Button } from '$lib/components/ui/button';
   import * as Card from '$lib/components/ui/card';
   import type { PageData } from './$types';
@@ -50,8 +51,7 @@
 
     toast('Welcome back!', { variant: 'success' });
     const urlParams = new URLSearchParams(window.location.search);
-    const target = urlParams.get('redirectTo');
-    const redirectTo = target && target.startsWith('/') && !target.startsWith('//') ? target : '/';
+    const redirectTo = sanitizeRedirectTarget(urlParams.get('redirectTo'));
     window.location.href = redirectTo;
   }
 

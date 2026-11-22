@@ -1,6 +1,6 @@
 import { describe, it, expect, afterAll } from 'vitest';
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { render } from 'svelte/server';
+import DomainsPicker from '$lib/components/admin/DomainsPicker.svelte';
 import { prisma } from '$lib/server/prisma';
 import { LLMOpsClient } from '$lib/server/llmops/client';
 import { createCentralizedAccount } from '$lib/server/accountsAdmin';
@@ -69,28 +69,49 @@ describe('Simplified Account Creation & Multi-Domain Picker (3GPP Expert Spec)',
     }
   });
 
-  it('1. Le composant DomainsPicker propose les packs thématiques et la sélection multiple', () => {
-    const pickerSource = readFileSync(
-      resolve(process.cwd(), 'src/lib/components/admin/DomainsPicker.svelte'),
-      'utf-8'
-    );
-    expect(pickerSource).toContain('+ Pack 3GPP');
-    expect(pickerSource).toContain('+ Pack Sécurité');
-    expect(pickerSource).toContain('conformance');
-    expect(pickerSource).toContain('telecom-core');
-    expect(pickerSource).toContain('5g-security');
-    expect(pickerSource).toContain('selectedDomains');
+  it('1. Le composant DomainsPicker rend les packs thématiques et les domaines 3GPP sélectionnables', () => {
+    const mockClient = new MockLlmopsRegistryClient();
+    const { html } = render(DomainsPicker, {
+      props: {
+        selectedDomains: ['conformance', '5g-security'],
+        ownersRegistry: mockClient.registryState
+      }
+    });
+    expect(html).toContain('+ Pack 3GPP');
+    expect(html).toContain('+ Pack Sécurité');
+    expect(html).toContain('conformance');
+    expect(html).toContain('telecom-core');
+    expect(html).toContain('5g-security');
   });
 
-  it('2. AdminCreateAccountDialog intègre DomainsPicker et dérive automatiquement le handle LLMOps', () => {
-    const dialogSource = readFileSync(
-      resolve(process.cwd(), 'src/lib/components/admin/AdminCreateAccountDialog.svelte'),
-      'utf-8'
-    );
-    expect(dialogSource).toContain('DomainsPicker');
-    expect(dialogSource).toContain('derivedAutoHandle');
-    expect(dialogSource).toContain('Domaines de responsabilité (Compétences LLMOps)');
-    expect(dialogSource).toContain('Rôles sur la Doctrine LLMOps');
+  it('2. La création centralisée dérive automatiquement le handle LLMOps depuis l’email quand kbHandle est omis', async () => {
+    // Vérification comportementale de la dérivation automatique de handle (ex: jane.doe@corp.org -> @jane-doe)
+    const mockClient = new MockLlmopsRegistryClient();
+    const tempEmail = `auto.handle.${Date.now()}@test-telecom.org`;
+    try {
+      const res = await createCentralizedAccount(
+        {
+          name: 'Auto Handle Expert',
+          email: tempEmail,
+          role: 'user',
+          initialPassword: 'PasswordAuto123!',
+          enableKbReview: true,
+          kbRoles: ['kb:review'],
+          ownedDomains: ['conformance'],
+          registerInLlmops: true
+        },
+        'admin@archinex.local',
+        mockClient
+      );
+      expect(res.llmopsSync?.success).toBe(true);
+      expect(res.llmopsSync?.handle).toMatch(/^@auto-handle-/);
+    } finally {
+      const u = await prisma.user.findUnique({ where: { email: tempEmail } });
+      if (u) {
+        await prisma.kbProfile.deleteMany({ where: { userId: u.id } });
+        await prisma.user.delete({ where: { id: u.id } });
+      }
+    }
   });
 
   it('3. Crée un compte avec compétences 3GPP multiples sans saisie manuelle de handle', async () => {

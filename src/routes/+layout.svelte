@@ -51,6 +51,12 @@
   import { page } from '$app/stores';
   import '$lib/i18n';
   import { deliberationStore } from '$lib/stores/deliberationStore.svelte';
+  import {
+    APP_DEFAULT_TITLE,
+    KNOWLEDGE_HUB_NAV_GROUPS,
+    MAIN_MENU_ITEMS,
+    filterMenuItemsForSession
+  } from '$lib/domain/navigation';
   import type { PageData } from './$types';
 
   let { children, data }: { children: Snippet; data: PageData } = $props();
@@ -101,37 +107,24 @@
     items: KnowledgeHubItem[];
   }
 
-  const knowledgeHubGroups: KnowledgeHubGroup[] = [
-    {
-      id: 'visualisation',
-      labelKey: 'nav.kbGroupVisualisation',
-      defaultLabel: '1. Exploration',
-      items: [
-        { href: '/knowledge',     labelKey: 'nav.knowledge',    defaultLabel: 'Base de Connaissance',      icon: Network },
-        { href: '/kb/me',         labelKey: 'nav.kbMe',         defaultLabel: 'Mon profil expert',         icon: Shield },
-        { href: '/kb/frameworks', labelKey: 'nav.kbFrameworks', defaultLabel: 'Référentiels & Couverture', icon: FileText },
-      ],
-    },
-    {
-      id: 'doctrine',
-      labelKey: 'nav.kbGroupDoctrine',
-      defaultLabel: '2. Doctrine & Rédaction',
-      items: [
-        { href: '/kb/workshop',   labelKey: 'nav.kbWorkshop',   defaultLabel: 'Atelier de doctrine',       icon: Sparkles },
-        { href: '/kb/clauses',    labelKey: 'nav.kbClauses',    defaultLabel: 'Clauses vérifiables',       icon: ShieldCheck },
-      ],
-    },
-    {
-      id: 'validation',
-      labelKey: 'nav.kbGroupValidation',
-      defaultLabel: '3. Validation & Publication',
-      items: [
-        { href: '/kb/reviews',    labelKey: 'nav.kbReviews',    defaultLabel: 'Boîte de revue',             icon: Inbox },
-        { href: '/kb/evals',      labelKey: 'nav.kbEvals',      defaultLabel: "Banc d'évaluation",          icon: CheckCircle },
-        { href: '/kb/dashboard',  labelKey: 'nav.kbDashboard',  defaultLabel: 'Gouvernance & Publication',  icon: Database },
-      ],
-    },
-  ];
+  const KB_ICONS: Record<string, any> = {
+    '/knowledge': Network,
+    '/kb/me': Shield,
+    '/kb/frameworks': FileText,
+    '/kb/workshop': Sparkles,
+    '/kb/clauses': ShieldCheck,
+    '/kb/reviews': Inbox,
+    '/kb/evals': CheckCircle,
+    '/kb/dashboard': Database
+  };
+
+  const knowledgeHubGroups: KnowledgeHubGroup[] = KNOWLEDGE_HUB_NAV_GROUPS.map((group) => ({
+    ...group,
+    items: group.items.map((item) => ({
+      ...item,
+      icon: KB_ICONS[item.href] ?? Network
+    }))
+  }));
 
   let knowledgeHubOpen = $state(true);
 
@@ -148,17 +141,20 @@
   /**
    * Navigation items.
    */
-  const menuItems = [
-    { href: '/',             labelKey: 'nav.dashboard',    icon: LayoutDashboard, adminOnly: false, authOnly: false },
-    { href: '/workspaces',   labelKey: 'nav.workspaces',   icon: FolderPlus,      adminOnly: false, authOnly: true },
-    { href: '/deliberation', labelKey: 'nav.deliberation', icon: GitBranch,       adminOnly: false, authOnly: true },
-    { href: '/knowledge',    labelKey: 'nav.knowledgeHub', icon: Network,         adminOnly: false, authOnly: true, isKnowledgeHub: true },
-    { href: '/users',        labelKey: 'nav.users',        icon: Users,           adminOnly: false, authOnly: true },
-  ];
+  const MENU_ICONS: Record<string, any> = {
+    '/': LayoutDashboard,
+    '/workspaces': FolderPlus,
+    '/deliberation': GitBranch,
+    '/knowledge': Network,
+    '/users': Users
+  };
 
-  const displayedMenuItems = $derived(
-    menuItems.filter((item) => !item.authOnly || Boolean(session))
-  );
+  const menuItems = MAIN_MENU_ITEMS.map((item) => ({
+    ...item,
+    icon: MENU_ICONS[item.href] ?? LayoutDashboard
+  }));
+
+  const displayedMenuItems = $derived(filterMenuItemsForSession(menuItems, session));
 
   const adminMenuItems = [
     { href: '/admin', labelKey: 'nav.admin', defaultLabel: 'Admin', icon: Shield },
@@ -364,7 +360,7 @@
 
     <!-- App title -->
     <span class="text-lg font-bold tracking-tight truncate">
-      {$t('app.title', { default: 'archinex' })}
+      {$t('app.title', { default: APP_DEFAULT_TITLE })}
     </span>
 
     <!-- Rappel compact de l'engagement actif (cliquable vers /workspaces) — masqué aux anonymes (#391) -->

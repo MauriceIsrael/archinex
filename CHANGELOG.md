@@ -8,6 +8,23 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Recentrage Archinex : délibération, complétude de couverture et justification visuelle (#400, #401, #402, #403, #404, #405)
+- **Modèle unique de complétude de couverture (`src/lib/domain/coverageModel.ts`, `GET /api/projects/[projectId]/coverage`)** :
+  - Calcul déterministe et monotone des 6 étapes de couverture (`non qualifiée` → `qualifiée` → `rattachée` → `décidée` → `planifiée` → `réalisée prouvée`) avec dénominateurs explicites ventilés par criticité, domaine et sujet.
+  - Renommage de `coverageRate` en `extractionCharCoverage` dans `src/lib/domain/rfpExtractionReport.ts` et `RfpExtractionVerification.svelte`.
+  - Garde-fou de scellement dans `POST /api/projects/[projectId]/subjects/[subjectId]/freeze` (refus HTTP 409 si une exigence bloquante n'est pas décidée sans acceptation tracée, ou en cas d'évacuation sans motif) et synchronisation avec la RTM exportée (`src/lib/domain/traceability.ts`).
+- **Vue de couverture visuelle (`CoverageMatrixView.svelte`, `src/lib/domain/coverageExport.ts`)** :
+  - Matrice exigences × étapes accessible (icône + texte, clavier, repli liste 390 px), filtres, regroupements, fenêtrage performant pour 1 000+ exigences, fraîcheur de réconciliation Nautobot et exports SVG / PNG / CSV.
+- **Carte de décision sur un seul écran (`DecisionCard.svelte`, `src/lib/domain/decisionCard.ts`)** :
+  - Synthèse déterministe de ce que l'arbitre signe (sources, contraintes KB avec distinction `non vérifié` / `inconnu` / `brouillon`, matrice thermique options × critères, arguments humain/agent, écarts acceptés, plan dry-run Nautobot) avec exports SVG, Markdown et impression.
+- **Schémas dérivés d'un modèle de décision unique (`src/lib/domain/decisionDiagramModel.ts`)** :
+  - Projections Mermaid, Structurizr DSL, C4X DSL et Graphe d'impact générées d'un modèle unique avec provenance obligatoire par élément, liens cliquables vers la source, empreinte anti-dérive et validation syntaxique CI. Retrait du diagramme de scénario codé en dur dans `src/lib/domain/artifactProjections.ts`.
+- **Recentrage Phases 4 et 5 (`Phase4RefinementHub.svelte`, `Phase4NautobotPlanPreview.svelte`, `Phase4DriftDemoDrawer.svelte`, `Phase5ConsolidationHub.svelte`, `Phase5RealizationPanel.svelte`)** :
+  - Phase 4 recentrée sur l'intention et le plan dry-run Nautobot (retrait des actions d'hydratation multi-outils et raccourcis directs, lien unique vers Nautobot, simulateur de dérive isolé dans un tiroir de démonstration replié).
+  - Phase 5 enrichie d'une vue en lecture seule de la réalisation Nautobot (`Planifié`, `Réalisé prouvé`, `Non vérifié`) avec actions limitées à *Remédier / Amender / Déroger*.
+- **Tests & Documentation** :
+  - Ajout de `docs/concepts.md`, mise à jour de `USER_GUIDE.md` et `docs/user-guide.md`, et ajout des suites de contrat `coverage-model.test.ts`, `coverage-matrix-view.test.ts`, `decision-card.test.ts`, `decision-diagram-model.test.ts` et `phase4-phase5-refocus.test.ts`.
+
 ### Fiabilisation du vérificateur, réserves de couverture au scellement, provenance Oracle OPA et import unifié des sujets (#384, #385, #380, #58)
 - **Verdict structuré du vérificateur (`src/lib/server/agents/verifier.ts`, `src/lib/domain/maturityRules.ts`, `src/lib/domain/maturityCriteria.ts`, `prisma/schema.prisma`, `src/lib/server/projects/debateDb.ts`)** (#384) :
   - Ajout de la colonne `Argument.verdict` (`compliant` | `violates` | `not_applicable` | `unknown`) et suppression de la propriété fantôme `violationDetected`.

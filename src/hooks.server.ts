@@ -3,10 +3,15 @@ import type { Handle, ServerInit } from '@sveltejs/kit';
 import type { Session } from './app.d.ts';
 import { prisma } from '$lib/server/prisma';
 import { hasWebhookSignatureHeader } from '$lib/server/edp/nautobotWebhookAuth';
+import { getReconciliationScheduler } from '$lib/server/edp/reconciliationJob';
 
 export const init: ServerInit = async () => {
   if (process.env.NODE_ENV === 'production') {
     assertValidJwtSecret();
+  }
+  const isTestEnv = process.env.VITEST === 'true' || process.env.NODE_ENV === 'test';
+  if (!isTestEnv && process.env.RECONCILIATION_ENABLED !== 'false') {
+    getReconciliationScheduler().start();
   }
 };
 

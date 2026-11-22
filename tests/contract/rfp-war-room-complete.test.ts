@@ -23,6 +23,7 @@ import {
 } from '$lib/domain/interLotCollaboration';
 import { assembleRfpTechnicalMemo } from '$lib/domain/rfpNarrativeAssembler';
 import { composeMultiAxisHydration } from '$lib/server/edp/refinementCoverage';
+import { composeProjectLogicalTopology } from '$lib/domain/edp/logicalViews';
 import { loadOntologyCatalog } from '$lib/server/edp/ontologyClient';
 import type { EngagementBundle } from '$lib/domain/engagementBundle';
 import type { Statement } from '$lib/types/epistemic';
@@ -351,6 +352,20 @@ describe('RFP War Room Suite (#443, #444, #446, #448)', () => {
 				{ side: 'downstream', actorId: 'bob@org.local', actorRole: 'domain_expert', isHuman: true }
 			);
 
+			const { amendments } = parseBuyerQaWaveCsv(
+				'REQ-01;Le RPO=0 est-il confirmé ?;Confirmé sur 3 sites.;clarifies',
+				'Vague 1',
+				'lead@org.local'
+			);
+			const topology = composeProjectLogicalTopology(
+				'eng-1',
+				'prod',
+				['dc1', 'dc2'],
+				[],
+				hydrated.resolved_components ?? [],
+				hydrated.nautobot_planned_devices
+			);
+
 			const memo = assembleRfpTechnicalMemo({
 				bundle,
 				framing: {
@@ -358,8 +373,10 @@ describe('RFP War Room Suite (#443, #444, #446, #448)', () => {
 					bidderOrganization: 'Consortium Architecture',
 					deliveryMethodology: 'Livraison par jalons vérifiés dans Nautobot.'
 				},
+				amendments,
 				bomReport,
-				interLotContracts: [coSignedContract]
+				interLotContracts: [coSignedContract],
+				topologyMermaid: topology.mermaid
 			});
 
 			expect(memo.isProvisional).toBe(false);
@@ -369,6 +386,22 @@ describe('RFP War Room Suite (#443, #444, #446, #448)', () => {
 			expect(memo.markdown).toContain('Topologie 3DC Actif-Actif');
 			expect(memo.markdown).toContain('Planned-Capacity');
 			expect(memo.markdown).toContain('Cosigné (alice@org.local & bob@org.local)');
+
+			// Vérification de la présence et du positionnement des diagrammes déterministes
+			expect(memo.diagrams.executiveGovernanceMermaid).toContain('flowchart LR');
+			expect(memo.diagrams.decisionDiagramsByDecisionId['dec-resilience']).toContain('flowchart TB');
+			expect(memo.diagrams.qaImpactMermaid).toContain('flowchart LR');
+			expect(memo.diagrams.interLotBoundariesMermaid).toContain('flowchart LR');
+			expect(memo.diagrams.finopsCapacityMermaid).toContain('flowchart TB');
+			expect(memo.diagrams.editorialRecommendations.length).toBeGreaterThan(0);
+			expect(memo.markdown).toContain('### 1.1 Chaîne de Gouvernance & Traçabilité de l’Offre');
+			expect(memo.markdown).toContain('### 1.2 Vues Éditoriales SVG Recommandées (Directeur Éditorial)');
+			expect(memo.markdown).toContain('### 3.1 Graphe de Propagation Causale des Vagues Q&R Acheteur');
+			expect(memo.markdown).toContain('### 4.1 Topologie des Frontières & Co-Signatures Inter-Lots');
+			expect(memo.markdown).toContain('### 5.1 Arbre Capacitaire & Décomposition FinOps (BOM)');
+			expect(memo.markdown).toContain('### 5.2 Vue Logique Fonctionnelle & Flux');
+			expect(memo.markdown).toContain('### 5.3 Vue Déploiement Multi-Datacenters & Pools');
+			expect(memo.markdown).toContain('### 5.4 Vue Physique & Objets Planifiés CMDB (Nautobot)');
 		});
 	});
 });

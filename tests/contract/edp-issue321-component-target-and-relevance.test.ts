@@ -150,12 +150,20 @@ describe('Issue #321 : Composant cible unifié, motif d’activation & filtrage 
 		expect(phase4Content).toContain('phase4-out-of-scope-panel');
 		expect(phase4Content).toContain('phase4-restore-axis-btn');
 
-		const apiContent = readFileSync(
-			resolve(process.cwd(), 'src/routes/api/projects/[projectId]/subjects/[subjectId]/edp/+server.ts'),
+		const dismissRoute = readFileSync(
+			resolve(process.cwd(), 'src/routes/api/projects/[projectId]/subjects/[subjectId]/edp/dismiss-axis/+server.ts'),
 			'utf8'
 		);
-		expect(apiContent).toContain("action === 'dismiss_axis'");
-		expect(apiContent).toContain("action === 'restore_axis'");
-		expect(apiContent).toContain('excludedAxisUrns');
+		const restoreRoute = readFileSync(
+			resolve(process.cwd(), 'src/routes/api/projects/[projectId]/subjects/[subjectId]/edp/restore-axis/+server.ts'),
+			'utf8'
+		);
+		const axisScopeService = readFileSync(
+			resolve(process.cwd(), 'src/lib/server/edp/actions/axisScopeActions.ts'),
+			'utf8'
+		);
+		expect(dismissRoute).toContain('handleDismissAxis');
+		expect(restoreRoute).toContain('handleRestoreAxis');
+		expect(axisScopeService).toContain('excludedAxisUrns');
 	});
 });

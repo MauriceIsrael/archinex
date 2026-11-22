@@ -1,0 +1,13 @@
+### Découpage modulaire du client LLMOps, de la route EDP et de SubjectThreadView (#396)
+- **Routes & service EDP (`src/lib/server/edp/actions/`, `src/routes/api/projects/[projectId]/subjects/[subjectId]/edp/`)** :
+  - Extraction de toute la logique métier dans une couche service testable validée par Zod (`schemas.ts`, `context.ts`, `getEdpState.ts`, `validateAndChallenge.ts`, `bindingActions.ts`, `axisScopeActions.ts`, `hydrationAndSynthesis.ts`, `verificationAndExport.ts`).
+  - Création de 11 endpoints dédiés par action (`/edp/validate`, `/edp/challenge`, `/edp/bind-aspect`, `/edp/unratify`, `/edp/dismiss-axis`, `/edp/restore-axis`, `/edp/hydrate`, `/edp/synthesize`, `/edp/verify`, `/edp/simulate-drift`, `/edp/export-sylva-gitops`) ; la route `/edp/+server.ts` (44 lignes) délègue via une table de dispatch typée sans aucune chaîne `if (action === ...)`.
+  - Remplacement des chaînes `if (action === ...)` restantes dans les routes API (`ontology`, `llmops`, `catalog`, `cascade/actions`) par des tables de handlers typées.
+- **Client LLMOps (`src/lib/server/llmops/`)** :
+  - Découpage de `client.ts` en une couche transport avec négociation de version (`transport.ts`, `X-Hub-Contract-Version`) et 6 modules de domaine (`domains/doctrine.ts`, `frameworks.ts`, `knowledge.ts`, `knowledgeAdmin.ts`, `evaluations.ts`, `engagements.ts`), composés par la façade `LLMOpsClient` à 100 % rétrocompatible.
+  - Ajout du contrat OpenAPI du Hub (`contract/hub-openapi.json`) et du générateur de types déterministe (`scripts/generate-llmops-types.mjs` / `npm run llmops:gen-types`).
+- **Vue délibération (`src/lib/components/deliberation/thread/`)** :
+  - Extraction des sous-composants `SubjectThreadHeader.svelte`, `SubjectDiscussionPane.svelte`, `SubjectMatrixPane.svelte`, `SubjectDoctrinePane.svelte` et `SubjectCascadePane.svelte` depuis `SubjectThreadView.svelte`.
+- **Garde-fou lint, tests & documentation** :
+  - Ajout de `scripts/check-file-size.mjs` (`npm run lint:size`, intégré à `npm run verify`) : erreur bloquante sur toute route serveur > 300 lignes ou contenant une chaîne `if (action === ...)`, avertissement sur les fichiers `src/` > 600 lignes.
+  - Ajout de `tests/contract/issue396-modularization.test.ts` et mise à jour de `ARCHITECTURE.md`.

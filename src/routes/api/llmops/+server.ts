@@ -76,53 +76,62 @@ export const GET: RequestHandler = async (event) => {
   }
 };
 
+const LLMOPS_POST_HANDLERS: Record<
+  string,
+  (event: Parameters<RequestHandler>[0], sessionUser: { name?: string | null; email: string }, body: any) => Promise<Response>
+> = {
+  shred: async (event, _user, body) => {
+    const { rfpText, documentId, documentVersion, engagement } = body;
+    if (!rfpText || typeof rfpText !== 'string') {
+      return json({ status: 'error', error: 'Missing rfpText' }, { status: 400 });
+    }
+    if (engagement && typeof engagement === 'string') {
+      const projectAuth = await authorizeProjectAccess(event, engagement);
+      if (projectAuth.error && projectAuth.error.status !== 404) {
+        return projectAuth.error;
+      }
+    }
+    const result = await llmopsClient.shredRfp(rfpText, documentId, documentVersion, engagement);
+    return json(result);
+  },
+  suggest: async (event, user, body) => {
+    const { title, rationale, suggestedChange, sourceEngagement } = body;
+    if (!title || !suggestedChange) {
+      return json({ status: 'error', error: 'Missing title or suggestedChange' }, { status: 400 });
+    }
+    if (sourceEngagement && typeof sourceEngagement === 'string') {
+      const projectAuth = await authorizeProjectAccess(event, sourceEngagement);
+      if (projectAuth.error && projectAuth.error.status !== 404) {
+        return projectAuth.error;
+      }
+    }
+    const result = await llmopsClient.submitKnowledgeSuggestion({
+      title,
+      rationale: rationale || 'Induction et validation humaine depuis Archinex',
+      suggestedChange,
+      author: user.name || user.email,
+      sourceEngagement,
+      contactEmail: user.email
+    });
+    return json(result);
+  }
+};
+LLMOPS_POST_HANDLERS['store-rule'] = LLMOPS_POST_HANDLERS.suggest;
+
 export const POST: RequestHandler = async (event) => {
   const auth = requireLlmopsSession(event.locals);
   if (auth.error) return auth.error;
 
   const { request, url } = event;
   const action = url.searchParams.get('action') || 'shred';
+  const handler = LLMOPS_POST_HANDLERS[action];
+  if (!handler) {
+    return json({ status: 'error', error: `Unsupported action '${action}'` }, { status: 400 });
+  }
 
   try {
     const body = await request.json();
-    if (action === 'shred') {
-      const { rfpText, documentId, documentVersion, engagement } = body;
-      if (!rfpText || typeof rfpText !== 'string') {
-        return json({ status: 'error', error: 'Missing rfpText' }, { status: 400 });
-      }
-      if (engagement && typeof engagement === 'string') {
-        const projectAuth = await authorizeProjectAccess(event, engagement);
-        if (projectAuth.error && projectAuth.error.status !== 404) {
-          return projectAuth.error;
-        }
-      }
-      const result = await llmopsClient.shredRfp(rfpText, documentId, documentVersion, engagement);
-      return json(result);
-    }
-
-    if (action === 'suggest' || action === 'store-rule') {
-      const { title, rationale, suggestedChange, sourceEngagement } = body;
-      if (!title || !suggestedChange) {
-        return json({ status: 'error', error: 'Missing title or suggestedChange' }, { status: 400 });
-      }
-      if (sourceEngagement && typeof sourceEngagement === 'string') {
-        const projectAuth = await authorizeProjectAccess(event, sourceEngagement);
-        if (projectAuth.error && projectAuth.error.status !== 404) {
-          return projectAuth.error;
-        }
-      }
-      const result = await llmopsClient.submitKnowledgeSuggestion({
-        title,
-        rationale: rationale || 'Induction et validation humaine depuis Archinex',
-        suggestedChange,
-        author: auth.session.user.name || auth.session.user.email,
-        sourceEngagement,
-        contactEmail: auth.session.user.email
-      });
-      return json(result);
-    }
-
-    return json({ status: 'error', error: `Unsupported action '${action}'` }, { status: 400 });
+    return await handler(event, auth.session.user, body);
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Unknown LLMOps proxy error';
     return json({ status: 'error', error: message }, { status: 500 });

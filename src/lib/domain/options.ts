@@ -4,6 +4,7 @@ export type CriterionKind = 'functional' | 'nfr' | 'cost' | 'risk' | 'compliance
 export type OptionOrigin = 'human' | 'llm-proposed' | 'kb-pattern';
 export type OptionStatus = 'proposed' | 'debated' | 'retained' | 'rejected';
 export type DecisionReversibility = 'reversible' | 'costly' | 'irreversible';
+export type DecisionMode = 'standard' | 'fast_track';
 
 export interface Criterion {
 	id: string;
@@ -111,6 +112,10 @@ export interface Decision {
 	complianceStatus?: 'Compliant' | 'Partially compliant' | 'Non-compliant' | 'Provisional';
 	complianceRationale?: string;
 	portability?: 'project_specific' | 'reusable_product_capability' | 'reusable_architecture_doctrine';
+	/** Mode d'arbitrage G3 : 'standard' (cycle complet) ou 'fast_track' (décision directe motivée, #442). */
+	decisionMode?: DecisionMode;
+	/** Justification explicite du recours au mode Fast-Track G3 (#442). */
+	fastTrackRationale?: string;
 	arbiterId: string;
 	arbiterRole: string;
 	decidedAt: string; // ISO date

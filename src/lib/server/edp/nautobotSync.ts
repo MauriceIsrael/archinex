@@ -33,6 +33,12 @@ export interface NautobotSyncSummary {
   vrfsSynced: number;
   interfacesSynced: number;
   ipAddressesSynced: number;
+  /** Niveau de granularité de planification appliqué (#447). */
+  planningGranularity?: 'capacity_sizing' | 'lld_allocated';
+  /** Libellé canonique du stade de planification (`Planned-Capacity` ou `Planned-Allocated`, #447). */
+  planningStageLabel?: 'Planned-Capacity' | 'Planned-Allocated';
+  /** Nombre d'allocations IP nominales différées au LLD en mode `capacity_sizing` (#447). */
+  deferredIpAllocationsCount?: number;
   urls: {
     circuits: string;
     tenants: string;
@@ -90,6 +96,8 @@ export interface NautobotClientOptions {
   dryRun?: boolean;
   /** Adopte explicitement les objets existants NON marqués (sinon ils ne sont jamais modifiés) (#376). */
   adoptUnmarked?: boolean;
+  /** Niveau de granularité de planification (`capacity_sizing` en avant-vente RFP vs `lld_allocated` en LLD, #447). */
+  planningGranularity?: 'capacity_sizing' | 'lld_allocated';
   /** Collecteur interne du plan de synchronisation. */
   planSink?: SyncPlanEntry[];
   fetchImpl?: typeof fetch;
@@ -488,10 +496,20 @@ export async function syncHydratedInventoryToNautobot(
   let clientOpts: NautobotClientOptions = { ...clientOptsInput, planSink };
   const baseUrl = clientOpts.baseUrl || DEFAULT_NAUTOBOT_URL;
   const scope = clientOpts.projectScope ? normalizeProjectScope(clientOpts.projectScope) : undefined;
+  const effectiveGranularity: 'capacity_sizing' | 'lld_allocated' =
+    clientOpts.planningGranularity ?? hydrated.planning_granularity ?? 'lld_allocated';
+  const isCapacitySizing = effectiveGranularity === 'capacity_sizing';
+  const planningStageLabel: 'Planned-Capacity' | 'Planned-Allocated' = isCapacitySizing
+    ? 'Planned-Capacity'
+    : 'Planned-Allocated';
+
   const summary: NautobotSyncSummary = {
     reachable: false,
     baseUrl,
     ...(scope ? { projectScope: scope } : {}),
+    planningGranularity: effectiveGranularity,
+    planningStageLabel,
+    deferredIpAllocationsCount: 0,
     tenantsSynced: 0,
     circuitsSynced: 0,
     prefixesSynced: 0,
@@ -1147,7 +1165,9 @@ export async function syncHydratedInventoryToNautobot(
                 mgmt_only: isMgmt,
                 enabled: true,
                 status: statusPlanned,
-                description: `Interface ${ifaceType} (${profileLabel})`
+                description: isCapacitySizing
+                  ? `Interface ${ifaceType} (${profileLabel}) [Planned-Capacity : IP différée au LLD]`
+                  : `Interface ${ifaceType} (${profileLabel})`
               },
               true,
               clientOpts
@@ -1156,7 +1176,9 @@ export async function syncHydratedInventoryToNautobot(
               summary.interfacesSynced++;
             }
 
-            if (iface.ip) {
+            if (iface.ip && isCapacitySizing) {
+              summary.deferredIpAllocationsCount = (summary.deferredIpAllocationsCount ?? 0) + 1;
+            } else if (iface.ip) {
               const rawIp = String(iface.ip).trim();
               const ipCidr = rawIp.includes('/') ? rawIp : `${rawIp}/24`;
               const netPrefix = cidrToNetworkPrefix(ipCidr);
@@ -1268,7 +1290,9 @@ export async function syncHydratedInventoryToNautobot(
             role: roleWorker.id,
             location: defaultLocationId,
             status: statusPlanned,
-            comments: `Pool Sylva : ${dev.cluster_pool || 'sylva-default'} | Profil : ${dev.dataplane_profile || 'Standard'} | OOB : ${dev.oob_ip} | PDU : ${(dev.power_feeds as string[] || []).join(' + ')}`
+            comments: isCapacitySizing
+              ? `Stade : Planned-Capacity (Dimensionnement RFP — IP/MAC différées au LLD) | Pool Sylva : ${dev.cluster_pool || 'sylva-default'} | Profil : ${dev.dataplane_profile || 'Standard'} | PDU : ${(dev.power_feeds as string[] || []).join(' + ')}`
+              : `Pool Sylva : ${dev.cluster_pool || 'sylva-default'} | Profil : ${dev.dataplane_profile || 'Standard'} | OOB : ${dev.oob_ip} | PDU : ${(dev.power_feeds as string[] || []).join(' + ')}`
           };
           if (platSylva) devPayload.platform = platSylva;
           if (satisfiedClauses.length > 0) {

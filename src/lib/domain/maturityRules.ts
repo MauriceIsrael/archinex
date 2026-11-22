@@ -1,6 +1,6 @@
 import type { SubjectMaturity } from '$lib/types/epistemic';
 import type { Criterion, Option, OptionEvaluation, Decision } from './options';
-import type { Argument } from './debate';
+import { classifyObjectionSeverity, type Argument } from './debate';
 
 export type MaturityBlockerCode =
 	| 'MISSING_PROBLEM_STATEMENT'
@@ -8,6 +8,7 @@ export type MaturityBlockerCode =
 	| 'INSUFFICIENT_OPTIONS'
 	| 'UNEVALUATED_OPTION'
 	| 'OPEN_OBJECTION'
+	| 'ADVISORY_OBJECTION'
 	| 'UNRESOLVED_VIOLATION'
 	| 'OPEN_BLOCKING_QUESTION'
 	| 'COVERAGE_INCOMPLETE'
@@ -38,6 +39,8 @@ export interface MaturityComputationInput {
 		maturityLevel?: SubjectMaturity;
 		/** Justification d'une option unique : certains sujets n'ont pas d'alternative réelle. */
 		singleOptionRationale?: string | null;
+		/** Justification explicite du mode Fast-Track G3 (décision directe motivée sans matrice complète, #442). */
+		fastTrackRationale?: string | null;
 	};
 	criteria: Criterion[];
 	options: Option[];
@@ -48,6 +51,10 @@ export interface MaturityComputationInput {
 	decision?: Decision | null;
 	/** Autorise la ré-évaluation d'un sujet déjà arbitré (L3/L4) en vue d'une révision de décision. */
 	allowRevision?: boolean;
+	/** Active le mode Fast-Track G3 (décision directe motivée sans option homme de paille ni matrice complète, #442). */
+	fastTrack?: boolean;
+	/** Justification explicite du recours au mode Fast-Track G3 (au moins 10 caractères, #442). */
+	fastTrackRationale?: string | null;
 	/**
 	 * Classification sémantique pré-calculée côté serveur par `SemanticAnchorClassifier`
 	 * (clé = `argument.id`), évitant de dépendre de sous-chaînes naïves sur le texte libre.
@@ -145,9 +152,19 @@ export function computeMaturity(input: MaturityComputationInput): MaturityComput
 		});
 	}
 
+	const effectiveFastTrackRationale =
+		(input.fastTrackRationale ?? input.subject.fastTrackRationale)?.trim() || '';
+	const fastTrackJustified =
+		input.fastTrack !== false &&
+		effectiveFastTrackRationale.length >= 10 &&
+		input.options.length >= 1;
+
 	const singleOptionJustified =
-		input.options.length === 1 && typeof input.subject.singleOptionRationale === 'string' && input.subject.singleOptionRationale.trim().length > 0;
-	const minCriteria = singleOptionJustified ? 1 : 2;
+		fastTrackJustified ||
+		(input.options.length === 1 &&
+			typeof input.subject.singleOptionRationale === 'string' &&
+			input.subject.singleOptionRationale.trim().length > 0);
+	const minCriteria = fastTrackJustified ? 0 : singleOptionJustified ? 1 : 2;
 
 	if (input.criteria.length < minCriteria) {
 		l1Passed = false;
@@ -169,19 +186,21 @@ export function computeMaturity(input: MaturityComputationInput): MaturityComput
 		});
 	}
 
-	// Vérification de l'évaluation complète de chaque option sur chaque critère
-	for (const opt of input.options) {
-		for (const crit of input.criteria) {
-			const evaluation = input.evaluations.find(
-				(e) => e.optionId === opt.id && e.criterionId === crit.id
-			);
-			if (!evaluation || !evaluation.justification || evaluation.justification.trim().length === 0) {
-				l2Passed = false;
-				blockers.push({
-					code: 'UNEVALUATED_OPTION',
-					message: `L'option "${opt.title}" n'est pas évaluée avec justification sur le critère "${crit.name}".`,
-					targetId: opt.id
-				});
+	// Vérification de l'évaluation complète de chaque option sur chaque critère (levée en mode Fast-Track G3 justifié, #442)
+	if (!fastTrackJustified) {
+		for (const opt of input.options) {
+			for (const crit of input.criteria) {
+				const evaluation = input.evaluations.find(
+					(e) => e.optionId === opt.id && e.criterionId === crit.id
+				);
+				if (!evaluation || !evaluation.justification || evaluation.justification.trim().length === 0) {
+					l2Passed = false;
+					blockers.push({
+						code: 'UNEVALUATED_OPTION',
+						message: `L'option "${opt.title}" n'est pas évaluée avec justification sur le critère "${crit.name}".`,
+						targetId: opt.id
+					});
+				}
 			}
 		}
 	}
@@ -197,17 +216,27 @@ export function computeMaturity(input: MaturityComputationInput): MaturityComput
 	}
 
 	// --- 3. Validation de l'Arbitrabilité (readyForArbitration) ---
+	const advisoryObjectionWarnings: MaturityBlocker[] = [];
 
-	// a. Objections ouvertes
+	// a. Objections ouvertes (bloquantes vs consultatives non bloquantes, #445)
 	const openObjections = input.arguments.filter(
 		(a) => a.stance === 'objection' && a.resolution === 'open'
 	);
 	for (const obj of openObjections) {
-		blockers.push({
-			code: 'OPEN_OBJECTION',
-			message: `Objection non levée [${obj.claim}] : ${obj.grounds}`,
-			targetId: obj.id
-		});
+		const severity = classifyObjectionSeverity(obj);
+		if (severity === 'advisory') {
+			advisoryObjectionWarnings.push({
+				code: 'ADVISORY_OBJECTION',
+				message: `Objection consultative (non bloquante) [${obj.claim}] : ${obj.grounds}`,
+				targetId: obj.id
+			});
+		} else {
+			blockers.push({
+				code: 'OPEN_OBJECTION',
+				message: `Objection non levée [${obj.claim}] : ${obj.grounds}`,
+				targetId: obj.id
+			});
+		}
 	}
 
 	// b. Questions bloquantes ouvertes
@@ -255,7 +284,10 @@ export function computeMaturity(input: MaturityComputationInput): MaturityComput
 	// d. Couverture réglementaire du projet : ALERTE, pas blocage. Une base de connaissances incomplète relève de
 	// sa maintenance (LLMOps), pas de l'architecte qui tranche ; le blocage réglementaire porte sur les options jugées
 	// non conformes par une règle validée (écart à accepter et justifier, voir l'arbitrage).
-	const warnings: MaturityBlocker[] = coverageWarnings(input.requiredFrameworks ?? []);
+	const warnings: MaturityBlocker[] = [
+		...coverageWarnings(input.requiredFrameworks ?? []),
+		...advisoryObjectionWarnings
+	];
 
 	// e. Verdicts de vérification inconnus ou non structurés : ne valent JAMAIS « conforme » ;
 	// ils ressortent comme avertissement d'arbitrage (issue #384).

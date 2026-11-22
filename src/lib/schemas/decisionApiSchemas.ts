@@ -31,7 +31,9 @@ export const CreateDecisionSchema = z
 				acknowledged: z.boolean(),
 				reason: z.string().default('')
 			})
-			.optional()
+			.optional(),
+		fastTrack: z.boolean().optional(),
+		fastTrackRationale: z.string().optional()
 	})
 	.refine(
 		(data) => {
@@ -57,6 +59,19 @@ export const CreateDecisionSchema = z
 			message:
 				'Un motif explicite (au moins 5 caractères) est obligatoire pour la dérogation « décision sans vérification KB complète ».',
 			path: ['complianceCheckDerogation']
+		}
+	)
+	.refine(
+		(data) => {
+			if (data.fastTrack) {
+				return Boolean(data.fastTrackRationale && data.fastTrackRationale.trim().length >= 10);
+			}
+			return true;
+		},
+		{
+			message:
+				'La justification du recours au mode Fast-Track G3 doit comporter au moins 10 caractères.',
+			path: ['fastTrackRationale']
 		}
 	);
 

@@ -14,7 +14,7 @@ import { canonical, sha256, assertCatalogShape } from '../../scripts/sync-ontolo
 const FIXTURE = resolve(process.cwd(), 'tests/fixtures/edp/ontology_export.json');
 const PROVENANCE = resolve(process.cwd(), 'tests/fixtures/edp/ontology_export.provenance.json');
 
-const fixtureText = readFileSync(FIXTURE, 'utf-8');
+const fixtureText = readFileSync(FIXTURE, 'utf-8').replace(/\r\n/g, '\n');
 const fixture = JSON.parse(fixtureText);
 const provenance = JSON.parse(readFileSync(PROVENANCE, 'utf-8'));
 

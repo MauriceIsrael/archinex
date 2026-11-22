@@ -350,6 +350,125 @@ export async function resolveArgument(
 	});
 }
 
+/**
+ * Acquittement motivé en lot d'objections ouvertes (#445).
+ * Préserve la Règle du Silence (Invariant III) : exige un acteur humain habilité et une justification explicite (>= 5 caractères),
+ * vérifie la séparation auteur / arbitre sur chaque objection et journalise un événement `OBJECTIONS_BATCH_RESOLVED`.
+ */
+export async function batchResolveObjections(
+	subjectId: string,
+	data: {
+		argumentIds: string[];
+		resolution: Extract<ArgumentResolution, 'answered' | 'accepted_risk' | 'withdrawn'>;
+		justification: string;
+	},
+	actor: ActorInfo,
+	isHuman: boolean
+): Promise<{ resolved: Argument[]; resolvedCount: number }> {
+	if (!canCloseObjection(actor.role, isHuman)) {
+		throw new Error(
+			`Rôle '${actor.role}' non habilité à clore ou lever des objections en lot. Action réservée à un architecte ou expert humain.`
+		);
+	}
+	const trimmedJustification = (data.justification || '').trim();
+	if (trimmedJustification.length < 5) {
+		throw new Error(
+			"La Règle du Silence interdit tout acquittement en lot sans motif explicite d'au moins 5 caractères."
+		);
+	}
+	const uniqueIds = Array.from(new Set((data.argumentIds || []).filter(Boolean)));
+	if (uniqueIds.length === 0) {
+		return { resolved: [], resolvedCount: 0 };
+	}
+
+	return await prisma.$transaction(async (tx) => {
+		const targets = await tx.argument.findMany({
+			where: {
+				id: { in: uniqueIds },
+				subjectId,
+				stance: 'objection',
+				resolution: 'open'
+			},
+			include: { subject: true }
+		});
+		if (targets.length === 0) {
+			return { resolved: [], resolvedCount: 0 };
+		}
+
+		const actingUser = actor.userId
+			? await tx.user.findUnique({ where: { id: actor.userId }, select: { name: true, email: true } })
+			: null;
+		const aliases = [actingUser?.name, actingUser?.email].filter((v): v is string => Boolean(v));
+
+		for (const current of targets) {
+			const check = canResolveSpecificObjection(
+				{
+					userId: actor.userId,
+					userName: actor.userName,
+					aliases,
+					role: actor.role,
+					isHuman
+				},
+				{ authorId: current.author, authorName: current.author },
+				data.resolution
+			);
+			if (!check.allowed) {
+				throw new Error(check.reason);
+			}
+		}
+
+		const resolvedAt = new Date();
+		const resolvedList: Argument[] = [];
+		for (const current of targets) {
+			const updated = await tx.argument.update({
+				where: { id: current.id },
+				data: {
+					resolution: data.resolution,
+					resolvedBy: actor.userId,
+					resolvedAt,
+					version: current.version + 1
+				}
+			});
+			resolvedList.push({
+				...updated,
+				authorId: updated.author,
+				stance: updated.stance as Stance,
+				verdict: (updated.verdict as VerificationVerdict | null) ?? null,
+				confidence: updated.confidence as EpistemicConfidence,
+				productionMode: updated.productionMode as ProductionMode,
+				resolution: updated.resolution as ArgumentResolution,
+				kbRefs: JSON.parse(updated.kbRefs || '[]'),
+				resolvedAt: resolvedAt.toISOString(),
+				createdAt: updated.createdAt.toISOString(),
+				updatedAt: updated.updatedAt.toISOString()
+			});
+		}
+
+		await tx.domainEvent.create({
+			data: {
+				projectId: targets[0].subject.projectId,
+				entityType: 'subject',
+				entityId: subjectId,
+				type: 'OBJECTIONS_BATCH_RESOLVED',
+				payload: JSON.stringify({
+					argumentIds: resolvedList.map((r) => r.id),
+					resolution: data.resolution,
+					justification: trimmedJustification,
+					resolvedBy: actor.userId
+				}),
+				actorId: actor.userId,
+				actorRole: actor.role,
+				productionMode: 'human-authored'
+			}
+		});
+
+		return {
+			resolved: resolvedList,
+			resolvedCount: resolvedList.length
+		};
+	});
+}
+
 // -------------------------------------------------------------
 // DEBATE RUNS (Orchestration Asynchrone Bornée)
 // -------------------------------------------------------------

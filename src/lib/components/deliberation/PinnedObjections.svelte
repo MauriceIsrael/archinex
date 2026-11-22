@@ -1,6 +1,6 @@
 <script lang="ts">
 	import type { Argument, ArgumentResolution } from '$lib/domain/debate';
-	import { canCloseObjection, canResolveSpecificObjection, formatAgentRole } from '$lib/domain/debate';
+	import { canCloseObjection, canResolveSpecificObjection, classifyObjectionSeverity, formatAgentRole } from '$lib/domain/debate';
 	import { ShieldAlert, AlertTriangle, Check, ShieldCheck, Undo2, Bot, UserCheck } from 'lucide-svelte';
 
 	let {
@@ -9,7 +9,8 @@
 		isHumanUser = true,
 		currentUserId = undefined,
 		currentUserName = undefined,
-		onResolve = (arg: Argument, resolution: ArgumentResolution) => {}
+		onResolve = (arg: Argument, resolution: ArgumentResolution) => {},
+		onBatchResolve = undefined
 	}: {
 		objections: Argument[];
 		userRole?: string;
@@ -17,9 +18,24 @@
 		currentUserId?: string;
 		currentUserName?: string;
 		onResolve?: (arg: Argument, resolution: ArgumentResolution) => void;
+		onBatchResolve?: (args: Argument[], resolution: ArgumentResolution, justification: string) => void;
 	} = $props();
 
+	let batchJustification = $state('');
 	const userCanClose = $derived(canCloseObjection(userRole, isHumanUser));
+	const agentObjections = $derived(objections.filter((o) => o.authorKind.startsWith('agent:')));
+
+	function handleBatchResolve(resolution: ArgumentResolution) {
+		if (!userCanClose || batchJustification.trim().length < 5) return;
+		if (onBatchResolve) {
+			onBatchResolve(agentObjections, resolution, batchJustification.trim());
+		} else {
+			for (const obj of agentObjections) {
+				onResolve(obj, resolution);
+			}
+		}
+		batchJustification = '';
+	}
 </script>
 
 {#if objections.length > 0}
@@ -49,9 +65,52 @@
 			{/if}
 		</div>
 
+		{#if userCanClose && agentObjections.length > 1}
+			<div class="rounded-lg border border-amber-500/30 bg-amber-500/10 p-2.5 space-y-2 text-xs" data-testid="batch-resolve-objections-bar">
+				<div class="flex items-center justify-between gap-2 flex-wrap">
+					<span class="font-semibold text-foreground">
+						Acquittement motivé en lot des objections IA ({agentObjections.length})
+					</span>
+					<span class="text-[10px] text-muted-foreground">
+						Règle du Silence : motif explicite requis (≥ 5 caractères)
+					</span>
+				</div>
+				<div class="flex flex-col sm:flex-row items-stretch sm:items-center gap-2">
+					<input
+						type="text"
+						placeholder="Justification commune d'acquittement ou d'acceptation du risque..."
+						bind:value={batchJustification}
+						class="flex-1 text-xs px-2.5 py-1 rounded-md border border-border bg-background focus:outline-none focus:ring-1 focus:ring-primary"
+						data-testid="batch-resolve-justification-input"
+					/>
+					<button
+						type="button"
+						disabled={batchJustification.trim().length < 5}
+						onclick={() => handleBatchResolve('answered')}
+						class="inline-flex items-center justify-center gap-1 px-2.5 py-1 rounded-md bg-emerald-600 hover:bg-emerald-700 disabled:opacity-50 disabled:cursor-not-allowed text-white text-[11px] font-semibold cursor-pointer"
+						data-testid="batch-resolve-answered-btn"
+					>
+						<Check class="h-3 w-3" />
+						<span>Lever le lot IA</span>
+					</button>
+					<button
+						type="button"
+						disabled={batchJustification.trim().length < 5}
+						onclick={() => handleBatchResolve('accepted_risk')}
+						class="inline-flex items-center justify-center gap-1 px-2.5 py-1 rounded-md border border-amber-500/40 bg-background hover:bg-amber-500/20 disabled:opacity-50 disabled:cursor-not-allowed text-amber-800 dark:text-amber-300 text-[11px] font-semibold cursor-pointer"
+						data-testid="batch-resolve-risk-btn"
+					>
+						<ShieldCheck class="h-3 w-3" />
+						<span>Accepter le risque (lot)</span>
+					</button>
+				</div>
+			</div>
+		{/if}
+
 		<div class="space-y-2.5">
 			{#each objections as obj (obj.id)}
 				{@const isAgent = obj.authorKind.startsWith('agent:')}
+				{@const objSeverity = classifyObjectionSeverity(obj)}
 				{@const closeCheck = canResolveSpecificObjection(
 					{ userId: currentUserId, userName: currentUserName, role: userRole, isHuman: isHumanUser },
 					{ authorId: obj.authorId, authorName: obj.author },
@@ -76,7 +135,12 @@
 							</span>
 						</div>
 
-						<span class="font-mono text-[10px] text-muted-foreground">Tour {obj.round}</span>
+						<div class="flex items-center gap-1.5">
+							<span class="px-1.5 py-0.2 rounded text-[10px] font-semibold {objSeverity === 'advisory' ? 'bg-amber-500/15 text-amber-700 dark:text-amber-300 border border-amber-500/30' : 'bg-rose-500/15 text-rose-700 dark:text-rose-300 border border-rose-500/30'}" data-testid="objection-severity-badge">
+								{objSeverity === 'advisory' ? 'Consultative' : 'Bloquante'}
+							</span>
+							<span class="font-mono text-[10px] text-muted-foreground">Tour {obj.round}</span>
+						</div>
 					</div>
 
 					<!-- Affirmation -->

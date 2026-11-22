@@ -288,6 +288,27 @@ export interface LldHydrationOverrides {
   projectRequirementRefs?: string[];
   /** Instances projet du graphe de réconciliation (modèle feuille × instances projet). */
   reconciliationInstances?: ReconciliationInstancesInput;
+  /**
+   * Niveau de granularité de planification (#447) :
+   * - `'capacity_sizing'` (`Planned-Capacity` — Avant-Vente / RFP) : verrouille la topologie, les quantitatifs,
+   *   les capacités et les flux tout en différant l'allocation nominale des IPs/MACs au LLD (`deferred_to_lld`).
+   * - `'lld_allocated'` (`Planned-Allocated` — Design Détaillé, défaut) : alloue et synchronise les IPs/MACs nominales.
+   */
+  planningGranularity?: PlanningGranularity;
+}
+
+export type PlanningGranularity = 'capacity_sizing' | 'lld_allocated';
+export type PlanningStageLabel = 'Planned-Capacity' | 'Planned-Allocated';
+
+export interface HydratedCapacitySummary {
+  planning_granularity: PlanningGranularity;
+  planning_stage_label: PlanningStageLabel;
+  nominal_allocations_deferred: boolean;
+  total_planned_devices: number;
+  total_logical_components: number;
+  datacenters_count: number;
+  pools_breakdown: Record<string, number>;
+  security_zones_count: number;
 }
 
 export type {
@@ -308,6 +329,9 @@ export {
 } from './reconciliationGraph';
 
 export interface MultiAxisHydratedInventory {
+  planning_granularity?: PlanningGranularity;
+  planning_stage_label?: PlanningStageLabel;
+  capacity_summary?: HydratedCapacitySummary;
   nautobot_planned_devices: Array<Record<string, unknown>>;
   k8s_manifests: Array<Record<string, unknown>>;
   sylva_workload_cluster_values?: Record<string, unknown>;
@@ -2175,6 +2199,11 @@ export function composeMultiAxisHydration(
     overrides.bmcAddress !== undefined
       ? overrides.bmcAddress
       : `redfish+http://${oobIp || '192.0.2.10'}/redfish/v1/Systems/1`;
+  const planningGranularity: PlanningGranularity = overrides.planningGranularity ?? 'lld_allocated';
+  const isCapacitySizing = planningGranularity === 'capacity_sizing';
+  const planningStageLabel: PlanningStageLabel = isCapacitySizing
+    ? 'Planned-Capacity'
+    : 'Planned-Allocated';
 
   if (hasComputeLeaf || bindings.length > 0) {
     const effectiveProfiles =
@@ -2226,6 +2255,9 @@ export function composeMultiAxisHydration(
       nautobotDevices.push({
         name: nodeHostname,
         status: deviceStatus,
+        planning_granularity: planningGranularity,
+        planning_stage_label: planningStageLabel,
+        ip_allocation_mode: isCapacitySizing ? 'deferred_to_lld' : 'nominal_allocated',
         device_type: nodeType,
         oob_ip: nodeOobIp,
         role: nodeRole,
@@ -2542,7 +2574,26 @@ export function composeMultiAxisHydration(
     }
   });
 
+  const poolsBreakdown: Record<string, number> = {};
+  for (const dev of nautobotDevices) {
+    const poolKey = String(dev.cluster_pool || 'sylva-default-pool');
+    poolsBreakdown[poolKey] = (poolsBreakdown[poolKey] ?? 0) + 1;
+  }
+  const capacitySummary: HydratedCapacitySummary = {
+    planning_granularity: planningGranularity,
+    planning_stage_label: planningStageLabel,
+    nominal_allocations_deferred: isCapacitySizing,
+    total_planned_devices: nautobotDevices.length,
+    total_logical_components: resolvedComponents.length,
+    datacenters_count: prodOverlay.spec.datacenters.length,
+    pools_breakdown: poolsBreakdown,
+    security_zones_count: securityZones.length
+  };
+
   return {
+    planning_granularity: planningGranularity,
+    planning_stage_label: planningStageLabel,
+    capacity_summary: capacitySummary,
     nautobot_planned_devices: nautobotDevices,
     oob_segments: oobSegments,
     k8s_manifests: k8sManifests,

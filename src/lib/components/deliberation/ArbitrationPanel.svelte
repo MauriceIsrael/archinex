@@ -58,6 +58,8 @@
 	let violationJustifications = $state<Record<string, string>>({});
 	let derogationAcknowledged = $state(false);
 	let derogationReason = $state('');
+	let fastTrackMode = $state(false);
+	let fastTrackRationale = $state('');
 
 	// Normalisation défensive des options (tableau direct ou enveloppé { options: [...] })
 	const safeOptions = $derived<Option[]>(
@@ -121,6 +123,19 @@
 	const retainedOption = $derived(safeOptions.find((o: Option) => o.id === selectedOptionId));
 	const otherOptions = $derived(safeOptions.filter((o: Option) => o.id !== selectedOptionId));
 
+	const ceremonialFastTrackCodes = new Set(['MISSING_CRITERIA', 'UNEVALUATED_OPTION', 'INSUFFICIENT_OPTIONS']);
+	const effectiveBlockers = $derived<MaturityBlocker[]>(
+		(maturityResult?.blockers ?? []).filter((b: MaturityBlocker) => {
+			if (!fastTrackMode || fastTrackRationale.trim().length < 10 || safeOptions.length < 1) return true;
+			return !ceremonialFastTrackCodes.has(b.code);
+		})
+	);
+	const canSubmitArbitration = $derived(
+		!maturityResult ||
+			maturityResult.readyForArbitration ||
+			(fastTrackMode && fastTrackRationale.trim().length >= 10 && safeOptions.length >= 1 && effectiveBlockers.length === 0)
+	);
+
 	const decisionCardModel = $derived(
 		buildDecisionCardModel({
 			subjectId: subjectId || 'subject',
@@ -165,6 +180,10 @@
 			errorMessage = 'La motivation de l’arbitrage doit comporter au moins 10 caractères.';
 			return;
 		}
+		if (fastTrackMode && fastTrackRationale.trim().length < 10) {
+			errorMessage = 'La justification du mode Fast-Track G3 doit comporter au moins 10 caractères.';
+			return;
+		}
 		if (
 			(complianceStatus === 'Partially compliant' || complianceStatus === 'Non-compliant') &&
 			complianceRationale.trim().length < 5
@@ -204,6 +223,12 @@
 					complianceRationale: complianceRationale.trim() || undefined,
 					portability,
 					acceptedViolations,
+					...(fastTrackMode
+						? {
+								fastTrack: true,
+								fastTrackRationale: fastTrackRationale.trim()
+							}
+						: {}),
 					...(derogationAcknowledged
 						? {
 								complianceCheckDerogation: {
@@ -335,6 +360,11 @@
 						<span class="px-2 py-0.5 rounded-full text-[11px] font-bold {decision.portability === 'reusable_product_capability' ? 'bg-blue-500/15 text-blue-700 border border-blue-500/30' : decision.portability === 'reusable_architecture_doctrine' ? 'bg-purple-500/15 text-purple-700 border border-purple-500/30' : 'bg-muted text-muted-foreground border border-border'}" data-testid="decision-portability-badge">
 							{decision.portability === 'reusable_product_capability' ? 'Capacité Produit' : decision.portability === 'reusable_architecture_doctrine' ? 'Doctrine Réutilisable' : 'Spécifique Contrat'}
 						</span>
+						{#if decision.decisionMode === 'fast_track'}
+							<span class="px-2 py-0.5 rounded-full text-[11px] font-bold bg-indigo-500/15 text-indigo-700 dark:text-indigo-300 border border-indigo-500/30" data-testid="decision-fast-track-badge">
+								Fast-Track G3
+							</span>
+						{/if}
 					</div>
 					<p class="text-foreground text-xs mt-1 italic">
 						"{decision.rationale}"
@@ -394,6 +424,43 @@
 				<Scale class="w-4 h-4 text-primary" />
 				Formulaire d'Arbitrage Opposable
 			</h4>
+
+			<!-- Mode Fast-Track G3 (Décision directe motivée sans option homme de paille ni matrice complète, #442) -->
+			<div class="p-3.5 rounded-lg border border-indigo-500/30 bg-indigo-500/5 space-y-2.5" data-testid="arbitration-fast-track-box">
+				<label class="flex items-start gap-2.5 cursor-pointer text-xs">
+					<input
+						type="checkbox"
+						bind:checked={fastTrackMode}
+						class="mt-0.5 rounded border-indigo-500 text-indigo-600 focus:ring-indigo-500"
+						data-testid="arbitration-fast-track-toggle"
+					/>
+					<div class="space-y-0.5">
+						<span class="font-semibold text-foreground flex items-center gap-1.5">
+							<Sparkles class="w-3.5 h-3.5 text-indigo-600" />
+							Mode Fast-Track G3 (Décision directe motivée)
+						</span>
+						<p class="text-[11px] text-muted-foreground">
+							Permet d'arbitrer directement un sujet standard ou une hypothèse structurante sans option « homme de paille » ni matrice multicritères complète, tout en conservant les garde-fous doctrinaux et réglementaires KB.
+						</p>
+					</div>
+				</label>
+				{#if fastTrackMode}
+					<div class="space-y-1 pt-1">
+						<label for="fast-track-rationale" class="text-[11px] font-semibold text-indigo-800 dark:text-indigo-200 flex items-center justify-between">
+							<span>Justification de l'arbitrage direct Fast-Track :</span>
+							<span class="text-[10px] font-normal text-muted-foreground">Au moins 10 caractères requis</span>
+						</label>
+						<input
+							id="fast-track-rationale"
+							type="text"
+							placeholder="Ex. : Contrainte d'interfaçage imposée par le CCTP ou standard d'entreprise sans alternative..."
+							bind:value={fastTrackRationale}
+							class="w-full text-xs px-3 py-1.5 rounded-lg border border-indigo-500/40 bg-background focus:outline-none focus:ring-1 focus:ring-indigo-500"
+							data-testid="arbitration-fast-track-rationale-input"
+						/>
+					</div>
+				{/if}
+			</div>
 
 			<!-- 1. Sélection de l'option retenue -->
 			<div class="space-y-2">
@@ -607,8 +674,9 @@
 
 				<button
 					onclick={submitArbitration}
-					disabled={isSubmitting || (maturityResult ? !maturityResult.readyForArbitration : false)}
+					disabled={isSubmitting || !canSubmitArbitration}
 					class="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-primary text-primary-foreground font-semibold text-xs shadow hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+					data-testid="arbitration-submit-btn"
 				>
 					{#if isSubmitting}
 						<RefreshCw class="w-3.5 h-3.5 animate-spin" />

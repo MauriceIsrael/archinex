@@ -83,9 +83,24 @@ jobs:
         if: steps.preflight_eval.outputs.should_run == 'true'
         run: npx prisma generate && npx prisma db push
 
-      - name: Vérifier (denylist, changelog, tests, types, build)
+      - name: Vérifier (denylist, changelog, OPA, tests + couverture, types, build)
         if: steps.preflight_eval.outputs.should_run == 'true'
         run: npm run verify
+
+      - name: Publier le résumé des tests (dont ignorés) et de la couverture
+        if: always() && steps.preflight_eval.outputs.should_run == 'true'
+        run: node scripts/ci-test-summary.mjs
+
+      - name: Publier le rapport de couverture (artefact CI)
+        if: always() && steps.preflight_eval.outputs.should_run == 'true'
+        uses: actions/upload-artifact@v4
+        with:
+          name: vitest-coverage-report
+          path: |
+            coverage/
+            test-results/vitest-report.json
+          retention-days: 14
+          if-no-files-found: ignore
 
       - name: Installer Chromium Playwright (audit accessibilité)
         if: steps.preflight_eval.outputs.should_run == 'true'

@@ -45,6 +45,7 @@ npm_output.log
 svelte-check-output.txt
 playwright-report/
 test-results/
+coverage/
 tests/e2e/.auth/
 
 # Persistence & Evaluation runtime artifacts

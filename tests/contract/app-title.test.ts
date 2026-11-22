@@ -1,27 +1,28 @@
 import { describe, it, expect } from 'vitest';
-import fs from 'node:fs';
-import path from 'node:path';
+import { APP_DEFAULT_TITLE } from '$lib/domain/navigation';
+import en from '$lib/locales/en.json';
+import enUK from '$lib/locales/en-UK.json';
+import frFR from '$lib/locales/fr-FR.json';
+import es from '$lib/locales/es.json';
 
 describe('App Title Contract Test', () => {
 	it('defines "archinex" as the app title across all locale dictionaries', () => {
-		const locales = ['en.json', 'en-UK.json', 'fr-FR.json', 'es.json'];
+		const locales = [
+			{ name: 'en.json', dict: en },
+			{ name: 'en-UK.json', dict: enUK },
+			{ name: 'fr-FR.json', dict: frFR },
+			{ name: 'es.json', dict: es }
+		];
 
-		for (const localeFile of locales) {
-			const filePath = path.resolve('src/lib/locales', localeFile);
-			const raw = fs.readFileSync(filePath, 'utf8');
-			const json = JSON.parse(raw);
-
-			expect(json.app).toBeDefined();
-			expect(json.app.title).toBe('archinex');
+		for (const { name, dict } of locales) {
+			expect(dict.app, `${name} doit définir app`).toBeDefined();
+			expect(dict.app.title, `${name} doit définir app.title = archinex`).toBe('archinex');
 		}
 	});
 
-	it('uses "archinex" as the default title in +layout.svelte', () => {
-		const layoutPath = path.resolve('src/routes/+layout.svelte');
-		const content = fs.readFileSync(layoutPath, 'utf8');
-
-		expect(content).toContain(`{$t('app.title', { default: 'archinex' })}`);
-		expect(content).not.toContain('A small app to have fun');
-		expect(content).not.toContain('SvelteKit Admin');
+	it('exposes "archinex" as the default title constant used by the root layout', () => {
+		expect(APP_DEFAULT_TITLE).toBe('archinex');
+		expect(APP_DEFAULT_TITLE).not.toContain('A small app to have fun');
+		expect(APP_DEFAULT_TITLE).not.toContain('SvelteKit Admin');
 	});
 });

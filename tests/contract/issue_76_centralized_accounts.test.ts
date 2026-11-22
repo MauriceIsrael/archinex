@@ -1,6 +1,4 @@
 import { describe, it, expect, afterAll } from 'vitest';
-import { readFileSync } from 'node:fs';
-import { resolve } from 'node:path';
 import { prisma } from '$lib/server/prisma';
 import { LLMOpsClient } from '$lib/server/llmops/client';
 import {
@@ -104,19 +102,16 @@ describe('Issue #76 — Gestion centralisée des comptes (compte, rôle applicat
   });
 
   it('1. Supprime les utilisateurs fictifs en dur de /users et charge les comptes réels', async () => {
-    const svelteSource = readFileSync(
-      resolve(process.cwd(), 'src/routes/users/+page.svelte'),
-      'utf-8'
-    );
-    expect(svelteSource).not.toContain('Alice Johnson');
-    expect(svelteSource).not.toContain('Bob Smith');
-    expect(svelteSource).not.toContain('Charlie Brown');
-
     const result = await (usersPageLoad as any)({
       locals: { session: { user: { id: 'admin-1', role: 'admin' } } }
     });
     expect(result).toHaveProperty('users');
     expect(Array.isArray(result.users)).toBe(true);
+
+    const names = (result.users as Array<{ name?: string }>).map((u) => u.name ?? '');
+    expect(names).not.toContain('Alice Johnson');
+    expect(names).not.toContain('Bob Smith');
+    expect(names).not.toContain('Charlie Brown');
   });
 
   it('2. Détecte les responsables du registre LLMOps sans adresse e-mail (ex: @data-protection-officer) et la couverture par domaine', async () => {

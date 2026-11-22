@@ -89,7 +89,7 @@ export interface OracleVerdictDraft {
   projectId: string;
   subjectId: string;
   decisionId: string;
-  verdict: 'compliant' | 'violated' | 'error' | 'unknown';
+  verdict: 'compliant' | 'violated' | 'insufficient_input' | 'error' | 'unknown';
   source: OracleVerdictSource;
   provenance: string;
   intentHash?: string | null;
@@ -107,7 +107,7 @@ export interface OracleVerdictRecord {
   projectId: string;
   subjectId: string;
   decisionId: string;
-  verdict: 'compliant' | 'violated' | 'error' | 'unknown';
+  verdict: 'compliant' | 'violated' | 'insufficient_input' | 'error' | 'unknown';
   source: OracleVerdictSource;
   provenance: string;
   intentHash: string | null;

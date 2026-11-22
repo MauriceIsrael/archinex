@@ -8,7 +8,7 @@ export interface SylvaGitopsExportInput {
   subjectId: string;
   revision: number | string;
   ontologyFingerprint: string;
-  opaVerdict: 'compliant' | 'violated';
+  opaVerdict: 'compliant' | 'violated' | 'insufficient_input';
   hydratedInventory: MultiAxisHydratedInventory;
   repoUrl?: string;
   baseBranch?: string;

@@ -196,9 +196,9 @@ describe('Vague 1 — Remplacement des matchs syntaxiques critiques', () => {
     });
 
     expect(res.readyForArbitration).toBe(false);
-    expect(res.blockers.map((b) => b.code)).toEqual(
-      expect.arrayContaining(['OPEN_BLOCKING_QUESTION', 'UNRESOLVED_VIOLATION'])
-    );
+    // Question bloquante paraphrasée -> bloque ; vérification sans verdict structuré -> avertissement VERIFICATION_VERDICT_UNKNOWN (#384)
+    expect(res.blockers.map((b) => b.code)).toContain('OPEN_BLOCKING_QUESTION');
+    expect(res.warnings.map((w) => w.code)).toContain('VERIFICATION_VERDICT_UNKNOWN');
   });
 
   it('togafTaxonomy : évite les faux positifs de sous-chaînes 3 lettres (secteur, internet) et résout sémantiquement', async () => {

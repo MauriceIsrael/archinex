@@ -68,13 +68,154 @@ export interface EngagementProfile {
 // MINI-APP : TYPES, PRÉSETS ET GÉNÉRATEUR D'ESPACE DE TRAVAIL (PROJET)
 // ─────────────────────────────────────────────────────────────────────────────
 
-/** Identifiants dossier-scellé des clauses couvertes par un sujet, quand un audit accompagne l'import. */
+/**
+ * Identifiants des clauses couvertes par un sujet :
+ * - si un audit des exigences accompagne l'import, les identifiants sont normalisés au format dossier-scellé (`SRC-xxxx:clause`) ;
+ * - sinon (passe directe ou dépouillement clause par clause), les références `coveredClauseRefs` sont conservées telles quelles (#58).
+ */
 export function requirementIdsOf(
 	subject: Pick<InitialSubjectInput, 'coveredClauseRefs'>,
 	audit?: RequirementAuditInput
 ): { requirement_ids: string[] } | Record<string, never> {
-	if (!audit || !subject.coveredClauseRefs || subject.coveredClauseRefs.length === 0) return {};
-	return { requirement_ids: subject.coveredClauseRefs.map((ref) => requirementBundleId(audit.source.sha256, ref)) };
+	const refs = (subject.coveredClauseRefs ?? []).map((r) => r.trim()).filter(Boolean);
+	if (refs.length === 0) return {};
+	const uniqueRefs = [...new Set(refs)];
+	if (audit?.source?.sha256) {
+		return { requirement_ids: uniqueRefs.map((ref) => requirementBundleId(audit.source.sha256, ref)) };
+	}
+	return { requirement_ids: uniqueRefs };
+}
+
+/**
+ * Génère un identifiant de sujet unique et préfixé par le projet pour éviter toute collision globale
+ * entre deux espaces portant le même titre (#58).
+ */
+export function generateProjectScopedSubjectId(
+	projectId: string,
+	index: number,
+	uniqueSuffix?: string
+): string {
+	const cleanProject =
+		projectId
+			.toLowerCase()
+			.normalize('NFD')
+			.replace(/[\u0300-\u036f]/g, '')
+			.replace(/[^a-z0-9]+/g, '_')
+			.replace(/^_+|_+$/g, '')
+			.slice(0, 32) || 'proj';
+	const suffix = uniqueSuffix ?? `${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
+	return `sub_${cleanProject}_${suffix}_${index + 1}`;
+}
+
+/**
+ * Chemin d'import commun des sujets (création d'espace ET import dans un projet existant via CorpusAppropriationHub).
+ * Préserve systématiquement : `coveredClauseRefs`, `problemStatement`, `expertQuestions`, `proposal`, `nature` et `dependsOn` (#58).
+ */
+export function buildImportedSubjects(params: {
+	projectId: string;
+	subjects: InitialSubjectInput[];
+	requirementAudit?: RequirementAuditInput;
+	shortName?: string;
+	existingSubjectCount?: number;
+	uniqueSuffix?: string;
+}): {
+	subjects: MaturitySubject[];
+	drafts: Record<string, TelegraphicDraft>;
+} {
+	const suffix =
+		params.uniqueSuffix ?? `${Date.now().toString(36)}_${Math.random().toString(36).slice(2, 6)}`;
+	const offset = params.existingSubjectCount ?? 0;
+	const subjects: MaturitySubject[] = [];
+	const drafts: Record<string, TelegraphicDraft> = {};
+
+	params.subjects.forEach((sInput, idx) => {
+		const sId = sInput.id || generateProjectScopedSubjectId(params.projectId, offset + idx, suffix);
+		const sectionRef = sInput.sectionRef || `§${offset + idx + 1}.1`;
+		const problemStmt = (sInput.problemStatement || sInput.initialQuestion || '').trim() || undefined;
+
+		subjects.push({
+			id: sId,
+			section_ref: sectionRef,
+			name: sInput.name,
+			...(problemStmt ? { problem_statement: problemStmt } : {}),
+			...(sInput.nature ? { nature: sInput.nature } : {}),
+			...(sInput.proposal ? { proposal: sInput.proposal } : {}),
+			level: sInput.level || 'L0_named',
+			blocking_count: 0,
+			unlocks_count: 0,
+			waiting_for_role: sInput.waitingForRole,
+			relative_effort: sInput.effort || 'M',
+			last_transition_date: new Date().toISOString(),
+			stall_days: 0,
+			is_stalled: false,
+			dependent_subject_ids: [],
+			...requirementIdsOf(sInput, params.requirementAudit)
+		});
+
+		drafts[sId] = {
+			section_id: sectionRef,
+			subject: sInput.name,
+			maturity: sInput.level || 'L0_named',
+			is_provisional: true,
+			retenu:
+				sInput.initialRetenu && sInput.initialRetenu.length > 0
+					? sInput.initialRetenu
+					: [`${params.shortName || sInput.name} : Spécification initiale`],
+			suppose: sInput.initialHypothesis
+				? [
+						{
+							text: sInput.initialHypothesis,
+							consequence: 'Conditionne la validation des dépendances en aval',
+							cost_hint: 'À arbitrer'
+						}
+					]
+				: [],
+			conflit: sInput.initialConflict
+				? [
+						{
+							text: sInput.initialConflict,
+							opposing_reference: 'À instruire en séance',
+							requires_arbitration: true
+						}
+					]
+				: [],
+			manque: sInput.initialQuestion
+				? [
+						{
+							id: `Q-${sId}`,
+							question: sInput.initialQuestion,
+							assigned_role: sInput.waitingForRole
+						}
+					]
+				: [],
+			expertQuestions: sInput.expertQuestions ? [...sInput.expertQuestions] : []
+		};
+	});
+
+	// Résolution des dépendances entre sujets (identifiants de factorisation SUBJ-NN -> identifiants d'espace)
+	const idByFactorization = new Map(
+		params.subjects.flatMap((sInput, idx) =>
+			sInput.factorizationId ? [[sInput.factorizationId, subjects[idx].id] as const] : []
+		)
+	);
+	params.subjects.forEach((sInput, idx) => {
+		const deps = (sInput.dependsOn || [])
+			.map((d) => idByFactorization.get(d) ?? (subjects.some((s) => s.id === d) ? d : undefined))
+			.filter((d): d is string => Boolean(d) && d !== subjects[idx].id);
+		if (deps.length > 0) subjects[idx].depends_on_subject_ids = [...new Set(deps)];
+	});
+	const subjectById = new Map(subjects.map((s) => [s.id, s]));
+	for (const s of subjects) {
+		for (const dep of s.depends_on_subject_ids ?? []) {
+			const upstream = subjectById.get(dep);
+			if (upstream && !upstream.dependent_subject_ids.includes(s.id)) {
+				upstream.dependent_subject_ids.push(s.id);
+			}
+		}
+	}
+	for (const s of subjects) s.unlocks_count = s.dependent_subject_ids.length;
+
+	return { subjects, drafts };
 }
 
 export interface UpstreamDocInput {
@@ -408,93 +549,15 @@ export function buildEngagementProfileFromWorkspaceInput(
 			? availableCommonStandards.filter((s) => input.linkedStandardIds!.includes(s.id))
 			: availableCommonStandards.filter((s) => s.isGlobalStandard || s.origin === 'contributor_external');
 
-	// 3. Sujets initiaux de réflexion : ceux fournis, et aucun sujet fictif à défaut.
+	// 3. Sujets initiaux de réflexion : chemin d'import commun (#58)
 	const initialSubjectInputs = input.initialSubjects ?? [];
-
-	const subjects: MaturitySubject[] = [];
-	const drafts: Record<string, TelegraphicDraft> = {};
 	const initialStatements: Statement[] = [];
-
-	initialSubjectInputs.forEach((sInput, idx) => {
-		const sId = sInput.id || `sub_${cleanId}_${idx + 1}`;
-		const sectionRef = sInput.sectionRef || `§${idx + 1}.1`;
-
-		subjects.push({
-			id: sId,
-			section_ref: sectionRef,
-			name: sInput.name,
-			problem_statement: (sInput.problemStatement || sInput.initialQuestion || '').trim() || undefined,
-			...(sInput.nature ? { nature: sInput.nature } : {}),
-			...(sInput.proposal ? { proposal: sInput.proposal } : {}),
-			level: sInput.level || 'L0_named',
-			blocking_count: 0,
-			unlocks_count: 0,
-			waiting_for_role: sInput.waitingForRole,
-			relative_effort: sInput.effort || 'M',
-			last_transition_date: new Date().toISOString(),
-			stall_days: 0,
-			is_stalled: false,
-			dependent_subject_ids: [],
-			...requirementIdsOf(sInput, input.requirementAudit)
-		});
-
-		drafts[sId] = {
-			section_id: sectionRef,
-			subject: sInput.name,
-			maturity: sInput.level || 'L0_named',
-			is_provisional: true,
-			retenu:
-				sInput.initialRetenu && sInput.initialRetenu.length > 0
-					? sInput.initialRetenu
-					: [`${shortName} : Spécification initiale`],
-			suppose: sInput.initialHypothesis
-				? [
-						{
-							text: sInput.initialHypothesis,
-							consequence: 'Conditionne la validation des dépendances en aval',
-							cost_hint: 'À arbitrer'
-						}
-				  ]
-				: [],
-			conflit: sInput.initialConflict
-				? [
-						{
-							text: sInput.initialConflict,
-							opposing_reference: 'À instruire en séance',
-							requires_arbitration: true
-						}
-				  ]
-				: [],
-			manque: sInput.initialQuestion
-				? [
-						{
-							id: `Q-${cleanId.toUpperCase()}-${idx + 1}`,
-							question: sInput.initialQuestion,
-							assigned_role: sInput.waitingForRole
-						}
-				  ]
-				: [],
-			expertQuestions: sInput.expertQuestions || []
-		};
+	const { subjects, drafts } = buildImportedSubjects({
+		projectId: cleanId,
+		subjects: initialSubjectInputs,
+		requirementAudit: input.requirementAudit,
+		shortName
 	});
-
-	// Dépendances entre sujets : les identifiants de factorisation (SUBJ-NN) sont traduits en identifiants d'espace.
-	const idByFactorization = new Map(
-		initialSubjectInputs.flatMap((sInput, idx) => (sInput.factorizationId ? [[sInput.factorizationId, subjects[idx].id] as const] : []))
-	);
-	initialSubjectInputs.forEach((sInput, idx) => {
-		const deps = (sInput.dependsOn || []).map((d) => idByFactorization.get(d)).filter((d): d is string => !!d && d !== subjects[idx].id);
-		if (deps.length > 0) subjects[idx].depends_on_subject_ids = [...new Set(deps)];
-	});
-	// « Débloque » = nombre de sujets qui attendent celui-ci, pas sa position dans la liste.
-	const subjectById = new Map(subjects.map((s) => [s.id, s]));
-	for (const s of subjects) {
-		for (const dep of s.depends_on_subject_ids ?? []) {
-			const upstream = subjectById.get(dep);
-			if (upstream && !upstream.dependent_subject_ids.includes(s.id)) upstream.dependent_subject_ids.push(s.id);
-		}
-	}
-	for (const s of subjects) s.unlocks_count = s.dependent_subject_ids.length;
 
 	// Relier les documents amonts aux sujets créés
 	const subjectIds = subjects.map((s) => s.id);

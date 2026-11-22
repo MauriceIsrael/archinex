@@ -8,6 +8,20 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Réconciliation périodique Nautobot & Vue « Dérive » (#379)
+
+- **Job de réconciliation périodique par projet** (`src/lib/server/edp/reconciliationJob.ts`, modèles Prisma `ProjectReconciliationState` et `ReconciliationRun`) : intervalle et seuil de péremption configurables, verrou atomique anti-concurrence, idempotence stricte avec auto-résolution des écarts disparus, reprise après panne Nautobot en conservant `lastSuccessAt`.
+- **Distinction stricte « Non vérifié » vs « Aucune dérive »** (`src/lib/domain/edp/driftMetrics.ts`) : une panne Nautobot, une absence de réconciliation ou une donnée périmée produit systématiquement l'état `unverified` (jamais vert).
+- **État de réalisation (#399) et socle de couverture (#402)** (`src/lib/domain/edp/realizationStatus.ts`, `getProjectRealizationCoverage`) : lecture et validation des preuves `realized_revision` + `evidence_ref` (`planifié`, `réalisé prouvé`, `déclaré non prouvé`, `non vérifié`).
+- **Vue « Dérive » & pastille d'en-tête** (`Phase5DriftView.svelte`, `ProjectEngagementHeader.svelte`, API `GET /api/projects/[projectId]/drift` et `POST /api/projects/[projectId]/drift/reconcile`) : indicateurs (sévérités, âge, délai moyen de détection/résolution, ratio hors décision), décisions `stale`, ancienneté de dernière réconciliation, liens directs vers les objets Nautobot, et test d'accessibilité `axe-core` (`tests/e2e/browser/drift-view-a11y.spec.ts`).
+
+### L'ontologie vient du Knowledge Hub : fixture générée, extensions de projet, oracle OPA corrigé (LLMOps#192, #417)
+- **Fixture d'ontologie (`tests/fixtures/edp/ontology_export.json`, `scripts/sync-ontology-fixture.mjs`)** : n'est plus écrite à la main ; copie générée de l'export du Hub (114 entités, 205 triplets), avec fichier de provenance et empreinte. Test de provenance hors-ligne (retouche à la main) et en ligne dans `hub-live` (fixture périmée si le Hub change). Doc : `docs/edp/ontology-source.md`.
+- **Extensions de projet (`ontologyClient.ts`, `OntologyProjectOverlay`)** : la donnée de projet (identifiants `REQ-…`, graphe de réconciliation du scénario) n'est plus dans l'ontologie commune ; elle se déclare dans un fichier appliqué par-dessus (`ARCHINEX_ONTOLOGY_PROJECT_OVERLAY`), fusion explicite, `$replace`, erreur si l'entité ciblée a disparu du Hub. Les écarts de doctrine non tranchés (`oob`, `oam`) sont isolés dans un fichier à part.
+- **Oracle OPA (`edp/policies/multi_axis_refinement.rego`)** : `get_clause_urn` et `get_req_id` plantaient (`eval_conflict_error`, donc `opa_runtime_error` et verdict « violated » pour tout projet) dès qu'une feuille cite plusieurs clauses, cas normal des feuilles du Hub. Sélection déterministe du premier élément.
+- **Raffinement (`refinementCoverage.ts`)** : une feuille n'est plus liée automatiquement sur un simple mot de son titre (libellé éditorial du Hub) mais sur un mot-clé, un lien fort ou un standard par défaut.
+- **Démo et tests** : les liaisons d'ontologie lisent la révision courante du catalogue au lieu de figer des numéros.
+
 ### Finalisation des Vues Éditoriales SVG & Directeur Éditorial LLM (#421, #423, #424, #427)
 - Ajout de la vue **Architecture Delta** (`Before · Changes · After` sur grille `4px` synchronisée, stabilité des coordonnées `unchanged` et registre central `ADDED/REMOVED/CHANGED/MOVED/REWIRED`, #421), intégrée en parallèle de Mermaid dans `ImpactGraphExplorer.svelte`.
 - Ajout des vues de délibération & conformité KB (#423) : **Traces KB Appariées** (avec marqueur de 1re divergence et distinction explicite de `UNVERIFIED`), **Couches Compensatoires** (avec risque résiduel explicite), **Matrice Thermique de Décision** pondérée et **Radar Multi-Critères** (`decisionRadar.ts`), intégrées dans `ArtifactRegenerationHub.svelte`.

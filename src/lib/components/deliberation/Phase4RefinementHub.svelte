@@ -45,6 +45,13 @@
 	const hydrated = $derived(currentEdp?.hydratedInventory || null);
 	const lastVerdict = $derived(currentEdp?.lastVerdict || null);
 	const sylvaGitopsExport = $derived(currentEdp?.sylvaGitopsExport || null);
+	const isSubjectDecided = $derived(
+		['L3_decided', 'L4_specified', 'L5_archived'].includes(activeSubject?.level || '')
+	);
+	const verdictSource = $derived<'defaults' | 'catalogue' | 'inventaire_reel'>(
+		lastVerdict?.source || 'defaults'
+	);
+	const isSimulationOnly = $derived(!isSubjectDecided || verdictSource === 'defaults');
 	let showAllResolvedComponents = $state(false);
 
 	const subjectBoundComponentNames = $derived(
@@ -195,6 +202,23 @@
 	<!-- 1. Sélecteur de sujet (partagé avec la Phase 3 pour naviguer rapidement entre les sections) -->
 	<Phase3SubjectSelector />
 
+	{#if !isSubjectDecided}
+		<div
+			class="rounded-xl border border-amber-500/40 bg-amber-500/10 p-3.5 text-xs text-amber-900 dark:text-amber-200 flex items-start gap-2.5"
+			data-testid="phase4-simulation-banner"
+		>
+			<AlertTriangle class="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+			<div class="space-y-0.5">
+				<p class="font-bold">
+					Mode Exploration / Simulation — Non opposable (maturité actuelle : {activeSubject?.level || 'L0_named'})
+				</p>
+				<p class="text-[11px] opacity-90">
+					Ce sujet n'a pas encore atteint le jalon <strong>L3_decided</strong>. Les objets hydratés et évaluations OPA sont présentés à titre exploratoire uniquement ; la ratification et l'hydratation opposables sont déverrouillées après arbitrage formel en Phase 2.
+				</p>
+			</div>
+		</div>
+	{/if}
+
 	<!-- 2. Bandeau de KPIs de la Phase 4 (Complétude KAOS, Objets Hydratés, Verdict OPA, Empreinte Ontologie) -->
 	{#if coverage}
 		<div class="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
@@ -271,29 +295,39 @@
 			<div
 				class="rounded-xl border p-3.5 shadow-2xs space-y-1.5 {lastVerdict?.verdict === 'violated'
 					? 'bg-rose-500/10 border-rose-500/40'
-					: 'bg-emerald-500/10 border-emerald-500/40'}"
+					: isSimulationOnly
+						? 'bg-amber-500/10 border-amber-500/40'
+						: 'bg-emerald-500/10 border-emerald-500/40'}"
 				data-testid="phase4-kpi-verdict"
 			>
 				<div class="flex items-center justify-between text-xs">
-					<span class="font-bold uppercase tracking-wider text-[10px] {lastVerdict?.verdict === 'violated' ? 'text-rose-700 dark:text-rose-300' : 'text-emerald-700 dark:text-emerald-300'}">
+					<span class="font-bold uppercase tracking-wider text-[10px] {lastVerdict?.verdict === 'violated' ? 'text-rose-700 dark:text-rose-300' : isSimulationOnly ? 'text-amber-700 dark:text-amber-300' : 'text-emerald-700 dark:text-emerald-300'}">
 						4. Verdict Oracle OPA & Drift
 					</span>
 					{#if lastVerdict?.verdict === 'violated'}
 						<AlertTriangle class="h-4 w-4 text-rose-600" />
+					{:else if isSimulationOnly}
+						<AlertTriangle class="h-4 w-4 text-amber-600" />
 					{:else}
 						<CheckCircle2 class="h-4 w-4 text-emerald-600" />
 					{/if}
 				</div>
-				<div class="flex items-baseline justify-between">
-					<span class="text-xl font-extrabold {lastVerdict?.verdict === 'violated' ? 'text-rose-700 dark:text-rose-300' : 'text-emerald-700 dark:text-emerald-300'}">
-						{lastVerdict?.verdict === 'violated' ? 'VIOLATION / DRIFT' : 'CONFORME'}
+				<div class="flex items-baseline justify-between gap-2">
+					<span class="text-base font-extrabold {lastVerdict?.verdict === 'violated' ? 'text-rose-700 dark:text-rose-300' : isSimulationOnly ? 'text-amber-800 dark:text-amber-200' : 'text-emerald-700 dark:text-emerald-300'}">
+						{#if lastVerdict?.verdict === 'violated'}
+							VIOLATION / DRIFT
+						{:else if isSimulationOnly}
+							SIMULATION, NON OPPOSABLE
+						{:else}
+							CONFORME
+						{/if}
 					</span>
-					<span class="text-xs font-mono">
+					<span class="text-xs font-mono shrink-0">
 						{lastVerdict?.violations?.length || 0} violation(s)
 					</span>
 				</div>
 				<p class="text-[10px] font-mono text-muted-foreground truncate" title={lastVerdict?.ontologyFingerprint}>
-					SHA-256 : {(lastVerdict?.ontologyFingerprint || 'calculé à la volée').slice(0, 20)}…
+					Source : <strong>{verdictSource}</strong> · Rev : {(lastVerdict?.ontologyRevision || lastVerdict?.ontologyFingerprint || 'n/a').slice(0, 12)}
 				</p>
 			</div>
 		</div>
@@ -430,13 +464,14 @@
 							{#if coverage.conscientiousMetrics.defaultProposedSlots > 0}
 								<button
 									type="button"
-									disabled={isActionRunning}
+									disabled={isActionRunning || !isSubjectDecided}
 									onclick={() =>
 										triggerEdpAction(
 											{ action: 'bind_aspect', ratifyAllDefaults: true, selectedConceptUrn },
 											'Tous les choix proposés du sujet ont été ratifiés et les composants synchronisés !'
 										)}
-									class="px-2.5 py-1 rounded-md text-[11px] font-bold bg-amber-600 hover:bg-amber-700 text-white shadow-2xs transition-colors cursor-pointer"
+									title={isSubjectDecided ? 'Ratifier explicitement les choix proposés' : 'Action opposable disponible uniquement à partir de L3_decided'}
+									class="px-2.5 py-1 rounded-md text-[11px] font-bold bg-amber-600 hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed text-white shadow-2xs transition-colors cursor-pointer"
 									data-testid="phase4-ratify-all-subject-btn"
 								>
 									✓ Ratifier les choix proposés du sujet
@@ -554,10 +589,10 @@
 										{#if axis.requiresRatification && axis.boundLeaves?.[0]}
 											<button
 												type="button"
-												disabled={isActionRunning}
+												disabled={isActionRunning || !isSubjectDecided}
 												onclick={() => handleBindLeaf(axis.boundLeaves[0].urn, axis.axisUrn, 'replace')}
-												class="px-2.5 py-1 rounded-md text-[11px] font-bold bg-amber-600 hover:bg-amber-700 text-white shadow-2xs transition-colors cursor-pointer"
-												title="Ratifier explicitement la variante proposée et instancier le composant associé"
+												class="px-2.5 py-1 rounded-md text-[11px] font-bold bg-amber-600 hover:bg-amber-700 disabled:opacity-50 disabled:cursor-not-allowed text-white shadow-2xs transition-colors cursor-pointer"
+												title={isSubjectDecided ? 'Ratifier explicitement la variante proposée et instancier le composant associé' : 'Action opposable disponible uniquement à partir de L3_decided'}
 												data-testid="phase4-ratify-axis-btn"
 											>
 												✓ Ratifier « {axis.boundLeaves[0].title} »

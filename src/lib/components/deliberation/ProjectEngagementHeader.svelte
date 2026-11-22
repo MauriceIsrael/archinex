@@ -10,20 +10,105 @@
 		RotateCcw,
 		Target,
 		Bot,
-		Lock
+		Lock,
+		AlertTriangle,
+		HelpCircle,
+		ShieldCheck
 	} from 'lucide-svelte';
+	import { formatRelativeAgeFr } from '$lib/domain/edp/driftMetrics';
+
+	interface HeaderDriftSummary {
+		posture: 'unverified' | 'drift_detected' | 'no_drift';
+		openCount: number;
+		staleCount: number;
+		lastSuccessAgeMs: number | null;
+	}
 
 	interface Props {
 		onOpenQuickAsk?: () => void;
 		onOpenLiveLock?: () => void;
+		driftSummary?: HeaderDriftSummary | null;
 	}
 
-	let { onOpenQuickAsk, onOpenLiveLock }: Props = $props();
+	let { onOpenQuickAsk, onOpenLiveLock, driftSummary = null }: Props = $props();
+
+	let fetchedDrift = $state<HeaderDriftSummary | null>(null);
+	const effectiveDrift = $derived<HeaderDriftSummary>(
+		driftSummary ??
+			fetchedDrift ?? {
+				posture: 'unverified',
+				openCount: 0,
+				staleCount: 0,
+				lastSuccessAgeMs: null
+			}
+	);
 
 	const activeEngagement = $derived(deliberationStore.activeEngagement);
 	const activePosture = $derived(deliberationStore.activePosture);
 	const viewMode = $derived(deliberationStore.deliberationViewMode);
 	const activeSubject = $derived(deliberationStore.activeSubject);
+
+	$effect(() => {
+		const pid = activeEngagement?.id;
+		if (!pid || typeof window === 'undefined' || driftSummary) return;
+		let cancelled = false;
+		fetch(`/api/projects/${encodeURIComponent(pid)}/drift`)
+			.then((res) => (res.ok ? res.json() : null))
+			.then((data) => {
+				if (cancelled || !data || data.status === 'error') return;
+				fetchedDrift = {
+					posture: data.posture ?? 'unverified',
+					openCount: data.indicators?.openBySeverity?.total ?? 0,
+					staleCount: data.indicators?.staleDecisionsCount ?? 0,
+					lastSuccessAgeMs: data.reconciliation?.lastSuccessAgeMs ?? null
+				};
+			})
+			.catch(() => {
+				// Non bloquant : l'état reste « non vérifié » (jamais vert)
+			});
+		return () => {
+			cancelled = true;
+		};
+	});
+
+	const driftPillMeta = $derived.by(() => {
+		if (effectiveDrift.posture === 'no_drift') {
+			return {
+				label: 'Aucune dérive',
+				cls: 'bg-emerald-100 hover:bg-emerald-200/80 text-emerald-900 dark:bg-emerald-950/60 dark:text-emerald-200 border-emerald-300 dark:border-emerald-700',
+				title: `Aucune dérive détectée (dernière réconciliation : ${formatRelativeAgeFr(effectiveDrift.lastSuccessAgeMs)}). Cliquer pour ouvrir la vue Dérive.`
+			};
+		}
+		if (effectiveDrift.posture === 'drift_detected') {
+			const parts: string[] = [];
+			if (effectiveDrift.openCount > 0) parts.push(`${effectiveDrift.openCount} écart(s)`);
+			if (effectiveDrift.staleCount > 0) parts.push(`${effectiveDrift.staleCount} stale`);
+			return {
+				label: `Dérive : ${parts.join(' · ') || 'active'}`,
+				cls: 'bg-rose-100 hover:bg-rose-200/80 text-rose-900 dark:bg-rose-950/60 dark:text-rose-200 border-rose-300 dark:border-rose-700',
+				title: `Dérive active détectée (${parts.join(', ')}). Cliquer pour ouvrir la vue Dérive.`
+			};
+		}
+		return {
+			label: 'Dérive : Non vérifié',
+			cls: 'bg-amber-100 hover:bg-amber-200/80 text-amber-950 dark:bg-amber-950/60 dark:text-amber-200 border-amber-400 dark:border-amber-700',
+			title:
+				effectiveDrift.lastSuccessAgeMs !== null
+					? `Réconciliation périmée ou Nautobot injoignable (dernier succès : ${formatRelativeAgeFr(effectiveDrift.lastSuccessAgeMs)}). Cliquer pour ouvrir la vue Dérive.`
+					: 'Aucune réconciliation Nautobot effectuée : état non vérifié. Cliquer pour ouvrir la vue Dérive.'
+		};
+	});
+
+	function openDriftView() {
+		deliberationStore.setPosture('consolidation');
+		if (typeof document !== 'undefined') {
+			setTimeout(() => {
+				document
+					.getElementById('phase5-drift-view')
+					?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+			}, 60);
+		}
+	}
 
 	// Est-ce qu'on est actuellement positionné à l'échelle d'un Sujet ?
 	const isInSubjectScope = $derived(
@@ -288,6 +373,25 @@
 							<span>Architecture Lockée</span>
 						</button>
 					{/if}
+
+					<!-- Pastille « Dérive » : distingue strictement « Non vérifié » d'« Aucune dérive » (#379) -->
+					<button
+						type="button"
+						data-testid="header-drift-pill"
+						data-posture={effectiveDrift.posture}
+						onclick={openDriftView}
+						title={driftPillMeta.title}
+						class="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold border transition-all cursor-pointer {driftPillMeta.cls}"
+					>
+						{#if effectiveDrift.posture === 'no_drift'}
+							<ShieldCheck class="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+						{:else if effectiveDrift.posture === 'drift_detected'}
+							<AlertTriangle class="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+						{:else}
+							<HelpCircle class="h-3.5 w-3.5 shrink-0" aria-hidden="true" />
+						{/if}
+						<span>{driftPillMeta.label}</span>
+					</button>
 			</div>
 		</div>
 	</div>

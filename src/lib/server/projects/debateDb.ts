@@ -6,6 +6,7 @@ import {
 	canCloseObjection,
 	canResolveSpecificObjection,
 	type Stance,
+	type VerificationVerdict,
 	type ArgumentResolution,
 	type Argument,
 	type DebateRun
@@ -17,6 +18,7 @@ export interface CreateArgumentData {
 	optionId?: string | null;
 	targetArgumentId?: string | null;
 	stance: Stance;
+	verdict?: VerificationVerdict | null;
 	claim: string;
 	grounds: string;
 	kbRefs?: string[];
@@ -68,6 +70,7 @@ export async function listArguments(
 		author: authorMap.get(a.author) || a.author,
 		authorId: a.author,
 		stance: a.stance as Stance,
+		verdict: (a.verdict as VerificationVerdict | null) ?? null,
 		confidence: a.confidence as EpistemicConfidence,
 		productionMode: a.productionMode as ProductionMode,
 		resolution: a.resolution as ArgumentResolution,
@@ -204,6 +207,7 @@ export async function createArgument(
 				optionId: data.optionId || null,
 				targetArgumentId: data.targetArgumentId || null,
 				stance: data.stance,
+				verdict: data.stance === 'verification' ? (data.verdict ?? 'unknown') : (data.verdict ?? null),
 				claim: data.claim.trim(),
 				grounds: data.grounds.trim(),
 				kbRefs: JSON.stringify(data.kbRefs || []),
@@ -240,6 +244,7 @@ export async function createArgument(
 		return {
 			...created,
 			stance: created.stance as Stance,
+			verdict: (created.verdict as VerificationVerdict | null) ?? null,
 			confidence: created.confidence as EpistemicConfidence,
 			productionMode: created.productionMode as ProductionMode,
 			resolution: created.resolution as ArgumentResolution,
@@ -333,6 +338,7 @@ export async function resolveArgument(
 			...updated,
 			authorId: updated.author,
 			stance: updated.stance as Stance,
+			verdict: (updated.verdict as VerificationVerdict | null) ?? null,
 			confidence: updated.confidence as EpistemicConfidence,
 			productionMode: updated.productionMode as ProductionMode,
 			resolution: updated.resolution as ArgumentResolution,

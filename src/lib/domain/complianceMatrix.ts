@@ -235,6 +235,19 @@ export function buildComplianceMatrix(bundle: EngagementBundle): ComplianceMatri
 				justification = decision.rationale;
 			}
 
+			const coverageReserves = decision.compliance_check?.coverage_reserves ?? [];
+			if (coverageReserves.length > 0) {
+				const reserveSummary = coverageReserves
+					.map((r) => {
+						const ratio =
+							r.expected_count !== undefined ? ` (${r.validated_count ?? 0}/${r.expected_count})` : '';
+						return `${r.name || r.framework_id}:${r.status}${ratio}`;
+					})
+					.join(', ');
+				const reserveNote = `Réserves de couverture réglementaire : ${reserveSummary}`;
+				justification = justification ? `${justification} · ${reserveNote}` : reserveNote;
+			}
+
 			// Si des conflits ouverts existent globalement sur l'engagement, il reste provisoire
 			if (openConflictsCount > 0) {
 				isProvisional = true;

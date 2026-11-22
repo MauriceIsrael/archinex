@@ -12,6 +12,7 @@ export type MaturityBlockerCode =
 	| 'OPEN_BLOCKING_QUESTION'
 	| 'COVERAGE_INCOMPLETE'
 	| 'COMPLIANCE_CHECK_INCOMPLETE'
+	| 'VERIFICATION_VERDICT_UNKNOWN'
 	| 'SEALED_SUBJECT';
 
 export interface MaturityBlocker {
@@ -236,7 +237,7 @@ export function computeMaturity(input: MaturityComputationInput): MaturityComput
 		if (a.resolution === 'answered' || a.resolution === 'accepted_risk' || a.resolution === 'withdrawn') {
 			return false;
 		}
-		return isViolationVerificationArgument(a, input.semanticClassification?.[a.id]);
+		return isViolationVerificationArgument(a);
 	});
 
 	for (const vArg of violationArguments) {
@@ -254,7 +255,23 @@ export function computeMaturity(input: MaturityComputationInput): MaturityComput
 	// d. Couverture réglementaire du projet : ALERTE, pas blocage. Une base de connaissances incomplète relève de
 	// sa maintenance (LLMOps), pas de l'architecte qui tranche ; le blocage réglementaire porte sur les options jugées
 	// non conformes par une règle validée (écart à accepter et justifier, voir l'arbitrage).
-	const warnings = coverageWarnings(input.requiredFrameworks ?? []);
+	const warnings: MaturityBlocker[] = coverageWarnings(input.requiredFrameworks ?? []);
+
+	// e. Verdicts de vérification inconnus ou non structurés : ne valent JAMAIS « conforme » ;
+	// ils ressortent comme avertissement d'arbitrage (issue #384).
+	const unknownVerdictArgs = input.arguments.filter(
+		(a) =>
+			a.stance === 'verification' &&
+			a.resolution === 'open' &&
+			isUnknownVerificationVerdict(a)
+	);
+	for (const uArg of unknownVerdictArgs) {
+		warnings.push({
+			code: 'VERIFICATION_VERDICT_UNKNOWN',
+			message: `Verdict de vérification inconnu ou non structuré (ne vaut jamais « conforme ») : ${uArg.claim}`,
+			targetId: uArg.id
+		});
+	}
 
 	const readyForArbitration = level === 'L2_decomposed' && blockers.length === 0;
 
@@ -289,15 +306,34 @@ function isBlockingQuestionArgument(
 	return POSITIVE_BLOCKING_RX.test(stripped);
 }
 
-export function isViolationVerificationArgument(
+/**
+ * Retourne vrai uniquement si l'argument de vérification porte un verdict structuré `violates`.
+ * Le blocage ne s'appuie jamais sur une heuristique regex/sémantique sur texte libre (issue #384).
+ */
+export function isViolationVerificationArgument(arg: Argument): boolean {
+	return arg.stance === 'verification' && arg.verdict === 'violates';
+}
+
+/**
+ * Retourne vrai si un argument de vérification a un verdict `unknown` ou absent.
+ * Un verdict inconnu ne vaut jamais « conforme ».
+ */
+export function isUnknownVerificationVerdict(arg: Argument): boolean {
+	return arg.stance === 'verification' && (!arg.verdict || arg.verdict === 'unknown');
+}
+
+/**
+ * Indice d'affichage uniquement (jamais bloquant) pour signaler visuellement un texte
+ * semblant évoquer une non-conformité même en l'absence de verdict structuré.
+ */
+export function isDisplayViolationHint(
 	arg: Argument,
 	semanticHint?: 'blocking' | 'non_blocking' | 'violation' | 'compliant'
 ): boolean {
-	const structured = (arg as Argument & { violationDetected?: boolean }).violationDetected;
-	if (typeof structured === 'boolean') return structured;
+	if (arg.verdict === 'violates') return true;
+	if (arg.verdict === 'compliant' || arg.verdict === 'not_applicable') return false;
 	if (semanticHint === 'violation') return true;
 	if (semanticHint === 'compliant') return false;
-
 	const stripped = `${arg.claim} ${arg.grounds}`.replace(NEGATED_VIOLATION_RX, ' ');
 	return POSITIVE_VIOLATION_RX.test(stripped);
 }

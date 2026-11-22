@@ -22,10 +22,9 @@ import {
 	evaluateMultiAxisOracle,
 	ratifyDefaultDecisionSlots
 } from '$lib/server/edp/refinementCoverage';
+import { readFixtureCatalog } from '../helpers/ontologyFixture';
 
-const fixtureCatalog = JSON.parse(
-	readFileSync(resolve(process.cwd(), 'tests/fixtures/edp/ontology_export.json'), 'utf8')
-) as OntologyCatalog;
+const fixtureCatalog = readFixtureCatalog() as OntologyCatalog;
 
 describe('Issue #322 : Socle ontologique, catalogue composants et règles Rego Terminaux / OS / MDM-EMM', () => {
 	it('référence les 6 axes Terminaux / OS / MDM-EMM dans TOGAF_REFERENCE_BUILDING_BLOCKS avec leurs composants responsables', () => {

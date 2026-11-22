@@ -6,23 +6,22 @@ package archinex.edp.multiaxis
 
 import rego.v1
 
-# Helpers pour extraire dynamiquement les clauses et exigences liées à une projection
-get_clause_urn(proj, fallback) := u if {
+# Helpers pour extraire dynamiquement les clauses et exigences liées à une projection.
+# Une feuille peut citer PLUSIEURS clauses (cas normal des feuilles du Knowledge Hub) : la sélection est déterministe
+# (premier élément de `governed_by_clauses`, dans l'ordre du Hub). Un `some c in ...` direct produirait plusieurs
+# valeurs et ferait échouer toute l'évaluation (eval_conflict_error).
+get_clause_urn(proj, fallback) := urns[0] if {
 	proj != null
 	is_array(proj.governed_by_clauses)
-	count(proj.governed_by_clauses) > 0
-	some c in proj.governed_by_clauses
-	startswith(c, "urn:")
-	u := c
+	urns := [c | some c in proj.governed_by_clauses; startswith(c, "urn:")]
+	count(urns) > 0
 } else := fallback
 
-get_req_id(proj, fallback) := r if {
+get_req_id(proj, fallback) := reqs[0] if {
 	proj != null
 	is_array(proj.governed_by_clauses)
-	count(proj.governed_by_clauses) > 0
-	some c in proj.governed_by_clauses
-	not startswith(c, "urn:")
-	r := c
+	reqs := [c | some c in proj.governed_by_clauses; not startswith(c, "urn:")]
+	count(reqs) > 0
 } else := fallback
 
 # ==============================================================================

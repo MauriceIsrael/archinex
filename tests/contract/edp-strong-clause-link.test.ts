@@ -177,7 +177,7 @@ describe('EDP Strong Clause <-> Ontology Leaf Link Contract (Issue #262)', () =>
     expect(annotations['archinex.io/satisfied-clauses']).toContain('REQ-Lot1-268');
 
     expect(annotations['archinex.io/evaluated-triplets']).toBeDefined();
-    expect(annotations['archinex.io/evaluated-triplets']).toContain('tr-008');
+    expect(annotations['archinex.io/evaluated-triplets']).toContain('tr-prj-lulu-008');
 
     // Vérification de la transmission vers Nautobot (Custom Fields & Tags)
     const mockPostOrPatch = vi.fn();

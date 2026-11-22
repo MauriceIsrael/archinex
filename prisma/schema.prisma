@@ -439,6 +439,7 @@ model Argument {
   optionId         String?
   targetArgumentId String?
   stance           String    // support, objection, question, verification, synthesis
+  verdict          String?   // compliant, violates, not_applicable, unknown (stance=verification)
   claim            String    // Assertion télégraphique courte
   grounds          String    // Fondement factuel, calcul ou référence (REQUIS)
   kbRefs           String    @default("[]") // JSON array d'identifiants doctrine
@@ -717,12 +718,14 @@ model DriftFinding {
   expected      String   @default("null") // JSON valeur/état attendu
   observed      String   @default("null") // JSON valeur/état observé
   severity      String   @default("medium") // low | medium | high | critical
-  firstSeenAt   DateTime @default(now())
-  lastSeenAt    DateTime @default(now())
-  state         String   @default("open") // open | remediated | amended | waived
-  sourceEvent   String   // identifiant de l'événement webhook ou du pull de réconciliation
-  createdAt     DateTime @default(now())
-  updatedAt     DateTime @updatedAt
+  firstSeenAt     DateTime  @default(now())
+  lastSeenAt      DateTime  @default(now())
+  resolvedAt      DateTime? // date de résolution (remediated | amended | waived) pour le délai moyen de résolution (#379)
+  detectedDelayMs Int?      // délai estimé entre changement réel (Nautobot) et première détection (#379)
+  state           String    @default("open") // open | remediated | amended | waived
+  sourceEvent     String    // identifiant de l'événement webhook ou du pull de réconciliation
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
 
   @@unique([projectId, fingerprint])
   @@index([projectId, state])
@@ -771,4 +774,49 @@ model EdpOracleVerdict {
   @@index([edpId, verifiedAt])
   @@index([projectId, subjectId, verifiedAt])
   @@map("edp_oracle_verdicts")
+}
+
+// ── Réconciliation périodique & État de réalisation (#379, #399) ────────────
+
+/// État courant et verrou de réconciliation périodique Nautobot par projet (#379).
+/// Conserve la dernière réconciliation réussie afin de distinguer « non vérifié » d'« aucune dérive ».
+model ProjectReconciliationState {
+  projectId               String    @id
+  enabled                 Boolean   @default(true)
+  intervalSeconds         Int       @default(300) // 5 min par défaut
+  staleThresholdSeconds   Int       @default(900) // 15 min par défaut (au-delà : donnée périmée -> non vérifié)
+  connectorSilentDays     Int       @default(7)   // seuil de silence connecteur (#399)
+  lockToken               String?
+  lockedAt                DateTime?
+  lastAttemptAt           DateTime?
+  lastSuccessAt           DateTime? // jamais écrasé lors d'une panne Nautobot
+  lastStatus              String    @default("never_run") // never_run | succeeded | unverified | error
+  lastError               String?
+  consecutiveFailures     Int       @default(0)
+  lastRealizationSnapshot String    @default("[]") // JSON RealizationItem[] (alimente vue Dérive et Couverture #402)
+  updatedAt               DateTime  @updatedAt
+
+  @@map("project_reconciliation_states")
+}
+
+/// Journal d'exécution des jobs de réconciliation périodique ou manuelle (#379).
+model ReconciliationRun {
+  id                    String    @id @default(cuid())
+  projectId             String
+  trigger               String    @default("scheduled") // scheduled | manual | webhook_recovery
+  status                String    @default("running") // running | succeeded | unverified | error
+  nautobotReachable     Boolean   @default(false)
+  checkedEdpCount       Int       @default(0)
+  observedObjects       Int       @default(0)
+  openFindingsCount     Int       @default(0)
+  newFindingsCount      Int       @default(0)
+  resolvedFindingsCount Int       @default(0)
+  realizationSummary    String    @default("{}") // JSON RealizationCounts
+  error                 String?
+  startedAt             DateTime  @default(now())
+  finishedAt            DateTime?
+
+  @@index([projectId, startedAt])
+  @@index([projectId, status])
+  @@map("reconciliation_runs")
 }

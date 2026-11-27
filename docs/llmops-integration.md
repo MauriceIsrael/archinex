@@ -1,7 +1,7 @@
 # Intégration LLMOps MCP Server ↔ Archinex
 
-> Document de référence — connexion entre le serveur LLMOps déployé sur GCP et le projet Archinex.
-> Dernière mise à jour : 2026-09-27 — données vérifiées empiriquement par les tests d'intégration.
+> Document de référence — connexion entre le serveur LLMOps (local ou GCP Cloud Run) et le projet Archinex.
+> Dernière mise à jour : 2026-11-27 — aligné sur le contrat Hub **1.42** (ontologie fédératrice dans le contrat, sans mode expérimental).
 
 ---
 
@@ -18,7 +18,7 @@ Pour garantir l'étanchéité stricte des données et la confidentialité absolu
 | URL de base (`LLMOPS_BASE_URL`) | `http://127.0.0.1:8000` |
 | Backend Base de Gouvernance | `sqlite:///<chemin-local>/LLMOps/data/governance.db` |
 | Authentification (`LLMOPS_AUTH_TOKEN`) | Jeton de service Archinex (`Bearer <token>`) |
-| Schéma & Version | `schema_version: 1.24` · Engine `0.1.0` |
+| Schéma & Version | `schema_version: 1.42` · Engine `0.1.0` |
 | Health check | `GET /health` → `200 OK` (`status: ok`) |
 | API Gouvernance | `GET /api/knowledge/health` → `200 OK` |
 
@@ -294,7 +294,7 @@ Conformément à la spécification du banc de test en boîte noire (`archinex-be
 - **Validation contractuelle (`tests/contract/benchmark-adapter.test.ts`)** :
   - 4 tests automatisés vérifiant la stricte séparation S2 / S3, le calcul des interactions d'experts, les sollicitations non couvertes (`expert_unanswered`), et l'intégrité cryptographique absolue (`verifyEngagementBundle`).
 
-## 7 quater. Identité de l'expert : assertion signée (LLMOps#144)
+## 7 quinquies-bis. Identité de l'expert : assertion signée (LLMOps#144, contrats 1.37 & 1.39)
 
 Archinex appelle le Hub avec un jeton de service. Pour dire **quel expert** agit, il envoyait l'en-tête brut `X-Actor-Email` : tout porteur
 du jeton pouvait se faire passer pour n'importe qui, et la séparation des tâches du Hub (l'auteur d'un candidat ne le relit pas) ne valait
@@ -311,16 +311,27 @@ que ce que l'appelant voulait bien écrire. Archinex peut maintenant envoyer une
 - **Limite** : tant que le Hub n'est pas en mode strict, il accepte encore l'en-tête brut d'un autre appelant ; l'assertion protège l'identité
   seulement quand le Hub refuse l'en-tête brut. Les deux réglages vont ensemble.
 
-## 8. Gouvernance de la Base de Connaissances (API v1)
+## 8. Gouvernance de la Base de Connaissances & Contrat Hub 1.42 (API v1)
 
-Les lots de gouvernance étendent l'intégration au-delà du protocole MCP en appelant directement l'API REST de gouvernance avec propagation d'identité souveraine (`X-Actor-Email`) :
+Les lots de gouvernance étendent l'intégration au-delà du protocole MCP en appelant directement l'API REST de gouvernance avec propagation d'identité souveraine (`X-Actor-Token` EdDSA ou `X-Actor-Email` en mode non strict) :
 
 | Lot | Objet | Portes & Validation | Issue associée |
 |---|---|---|---|
-| **A6** | Comptes experts, rôles KB (`kb:review`, `kb:evaluate`, `kb:maintain`, `kb:admin`) et en-tête `X-Actor-Email` | Validé (Porte G5 prérequis) | Closes #1 |
+| **A6** | Comptes experts, rôles KB (`kb:review`, `kb:evaluate`, `kb:maintain`, `kb:admin`) et identité acteur | Validé (Porte G5 prérequis) | Closes #1 |
 | **A7** | Boîte de revue d'experts, actions (`accept`, `amend`, `reject`), réassignation et notifications | Validé (Porte G5) | Closes #2 |
 | **A8** | Atelier de doctrine : templates d'actifs, assertions formelles et simulateur d'impact | Validé | Closes #3 |
 | **A10** | Ingestion multi-format (.pdf, .md, .txt), revue ligne par ligne et déclaration de couverture | Validé | Closes #5 |
+
+### Évolutions clés du contrat Hub jusqu'à **1.42**
+
+| Contrat | Apport côté Hub consommé par Archinex |
+|---|---|
+| `1.25`–`1.29` | Recherche sémantique locale (`fastembed`), décisions par clause de contrôle (`GET /api/knowledge/checks`), dispositions d'exigences (`requirements[].disposition`), cycle candidat pour triggers & clés de faits (`K22`). |
+| `1.30`–`1.35` | Instantané de conformité honnête (`K6`), couverture exigence → contrôle `compliance` (`K17`, y compris chaîne déclarée `basis: "declared_by_decision"` en `1.35`), capitalisation scellée sans ancre programme (`K13`/`K7`). |
+| `1.36` | Fraîcheur de gouvernance (`GET /api/knowledge/freshness`), expansion bilingue FR/EN et angles morts de couverture RFP (`GET|POST /api/rfp/coverage-gaps`). |
+| `1.37`–`1.39` | Assertions d'acteur signées EdDSA/Ed25519 + JWKS (`GET /.well-known/jwks.json`), délégations temporaires, journal d'audit (`GET /api/knowledge/audit`), mode strict `LLMOPS_REQUIRE_SIGNED_ACTOR`, contrôle `compiled_base` sur `/api/knowledge/health` et retour garanti de tous les contrôles des référentiels requis dans `/api/knowledge/context`. |
+| `1.40`–`1.41` | Instantané de conformité reproductible (`schemaVersion: "4.0"`, dérivé de `compliance`) et référence d'exigence typée `RequirementRef {sourceId, requirementKey, version}`. |
+| **`1.42`** | **Ontologie fédératrice intégrée au contrat** (aucun mode expérimental) : routes REST `GET /api/knowledge/ontology`, `GET /api/knowledge/ontology/export` (forme unique catalogue), `GET /api/knowledge/ontology/{urn}` et outils MCP `list_ontology_terms`, `get_ontology_term`, `export_ontology_catalog` toujours servis ; vocabulaire ontologique projeté dans l'index de doctrine. |
 
 ### Identité de l'acteur : la session, rien d'autre
 

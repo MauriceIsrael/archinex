@@ -113,3 +113,24 @@ Une fois les décisions arrêtées et scellées dans l'engagement (empreinte SHA
   - L'affichage interactif du diagramme Mermaid C4 (topologie 3 DC POST, liens PTP, mTLS).
   - Le téléchargement du fichier Structurizr DSL et du JSON ITU-T G.8275.1.
   - L'explication clé : *"Ces fichiers n'ont pas été rédigés par un modèle de langage avec risque d'hallucination. Ils sont projetés directement depuis l'arbre de décisions validé par votre équipe."*
+
+---
+
+## 6. Mode « Turbo » : Pré-peuplement CMDB (Nautobot / IPFM) & Export HLD
+
+Pour préparer une démonstration avec une CMDB déjà peuplée et un dossier HLD complet sans jouer manuellement chaque arbitrage, utilisez l'agent Turbo :
+
+```bash
+# Dry-run sans écriture
+npm run turbo:run -- --project-id <id-projet> --dry-run
+
+# Exécution complète : L3 [TURBO-AUTO] -> L4 -> EDP -> Nautobot -> HLD (Markdown + DOCX)
+npm run turbo:run -- --project-id <id-projet> --export-hld ./out-hld
+```
+
+L'agent est également exposé via `POST /api/projects/:projectId/turbo`.
+
+### Scénario de démonstration recommandé (Changement d'exigence sur Brownfield)
+1. **Avant la démo** : exécuter `npm run turbo:run` sur le projet pour peupler Nautobot (tags `zone-*`, VRFs, devices, préfixes, circuits, tunnels) et générer le HLD initial.
+2. **Pendant la démo** : introduire un changement d'exigence ou une rétractation impactant la matrice de conformité, puis démontrer la détection d'impact, le ré-arbitrage ciblé et la réconciliation incrémentale vers Nautobot / IP Flow Manager.
+

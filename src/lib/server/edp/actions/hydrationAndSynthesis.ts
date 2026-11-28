@@ -7,6 +7,11 @@ import {
 } from '$lib/server/edp/refinementCoverage';
 import { syncHydratedInventoryToNautobot } from '$lib/server/edp/nautobotSync';
 import {
+	buildArmEnvelopeFromHydrated,
+	pushArmToIpFlowManager,
+	type IpfmSyncSummary
+} from '$lib/server/edp/ipfmSync';
+import {
 	loadPersistedEdpSnapshot,
 	loadProjectNautobotOptions,
 	loadSubjectContext,
@@ -75,11 +80,31 @@ export async function handleHydrateEdp(
 			composedHydration.nautobot_planned_devices.length
 		);
 
+		const armEnvelope = buildArmEnvelopeFromHydrated(composedHydration, {
+			projectId,
+			subjectId,
+			revision: Number(ctx.subject?.decision?.version ?? snapshot.fromDb?.revision) || undefined
+		});
+		let ipfmSummary: IpfmSyncSummary | null = null;
+		if (!input.dryRun) {
+			ipfmSummary = await pushArmToIpFlowManager(armEnvelope, {
+				triggerNautobotSync: nautobotSynced
+			});
+		}
+		const ipfmSynced = Boolean(ipfmSummary?.armImported);
+		const ipfmSuffix = ipfmSummary
+			? ipfmSynced
+				? ` · ARM importé dans IPFM (${ipfmSummary.datasetsCounts.equipment} équipement(s), ${ipfmSummary.datasetsCounts.zones} zone(s), ${ipfmSummary.datasetsCounts.flows} flux)`
+				: ipfmSummary.reachable
+					? ` · IPFM refus : ${ipfmSummary.errors[0] || 'erreur import ARM'}`
+					: ` · IPFM hors ligne (${ipfmSummary.baseUrl})`
+			: '';
+
 		const message = !nautobotSynced
-			? `Nautobot injoignable (${nautobotUrl}) — synchronisation SSoT non effectuée (objets planned générés localement uniquement).`
+			? `Nautobot injoignable (${nautobotUrl}) — synchronisation SSoT non effectuée (objets planned générés localement uniquement)${ipfmSuffix}.`
 			: syncSummary.errors.length > 0
-				? `Hydratation SSoT partielle dans Nautobot (${syncSummary.devicesSynced} équipement(s), ${syncSummary.errors.length} erreur(s)) : ${syncSummary.errors[0]}`
-				: `Hydratation SSoT poussée dans Nautobot (${syncSummary.circuitsSynced} circuit(s), ${syncSummary.vpnTunnelsSynced} tunnel(s) VPN, ${syncSummary.tenantsSynced} tenant(s), ${syncSummary.devicesSynced} équipement(s), ${syncSummary.interfacesSynced} interface(s), ${syncSummary.vrfsSynced} VRF(s), ${syncSummary.prefixesSynced} préfixe(s), ${syncSummary.ipAddressesSynced} IP(s), ${syncSummary.tagsSynced} tag(s) zone) !`;
+				? `Hydratation SSoT partielle dans Nautobot (${syncSummary.devicesSynced} équipement(s), ${syncSummary.errors.length} erreur(s)) : ${syncSummary.errors[0]}${ipfmSuffix}`
+				: `Hydratation SSoT poussée dans Nautobot (${syncSummary.circuitsSynced} circuit(s), ${syncSummary.vpnTunnelsSynced} tunnel(s) VPN, ${syncSummary.tenantsSynced} tenant(s), ${syncSummary.devicesSynced} équipement(s), ${syncSummary.interfacesSynced} interface(s), ${syncSummary.vrfsSynced} VRF(s), ${syncSummary.prefixesSynced} préfixe(s), ${syncSummary.ipAddressesSynced} IP(s), ${syncSummary.tagsSynced} tag(s) zone)${ipfmSuffix} !`;
 
 		return {
 			body: {
@@ -87,6 +112,9 @@ export async function handleHydrateEdp(
 				notificationType: hasSyncErrors ? 'warning' : 'success',
 				nautobotSynced,
 				nautobotSyncSummary: syncSummary,
+				ipfmSynced,
+				ipfmSyncSummary: ipfmSummary,
+				armEnvelope,
 				devicesCount,
 				hydratedInventory: composedHydration,
 				hydratedItems: composedHydration.nautobot_planned_devices,

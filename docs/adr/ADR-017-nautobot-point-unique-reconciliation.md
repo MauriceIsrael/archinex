@@ -1,7 +1,7 @@
 # ADR-017 : Nautobot, point unique de réconciliation bidirectionnelle entre Archinex et le réel
 
-- **Statut** : Proposé (à valider par les mainteneurs)
-- **Date** : 2026-11-21
+- **Statut** : Accepté (validé par le mainteneur le 2026-11-28)
+- **Date** : 2026-11-21 (validé le 2026-11-28)
 - **Contexte** : épique #372 (boucle de réconciliation), issues #375 (cet ADR), #398 (statuts et propriété des champs), #399 (write-back), #411 (relocalisation des adaptateurs)
 - **Remplace / précise** : les horizons 1 à 3 de `ARCHITECTURE.md` §16 pour tout ce qui parle directement à un outil d'implémentation
 
@@ -114,8 +114,8 @@ Voir le détail complet dans [`docs/edp/connectors-classification.md`](../edp/co
 | Keycloak (IdP) | `connectors/keycloakAdapter.ts` | Connecteur derrière Nautobot | À reprendre |
 | DNS / DDI (Technitium) | `connectors/ddiDnsAdapter.ts` | Connecteur derrière Nautobot | À reprendre |
 | `opaRunner.ts`, oracles Rego de décision, `edp verify` | évaluation déterministe | **Garder** (voir §4) | #380 |
-| Jumeau numérique Sylva (`sylvaTwin.ts`, sushy, KWOK ; #292 à #294) | vérification pré-déploiement, sans écriture | **Garder** comme analyse hors ligne lisant l'intention ; exécution en CI ; ne pas l'étendre avant clôture de la tranche minimale | à confirmer |
-| Registre d'état IMP V2 (#307 : snapshots, quarantaine, CMDB) | **chevauche** Nautobot comme registre d'état | **Re-cadrer** : Nautobot est le registre d'état ; ne pas créer un second registre | à confirmer |
+| Jumeau numérique Sylva (`sylvaTwin.ts`, sushy, KWOK ; #292 à #294) | vérification pré-déploiement, sans écriture | **Garder** comme analyse hors ligne lisant l'intention ; exécution en CI ; ne pas l'étendre avant clôture de la tranche minimale | confirmé (§11) |
+| Registre d'état IMP V2 (#307 : snapshots, quarantaine, CMDB) | **chevauche** Nautobot comme registre d'état | **Re-cadrer** : Nautobot est le registre d'état ; ne pas créer un second registre | confirmé (§11) |
 
 ## 8. Sort des issues de connecteurs
 
@@ -141,13 +141,15 @@ Voir le détail complet dans [`docs/edp/connectors-classification.md`](../edp/co
 - La fiabilité de l'état « réalisé » dépend des connecteurs : contrat de write-back et kit de conformité (#399).
 - Effort de relocalisation du code existant : borné et séquencé (#411, #381) ; **aucun retrait avant parité**.
 
-## 11. Questions ouvertes (à trancher par les mainteneurs)
+## 11. Décisions actées sur les questions ouvertes (2026-11-28)
 
-1. **Version minimale de Nautobot** exigée (le module VPN natif demande 2.2+) et politique de montée de version.
-2. **Hébergement des connecteurs** : paquet de l'espace de travail (`connectors/`) ou dépôt séparé.
-3. **Propriété du schéma** des champs `archinex_*` et `realized_*` dans Nautobot (installation par Archinex ou par l'exploitant).
-4. **Seuil de sévérité** à partir duquel un écart rend une décision caduque (#378).
-5. **Sort du jumeau numérique** et du registre d'état IMP V2 (§7).
+Les cinq points ouverts ont été validés selon les propositions suivantes :
+
+1. **Version minimale de Nautobot** : **2.2+** pour le socle actuel (module VPN natif), avec montée vers **3.x** suivie dans **#454**.
+2. **Hébergement des connecteurs** : espace de travail dédié **`connectors/`** hors cœur `src/` (déjà acté par **#411**, PR #434).
+3. **Propriété du schéma** : les champs `archinex_*` sont installés de façon idempotente par Archinex (`ensureCustomFields`, **#376** / PR #425) ; les champs `realized_*` suivent le contrat de write-back versionné (**#399**).
+4. **Seuil de sévérité** : une dérive de sévérité élevée/critique rend l'EDP/la décision caduque (`stale`) avec résolution humaine tracée (**#378**).
+5. **Sort du jumeau numérique et du registre d'état IMP V2 (§7)** : le jumeau numérique Sylva est **conservé** comme analyse hors ligne exécutée en CI (sans extension avant clôture de la tranche minimale) ; le registre d'état IMP V2 (**#307**) est **re-cadré** sur Nautobot comme registre d'état unique.
 
 ## 12. Plan de réalisation
 

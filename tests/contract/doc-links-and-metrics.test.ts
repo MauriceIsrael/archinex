@@ -1,4 +1,5 @@
 import fs from 'node:fs';
+import os from 'node:os';
 import path from 'node:path';
 import { describe, it, expect } from 'vitest';
 import { checkMarkdownContent, checkAllDocLinks } from '../../scripts/check-doc-links.mjs';
@@ -110,6 +111,47 @@ describe('Documentation — Liens, Parcours Unique, ADRs et Métriques Généré
 			expect(countRegoRules('deny contains msg if {\n}\nviolations contains v if {\n}')).toBe(2);
 		});
 
+		it('supporte les formats array et map (Hub 1.42) pour raw.entities dans ontology_export.json', () => {
+			const tmpRoot = fs.mkdtempSync(path.join(os.tmpdir(), 'archinex-metrics-'));
+			try {
+				const fixtureDir = path.join(tmpRoot, 'tests', 'fixtures', 'edp');
+				fs.mkdirSync(fixtureDir, { recursive: true });
+				const fixturePath = path.join(fixtureDir, 'ontology_export.json');
+
+				// Format Hub 1.42 : entities est un dictionnaire URN -> entité
+				fs.writeFileSync(
+					fixturePath,
+					JSON.stringify({
+						entities: {
+							'urn:c1': { kind: 'concept' },
+							'urn:c2': { kind: 'hld_concept' },
+							'urn:a1': { kind: 'axis' },
+							'urn:l1': { kind: 'leaf' },
+							'urn:l2': { kind: 'leaf' }
+						},
+						triplets: [{ s: 'a', p: 'b', o: 'c' }]
+					}),
+					'utf-8'
+				);
+				const mapMetrics = collectRepoMetrics(tmpRoot);
+				expect(mapMetrics.ontologyStats).toEqual({ concepts: 2, axes: 1, leaves: 2, triplets: 1 });
+
+				// Format historique : entities est un tableau
+				fs.writeFileSync(
+					fixturePath,
+					JSON.stringify({
+						entities: [{ kind: 'concept' }, { kind: 'axis' }, { kind: 'leaf' }],
+						relations: [{ s: 'a', p: 'b', o: 'c' }, { s: 'd', p: 'e', o: 'f' }]
+					}),
+					'utf-8'
+				);
+				const arrayMetrics = collectRepoMetrics(tmpRoot);
+				expect(arrayMetrics.ontologyStats).toEqual({ concepts: 1, axes: 1, leaves: 1, triplets: 2 });
+			} finally {
+				fs.rmSync(tmpRoot, { recursive: true, force: true });
+			}
+		});
+
 		it('génère des métriques cohérentes et synchronisées avec docs/metrics.md', () => {
 			const metrics = collectRepoMetrics(repoRoot);
 			expect(metrics.vitestFiles).toBeGreaterThan(50);
@@ -117,6 +159,10 @@ describe('Documentation — Liens, Parcours Unique, ADRs et Métriques Généré
 			expect(metrics.regoFiles).toBeGreaterThanOrEqual(3);
 			expect(metrics.totalRegoRules).toBeGreaterThan(15);
 			expect(metrics.adrCount).toBeGreaterThanOrEqual(4);
+			expect(metrics.ontologyStats.concepts).toBeGreaterThan(0);
+			expect(metrics.ontologyStats.axes).toBeGreaterThan(0);
+			expect(metrics.ontologyStats.leaves).toBeGreaterThan(0);
+			expect(metrics.ontologyStats.triplets).toBeGreaterThan(0);
 
 			const rendered = renderMetricsMarkdown(metrics);
 			const current = fs

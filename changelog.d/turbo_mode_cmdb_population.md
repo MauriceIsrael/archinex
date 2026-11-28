@@ -1,2 +1,0 @@
-### Added
-- **Mode Turbo (peuplement rapide CMDB & HLD)** : Ajout du service `runTurboModeForProject` (`src/lib/server/turbo/turboAgent.ts`), de l'endpoint `POST /api/projects/:projectId/turbo` et du script CLI `npm run turbo:run -- --project-id <id>` (`scripts/turbo-agent.ts`) permettant d'automatiser les transitions L3 (`[TURBO-AUTO]`), l'homologation L4 (`L4_specified`), la synthèse EDP, l'hydratation Nautobot et l'export HLD.

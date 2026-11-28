@@ -30,6 +30,7 @@
     "seed": "tsx scripts/seed.ts",
     "seed:lulu": "tsx scripts/seed-lulu.ts",
     "seed:demo": "tsx scripts/seed-demo.ts",
+    "turbo:run": "tsx scripts/turbo-agent.ts",
     "test": "vitest run",
     "test:coverage": "node scripts/ensure-test-env.mjs && vitest run --coverage",
     "test:property": "node scripts/ensure-test-env.mjs && vitest run tests/property",

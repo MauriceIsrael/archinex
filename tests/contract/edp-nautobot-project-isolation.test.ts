@@ -8,6 +8,8 @@ import {
   syncHydratedInventoryToNautobot,
   pullLiveInventoryFromNautobot,
   resolveProjectNautobotOptions,
+  resolveProjectTagFilter,
+  projectTagName,
   normalizeProjectScope,
   scopedNautobotName,
   unscopeNautobotName
@@ -82,11 +84,39 @@ function createInMemoryNautobotFetch() {
     const list = store[path] || (store[path] = []);
 
     if (method === 'GET') {
+      // Simule STRICT_FILTERING = True de Nautobot 2.x : `tag` (singulier) est rejeté en HTTP 400
+      if (url.searchParams.has('tag')) {
+        return new Response(JSON.stringify({ tag: ['Unknown filter field'] }), { status: 400 });
+      }
       let results = [...list];
-      const tag = url.searchParams.get('tag');
-      if (tag) {
+      const tagsParam = url.searchParams.get('tags');
+      if (tagsParam) {
+        const knownTags = store['/api/extras/tags/'] || [];
+        const matchedTag = knownTags.find((t) => String(t.name) === tagsParam);
+        const pathToContentType: Record<string, string> = {
+          '/api/tenancy/tenants/': 'tenancy.tenant',
+          '/api/dcim/devices/': 'dcim.device',
+          '/api/circuits/circuits/': 'circuits.circuit',
+          '/api/ipam/prefixes/': 'ipam.prefix',
+          '/api/ipam/vlans/': 'ipam.vlan',
+          '/api/ipam/ip-addresses/': 'ipam.ipaddress',
+          '/api/vpn/vpn-tunnels/': 'vpn.vpntunnel'
+        };
+        const expectedCt = pathToContentType[path];
+        const allowedForModel =
+          !expectedCt ||
+          !Array.isArray(matchedTag?.content_types) ||
+          matchedTag.content_types.includes(expectedCt);
+        if (!matchedTag || !allowedForModel) {
+          return new Response(
+            JSON.stringify({
+              tags: [`Select a valid choice. ${tagsParam} is not one of the available choices.`]
+            }),
+            { status: 400 }
+          );
+        }
         results = results.filter((r) =>
-          Array.isArray(r.tags) && r.tags.some((t: any) => t?.name === tag || t === tag)
+          Array.isArray(r.tags) && r.tags.some((t: any) => t?.name === tagsParam || t === tagsParam)
         );
       }
       for (const key of ['name', 'cid', 'model', 'vid', 'prefix', 'address', 'namespace', 'vlan_group', 'device_id', 'circuit', 'term_side']) {
@@ -255,5 +285,55 @@ describe('EDP Nautobot 2.x Multi-Project Isolation & Per-Project Configuration',
     expect(pullBeta.inventory.reconciliation_graph?.service_mediation_flows?.[0]?.tenant_ref).not.toBe(
       'ORPHAN_NO_TENANT'
     );
+
+    // Vérifier que le tag projet créé couvre bien ipam.vlan et ipam.ipaddress
+    const alphaTag = store['/api/extras/tags/'].find((t) => t.name === projectTagName('proj-alpha'));
+    expect(alphaTag).toBeDefined();
+    expect(alphaTag!.content_types).toContain('ipam.vlan');
+    expect(alphaTag!.content_types).toContain('ipam.ipaddress');
+  });
+
+  it('utilise le filtre Nautobot 2.x `tags` (pluriel) et tolère un tag projet inexistant sans HTTP 400', async () => {
+    const { store, fetchImpl } = createInMemoryNautobotFetch();
+
+    // Avant toute synchro, le tag `project-nouveau` n'existe pas encore dans Nautobot
+    const absent = await resolveProjectTagFilter('nouveau', {
+      baseUrl: 'http://localhost:8080',
+      token: 'tok',
+      fetchImpl
+    });
+    expect(absent.exists).toBe(false);
+    expect(absent.forModel('dcim.device')).toBe('');
+
+    // Pull sur un projet encore non synchronisé : aucun HTTP 400 malgré STRICT_FILTERING
+    const pullEmpty = await pullLiveInventoryFromNautobot(
+      {
+        subject_id: 'sub_empty',
+        nautobot_planned_devices: []
+      } as any,
+      {
+        baseUrl: 'http://localhost:8080',
+        token: 'tok',
+        projectScope: 'nouveau',
+        fetchImpl
+      }
+    );
+    expect(pullEmpty.reachable).toBe(true);
+    expect(pullEmpty.errors).toEqual([]);
+
+    // Une fois le tag présent avec un sous-ensemble de content_types, forModel respecte content_types
+    store['/api/extras/tags/'].push({
+      id: 'tag-nouveau',
+      name: 'project-nouveau',
+      content_types: ['dcim.device', 'tenancy.tenant']
+    });
+    const present = await resolveProjectTagFilter('nouveau', {
+      baseUrl: 'http://localhost:8080',
+      token: 'tok',
+      fetchImpl
+    });
+    expect(present.exists).toBe(true);
+    expect(present.forModel('dcim.device')).toBe('&tags=project-nouveau');
+    expect(present.forModel('ipam.vlan')).toBe('');
   });
 });

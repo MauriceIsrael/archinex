@@ -27,6 +27,7 @@ En cas de panne de Nautobot :
   - `ProjectReconciliationState` (`project_reconciliation_states`) : intervalle configurable (`intervalSeconds`, défaut 300 s), seuil de péremption (`staleThresholdSeconds`, défaut 900 s), seuil de silence connecteur (`connectorSilentDays`, défaut 7 j), verrou atomique (`lockToken`, `lockedAt` avec TTL de 5 min), `lastAttemptAt`, `lastSuccessAt`, `lastStatus`, `consecutiveFailures`, `lastRealizationSnapshot`.
   - `ReconciliationRun` (`reconciliation_runs`) : historique des passes (`scheduled`, `manual`, `webhook_recovery`).
 - **Idempotence** : `reconcileProject()` s'appuie sur `persistDriftFindings()` (déduplication par `(projectId, fingerprint)`) et résout automatiquement (`remediated` + `resolvedAt`) les écarts disparus uniquement lors d'une passe réussie.
+- **Filtrage Nautobot 2.x (`STRICT_FILTERING = True`)** : `resolveProjectTagFilter()` (`src/lib/server/edp/nautobotSync.ts`) interroge `/api/extras/tags/?name=project-<scope>` et n'applique le paramètre pluriel `&tags=project-<scope>` que si le tag existe et autorise le `content_type` du modèle interrogé (évitant les erreurs HTTP 400 sur un projet encore non synchronisé). En l'absence de filtre serveur, l'isolation reste garantie côté client (préfixe de scope, marqueurs `archinex_*`, namespace / VLAN group).
 - **Ordonnanceur** : `ReconciliationScheduler` démarre automatiquement dans `src/hooks.server.ts` hors environnement de test (désactivable via `RECONCILIATION_ENABLED=false`, intervalle par défaut via `RECONCILIATION_INTERVAL_SECONDS`).
 
 ---

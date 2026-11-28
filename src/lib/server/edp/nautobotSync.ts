@@ -118,6 +118,71 @@ export function projectTagName(scope: string): string {
   return `project-${normalizeProjectScope(scope)}`;
 }
 
+export interface ResolvedProjectTagFilter {
+  /** Nom du tag projet (`project-<scope>`) si un scope est actif. */
+  tagName: string | null;
+  /** Vrai si le tag existe dans Nautobot (`/api/extras/tags/`). */
+  exists: boolean;
+  /** Types de contenu autorisés par ce tag dans Nautobot (`null` si non renseigné par l'instance). */
+  contentTypes: Set<string> | null;
+  /**
+   * Retourne le fragment de query string Nautobot 2.x (`&tags=<tagName>`) pour un `modelName` donné,
+   * ou `''` si le tag n'existe pas encore ou ne couvre pas ce `content_type`.
+   */
+  forModel: (modelName: string) => string;
+}
+
+/**
+ * Résout la disponibilité du tag d'isolation projet (`project-<scope>`) dans Nautobot 2.x.
+ *
+ * En Nautobot 2.x (`STRICT_FILTERING = True` par défaut) :
+ *  - le paramètre de filtre sur les tags s'appelle `tags` (pluriel, et non `tag`) ;
+ *  - filtrer par `?tags=<nom>` alors que le tag n'existe pas encore ou n'est pas autorisé
+ *    pour le `content_type` de l'endpoint renvoie HTTP 400.
+ */
+export async function resolveProjectTagFilter(
+  scope: string | undefined,
+  clientOpts: NautobotClientOptions = {}
+): Promise<ResolvedProjectTagFilter> {
+  if (!scope) {
+    return { tagName: null, exists: false, contentTypes: null, forModel: () => '' };
+  }
+  const tagName = projectTagName(scope);
+  try {
+    const res = await nbFetch(
+      `/api/extras/tags/?name=${encodeURIComponent(tagName)}`,
+      {},
+      clientOpts
+    );
+    const results: any[] = Array.isArray(res?.results) ? res.results : [];
+    const match = results.find(
+      (t) => typeof t?.name === 'string' && t.name.toLowerCase() === tagName.toLowerCase()
+    );
+    if (!match) {
+      return { tagName, exists: false, contentTypes: null, forModel: () => '' };
+    }
+    const rawTypes = Array.isArray(match.content_types) ? match.content_types : null;
+    const contentTypes =
+      rawTypes && rawTypes.length > 0
+        ? new Set<string>(rawTypes.map((ct: unknown) => String(ct).trim().toLowerCase()))
+        : null;
+    const encoded = `&tags=${encodeURIComponent(tagName)}`;
+    return {
+      tagName,
+      exists: true,
+      contentTypes,
+      forModel: (modelName: string) => {
+        if (contentTypes && !contentTypes.has(modelName.toLowerCase())) {
+          return '';
+        }
+        return encoded;
+      }
+    };
+  } catch {
+    return { tagName, exists: false, contentTypes: null, forModel: () => '' };
+  }
+}
+
 export function scopedNautobotName(baseName: string, scope?: string, maxLen = 64): string {
   const raw = String(baseName || '').trim();
   if (!scope) return raw;
@@ -688,6 +753,8 @@ export async function syncHydratedInventoryToNautobot(
               'dcim.device',
               'ipam.prefix',
               'ipam.vrf',
+              'ipam.vlan',
+              'ipam.ipaddress',
               'circuits.circuit',
               'tenancy.tenant',
               'vpn.vpntunnel'
@@ -957,6 +1024,7 @@ export async function syncHydratedInventoryToNautobot(
               } else if (defaultLocationId) {
                 vlanPayload.location = defaultLocationId;
               }
+              if (projectTag) vlanPayload.tags = [projectTag];
 
               const vlanQuery = projectVlanGroupId
                 ? `vid=${link.vlan_id}&vlan_group=${encodeURIComponent(projectVlanGroupId)}`
@@ -1217,6 +1285,7 @@ export async function syncHydratedInventoryToNautobot(
                 description: `Adresse ${ifaceType} sur ${deviceName}:${ifaceName}`
               };
               if (defaultNamespaceId) ipPayload.namespace = defaultNamespaceId;
+              if (projectTag) ipPayload.tags = [projectTag];
 
               const ipQuery =
                 scope && defaultNamespaceId
@@ -1573,7 +1642,6 @@ export async function pullLiveInventoryFromNautobot(
   clientOpts: NautobotClientOptions = {}
 ): Promise<NautobotLivePullResult> {
   const scope = clientOpts.projectScope ? normalizeProjectScope(clientOpts.projectScope) : undefined;
-  const tagFilter = scope ? `&tag=${encodeURIComponent(projectTagName(scope))}` : '';
   const cloned: MultiAxisHydratedInventory = JSON.parse(JSON.stringify(baselineHydrated));
   const driftCtx = clientOpts.driftContext || {};
   const findingProjectId = driftCtx.projectId || scope || 'default';
@@ -1622,8 +1690,14 @@ export async function pullLiveInventoryFromNautobot(
   }
 
   try {
+    const resolvedTagFilter = await resolveProjectTagFilter(scope, clientOpts);
+
     // 1. Lecture en direct des Tenants (/api/tenancy/tenants/)
-    const tenantsRes = await nbFetch(`/api/tenancy/tenants/?limit=100${tagFilter}`, {}, clientOpts);
+    const tenantsRes = await nbFetch(
+      `/api/tenancy/tenants/?limit=100${resolvedTagFilter.forModel('tenancy.tenant')}`,
+      {},
+      clientOpts
+    );
     const rawTenants: any[] = Array.isArray(tenantsRes?.results) ? tenantsRes.results : [];
     const liveTenants = scope
       ? rawTenants.filter((t) => belongsToProjectScope(String(t?.name || ''), scope))
@@ -1666,7 +1740,11 @@ export async function pullLiveInventoryFromNautobot(
     }
 
     // 2. Lecture en direct des Équipements DCIM (/api/dcim/devices/)
-    const devicesRes = await nbFetch(`/api/dcim/devices/?limit=100${tagFilter}`, {}, clientOpts);
+    const devicesRes = await nbFetch(
+      `/api/dcim/devices/?limit=100${resolvedTagFilter.forModel('dcim.device')}`,
+      {},
+      clientOpts
+    );
     const rawDevices: any[] = Array.isArray(devicesRes?.results) ? devicesRes.results : [];
     const liveDevices = scope
       ? rawDevices.filter((d) => belongsToProjectScope(String(d?.name || ''), scope))
@@ -1872,7 +1950,11 @@ export async function pullLiveInventoryFromNautobot(
     }
 
     // 3. Lecture en direct des Circuits (/api/circuits/circuits/)
-    const circuitsRes = await nbFetch(`/api/circuits/circuits/?limit=100${tagFilter}`, {}, clientOpts);
+    const circuitsRes = await nbFetch(
+      `/api/circuits/circuits/?limit=100${resolvedTagFilter.forModel('circuits.circuit')}`,
+      {},
+      clientOpts
+    );
     const rawCircuits: any[] = Array.isArray(circuitsRes?.results) ? circuitsRes.results : [];
     const liveCircuits = scope
       ? rawCircuits.filter((c) => belongsToProjectScope(String(c?.cid || ''), scope))
@@ -1947,7 +2029,7 @@ export async function pullLiveInventoryFromNautobot(
       }
 
       const vpnTunnelsRes = await nbFetch(
-        `/api/vpn/vpn-tunnels/?limit=50${tagFilter}`,
+        `/api/vpn/vpn-tunnels/?limit=50${resolvedTagFilter.forModel('vpn.vpntunnel')}`,
         {},
         clientOpts
       );

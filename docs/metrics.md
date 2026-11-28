@@ -10,7 +10,7 @@
 | Indicateur | Valeur mesurée | Source |
 | :--- | ---: | :--- |
 | Fichiers de tests Vitest (unitaires, contrat, intégration, API) | **245** | `tests/` (hors `tests/e2e/browser/`) |
-| Cas de tests Vitest (`it` / `test`) | **1653** | `tests/` (hors `tests/e2e/browser/`) |
+| Cas de tests Vitest (`it` / `test`) | **1655** | `tests/` (hors `tests/e2e/browser/`) |
 | Fichiers de parcours E2E Playwright | **8** | `tests/e2e/browser/` |
 | Cas de tests E2E Playwright | **29** | `tests/e2e/browser/` |
 | Politiques OPA / Rego v1 | **3** | `edp/policies/` |

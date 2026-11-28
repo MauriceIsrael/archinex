@@ -260,6 +260,11 @@ class DeliberationStore {
 	docStudioUrl = $state<string>('http://localhost:5174');
 	isCheckingDocEngine = $state<boolean>(false);
 
+	// État d'intégration IP Flow Manager (Référentiel des flux réseau)
+	ipfmStatus = $state<'idle' | 'connected' | 'offline' | 'checking'>('idle');
+	ipfmUrl = $state<string>('http://localhost:8001');
+	isCheckingIpfm = $state<boolean>(false);
+
 	private engagementCache: Record<
 		string,
 		{
@@ -2119,6 +2124,46 @@ class DeliberationStore {
 			return { connected: false, url: this.docEngineUrl, error: msg };
 		} finally {
 			this.isCheckingDocEngine = false;
+		}
+	}
+
+	async checkIpfm(
+		options: { silent?: boolean; customFetch?: typeof fetch } = {}
+	): Promise<{ connected: boolean; url: string; error?: string }> {
+		this.isCheckingIpfm = true;
+		this.ipfmStatus = 'checking';
+		try {
+			const fetcher = options.customFetch || (typeof window !== 'undefined' ? window.fetch.bind(window) : fetch);
+			const res = await fetcher('/api/ipfm/health');
+			if (!res.ok) {
+				throw new Error(`Erreur HTTP ${res.status}`);
+			}
+			const data = await res.json();
+			const isAvailable = Boolean(data.ipfm?.available);
+			this.ipfmStatus = isAvailable ? 'connected' : 'offline';
+			if (data.ipfm?.url) this.ipfmUrl = data.ipfm.url;
+
+			if (!options.silent) {
+				if (isAvailable) {
+					this.logNotification(`IP Flow Manager prêt (${this.ipfmUrl}) · Import ARM & Réalité Nautobot actifs`, 'success');
+				} else {
+					this.logNotification(
+						`IP Flow Manager hors ligne (${this.ipfmUrl}) : vérifiez uvicorn sur IP-flow-mngt.`,
+						'warning'
+					);
+				}
+			}
+
+			return { connected: isAvailable, url: this.ipfmUrl };
+		} catch (err: unknown) {
+			this.ipfmStatus = 'offline';
+			const msg = err instanceof Error ? err.message : 'Erreur de connexion';
+			if (!options.silent) {
+				this.logNotification(`IP Flow Manager indisponible (${this.ipfmUrl})`, 'warning');
+			}
+			return { connected: false, url: this.ipfmUrl, error: msg };
+		} finally {
+			this.isCheckingIpfm = false;
 		}
 	}
 

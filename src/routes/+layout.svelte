@@ -33,6 +33,7 @@
   import ThemeSelector from '$lib/components/ThemeSelector.svelte';
   import LLMOpsStatusBadge from '$lib/components/LLMOpsStatusBadge.svelte';
   import DocumentEngineStatusBadge from '$lib/components/DocumentEngineStatusBadge.svelte';
+  import IPFMStatusBadge from '$lib/components/IPFMStatusBadge.svelte';
   import HelpMenu from '$lib/components/HelpMenu.svelte';
   import Toaster from '$lib/components/Toaster.svelte';
   import { t, locale } from 'svelte-i18n';
@@ -72,11 +73,14 @@
   const session = $derived(data.session);
   const isAdmin = $derived(hasRole(session, 'admin'));
   const isAnyServiceChecking = $derived(
-    deliberationStore.isSyncingLLMOps || deliberationStore.isCheckingDocEngine
+    deliberationStore.isSyncingLLMOps ||
+      deliberationStore.isCheckingDocEngine ||
+      deliberationStore.isCheckingIpfm
   );
   const areAllServicesConnected = $derived(
     deliberationStore.llmopsStatus === 'connected' &&
-      deliberationStore.docEngineStatus === 'connected'
+      deliberationStore.docEngineStatus === 'connected' &&
+      deliberationStore.ipfmStatus === 'connected'
   );
 
   $effect(() => {
@@ -392,7 +396,7 @@
                 {...props}
                 data-testid="services-status-trigger"
                 class="h-8 gap-1.5 px-2 text-xs text-muted-foreground hover:text-foreground"
-                title="État des services techniques (LLMOps & Document Engine)"
+                title="État des services techniques (LLMOps, Document Engine & IPFM)"
                 aria-label="État des services techniques"
               >
                 <span
@@ -414,6 +418,7 @@
             <div class="flex flex-col gap-2">
               <LLMOpsStatusBadge />
               <DocumentEngineStatusBadge />
+              <IPFMStatusBadge />
             </div>
           </DropdownMenu.Content>
         </DropdownMenu.Root>

@@ -90,7 +90,11 @@ export function collectRepoMetrics(rootDir = process.cwd()) {
 	if (fs.existsSync(ontologyPath)) {
 		const raw = JSON.parse(fs.readFileSync(ontologyPath, 'utf-8'));
 		/** @type {Array<{ kind?: string }>} */
-		const entities = Array.isArray(raw.entities) ? raw.entities : [];
+		const entities = Array.isArray(raw.entities)
+			? raw.entities
+			: raw.entities && typeof raw.entities === 'object'
+				? Object.values(raw.entities)
+				: [];
 		const relations = Array.isArray(raw.relations)
 			? raw.relations
 			: Array.isArray(raw.triplets)

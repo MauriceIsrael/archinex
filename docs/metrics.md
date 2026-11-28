@@ -9,10 +9,10 @@
 
 | Indicateur | Valeur mesurée | Source |
 | :--- | ---: | :--- |
-| Fichiers de tests Vitest (unitaires, contrat, intégration, API) | **240** | `tests/` (hors `tests/e2e/browser/`) |
-| Cas de tests Vitest (`it` / `test`) | **1613** | `tests/` (hors `tests/e2e/browser/`) |
-| Fichiers de parcours E2E Playwright | **7** | `tests/e2e/browser/` |
-| Cas de tests E2E Playwright | **28** | `tests/e2e/browser/` |
+| Fichiers de tests Vitest (unitaires, contrat, intégration, API) | **245** | `tests/` (hors `tests/e2e/browser/`) |
+| Cas de tests Vitest (`it` / `test`) | **1653** | `tests/` (hors `tests/e2e/browser/`) |
+| Fichiers de parcours E2E Playwright | **8** | `tests/e2e/browser/` |
+| Cas de tests E2E Playwright | **29** | `tests/e2e/browser/` |
 | Politiques OPA / Rego v1 | **3** | `edp/policies/` |
 | Règles d'évaluation OPA (`deny` / `violation` / `warn`) | **85** | `edp/policies/` |
 | Décisions d'Architecture (ADR) | **5** | `docs/adr/` |
@@ -32,7 +32,7 @@
 ## 3. Socle Ontologique de Référence (Fixture CI)
 
 Mesuré sur `tests/fixtures/edp/ontology_export.json` :
-- **Concepts HLD** : 0
-- **Axes de raffinement (`kind: "axis"`)** : 0
-- **Feuilles d'implémentation (`kind: "leaf"`)** : 0
+- **Concepts HLD** : 6
+- **Axes de raffinement (`kind: "axis"`)** : 45
+- **Feuilles d'implémentation (`kind: "leaf"`)** : 63
 - **Relations / Triplets** : 207

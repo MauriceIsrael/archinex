@@ -8,6 +8,10 @@ Aucune version n'a encore été publiée : tout figure sous *Non publié*.
 
 ## Non publié
 
+### Ajouté
+- **Export ARM 1.6 & synchronisation synchrone vers IP Flow Manager (`src/lib/server/edp/ipfmSync.ts`, `src/lib/server/edp/actions/hydrationAndSynthesis.ts`)** : lors de l'hydratation Phase 4 (`handleHydrateEdp`), Archinex génère désormais un manifeste ARM 1.6 canonique (sans clé réseau interdite G2) et le pousse vers `POST /catalog/import-manifest` d'IP Flow Manager tout en déclenchant le rafraîchissement Nautobot (`POST /netbox/sync`).
+- **Supervision IPFM dans le header (`src/lib/components/IPFMStatusBadge.svelte`, `src/routes/api/ipfm/health/+server.ts`, `src/routes/+layout.svelte`)** : ajout d'IP Flow Manager dans le menu **Services techniques** du header d'Archinex avec contrôle de disponibilité temps réel.
+
 ### Correction du filtrage par tag Nautobot 2.x lors de la réconciliation et du pull live
 - **Synchronisation & Réconciliation Nautobot (`src/lib/server/edp/nautobotSync.ts`, `src/lib/server/edp/reconciliationJob.ts`)** :
   - Remplacement du paramètre de filtre obsolète `&tag=` (Nautobot 1.x / NetBox, rejeté en HTTP 400 `Unknown filter field` sous Nautobot 2.x avec `STRICT_FILTERING = True`) par le filtre Nautobot 2.x `&tags=` via le helper mutualisé `resolveProjectTagFilter`.

@@ -1,3 +1,0 @@
-### Ajouté
-- **Export ARM 1.6 & synchronisation synchrone vers IP Flow Manager (`src/lib/server/edp/ipfmSync.ts`, `src/lib/server/edp/actions/hydrationAndSynthesis.ts`)** : lors de l'hydratation Phase 4 (`handleHydrateEdp`), Archinex génère désormais un manifeste ARM 1.6 canonique (sans clé réseau interdite G2) et le pousse vers `POST /catalog/import-manifest` d'IP Flow Manager tout en déclenchant le rafraîchissement Nautobot (`POST /netbox/sync`).
-- **Supervision IPFM dans le header (`src/lib/components/IPFMStatusBadge.svelte`, `src/routes/api/ipfm/health/+server.ts`, `src/routes/+layout.svelte`)** : ajout d'IP Flow Manager dans le menu **Services techniques** du header d'Archinex avec contrôle de disponibilité temps réel.

@@ -61,6 +61,8 @@ const FROZEN_EDP_CONTENT = JSON.stringify({
 function createSimulatedNautobotFetch(config: {
   reachable: boolean;
   devices?: any[];
+  existingTags?: Array<{ name: string; content_types?: string[] }>;
+  capturedUrls?: string[];
   delayMs?: number;
 }): typeof fetch {
   return (async (input: RequestInfo | URL) => {
@@ -70,17 +72,42 @@ function createSimulatedNautobotFetch(config: {
     if (!config.reachable) {
       throw new Error('ECONNREFUSED simulated Nautobot outage');
     }
-    const url = String(input);
-    const jsonResponse = (body: unknown) =>
+    const urlStr = String(input);
+    config.capturedUrls?.push(urlStr);
+    const parsed = new URL(urlStr);
+    const jsonResponse = (body: unknown, status = 200) =>
       new Response(JSON.stringify(body), {
-        status: 200,
+        status,
         headers: { 'Content-Type': 'application/json' }
       });
 
-    if (url.includes('/api/status/')) {
+    // Reproduit STRICT_FILTERING = True de Nautobot 2.x : `tag` (singulier) => HTTP 400
+    if (parsed.searchParams.has('tag')) {
+      return jsonResponse({ tag: ['Unknown filter field'] }, 400);
+    }
+
+    if (parsed.pathname === '/api/status/') {
       return jsonResponse({ 'nautobot-version': '2.3.0' });
     }
-    if (url.includes('/api/dcim/devices/')) {
+    if (parsed.pathname === '/api/extras/tags/') {
+      const nameFilter = parsed.searchParams.get('name');
+      const allTags = config.existingTags ?? [];
+      const results = nameFilter ? allTags.filter((t) => t.name === nameFilter) : allTags;
+      return jsonResponse({ results });
+    }
+
+    const tagsParam = parsed.searchParams.get('tags');
+    if (tagsParam) {
+      const tagObj = (config.existingTags ?? []).find((t) => t.name === tagsParam);
+      if (!tagObj) {
+        return jsonResponse(
+          { tags: [`Select a valid choice. ${tagsParam} is not one of the available choices.`] },
+          400
+        );
+      }
+    }
+
+    if (parsed.pathname === '/api/dcim/devices/') {
       return jsonResponse({ results: config.devices ?? [] });
     }
     return jsonResponse({ results: [] });
@@ -377,5 +404,44 @@ describe('Issue #379 — Job de réconciliation périodique et vue Dérive', () 
     });
     const earlyResults = await scheduler.runDueProjects();
     expect(earlyResults.some((r) => r.projectId === PROJECT_ID)).toBe(false);
+  });
+
+  it('envoie le filtre Nautobot 2.x `tags` (jamais `tag`) quand le tag projet existe, et reste sain si le tag est absent', async () => {
+    const urlsWithTag: string[] = [];
+    const runWithTag = await reconcileProject(PROJECT_ID, {
+      trigger: 'manual',
+      fetchImpl: createSimulatedNautobotFetch({
+        reachable: true,
+        existingTags: [
+          {
+            name: `project-${SCOPE}`,
+            content_types: ['tenancy.tenant', 'dcim.device', 'ipam.prefix']
+          }
+        ],
+        devices: [],
+        capturedUrls: urlsWithTag
+      }),
+      now: () => new Date('2026-11-21T10:20:00.000Z')
+    });
+    expect(runWithTag.status).toBe('succeeded');
+    expect(urlsWithTag.some((u) => u.includes('/api/dcim/devices/?limit=200&tags=project-rec379'))).toBe(true);
+    expect(urlsWithTag.some((u) => u.includes('/api/ipam/vlans/?limit=200&tags='))).toBe(false);
+    expect(urlsWithTag.some((u) => u.includes('&tag='))).toBe(false);
+
+    const urlsWithoutTag: string[] = [];
+    const runWithoutTag = await reconcileProject(PROJECT_ID, {
+      trigger: 'manual',
+      fetchImpl: createSimulatedNautobotFetch({
+        reachable: true,
+        existingTags: [],
+        devices: [],
+        capturedUrls: urlsWithoutTag
+      }),
+      now: () => new Date('2026-11-21T10:25:00.000Z')
+    });
+    expect(runWithoutTag.status).toBe('succeeded');
+    expect(urlsWithoutTag.some((u) => u.includes('/api/dcim/devices/?limit=200'))).toBe(true);
+    expect(urlsWithoutTag.some((u) => u.includes('&tags='))).toBe(false);
+    expect(urlsWithoutTag.some((u) => u.includes('&tag='))).toBe(false);
   });
 });

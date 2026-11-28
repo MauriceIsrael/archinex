@@ -18,6 +18,7 @@ import {
   normalizeProjectScope,
   projectTagName,
   resolveProjectNautobotOptions,
+  resolveProjectTagFilter,
   unscopeNautobotName,
   type NautobotClientOptions
 } from './nautobotSync';
@@ -418,7 +419,6 @@ export async function reconcileProject(
     const scope = nautobotOpts.projectScope
       ? normalizeProjectScope(nautobotOpts.projectScope)
       : undefined;
-    const tagFilter = scope ? `&tag=${encodeURIComponent(projectTagName(scope))}` : '';
 
     // 1. Vérification de disponibilité Nautobot
     const statusProbe = await fetchNautobotJson('/api/status/', nautobotOpts);
@@ -468,13 +468,25 @@ export async function reconcileProject(
       };
     }
 
-    // 2. Lecture en direct des 3 familles de la tranche minimale (Tenant, Device, Prefix/VLAN/IP)
-    const endpoints: Array<{ modelName: string; path: string; required: boolean }> = [
-      { modelName: 'tenancy.tenant', path: `/api/tenancy/tenants/?limit=200${tagFilter}`, required: false },
-      { modelName: 'dcim.device', path: `/api/dcim/devices/?limit=200${tagFilter}`, required: true },
-      { modelName: 'ipam.prefix', path: `/api/ipam/prefixes/?limit=200${tagFilter}`, required: false },
-      { modelName: 'ipam.vlan', path: `/api/ipam/vlans/?limit=200${tagFilter}`, required: false },
-      { modelName: 'ipam.ipaddress', path: `/api/ipam/ip-addresses/?limit=200${tagFilter}`, required: false }
+    // 2. Résolution du filtre tag Nautobot 2.x (`tags=...`) uniquement si le tag existe et couvre le content_type
+    const resolvedTagFilter = await resolveProjectTagFilter(scope, nautobotOpts);
+
+    // Lecture en direct des 3 familles de la tranche minimale (Tenant, Device, Prefix/VLAN/IP)
+    const buildEndpoint = (modelName: string, basePath: string, required: boolean) => {
+      const tf = resolvedTagFilter.forModel(modelName);
+      return {
+        modelName,
+        path: `${basePath}?limit=200${tf}`,
+        required,
+        usesTagFilter: tf !== ''
+      };
+    };
+    const endpoints = [
+      buildEndpoint('tenancy.tenant', '/api/tenancy/tenants/', false),
+      buildEndpoint('dcim.device', '/api/dcim/devices/', true),
+      buildEndpoint('ipam.prefix', '/api/ipam/prefixes/', false),
+      buildEndpoint('ipam.vlan', '/api/ipam/vlans/', false),
+      buildEndpoint('ipam.ipaddress', '/api/ipam/ip-addresses/', false)
     ];
 
     const liveByModel = new Map<string, Map<string, Record<string, any>>>();
@@ -493,13 +505,38 @@ export async function reconcileProject(
       const rawResults: any[] = Array.isArray(res.data?.results) ? res.data.results : [];
       for (const item of rawResults) {
         if (!item || typeof item !== 'object') continue;
-        // Filtrage par scope projet pour les objets nommés (Tenant, Device, VLAN)
-        if (scope && (ep.modelName === 'dcim.device' || ep.modelName === 'tenancy.tenant')) {
-          const rawName = String(item.name || '');
+        // Filtrage par scope projet pour isoler les objets sur instance partagée
+        if (scope) {
           const markers = extractArchinexMarkers(item);
-          const matchesScope =
-            belongsToProjectScope(rawName, scope) || markers.projectId === projectId;
-          if (!matchesScope) continue;
+          const expectedTag = projectTagName(scope).toLowerCase();
+          const hasProjectTag =
+            Array.isArray(item.tags) &&
+            item.tags.some((t: any) => {
+              const name = typeof t === 'string' ? t : t?.name;
+              return typeof name === 'string' && name.toLowerCase() === expectedTag;
+            });
+          const expectedNs = `archinex-${scope}`.toLowerCase();
+          const itemNs = String(item.namespace?.name || item.namespace?.display || '').toLowerCase();
+          const expectedVg = `vg-${scope}`.toLowerCase();
+          const itemVg = String(item.vlan_group?.name || item.vlan_group?.display || '').toLowerCase();
+
+          if (ep.modelName === 'dcim.device' || ep.modelName === 'tenancy.tenant') {
+            const rawName = String(item.name || '');
+            const matchesScope =
+              belongsToProjectScope(rawName, scope) ||
+              markers.projectId === projectId ||
+              hasProjectTag;
+            if (!matchesScope) continue;
+          } else if (!ep.usesTagFilter) {
+            const rawName = String(item.name || '');
+            const matchesScope =
+              hasProjectTag ||
+              markers.projectId === projectId ||
+              (rawName ? belongsToProjectScope(rawName, scope) : false) ||
+              (itemNs !== '' && itemNs === expectedNs) ||
+              (itemVg !== '' && itemVg === expectedVg);
+            if (!matchesScope) continue;
+          }
         }
         const key = extractLiveObjectKey(ep.modelName, item, scope);
         if (!key) continue;
